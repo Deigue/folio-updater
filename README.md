@@ -25,3 +25,17 @@ See `requirements.txt` for the full list of dependencies.
 ## Usage
 
 Run the notebook `test.ipynb` to test.
+
+## Development
+
+### Setting up nbstripout for Contribution
+
+To ensure clean diffs and avoid committing notebook outputs, set up [nbstripout](https://github.com/kynan/nbstripout):
+
+```bash
+nbstripout --install
+```
+
+This will automatically strip output cells from Jupyter notebooks before committing changes.
+
+Note: Add to IDE path (.venv $env:PATH) if needed by virtual environment terminal.
