@@ -1,5 +1,6 @@
 import shutil
 import pytest
+import sys
 
 @pytest.fixture
 def temp_project(tmp_path):
@@ -25,3 +26,16 @@ def temp_config_path(temp_project):
     Returns a path to a config.yaml inside the temp project.
     """
     return temp_project / "config.yaml"
+
+@pytest.fixture
+def patched_config(temp_config_path):
+    """
+    Reloads src.config fresh and patches CONFIG_PATH + PROJECT_ROOT
+    to use the temporary config path for isolation in tests.
+    """
+    sys.modules.pop("src.config", None)
+    from src import config
+
+    config.CONFIG_PATH = temp_config_path
+    config.PROJECT_ROOT = temp_config_path.parent
+    return config
