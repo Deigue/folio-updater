@@ -4,16 +4,22 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 CONFIG = {}
-SHEET_NAME = None
+FOLIO_PATH = None
+SHEETS = {}
 
 # Default configuration
 DEFAULT_CONFIG = {
-    "sheet_name": "Tickers",
+    "folio_path": "data/folio.xlsx",
+    "sheets": {
+        "tickers": "Tickers"
+    }
 }
 
 def load_config(path=CONFIG_PATH):
-    # Created config.yaml if it doesn't exist
-    if not CONFIG_PATH.exists():
+    """
+    Load config.yaml from disk, creating it if missing.
+    """
+    if not path.exists():
         with open(path, "w") as f:
             yaml.safe_dump(DEFAULT_CONFIG, f)
 
@@ -24,13 +30,17 @@ def load_config(path=CONFIG_PATH):
 
 def reload_config():
     """Reload config.yaml and update module-level constants."""
-    global CONFIG, SHEET_NAME
+    global CONFIG, FOLIO_PATH, SHEETS
     CONFIG = load_config()
-    SHEET_NAME = CONFIG["sheet_name"]
+    folio_path = Path(CONFIG["folio_path"])
+    if not folio_path.is_absolute():
+        folio_path = PROJECT_ROOT / folio_path
+    FOLIO_PATH = folio_path.resolve()
 
-def get_config_value(key, default=None):
-    """Get a configuration value by key, with an optional default."""
-    return CONFIG.get(key, default)
+    # Create parent dirs if they don't exist
+    FOLIO_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    SHEETS = CONFIG.get("sheets", {})
 
 # Initial load
 reload_config()

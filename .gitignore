@@ -28,9 +28,9 @@ desktop.ini
 *.sqlite
 *.sqlite3
 
-# Local configs
+# Local configs and data
+/data/
 config.yaml
 
 # Temporary files
-*.xlsx
 notebooks/sample.ipynb
