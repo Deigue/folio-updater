@@ -1,0 +1,9 @@
+# Auto-detect text files and normalize line endings to LF in repo
+* text=auto
+
+# Force Python files to use LF
+*.py text eol=lf
+*.ipynb text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
