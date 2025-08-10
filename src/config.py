@@ -2,7 +2,8 @@ import yaml
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+def get_config_path():
+    return PROJECT_ROOT / "config.yaml"
 CONFIG = {}
 FOLIO_PATH = None
 LOG_LEVEL = None
@@ -17,11 +18,12 @@ DEFAULT_CONFIG = {
     }
 }
 
-def load_config(path=CONFIG_PATH):
+def load_config():
     global CONFIG, FOLIO_PATH, LOG_LEVEL, SHEETS
     """
     Load config.yaml from disk, creating it if missing.
     """
+    path = get_config_path()
     if not path.exists():
         with open(path, "w") as f:
             yaml.safe_dump(DEFAULT_CONFIG, f)
@@ -39,6 +41,3 @@ def load_config(path=CONFIG_PATH):
     SHEETS = CONFIG.get("sheets", {})
 
     return config
-
-# Initial load
-load_config()
