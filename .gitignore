@@ -28,8 +28,9 @@ desktop.ini
 *.sqlite
 *.sqlite3
 
-# Local configs and data
-/data/
+# Local files
+/data
+/logs
 config.yaml
 
 # Temporary files

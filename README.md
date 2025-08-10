@@ -23,19 +23,21 @@ See `requirements.txt` for the full list of dependencies.
    ```
 ## Configuration (`config.yaml`)
 
-This project uses a `config.yaml` file at the root of the repository to store file paths and sheet names.  
+This project uses a `config.yaml` file at the root of the repository.  
 It is **auto-generated** with default values the first time you run the application.
 
 ### Default structure
 ```yaml
 folio_path: data/folio.xlsx
+log_level: ERROR  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
 ```
 
 | Key              | Description                                                                                                                                                                                                                                                            |
-| ---------------- |------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **`folio_path`** | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
+| **`log_level`**  | Sets the application’s logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
 | **`sheets`**     | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
 
 
