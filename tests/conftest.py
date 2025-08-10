@@ -28,7 +28,7 @@ def temp_config_path(temp_project):
     return temp_project / "config.yaml"
 
 @pytest.fixture
-def patched_config(temp_config_path):
+def config_with_temp(temp_config_path):
     """
     Reloads src.config fresh and patches CONFIG_PATH + PROJECT_ROOT
     to use the temporary config path for isolation in tests.
@@ -38,4 +38,4 @@ def patched_config(temp_config_path):
 
     config.CONFIG_PATH = temp_config_path
     config.PROJECT_ROOT = temp_config_path.parent
-    return config
+    return config, temp_config_path
