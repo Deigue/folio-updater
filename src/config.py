@@ -36,10 +36,6 @@ def reload_config():
     if not folio_path.is_absolute():
         folio_path = PROJECT_ROOT / folio_path
     FOLIO_PATH = folio_path.resolve()
-
-    # Create parent dirs if they don't exist
-    FOLIO_PATH.parent.mkdir(parents=True, exist_ok=True)
-
     SHEETS = CONFIG.get("sheets", {})
 
 # Initial load
