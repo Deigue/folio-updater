@@ -33,4 +33,4 @@ def config_with_temp(tmp_path):
     _close_log_handlers()  # <-- close before deleting temp dir
     shutil.rmtree(project_root, ignore_errors=True)
     if str(project_root) in sys.path:
-        sys.path.remove(str(project_root))
+        sys.path.remove(str(project_root)) # pragma: no cover

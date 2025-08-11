@@ -49,23 +49,24 @@ def test_bootstrapping(config_with_temp):
     bad_folio = path.parent / "nonexistent" / "folio.xlsx"
     yaml.safe_dump({
         "folio_path": str(bad_folio),
-        "log_level": "ERROR",
+        "log_level": "DEBUG",
         "sheets": {"tickers": "Tickers"}
     }, open(path, "w"))
 
     # Ensure the folio file is created
     config.load_config()
     from src import bootstrap
+    assert config.LOG_LEVEL == "DEBUG"
 
     # --- 2. Test reload_config updates config ---
     # Modify log_level in config.yaml
     yaml.safe_dump({
         "folio_path": str(bad_folio),
-        "log_level": "DEBUG",
+        "log_level": "CRITICAL",
         "sheets": {"tickers": "Tickers"}
     }, open(path, "w"))
 
     bootstrap.reload_config()
 
     # Check if the folio file exists
-    assert config.LOG_LEVEL == "DEBUG"
+    assert config.LOG_LEVEL == "CRITICAL"
