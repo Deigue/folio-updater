@@ -1,5 +1,6 @@
-import yaml
 from src import setup_data
+import logging
+logger = logging.getLogger(__name__)
 
 def test_folio_created_and_deleted(config_with_temp):
     config, path = config_with_temp
@@ -11,6 +12,7 @@ def test_folio_created_and_deleted(config_with_temp):
         folio_file.unlink()
 
     setup_data.ensure_folio_exists()
+    logger.info("Folio file path: %s", folio_file)
     assert folio_file.exists()
 
     # Cleanup
