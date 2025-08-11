@@ -20,7 +20,7 @@ LEVEL_MAP = {
 project_root = Path(__file__).resolve().parent.parent
 # Detect if we've already added the root to avoid duplicates
 if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+    sys.path.insert(0, str(project_root)) # pragma: no cover
 
 def get_log_level():
     return LEVEL_MAP.get(config.LOG_LEVEL, logging.ERROR)

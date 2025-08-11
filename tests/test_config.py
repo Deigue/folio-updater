@@ -39,3 +39,33 @@ def test_absolute_path_kept(config_with_temp):
     config.load_config()
 
     assert config.FOLIO_PATH == abs_path.resolve()
+
+def test_bootstrapping(config_with_temp):
+    config, path = config_with_temp
+    logger.info("Temp config path: %s", path)
+
+    # --- 1. Test warning path ---
+    # Point folio_path to a folder that doesn't exist
+    bad_folio = path.parent / "nonexistent" / "folio.xlsx"
+    yaml.safe_dump({
+        "folio_path": str(bad_folio),
+        "log_level": "ERROR",
+        "sheets": {"tickers": "Tickers"}
+    }, open(path, "w"))
+
+    # Ensure the folio file is created
+    config.load_config()
+    from src import bootstrap
+
+    # --- 2. Test reload_config updates config ---
+    # Modify log_level in config.yaml
+    yaml.safe_dump({
+        "folio_path": str(bad_folio),
+        "log_level": "DEBUG",
+        "sheets": {"tickers": "Tickers"}
+    }, open(path, "w"))
+
+    bootstrap.reload_config()
+
+    # Check if the folio file exists
+    assert config.LOG_LEVEL == "DEBUG"

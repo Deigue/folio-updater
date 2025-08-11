@@ -1,9 +1,15 @@
 import shutil
 import pytest
 import sys
+import logging
+
+def _close_log_handlers():
+    for handler in logging.root.handlers[:]:
+        handler.close()
+        logging.root.removeHandler(handler)
 
 @pytest.fixture
-def temp_project(tmp_path):
+def config_with_temp(tmp_path):
     """
     Creates a temporary project structure with an isolated config.yaml.
     """
@@ -11,24 +17,8 @@ def temp_project(tmp_path):
     (project_root / "src").mkdir()
     (project_root / "data").mkdir()
 
-    # Copy minimal source files needed for config + setup_data
-    import sys
-    sys.path.insert(0, str(project_root))
+    temp_config_path = project_root / "config.yaml"
 
-    yield project_root
-
-    # Cleanup after test
-    shutil.rmtree(project_root)
-
-@pytest.fixture
-def temp_config_path(temp_project):
-    """
-    Returns a path to a config.yaml inside the temp project.
-    """
-    return temp_project / "config.yaml"
-
-@pytest.fixture
-def config_with_temp(temp_config_path):
     """
     Reloads src.config fresh and patches CONFIG_PATH + PROJECT_ROOT
     to use the temporary config path for isolation in tests.
@@ -38,4 +28,9 @@ def config_with_temp(temp_config_path):
 
     config.CONFIG_PATH = temp_config_path
     config.PROJECT_ROOT = temp_config_path.parent
-    return config, temp_config_path
+
+    yield config, temp_config_path
+    _close_log_handlers()  # <-- close before deleting temp dir
+    shutil.rmtree(project_root, ignore_errors=True)
+    if str(project_root) in sys.path:
+        sys.path.remove(str(project_root))
