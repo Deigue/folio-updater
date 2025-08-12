@@ -1,3 +1,8 @@
+"""
+Configuration management for the application.
+This module handles loading and managing the application's configuration settings,
+"""
+
 import yaml
 from pathlib import Path
 

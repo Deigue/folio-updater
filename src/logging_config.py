@@ -1,3 +1,7 @@
+"""
+Logging configuration for the Folio project.
+"""
+
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from src import config

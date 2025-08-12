@@ -1,3 +1,7 @@
+"""
+Setup data for the application
+"""
+
 import logging
 import pandas as pd
 
