@@ -18,6 +18,7 @@ def test_default_config_creation(config_with_temp):
     with open(path) as f:
         saved = yaml.safe_load(f)
 
+    logger.info("Saved config: %s", saved)
     # Compare the default values
     from src.config import DEFAULT_CONFIG
     assert saved == DEFAULT_CONFIG
