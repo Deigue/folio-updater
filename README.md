@@ -32,15 +32,22 @@ folio_path: data/folio.xlsx
 log_level: ERROR  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
+header_keywords:
+  TxnDate: [txndate, transaction date, date]
+  Action: [action, type, activity]
+  Amount: [amount, value, total]
+  $: [$, currency, curr]
+  Price: [price, unit price, share price]
+  Units: [units, shares, qty, quantity]
+  Ticker: [ticker, symbol, stock]
 ```
 
-| Key              | Description                                                                                                                                                                                                                                                            |
-|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **`folio_path`** | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
-| **`log_level`**  | Sets the application’s logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
-| **`sheets`**     | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
-
-## Transaction Sheet Schema (Flexible)
+| Key                   | Description                                                                                                                                                                                                                                                            |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`folio_path`**      | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
+| **`log_level`**       | Sets the application’s logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
+| **`sheets`**          | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
+| **`header_keywords`** | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |  
 
 Essential fields (internal names):
 - `TxnDate` - transaction date (YYYY-MM-DD)
