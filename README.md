@@ -40,6 +40,25 @@ sheets:
 | **`log_level`**  | Sets the application’s logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
 | **`sheets`**     | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
 
+## Transaction Sheet Schema (Flexible)
+
+Essential fields (internal names):
+- `TxnDate` - transaction date (YYYY-MM-DD)
+- `Action` - BUY or SELL
+- `Amount` - Total amount (Price * Units)
+- `$` - currency code (e.g., USD)
+- `Price` - price per unit
+- `Units` - number of units
+- `Ticker` - security symbol
+
+Flexibility:
+- These columns may be named differently and appear in any order in your Excel `Txns` sheet.
+- `config.yaml` contains `header_keywords` to map Excel header labels to the internal fields.
+- The app will attempt to map headers; if any essential field cannot be matched, import will fail with a clear error.
+
+Default behavior:
+- If `data/folio.xlsx` does not exist, the app will create a default file.
+
 
 ## Usage
 
