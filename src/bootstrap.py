@@ -8,7 +8,7 @@ import sys
 import logging
 from pathlib import Path
 from src import config
-from src.logging_config import setup_logging
+from src.logging_setup import init_logging
 
 LEVEL_MAP = {
     "DEBUG": logging.DEBUG,
@@ -23,23 +23,23 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root)) # pragma: no cover
 
-def get_log_level():
+def _get_log_level():
     return LEVEL_MAP.get(config.LOG_LEVEL, logging.ERROR)
 
-def init_logging_from_config():
-    setup_logging(level=get_log_level())
+def _init_logging_from_config():
+    init_logging(level=_get_log_level())
+
+def reload_config():
+    config.load_config()
+    _init_logging_from_config()
+    logger.info(f"Loaded config and set log level to: {logging.getLevelName(_get_log_level())}")
+    return config
 
 # Bootstrap app...
-config.load_config()
-init_logging_from_config()
-
 logger = logging.getLogger(__name__)
+reload_config()
+
 # Config validation
 if not Path(config.FOLIO_PATH).parent.exists():
     logger.warning(f"Folio directory does not exist: {config.FOLIO_PATH.parent}")
 
-def reload_config():
-    config.load_config()
-    init_logging_from_config()
-    logger.info(f"Reloaded config and set log level to: {logging.getLevelName(get_log_level())}")
-    return config

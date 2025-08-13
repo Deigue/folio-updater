@@ -34,7 +34,7 @@ class ColorFormatter(logging.Formatter):
         return output
 
 
-def setup_logging(level=logging.INFO):
+def init_logging(level=logging.INFO):
     """
     Configure logging to output
     - Colorized console logs

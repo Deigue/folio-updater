@@ -1,5 +1,5 @@
 """
-Setup data for the application
+Setup initial or default folio for the application.
 """
 
 import logging
