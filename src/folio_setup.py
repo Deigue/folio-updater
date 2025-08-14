@@ -5,6 +5,8 @@ Setup initial or default folio for the application.
 import logging
 import pandas as pd
 
+from src.constants import DEFAULT_TICKERS
+
 logger = logging.getLogger(__name__)
 
 def ensure_folio_exists():
@@ -33,7 +35,7 @@ def create_default_folio():
     Common but varied tickers added to test different data scenarios.
     """
     from src import config
-    df = pd.DataFrame({"Ticker": ["SPY", "AAPL"]})
+    df = pd.DataFrame({"Ticker": DEFAULT_TICKERS})
     tickers_sheet = config.SHEETS["tickers"]
 
     with pd.ExcelWriter(config.FOLIO_PATH, engine="openpyxl") as writer:
