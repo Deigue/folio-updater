@@ -1,10 +1,10 @@
 """
 Ingest Excel data into the application context.
 """
+
 import pandas as pd
 import logging
-from . import db, schema
-from src.constants import TXN_ESSENTIALS
+from src import schema, db
 
 logger = logging.getLogger(__name__)
 
@@ -21,21 +21,12 @@ def import_transactions(folio_path) -> int:
         logger.warning("No 'Txns' sheet found in Excel.")
         return 0
 
-    schema.map
-
-    # Determine mapping from internal_name -> actual Excel header
-    mapping = schema.map_headers(df_txns.columns)
-    # Reverse mapping to rename DataFrame columns to internal names
-    rename_map = { excel_col: internal for internal, excel_col in mapping.items() }
-
-    df_internal = df_txns.rename(columns=rename_map)
-
-    # Ensure all essential columns are present and ordered
-    df_internal = df_internal[TXN_ESSENTIALS]
+    df_ready = schema.prepare_txns_for_db(df_txns)
 
     with db.get_connection() as conn:
-        df_internal.to_sql("Txns", conn, if_exists="append", index=False)
+        # TODO: Utilize constant from config for Txns table
+        df_ready.to_sql("Txns", conn, if_exists="append", index=False)
 
-    logger.info("Imported %d transactions from Excel into DB.", len(df_internal))
-    return len(df_internal)
-
+    txn_count = len(df_ready)
+    logger.info("Imported %d transactions from Excel into DB.", txn_count)
+    return txn_count
