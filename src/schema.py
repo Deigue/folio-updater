@@ -4,7 +4,7 @@ Schema utilities to use with the database and Excel files.
 
 import logging
 import re
-from typing import Any
+import pandas as pd
 
 from src.constants import TXN_ESSENTIALS
 from src import config
@@ -18,6 +18,12 @@ def _normalize(name: str) -> str:
         return name
     return re.sub(r"[^a-z0-9$]", "", name)
 
+def prepare_txns_for_db(excel_df: pd.DataFrame):
+    """
+    TODO: map_headers is too naive, method here should be robust enough
+    to handle df from Excel and transform it to cleanly ingest into DB.
+    """
+    return NotImplementedError
 
 def map_headers(excel_headers):
     """
