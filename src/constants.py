@@ -2,6 +2,7 @@
 Non-user-configurable defaults/constants used throughout the app.
 """
 
+
 # Internal transaction fields that are essential for processing
 TXN_ESSENTIALS = [
     "TxnDate",  # Date of transaction

@@ -4,6 +4,7 @@ This allows importing from src/ anywhere (scripts, notebooks, etc.)
 without adjusting PYTHONPATH manually.
 """
 
+
 import sys
 import logging
 from pathlib import Path
