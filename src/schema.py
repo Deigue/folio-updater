@@ -20,8 +20,21 @@ def _normalize(name: str) -> str:
 
 def prepare_txns_for_db(excel_df: pd.DataFrame):
     """
-    TODO: map_headers is too naive, method here should be robust enough
-    to handle df from Excel and transform it to cleanly ingest into DB.
+    Transform a transaction DataFrame from Excel to match the current
+    Txns schema.
+    Steps:
+    1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
+    2. Ensure all TXN_ESSENTIALS are present.
+    3. Merge with existing Txns schema so prior optional columns are preserved.
+    4. Append any new optional columns from Excel to the schema.
+    5. Reorder columns: TXN_ESSENTIALS first, then existing optionals, then
+    new optionals.
+
+    Args:
+        excel_df: DataFrame read from Excel with transaction data.
+
+    Returns:
+        DataFrame ready for DB insertion with correct columns and order.
     """
     return NotImplementedError
 
