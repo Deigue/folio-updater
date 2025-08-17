@@ -67,4 +67,4 @@ def init_logging(level=logging.INFO):
     ))
     root_logger.addHandler(file_handler)
 
-    logging.info(f"Logging initialized with level: {logging.getLevelName(level)}")
+    logging.debug(f"Logging initialized with level: {logging.getLevelName(level)}")

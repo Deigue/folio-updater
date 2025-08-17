@@ -10,6 +10,7 @@ import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
 from copy import deepcopy
+ 
 
 
 # Type definitions
@@ -133,3 +134,6 @@ def load_config() -> Config:
     SHEETS = CONFIG["sheets"]
     HEADER_KEYWORDS = CONFIG["header_keywords"]
     return CONFIG
+
+def tickers_sheet() -> str:
+    return SHEETS["tickers"]

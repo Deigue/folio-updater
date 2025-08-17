@@ -82,7 +82,7 @@ def test_bootstrapping(config_with_temp):
 
     # Check if the folio file exists
     assert config.LOG_LEVEL == "DEBUG"
-    assert config.SHEETS["tickers"] == "TKR"
+    assert config.tickers_sheet() == "TKR"
     assert config.HEADER_KEYWORDS["TxnDate"] == ["settledate"]
 
     # --- 3. Ensure logging is configured ---
