@@ -1,7 +1,6 @@
+import logging
 import yaml
 from pathlib import Path
-import logging
-
 from tests.conftest import config_with_temp
 
 logger = logging.getLogger(__name__)
@@ -51,23 +50,40 @@ def test_bootstrapping(config_with_temp):
     yaml.safe_dump({
         "folio_path": str(bad_folio),
         "log_level": "INVALID",
-        "sheets": {"tickers": "Tickers"}
+        "sheets": {"tickers": "Tickers"},
+        "header_keywords": {
+            "TxnDate": ["txndate", "transaction date", "date"],
+            "Action": ["action", "type", "activity"],
+            "Amount": ["amount", "value", "total"],
+            "$": ["$", "currency", "curr"],
+            "Price": ["price", "unit price", "share price"],
+            "Units": ["units", "shares", "qty", "quantity"],
+            "Ticker": ["ticker", "symbol", "stock"],
+            "InvalidKeyword": ["invalid"]
+        }
     }, open(path, "w"))
 
     # Ensure a compliant folio file is created.
     config.load_config()
     from src import bootstrap
     assert config.LOG_LEVEL == "ERROR"
+    assert not config.HEADER_KEYWORDS.__contains__("InvalidKeyword")
 
     # --- 2. Test reload_config updates config ---
-    # Modify log_level in config.yaml
     yaml.safe_dump({
         "folio_path": str(bad_folio),
-        "log_level": "CRITICAL",
-        "sheets": {"tickers": "Tickers"}
+        "log_level": "DEBUG",
+        "sheets": {"tickers": "TKR"},
+        "header_keywords": {
+            "TxnDate": ["settledate"]
+        }
     }, open(path, "w"))
-
     bootstrap.reload_config()
 
     # Check if the folio file exists
-    assert config.LOG_LEVEL == "CRITICAL"
+    assert config.LOG_LEVEL == "DEBUG"
+    assert config.SHEETS["tickers"] == "TKR"
+    assert config.HEADER_KEYWORDS["TxnDate"] == ["settledate"]
+
+    # --- 3. Ensure logging is configured ---
+    logger.debug("This message is colorized!")
