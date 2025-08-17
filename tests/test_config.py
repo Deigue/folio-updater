@@ -45,19 +45,19 @@ def test_bootstrapping(config_with_temp):
     config, path = config_with_temp
     logger.info("Temp config path: %s", path)
 
-    # --- 1. Test warning path ---
+    # --- 1. Test problematic bootstrap  ---
     # Point folio_path to a folder that doesn't exist
     bad_folio = path.parent / "nonexistent" / "folio.xlsx"
     yaml.safe_dump({
         "folio_path": str(bad_folio),
-        "log_level": "DEBUG",
+        "log_level": "INVALID",
         "sheets": {"tickers": "Tickers"}
     }, open(path, "w"))
 
-    # Ensure the folio file is created
+    # Ensure a compliant folio file is created.
     config.load_config()
     from src import bootstrap
-    assert config.LOG_LEVEL == "DEBUG"
+    assert config.LOG_LEVEL == "ERROR"
 
     # --- 2. Test reload_config updates config ---
     # Modify log_level in config.yaml
