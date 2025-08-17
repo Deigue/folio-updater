@@ -14,6 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize(name: str) -> str:
+    """
+    Normalize a string by converting to lowercase and removing non-alphanumeric
+    characters. (except $)
+
+    Args:
+        name: The input string to normalize
+
+    Returns:
+        str: The normalized string, or empty string if applicable
+
+    Example:
+        >>> _normalize("  Transaction Date  ")
+        'transactiondate'
+    """
     name = name.strip().lower()
     if not name:
         return name
