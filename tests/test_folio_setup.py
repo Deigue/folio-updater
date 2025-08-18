@@ -48,3 +48,6 @@ def test_folio_not_exists(config_with_temp):
 
     with pytest.raises(FileNotFoundError):
         folio_setup.ensure_folio_exists()
+
+    # Check that the file is not created
+    assert not missing_path.exists()

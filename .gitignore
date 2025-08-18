@@ -3,6 +3,7 @@
 .idea/
 *.sublime-project
 *.sublime-workspace
+.coverage
 
 # Python cache
 __pycache__/

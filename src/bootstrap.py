@@ -42,5 +42,4 @@ reload_config()
 
 # Config validation
 if not Path(config.FOLIO_PATH).parent.exists():
-    logger.warning(f"Folio directory does not exist: {config.FOLIO_PATH.parent}")
-
+    logger.warning(f"Folio directory does not exist: {config.FOLIO_PATH.parent}")  # pragma: no cover

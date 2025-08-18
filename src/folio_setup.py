@@ -41,5 +41,7 @@ def ensure_folio_exists():
         msg = f"The folder '{parent_dir}' does not exist. Please create it before running."
         logger.error(msg)
         raise FileNotFoundError(msg)
+    else:
+        logger.debug(f"Folio path is valid: {folio_path}") # pragma: no cover
 
     _create_default_folio()
