@@ -13,6 +13,12 @@ def import_transactions(folio_path) -> int:
     """
     Imports transactions from Excel files. Maps headers to internal fields.
     Keeps TXN_ESSENTIALS first, then existing DB columns, then net new columns.
+
+    Args:
+        folio_path (str): Path to the Excel file containing transactions.
+
+    Returns:
+        int: Number of transactions imported.
     """
     try:
         # TODO: Be able to read any generic Excel file with transactions
