@@ -8,6 +8,7 @@ from src import folio_setup
 logger = logging.getLogger(__name__)
 
 def test_folio_created_and_deleted(config_with_temp):
+    # TODO: Test default folio structure.
     config, path = config_with_temp
     config.load_config()
 

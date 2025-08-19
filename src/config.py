@@ -16,6 +16,7 @@ from copy import deepcopy
 # Type definitions
 class SheetsConfig(TypedDict):
     tickers: str
+    txns: str
 
 HeaderKeywords = TypedDict(
     "HeaderKeywords",
@@ -45,7 +46,8 @@ DEFAULT_CONFIG: Config = {
     "folio_path": "data/folio.xlsx",
     "log_level": "ERROR",
     "sheets": {
-        "tickers": "Tickers"
+        "tickers": "Tickers",
+        "txns": "Txns"
     },
     "header_keywords": {
         "TxnDate": ["txndate", "transaction date", "date"],
@@ -136,4 +138,19 @@ def load_config() -> Config:
     return CONFIG
 
 def tickers_sheet() -> str:
-    return SHEETS["tickers"]
+    """
+    Get the name of the tickers sheet from the configuration.
+
+    Returns:
+        str: The name of the tickers sheet
+    """
+    return SHEETS.get("tickers")
+
+def transactions_sheet() -> str:
+    """
+    Get the name of the transactions sheet from the configuration.
+
+    Returns:
+        str: The name of the transactions sheet
+    """
+    return SHEETS.get("txns")
