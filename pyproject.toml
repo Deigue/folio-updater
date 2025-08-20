@@ -1,0 +1,19 @@
+[project]
+name = "folio-updater"
+version = "0.1.0"
+authors = [
+    { name = "Deigue"},
+]
+description = "Folio Updater"
+readme = "README.md"
+requires-python = ">=3.8"
+
+[tool.ruff]
+
+[tool.coverage.run]
+
+[tool.coverage.report]
+show_missing = true
+omit = ['*/__init__.py']
+
+[tool.coverage.paths]
