@@ -1,8 +1,0 @@
-[run]
-
-[paths]
-
-[report]
-show_missing = True
-omit =
-    */__init__.py

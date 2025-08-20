@@ -1,0 +1,7 @@
+[tool.ruff]
+
+[tool.coverage.run]
+[tool.coverage.report]
+show_missing = true
+omit = ['*/__init__.py']
+[tool.coverage.paths]
