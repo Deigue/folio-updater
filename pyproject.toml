@@ -18,8 +18,8 @@ omit = ['*/__init__.py']
 
 [tool.ruff]
 line-length = 120
-extend-select = ["ALL"]
-ignore = []
+lint.extend-select = ["ALL"]
+lint.ignore = []
 src = ["folio_updater"]
 exclude = ["**/Lib/**", "**/coverage/**", "**/.venv/**", "**/.git/**", "**/.vscode/**"]
 
