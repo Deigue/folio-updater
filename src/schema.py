@@ -2,13 +2,13 @@
 Schema utilities to use with the database and Excel files.
 """
 
-
 import logging
 import re
+
 import pandas as pd
 
-from src.constants import TXN_ESSENTIALS
 from src import config, db
+from src.constants import TXN_ESSENTIALS
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +33,11 @@ def _normalize(name: str) -> str:
         return name
     return re.sub(r"[^a-z0-9$]", "", name)
 
+
 # TODO Test this function for different edge cases
 def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Transform a transaction DataFrame from Excel to match the current
-    Txns schema.
+    """Transform a transaction DataFrame from Excel to match the current Txns schema.
+
     Steps:
     1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
     2. Ensure all TXN_ESSENTIALS are present.
@@ -51,18 +51,19 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         DataFrame ready for DB insertion with correct columns and order.
+
     """
     header_keywords = config.HEADER_KEYWORDS
 
     # Normalize keywords for matching
     norm_keywords: dict[str, set[str]] = {
-        internal: { _normalize(kw) for kw in keywords }
+        internal: {_normalize(kw) for kw in keywords}
         for internal, keywords in header_keywords.items()
     }
 
     # Match internal fields to Excel columns
-    mapping: dict[str, str] ={}
-    unmatched = set(TXN_ESSENTIALS) # copy of essential fields to match
+    mapping: dict[str, str] = {}
+    unmatched = set(TXN_ESSENTIALS)  # copy of essential fields to match
 
     for column in excel_df.columns:
         normalized_column = _normalize(column)
