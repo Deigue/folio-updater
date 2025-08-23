@@ -5,8 +5,6 @@ A template for a portfolio updater project.
 ## Features
 
 - Reads excel data
-- TODO: visualize data
-- TODO: adapt calculation sheets and features
 
 ## Requirements
 
