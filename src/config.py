@@ -1,22 +1,30 @@
-"""
-Configuration management for the application.
+"""Configuration management for the application.
 
 This module handles loading and managing the application's configuration settings.
 It provides a centralized way to access configuration values throughout the application.
 """
 
+from __future__ import annotations
 
-import yaml
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, TypedDict
-from copy import deepcopy
- 
+
+import yaml
 
 
-# Type definitions
 class SheetsConfig(TypedDict):
+    """TypedDict for sheet names in the configuration.
+
+    Attributes:
+        tickers (str): The name of the tickers sheet.
+        txns (str): The name of the transactions sheet.
+
+    """
+
     tickers: str
     txns: str
+
 
 HeaderKeywords = TypedDict(
     "HeaderKeywords",
@@ -31,24 +39,21 @@ HeaderKeywords = TypedDict(
     },
 )
 
+
 class Config(TypedDict):
     folio_path: str
     log_level: str
     sheets: SheetsConfig
     header_keywords: HeaderKeywords
 
+
 # Module-level constants for configuration
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-
-# Default configuration
 DEFAULT_CONFIG: Config = {
     "folio_path": "data/folio.xlsx",
     "log_level": "ERROR",
-    "sheets": {
-        "tickers": "Tickers",
-        "txns": "Txns"
-    },
+    "sheets": {"tickers": "Tickers", "txns": "Txns"},
     "header_keywords": {
         "TxnDate": ["txndate", "transaction date", "date"],
         "Action": ["action", "type", "activity"],
@@ -56,8 +61,8 @@ DEFAULT_CONFIG: Config = {
         "$": ["$", "currency", "curr"],
         "Price": ["price", "unit price", "share price"],
         "Units": ["units", "shares", "qty", "quantity"],
-        "Ticker": ["ticker", "symbol", "stock"]
-    }
+        "Ticker": ["ticker", "symbol", "stock"],
+    },
 }
 
 # Global configuration variables
@@ -67,6 +72,7 @@ LOG_LEVEL: str = DEFAULT_CONFIG["log_level"]
 SHEETS: SheetsConfig = DEFAULT_CONFIG["sheets"].copy()
 HEADER_KEYWORDS: HeaderKeywords = DEFAULT_CONFIG["header_keywords"].copy()
 
+
 def _get_config_path() -> Path:
     """
     Get the absolute path to the configuration file.
@@ -75,6 +81,7 @@ def _get_config_path() -> Path:
         Path: Absolute path to the config.yaml file
     """
     return PROJECT_ROOT / "config.yaml"
+
 
 def _validate_config(config: Dict[str, Any]) -> Config:
     """
@@ -102,19 +109,23 @@ def _validate_config(config: Dict[str, Any]) -> Config:
         validated["sheets"].update(config["sheets"])
 
     if "header_keywords" in config and isinstance(config["header_keywords"], dict):
-        validated["header_keywords"].update({
-            k: v for k, v in config["header_keywords"].items()
-            if k in DEFAULT_CONFIG["header_keywords"]
-        })
+        validated["header_keywords"].update(
+            {
+                k: v
+                for k, v in config["header_keywords"].items()
+                if k in DEFAULT_CONFIG["header_keywords"]
+            }
+        )
 
     return validated
 
+
 def load_config() -> Config:
-    """
-    Load config.yaml from disk, creating it if it doesn't exist.
+    """Load config.yaml from disk, creating it if it doesn't exist.
 
     Returns:
         Config: The loaded configuration
+
     """
     global CONFIG, FOLIO_PATH, LOG_LEVEL, SHEETS, HEADER_KEYWORDS
     path = _get_config_path()
@@ -131,26 +142,32 @@ def load_config() -> Config:
     # Validate and update global config
     CONFIG = _validate_config(config)
     folio_path = Path(CONFIG["folio_path"])
-    FOLIO_PATH = (PROJECT_ROOT / folio_path).resolve() if not folio_path.is_absolute() else folio_path
+    FOLIO_PATH = (
+        (PROJECT_ROOT / folio_path).resolve()
+        if not folio_path.is_absolute()
+        else folio_path
+    )
     LOG_LEVEL = CONFIG["log_level"]
     SHEETS = CONFIG["sheets"]
     HEADER_KEYWORDS = CONFIG["header_keywords"]
     return CONFIG
 
+
 def tickers_sheet() -> str:
-    """
-    Get the name of the tickers sheet from the configuration.
+    """Get the name of the tickers sheet from the configuration.
 
     Returns:
         str: The name of the tickers sheet
+
     """
     return SHEETS.get("tickers")
 
+
 def transactions_sheet() -> str:
-    """
-    Get the name of the transactions sheet from the configuration.
+    """Get the name of the transactions sheet from the configuration.
 
     Returns:
         str: The name of the transactions sheet
+
     """
     return SHEETS.get("txns")
