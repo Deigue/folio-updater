@@ -75,9 +75,24 @@ Run the notebook `tickers.ipynb` to test.
 
 ## Development
 
-### Setting up nbstripout for Contribution
+### Python Dependency Management
 
-To ensure clean diffs and avoid committing notebook outputs, set up [nbstripout](https://github.com/kynan/nbstripout):
+- **[uv](https://github.com/astral-sh/uv)** – Manage project dependencies and virtual environments.
+
+  Recommended usage:
+  
+  ```bash
+  # Sync all dependencies into your local .venv
+  uv sync --all-groups
+  
+  # Add new dependencies to the project
+  uv add <package-name>
+
+### Code Searching Tool
+
+- **ripgrep (`rg`)** – A fast, recursive search tool for code and text.
+
+### Setting up nbstripout for Contribution
 
 ```bash
 nbstripout --install

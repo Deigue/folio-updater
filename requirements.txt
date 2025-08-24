@@ -1,7 +1,0 @@
-pytest
-pytest-cov
-pyyaml
-pandas
-openpyxl
-nbstripout
-ruff
