@@ -6,7 +6,6 @@ It provides a centralized way to access configuration values throughout the appl
 
 from __future__ import annotations
 
-from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -40,14 +39,18 @@ class Config:
     def __init__(
         self,
         settings: Mapping[str, Any] = DEFAULT_CONFIG,
-        config_path: Path | None = None,
+        project_root: Path | None = None,
     ) -> None:
         """Initialize the Config object."""
         self._settings = settings
-        if config_path is not None:
-            self._config_path = config_path
-        else:
-            self._config_path = Config._get_config_path()
+        self._config_path = Config._get_config_path(project_root)
+
+        if project_root is None:
+            project_root = Config._get_project_root()
+        folio_path = Path(settings["folio_path"])
+        if not folio_path.is_absolute():
+            folio_path: Path = (project_root / settings["folio_path"]).resolve()
+        self._folio_path: Path = folio_path
 
     @property
     def config_path(self) -> Path:
@@ -55,9 +58,9 @@ class Config:
         return self._config_path
 
     @property
-    def folio_path(self) -> str:
+    def folio_path(self) -> Path:
         """Get the folio path."""
-        return self._settings["folio_path"]
+        return self._folio_path
 
     @property
     def log_level(self) -> str:
@@ -94,7 +97,7 @@ class Config:
             Config: The loaded configuration
         """
         config_yaml: Path = cls._get_config_path(project_root)
-        configuration: dict[str, Any] = cls._get_default_config()
+        configuration: dict[str, Any] = dict(cls.DEFAULT_CONFIG)
         if not config_yaml.exists():
             with Path.open(config_yaml, "w", encoding="utf-8") as f:
                 yaml.safe_dump(
@@ -108,7 +111,7 @@ class Config:
                 configuration = yaml.safe_load(f) or {}
 
         configuration = cls._validate_config(configuration)
-        return cls(configuration, config_yaml)
+        return cls(configuration, project_root)
 
     @staticmethod
     def _get_project_root() -> Path:
@@ -121,27 +124,6 @@ class Config:
         return project_root / "config.yaml"
 
     @staticmethod
-    def _get_default_config() -> dict[str, Any]:
-        """Get the default configuration."""
-        return {
-            "folio_path": "data/folio.xlsx",
-            "log_level": "ERROR",
-            "sheets": {
-                "tickers": "Tickers",
-                "txns": "Txns",
-            },
-            "header_keywords": {
-                "TxnDate": ["txndate", "transaction date", "date"],
-                "Action": ["action", "type", "activity"],
-                "Amount": ["amount", "value", "total"],
-                "$": ["$", "currency", "curr"],
-                "Price": ["price", "unit price", "share price"],
-                "Units": ["units", "shares", "qty", "quantity"],
-                "Ticker": ["ticker", "symbol", "stock"],
-            },
-        }
-
-    @staticmethod
     def _validate_config(settings: dict[str, Any]) -> dict[str, Any]:
         """Validate the loaded configuration against expected structure and values.
 
@@ -151,7 +133,7 @@ class Config:
         Returns:
             Validated configuration
         """
-        validated = deepcopy(Config._get_default_config())
+        validated: dict[str, Any] = dict(Config.DEFAULT_CONFIG)
 
         log_level = settings.get("log_level", validated["log_level"]).upper()
         if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
@@ -180,7 +162,7 @@ class Config:
 
     def __str__(self) -> str:
         """Return a string representation of the Config object."""
-        config_str = "Config Details:\n"
+        config_str = " Config Details:\n"
         config_str += f"  Config Path: {self.config_path}\n"
         config_str += f"  Folio Path: {self.folio_path}\n"
         config_str += f"  Log Level: {self.log_level}\n"
