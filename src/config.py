@@ -8,166 +8,182 @@ from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Optional, TypedDict
+from types import MappingProxyType
+from typing import Any, Mapping
 
 import yaml
 
 
-class SheetsConfig(TypedDict):
-    """TypedDict for sheet names in the configuration.
+class Config:
+    """Configuration for the folio."""
 
-    Attributes:
-        tickers (str): The name of the tickers sheet.
-        txns (str): The name of the transactions sheet.
-
-    """
-
-    tickers: str
-    txns: str
-
-
-HeaderKeywords = TypedDict(
-    "HeaderKeywords",
-    {
-        "TxnDate": list[str],
-        "Action": list[str],
-        "Amount": list[str],
-        "$": list[str],
-        "Price": list[str],
-        "Units": list[str],
-        "Ticker": list[str],
-    },
-)
-
-
-class Config(TypedDict):
-    folio_path: str
-    log_level: str
-    sheets: SheetsConfig
-    header_keywords: HeaderKeywords
-
-
-# Module-level constants for configuration
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-DEFAULT_CONFIG: Config = {
-    "folio_path": "data/folio.xlsx",
-    "log_level": "ERROR",
-    "sheets": {"tickers": "Tickers", "txns": "Txns"},
-    "header_keywords": {
-        "TxnDate": ["txndate", "transaction date", "date"],
-        "Action": ["action", "type", "activity"],
-        "Amount": ["amount", "value", "total"],
-        "$": ["$", "currency", "curr"],
-        "Price": ["price", "unit price", "share price"],
-        "Units": ["units", "shares", "qty", "quantity"],
-        "Ticker": ["ticker", "symbol", "stock"],
-    },
-}
-
-# Global configuration variables
-CONFIG: Config = deepcopy(DEFAULT_CONFIG)
-FOLIO_PATH: Optional[Path] = None
-LOG_LEVEL: str = DEFAULT_CONFIG["log_level"]
-SHEETS: SheetsConfig = DEFAULT_CONFIG["sheets"].copy()
-HEADER_KEYWORDS: HeaderKeywords = DEFAULT_CONFIG["header_keywords"].copy()
-
-
-def _get_config_path() -> Path:
-    """
-    Get the absolute path to the configuration file.
-
-    Returns:
-        Path: Absolute path to the config.yaml file
-    """
-    return PROJECT_ROOT / "config.yaml"
-
-
-def _validate_config(config: Dict[str, Any]) -> Config:
-    """
-    Validate the loaded configuration against expected structure and values.
-
-    Args:
-        config: Raw configuration dictionary to validate
-
-    Returns:
-        Validated configuration
-    """
-    validated = deepcopy(DEFAULT_CONFIG)
-
-    # Validate and update log level
-    log_level = config.get("log_level", DEFAULT_CONFIG["log_level"]).upper()
-    if log_level not in VALID_LOG_LEVELS:
-        log_level = DEFAULT_CONFIG["log_level"]
-    validated["log_level"] = log_level
-
-    # Update other top-level keys
-    if "folio_path" in config:
-        validated["folio_path"] = str(config["folio_path"])
-
-    if "sheets" in config and isinstance(config["sheets"], dict):
-        validated["sheets"].update(config["sheets"])
-
-    if "header_keywords" in config and isinstance(config["header_keywords"], dict):
-        validated["header_keywords"].update(
-            {
-                k: v
-                for k, v in config["header_keywords"].items()
-                if k in DEFAULT_CONFIG["header_keywords"]
-            }
-        )
-
-    return validated
-
-
-def load_config() -> Config:
-    """Load config.yaml from disk, creating it if it doesn't exist.
-
-    Returns:
-        Config: The loaded configuration
-
-    """
-    global CONFIG, FOLIO_PATH, LOG_LEVEL, SHEETS, HEADER_KEYWORDS
-    path = _get_config_path()
-    config: Dict[str, Any] = {}
-
-    # Create default config if it doesn't exist
-    if not path.exists():
-        with open(path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(DEFAULT_CONFIG, f, default_flow_style=False, sort_keys=False)
-    else:
-        with open(path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
-
-    # Validate and update global config
-    CONFIG = _validate_config(config)
-    folio_path = Path(CONFIG["folio_path"])
-    FOLIO_PATH = (
-        (PROJECT_ROOT / folio_path).resolve()
-        if not folio_path.is_absolute()
-        else folio_path
+    DEFAULT_CONFIG: Mapping[str, Any] = MappingProxyType(
+        {
+            "folio_path": "data/folio.xlsx",
+            "log_level": "ERROR",
+            "sheets": {
+                "tickers": "Tickers",
+                "txns": "Txns",
+            },
+            "header_keywords": {
+                "TxnDate": ["txndate", "transaction date", "date"],
+                "Action": ["action", "type", "activity"],
+                "Amount": ["amount", "value", "total"],
+                "$": ["$", "currency", "curr"],
+                "Price": ["price", "unit price", "share price"],
+                "Units": ["units", "shares", "qty", "quantity"],
+                "Ticker": ["ticker", "symbol", "stock"],
+            },
+        },
     )
-    LOG_LEVEL = CONFIG["log_level"]
-    SHEETS = CONFIG["sheets"]
-    HEADER_KEYWORDS = CONFIG["header_keywords"]
-    return CONFIG
 
+    def __init__(
+        self,
+        settings: Mapping[str, Any] = DEFAULT_CONFIG,
+        config_path: Path | None = None,
+    ) -> None:
+        """Initialize the Config object."""
+        self._settings = settings
+        if config_path is not None:
+            self._config_path = config_path
+        else:
+            self._config_path = Config._get_config_path()
 
-def tickers_sheet() -> str:
-    """Get the name of the tickers sheet from the configuration.
+    @property
+    def config_path(self) -> Path:
+        """Get the path to the config.yaml file."""
+        return self._config_path
 
-    Returns:
-        str: The name of the tickers sheet
+    @property
+    def folio_path(self) -> str:
+        """Get the folio path."""
+        return self._settings["folio_path"]
 
-    """
-    return SHEETS.get("tickers")
+    @property
+    def log_level(self) -> str:
+        """Get the log level."""
+        return self._settings["log_level"]
 
+    @property
+    def sheets(self) -> dict[str, str]:
+        """Get the sheet mappings."""
+        return self._settings["sheets"]
 
-def transactions_sheet() -> str:
-    """Get the name of the transactions sheet from the configuration.
+    @property
+    def header_keywords(self) -> dict[str, list[str]]:
+        """Get the header keywords mappings."""
+        return self._settings["header_keywords"]
 
-    Returns:
-        str: The name of the transactions sheet
+    def tickers_sheet(self) -> str:
+        """Get the tickers sheet name."""
+        return self._settings["sheets"]["tickers"]
 
-    """
-    return SHEETS.get("txns")
+    def transactions_sheet(self) -> str:
+        """Get the transactions sheet name."""
+        return self._settings["sheets"]["txns"]
+
+    @classmethod
+    def load(cls, project_root: Path | None = None) -> Config:
+        """Load config.yaml from disk, creating it if it doesn't exist.
+
+        Args:
+            project_root: Optional Path to the project root. If None, uses the location
+                of this file's parent directory.
+
+        Returns:
+            Config: The loaded configuration
+        """
+        config_yaml: Path = cls._get_config_path(project_root)
+        configuration: dict[str, Any] = cls._get_default_config()
+        if not config_yaml.exists():
+            with Path.open(config_yaml, "w", encoding="utf-8") as f:
+                yaml.safe_dump(
+                    configuration,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                )
+        else:
+            with Path.open(config_yaml, "r", encoding="utf-8") as f:
+                configuration = yaml.safe_load(f) or {}
+
+        configuration = cls._validate_config(configuration)
+        return cls(configuration, config_yaml)
+
+    @staticmethod
+    def _get_project_root() -> Path:
+        return Path(__file__).resolve().parent.parent
+
+    @staticmethod
+    def _get_config_path(project_root: Path | None = None) -> Path:
+        if project_root is None:
+            project_root = Config._get_project_root()
+        return project_root / "config.yaml"
+
+    @staticmethod
+    def _get_default_config() -> dict[str, Any]:
+        """Get the default configuration."""
+        return {
+            "folio_path": "data/folio.xlsx",
+            "log_level": "ERROR",
+            "sheets": {
+                "tickers": "Tickers",
+                "txns": "Txns",
+            },
+            "header_keywords": {
+                "TxnDate": ["txndate", "transaction date", "date"],
+                "Action": ["action", "type", "activity"],
+                "Amount": ["amount", "value", "total"],
+                "$": ["$", "currency", "curr"],
+                "Price": ["price", "unit price", "share price"],
+                "Units": ["units", "shares", "qty", "quantity"],
+                "Ticker": ["ticker", "symbol", "stock"],
+            },
+        }
+
+    @staticmethod
+    def _validate_config(settings: dict[str, Any]) -> dict[str, Any]:
+        """Validate the loaded configuration against expected structure and values.
+
+        Args:
+            settings: Raw configuration dictionary to validate
+
+        Returns:
+            Validated configuration
+        """
+        validated = deepcopy(Config._get_default_config())
+
+        log_level = settings.get("log_level", validated["log_level"]).upper()
+        if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            log_level: str = validated["log_level"]
+        validated["log_level"] = log_level
+
+        if "folio_path" in settings:
+            validated["folio_path"] = str(settings["folio_path"])
+
+        if "sheets" in settings and isinstance(settings["sheets"], dict):
+            validated["sheets"].update(settings["sheets"])
+
+        if "header_keywords" in settings and isinstance(
+            settings["header_keywords"],
+            dict,
+        ):
+            validated["header_keywords"].update(
+                {
+                    k: v
+                    for k, v in settings["header_keywords"].items()
+                    if k in validated["header_keywords"]
+                },
+            )
+
+        return validated
+
+    def __str__(self) -> str:
+        """Return a string representation of the Config object."""
+        config_str = "Config Details:\n"
+        config_str += f"  Config Path: {self.config_path}\n"
+        config_str += f"  Folio Path: {self.folio_path}\n"
+        config_str += f"  Log Level: {self.log_level}\n"
+        config_str += f"  Sheets: {self.sheets}\n"
+        config_str += f"  Header Keywords: {self.header_keywords}\n"
+        return config_str
