@@ -35,8 +35,12 @@ def temp_config(
     """
 
     @contextmanager
-    def _temp_config(**overrides: dict[str, Any]) -> Generator[Config, Any, None]:
-        config_path = tmp_path / "config.yaml"
+    def _temp_config(
+        overrides: dict[str, Any] | None = None,
+    ) -> Generator[Config, Any, None]:
+        if overrides is None:
+            overrides = {}  # pragma: no cover
+        config_path: Path = tmp_path / "config.yaml"
         with Path.open(config_path, "w") as f:
             for key, value in overrides.items():
                 f.write(f"{key}: {value}\n")

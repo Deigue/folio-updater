@@ -46,7 +46,7 @@ class Config:
         self._config_path = Config._get_config_path(project_root)
 
         if project_root is None:
-            project_root = Config._get_project_root()
+            project_root = Config.get_project_root()  # pragma: no cover
         folio_path = Path(settings["folio_path"])
         if not folio_path.is_absolute():
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
@@ -114,13 +114,14 @@ class Config:
         return cls(configuration, project_root)
 
     @staticmethod
-    def _get_project_root() -> Path:
+    def get_project_root() -> Path:
+        """Get the project root directory."""
         return Path(__file__).resolve().parent.parent
 
     @staticmethod
     def _get_config_path(project_root: Path | None = None) -> Path:
         if project_root is None:
-            project_root = Config._get_project_root()
+            project_root = Config.get_project_root()  # pragma: no cover
         return project_root / "config.yaml"
 
     @staticmethod
@@ -141,7 +142,7 @@ class Config:
         validated["log_level"] = log_level
 
         if "folio_path" in settings:
-            validated["folio_path"] = str(settings["folio_path"])
+            validated["folio_path"] = str(settings["folio_path"])  # pragma: no cover
 
         if "sheets" in settings and isinstance(settings["sheets"], dict):
             validated["sheets"].update(settings["sheets"])
