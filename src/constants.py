@@ -9,7 +9,8 @@ from enum import Enum
 class AutoStrEnum(Enum):
     """Enum that automatically creates a string representation of the enum value."""
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return a string representation of the enum value."""
         return self.value
 
 
