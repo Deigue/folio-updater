@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
-
-from src import config
+from typing import TYPE_CHECKING, Generator
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from pathlib import Path
 
-DB_PATH = config.PROJECT_ROOT / "data" / "folio.db"
+    from src import config
+
+
+def _db_path(configuration: config.Config) -> Path:
+    return configuration.folio_path.parent / "folio.db"
 
 
 @contextmanager
-def get_connection() -> Generator[sqlite3.Connection, None, None]:
+def get_connection(
+    configuration: config.Config,
+) -> Generator[sqlite3.Connection, None, None]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(_db_path(configuration))
     try:
         yield conn
     finally:
