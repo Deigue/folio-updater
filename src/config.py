@@ -38,15 +38,13 @@ class Config:
 
     def __init__(
         self,
+        project_root: Path,
         settings: Mapping[str, Any] = DEFAULT_CONFIG,
-        project_root: Path | None = None,
     ) -> None:
         """Initialize the Config object."""
         self._settings = settings
+        self._project_root = project_root
         self._config_path = Config._get_config_path(project_root)
-
-        if project_root is None:
-            project_root = Config.get_project_root()  # pragma: no cover
         folio_path = Path(settings["folio_path"])
         if not folio_path.is_absolute():
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
@@ -61,6 +59,11 @@ class Config:
     def folio_path(self) -> Path:
         """Get the folio path."""
         return self._folio_path
+
+    @property
+    def project_root(self) -> Path:
+        """Get the project root directory."""
+        return self._project_root
 
     @property
     def log_level(self) -> str:
@@ -96,7 +99,12 @@ class Config:
         Returns:
             Config: The loaded configuration
         """
-        config_yaml: Path = cls._get_config_path(project_root)
+        if project_root is not None:
+            resolved_root = project_root
+        else:
+            resolved_root = Config.get_default_root_directory()  # pragma: no cover
+
+        config_yaml: Path = cls._get_config_path(resolved_root)
         configuration: dict[str, Any] = dict(cls.DEFAULT_CONFIG)
         if not config_yaml.exists():
             with Path.open(config_yaml, "w", encoding="utf-8") as f:
@@ -111,17 +119,15 @@ class Config:
                 configuration = yaml.safe_load(f) or {}
 
         configuration = cls._validate_config(configuration)
-        return cls(configuration, project_root)
+        return cls(resolved_root, configuration)
 
     @staticmethod
-    def get_project_root() -> Path:
+    def get_default_root_directory() -> Path:
         """Get the project root directory."""
         return Path(__file__).resolve().parent.parent
 
     @staticmethod
-    def _get_config_path(project_root: Path | None = None) -> Path:
-        if project_root is None:
-            project_root = Config.get_project_root()  # pragma: no cover
+    def _get_config_path(project_root: Path) -> Path:
         return project_root / "config.yaml"
 
     @staticmethod

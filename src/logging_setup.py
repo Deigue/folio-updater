@@ -50,7 +50,7 @@ def init_logging(level: int = logging.INFO) -> None:
         - Colorized console logs
         - Rolling file logs
     """
-    log_dir: Path = Config.get_project_root() / "logs"
+    log_dir: Path = Config.get_default_root_directory() / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file: Path = log_dir / "folio.log"
 

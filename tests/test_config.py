@@ -13,16 +13,17 @@ logger = logging.getLogger(__name__)
 
 
 def test_default_config(tmp_path: Path) -> None:
-    expected_config = Path(tmp_path) / "config.yaml"
-    assert not expected_config.exists()
+    expected_config_path = Path(tmp_path) / "config.yaml"
+    assert not expected_config_path.exists()
     config: Config = Config.load(tmp_path)
-    assert expected_config.exists()
+    assert config.project_root == tmp_path
+    assert expected_config_path.exists()
     logger.info(config)
 
-    with Path.open(expected_config) as f:
+    with Path.open(expected_config_path) as f:
         config_yaml = yaml.safe_load(f)
     assert config_yaml == Config.DEFAULT_CONFIG
-    expected_config.unlink()
+    expected_config_path.unlink()
 
 
 def test_relative_path_resolves(
