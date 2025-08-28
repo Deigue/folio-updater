@@ -1,56 +1,74 @@
-"""
-Setup initial or default folio for the application.
-"""
-
+"""Setup initial or default folio for the application."""
 
 import logging
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
-from src.constants import DEFAULT_TICKERS
-from src.mock_data import generate_transactions
 from src import db
+from src.config import Config
+from src.constants import DEFAULT_TICKERS, Column, Table
+from src.mock_data import generate_transactions
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from pathlib import Path
 
-def _create_default_folio():
+logger: logging.Logger = logging.getLogger(__name__)
+
+
+def _create_default_folio(configuration: Config) -> None:
+    """Create default folio with mock data."""
+    tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
+    transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
+    transactions_df = pd.concat(transactions_list, ignore_index=True)
+
+    with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
+        tickers_df.to_excel(
+            writer,
+            index=False,
+            sheet_name=configuration.tickers_sheet(),
+        )
+        transactions_df.to_excel(
+            writer,
+            index=False,
+            sheet_name=configuration.transactions_sheet(),
+        )
+
+    with db.get_connection(configuration) as conn:
+        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="replace", index=False)
+
+    logger.info("Created default folio at %s", configuration.folio_path)
+
+
+def ensure_folio_exists(configuration: Config) -> None:
+    """Ensure that the folio exists.
+
+    If the folio does not exist, create a default one with mock data. If the file
+    already exists, do nothing.
+
+    Raises:
+        FileNotFoundError: If the parent directory does not exist.
+
     """
-    Create a default Excel file with arbitrary tickers.
-    Common but varied tickers added to test different data scenarios.
-    """
-    from src import config
-    df_tickers = pd.DataFrame({"Ticker": DEFAULT_TICKERS})
-    tickers_sheet = config.tickers_sheet()
-
-    txns_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
-    df_txns = pd.concat(txns_list, ignore_index=True)
-
-    with pd.ExcelWriter(config.FOLIO_PATH, engine="openpyxl") as writer:
-        df_tickers.to_excel(writer, index=False, sheet_name=tickers_sheet)
-        df_txns.to_excel(writer, index=False, sheet_name="Txns")
-
-    with db.get_connection() as conn:
-        df_txns.to_sql("Txns", conn, if_exists="replace", index=False)
-
-    logger.info("Created default folio at %s", config.FOLIO_PATH)
-
-def ensure_folio_exists():
-    from src import config
-    folio_path = config.FOLIO_PATH
+    folio_path: Path = configuration.folio_path
     if folio_path.exists():
-        logger.debug(f"Folio file already exists at {folio_path}.")
+        logger.debug("Folio file already exists at %s", folio_path)
         return
 
-    parent_dir = folio_path.parent
-    expected_data_dir = config.PROJECT_ROOT / "data"
+    folio_path_parent: Path = folio_path.parent
+    default_data_dir: Path = configuration.project_root / "data"
 
     # Only create data folder in automated fashion
-    if parent_dir.resolve() == expected_data_dir.resolve():
-        expected_data_dir.mkdir(parents=True, exist_ok=True)
-    elif not parent_dir.exists():
-        msg = f"The folder '{parent_dir}' does not exist. Please create it before running."
+    if folio_path_parent.is_relative_to(default_data_dir):
+        folio_path_parent.mkdir(parents=True, exist_ok=True)
+    elif not folio_path_parent.exists():
+        msg: str = (
+            f"The folder '{folio_path_parent}' does not exist. Please create it"
+            "before running."
+        )
         logger.error(msg)
         raise FileNotFoundError(msg)
     else:
-        logger.debug(f"Folio path is valid: {folio_path}") # pragma: no cover
+        logger.debug("Folio path is valid: %s", folio_path)  # pragma: no cover
 
-    _create_default_folio()
+    _create_default_folio(configuration)
