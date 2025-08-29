@@ -13,12 +13,6 @@ import pytest
 from src.config import Config
 
 
-def _close_log_handlers() -> None:
-    for handler in logging.root.handlers[:]:
-        handler.close()
-        logging.root.removeHandler(handler)
-
-
 @pytest.fixture
 def temp_config(
     tmp_path: Path,
@@ -51,3 +45,9 @@ def temp_config(
             sys.path.remove(str(tmp_path))  # pragma: no cover
 
     return _temp_config
+
+
+def _close_log_handlers() -> None:
+    for handler in logging.root.handlers[:]:
+        handler.close()
+        logging.root.removeHandler(handler)

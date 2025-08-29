@@ -63,7 +63,7 @@ def ensure_folio_exists(configuration: Config) -> None:
         folio_path_parent.mkdir(parents=True, exist_ok=True)
     elif not folio_path_parent.exists():
         msg: str = (
-            f"The folder '{folio_path_parent}' does not exist. Please create it"
+            f"The folder '{folio_path_parent}' does not exist. Please create it "
             "before running."
         )
         logger.error(msg)
