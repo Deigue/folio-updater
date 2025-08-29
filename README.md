@@ -28,6 +28,7 @@ It is **auto-generated** with default values the first time you run the applicat
 
 ```yaml
 folio_path: data/folio.xlsx
+db_path: data/folio.db
 log_level: ERROR  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
@@ -45,6 +46,7 @@ header_keywords:
 | Key                   | Description                                                                                                                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`folio_path`**      | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
+| **`db_path`**         | Path to the internal database file. This will be automatically created if it does not exist. Relative paths will behave similar to the `folio_path`                                                                                                                    |
 | **`log_level`**       | Sets the application’s logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
 | **`sheets`**          | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
 | **`header_keywords`** | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |

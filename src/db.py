@@ -7,13 +7,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from src import config
-
-
-def _db_path(configuration: config.Config) -> Path:
-    return configuration.folio_path.parent / "folio.db"
 
 
 @contextmanager
@@ -21,7 +15,7 @@ def get_connection(
     configuration: config.Config,
 ) -> Generator[sqlite3.Connection, None, None]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
-    conn = sqlite3.connect(_db_path(configuration))
+    conn = sqlite3.connect(configuration.db_path)
     try:
         yield conn
     finally:

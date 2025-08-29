@@ -19,6 +19,7 @@ class Config:
     DEFAULT_CONFIG: Mapping[str, Any] = MappingProxyType(
         {
             "folio_path": "data/folio.xlsx",
+            "db_path": "data/folio.db",
             "log_level": "ERROR",
             "sheets": {
                 "tickers": "Tickers",
@@ -49,6 +50,10 @@ class Config:
         if not folio_path.is_absolute():
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
         self._folio_path: Path = folio_path
+        db_path = Path(settings["db_path"])
+        if not db_path.is_absolute():
+            db_path: Path = (project_root / settings["db_path"]).resolve()
+        self._db_path: Path = db_path
 
     @property
     def config_path(self) -> Path:
@@ -59,6 +64,11 @@ class Config:
     def folio_path(self) -> Path:
         """Get the folio path."""
         return self._folio_path
+
+    @property
+    def db_path(self) -> Path:
+        """Get the database path."""
+        return self._db_path
 
     @property
     def project_root(self) -> Path:
@@ -150,6 +160,9 @@ class Config:
         if "folio_path" in settings:
             validated["folio_path"] = str(settings["folio_path"])  # pragma: no cover
 
+        if "db_path" in settings:
+            validated["db_path"] = str(settings["db_path"])  # pragma: no cover
+
         if "sheets" in settings and isinstance(settings["sheets"], dict):
             validated["sheets"].update(settings["sheets"])
 
@@ -172,6 +185,7 @@ class Config:
         config_str = " Config Details:\n"
         config_str += f"  Config Path: {self.config_path}\n"
         config_str += f"  Folio Path: {self.folio_path}\n"
+        config_str += f"  Database Path: {self.db_path}\n"
         config_str += f"  Log Level: {self.log_level}\n"
         config_str += f"  Sheets: {self.sheets}\n"
         config_str += f"  Header Keywords: {self.header_keywords}\n"
