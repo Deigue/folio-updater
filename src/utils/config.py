@@ -133,8 +133,15 @@ class Config:
 
     @staticmethod
     def get_default_root_directory() -> Path:
-        """Get the project root directory."""
-        return Path(__file__).resolve().parent.parent
+        """Get the project root directory by searching upwards for markers."""
+        current = Path(__file__).resolve().parent
+        while current != current.parent:
+            # Check for common project markers (e.g., .git for Git repos)
+            if (current / ".git").exists() or (current / "config.yaml").exists():
+                return current
+            current = current.parent
+        # Fallback: If no marker found, use relative path.
+        return Path(__file__).resolve().parent.parent.parent
 
     @staticmethod
     def _get_config_path(project_root: Path) -> Path:

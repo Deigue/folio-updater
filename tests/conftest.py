@@ -43,18 +43,11 @@ def temp_config(
         yield app_ctx
 
         app_ctx.reset()
-        _log_cleanup_status(tmp_path)
-        _close_log_handlers()
         if config_path.exists():
             config_path.unlink()
+        _log_cleanup_status(tmp_path)
 
     return _temp_config
-
-
-def _close_log_handlers() -> None:
-    for handler in logging.root.handlers[:]:
-        handler.close()
-        logging.root.removeHandler(handler)
 
 
 def _log_cleanup_status(tmp_path: Path) -> None:

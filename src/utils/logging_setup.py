@@ -33,7 +33,7 @@ class ColorFormatter(logging.Formatter):
         record.levelname = f"{color}{record.levelname}{RESET}"
 
         formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+            "%(asctime)s [%(levelname)s] [%(name)s(%(lineno)d)] %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
         )
         output: str = formatter.format(record)
@@ -57,29 +57,36 @@ def init_logging(level: int = logging.INFO) -> None:
     root_logger: logging.Logger = logging.getLogger()
     root_logger.setLevel(level)
 
-    # Remove existing handlers to avoid duplication in notebooks
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
     # Console handler (colorized)
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(ColorFormatter())
-    root_logger.addHandler(console_handler)
+    console_exists = any(
+        isinstance(h, logging.StreamHandler) and isinstance(h.formatter, ColorFormatter)
+        for h in root_logger.handlers
+    )
+    if not console_exists:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(ColorFormatter())
+        root_logger.addHandler(console_handler)
 
     # File handler
-    file_handler = TimedRotatingFileHandler(
-        log_file,
-        when="midnight",
-        interval=1,
-        backupCount=14,
-        encoding="utf-8",
+    file_exists = any(
+        isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
+        for h in root_logger.handlers
     )
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        ),
-    )
-    root_logger.addHandler(file_handler)
+    if not file_exists:
+        file_handler = TimedRotatingFileHandler(
+            log_file,
+            when="midnight",
+            interval=1,
+            backupCount=14,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            ),
+        )
+        root_logger.addHandler(file_handler)
+
     logger: logging.Logger = logging.getLogger(__name__)
     logger.debug("Logging initialized with level: %s", logging.getLevelName(level))
