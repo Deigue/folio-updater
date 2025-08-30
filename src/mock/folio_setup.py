@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from app.app_context import get_config
 from db import db
 from mock.mock_data import generate_transactions
-from utils.config import Config
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
 if TYPE_CHECKING:
@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def _create_default_folio(configuration: Config) -> None:
+def _create_default_folio() -> None:
     """Create default folio with mock data."""
+    configuration = get_config()
     tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
     transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
     transactions_df = pd.concat(transactions_list, ignore_index=True)
@@ -34,13 +35,13 @@ def _create_default_folio(configuration: Config) -> None:
             sheet_name=configuration.transactions_sheet(),
         )
 
-    with db.get_connection(configuration) as conn:
+    with db.get_connection() as conn:
         transactions_df.to_sql(Table.TXNS.value, conn, if_exists="replace", index=False)
 
     logger.info("Created default folio at %s", configuration.folio_path)
 
 
-def ensure_folio_exists(configuration: Config) -> None:
+def ensure_folio_exists() -> None:
     """Ensure that the folio exists.
 
     If the folio does not exist, create a default one with mock data. If the file
@@ -50,6 +51,7 @@ def ensure_folio_exists(configuration: Config) -> None:
         FileNotFoundError: If the parent directory does not exist.
 
     """
+    configuration = get_config()
     folio_path: Path = configuration.folio_path
     if folio_path.exists():
         logger.debug("Folio file already exists at %s", folio_path)
@@ -71,4 +73,4 @@ def ensure_folio_exists(configuration: Config) -> None:
     else:
         logger.debug("Folio path is valid: %s", folio_path)  # pragma: no cover
 
-    _create_default_folio(configuration)
+    _create_default_folio()

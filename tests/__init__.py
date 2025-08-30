@@ -1,5 +1,4 @@
-"""
-Test package for the folio-updater application.
+"""Test package for the folio-updater application.
 
 This package contains all the test modules for the application.
 """

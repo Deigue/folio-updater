@@ -4,18 +4,15 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Generator
+from typing import Generator
 
-if TYPE_CHECKING:
-    from utils import config
+from app.app_context import get_config
 
 
 @contextmanager
-def get_connection(
-    configuration: config.Config,
-) -> Generator[sqlite3.Connection, None, None]:
+def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
-    conn = sqlite3.connect(configuration.db_path)
+    conn = sqlite3.connect(get_config().db_path)
     try:
         yield conn
     finally:

@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from utils.config import Config
+from app.app_context import get_config, initialize_app
 from utils.logging_setup import init_logging
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from utils.config import Config
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -21,7 +23,8 @@ def reload_config(project_root: Path | None = None) -> Config:
         Config: The reloaded configuration object.
 
     """
-    config: Config = Config.load(project_root)
+    initialize_app(project_root)
+    config: Config = get_config()
     level_int: int = getattr(logging, config.log_level.upper())
     init_logging(level_int)
 
