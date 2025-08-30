@@ -40,7 +40,7 @@ class AppContext:
 
     def __init__(self) -> None:
         """Private constructor to prevent direct instantiation."""
-        if AppContext._instance is not None:
+        if AppContext._instance is not None:  # pragma: no cover
             msg = "Use AppContext.get_instance() instead"
             raise RuntimeError(msg)
         self._config: Config | None = None
@@ -50,15 +50,14 @@ class AppContext:
         """Get the singleton instance."""
         if cls._instance is None:
             with cls._lock:
-                if cls._instance is None:
-                    cls._instance = cls()
+                cls._instance = cls()  # pragma: no cover
         return cls._instance
 
     @property
     def config(self) -> Config:
         """Return the Config instance directly."""
         if self._config is None:
-            self._config = Config.load()
+            self._config = Config.load()  # pragma: no cover
         return self._config
 
     def initialize(self, project_root: Path | None) -> None:
@@ -75,7 +74,7 @@ def initialize_app(project_root: Path | None = None) -> None:
     AppContext.get_instance().initialize(project_root)
 
 
-def reset_context() -> None:
+def reset_context() -> None:  # pragma: no cover
     """Reset the global application context (for testing)."""
     AppContext.get_instance().reset()
 

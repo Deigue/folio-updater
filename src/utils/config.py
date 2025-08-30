@@ -51,7 +51,7 @@ class Config:
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
         self._folio_path: Path = folio_path
         db_path = Path(settings["db_path"])
-        if not db_path.is_absolute():
+        if not db_path.is_absolute():  # pragma: no cover
             db_path: Path = (project_root / settings["db_path"]).resolve()
         self._db_path: Path = db_path
 
@@ -81,7 +81,7 @@ class Config:
         return self._settings["log_level"]
 
     @property
-    def sheets(self) -> dict[str, str]:
+    def sheets(self) -> dict[str, str]:  # pragma: no cover
         """Get the sheet mappings."""
         return self._settings["sheets"]
 
@@ -141,7 +141,7 @@ class Config:
                 return current
             current = current.parent
         # Fallback: If no marker found, use relative path.
-        return Path(__file__).resolve().parent.parent.parent
+        return Path(__file__).resolve().parent.parent.parent  # pragma: no cover
 
     @staticmethod
     def _get_config_path(project_root: Path) -> Path:

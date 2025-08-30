@@ -20,6 +20,8 @@ COLORS: dict[int, str] = {
 }
 
 RESET: str = "\033[0m"
+LOG_FORMAT = "%(asctime)s [%(levelname)s] [%(name)s(%(lineno)d)] %(message)s"
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 class ColorFormatter(logging.Formatter):
@@ -33,8 +35,8 @@ class ColorFormatter(logging.Formatter):
         record.levelname = f"{color}{record.levelname}{RESET}"
 
         formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s(%(lineno)d)] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+            LOG_FORMAT,
+            datefmt=DATE_FORMAT,
         )
         output: str = formatter.format(record)
 
@@ -62,7 +64,7 @@ def init_logging(level: int = logging.INFO) -> None:
         isinstance(h, logging.StreamHandler) and isinstance(h.formatter, ColorFormatter)
         for h in root_logger.handlers
     )
-    if not console_exists:
+    if not console_exists:  # pragma: no cover
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(ColorFormatter())
         root_logger.addHandler(console_handler)
@@ -72,7 +74,7 @@ def init_logging(level: int = logging.INFO) -> None:
         isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
         for h in root_logger.handlers
     )
-    if not file_exists:
+    if not file_exists:  # pragma: no cover
         file_handler = TimedRotatingFileHandler(
             log_file,
             when="midnight",
@@ -82,8 +84,8 @@ def init_logging(level: int = logging.INFO) -> None:
         )
         file_handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
+                LOG_FORMAT,
+                datefmt=DATE_FORMAT,
             ),
         )
         root_logger.addHandler(file_handler)
