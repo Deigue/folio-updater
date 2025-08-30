@@ -1,21 +1,21 @@
-"""
-Schema utilities to use with the database and Excel files.
-"""
+"""Schema utilities to use with the database and Excel files."""
 
 import logging
 import re
 
 import pandas as pd
 
-from src import config, db
-from src.constants import TXN_ESSENTIALS
+from db import db
+from utils import config
+from utils.constants import TXN_ESSENTIALS
 
 logger = logging.getLogger(__name__)
 
 
 def _normalize(name: str) -> str:
-    """
-    Normalize a string by converting to lowercase and removing non-alphanumeric
+    """Normalize string for the database.
+
+    Normalizes the inputstring by converting to lowercase and removing non-alphanumeric
     characters. (except $)
 
     Args:

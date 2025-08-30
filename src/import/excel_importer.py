@@ -2,12 +2,14 @@
 Ingest Excel data into the application context.
 """
 
+import logging
 
 import pandas as pd
-import logging
-from src import schema, db
+
+from db import db, schema
 
 logger = logging.getLogger(__name__)
+
 
 def import_transactions(folio_path) -> int:
     """

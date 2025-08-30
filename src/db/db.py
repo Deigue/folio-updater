@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Generator
 
 if TYPE_CHECKING:
-    from src import config
+    from utils import config
 
 
 @contextmanager

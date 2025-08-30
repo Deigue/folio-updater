@@ -6,7 +6,7 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from typing import TYPE_CHECKING
 
-from src.config import Config
+from utils.config import Config
 
 if TYPE_CHECKING:
     from pathlib import Path

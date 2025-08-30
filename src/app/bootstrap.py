@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from src.config import Config
-from src.logging_setup import init_logging
+from utils.config import Config
+from utils.logging_setup import init_logging
 
 if TYPE_CHECKING:
     from pathlib import Path

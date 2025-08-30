@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from src import db
-from src.config import Config
-from src.constants import DEFAULT_TICKERS, Column, Table
-from src.mock_data import generate_transactions
+from db import db
+from mock.mock_data import generate_transactions
+from utils.config import Config
+from utils.constants import DEFAULT_TICKERS, Column, Table
 
 if TYPE_CHECKING:
     from pathlib import Path
