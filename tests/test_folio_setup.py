@@ -14,32 +14,34 @@ from typing import TYPE_CHECKING, Callable
 import pandas as pd
 import pandas.testing as pd_testing
 import pytest
-from src.constants import DEFAULT_TICKERS, Column
-from src.folio_setup import ensure_folio_exists
-from src.mock_data import generate_transactions
+
+from mock.folio_setup import ensure_folio_exists
+from mock.mock_data import generate_transactions
+from utils.constants import DEFAULT_TICKERS, Column
 
 if TYPE_CHECKING:
     from contextlib import _GeneratorContextManager
     from pathlib import Path
 
-    from src.config import Config
+    from app.app_context import AppContext
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 def test_folio_creation(
-    temp_config: Callable[..., _GeneratorContextManager[Config, None, None]],
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
     """Test if default folio can be automatically created.
 
     Ensures that the folio is created with the expected structure, is not recreated if
     it already exists.
-
     """
-    with temp_config() as config:
-        ensure_folio_exists(config)
+    with temp_config() as ctx:
+        config = ctx.config
         folio_path: Path = config.folio_path
-        logger.info("Folio file path: %s", folio_path)
+        logger.debug("Folio file path: %s", folio_path)
+        assert not folio_path.exists()
+        ensure_folio_exists()
         assert folio_path.exists()
 
         # Structure validation
@@ -64,7 +66,7 @@ def test_folio_creation(
         # Wait a bit to ensure detectable mtime change if rewritten
         time.sleep(0.1)
         # Nothing happens when folio already exists
-        ensure_folio_exists(config)
+        ensure_folio_exists()
         # Assert file still exists
         assert folio_path.exists()
         # Assert mtime unchanged
@@ -75,12 +77,12 @@ def test_folio_creation(
 
 def test_folio_missing(
     tmp_path: Path,
-    temp_config: Callable[..., _GeneratorContextManager[Config, None, None]],
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
     """Raise error when non-standard folio path does not exist."""
     missing_path: Path = tmp_path / "nonexistent_folder" / "folio.xlsx"
     assert not missing_path.exists()
-    with temp_config({"folio_path": str(missing_path)}) as config:
+    with temp_config({"folio_path": str(missing_path)}):
         with pytest.raises(FileNotFoundError):
-            ensure_folio_exists(config)
+            ensure_folio_exists()
         assert not missing_path.exists()

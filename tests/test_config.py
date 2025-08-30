@@ -6,46 +6,61 @@ from pathlib import Path
 from typing import Callable
 
 import yaml
-from src import bootstrap
-from src.config import Config
+
+from app import bootstrap
+from app.app_context import AppContext
+from utils.config import Config
 
 logger = logging.getLogger(__name__)
 
 
-def test_default_config(tmp_path: Path) -> None:
-    expected_config_path = Path(tmp_path) / "config.yaml"
-    assert not expected_config_path.exists()
-    config: Config = Config.load(tmp_path)
-    assert config.project_root == tmp_path
-    assert expected_config_path.exists()
-    logger.info(config)
-
-    with Path.open(expected_config_path) as f:
+def test_default_config(
+    tmp_path: Path,
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    # No yaml file exists, verify auto-creation logic
+    config = Config.load(tmp_path)
+    logger.debug("Auto-created config.yaml:\n%s", config)
+    with Path.open(config.config_path) as f:
         config_yaml = yaml.safe_load(f)
-    assert config_yaml == Config.DEFAULT_CONFIG
-    expected_config_path.unlink()
+        assert config_yaml == Config.DEFAULT_CONFIG
+    config.config_path.unlink()
+
+    # Load an empty config.yaml
+    with temp_config() as ctx:
+        assert ctx.config.config_path.exists()
+        logger.debug("Empty Configuration:\n%s", ctx.config)
+
+    # Load a default config.yaml
+    with temp_config(Config.DEFAULT_CONFIG) as ctx:
+        assert ctx.config.config_path.exists()
+        logger.info("Default Configuration:\n%s", ctx.config)
+        with Path.open(ctx.config.config_path) as f:
+            config_yaml = yaml.safe_load(f)
+            assert config_yaml == Config.DEFAULT_CONFIG
 
 
 def test_relative_path_resolves(
-    temp_config: Callable[..., _GeneratorContextManager[Config, None, None]],
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
-    with temp_config({"folio_path": "data/testfolio.xlsx"}) as config:
+    with temp_config({"folio_path": "data/testfolio.xlsx"}) as ctx:
+        config = ctx.config
         assert config.folio_path.is_absolute()
         assert "testfolio.xlsx" in str(config.folio_path)
 
 
 def test_absolute_path_kept(
     tmp_path: Path,
-    temp_config: Callable[..., _GeneratorContextManager[Config, None, None]],
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
     absolute_path: Path = tmp_path / "absolute.xlsx"
-    with temp_config({"folio_path": str(absolute_path)}) as config:
-        assert config.folio_path == absolute_path
+    with temp_config({"folio_path": str(absolute_path)}) as ctx:
+        assert ctx.config.folio_path == absolute_path
 
 
 def test_bootstrap(
     tmp_path: Path,
-    temp_config: Callable[..., _GeneratorContextManager[Config, None, None]],
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
     # --- 1. Test problematic bootstrap  ---
     # Point folio_path to a folder that doesn't exist.
@@ -66,7 +81,8 @@ def test_bootstrap(
                 "InvalidKeyword": ["invalid"],
             },
         },
-    ) as config:
+    ) as ctx:
+        config = ctx.config
         assert config.log_level == "ERROR"  # Defaults to ERROR on bad value
         assert not config.header_keywords.__contains__("InvalidKeyword")
         good_folio: Path = tmp_path / "good.xlsx"
@@ -77,7 +93,7 @@ def test_bootstrap(
             yaml.safe_dump(
                 {
                     "folio_path": str(good_folio),
-                    "log_level": "DEBUG",
+                    "log_level": "INFO",
                     "sheets": {"tickers": "TKR", "txns": "TXNS"},
                     "header_keywords": {"TxnDate": ["settledate"]},
                 },
@@ -85,7 +101,7 @@ def test_bootstrap(
             )
         new_config: Config = bootstrap.reload_config(tmp_path)
         assert new_config.folio_path == good_folio
-        assert new_config.log_level == "DEBUG"
+        assert new_config.log_level == "INFO"
         assert new_config.tickers_sheet() == "TKR"
         assert new_config.transactions_sheet() == "TXNS"
         assert new_config.header_keywords["TxnDate"] == ["settledate"]

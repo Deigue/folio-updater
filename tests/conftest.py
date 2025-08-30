@@ -43,14 +43,19 @@ def temp_config(
         yield app_ctx
 
         app_ctx.reset()
-        if config_path.exists():
-            config_path.unlink()
+
+        config_path.unlink(missing_ok=True)
+        # Also clean artifacts created by folio_setup/mock_data
+        for pattern in ("*.xlsx", "*.db"):
+            for file_path in tmp_path.rglob(pattern):
+                file_path.unlink(missing_ok=True)
+
         _log_cleanup_status(tmp_path)
 
     return _temp_config
 
 
-def _log_cleanup_status(tmp_path: Path) -> None:
+def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
     """Log the cleanup status of the temporary directory."""
     logger = logging.getLogger(__name__)
     if not tmp_path.exists():
