@@ -37,6 +37,7 @@ managed=true
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "nbstripout>=0.8.1",
     "ruff>=0.12.10",
 ]
