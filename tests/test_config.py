@@ -99,6 +99,9 @@ def test_bootstrap(
                 },
                 f,
             )
+
+        root_logger: logging.Logger = logging.getLogger()
+        original_level: int = root_logger.level
         new_config: Config = bootstrap.reload_config(tmp_path)
         assert new_config.folio_path == good_folio
         assert new_config.log_level == "INFO"
@@ -108,3 +111,6 @@ def test_bootstrap(
 
         # --- 3. Ensure logging is configured ---
         logger.debug("This message is colorized!")
+
+        # Restore side-effects of reload_config
+        root_logger.setLevel(original_level)
