@@ -37,10 +37,13 @@ class AppContext:
 
     _instance: AppContext | None = None
     _lock = threading.Lock()
+    _allow_reinit: bool = False  # Add this class attribute
 
     def __init__(self) -> None:
         """Private constructor to prevent direct instantiation."""
-        if AppContext._instance is not None:  # pragma: no cover
+        if (
+            AppContext._instance is not None and not AppContext._allow_reinit
+        ):  # pragma: no cover
             msg = "Use AppContext.get_instance() instead"
             raise RuntimeError(msg)
         self._config: Config | None = None
@@ -64,9 +67,13 @@ class AppContext:
         """Initialize the application context with config."""
         self._config = Config.load(project_root)
 
-    def reset(self) -> None:
-        """Reset the context for testing (clears cached instances)."""
-        self._config = None
+    @classmethod
+    def reset_singleton(cls) -> None:
+        """Reset the singleton instance completely (for testing only)."""
+        with cls._lock:
+            cls._allow_reinit = True
+            cls._instance = None
+            cls._allow_reinit = False
 
 
 def initialize_app(project_root: Path | None = None) -> None:
@@ -76,7 +83,7 @@ def initialize_app(project_root: Path | None = None) -> None:
 
 def reset_context() -> None:  # pragma: no cover
     """Reset the global application context (for testing)."""
-    AppContext.get_instance().reset()
+    AppContext.reset_singleton()
 
 
 def get_config() -> Config:

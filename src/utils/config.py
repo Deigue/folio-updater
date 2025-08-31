@@ -6,9 +6,10 @@ It provides a centralized way to access configuration values throughout the appl
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 
 import yaml
 
@@ -16,7 +17,7 @@ import yaml
 class Config:
     """Configuration for the folio."""
 
-    DEFAULT_CONFIG: Mapping[str, Any] = MappingProxyType(
+    DEFAULT_CONFIG: ClassVar[MappingProxyType[str, Any]] = MappingProxyType(
         {
             "folio_path": "data/folio.xlsx",
             "db_path": "data/folio.db",
@@ -40,7 +41,7 @@ class Config:
     def __init__(
         self,
         project_root: Path,
-        settings: Mapping[str, Any] = DEFAULT_CONFIG,
+        settings: dict[str, Any],
     ) -> None:
         """Initialize the Config object."""
         self._settings = settings
@@ -115,7 +116,7 @@ class Config:
             resolved_root = Config.get_default_root_directory()  # pragma: no cover
 
         config_yaml: Path = cls._get_config_path(resolved_root)
-        configuration: dict[str, Any] = dict(cls.DEFAULT_CONFIG)
+        configuration: dict[str, Any] = deepcopy(dict(cls.DEFAULT_CONFIG))
         if not config_yaml.exists():
             with Path.open(config_yaml, "w", encoding="utf-8") as f:
                 yaml.safe_dump(
@@ -157,7 +158,7 @@ class Config:
         Returns:
             Validated configuration
         """
-        validated: dict[str, Any] = dict(Config.DEFAULT_CONFIG)
+        validated: dict[str, Any] = deepcopy(dict(Config.DEFAULT_CONFIG))
 
         log_level = settings.get("log_level", validated["log_level"]).upper()
         if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:

@@ -12,6 +12,12 @@ import pytest
 from app.app_context import AppContext
 
 
+@pytest.fixture(autouse=True)
+def reset_app_context() -> None:
+    """Automatically reset AppContext before each test."""
+    AppContext.reset_singleton()
+
+
 @pytest.fixture
 def temp_config(
     tmp_path: Path,
@@ -32,25 +38,29 @@ def temp_config(
         overrides: dict[str, Any] | None = None,
     ) -> Generator[AppContext, Any, None]:
         if overrides is None:
-            overrides = {}  # pragma: no cover
+            overrides = {}
+
         config_path: Path = tmp_path / "config.yaml"
         with Path.open(config_path, "w") as f:
             for key, value in overrides.items():
                 f.write(f"{key}: {value}\n")
 
+        # Get a fresh instance after the reset_app_context fixture has run
         app_ctx = AppContext.get_instance()
         app_ctx.initialize(tmp_path)
-        yield app_ctx
 
-        app_ctx.reset()
+        try:
+            yield app_ctx
+        finally:
+            # Additional cleanup - reset the instance config
+            config_path.unlink(missing_ok=True)
 
-        config_path.unlink(missing_ok=True)
-        # Also clean artifacts created by folio_setup/mock_data
-        for pattern in ("*.xlsx", "*.db"):
-            for file_path in tmp_path.rglob(pattern):
-                file_path.unlink(missing_ok=True)
+            # Clean artifacts created by folio_setup/mock_data
+            for pattern in ("*.xlsx", "*.db"):
+                for file_path in tmp_path.rglob(pattern):
+                    file_path.unlink(missing_ok=True)
 
-        _log_cleanup_status(tmp_path)
+            _log_cleanup_status(tmp_path)
 
     return _temp_config
 
