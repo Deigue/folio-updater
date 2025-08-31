@@ -5,9 +5,9 @@ import re
 
 import pandas as pd
 
+from app.app_context import get_config
 from db import db
-from utils import config
-from utils.constants import TXN_ESSENTIALS
+from utils.constants import TXN_ESSENTIALS, Table
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,11 @@ def _normalize(name: str) -> str:
         'transactiondate'
     """
     name = name.strip().lower()
-    if not name:
+    if not name:  # pragma: no cover
         return name
     return re.sub(r"[^a-z0-9$]", "", name)
 
 
-# TODO Test this function for different edge cases
 def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
     """Transform a transaction DataFrame from Excel to match the current Txns schema.
 
@@ -53,7 +52,8 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
         DataFrame ready for DB insertion with correct columns and order.
 
     """
-    header_keywords = config.HEADER_KEYWORDS
+    config = get_config()
+    header_keywords = config.header_keywords
 
     # Normalize keywords for matching
     norm_keywords: dict[str, set[str]] = {
@@ -85,8 +85,11 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
     # Map headers to internal names
     df_internal = excel_df.rename(columns=mapping)
 
-    # TODO: Replace with config internal name Txns.
-    existing_columns = db.get_columns(db.get_connection(), "Txns")
+    with db.get_connection() as conn:
+        existing_columns = db.get_columns(
+            conn,
+            Table.TXNS.value,
+        )
 
     # Column ordering template
     if existing_columns:
@@ -105,6 +108,4 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
             df_internal[col] = pd.NA
 
     # Enforce reordering
-    df_internal = df_internal[final_columns]
-
-    return df_internal
+    return df_internal[final_columns]

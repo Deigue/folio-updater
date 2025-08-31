@@ -25,11 +25,12 @@ def import_transactions(folio_path: Path) -> int:
     """
     config = get_config()
     try:
-        # TODO: Be able to read any generic Excel file with transactions
+        # TODO @deigue: #1 Be able to read any generic Excel file with transactions
         txns_df: pd.DataFrame = pd.read_excel(
-            folio_path, sheet_name=config.transactions_sheet()
+            folio_path,
+            sheet_name=config.transactions_sheet(),
         )
-    except ValueError:
+    except ValueError:  # pragma: no cover
         logger.warning(
             "No '%s' sheet found in %s.",
             config.transactions_sheet(),

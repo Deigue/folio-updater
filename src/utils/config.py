@@ -9,7 +9,7 @@ from __future__ import annotations
 from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, ClassVar, Mapping
+from typing import Any, ClassVar
 
 import yaml
 
