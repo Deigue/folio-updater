@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from contextlib import _GeneratorContextManager
 
     from app.app_context import AppContext
+    from utils.config import Config
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -45,27 +46,27 @@ def test_import_transactions(
         _debug_db_structure()
 
 
-def _get_default_dataframe(config) -> pd.DataFrame:
+def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions sheet."""
     txn_sheet = config.transactions_sheet()
     return pd.read_excel(config.folio_path, sheet_name=txn_sheet)
 
 
-def _test_baseline_import(config, default_df: pd.DataFrame) -> None:
+def _test_baseline_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test baseline import functionality."""
     transactions = import_transactions(config.folio_path)
     assert transactions > 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
 
-def _test_empty_db_import(config, default_df: pd.DataFrame) -> None:
+def _test_empty_db_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing into an empty database."""
     config.db_path.unlink()
     assert import_transactions(config.folio_path) > 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
 
-def _test_missing_essential_column(config, default_df: pd.DataFrame) -> None:
+def _test_missing_essential_column(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing with missing essential column should raise ValueError."""
     df = default_df.copy()
     essential_to_remove = next(iter(TXN_ESSENTIALS))
@@ -96,12 +97,15 @@ def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame
     return df
 
 
-def _test_optional_columns_import(config, default_df: pd.DataFrame) -> pd.DataFrame:
+def _test_optional_columns_import(
+    config: Config,
+    default_df: pd.DataFrame,
+) -> pd.DataFrame:
     """Test importing with optional columns."""
     df = default_df.copy()
     extra_cols = {
         "ExtraCol1": ["foo"] * len(default_df),
-        "ExtraCol2": ["123"] * len(default_df),  # Write as string to match DB dtype
+        "ExtraCol2": ["123"] * len(default_df),
         "ExtraCol3": pd.date_range("2020-01-01", periods=len(default_df)),
     }
     df = _add_extra_columns_to_df(df, extra_cols)
@@ -115,7 +119,8 @@ def _test_optional_columns_import(config, default_df: pd.DataFrame) -> pd.DataFr
 
 
 def _test_additional_columns_with_scrambled_order(
-    config, baseline_df: pd.DataFrame
+    config: Config,
+    baseline_df: pd.DataFrame,
 ) -> None:
     """Test importing with additional columns and scrambled column order."""
     df = baseline_df.copy()
@@ -139,7 +144,7 @@ def _test_additional_columns_with_scrambled_order(
     _verify_db_contents(df_ordered, last_n=len(df))
 
 
-def _test_lesser_columns_import(config, default_df: pd.DataFrame) -> None:
+def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing with fewer columns than internal database."""
     df = default_df.copy()
     extra_cols = {

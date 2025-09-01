@@ -25,7 +25,6 @@ def import_transactions(folio_path: Path) -> int:
     """
     config = get_config()
     try:
-        # TODO @deigue: #1 Be able to read any generic Excel file with transactions
         txns_df: pd.DataFrame = pd.read_excel(
             folio_path,
             sheet_name=config.transactions_sheet(),
