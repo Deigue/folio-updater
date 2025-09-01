@@ -5,16 +5,52 @@ from __future__ import annotations
 import logging
 import re
 import sqlite3
-from typing import TYPE_CHECKING
+
+import pandas as pd
 
 from app.app_context import get_config
 from db import db
 from utils.constants import TXN_ESSENTIALS, Table
 
-if TYPE_CHECKING:
-    import pandas as pd
-
 logger = logging.getLogger(__name__)
+
+
+def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
+    """Transform a transaction DataFrame from Excel to match the current Txns schema.
+
+    Steps:
+    1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
+    2. Ensure all TXN_ESSENTIALS are present.
+    3. Merge with existing Txns schema so prior optional columns are preserved.
+    4. Append any new optional columns from Excel to the schema.
+    5. Reorder columns: TXN_ESSENTIALS first, then existing optionals, then
+    new optionals.
+
+    Args:
+        excel_df: DataFrame read from Excel with transaction data.
+
+    Returns:
+        DataFrame ready for DB insertion with correct columns and order.
+
+    """
+    txn_df: pd.DataFrame = _map_headers_to_internal(excel_df)
+    with db.get_connection() as conn:
+        existing_columns = db.get_columns(conn, Table.TXNS.value)
+
+    # Column ordering template
+    if existing_columns:
+        new_columns = [col for col in txn_df.columns if col not in existing_columns]
+        final_columns = existing_columns + new_columns
+        _add_missing_columns(new_columns)
+    else:
+        final_columns = list(TXN_ESSENTIALS) + [
+            col for col in txn_df.columns if col not in TXN_ESSENTIALS
+        ]
+    logger.debug("Final ordered columns: %s", final_columns)
+    for col in final_columns:
+        if col not in txn_df.columns:
+            txn_df[col] = pd.NA
+    return txn_df[final_columns]
 
 
 def _normalize(name: str) -> str:
@@ -89,38 +125,3 @@ def _map_headers_to_internal(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     # Map headers to internal names
     return excel_df.rename(columns=mapping)
-
-
-def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
-    """Transform a transaction DataFrame from Excel to match the current Txns schema.
-
-    Steps:
-    1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
-    2. Ensure all TXN_ESSENTIALS are present.
-    3. Merge with existing Txns schema so prior optional columns are preserved.
-    4. Append any new optional columns from Excel to the schema.
-    5. Reorder columns: TXN_ESSENTIALS first, then existing optionals, then
-    new optionals.
-
-    Args:
-        excel_df: DataFrame read from Excel with transaction data.
-
-    Returns:
-        DataFrame ready for DB insertion with correct columns and order.
-
-    """
-    txn_df: pd.DataFrame = _map_headers_to_internal(excel_df)
-    with db.get_connection() as conn:
-        existing_columns = db.get_columns(conn, Table.TXNS.value)
-
-    # Column ordering template
-    if existing_columns:
-        new_columns = [col for col in txn_df.columns if col not in existing_columns]
-        final_columns = existing_columns + new_columns
-        _add_missing_columns(new_columns)
-    else:
-        final_columns = list(TXN_ESSENTIALS) + [
-            col for col in txn_df.columns if col not in TXN_ESSENTIALS
-        ]
-    logger.debug("Final ordered columns: %s", final_columns)
-    return txn_df[final_columns]
