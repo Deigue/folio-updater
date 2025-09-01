@@ -10,6 +10,7 @@ import pandas as pd
 import pandas.testing as pd_testing
 import pytest
 
+from db import db
 from db.db import get_connection
 from importers.excel_importer import import_transactions
 from mock.folio_setup import ensure_folio_exists
@@ -175,18 +176,13 @@ def _debug_db_structure() -> None:
     """Debug database structure by printing tables and their contents."""
     with get_connection() as conn:
         # Print tables in db.
-        tables = pd.read_sql_query(
-            "SELECT name FROM sqlite_master WHERE type='table';",
-            conn,
-        )["name"].tolist()
+        tables = db.get_tables(conn)
         logger.debug("Tables in DB: %s", tables)
 
         # Print contents of each table
         for table in tables:
             logger.debug("=== %s ===", table)
-            query = f'SELECT * FROM "{table}"'  # noqa: S608
-            table_df = pd.read_sql_query(query, conn)
-            # Show all columns and rows for inspection
+            table_df = db.get_rows(conn, table)
             logger.debug("\n%s", table_df.to_string(index=False))
 
 
