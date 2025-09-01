@@ -38,7 +38,7 @@ def test_import_transactions(
 
         default_df = _get_default_dataframe(config)
 
-        _test_baseline_import(config, default_df)
+        _test_duplicate_import(config, default_df)
         _test_empty_db_import(config, default_df)
         _test_missing_essential_column(config, default_df)
         df_with_optional = _test_optional_columns_import(config, default_df)
@@ -53,10 +53,10 @@ def _get_default_dataframe(config: Config) -> pd.DataFrame:
     return pd.read_excel(config.folio_path, sheet_name=txn_sheet)
 
 
-def _test_baseline_import(config: Config, default_df: pd.DataFrame) -> None:
-    """Test baseline import functionality."""
+def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
+    """Test importing duplicate transactions results in 0 new imports."""
     transactions = import_transactions(config.folio_path)
-    assert transactions > 0
+    assert transactions == 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
 
@@ -97,12 +97,14 @@ def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame
             df[col] = data.astype(str)
     return df
 
+
 def _modify_essential_for_uniqueness(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
     """Modify an essential column's data to make rows unique for testing."""
     df = df.copy()
     if "Ticker" in df.columns:  # pragma: no branch
         df["Ticker"] = df["Ticker"].astype(str) + suffix
     return df
+
 
 def _test_optional_columns_import(
     config: Config,
@@ -116,6 +118,7 @@ def _test_optional_columns_import(
         "ExtraCol3": pd.date_range("2020-01-01", periods=len(default_df)),
     }
     df = _add_extra_columns_to_df(df, extra_cols)
+    df = _modify_essential_for_uniqueness(df, "_optional")
 
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_optional_columns.xlsx"
@@ -137,6 +140,7 @@ def _test_additional_columns_with_scrambled_order(
         "ExtraCol6": pd.date_range("2021-02-01", periods=len(df)),
     }
     df = _add_extra_columns_to_df(df, more_extra_cols)
+    df = _modify_essential_for_uniqueness(df, "_scrambled")
 
     cols = list(df.columns)
     random.shuffle(cols)
@@ -160,6 +164,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
         "ExtraCol9": pd.date_range("2022-03-01", periods=len(default_df)),
     }
     df = _add_extra_columns_to_df(df, extra_cols)
+    df = _modify_essential_for_uniqueness(df, "_lesser")
 
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "lesser_columns.xlsx"
