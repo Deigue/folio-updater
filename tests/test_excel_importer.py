@@ -97,6 +97,12 @@ def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame
             df[col] = data.astype(str)
     return df
 
+def _modify_essential_for_uniqueness(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+    """Modify an essential column's data to make rows unique for testing."""
+    df = df.copy()
+    if "Ticker" in df.columns:  # pragma: no branch
+        df["Ticker"] = df["Ticker"].astype(str) + suffix
+    return df
 
 def _test_optional_columns_import(
     config: Config,
@@ -190,7 +196,7 @@ def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
     with get_connection() as conn:
         query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
         table_df = pd.read_sql_query(query, conn)
-        if last_n is not None:  # pragma: no cover
+        if last_n is not None:  # pragma: no branch
             table_df = table_df.tail(last_n).reset_index(drop=True)
             df = df.reset_index(drop=True)
 

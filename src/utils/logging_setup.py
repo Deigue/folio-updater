@@ -64,7 +64,7 @@ def init_logging(level: int = logging.INFO) -> None:
         isinstance(h, logging.StreamHandler) and isinstance(h.formatter, ColorFormatter)
         for h in root_logger.handlers
     )
-    if not console_exists:  # pragma: no cover
+    if not console_exists:  # pragma: no branch
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(ColorFormatter())
         root_logger.addHandler(console_handler)
@@ -74,7 +74,7 @@ def init_logging(level: int = logging.INFO) -> None:
         isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
         for h in root_logger.handlers
     )
-    if not file_exists:  # pragma: no cover
+    if not file_exists:  # pragma: no branch
         file_handler = TimedRotatingFileHandler(
             log_file,
             when="midnight",

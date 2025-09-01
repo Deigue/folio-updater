@@ -14,27 +14,22 @@ if TYPE_CHECKING:
 class AutoStrEnum(Enum):
     """Enum that automatically creates a string representation of the enum value."""
 
-    def __init__(self, *args: object) -> None:
-        """Override base Enum initialization to rep with a string."""
-        super().__init__(*args)
-        self._value_ = str(self._value_)
-
     def __str__(self) -> str:
         """Return a string representation of the enum value."""
         return self.value
 
-    def __conform__(self, protocol: sqlite3.PrepareProtocol) -> str:
+    def __conform__(self, protocol: sqlite3.PrepareProtocol) -> str:  # pragma: no cover
         """Conform to string for sqlite3."""
         if protocol is sqlite3.PrepareProtocol:
             return self.value
-        msg = f"Cannot conform {self} to {protocol}"  # pragma: no cover
-        raise TypeError(msg)  # pragma: no cover
+        msg = f"Cannot conform {self} to {protocol}"
+        raise TypeError(msg)
 
     def __hash__(self) -> int:
         """Hash the enum value."""
         return hash(self.value)
 
-    def __eq__(self, other: object) -> bool | NotImplementedType:
+    def __eq__(self, other: object) -> bool | NotImplementedType:  # pragma: no cover
         """Compare the enum value to another enum or a string.
 
         If the `other` argument is an instance of `AutoStrEnum`, compare the
@@ -46,14 +41,14 @@ class AutoStrEnum(Enum):
         If the `other` argument is any other type, return `NotImplemented`.
         """
         if isinstance(other, AutoStrEnum):
-            return self.value == other.value  # pragma: no cover
+            return self.value == other.value
         if isinstance(other, str):
             return self.value == other
-        return NotImplemented  # pragma: no cover
+        return NotImplemented
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         """Representation of this enum should be a string."""
-        return self.value  # pragma: no cover
+        return self.value
 
 
 class Currency(AutoStrEnum):

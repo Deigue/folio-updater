@@ -52,7 +52,7 @@ class Config:
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
         self._folio_path: Path = folio_path
         db_path = Path(settings["db_path"])
-        if not db_path.is_absolute():  # pragma: no cover
+        if not db_path.is_absolute():  # pragma: no branch
             db_path: Path = (project_root / settings["db_path"]).resolve()
         self._db_path: Path = db_path
 
@@ -165,11 +165,11 @@ class Config:
             log_level: str = validated["log_level"]
         validated["log_level"] = log_level
 
-        if "folio_path" in settings:
-            validated["folio_path"] = str(settings["folio_path"])  # pragma: no cover
+        if "folio_path" in settings:  # pragma: no branch
+            validated["folio_path"] = str(settings["folio_path"])
 
-        if "db_path" in settings:
-            validated["db_path"] = str(settings["db_path"])  # pragma: no cover
+        if "db_path" in settings:  # pragma: no branch
+            validated["db_path"] = str(settings["db_path"])
 
         if "sheets" in settings and isinstance(settings["sheets"], dict):
             validated["sheets"].update(settings["sheets"])
