@@ -86,8 +86,7 @@ def _add_missing_columns(columns: list[str]) -> None:
                 conn.execute(alter_sql)
                 logger.debug("Added new column '%s' to table '%s'", c, Table.TXNS.value)
             except sqlite3.OperationalError as e:  # pragma: no cover
-                if "duplicate column name" not in str(e).lower():
-                    logger.warning("Could not add column '%s': %s", c, e)
+                logger.warning("Could not add column '%s': %s", c, e)
 
 
 def _map_headers_to_internal(excel_df: pd.DataFrame) -> pd.DataFrame:
