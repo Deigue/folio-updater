@@ -47,6 +47,27 @@ def test_import_transactions(
         _debug_db_structure()
 
 
+def test_intra_import_duplicates(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        default_df = _get_default_dataframe(config)
+        # Duplicate the first row to create a duplicate transaction
+        df_with_dupes = pd.concat([default_df, default_df.iloc[[0]]], ignore_index=True)
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_intra_dupes.xlsx"
+        df_with_dupes.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+
+        # Import should only add one unique transaction for the duplicate row
+        config.db_path.unlink()  # Start with empty DB
+        imported_count = import_transactions(temp_path)
+        assert imported_count == len(default_df)
+        _verify_db_contents(default_df, last_n=len(default_df))
+
+
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions sheet."""
     txn_sheet = config.transactions_sheet()

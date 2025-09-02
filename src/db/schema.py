@@ -22,11 +22,11 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
     Steps:
     1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
     2. Ensure all TXN_ESSENTIALS are present.
-    3. Filter out duplicate transactions based on synthetic primary key.
-    4. Merge with existing Txns schema so prior optional columns are preserved.
-    5. Append any new optional columns from Excel to the schema.
-    6. Reorder columns: TXN_ESSENTIALS first, then existing optionals, then
-    new optionals.
+    3. Filter out duplicate transactions within the import itself.
+    4. Filter out duplicate transactions already in DB.
+    5. Merge with existing Txns schema so prior optional columns are preserved.
+    6. Append any new optional columns from Excel to the schema.
+    7. Reorder: TXN_ESSENTIALS -> existing optionals -> new optionals.
 
     Args:
         excel_df: DataFrame read from Excel with transaction data.
@@ -36,6 +36,14 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     """
     txn_df: pd.DataFrame = _map_headers_to_internal(excel_df)
+
+    # Filter out duplicate transactions within the import itself
+    txn_df, intra_dupes_count = _filter_intra_import_duplicates(txn_df)
+    if intra_dupes_count > 0:
+        logger.info(
+            "Filtered out %d duplicate transactions within import",
+            intra_dupes_count,
+        )
 
     # Filter out duplicate transactions
     original_count = len(txn_df)
@@ -244,3 +252,30 @@ def _filter_duplicate_transactions(txn_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return filtered_df
+
+
+def _filter_intra_import_duplicates(txn_df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+    """Filter out duplicate transactions within the DataFrame itself.
+
+    Args:
+        txn_df: DataFrame with transaction data.
+
+    Returns:
+        Tuple of (DataFrame with duplicates removed, number of duplicates found)
+    """
+    if txn_df.empty:  # pragma: no cover
+        return txn_df, 0
+
+    keys = txn_df.apply(_generate_synthetic_key, axis=1)
+    duplicate_mask = keys.duplicated(keep="first")
+    num_dupes = duplicate_mask.sum()
+
+    if num_dupes > 0:
+        logger.debug(
+            "Detected %d intra-import duplicate transactions. Synthetic keys: %s",
+            num_dupes,
+            list(keys[duplicate_mask]),
+        )
+
+    filtered_df = txn_df[~duplicate_mask].copy()
+    return filtered_df, num_dupes
