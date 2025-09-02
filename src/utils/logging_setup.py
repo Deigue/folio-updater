@@ -50,7 +50,8 @@ def init_logging(level: int = logging.INFO) -> None:
 
     Logging is set up with:
         - Colorized console logs
-        - Rolling file logs
+        - Rolling file logs (general application logs)
+        - Separate rolling file logs for import operations
     """
     log_dir: Path = Config.get_default_root_directory() / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -90,5 +91,53 @@ def init_logging(level: int = logging.INFO) -> None:
         )
         root_logger.addHandler(file_handler)
 
+    _setup_import_logger(log_dir, level)
+
     logger: logging.Logger = logging.getLogger(__name__)
     logger.debug("Logging initialized with level: %s", logging.getLevelName(level))
+
+
+def _setup_import_logger(log_dir: Path, level: int) -> None:
+    """Set up a dedicated logger for import operations.
+
+    Args:
+        log_dir: Directory where log files should be stored
+        level: Logging level to use
+    """
+    import_log_file: Path = log_dir / "importer.log"
+    import_logger: logging.Logger = logging.getLogger("importer")
+
+    # Check if handler already exists
+    import_handler_exists = any(
+        isinstance(h, TimedRotatingFileHandler)
+        and h.baseFilename == str(import_log_file)
+        for h in import_logger.handlers
+    )
+
+    if not import_handler_exists:  # pragma: no branch
+        import_handler = TimedRotatingFileHandler(
+            import_log_file,
+            when="midnight",
+            interval=1,
+            backupCount=30,  # Keep more import logs for audit purposes
+            encoding="utf-8",
+        )
+        import_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s [%(levelname)s] [%(module)s(%(lineno)d)] %(message)s",
+                datefmt=DATE_FORMAT,
+            ),
+        )
+        import_logger.addHandler(import_handler)
+        import_logger.setLevel(level)
+        # Prevent import logs from propagating to root logger to avoid duplication
+        import_logger.propagate = False
+
+
+def get_import_logger() -> logging.Logger:
+    """Get the dedicated import logger.
+
+    Returns:
+        Logger instance for import operations
+    """
+    return logging.getLogger("importer")
