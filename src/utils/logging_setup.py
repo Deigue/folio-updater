@@ -20,7 +20,7 @@ COLORS: dict[int, str] = {
 }
 
 RESET: str = "\033[0m"
-LOG_FORMAT = "%(asctime)s [%(levelname)s] [%(name)s(%(lineno)d)] %(message)s"
+LOG_FORMAT = "%(asctime)s [%(levelname)-8s] [%(name)s(%(lineno)d)] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
@@ -124,13 +124,12 @@ def _setup_import_logger(log_dir: Path, level: int) -> None:
         )
         import_handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s [%(levelname)s] [%(module)s(%(lineno)d)] %(message)s",
+                "%(asctime)s [%(levelname)-8s] [%(module)s(%(lineno)d)] %(message)s",
                 datefmt=DATE_FORMAT,
             ),
         )
         import_logger.addHandler(import_handler)
         import_logger.setLevel(level)
-        # Prevent import logs from propagating to root logger to avoid duplication
         import_logger.propagate = False
 
 
