@@ -185,7 +185,7 @@ def _get_existing_transaction_keys() -> set[str]:
 
             existing_keys: set[str] = set()
             existing_keys.update(existing_df.apply(_generate_synthetic_key, axis=1))
-        except (sqlite3.Error, pd.errors.DatabaseError) as e:  # pragma: no cover
+        except (sqlite3.Error, pd.errors.DatabaseError):  # pragma: no cover
             import_logger.debug(
                 "Table '%s' does not exist yet, no existing transactions to check.",
                 Table.TXNS.value,
