@@ -12,8 +12,10 @@ import pandas as pd
 from app.app_context import get_config
 from db import db
 from utils.constants import TXN_ESSENTIALS, Table
+from utils.logging_setup import get_import_logger
 
 logger = logging.getLogger(__name__)
+import_logger = get_import_logger()
 
 
 def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
@@ -35,23 +37,9 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
         DataFrame ready for DB insertion with correct columns and order.
 
     """
-    txn_df: pd.DataFrame = _map_headers_to_internal(excel_df)
-
-    # Filter out duplicate transactions within the import itself
-    txn_df, intra_dupes_count = _filter_intra_import_duplicates(txn_df)
-    if intra_dupes_count > 0:
-        logger.info(
-            "Filtered out %d duplicate transactions within import",
-            intra_dupes_count,
-        )
-
-    # Filter out duplicate transactions
-    original_count = len(txn_df)
-    txn_df = _filter_duplicate_transactions(txn_df)
-    duplicate_count = original_count - len(txn_df)
-
-    if duplicate_count > 0:
-        logger.info("Filtered out %d duplicate transactions", duplicate_count)
+    txn_df = _map_headers_to_internal(excel_df)
+    txn_df = _filter_intra_import_duplicates(txn_df)
+    txn_df = _filter_db_duplicates(txn_df)
 
     with db.get_connection() as conn:
         existing_columns = db.get_columns(conn, Table.TXNS.value)
@@ -65,10 +53,13 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
         final_columns = list(TXN_ESSENTIALS) + [
             col for col in txn_df.columns if col not in TXN_ESSENTIALS
         ]
-    logger.debug("Final ordered columns: %s", final_columns)
+    import_logger.debug("Final ordered columns: %s", final_columns)
+
+    # Add any missing columns to the DataFrame
     for col in final_columns:
         if col not in txn_df.columns:
             txn_df[col] = pd.NA
+
     return txn_df[final_columns]
 
 
@@ -104,8 +95,8 @@ def _add_missing_columns(columns: list[str]) -> None:
             try:
                 conn.execute(alter_sql)
                 logger.debug("Added new column '%s' to table '%s'", c, Table.TXNS.value)
-            except sqlite3.OperationalError as e:  # pragma: no cover
-                logger.warning("Could not add column '%s': %s", c, e)
+            except sqlite3.OperationalError:  # pragma: no cover
+                logger.exception("Could not add column '%s'", c)
 
 
 def _map_headers_to_internal(excel_df: pd.DataFrame) -> pd.DataFrame:
@@ -131,18 +122,21 @@ def _map_headers_to_internal(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     if mapping:
         pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
-        logger.debug("Excel->internal mappings:\n%s", pretty_mapping)
+        import_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
     else:
-        logger.debug("Excel->internal mappings: {}")  # pragma: no cover
+        import_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
 
     # Ensure TXN_ESSENTIALS are present in the mapping
     if unmatched:
         error_message = f"Could not map essential columns: {unmatched}"
-        logger.error(error_message)
+        import_logger.error(error_message)
         raise ValueError(error_message)
 
-    # Map headers to internal names
-    return excel_df.rename(columns=mapping)
+    excel_df = excel_df.rename(columns=mapping)
+    summaries = excel_df.apply(_format_transaction_summary, axis=1)
+    for summary in summaries:
+        import_logger.info(" - %s", summary)
+    return excel_df
 
 
 def _generate_synthetic_key(row: pd.Series) -> str:
@@ -168,11 +162,10 @@ def _generate_synthetic_key(row: pd.Series) -> str:
 
     key_parts = [normalize_value(row.get(col, "")) for col in TXN_ESSENTIALS]
     key_string = "|".join(key_parts)
-    logger.debug(" syn-key -> %s", key_string)
     return hashlib.sha256(key_string.encode("utf-8")).hexdigest()
 
 
-def _get_existing_transaction_keys(conn: sqlite3.Connection) -> set[str]:
+def _get_existing_transaction_keys() -> set[str]:
     """Get synthetic keys for all existing transactions in the database.
 
     Args:
@@ -181,101 +174,103 @@ def _get_existing_transaction_keys(conn: sqlite3.Connection) -> set[str]:
     Returns:
         Set of synthetic keys for existing transactions.
     """
-    try:
-        # Build the query to select TXN_ESSENTIAL columns
-        essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)
-        query = f'SELECT {essential_cols} FROM "{Table.TXNS.value}"'  # noqa: S608
+    with db.get_connection() as conn:
+        try:
+            # Build the query to select essential columns.
+            essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)
+            query = f'SELECT {essential_cols} FROM "{Table.TXNS.value}"'  # noqa: S608
+            existing_df = pd.read_sql_query(query, conn)
+            if existing_df.empty:  # pragma: no cover
+                return set()
 
-        existing_df = pd.read_sql_query(query, conn)
-        if existing_df.empty:  # pragma: no cover
+            existing_keys: set[str] = set()
+            existing_keys.update(existing_df.apply(_generate_synthetic_key, axis=1))
+        except (sqlite3.Error, pd.errors.DatabaseError) as e:  # pragma: no cover
+            import_logger.debug(
+                "Table '%s' does not exist yet, no existing transactions to check.",
+                Table.TXNS.value,
+            )
             return set()
-
-        # Generate synthetic keys for existing transactions
-        existing_keys = set()
-        logger.debug("Existing transaction keys:")
-        for _, row in existing_df.iterrows():
-            key = _generate_synthetic_key(row)
-            existing_keys.add(key)
-
-    except sqlite3.OperationalError:  # pragma: no cover
-        logger.debug(
-            "Table '%s' does not exist yet, no existing transactions to check",
-            Table.TXNS.value,
-        )
-        return set()
-    else:
-        return existing_keys
+        else:
+            return existing_keys
 
 
-def _filter_duplicate_transactions(txn_df: pd.DataFrame) -> pd.DataFrame:
+def _filter_db_duplicates(txn_df: pd.DataFrame) -> pd.DataFrame:
     """Filter out transactions that already exist in the database.
 
     Args:
         txn_df: DataFrame with transaction data.
 
     Returns:
-        DataFrame with duplicate transactions removed.
+        DataFrame with database duplicates removed.
     """
     if txn_df.empty:  # pragma: no cover
         return txn_df
 
-    with db.get_connection() as conn:
-        tables = db.get_tables(conn)
-        if Table.TXNS.value not in tables:
-            logger.debug("Transaction table does not exist, no duplicates to check")
-            return txn_df
-        existing_keys = _get_existing_transaction_keys(conn)
-
-    # Empty transaction table exists, with no records.
+    existing_keys = _get_existing_transaction_keys()
     if not existing_keys:  # pragma: no cover
-        logger.debug(
-            "No existing transactions found, proceeding with all %d transactions",
-            len(txn_df),
-        )
         return txn_df
 
-    # Generate synthetic keys for new transactions
-    new_keys = []
-    logger.debug("New synthetic keys:")
-    for _, row in txn_df.iterrows():
-        key = _generate_synthetic_key(row)
-        new_keys.append(key)
+    new_keys_series: pd.Series[str] = txn_df.apply(_generate_synthetic_key, axis=1)
+    new_keys: set[str] = set(new_keys_series)
+    duplicates: set[str] = existing_keys & new_keys
+    if not duplicates:  # pragma: no cover
+        return txn_df
 
-    # Filter out duplicates
-    mask = [key not in existing_keys for key in new_keys]
-    filtered_df = txn_df[mask].copy()
+    import_logger.info("Filtered %d database duplicate transactions.", len(duplicates))
 
-    logger.debug(
-        "Filtering %d new transactions to %d unique ones",
-        len(txn_df),
-        len(filtered_df),
-    )
+    is_duplicate: pd.Series[bool] = new_keys_series.isin(duplicates)
+    duplicates_df: pd.DataFrame = txn_df[is_duplicate]
+    summaries = duplicates_df.apply(_format_transaction_summary, axis=1)
+    for summary in summaries:
+        import_logger.info(" - %s", summary)
 
-    return filtered_df
+    return txn_df[~is_duplicate].copy()
 
 
-def _filter_intra_import_duplicates(txn_df: pd.DataFrame) -> tuple[pd.DataFrame, int]:
+def _filter_intra_import_duplicates(txn_df: pd.DataFrame) -> pd.DataFrame:
     """Filter out duplicate transactions within the DataFrame itself.
 
     Args:
         txn_df: DataFrame with transaction data.
 
     Returns:
-        Tuple of (DataFrame with duplicates removed, number of duplicates found)
+        DataFrame with duplicates removed
     """
     if txn_df.empty:  # pragma: no cover
-        return txn_df, 0
+        return txn_df
 
     keys = txn_df.apply(_generate_synthetic_key, axis=1)
     duplicate_mask = keys.duplicated(keep="first")
     num_dupes = duplicate_mask.sum()
 
     if num_dupes > 0:
-        logger.debug(
-            "Detected %d intra-import duplicate transactions. Synthetic keys: %s",
+        duplicate_transactions = txn_df[duplicate_mask]
+        import_logger.info(
+            "Filtered %d intra-import duplicate transactions.",
             num_dupes,
-            list(keys[duplicate_mask]),
         )
+        summaries = duplicate_transactions.apply(_format_transaction_summary, axis=1)
+        for summary in summaries:
+            import_logger.info(" - %s", summary)
 
-    filtered_df = txn_df[~duplicate_mask].copy()
-    return filtered_df, num_dupes
+    return txn_df[~duplicate_mask].copy()
+
+
+def _format_transaction_summary(row: pd.Series) -> str:
+    """Format a transaction row into a human-readable summary.
+
+    Args:
+        row: A pandas Series containing transaction data.
+
+    Returns:
+        A formatted string summarizing the transaction.
+    """
+    essential_parts = []
+    for col in TXN_ESSENTIALS:
+        value = row.get(col, "N/A")
+        if pd.isna(value):  # pragma: no cover
+            value = "N/A"
+        essential_parts.append(f"{col}={value}")
+
+    return "|".join(essential_parts)
