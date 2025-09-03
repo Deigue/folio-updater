@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from contextlib import contextmanager
 from typing import Generator
@@ -10,11 +11,18 @@ import pandas as pd
 
 from app.app_context import get_config
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 @contextmanager
 def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
-    conn = sqlite3.connect(get_config().db_path)
+    try:
+        db_path = get_config().db_path
+        conn: sqlite3.Connection = sqlite3.connect(db_path)
+    except sqlite3.OperationalError:  # pragma: no cover
+        logger.exception("Error connecting to database: %s", str(db_path))
+        raise
     try:
         yield conn
     finally:
