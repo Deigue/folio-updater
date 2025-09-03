@@ -48,7 +48,6 @@ def import_transactions(folio_path: Path) -> int:
         )
     except ValueError:  # pragma: no cover
         error_msg = f"No '{config.transactions_sheet()}' sheet found in {folio_path}."
-        logger.warning(error_msg)
         import_logger.warning(error_msg)
         import_logger.info("Import completed: 0 transactions imported")
         import_logger.info("=" * 60)
@@ -62,7 +61,6 @@ def import_transactions(folio_path: Path) -> int:
 
     txn_count = len(prepared_df)
     msg: str = f"Import completed: {txn_count} transactions imported"
-    logger.info(msg)
     import_logger.info(msg)
     import_logger.info("Total transactions in database: %d", final_count)
     import_logger.info("=" * 60)
