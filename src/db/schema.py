@@ -10,7 +10,7 @@ import sqlite3
 import pandas as pd
 
 from app.app_context import get_config
-from db import db
+from db import db, schema_manager
 from utils.constants import TXN_ESSENTIALS, Table
 from utils.logging_setup import get_import_logger
 
@@ -37,6 +37,10 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
         DataFrame ready for DB insertion with correct columns and order.
 
     """
+    if excel_df.empty:  # pragma: no cover
+        return excel_df
+
+    schema_manager.create_txns_table()
     txn_df = _map_headers_to_internal(excel_df)
     txn_df = _filter_intra_import_duplicates(txn_df)
     txn_df = _filter_db_duplicates(txn_df)
@@ -44,15 +48,9 @@ def prepare_txns_for_db(excel_df: pd.DataFrame) -> pd.DataFrame:
     with db.get_connection() as conn:
         existing_columns = db.get_columns(conn, Table.TXNS.value)
 
-    # Column ordering template
-    if existing_columns:
-        new_columns = [col for col in txn_df.columns if col not in existing_columns]
-        final_columns = existing_columns + new_columns
-        _add_missing_columns(new_columns)
-    else:
-        final_columns = list(TXN_ESSENTIALS) + [
-            col for col in txn_df.columns if col not in TXN_ESSENTIALS
-        ]
+    new_columns = [col for col in txn_df.columns if col not in existing_columns]
+    final_columns = existing_columns + new_columns
+    _add_missing_columns(new_columns)
     import_logger.debug("Final ordered columns: %s", final_columns)
 
     # Add any missing columns to the DataFrame

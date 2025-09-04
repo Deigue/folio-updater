@@ -230,6 +230,16 @@ def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
         df = df.where(pd.notna(df), None)
         table_df = table_df.where(pd.notna(table_df), None)
 
+        # Ensure numeric columns have the same dtype for comparison
+        numeric_cols = ["Amount", "Price", "Units"]
+        for col in numeric_cols:
+            if col in df.columns and col in table_df.columns:  # pragma: no branch
+                try:
+                    df[col] = df[col].astype(float)
+                    table_df[col] = table_df[col].astype(float)
+                except (ValueError, TypeError) as e:  # pragma: no cover
+                    logger.warning("Could not convert column '%s' to float: %s", col, e)
+
         try:
             pd_testing.assert_frame_equal(
                 df,
