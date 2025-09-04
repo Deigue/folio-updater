@@ -139,7 +139,7 @@ def _test_optional_columns_import(
         "ExtraCol3": pd.date_range("2020-01-01", periods=len(default_df)),
     }
     df = _add_extra_columns_to_df(df, extra_cols)
-    df = _modify_essential_for_uniqueness(df, "_optional")
+    df = _modify_essential_for_uniqueness(df, ".optional")
 
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_optional_columns.xlsx"
@@ -161,7 +161,7 @@ def _test_additional_columns_with_scrambled_order(
         "ExtraCol6": pd.date_range("2021-02-01", periods=len(df)),
     }
     df = _add_extra_columns_to_df(df, more_extra_cols)
-    df = _modify_essential_for_uniqueness(df, "_scrambled")
+    df = _modify_essential_for_uniqueness(df, ".scrambled")
 
     cols = list(df.columns)
     random.shuffle(cols)
@@ -185,7 +185,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
         "ExtraCol9": pd.date_range("2022-03-01", periods=len(default_df)),
     }
     df = _add_extra_columns_to_df(df, extra_cols)
-    df = _modify_essential_for_uniqueness(df, "_lesser")
+    df = _modify_essential_for_uniqueness(df, ".lesser")
 
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "lesser_columns.xlsx"
