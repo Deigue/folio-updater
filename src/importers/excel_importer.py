@@ -1,12 +1,13 @@
 """Ingest Excel data into the application context."""
 
 import logging
+import sqlite3
 from pathlib import Path
 
 import pandas as pd
 
 from app.app_context import get_config
-from db import db, schema
+from db import db, preparers
 from utils.constants import Table
 from utils.logging_setup import get_import_logger
 
@@ -26,14 +27,12 @@ def import_transactions(folio_path: Path) -> int:
         int: Number of transactions imported.
     """
     config = get_config()
+    with db.get_connection() as conn:
+        existing_count = _get_existing_transaction_count(conn)
 
     # Log import start with detailed info
     import_logger.info("=" * 60)
     import_logger.info("Starting import from: %s", folio_path)
-
-    with db.get_connection() as conn:
-        existing_count = _get_existing_transaction_count(conn)
-
     import_logger.info("Existing transactions in database: %d", existing_count)
 
     try:
@@ -53,7 +52,8 @@ def import_transactions(folio_path: Path) -> int:
         import_logger.info("=" * 60)
         return 0
 
-    prepared_df: pd.DataFrame = schema.prepare_txns_for_db(txns_df)
+    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df)
+
 
     with db.get_connection() as conn:
         prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
@@ -82,5 +82,5 @@ def _get_existing_transaction_count(conn: db.sqlite3.Connection) -> int:
         query = f'SELECT COUNT(*) FROM "{Table.TXNS.value}"'  # noqa: S608
         cursor.execute(query)
         return cursor.fetchone()[0]
-    except db.sqlite3.OperationalError:
+    except sqlite3.OperationalError:
         return 0
