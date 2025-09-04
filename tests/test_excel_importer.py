@@ -14,7 +14,7 @@ from db import db
 from db.db import get_connection
 from importers.excel_importer import import_transactions
 from mock.folio_setup import ensure_folio_exists
-from utils.constants import TXN_ESSENTIALS, Table
+from utils.constants import TXN_ESSENTIALS, Column, Table
 
 if TYPE_CHECKING:
     from contextlib import _GeneratorContextManager
@@ -219,36 +219,42 @@ def _debug_db_structure() -> None:
 
 
 def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
+    imported_df = df.copy()
     with get_connection() as conn:
         query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
         table_df = pd.read_sql_query(query, conn)
         if last_n is not None:  # pragma: no branch
             table_df = table_df.tail(last_n).reset_index(drop=True)
-            df = df.reset_index(drop=True)
+            imported_df = imported_df.reset_index(drop=True)
 
         # Normalize null values to None for consistent comparison
-        df = df.where(pd.notna(df), None)
+        imported_df = imported_df.where(pd.notna(imported_df), None)
         table_df = table_df.where(pd.notna(table_df), None)
 
         # Ensure numeric columns have the same dtype for comparison
         numeric_cols = ["Amount", "Price", "Units"]
         for col in numeric_cols:
-            if col in df.columns and col in table_df.columns:  # pragma: no branch
+            if (
+                col in imported_df.columns and col in table_df.columns
+            ):  # pragma: no branch
                 try:
-                    df[col] = df[col].astype(float)
+                    imported_df[col] = imported_df[col].astype(float)
                     table_df[col] = table_df[col].astype(float)
                 except (ValueError, TypeError) as e:  # pragma: no cover
                     logger.warning("Could not convert column '%s' to float: %s", col, e)
 
+        # Formatters
+        imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
+
         try:
             pd_testing.assert_frame_equal(
-                df,
+                imported_df,
                 table_df,
             )
         except AssertionError as e:  # pragma: no cover
             logger.info("DataFrame mismatch between imported data and DB contents:")
             logger.info("Imported DataFrame:")
-            logger.info("\n%s", df.to_string(index=False))
+            logger.info("\n%s", imported_df.to_string(index=False))
             logger.info("DB DataFrame:")
             logger.info("\n%s", table_df.to_string(index=False))
             msg = f"DataFrames are not equal: {e}"
