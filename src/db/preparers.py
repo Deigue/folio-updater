@@ -8,6 +8,7 @@ import pandas as pd
 
 from db import schema_manager, table_manager
 from db.filters import TransactionFilter
+from db.formatters import TransactionFormatter
 from db.mappers import TransactionMapper
 from utils.logging_setup import get_import_logger
 
@@ -20,12 +21,13 @@ def prepare_transactions(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     Steps:
     1. Map Excel headers to internal transaction fields using HEADER_KEYWORDS.
-    2. Ensure all TXN_ESSENTIALS are present.
-    3. Filter out duplicate transactions within the import itself.
-    4. Filter out duplicate transactions already in DB.
-    5. Merge with existing Txns schema so prior optional columns are preserved.
-    6. Append any new optional columns from Excel to the schema.
-    7. Reorder: TXN_ESSENTIALS -> existing optionals -> new optionals.
+    2. Format and validate all data fields, excluding invalid rows.
+    3. Ensure all TXN_ESSENTIALS are present.
+    4. Filter out duplicate transactions within the import itself.
+    5. Filter out duplicate transactions already in DB.
+    6. Merge with existing Txns schema so prior optional columns are preserved.
+    7. Append any new optional columns from Excel to the schema.
+    8. Reorder: TXN_ESSENTIALS -> existing optionals -> new optionals.
 
     Args:
         excel_df: DataFrame read from Excel with transaction data.
@@ -39,6 +41,7 @@ def prepare_transactions(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     schema_manager.create_txns_table()
     txn_df = TransactionMapper.map_headers(excel_df)
+    txn_df = TransactionFormatter.format_and_validate(txn_df)
     txn_df = TransactionFilter.filter_intra_import_duplicates(txn_df)
     txn_df = TransactionFilter.filter_db_duplicates(txn_df)
     final_columns = table_manager.sync_txns_table_columns(txn_df)

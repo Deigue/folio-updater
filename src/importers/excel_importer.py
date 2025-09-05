@@ -54,9 +54,6 @@ def import_transactions(folio_path: Path) -> int:
 
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df)
 
-    # TODO@deigue: #12 Formalize formatting steps
-    prepared_df["Ticker"] = prepared_df["Ticker"].str.upper().str.strip()
-
     with db.get_connection() as conn:
         prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
         final_count = _get_existing_transaction_count(conn)

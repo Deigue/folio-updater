@@ -48,7 +48,7 @@ class TransactionFilter:
         if not duplicates:  # pragma: no cover
             return txn_df
 
-        import_logger.info(
+        import_logger.warning(
             "Filtered %d database duplicate transactions.",
             len(duplicates),
         )
@@ -57,7 +57,7 @@ class TransactionFilter:
         duplicates_df: pd.DataFrame = txn_df[is_duplicate]
         summaries = duplicates_df.apply(format_transaction_summary, axis=1)
         for summary in summaries:
-            import_logger.info(" - %s", summary)
+            import_logger.warning(" - %s", summary)
 
         return txn_df[~is_duplicate].copy()
 
@@ -80,13 +80,13 @@ class TransactionFilter:
 
         if num_dupes > 0:
             duplicate_transactions = txn_df[duplicate_mask]
-            import_logger.info(
+            import_logger.warning(
                 "Filtered %d intra-import duplicate transactions.",
                 num_dupes,
             )
             summaries = duplicate_transactions.apply(format_transaction_summary, axis=1)
             for summary in summaries:
-                import_logger.info(" - %s", summary)
+                import_logger.warning(" - %s", summary)
 
         return txn_df[~duplicate_mask].copy()
 
