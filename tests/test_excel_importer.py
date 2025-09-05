@@ -47,7 +47,7 @@ def test_import_transactions(
         _debug_db_structure()
 
 
-def test_intra_import_duplicates(
+def test_import_transactions_intra_dupes(
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
     with temp_config() as ctx:
@@ -66,6 +66,297 @@ def test_intra_import_duplicates(
         imported_count = import_transactions(temp_path)
         assert imported_count == len(default_df)
         _verify_db_contents(default_df, last_n=len(default_df))
+
+
+def test_import_transactions_formatting(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test importing transactions with various formatting scenarios.
+
+    This test covers:
+    1. Good cases with perfect data
+    2. Auto-formatted cases that are successfully imported
+    3. Invalid cases that result in row rejection
+
+    For each column type (date, action, amount, currency, price, units, ticker),
+    we test:
+    - Valid values
+    - Auto-formattable values (where applicable)
+    - Invalid/empty values that cause rejection
+
+    At the end, we verify that only valid rows are in the database.
+    """
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_formatting_scenarios.xlsx"
+
+        # Each row represents a specific test scenario
+        test_data = {
+            Column.Txn.TXN_DATE.value: [
+                "2023-01-01",  # Good case - all columns perfect
+                "01/02/2023",  # Auto-formatted date (MM/DD/YYYY -> YYYY-MM-DD)
+                "2023-01-03",  # Good date with ticker case formatting
+                "INVALID_DATE",  # Invalid date - should be rejected
+                "",  # Empty date - should be rejected
+                "2023-01-05",  # Missing action - should be rejected
+                "2023-01-06",  # Invalid action - should be rejected
+                "2023-01-07",  # Action abbreviation (will be normalized)
+                "2023-01-08",  # Empty amount - should be rejected
+                "2023-01-09",  # Invalid amount format - should be rejected
+                "2023-01-10",  # Invalid currency - should be rejected
+                "2023-01-11",  # Missing currency - should be rejected
+                "2023-01-12",  # Alternative currency format (will be normalized)
+                "2023-01-13",  # Empty price - should be rejected
+                "2023-01-14",  # Invalid price format - should be rejected
+                "2023-01-15",  # Empty units - should be rejected
+                "2023-01-16",  # Invalid units format - should be rejected
+                "2023-01-17",  # Empty ticker (valid - becomes NULL)
+                "2023-01-18",  # NULL ticker (valid - stays NULL)
+                "2023-01-19",  # Invalid ticker format - should be rejected
+                "2023-01-20",  # Multiple invalid: empty amount, invalid price/units
+                "2023-01-21",  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.ACTION.value: [
+                "BUY",  # Good case
+                "SELL",  # Good case
+                "BUY",  # Good case
+                "BUY",  # Good case, but date is invalid
+                "BUY",  # Good case, but date is empty
+                None,  # Missing action
+                "INVALID_ACTION",  # Invalid action
+                "B",  # Abbreviation, should normalize to "BUY"
+                "BUY",  # Good case, but amount is empty
+                "BUY",  # Good case, but amount is invalid
+                "SELL",  # Good case, but currency is invalid
+                "SELL",  # Good case, but currency is missing
+                "SELL",  # Good case with alternative currency
+                "BUY",  # Good case, but price is empty
+                "BUY",  # Good case, but price is invalid
+                "SELL",  # Good case, but units is empty
+                "SELL",  # Good case, but units is invalid
+                "BUY",  # Good case with empty ticker
+                "SELL",  # Good case with NULL ticker
+                "BUY",  # Good case, but ticker is invalid
+                "BUY",  # Multiple invalid: empty amount, invalid price/units
+                "INVALID_ACTION",  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.AMOUNT.value: [
+                1000.0,  # Good case
+                2000.0,  # Good case
+                1500.0,  # Good case
+                1000.0,  # Good case, but date is invalid
+                1000.0,  # Good case, but date is empty
+                1000.0,  # Good case, but action is missing
+                1000.0,  # Good case, but action is invalid
+                "$1,000.00",  # Currency symbol & commas, should normalize
+                "",  # Empty amount - should be rejected
+                "INVALID_AMOUNT",  # Invalid amount - should be rejected
+                1000.0,  # Good case, but currency is invalid
+                1000.0,  # Good case, but currency is missing
+                1000.0,  # Good case with alternative currency
+                1000.0,  # Good case, but price is empty
+                1000.0,  # Good case, but price is invalid
+                1000.0,  # Good case, but units is empty
+                1000.0,  # Good case, but units is invalid
+                1000.0,  # Good case with empty ticker
+                1000.0,  # Good case with NULL ticker
+                1000.0,  # Good case, but ticker is invalid
+                "",  # Multiple invalid: empty amount, invalid price/units
+                1000.0,  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.CURRENCY.value: [
+                "USD",  # Good case
+                "USD",  # Good case
+                "USD",  # Good case
+                "USD",  # Good case, but date is invalid
+                "USD",  # Good case, but date is empty
+                "USD",  # Good case, but action is missing
+                "USD",  # Good case, but action is invalid
+                "USD",  # Good case with formatted amount
+                "USD",  # Good case, but amount is empty
+                "USD",  # Good case, but amount is invalid
+                "INVALID_CURRENCY",  # Invalid currency - should be rejected
+                None,  # Missing currency - should be rejected
+                "US$",  # Alternative format, should normalize to "USD"
+                "USD",  # Good case, but price is empty
+                "USD",  # Good case, but price is invalid
+                "USD",  # Good case, but units is empty
+                "USD",  # Good case, but units is invalid
+                "USD",  # Good case with empty ticker
+                "USD",  # Good case with NULL ticker
+                "USD",  # Good case, but ticker is invalid
+                "USD",  # Multiple invalid: empty amount, invalid price/units
+                None,  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.PRICE.value: [
+                100.0,  # Good case
+                200.0,  # Good case
+                150.0,  # Good case
+                100.0,  # Good case, but date is invalid
+                100.0,  # Good case, but date is empty
+                100.0,  # Good case, but action is missing
+                100.0,  # Good case, but action is invalid
+                100.0,  # Good case with formatted amount
+                100.0,  # Good case, but amount is empty
+                100.0,  # Good case, but amount is invalid
+                100.0,  # Good case, but currency is invalid
+                100.0,  # Good case, but currency is missing
+                100.0,  # Good case with alternative currency
+                "",  # Empty price - should be rejected
+                "INVALID_PRICE",  # Invalid price - should be rejected
+                100.0,  # Good case, but units is empty
+                100.0,  # Good case, but units is invalid
+                100.0,  # Good case with empty ticker
+                100.0,  # Good case with NULL ticker
+                100.0,  # Good case, but ticker is invalid
+                "INVALID_PRICE",  # Multiple invalid: empty amount, invalid price/units
+                100.0,  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.UNITS.value: [
+                10.0,  # Good case
+                10.0,  # Good case
+                10.0,  # Good case
+                10.0,  # Good case, but date is invalid
+                10.0,  # Good case, but date is empty
+                10.0,  # Good case, but action is missing
+                10.0,  # Good case, but action is invalid
+                10.0,  # Good case with formatted amount
+                10.0,  # Good case, but amount is empty
+                10.0,  # Good case, but amount is invalid
+                10.0,  # Good case, but currency is invalid
+                10.0,  # Good case, but currency is missing
+                10.0,  # Good case with alternative currency
+                10.0,  # Good case, but price is empty
+                10.0,  # Good case, but price is invalid
+                "",  # Empty units - should be rejected
+                "INVALID_UNITS",  # Invalid units - should be rejected
+                10.0,  # Good case with empty ticker
+                10.0,  # Good case with NULL ticker
+                10.0,  # Good case, but ticker is invalid
+                "INVALID_UNITS",  # Multiple invalid: empty amount, invalid price/units
+                10.0,  # Multiple invalid: no currency, bad ticker/action
+            ],
+            Column.Txn.TICKER.value: [
+                "AAPL",  # Good case
+                "MSFT",  # Good case
+                "aapl",  # Lowercase ticker - should be uppercased
+                "GOOG",  # Good case, but date is invalid
+                "AAPL",  # Good case, but date is empty
+                "TSLA",  # Good case, but action is missing
+                "AMZN",  # Good case, but action is invalid
+                "NFLX",  # Good case with formatted amount
+                "META",  # Good case, but amount is empty
+                "NVDA",  # Good case, but amount is invalid
+                "ADBE",  # Good case, but currency is invalid
+                "PYPL",  # Good case, but currency is missing
+                "PYPL",  # Good case with alternative currency
+                "CSCO",  # Good case, but price is empty
+                "INTC",  # Good case, but price is invalid
+                "CMCSA",  # Good case, but units is empty
+                "PEP",  # Good case, but units is invalid
+                "",  # Empty ticker - valid (becomes NULL)
+                None,  # NULL ticker - valid
+                "INVALID@TICKER",  # Invalid ticker format - should be rejected
+                "AAPL",  # Multiple invalid: empty amount, invalid price/units
+                "INVALID@TICKER",  # Multiple invalid: no currency, bad ticker/action
+            ],
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+
+        # Clear database
+        config.db_path.unlink(missing_ok=True)
+
+        # Import transactions and check the count
+        imported_count = import_transactions(temp_path)
+
+        # Create expected dataframe with only valid rows
+        expected_rows = [
+            # Row 0: Good case - all columns perfect
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-01",
+                Column.Txn.ACTION.value: "BUY",
+                Column.Txn.AMOUNT.value: 1000.0,
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 100.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: "AAPL",
+            },
+            # Row 1: Auto-formatted date
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-02",
+                Column.Txn.ACTION.value: "SELL",
+                Column.Txn.AMOUNT.value: 2000.0,
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 200.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: "MSFT",
+            },
+            # Row 2: Ticker case formatting
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-03",
+                Column.Txn.ACTION.value: "BUY",
+                Column.Txn.AMOUNT.value: 1500.0,
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 150.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: "AAPL",  # Uppercased from "aapl"
+            },
+            # Row 7: Action abbreviation
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-07",
+                Column.Txn.ACTION.value: "BUY",  # Normalized from "B"
+                Column.Txn.AMOUNT.value: 1000.0,  # Normalized from "$1,000.00"
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 100.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: "NFLX",
+            },
+            # Row 12: Alternative currency format
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-12",
+                Column.Txn.ACTION.value: "SELL",
+                Column.Txn.AMOUNT.value: 1000.0,
+                Column.Txn.CURRENCY.value: "USD",  # Normalized from "US$"
+                Column.Txn.PRICE.value: 100.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: "PYPL",
+            },
+            # Row 17: Empty ticker
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-17",
+                Column.Txn.ACTION.value: "BUY",
+                Column.Txn.AMOUNT.value: 1000.0,
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 100.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: pd.NA,  # Empty ticker becomes NULL
+            },
+            # Row 18: NULL ticker
+            {
+                Column.Txn.TXN_DATE.value: "2023-01-18",
+                Column.Txn.ACTION.value: "SELL",
+                Column.Txn.AMOUNT.value: 1000.0,
+                Column.Txn.CURRENCY.value: "USD",
+                Column.Txn.PRICE.value: 100.0,
+                Column.Txn.UNITS.value: 10.0,
+                Column.Txn.TICKER.value: pd.NA,  # NULL ticker stays NULL
+            },
+        ]
+
+        expected_df = pd.DataFrame(expected_rows)
+
+        # Assert correct number of imports
+        expected_imports = len(expected_df)
+        error_msg = f"Expected {expected_imports} imports but got {imported_count}"
+        assert imported_count == expected_imports, error_msg
+
+        # Compare with DB contents
+        _verify_db_contents(expected_df)
 
 
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
