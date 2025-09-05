@@ -91,6 +91,70 @@ class Column(AutoStrEnum):
         TICKER = "Ticker"
 
 
+class ColumnDefinition:
+    """Column definition with type and constraints for database schema."""
+
+    def __init__(self, name: str, sql_type: str, constraints: str = "") -> None:
+        """Initialize column definition.
+
+        Args:
+            name: Column name
+            sql_type: SQL data type (TEXT, REAL, INTEGER)
+            constraints: Additional SQL constraints (CHECK, NOT NULL, etc.)
+        """
+        self.name = name
+        self.sql_type = sql_type
+        self.constraints = constraints
+
+    def to_sql(self) -> str:
+        """Convert to SQL column definition."""
+        base = f'"{self.name}" {self.sql_type}'
+        if self.constraints:
+            return f"{base} {self.constraints}"
+        return base
+
+
+# Date pattern for YYYY-MM-DD format validation
+DATE_PATTERN_YYYY_MM_DD = "[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]"
+
+# Column definitions for the Txns table
+TXN_COLUMN_DEFINITIONS = [
+    ColumnDefinition(
+        Column.Txn.TXN_DATE.value,
+        "TEXT",
+        (
+            f'CHECK(length("{Column.Txn.TXN_DATE}") = 10 AND '
+            f'"{Column.Txn.TXN_DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
+        ),
+    ),
+    ColumnDefinition(
+        Column.Txn.ACTION.value,
+        "TEXT",
+        f'CHECK("{Column.Txn.ACTION}" IN ({", ".join(repr(a.value) for a in Action)}))',
+    ),
+    ColumnDefinition(Column.Txn.AMOUNT.value, "REAL"),
+    ColumnDefinition(
+        Column.Txn.CURRENCY.value,
+        "TEXT",
+        (
+            f'CHECK("{Column.Txn.CURRENCY}" IN '
+            f"({', '.join(repr(c.value) for c in Currency)}))"
+        ),
+    ),
+    ColumnDefinition(Column.Txn.PRICE.value, "REAL"),
+    ColumnDefinition(Column.Txn.UNITS.value, "REAL"),
+    ColumnDefinition(
+        Column.Txn.TICKER.value,
+        "TEXT",
+        (
+            f'CHECK("{Column.Txn.TICKER}" IS NULL OR ('
+            f'"{Column.Txn.TICKER}" = UPPER("{Column.Txn.TICKER}") AND '
+            f'length("{Column.Txn.TICKER}") > 0))'
+        ),
+    ),
+]
+
+
 TXN_ESSENTIALS: list[str] = [
     str(col)
     for col in [
