@@ -147,6 +147,23 @@ class TransactionFormatter:
             "S": "SELL",
             "SOLD": "SELL",
             "SALE": "SELL",
+            "DIV": "DIVIDEND",
+            "DIVIDEND": "DIVIDEND",
+            "BORROW": "BRW",
+            "BORROWING": "BRW",
+            "CONTRIB": "CONTRIBUTION",
+            "DEPOSIT": "CONTRIBUTION",
+            "FEE": "FCH",
+            "FEES": "FCH",
+            "INTEREST": "FCH",
+            "RSU": "FCH",
+            "FOREX": "FXT",
+            "FX": "FXT",
+            "CURRENCY": "FXT",
+            "RETURN_OF_CAPITAL": "ROC",
+            "STOCK_SPLIT": "SPLIT",
+            "WITHDRAW": "WITHDRAWAL",
+            "CASH_OUT": "WITHDRAWAL",
         }
 
         for idx in df.index:
@@ -323,6 +340,23 @@ def parse_date(date_str: str) -> str | None:
     # Already in correct format
     if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
         return date_str
+
+    # Handle ISO 8601 formats with timezone and milliseconds
+    # e.g., "2025-02-05T20:29:41.785270Z" or "2025-02-07T00:00:00Z"
+    iso_pattern = (
+        r"^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}:\d{2}"
+        r"(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$"
+    )
+    iso_match = re.match(iso_pattern, date_str)
+    if iso_match:
+        return iso_match.group(1)
+
+    # Handle datetime formats with space separator
+    # e.g., "2025-02-07 00:00:00"
+    datetime_pattern = r"^(\d{4}-\d{2}-\d{2})\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?$"
+    datetime_match = re.match(datetime_pattern, date_str)
+    if datetime_match:
+        return datetime_match.group(1)
 
     # Common date formats to try
     date_formats = [

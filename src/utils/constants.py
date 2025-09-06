@@ -61,8 +61,16 @@ class Currency(AutoStrEnum):
 class Action(AutoStrEnum):
     """Transaction actions."""
 
-    BUY = "BUY"
-    SELL = "SELL"
+    BUY = "BUY"  # This represents buying a stock
+    SELL = "SELL"  # This represents selling a stock
+    DIVIDEND = "DIVIDEND"  # Acquired dividends from stocks
+    BRW = "BRW"  # Borrowing activity, reflecting Norbert's Gambit journaling
+    CONTRIBUTION = "CONTRIBUTION"  # Contribute money into the portfolio
+    FCH = "FCH"  # Fee Charges, Interest earned, RSU vestments, Non-contribution income
+    FXT = "FXT"  # Foreign Exchange Trades
+    ROC = "ROC"  # Return of Capital transactions (reduces cost basis)
+    SPLIT = "SPLIT"  # Designates stock splits (Price->FROM, Units->TO)
+    WITHDRAWAL = "WITHDRAWAL"  # Take out money from the portfolio
 
 
 class Table(AutoStrEnum):
