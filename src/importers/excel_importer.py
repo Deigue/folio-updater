@@ -60,32 +60,7 @@ def import_transactions(folio_path: Path) -> int:
             prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
             final_count = _get_existing_transaction_count(conn)
         except sqlite3.IntegrityError:  # pragma: no cover
-            # Try to insert rows one by one to identify the problematic row
-            import_logger.exception("Bulk insert failed with IntegrityError")
-
-            final_count = _get_existing_transaction_count(conn)
-            total_rows = len(prepared_df)
-
-            for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
-                try:
-                    single_row_df = pd.DataFrame([row])
-                    single_row_df.to_sql(
-                        Table.TXNS.value,
-                        conn,
-                        if_exists="append",
-                        index=False,
-                    )
-                except sqlite3.IntegrityError:  # noqa: PERF203
-                    transaction_summary = format_transaction_summary(row)
-                    import_logger.exception(
-                        "Row %d/%d failed to insert.",
-                        idx,
-                        total_rows,
-                    )
-                    import_logger.info("Failed transaction: %s", transaction_summary)
-
-            final_count = _get_existing_transaction_count(conn)
-            raise
+            _analyze_and_insert_rows(conn, prepared_df)
 
     txn_count = len(prepared_df)
     msg: str = f"Import completed: {txn_count} transactions imported"
@@ -94,6 +69,45 @@ def import_transactions(folio_path: Path) -> int:
     import_logger.info("=" * 60)
 
     return txn_count
+
+
+def _analyze_and_insert_rows(
+    conn: db.sqlite3.Connection,
+    prepared_df: pd.DataFrame,
+) -> None:
+    """Analyze and insert rows one by one to identify problematic transactions.
+
+    Args:
+        conn: Database connection
+        prepared_df: DataFrame with prepared transaction data
+
+    Returns:
+        Final count of transactions in database
+    """
+    analysis_header = "🔍 BULK INSERT FAILED - Analyzing individual transactions..."
+    import_logger.error(analysis_header)
+
+    total_rows = len(prepared_df)
+
+    try:
+        for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
+            row_df = pd.DataFrame([row])
+            row_df.to_sql(
+                Table.TXNS.value,
+                conn,
+                if_exists="append",
+                index=False,
+            )
+            success_msg = f"✅ Row {idx}/{total_rows}: SUCCESS"
+            import_logger.info(success_msg)
+
+    except sqlite3.IntegrityError as row_error:
+        transaction_summary = format_transaction_summary(row)
+        error_msg = f"❌ Row {idx}/{total_rows}: FAILED - {row_error}"
+        transaction_msg = f"   {transaction_summary}"
+        import_logger.info(error_msg)
+        import_logger.info(transaction_msg)
+        raise
 
 
 def _get_existing_transaction_count(conn: db.sqlite3.Connection) -> int:
