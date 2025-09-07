@@ -8,6 +8,7 @@ import pandas as pd
 
 from app.app_context import get_config
 from db import db, preparers
+from db.utils import format_transaction_summary
 from utils.constants import Table
 from utils.logging_setup import get_import_logger
 
@@ -55,8 +56,36 @@ def import_transactions(folio_path: Path) -> int:
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df)
 
     with db.get_connection() as conn:
-        prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
-        final_count = _get_existing_transaction_count(conn)
+        try:
+            prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
+            final_count = _get_existing_transaction_count(conn)
+        except sqlite3.IntegrityError:
+            # Try to insert rows one by one to identify the problematic row
+            import_logger.exception("Bulk insert failed with IntegrityError")
+
+            final_count = _get_existing_transaction_count(conn)
+            total_rows = len(prepared_df)
+
+            for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
+                try:
+                    single_row_df = pd.DataFrame([row])
+                    single_row_df.to_sql(
+                        Table.TXNS.value,
+                        conn,
+                        if_exists="append",
+                        index=False,
+                    )
+                except sqlite3.IntegrityError:  # noqa: PERF203
+                    transaction_summary = format_transaction_summary(row)
+                    import_logger.exception(
+                        "Row %d/%d failed to insert.",
+                        idx,
+                        total_rows,
+                    )
+                    import_logger.info("Failed transaction: %s", transaction_summary)
+
+            final_count = _get_existing_transaction_count(conn)
+            raise
 
     txn_count = len(prepared_df)
     msg: str = f"Import completed: {txn_count} transactions imported"
