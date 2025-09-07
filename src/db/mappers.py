@@ -1,5 +1,7 @@
 """Module to handle mapping related operations."""
 
+from __future__ import annotations
+
 import re
 from logging import Logger
 
@@ -21,6 +23,10 @@ class TransactionMapper:
         """Map DataFrame columns from Excel headers to internal names."""
         config = get_config()
         header_keywords = config.header_keywords
+        header_ignore = config.header_ignore
+
+        # Normalize ignored headers for comparison
+        normalized_ignore = {TransactionMapper._normalize(col) for col in header_ignore}
 
         norm_keywords: dict[str, set[str]] = {
             internal: {TransactionMapper._normalize(kw) for kw in keywords}
@@ -29,14 +35,30 @@ class TransactionMapper:
 
         mapping: dict[str, str] = {}
         unmatched = set(TXN_ESSENTIALS)  # copy of essential fields to match
+        ignored_columns = []
 
         for column in excel_df.columns:
             normalized_column = TransactionMapper._normalize(column)
+
+            # Check if this column should be ignored
+            if TransactionMapper._should_ignore_column(
+                normalized_column,
+                normalized_ignore,
+                norm_keywords,
+            ):
+                ignored_columns.append(column)
+                continue
+
+            # Map the column if it matches keywords
             for internal, keywords in norm_keywords.items():
                 if normalized_column in keywords and internal in unmatched:
                     mapping[column] = internal
                     unmatched.remove(internal)
                     break
+
+        if ignored_columns:
+            import_logger.info("Ignoring columns: %s", ignored_columns)
+            excel_df = excel_df.drop(columns=ignored_columns)
 
         if mapping:
             pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
@@ -55,6 +77,41 @@ class TransactionMapper:
         for summary in summaries:
             import_logger.info(" - %s", summary)
         return excel_df
+
+    @staticmethod
+    def _should_ignore_column(
+        normalized_column: str,
+        normalized_ignore: set[str],
+        norm_keywords: dict[str, set[str]],
+    ) -> bool:
+        """Check if a column should be ignored.
+
+        Args:
+            normalized_column: The normalized column name
+            normalized_ignore: Set of normalized ignore patterns
+            norm_keywords: Dictionary of internal names to normalized keywords
+
+        Returns:
+            True if the column should be ignored, False otherwise
+        """
+        if normalized_column not in normalized_ignore:
+            return False
+
+        # Don't ignore essential columns even if they're in the ignore list
+        is_essential = any(
+            normalized_column in keywords
+            for internal, keywords in norm_keywords.items()
+            if internal in TXN_ESSENTIALS
+        )
+
+        if is_essential:
+            import_logger.warning(
+                "Column '%s' is in ignore list but is essential - keeping it",
+                normalized_column,
+            )
+            return False
+
+        return True
 
     @staticmethod
     def _normalize(name: str) -> str:

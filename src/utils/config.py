@@ -35,6 +35,7 @@ class Config:
                 "Units": ["units", "shares", "qty", "quantity"],
                 "Ticker": ["ticker", "symbol", "stock"],
             },
+            "header_ignore": [],
         },
     )
 
@@ -90,6 +91,11 @@ class Config:
     def header_keywords(self) -> dict[str, list[str]]:
         """Get the header keywords mappings."""
         return self._settings["header_keywords"]
+
+    @property
+    def header_ignore(self) -> list[str]:
+        """Get the list of column names to ignore during import."""
+        return self._settings.get("header_ignore", [])
 
     def tickers_sheet(self) -> str:
         """Get the tickers sheet name."""
@@ -186,6 +192,9 @@ class Config:
                 },
             )
 
+        if "header_ignore" in settings and isinstance(settings["header_ignore"], list):
+            validated["header_ignore"] = settings["header_ignore"]
+
         return validated
 
     def __str__(self) -> str:
@@ -197,4 +206,5 @@ class Config:
         config_str += f"  Log Level: {self.log_level}\n"
         config_str += f"  Sheets: {self.sheets}\n"
         config_str += f"  Header Keywords: {self.header_keywords}\n"
+        config_str += f"  Header Ignore: {self.header_ignore}\n"
         return config_str
