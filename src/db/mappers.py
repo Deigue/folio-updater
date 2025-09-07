@@ -43,11 +43,63 @@ class TransactionMapper:
             for internal, keywords in header_keywords.items()
         }
 
+        mapping, unmatched, ignored_columns = TransactionMapper._process_columns(
+            excel_df.columns,
+            normalized_ignore,
+            norm_keywords,
+        )
+
+        if ignored_columns:
+            import_logger.info("Ignoring columns: %s", ignored_columns)
+            excel_df = excel_df.drop(columns=ignored_columns)
+
+        if mapping:
+            pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
+            import_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
+        else:
+            import_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
+
+        # Ensure TXN_ESSENTIALS are present in the mapping
+        if unmatched and Column.Txn.ACCOUNT.value in unmatched and account is not None:
+            import_logger.info(
+                "Account column not found in Excel, using fallback value: %s",
+                account,
+            )
+            excel_df[Column.Txn.ACCOUNT.value] = account
+            unmatched.remove(Column.Txn.ACCOUNT.value)
+
+        if unmatched:
+            error_message = f"Could not map essential columns: {unmatched}"
+            import_logger.error(error_message)
+            raise ValueError(error_message)
+
+        excel_df = excel_df.rename(columns=mapping)
+        summaries = excel_df.apply(format_transaction_summary, axis=1)
+        for summary in summaries:
+            import_logger.info(" - %s", summary)
+        return excel_df
+
+    @staticmethod
+    def _process_columns(
+        columns: pd.Index,
+        normalized_ignore: set[str],
+        norm_keywords: dict[str, set[str]],
+    ) -> tuple[dict[str, str], set[str], list[str]]:
+        """Process columns, track unmatched essentials, and identify ignored columns.
+
+        Args:
+            columns: The columns from the DataFrame.
+            normalized_ignore: Set of normalized ignore patterns.
+            norm_keywords: Dictionary of internal names to normalized keywords.
+
+        Returns:
+            Tuple of (mapping dict, unmatched set, ignored columns list).
+        """
         mapping: dict[str, str] = {}
         unmatched = set(TXN_ESSENTIALS)  # copy of essential fields to match
         ignored_columns = []
 
-        for column in excel_df.columns:
+        for column in columns:
             normalized_column = TransactionMapper._normalize(column)
 
             if TransactionMapper._should_ignore_column(
@@ -65,37 +117,7 @@ class TransactionMapper:
                     unmatched.remove(internal)
                     break
 
-        if ignored_columns:
-            import_logger.info("Ignoring columns: %s", ignored_columns)
-            excel_df = excel_df.drop(columns=ignored_columns)
-
-        if mapping:
-            pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
-            import_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
-        else:
-            import_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
-
-        # Ensure TXN_ESSENTIALS are present in the mapping
-        if unmatched:
-            if Column.Txn.ACCOUNT.value in unmatched and account is not None:
-                import_logger.info(
-                    "Account column not found in Excel, using fallback value: %s",
-                    account,
-                )
-                excel_df[Column.Txn.ACCOUNT.value] = account
-                unmatched.remove(Column.Txn.ACCOUNT.value)
-
-            # If there are still unmatched essentials, raise an error
-            if unmatched:
-                error_message = f"Could not map essential columns: {unmatched}"
-                import_logger.error(error_message)
-                raise ValueError(error_message)
-
-        excel_df = excel_df.rename(columns=mapping)
-        summaries = excel_df.apply(format_transaction_summary, axis=1)
-        for summary in summaries:
-            import_logger.info(" - %s", summary)
-        return excel_df
+        return mapping, unmatched, ignored_columns
 
     @staticmethod
     def _should_ignore_column(
