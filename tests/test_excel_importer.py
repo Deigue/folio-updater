@@ -71,21 +71,7 @@ def test_import_transactions_intra_dupes(
 def test_import_transactions_formatting(
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
-    """Test importing transactions with various formatting scenarios.
-
-    This test covers:
-    1. Good cases with perfect data
-    2. Auto-formatted cases that are successfully imported
-    3. Invalid cases that result in row rejection
-
-    For each column type (date, action, amount, currency, price, units, ticker),
-    we test:
-    - Valid values
-    - Auto-formattable values (where applicable)
-    - Invalid/empty values that cause rejection
-
-    At the end, we verify that only valid rows are in the database.
-    """
+    """Test importing transactions with various formatting scenarios."""
     with temp_config() as ctx:
         config = ctx.config
         ensure_folio_exists()
@@ -98,17 +84,17 @@ def test_import_transactions_formatting(
             Column.Txn.TXN_DATE.value: [
                 "2023-01-01",  # Good case - all columns perfect
                 "01/02/2023",  # Auto-formatted date (MM/DD/YYYY -> YYYY-MM-DD)
-                "2023-01-03",  # Good date with ticker case formatting
+                "2023-01-03T10:30:45Z",  # ISO 8601 format with timezone
                 "INVALID_DATE",  # Invalid date - should be rejected
                 "",  # Empty date - should be rejected
-                "2023-01-05",  # Missing action - should be rejected
+                "2023-01-05 15:45:30",  # Datetime format with space
                 "2023-01-06",  # Invalid action - should be rejected
                 "2023-01-07",  # Action abbreviation (will be normalized)
                 "2023-01-08",  # Empty amount - should be rejected
                 "2023-01-09",  # Invalid amount format - should be rejected
                 "2023-01-10",  # Invalid currency - should be rejected
                 "2023-01-11",  # Missing currency - should be rejected
-                "2023-01-12",  # Alternative currency format (will be normalized)
+                "2023-01-12T20:15:30.123456Z",  # ISO format with ms
                 "2023-01-13",  # Empty price - should be rejected
                 "2023-01-14",  # Invalid price format - should be rejected
                 "2023-01-15",  # Empty units - should be rejected
@@ -122,22 +108,22 @@ def test_import_transactions_formatting(
             Column.Txn.ACTION.value: [
                 "BUY",  # Good case
                 "SELL",  # Good case
-                "BUY",  # Good case
+                "DIVIDEND",  # New action type - dividend payment
                 "BUY",  # Good case, but date is invalid
                 "BUY",  # Good case, but date is empty
                 None,  # Missing action
                 "INVALID_ACTION",  # Invalid action
-                "B",  # Abbreviation, should normalize to "BUY"
+                "DIV",  # Abbreviation, should normalize to "DIVIDEND"
                 "BUY",  # Good case, but amount is empty
                 "BUY",  # Good case, but amount is invalid
                 "SELL",  # Good case, but currency is invalid
                 "SELL",  # Good case, but currency is missing
-                "SELL",  # Good case with alternative currency
+                "CONTRIBUTION",  # New action type - money contribution
                 "BUY",  # Good case, but price is empty
                 "BUY",  # Good case, but price is invalid
                 "SELL",  # Good case, but units is empty
                 "SELL",  # Good case, but units is invalid
-                "BUY",  # Good case with empty ticker
+                "WITHDRAWAL",  # New action type - money withdrawal
                 "SELL",  # Good case with NULL ticker
                 "BUY",  # Good case, but ticker is invalid
                 "BUY",  # Multiple invalid: empty amount, invalid price/units
@@ -274,7 +260,7 @@ def test_import_transactions_formatting(
         # Import transactions and check the count
         imported_count = import_transactions(temp_path)
 
-        # Create expected dataframe with only valid rows
+        # Create expected dataframe with only valid rows (0, 1, 2, 7, 12, 17, 18)
         expected_rows = [
             # Row 0: Good case - all columns perfect
             {
@@ -296,47 +282,47 @@ def test_import_transactions_formatting(
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "MSFT",
             },
-            # Row 2: Ticker case formatting
+            # Row 2: ISO 8601 date format, DIVIDEND action, ticker case formatting
             {
                 Column.Txn.TXN_DATE.value: "2023-01-03",
-                Column.Txn.ACTION.value: "BUY",
+                Column.Txn.ACTION.value: "DIVIDEND",
                 Column.Txn.AMOUNT.value: 1500.0,
                 Column.Txn.CURRENCY.value: "USD",
                 Column.Txn.PRICE.value: 150.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "AAPL",  # Uppercased from "aapl"
             },
-            # Row 7: Action abbreviation
+            # Row 7: Action abbreviation (DIV -> DIVIDEND)
             {
                 Column.Txn.TXN_DATE.value: "2023-01-07",
-                Column.Txn.ACTION.value: "BUY",  # Normalized from "B"
+                Column.Txn.ACTION.value: "DIVIDEND",  # Normalized from "DIV"
                 Column.Txn.AMOUNT.value: 1000.0,  # Normalized from "$1,000.00"
                 Column.Txn.CURRENCY.value: "USD",
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "NFLX",
             },
-            # Row 12: Alternative currency format
+            # Row 12: ISO format with ms, CONTRIBUTION, alternative currency format
             {
                 Column.Txn.TXN_DATE.value: "2023-01-12",
-                Column.Txn.ACTION.value: "SELL",
+                Column.Txn.ACTION.value: "CONTRIBUTION",
                 Column.Txn.AMOUNT.value: 1000.0,
                 Column.Txn.CURRENCY.value: "USD",  # Normalized from "US$"
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "PYPL",
             },
-            # Row 17: Empty ticker
+            # Row 17: Empty ticker with WITHDRAWAL action
             {
                 Column.Txn.TXN_DATE.value: "2023-01-17",
-                Column.Txn.ACTION.value: "BUY",
+                Column.Txn.ACTION.value: "WITHDRAWAL",
                 Column.Txn.AMOUNT.value: 1000.0,
                 Column.Txn.CURRENCY.value: "USD",
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: pd.NA,  # Empty ticker becomes NULL
             },
-            # Row 18: NULL ticker
+            # Row 18: NULL ticker with SELL action
             {
                 Column.Txn.TXN_DATE.value: "2023-01-18",
                 Column.Txn.ACTION.value: "SELL",
@@ -357,6 +343,78 @@ def test_import_transactions_formatting(
 
         # Compare with DB contents
         _verify_db_contents(expected_df)
+
+
+def test_import_transactions_ignore_columns(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test importing transactions with header_ignore functionality.
+
+    This test verifies that:
+    1. Columns in header_ignore are ignored during import
+    2. Essential columns are never ignored, even if in header_ignore list
+    3. Non-essential columns can be successfully ignored
+    """
+    with temp_config(
+        header_ignore=[
+            "IgnoreMe",
+            "AlsoIgnore",
+            "TxnDate",  # TxnDate should not be ignored
+        ],
+    ) as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_ignore_columns.xlsx"
+
+        test_data = {
+            Column.Txn.TXN_DATE.value: [
+                "2025-02-05T20:29:41.785270Z",
+                "2025-02-07 00:00:00",
+                "2025-02-08",
+            ],
+            Column.Txn.ACTION.value: [
+                "BUY",
+                "DIVIDEND",
+                "CONTRIBUTION",
+            ],
+            Column.Txn.AMOUNT.value: [1000.0, 50.0, 2000.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD", "CAD"],
+            Column.Txn.PRICE.value: [100.0, 0.0, 200.0],
+            Column.Txn.UNITS.value: [10.0, 0.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "AAPL", "SHOP"],
+            "IgnoreMe": ["This", "Should", "Not"],  # Should be ignored
+            "AlsoIgnore": ["Be", "In", "DB"],  # Should be ignored
+            "KeepThis": ["But", "This", "Should"],  # Should be kept
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+        imported_count = import_transactions(temp_path)
+        expected_count = 3
+        assert imported_count == expected_count
+
+        # Verify against the db ...
+        with get_connection() as conn:
+            query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
+            table_df = pd.read_sql_query(query, conn)
+
+            assert "IgnoreMe" not in table_df.columns
+            assert "AlsoIgnore" not in table_df.columns
+            assert "KeepThis" in table_df.columns
+            assert Column.Txn.TXN_DATE.value in table_df.columns
+
+            # Verify the data was processed correctly
+            # (dates normalized, actions processed)
+            expected_dates = ["2025-02-05", "2025-02-07", "2025-02-08"]
+            actual_dates = table_df[Column.Txn.TXN_DATE.value].tolist()
+            assert actual_dates == expected_dates
+
+            expected_actions = ["BUY", "DIVIDEND", "CONTRIBUTION"]
+            actual_actions = table_df[Column.Txn.ACTION.value].tolist()
+            assert actual_actions == expected_actions
 
 
 def _get_default_dataframe(config: Config) -> pd.DataFrame:

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
-from logging import Logger
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from app.app_context import get_config
 from db.utils import format_transaction_summary
 from utils.constants import TXN_ESSENTIALS
 from utils.logging_setup import get_import_logger
+
+if TYPE_CHECKING:
+    from logging import Logger
+
+    import pandas as pd
 
 import_logger: Logger = get_import_logger()
 
@@ -25,9 +28,7 @@ class TransactionMapper:
         header_keywords = config.header_keywords
         header_ignore = config.header_ignore
 
-        # Normalize ignored headers for comparison
         normalized_ignore = {TransactionMapper._normalize(col) for col in header_ignore}
-
         norm_keywords: dict[str, set[str]] = {
             internal: {TransactionMapper._normalize(kw) for kw in keywords}
             for internal, keywords in header_keywords.items()
@@ -40,7 +41,6 @@ class TransactionMapper:
         for column in excel_df.columns:
             normalized_column = TransactionMapper._normalize(column)
 
-            # Check if this column should be ignored
             if TransactionMapper._should_ignore_column(
                 normalized_column,
                 normalized_ignore,

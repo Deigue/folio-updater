@@ -59,7 +59,7 @@ def import_transactions(folio_path: Path) -> int:
         try:
             prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
             final_count = _get_existing_transaction_count(conn)
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError:  # pragma: no cover
             # Try to insert rows one by one to identify the problematic row
             import_logger.exception("Bulk insert failed with IntegrityError")
 

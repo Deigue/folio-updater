@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Generator
 
 import pytest
+import yaml
 
 from app.app_context import AppContext
 
@@ -36,14 +37,18 @@ def temp_config(
     @contextmanager
     def _temp_config(
         overrides: dict[str, Any] | None = None,
+        **kwargs: str | list[str] | dict[str, Any],
     ) -> Generator[AppContext, Any, None]:
         if overrides is None:
             overrides = {}
 
+        # Convert mappingproxy to dict if needed and merge kwargs into overrides
+        overrides = dict(overrides)
+        overrides.update(kwargs)
+
         config_path: Path = tmp_path / "config.yaml"
         with Path.open(config_path, "w") as f:
-            for key, value in overrides.items():
-                f.write(f"{key}: {value}\n")
+            yaml.safe_dump(overrides, f, default_flow_style=False)
 
         # Get a fresh instance after the reset_app_context fixture has run
         app_ctx = AppContext.get_instance()
