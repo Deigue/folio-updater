@@ -26,7 +26,7 @@ def test_primary_keys(
         create_txns_table()
         with get_connection() as conn:
             # Insert a base row
-            base_row = ["2024-01-01", "BUY", "100", "USD", "10", "10", "AAPL"]
+            base_row = ["2024-01-01", "BUY", "100", "USD", "10", "10", "AAPL", "TEST"]
             df = pd.DataFrame([base_row], columns=TXN_ESSENTIALS)
             df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
 
@@ -43,6 +43,12 @@ def test_primary_keys(
             df3 = pd.DataFrame([diff_row2], columns=TXN_ESSENTIALS)
             df3.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
 
+            # Insert a row differing by Account (should succeed)
+            diff_row3 = base_row.copy()
+            diff_row3[7] = "DIFFERENT-ACCOUNT"  # Change account
+            df4 = pd.DataFrame([diff_row3], columns=TXN_ESSENTIALS)
+            df4.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
+
             # Attempt to insert an exact duplicate (should fail)
             duplicate_row = pd.DataFrame([base_row], columns=TXN_ESSENTIALS)
             with pytest.raises(sqlite3.IntegrityError):
@@ -58,4 +64,4 @@ def test_primary_keys(
                 f'SELECT COUNT(*) as cnt FROM "{Table.TXNS.value}"',  # noqa: S608
                 conn,
             )["cnt"].iloc[0]
-            assert count == 3  # noqa: PLR2004
+            assert count == 4  # noqa: PLR2004

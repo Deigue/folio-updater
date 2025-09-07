@@ -63,7 +63,7 @@ def test_import_transactions_intra_dupes(
 
         # Import should only add one unique transaction for the duplicate row
         config.db_path.unlink()  # Start with empty DB
-        imported_count = import_transactions(temp_path)
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
         assert imported_count == len(default_df)
         _verify_db_contents(default_df, last_n=len(default_df))
 
@@ -258,7 +258,7 @@ def test_import_transactions_formatting(
         config.db_path.unlink(missing_ok=True)
 
         # Import transactions and check the count
-        imported_count = import_transactions(temp_path)
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
 
         # Create expected dataframe with only valid rows (0, 1, 2, 7, 12, 17, 18)
         expected_rows = [
@@ -271,6 +271,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "AAPL",
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 1: Auto-formatted date
             {
@@ -281,6 +282,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 200.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "MSFT",
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 2: ISO 8601 date format, DIVIDEND action, ticker case formatting
             {
@@ -291,6 +293,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 150.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "AAPL",  # Uppercased from "aapl"
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 7: Action abbreviation (DIV -> DIVIDEND)
             {
@@ -301,6 +304,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "NFLX",
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 12: ISO format with ms, CONTRIBUTION, alternative currency format
             {
@@ -311,6 +315,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: "PYPL",
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 17: Empty ticker with WITHDRAWAL action
             {
@@ -321,6 +326,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: pd.NA,  # Empty ticker becomes NULL
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
             # Row 18: NULL ticker with SELL action
             {
@@ -331,6 +337,7 @@ def test_import_transactions_formatting(
                 Column.Txn.PRICE.value: 100.0,
                 Column.Txn.UNITS.value: 10.0,
                 Column.Txn.TICKER.value: pd.NA,  # NULL ticker stays NULL
+                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
         ]
 
@@ -384,6 +391,7 @@ def test_import_transactions_ignore_columns(
             Column.Txn.PRICE.value: [100.0, 0.0, 200.0],
             Column.Txn.UNITS.value: [10.0, 0.0, 10.0],
             Column.Txn.TICKER.value: ["AAPL", "AAPL", "SHOP"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT", "TEST-ACCOUNT"],
             "IgnoreMe": ["This", "Should", "Not"],  # Should be ignored
             "AlsoIgnore": ["Be", "In", "DB"],  # Should be ignored
             "KeepThis": ["But", "This", "Should"],  # Should be kept
@@ -417,6 +425,96 @@ def test_import_transactions_ignore_columns(
             assert actual_actions == expected_actions
 
 
+def test_import_account_fallback(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test importing transactions with account fallback when Account column is missing.
+
+    This test verifies that:
+    1. When Account column is completely absent, the fallback account parameter is used
+    2. All rows get populated with the fallback account value
+    3. Transactions can be imported successfully without Account column present
+    """
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_account_fallback.xlsx"
+
+        # Create test data WITHOUT Account column
+        test_data = {
+            Column.Txn.TXN_DATE.value: [
+                "2025-03-01",
+                "2025-03-02",
+                "2025-03-03",
+            ],
+            Column.Txn.ACTION.value: [
+                "BUY",
+                "SELL",
+                "DIVIDEND",
+            ],
+            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 200.0, 0.0],
+            Column.Txn.UNITS.value: [10.0, 10.0, 0.0],
+            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL"],
+            # Note: NO Account column in this test data
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+
+        # Import with account fallback
+        fallback_account = "FALLBACK-ACCOUNT"
+        expected_count = 3
+        imported_count = import_transactions(temp_path, fallback_account)
+        assert imported_count == expected_count
+
+        # Verify all transactions have the fallback account
+        with get_connection() as conn:
+            query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
+            result_df = pd.read_sql_query(query, conn)
+            assert len(result_df) == expected_count
+            assert all(result_df["Account"] == fallback_account)
+
+
+def test_import_account_missing(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test that import fails when Account column is missing and no fallback."""
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_account_missing.xlsx"
+
+        # Create test data WITHOUT Account column
+        test_data = {
+            Column.Txn.TXN_DATE.value: ["2025-03-01"],
+            Column.Txn.ACTION.value: ["BUY"],
+            Column.Txn.AMOUNT.value: [1000.0],
+            Column.Txn.CURRENCY.value: ["USD"],
+            Column.Txn.PRICE.value: [100.0],
+            Column.Txn.UNITS.value: [10.0],
+            Column.Txn.TICKER.value: ["AAPL"],
+            # Note: NO Account column in this test data
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+
+        # Import WITHOUT account fallback should fail
+        with pytest.raises(
+            ValueError,
+            match=r"Could not map essential columns: \{'Account'\}",
+        ):
+            import_transactions(temp_path)  # No account parameter
+
+
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions sheet."""
     txn_sheet = config.transactions_sheet()
@@ -425,7 +523,7 @@ def _get_default_dataframe(config: Config) -> pd.DataFrame:
 
 def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing duplicate transactions results in 0 new imports."""
-    transactions = import_transactions(config.folio_path)
+    transactions = import_transactions(config.folio_path, "TEST-ACCOUNT")
     assert transactions == 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
@@ -433,7 +531,7 @@ def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
 def _test_empty_db_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing into an empty database."""
     config.db_path.unlink()
-    assert import_transactions(config.folio_path) > 0
+    assert import_transactions(config.folio_path, "TEST-ACCOUNT") > 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
 
@@ -515,14 +613,16 @@ def _test_additional_columns_with_scrambled_order(
     cols = list(df.columns)
     random.shuffle(cols)
     logger.debug("Shuffled columns: %s", cols)
-    df_ordered = df.copy()
-    df = df[cols]
+    df_scrambled = df[cols]
 
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_scrambled_columns.xlsx"
-    df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+    df_scrambled.to_excel(temp_path, index=False, sheet_name=txn_sheet)
     assert import_transactions(temp_path) > 0
-    _verify_db_contents(df_ordered, last_n=len(df))
+
+    # The database should store columns in the proper order (TXN_ESSENTIALS first)
+    # So we compare against the original ordered DataFrame, not the scrambled one
+    _verify_db_contents(df, last_n=len(df))
 
 
 def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> None:
@@ -592,8 +692,27 @@ def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
                 except (ValueError, TypeError) as e:  # pragma: no cover
                     logger.warning("Could not convert column '%s' to float: %s", col, e)
 
-        # Formatters
+        # Expected Data Formatters
         imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
+
+        # Verify column ordering: TXN_ESSENTIALS first, then optionals
+        # The specific order of optionals doesn't matter
+        table_cols = list(table_df.columns)
+
+        # Check that all TXN_ESSENTIALS are present and at the beginning
+        essentials_in_table = [col for col in TXN_ESSENTIALS if col in table_cols]
+        if (
+            essentials_in_table != table_cols[: len(essentials_in_table)]
+        ):  # pragma: no cover
+            error_msg = (
+                f"TXN_ESSENTIALS should be first columns in order. "
+                f"Expected: {TXN_ESSENTIALS}, "
+                f"Got start of table: {table_cols[: len(TXN_ESSENTIALS)]}"
+            )
+            raise AssertionError(error_msg)
+
+        # Reorder imported_df to match database column order for comparison
+        imported_df = imported_df.reindex(columns=table_cols)
 
         try:
             pd_testing.assert_frame_equal(

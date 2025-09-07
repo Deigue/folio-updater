@@ -92,6 +92,7 @@ class Column(AutoStrEnum):
         PRICE = "Price"
         UNITS = "Units"
         TICKER = "Ticker"
+        ACCOUNT = "Account"
 
     class Ticker(AutoStrEnum):
         """Ticker columns."""
@@ -160,6 +161,14 @@ TXN_COLUMN_DEFINITIONS = [
             f'length("{Column.Txn.TICKER}") > 0))'
         ),
     ),
+    ColumnDefinition(
+        Column.Txn.ACCOUNT.value,
+        "TEXT",
+        (
+            f'CHECK("{Column.Txn.ACCOUNT}" IS NOT NULL AND '
+            f'length("{Column.Txn.ACCOUNT}") > 0)'
+        ),
+    ),
 ]
 
 
@@ -173,6 +182,7 @@ TXN_ESSENTIALS: list[str] = [
         Column.Txn.PRICE,  # Price per unit
         Column.Txn.UNITS,  # Number of units
         Column.Txn.TICKER,  # Stock or ETF ticker
+        Column.Txn.ACCOUNT,  # Account alias where transaction occurred
     ]
 ]
 

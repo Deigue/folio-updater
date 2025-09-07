@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 
-def prepare_transactions(excel_df: pd.DataFrame) -> pd.DataFrame:
+def prepare_transactions(
+    excel_df: pd.DataFrame, account: str | None = None,
+) -> pd.DataFrame:
     """Transform a transaction DataFrame from Excel to match the current Txns schema.
 
     Steps:
@@ -31,6 +33,8 @@ def prepare_transactions(excel_df: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         excel_df: DataFrame read from Excel with transaction data.
+        account: Optional account identifier to use as fallback when
+            Account column is missing from the Excel file.
 
     Returns:
         DataFrame ready for DB insertion with correct columns and order.
@@ -40,7 +44,7 @@ def prepare_transactions(excel_df: pd.DataFrame) -> pd.DataFrame:
         return excel_df
 
     schema_manager.create_txns_table()
-    txn_df = TransactionMapper.map_headers(excel_df)
+    txn_df = TransactionMapper.map_headers(excel_df, account)
     txn_df = TransactionFormatter.format_and_validate(txn_df)
     txn_df = TransactionFilter.filter_intra_import_duplicates(txn_df)
     txn_df = TransactionFilter.filter_db_duplicates(txn_df)

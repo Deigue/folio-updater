@@ -41,6 +41,7 @@ def generate_transactions(ticker: str, num_transactions: int = 5) -> pd.DataFram
             Column.Txn.PRICE: price,
             Column.Txn.UNITS: units,
             Column.Txn.TICKER: ticker,
+            Column.Txn.ACCOUNT: "TEST-ACCOUNT",
         }
         transactions.append(transaction)
 

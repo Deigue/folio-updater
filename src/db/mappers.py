@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from app.app_context import get_config
 from db.utils import format_transaction_summary
-from utils.constants import TXN_ESSENTIALS
+from utils.constants import TXN_ESSENTIALS, Column
 from utils.logging_setup import get_import_logger
 
 if TYPE_CHECKING:
@@ -22,8 +22,17 @@ class TransactionMapper:
     """Class to handle mapping of transaction DataFrame columns."""
 
     @staticmethod
-    def map_headers(excel_df: pd.DataFrame) -> pd.DataFrame:
-        """Map DataFrame columns from Excel headers to internal names."""
+    def map_headers(excel_df: pd.DataFrame, account: str | None = None) -> pd.DataFrame:
+        """Map DataFrame columns from Excel headers to internal names.
+
+        Args:
+            excel_df: DataFrame read from Excel with transaction data.
+            account: Optional account identifier to use as fallback when
+                Account column is missing from the Excel file.
+
+        Returns:
+            DataFrame with mapped headers and account column populated.
+        """
         config = get_config()
         header_keywords = config.header_keywords
         header_ignore = config.header_ignore
@@ -68,9 +77,19 @@ class TransactionMapper:
 
         # Ensure TXN_ESSENTIALS are present in the mapping
         if unmatched:
-            error_message = f"Could not map essential columns: {unmatched}"
-            import_logger.error(error_message)
-            raise ValueError(error_message)
+            if Column.Txn.ACCOUNT.value in unmatched and account is not None:
+                import_logger.info(
+                    "Account column not found in Excel, using fallback value: %s",
+                    account,
+                )
+                excel_df[Column.Txn.ACCOUNT.value] = account
+                unmatched.remove(Column.Txn.ACCOUNT.value)
+
+            # If there are still unmatched essentials, raise an error
+            if unmatched:
+                error_message = f"Could not map essential columns: {unmatched}"
+                import_logger.error(error_message)
+                raise ValueError(error_message)
 
         excel_df = excel_df.rename(columns=mapping)
         summaries = excel_df.apply(format_transaction_summary, axis=1)

@@ -34,6 +34,7 @@ class Config:
                 "Price": ["price", "unit price", "share price"],
                 "Units": ["units", "shares", "qty", "quantity"],
                 "Ticker": ["ticker", "symbol", "stock"],
+                "Account": ["account", "alias", "account id"],
             },
             "header_ignore": [],
         },

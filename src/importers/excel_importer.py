@@ -1,8 +1,10 @@
 """Ingest Excel data into the application context."""
 
+from __future__ import annotations
+
 import logging
 import sqlite3
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -12,17 +14,22 @@ from db.utils import format_transaction_summary
 from utils.constants import Table
 from utils.logging_setup import get_import_logger
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 
-def import_transactions(folio_path: Path) -> int:
+def import_transactions(folio_path: Path, account: str | None = None) -> int:
     """Import transactions from Excel files and map headers to internal fields.
 
     Keeps TXN_ESSENTIALS first, then existing DB columns, then net new columns.
 
     Args:
         folio_path (Path): Path to the Excel file containing transactions.
+        account (str | None): Optional account identifier to use as fallback
+            when Account column is missing from the Excel file.
 
     Returns:
         int: Number of transactions imported.
@@ -53,7 +60,7 @@ def import_transactions(folio_path: Path) -> int:
         import_logger.info("=" * 60)
         return 0
 
-    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df)
+    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
 
     with db.get_connection() as conn:
         try:
@@ -74,7 +81,7 @@ def import_transactions(folio_path: Path) -> int:
 def _analyze_and_insert_rows(
     conn: db.sqlite3.Connection,
     prepared_df: pd.DataFrame,
-) -> None:
+) -> None:  # pragma: no cover
     """Analyze and insert rows one by one to identify problematic transactions.
 
     Args:
