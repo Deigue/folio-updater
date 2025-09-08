@@ -456,7 +456,19 @@ class TransactionFormatter:
             return True
 
         clean_value = str(value).strip().replace("$", "").replace(",", "")
-        if re.match(r"^-?\d+(\.\d+)?$", clean_value):
+        try:
+            float_value = float(clean_value)
+        except (ValueError, TypeError):
+            if is_required:
+                exclusions.append(idx)
+                reason = f"INVALID {field}"
+                rejection_reasons.setdefault(idx, []).append(reason)
+                return False
+            # For optional fields, if invalid, set to None/NULL
+            df.loc[idx, field] = pd.NA  # pragma: no cover
+            return True  # pragma: no cover
+        else:
+            df.loc[idx, field] = float_value
             if clean_value != str(value).strip():
                 import_logger.debug(
                     AUTO_FORMAT_DEBUG,
@@ -465,18 +477,7 @@ class TransactionFormatter:
                     value,
                     clean_value,
                 )
-            df.loc[idx, field] = float(clean_value)
             return True
-
-        if is_required:
-            exclusions.append(idx)
-            reason = f"INVALID {field}"
-            rejection_reasons.setdefault(idx, []).append(reason)
-            return False
-
-        # For optional fields, if invalid, set to None/NULL
-        df.loc[idx, field] = pd.NA  # pragma: no cover
-        return True  # pragma: no cover
 
 
 def parse_date(date_str: str) -> str | None:
