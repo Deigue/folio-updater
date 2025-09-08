@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 import pandas as pd
 
@@ -17,6 +17,77 @@ logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
+
+
+class ActionValidationRules:
+    """Defines validation rules for different transaction actions."""
+
+    # Action-specific validation rules
+    RULES: ClassVar[dict[Action, dict[str, list[str]]]] = {
+        Action.CONTRIBUTION: {
+            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+                Column.Txn.TICKER.value,
+            ],
+        },
+        Action.DIVIDEND: {
+            "required_fields": [
+                Column.Txn.AMOUNT.value,
+                Column.Txn.ACCOUNT.value,
+                Column.Txn.TICKER.value,
+            ],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+            ],
+        },
+        Action.FCH: {
+            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+                Column.Txn.TICKER.value,
+            ],
+        },
+        Action.WITHDRAWAL: {
+            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+                Column.Txn.TICKER.value,
+            ],
+        },
+    }
+
+    # Default rule for actions that require all fields (BUY, SELL, etc.)
+    DEFAULT: ClassVar[dict[str, list[str]]] = {
+        "required_fields": [
+            Column.Txn.AMOUNT.value,
+            Column.Txn.PRICE.value,
+            Column.Txn.UNITS.value,
+            Column.Txn.TICKER.value,
+        ],
+        "optional_fields": [],
+    }
+
+    @classmethod
+    def get_rules_for_action(cls, action: str) -> dict[str, list[str]]:
+        """Get validation rules for a specific action.
+
+        Args:
+            action: The action type as a string
+
+        Returns:
+            Dictionary with 'required_fields' and 'optional_fields' lists
+        """
+        try:
+            action_enum = Action(action)
+            return cls.RULES.get(action_enum, cls.DEFAULT)
+        except ValueError:
+            # If action is not a valid enum, use default rules
+            return cls.DEFAULT
 
 
 class TransactionFormatter:
@@ -59,7 +130,7 @@ class TransactionFormatter:
             exclusions,
             rejection_reasons,
         )
-        formatted_df = TransactionFormatter._format_numeric_fields(
+        formatted_df = TransactionFormatter._validate_action_specific_fields(
             formatted_df,
             exclusions,
             rejection_reasons,
@@ -282,48 +353,130 @@ class TransactionFormatter:
         return df
 
     @staticmethod
-    def _format_numeric_fields(
+    def _validate_action_specific_fields(
         df: pd.DataFrame,
         exclusions: list[int],
         rejection_reasons: dict[int, list[str]],
     ) -> pd.DataFrame:
-        """Format known numeric fields (Amount, Price, Units) to REAL type."""
+        """Validate fields based on action-specific rules and format numeric fields."""
+        # Validate each row based on its action
+        for idx in df.index:
+            if idx in exclusions:
+                continue  # Skip already excluded rows
+
+            # Get validation rules for this row's action
+            rules = TransactionFormatter._get_validation_rules_for_row(df, idx)
+            required_fields = rules["required_fields"]
+
+            # Validate numeric fields based on action requirements
+            TransactionFormatter._validate_row_numeric_fields(
+                df,
+                idx,
+                required_fields,
+                exclusions,
+                rejection_reasons,
+            )
+
+        return df
+
+    @staticmethod
+    def _get_validation_rules_for_row(
+        df: pd.DataFrame,
+        idx: int,
+    ) -> dict[str, list[str]]:
+        """Get validation rules for a specific row based on its action."""
+        action_col = Column.Txn.ACTION.value
+        if action_col not in df.columns:
+            return ActionValidationRules.DEFAULT
+
+        action_value = df.loc[idx, action_col]
+        if pd.isna(action_value):
+            return ActionValidationRules.DEFAULT
+
+        return ActionValidationRules.get_rules_for_action(str(action_value))
+
+    @staticmethod
+    def _validate_row_numeric_fields(
+        df: pd.DataFrame,
+        idx: int,
+        required_fields: list[str],
+        exclusions: list[int],
+        rejection_reasons: dict[int, list[str]],
+    ) -> None:
+        """Validate numeric fields for a single row."""
         numeric_fields = [
             Column.Txn.AMOUNT.value,
             Column.Txn.PRICE.value,
             Column.Txn.UNITS.value,
         ]
 
-        def try_format_float(idx: int, field: str, value: Any) -> None:  # noqa: ANN401
-            if pd.isna(value):
-                exclusions.append(idx)
-                reason = f"MISSING {field}"
-                rejection_reasons.setdefault(idx, []).append(reason)
-                return
-            clean_value = str(value).strip().replace("$", "").replace(",", "")
-            if re.match(r"^-?\d+(\.\d+)?$", clean_value):
-                if clean_value != str(value).strip():
-                    import_logger.debug(
-                        AUTO_FORMAT_DEBUG,
-                        idx,
-                        field,
-                        value,
-                        clean_value,
-                    )
-                df.loc[idx, field] = float(clean_value)
-            else:
-                exclusions.append(idx)
-                reason = f"INVALID {field}"
-                rejection_reasons.setdefault(idx, []).append(reason)
-
         for field in numeric_fields:
             if field not in df.columns:  # pragma: no cover
                 continue
-            for idx in df.index:
-                value = df.loc[idx, field]
-                try_format_float(idx, field, value)
 
-        return df
+            is_required = field in required_fields
+            value = df.loc[idx, field]
+            success = TransactionFormatter._format_numeric_field(
+                df,
+                idx,
+                field,
+                value,
+                is_required,
+                exclusions,
+                rejection_reasons,
+            )
+
+            # If required field failed validation, mark row as excluded
+            if not success and is_required:
+                break
+
+    @staticmethod
+    def _format_numeric_field(  # noqa: PLR0913
+        df: pd.DataFrame,
+        idx: int,
+        field: str,
+        value: Any,  # noqa: ANN401
+        is_required: bool,  # noqa: FBT001
+        exclusions: list[int],
+        rejection_reasons: dict[int, list[str]],
+    ) -> bool:
+        """Format a numeric field value.
+
+        Returns:
+            True if successful or field is optional, False if required field failed
+        """
+        if pd.isna(value) or str(value).strip() == "":
+            if is_required:
+                exclusions.append(idx)
+                reason = f"MISSING {field}"
+                rejection_reasons.setdefault(idx, []).append(reason)
+                return False
+            # Set optional fields to None/NULL
+            df.loc[idx, field] = pd.NA
+            return True
+
+        clean_value = str(value).strip().replace("$", "").replace(",", "")
+        if re.match(r"^-?\d+(\.\d+)?$", clean_value):
+            if clean_value != str(value).strip():
+                import_logger.debug(
+                    AUTO_FORMAT_DEBUG,
+                    idx,
+                    field,
+                    value,
+                    clean_value,
+                )
+            df.loc[idx, field] = float(clean_value)
+            return True
+
+        if is_required:
+            exclusions.append(idx)
+            reason = f"INVALID {field}"
+            rejection_reasons.setdefault(idx, []).append(reason)
+            return False
+
+        # For optional fields, if invalid, set to None/NULL
+        df.loc[idx, field] = pd.NA
+        return True
 
 
 def parse_date(date_str: str) -> str | None:
