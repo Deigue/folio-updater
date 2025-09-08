@@ -529,14 +529,15 @@ def test_import_action_validation(
                 "2023-08-02",  # CONTRIBUTION that was previously rejected
                 "2023-09-08",  # DIVIDEND that was previously rejected
                 "2023-01-01",  # BUY transaction that should still require all fields
+                "2023-10-10",  # ROC action that was previously rejected
             ],
-            Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY"],
-            Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0],
-            Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD"],
-            Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0],
-            Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0],
-            Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+            Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY", "ROC"],
+            Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0, 500.0],
+            Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD", "CAD"],
+            Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
+            Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
+            Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL", pd.NA],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
         }
 
         # Create Excel file with test data
@@ -554,14 +555,21 @@ def test_import_action_validation(
                     "2023-08-02",
                     "2023-09-08",
                     "2023-01-01",
+                    "2023-10-10",
                 ],
-                Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY"],
-                Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0],
-                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD"],
-                Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0],
-                Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0],
-                Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+                Column.Txn.ACTION.value: [
+                    "FCH",
+                    "CONTRIBUTION",
+                    "DIVIDEND",
+                    "BUY",
+                    "ROC",
+                ],
+                Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0, 500.0],
+                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD", "CAD"],
+                Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
+                Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
+                Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL", pd.NA],
+                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
             },
         )
         _verify_db_contents(expected_df)
