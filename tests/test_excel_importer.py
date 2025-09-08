@@ -400,29 +400,25 @@ def test_import_transactions_ignore_columns(
         df = pd.DataFrame(test_data)
         df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
         config.db_path.unlink(missing_ok=True)
-        imported_count = import_transactions(temp_path)
-        expected_count = 3
-        assert imported_count == expected_count
-
-        # Verify against the db ...
-        with get_connection() as conn:
-            query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
-            table_df = pd.read_sql_query(query, conn)
-
-            assert "IgnoreMe" not in table_df.columns
-            assert "AlsoIgnore" not in table_df.columns
-            assert "KeepThis" in table_df.columns
-            assert Column.Txn.TXN_DATE.value in table_df.columns
-
-            # Verify the data was processed correctly
-            # (dates normalized, actions processed)
-            expected_dates = ["2025-02-05", "2025-02-07", "2025-02-08"]
-            actual_dates = table_df[Column.Txn.TXN_DATE.value].tolist()
-            assert actual_dates == expected_dates
-
-            expected_actions = ["BUY", "DIVIDEND", "CONTRIBUTION"]
-            actual_actions = table_df[Column.Txn.ACTION.value].tolist()
-            assert actual_actions == expected_actions
+        import_transactions(temp_path)
+        expected_df = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE.value: ["2025-02-05", "2025-02-07", "2025-02-08"],
+                Column.Txn.ACTION.value: ["BUY", "DIVIDEND", "CONTRIBUTION"],
+                Column.Txn.AMOUNT.value: [1000.0, 50.0, 2000.0],
+                Column.Txn.CURRENCY.value: ["USD", "USD", "CAD"],
+                Column.Txn.PRICE.value: [100.0, 0.0, 200.0],
+                Column.Txn.UNITS.value: [10.0, 0.0, 10.0],
+                Column.Txn.TICKER.value: ["AAPL", "AAPL", "SHOP"],
+                Column.Txn.ACCOUNT.value: [
+                    "TEST-ACCOUNT",
+                    "TEST-ACCOUNT",
+                    "TEST-ACCOUNT",
+                ],
+                "KeepThis": ["But", "This", "Should"],
+            },
+        )
+        _verify_db_contents(expected_df)
 
 
 def test_import_account_fallback(
@@ -468,16 +464,20 @@ def test_import_account_fallback(
 
         # Import with account fallback
         fallback_account = "FALLBACK-ACCOUNT"
-        expected_count = 3
-        imported_count = import_transactions(temp_path, fallback_account)
-        assert imported_count == expected_count
-
-        # Verify all transactions have the fallback account
-        with get_connection() as conn:
-            query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
-            result_df = pd.read_sql_query(query, conn)
-            assert len(result_df) == expected_count
-            assert all(result_df["Account"] == fallback_account)
+        import_transactions(temp_path, fallback_account)
+        expected_df = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE.value: ["2025-03-01", "2025-03-02", "2025-03-03"],
+                Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND"],
+                Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0],
+                Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
+                Column.Txn.PRICE.value: [100.0, 200.0, 0.0],
+                Column.Txn.UNITS.value: [10.0, 10.0, 0.0],
+                Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL"],
+                Column.Txn.ACCOUNT.value: [fallback_account] * 3,
+            },
+        )
+        _verify_db_contents(expected_df)
 
 
 def test_import_account_missing(
@@ -513,6 +513,58 @@ def test_import_account_missing(
             match=r"Could not map essential columns: \{'Account'\}",
         ):
             import_transactions(temp_path)  # No account parameter
+
+
+def test_import_action_validation(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test end-to-end import with transactions that previously failed."""
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        test_data = {
+            Column.Txn.TXN_DATE.value: [
+                "2023-05-17",  # FCH that was previously rejected for missing Units
+                "2023-08-02",  # CONTRIBUTION that was previously rejected
+                "2023-09-08",  # DIVIDEND that was previously rejected
+                "2023-01-01",  # BUY transaction that should still require all fields
+            ],
+            Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY"],
+            Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0],
+            Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD"],
+            Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0],
+            Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0],
+            Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+        }
+
+        # Create Excel file with test data
+        df = pd.DataFrame(test_data)
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "test_integration_scenarios.xlsx"
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+
+        config.db_path.unlink(missing_ok=True)
+        import_transactions(temp_path, "TEST-ACCOUNT")
+        expected_df = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE.value: [
+                    "2023-05-17",
+                    "2023-08-02",
+                    "2023-09-08",
+                    "2023-01-01",
+                ],
+                Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY"],
+                Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0],
+                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD"],
+                Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0],
+                Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0],
+                Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL"],
+                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+            },
+        )
+        _verify_db_contents(expected_df)
 
 
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
