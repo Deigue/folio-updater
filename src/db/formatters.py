@@ -59,6 +59,17 @@ class ActionValidationRules:
                 Column.Txn.TICKER.value,
             ],
         },
+        Action.ROC: {
+            "required_fields": [
+                Column.Txn.AMOUNT.value,
+                Column.Txn.ACCOUNT.value,
+                Column.Txn.TICKER.value,
+            ],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+            ],
+        },
     }
 
     # Default rule for actions that require all fields (BUY, SELL, etc.)
