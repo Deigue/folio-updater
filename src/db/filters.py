@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from app.app_context import get_config
 from db import db
 from db.utils import format_transaction_summary
 from utils.constants import TXN_ESSENTIALS, Table
@@ -30,7 +31,7 @@ class TransactionFilter:
             txn_df: DataFrame with transaction data.
 
         Returns:
-            DataFrame with database duplicates removed.
+            DataFrame with database duplicates removed, unless approved.
         """
         if txn_df.empty:  # pragma: no cover
             return txn_df
@@ -48,18 +49,22 @@ class TransactionFilter:
         if not duplicates:  # pragma: no cover
             return txn_df
 
-        import_logger.warning(
-            "Filtered %d database duplicate transactions.",
-            len(duplicates),
+        is_duplicate: pd.Series[bool] = new_keys_series.isin(duplicates)
+        approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(
+            txn_df,
+            is_duplicate,
         )
 
-        is_duplicate: pd.Series[bool] = new_keys_series.isin(duplicates)
-        duplicates_df: pd.DataFrame = txn_df[is_duplicate]
-        summaries = duplicates_df.apply(format_transaction_summary, axis=1)
-        for summary in summaries:
-            import_logger.warning(" - %s", summary)
+        TransactionFilter._log_duplicates(
+            txn_df,
+            approved_mask,
+            rejected_mask,
+            duplicate_type="database",
+        )
 
-        return txn_df[~is_duplicate].copy()
+        # Return all non-duplicates plus approved duplicates
+        keep_mask = ~is_duplicate | approved_mask
+        return txn_df[keep_mask].copy()
 
     @staticmethod
     def filter_intra_import_duplicates(txn_df: pd.DataFrame) -> pd.DataFrame:
@@ -69,26 +74,110 @@ class TransactionFilter:
             txn_df: DataFrame with transaction data.
 
         Returns:
-            DataFrame with duplicates removed
+            DataFrame with duplicates removed, unless approved.
         """
         if txn_df.empty:  # pragma: no cover
             return txn_df
 
         keys = txn_df.apply(TransactionFilter._generate_key, axis=1)
-        duplicate_mask = keys.duplicated(keep="first")
+        duplicate_mask = keys.duplicated(keep=False)
         num_dupes = duplicate_mask.sum()
 
-        if num_dupes > 0:
-            duplicate_transactions = txn_df[duplicate_mask]
-            import_logger.warning(
-                "Filtered %d intra-import duplicate transactions.",
-                num_dupes,
-            )
-            summaries = duplicate_transactions.apply(format_transaction_summary, axis=1)
-            for summary in summaries:
-                import_logger.warning(" - %s", summary)
+        if num_dupes == 0:
+            return txn_df
 
-        return txn_df[~duplicate_mask].copy()
+        approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(
+            txn_df,
+            duplicate_mask,
+        )
+
+        TransactionFilter._log_duplicates(
+            txn_df,
+            approved_mask,
+            rejected_mask,
+            duplicate_type="intra-import",
+        )
+
+        # Keep non-duplicates and approved duplicates
+        keep_mask = ~duplicate_mask | approved_mask
+        return txn_df[keep_mask].copy()
+
+    @staticmethod
+    def _process_duplicate_approval(
+        txn_df: pd.DataFrame,
+        duplicate_mask: pd.Series,
+    ) -> tuple[pd.Series, pd.Series]:
+        """Check which duplicates are supposed to be approved.
+
+        Args:
+            txn_df: Full transaction DataFrame
+            duplicate_mask: Boolean mask indicating which rows are duplicates
+
+        Returns:
+            Tuple of (approved_duplicates_mask, rejected_duplicates_mask)
+        """
+        config = get_config()
+        approval_column = config.duplicate_approval_column
+        approval_value = config.duplicate_approval_value
+        approved_mask = pd.Series([False] * len(txn_df), index=txn_df.index)
+        rejected_mask = pd.Series([False] * len(txn_df), index=txn_df.index)
+
+        if approval_column not in txn_df.columns:
+            # No approval column, all duplicates are rejected
+            rejected_mask.loc[txn_df[duplicate_mask].index] = True
+            return approved_mask, rejected_mask
+
+        # Check which duplicates are approved
+        duplicate_indices = txn_df[duplicate_mask].index
+        for idx in duplicate_indices:
+            approval_cell_value = txn_df.loc[idx, approval_column]
+            is_approved: bool = (
+                pd.notna(approval_cell_value)
+                and str(approval_cell_value).strip().upper() == approval_value.upper()
+            )
+
+            (approved_mask if is_approved else rejected_mask).loc[idx] = True
+
+        return approved_mask, rejected_mask
+
+    @staticmethod
+    def _log_duplicates(
+        txn_df: pd.DataFrame,
+        approved_mask: pd.Series,
+        rejected_mask: pd.Series,
+        duplicate_type: str,  # "database" or "intra-import"
+    ) -> None:
+        """Log the results of duplicate processing.
+
+        Args:
+            txn_df: Full transaction DataFrame
+            approved_mask: Mask for approved duplicates
+            rejected_mask: Mask for rejected duplicates
+            duplicate_type: Type of duplicate ("database" or "intra-import")
+        """
+        # Log approved duplicates
+        if approved_mask.any():
+            approved_count = approved_mask.sum()
+            msg = f"Approved {approved_count} {duplicate_type} duplicate transactions."
+            import_logger.info(msg)
+            approved_summaries = txn_df[approved_mask].apply(
+                format_transaction_summary,
+                axis=1,
+            )
+            for summary in approved_summaries:
+                import_logger.info(" - %s", summary)
+
+        # Log rejected duplicates
+        if rejected_mask.any():
+            rejected_count = rejected_mask.sum()
+            msg = f"Filtered {rejected_count} {duplicate_type} duplicate transactions."
+            import_logger.warning(msg)
+            rejected_summaries = txn_df[rejected_mask].apply(
+                format_transaction_summary,
+                axis=1,
+            )
+            for summary in rejected_summaries:
+                import_logger.warning(" - %s", summary)
 
     @staticmethod
     def _generate_key(row: pd.Series) -> str:
