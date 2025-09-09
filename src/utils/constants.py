@@ -85,6 +85,7 @@ class Column(AutoStrEnum):
     class Txn(AutoStrEnum):
         """Transaction columns."""
 
+        TXN_ID = "TxnId"
         TXN_DATE = "TxnDate"
         ACTION = "Action"
         AMOUNT = "Amount"
@@ -128,6 +129,11 @@ DATE_PATTERN_YYYY_MM_DD = "[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]"
 
 # Column definitions for the Txns table
 TXN_COLUMN_DEFINITIONS = [
+    ColumnDefinition(
+        Column.Txn.TXN_ID.value,
+        "INTEGER",
+        "PRIMARY KEY AUTOINCREMENT",
+    ),
     ColumnDefinition(
         Column.Txn.TXN_DATE.value,
         "TEXT",

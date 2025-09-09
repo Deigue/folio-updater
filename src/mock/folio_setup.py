@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app.app_context import get_config
-from db import db
+from db import db, schema_manager
 from mock.mock_data import generate_transactions
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
@@ -35,8 +35,9 @@ def _create_default_folio() -> None:
             sheet_name=configuration.transactions_sheet(),
         )
 
+    schema_manager.create_txns_table()
     with db.get_connection() as conn:
-        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="replace", index=False)
+        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
 
     logger.info("Created default folio at %s", configuration.folio_path)
 
