@@ -37,6 +37,10 @@ class Config:
                 "Account": ["account", "alias", "account id"],
             },
             "header_ignore": [],
+            "duplicate_approval": {
+                "column_name": "Duplicate",
+                "approval_value": "OK",
+            },
         },
     )
 
@@ -97,6 +101,18 @@ class Config:
     def header_ignore(self) -> list[str]:
         """Get the list of column names to ignore during import."""
         return self._settings.get("header_ignore", [])
+
+    @property
+    def duplicate_approval_column(self) -> str:
+        """Get the name of the column used to approve duplicate transactions."""
+        duplicate_config = self._settings.get("duplicate_approval", {})
+        return duplicate_config.get("column_name", "Duplicate")
+
+    @property
+    def duplicate_approval_value(self) -> str:
+        """Get the value that indicates duplicate transaction approval."""
+        duplicate_config = self._settings.get("duplicate_approval", {})
+        return duplicate_config.get("approval_value", "OK")
 
     def tickers_sheet(self) -> str:
         """Get the tickers sheet name."""
@@ -196,6 +212,25 @@ class Config:
         if "header_ignore" in settings and isinstance(settings["header_ignore"], list):
             validated["header_ignore"] = settings["header_ignore"]
 
+        if "duplicate_approval" in settings and isinstance(
+            settings["duplicate_approval"],
+            dict,
+        ):
+            duplicate_approval = settings["duplicate_approval"]
+            validated_duplicate_approval = validated["duplicate_approval"].copy()
+
+            if "column_name" in duplicate_approval:
+                validated_duplicate_approval["column_name"] = str(
+                    duplicate_approval["column_name"],
+                )
+
+            if "approval_value" in duplicate_approval:
+                validated_duplicate_approval["approval_value"] = str(
+                    duplicate_approval["approval_value"],
+                )
+
+            validated["duplicate_approval"] = validated_duplicate_approval
+
         return validated
 
     def __str__(self) -> str:
@@ -208,4 +243,6 @@ class Config:
         config_str += f"  Sheets: {self.sheets}\n"
         config_str += f"  Header Keywords: {self.header_keywords}\n"
         config_str += f"  Header Ignore: {self.header_ignore}\n"
+        config_str += f"  Duplicate Approval Column: {self.duplicate_approval_column}\n"
+        config_str += f"  Duplicate Approval Value: {self.duplicate_approval_value}\n"
         return config_str
