@@ -17,7 +17,17 @@ logger = logging.getLogger(__name__)
 
 
 def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
-    """Ensure the Txns table has all columns in txn_df, return final column order."""
+    """Ensure the Txns table has all columns in txn_df, return final column order.
+
+    Arguments:
+        txn_df: DataFrame with transaction data to be inserted into the database.
+
+    Returns:
+        List of columns in the Txns table after synchronization
+
+    Raises:
+        sqlite3.OperationalError: If there is an error altering the table.
+    """
     with get_connection() as conn:
         existing_columns = db.get_columns(conn, Table.TXNS.value)
 
@@ -37,4 +47,6 @@ def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
                 except sqlite3.OperationalError:  # pragma: no cover
                     logger.exception("Could not add column '%s'", column)
 
-    return existing_columns + new_columns
+    final_columns = existing_columns + new_columns
+    logger.debug("Final ordered columns: %s", final_columns)
+    return final_columns
