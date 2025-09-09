@@ -80,6 +80,17 @@ class TransactionMapper:
         return excel_df
 
     @staticmethod
+    def remove_approval_column(txn_df: pd.DataFrame) -> pd.DataFrame:
+        """Remove the duplicate approval column from the DataFrame if it exists."""
+        config = get_config()
+        approval_column = config.duplicate_approval_column
+        if approval_column in txn_df.columns:
+            msg = f"Duplicate approval column found: {approval_column}"
+            import_logger.debug(msg)
+            return txn_df.drop(columns=[approval_column])
+        return txn_df
+
+    @staticmethod
     def _process_columns(
         columns: pd.Index,
         normalized_ignore: set[str],
