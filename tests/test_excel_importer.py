@@ -61,11 +61,17 @@ def test_import_transactions_intra_dupes(
         temp_path = config.folio_path.parent / "temp_intra_dupes.xlsx"
         df_with_dupes.to_excel(temp_path, index=False, sheet_name=txn_sheet)
 
-        # Import should only add one unique transaction for the duplicate row
+        # Import should reject ALL duplicates (no first-occurrence logic)
         config.db_path.unlink()  # Start with empty DB
         imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
-        assert imported_count == len(default_df)
-        _verify_db_contents(default_df, last_n=len(default_df))
+        # Should import original transactions minus the duplicated one
+        expected_count = len(default_df) - 1
+        assert imported_count == expected_count
+
+        # Verify database contains only non-duplicate transactions
+        # Skip first row since it was duplicated
+        expected_df = default_df.iloc[1:].copy()
+        _verify_db_contents(expected_df, last_n=expected_count)
 
 
 def test_import_transactions_formatting(
@@ -575,6 +581,130 @@ def test_import_action_validation(
         _verify_db_contents(expected_df)
 
 
+def test_import_transactions_db_duplicate_approval(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        # First, import some initial transactions
+        initial_data = {
+            Column.Txn.TXN_DATE.value: ["2024-01-01", "2024-01-02"],
+            Column.Txn.ACTION.value: ["BUY", "SELL"],
+            Column.Txn.AMOUNT.value: [1000.0, 2000.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 200.0],
+            Column.Txn.UNITS.value: [10.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "MSFT"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+        }
+
+        initial_df = pd.DataFrame(initial_data)
+        txn_sheet = config.transactions_sheet()
+        initial_path = config.folio_path.parent / "initial_transactions.xlsx"
+        initial_df.to_excel(initial_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+        initial_count = import_transactions(initial_path, "TEST-ACCOUNT")
+        expected_initial_count = 2
+        assert initial_count == expected_initial_count
+
+        # Now try to import duplicates without approval - should be rejected
+        duplicate_data = {
+            # First is duplicate
+            Column.Txn.TXN_DATE.value: ["2024-01-01", "2024-01-03"],
+            Column.Txn.ACTION.value: ["BUY", "DIVIDEND"],
+            Column.Txn.AMOUNT.value: [1000.0, 500.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 0.0],
+            Column.Txn.UNITS.value: [10.0, 0.0],
+            Column.Txn.TICKER.value: ["AAPL", "AAPL"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+        }
+
+        duplicate_df = pd.DataFrame(duplicate_data)
+        duplicate_path = config.folio_path.parent / "duplicate_transactions.xlsx"
+        duplicate_df.to_excel(duplicate_path, index=False, sheet_name=txn_sheet)
+        no_approval_count = import_transactions(duplicate_path, "TEST-ACCOUNT")
+        expected_no_approval_count = 1  # Only the DIVIDEND transaction
+        assert no_approval_count == expected_no_approval_count
+
+        # Now add approval column and try again
+        duplicate_data_with_approval = duplicate_data.copy()
+        duplicate_data_with_approval[config.duplicate_approval_column] = ["OK", ""]
+        approved_df = pd.DataFrame(duplicate_data_with_approval)
+        approved_path = config.folio_path.parent / "approved_duplicates.xlsx"
+        approved_df.to_excel(approved_path, index=False, sheet_name=txn_sheet)
+        approved_count = import_transactions(approved_path, "TEST-ACCOUNT")
+        expected_approved_count = 1  # The approved duplicate BUY transaction
+        assert approved_count == expected_approved_count
+
+        # Verify final database contents
+        expected_data = {
+            Column.Txn.TXN_DATE.value: [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-03",
+                "2024-01-01",
+            ],
+            Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY"],
+            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0, 1000.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 200.0, 0.0, 100.0],
+            Column.Txn.UNITS.value: [10.0, 10.0, 0.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "AAPL"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+        }
+        expected_df = pd.DataFrame(expected_data)
+        _verify_db_contents(expected_df)
+
+
+def test_import_transactions_intra_duplicate_approval(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    with temp_config() as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        # Create test data with intra-import duplicates
+        approval_column = config.duplicate_approval_column
+        # First two are duplicates, second has approval
+        test_data = {
+            Column.Txn.TXN_DATE.value: ["2024-02-01", "2024-02-01", "2024-02-02"],
+            Column.Txn.ACTION.value: ["BUY", "BUY", "SELL"],
+            Column.Txn.AMOUNT.value: [1000.0, 1000.0, 2000.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 100.0, 200.0],
+            Column.Txn.UNITS.value: [10.0, 10.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "AAPL", "MSFT"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 3,
+            approval_column: ["", "OK", ""],
+        }
+
+        df = pd.DataFrame(test_data)
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "intra_duplicates_with_approval.xlsx"
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
+        expected_imported_count = 2
+        assert imported_count == expected_imported_count
+
+        # Verify database contents
+        expected_data = {
+            Column.Txn.TXN_DATE.value: ["2024-02-01", "2024-02-02"],
+            Column.Txn.ACTION.value: ["BUY", "SELL"],
+            Column.Txn.AMOUNT.value: [1000.0, 2000.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 200.0],
+            Column.Txn.UNITS.value: [10.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "MSFT"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 2,
+        }
+        expected_df = pd.DataFrame(expected_data)
+        _verify_db_contents(expected_df)
+
+
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions sheet."""
     txn_sheet = config.transactions_sheet()
@@ -755,24 +885,27 @@ def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
         # Expected Data Formatters
         imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
 
-        # Verify column ordering: TXN_ESSENTIALS first, then optionals
+        # Verify column ordering: TxnId first, then TXN_ESSENTIALS, then optionals
         # The specific order of optionals doesn't matter
         table_cols = list(table_df.columns)
 
-        # Check that all TXN_ESSENTIALS are present and at the beginning
-        essentials_in_table = [col for col in TXN_ESSENTIALS if col in table_cols]
-        if (
-            essentials_in_table != table_cols[: len(essentials_in_table)]
-        ):  # pragma: no cover
+        # Check that TxnId is first, then TXN_ESSENTIALS follow
+        expected_start = [Column.Txn.TXN_ID.value, *TXN_ESSENTIALS]
+        actual_start = table_cols[: len(expected_start)]
+
+        if actual_start != expected_start:  # pragma: no cover
             error_msg = (
-                f"TXN_ESSENTIALS should be first columns in order. "
-                f"Expected: {TXN_ESSENTIALS}, "
-                f"Got start of table: {table_cols[: len(TXN_ESSENTIALS)]}"
+                f"Expected: {expected_start}, Got start of table: {actual_start}",
             )
             raise AssertionError(error_msg)
 
+        # Remove TxnId column from table_df for comparison since
+        # it's auto-generated and not part of the input data
+        if Column.Txn.TXN_ID.value in table_df.columns:  # pragma: no branch
+            table_df = table_df.drop(columns=[Column.Txn.TXN_ID.value])
+
         # Reorder imported_df to match database column order for comparison
-        imported_df = imported_df.reindex(columns=table_cols)
+        imported_df = imported_df.reindex(columns=table_df.columns)
 
         try:
             pd_testing.assert_frame_equal(

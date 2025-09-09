@@ -168,7 +168,7 @@ class TransactionFilter:
                 import_logger.info(" - %s", summary)
 
         # Log rejected duplicates
-        if rejected_mask.any():
+        if rejected_mask.any():  # pragma: no branch
             rejected_count = rejected_mask.sum()
             msg = f"Filtered {rejected_count} {duplicate_type} duplicate transactions."
             import_logger.warning(msg)
