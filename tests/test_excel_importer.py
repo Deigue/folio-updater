@@ -63,7 +63,7 @@ def test_import_transactions_intra_dupes(
 
         # Import should reject ALL duplicates (no first-occurrence logic)
         config.db_path.unlink()  # Start with empty DB
-        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
         # Should import original transactions minus the duplicated one
         expected_count = len(default_df) - 1
         assert imported_count == expected_count
@@ -264,7 +264,7 @@ def test_import_transactions_formatting(
         config.db_path.unlink(missing_ok=True)
 
         # Import transactions and check the count
-        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
 
         # Create expected dataframe with only valid rows (0, 1, 2, 7, 12, 17, 18)
         expected_rows = [
@@ -406,7 +406,7 @@ def test_import_transactions_ignore_columns(
         df = pd.DataFrame(test_data)
         df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
         config.db_path.unlink(missing_ok=True)
-        import_transactions(temp_path)
+        import_transactions(temp_path, None, txn_sheet)
         expected_df = pd.DataFrame(
             {
                 Column.Txn.TXN_DATE.value: ["2025-02-05", "2025-02-07", "2025-02-08"],
@@ -470,7 +470,7 @@ def test_import_account_fallback(
 
         # Import with account fallback
         fallback_account = "FALLBACK-ACCOUNT"
-        import_transactions(temp_path, fallback_account)
+        import_transactions(temp_path, fallback_account, txn_sheet)
         expected_df = pd.DataFrame(
             {
                 Column.Txn.TXN_DATE.value: ["2025-03-01", "2025-03-02", "2025-03-03"],
@@ -518,7 +518,7 @@ def test_import_account_missing(
             ValueError,
             match=r"Could not map essential columns: \{'Account'\}",
         ):
-            import_transactions(temp_path)  # No account parameter
+            import_transactions(temp_path, None, txn_sheet)  # No account parameter
 
 
 def test_import_action_validation(
@@ -553,7 +553,7 @@ def test_import_action_validation(
         df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
-        import_transactions(temp_path, "TEST-ACCOUNT")
+        import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
         expected_df = pd.DataFrame(
             {
                 Column.Txn.TXN_DATE.value: [
@@ -605,7 +605,7 @@ def test_import_transactions_db_duplicate_approval(
         initial_path = config.folio_path.parent / "initial_transactions.xlsx"
         initial_df.to_excel(initial_path, index=False, sheet_name=txn_sheet)
         config.db_path.unlink(missing_ok=True)
-        initial_count = import_transactions(initial_path, "TEST-ACCOUNT")
+        initial_count = import_transactions(initial_path, "TEST-ACCOUNT", txn_sheet)
         expected_initial_count = 2
         assert initial_count == expected_initial_count
 
@@ -625,7 +625,11 @@ def test_import_transactions_db_duplicate_approval(
         duplicate_df = pd.DataFrame(duplicate_data)
         duplicate_path = config.folio_path.parent / "duplicate_transactions.xlsx"
         duplicate_df.to_excel(duplicate_path, index=False, sheet_name=txn_sheet)
-        no_approval_count = import_transactions(duplicate_path, "TEST-ACCOUNT")
+        no_approval_count = import_transactions(
+            duplicate_path,
+            "TEST-ACCOUNT",
+            txn_sheet,
+        )
         expected_no_approval_count = 1  # Only the DIVIDEND transaction
         assert no_approval_count == expected_no_approval_count
 
@@ -635,7 +639,7 @@ def test_import_transactions_db_duplicate_approval(
         approved_df = pd.DataFrame(duplicate_data_with_approval)
         approved_path = config.folio_path.parent / "approved_duplicates.xlsx"
         approved_df.to_excel(approved_path, index=False, sheet_name=txn_sheet)
-        approved_count = import_transactions(approved_path, "TEST-ACCOUNT")
+        approved_count = import_transactions(approved_path, "TEST-ACCOUNT", txn_sheet)
         expected_approved_count = 1  # The approved duplicate BUY transaction
         assert approved_count == expected_approved_count
 
@@ -686,7 +690,7 @@ def test_import_transactions_intra_duplicate_approval(
         temp_path = config.folio_path.parent / "intra_duplicates_with_approval.xlsx"
         df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
         config.db_path.unlink(missing_ok=True)
-        imported_count = import_transactions(temp_path, "TEST-ACCOUNT")
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
         expected_imported_count = 2
         assert imported_count == expected_imported_count
 
@@ -713,7 +717,8 @@ def _get_default_dataframe(config: Config) -> pd.DataFrame:
 
 def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing duplicate transactions results in 0 new imports."""
-    transactions = import_transactions(config.folio_path, "TEST-ACCOUNT")
+    txn_sheet = config.transactions_sheet()
+    transactions = import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet)
     assert transactions == 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
@@ -721,7 +726,8 @@ def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
 def _test_empty_db_import(config: Config, default_df: pd.DataFrame) -> None:
     """Test importing into an empty database."""
     config.db_path.unlink()
-    assert import_transactions(config.folio_path, "TEST-ACCOUNT") > 0
+    txn_sheet = config.transactions_sheet()
+    assert import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet) > 0
     _verify_db_contents(default_df, last_n=len(default_df))
 
 
@@ -743,7 +749,7 @@ def _test_missing_essential_column(config: Config, default_df: pd.DataFrame) -> 
         ValueError,
         match=rf"Could not map essential columns: \{{'{essential_to_remove}'\}}\s*",
     ):
-        import_transactions(temp_path)
+        import_transactions(temp_path, None, txn_sheet)
 
 
 def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame:
@@ -781,7 +787,7 @@ def _test_optional_columns_import(
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_optional_columns.xlsx"
     df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-    assert import_transactions(temp_path) > 0
+    assert import_transactions(temp_path, None, txn_sheet) > 0
     _verify_db_contents(df, last_n=len(df))
     return df
 
@@ -808,7 +814,7 @@ def _test_additional_columns_with_scrambled_order(
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_scrambled_columns.xlsx"
     df_scrambled.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-    assert import_transactions(temp_path) > 0
+    assert import_transactions(temp_path, None, txn_sheet) > 0
 
     # The database should store columns in the proper order (TXN_ESSENTIALS first)
     # So we compare against the original ordered DataFrame, not the scrambled one
@@ -829,7 +835,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "lesser_columns.xlsx"
     df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-    assert import_transactions(temp_path) > 0
+    assert import_transactions(temp_path, None, txn_sheet) > 0
 
     # Pad df with missing columns that exist in the database
     with get_connection() as conn:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from app.app_context import initialize_app
+from app.app_context import get_config, initialize_app
 from importers.excel_importer import import_transactions
 from utils.logging_setup import init_logging
 
@@ -34,6 +34,13 @@ def create_sample_excel(file_path: Path) -> None:
             "GOOGL",
             "TSLA",
         ],  # Same ticker for duplicate
+        "Account": [
+            "DEMO-ACCOUNT",
+            "DEMO-ACCOUNT",
+            "DEMO-ACCOUNT",
+            "DEMO-ACCOUNT",
+            "DEMO-ACCOUNT",
+        ],
     }
 
     df = pd.DataFrame(data)
@@ -60,13 +67,15 @@ def demo_import_logging() -> None:
     try:
         # Create sample data
         create_sample_excel(temp_path)
+        config = get_config()
+        txn_sheet = config.transactions_sheet()
 
         print("\n--- First Import (should import 4 unique transactions) ---")
-        result1 = import_transactions(temp_path)
+        result1 = import_transactions(temp_path, None, txn_sheet)
         print(f"First import result: {result1} transactions")
 
         print("\n--- Second Import (should find duplicates) ---")
-        result2 = import_transactions(temp_path)
+        result2 = import_transactions(temp_path, None, txn_sheet)
         print(f"Second import result: {result2} transactions")
 
         print("\n--- Demo completed ---")

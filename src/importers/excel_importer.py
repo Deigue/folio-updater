@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.app_context import get_config
 from db import db, preparers
 from db.utils import format_transaction_summary
 from utils.constants import Table
@@ -21,7 +20,11 @@ logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 
-def import_transactions(folio_path: Path, account: str | None = None) -> int:
+def import_transactions(
+    folio_path: Path,
+    account: str | None = None,
+    sheet: str | None = None,
+) -> int:
     """Import transactions from Excel files and map headers to internal fields.
 
     Keeps TXN_ESSENTIALS first, then existing DB columns, then net new columns.
@@ -30,11 +33,16 @@ def import_transactions(folio_path: Path, account: str | None = None) -> int:
         folio_path (Path): Path to the Excel file containing transactions.
         account (str | None): Optional account identifier to use as fallback
             when Account column is missing from the Excel file.
+        sheet (str | None): Optional sheet name to read from the Excel file.
+            If None, uses the first sheet in the Excel file.
 
     Returns:
         int: Number of transactions imported.
     """
-    config = get_config()
+    if sheet is None:  # pragma: no cover
+        excel_file = pd.ExcelFile(folio_path, engine="openpyxl")
+        sheet = str(excel_file.sheet_names[0])
+
     with db.get_connection() as conn:
         existing_count = _get_existing_transaction_count(conn)
 
@@ -46,15 +54,16 @@ def import_transactions(folio_path: Path, account: str | None = None) -> int:
     try:
         txns_df: pd.DataFrame = pd.read_excel(
             folio_path,
-            sheet_name=config.transactions_sheet(),
+            sheet_name=sheet,
         )
+
         import_logger.info(
             "Read %d transactions from Excel sheet '%s'",
             len(txns_df),
-            config.transactions_sheet(),
+            sheet,
         )
     except ValueError:  # pragma: no cover
-        error_msg = f"No '{config.transactions_sheet()}' sheet found in {folio_path}."
+        error_msg = f"No '{sheet}' sheet found in {folio_path}."
         import_logger.warning(error_msg)
         import_logger.info("Import completed: 0 transactions imported")
         import_logger.info("=" * 60)
