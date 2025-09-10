@@ -4,21 +4,22 @@ A portfolio management system that imports and processes financial transaction d
 
 ## Features
 
-- **Excel Data Import**: Header mapping and validation
-- **Transaction Management**: Support for various transaction types (BUY, SELL, DIVIDEND, CONTRIBUTION, etc.)
-- **Account Tracking**: Support for multiple account aliases/identifiers
+### Import Transactions
+
+- **[Account Management](docs/transactions/account-management.md)**: Support for multiple account aliases/identifiers
 - **Data Validation**: Comprehensive data formatting and constraint checking
 - **Duplicate Detection**: Duplicate filtering both within imports and against existing data
+- **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
-- **Logging**: Comprehensive import logging
+- **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
 
 ## Setup
 
 1. Clone the repository
-2. Install dependencies using uv:
+2. Install dependencies using **[uv](https://github.com/astral-sh/uv)**:
 
    ```bash
-   uv sync --all-groups
+   uv sync
    ```
 
 ## Configuration (`config.yaml`)
@@ -45,16 +46,20 @@ header_keywords:
   Ticker: [ticker, symbol, stock]
   Account: [account, alias, account id]
 header_ignore: []
+duplicate_approval:
+  column: Duplicate
+  value: OK
 ```
 
-| Key                   | Description                                                                                                                                                                                                                                                            |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`folio_path`**      | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
-| **`db_path`**         | Path to the internal database file. This will be automatically created if it does not exist. Relative paths will behave similar to the `folio_path`                                                                                                                    |
-| **`log_level`**       | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
-| **`sheets`**          | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
-| **`header_keywords`** | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |
-| **`header_ignore`**   | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                 |
+| Key                      | Description                                                                                                                                                                                                                                                            |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`folio_path`**         | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. |
+| **`db_path`**            | Path to the internal database file. This will be automatically created if it does not exist. Relative paths will behave similar to the `folio_path`                                                                                                                    |
+| **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
+| **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
+| **`header_keywords`**    | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |
+| **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                 |
+| **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                              |
 
 ### Essential Fields
 

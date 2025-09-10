@@ -44,7 +44,7 @@ imported_count = import_transactions(excel_path, account="BROKER-MAIN")
 
 ### Multiple Brokers
 
-```text
+```excel
 TxnDate     | Action | Amount  | Ticker | Account
 2023-01-01  | BUY    | 1000.00 | AAPL   | BROKER-A
 2023-01-01  | BUY    | 1000.00 | AAPL   | BROKER-B

@@ -53,6 +53,7 @@ The system logs how Excel column headers are mapped to internal field names:
 "Price" -> "Price"
 "Units" -> "Units"
 "Ticker" -> "Ticker"
+"Account" -> "Account"
 ```
 
 ### 3. Transaction Detail Logging
@@ -60,8 +61,8 @@ The system logs how Excel column headers are mapped to internal field names:
 All transactions being processed are logged with their essential field values:
 
 ```log
-2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-01|Action=BUY|Amount=1000.0|$=USD|Price=100.0|Units=10.0|Ticker=AAPL
-2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-02|Action=SELL|Amount=500.0|$=USD|Price=50.0|Units=10.0|Ticker=MSFT
+2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-01|Action=BUY|Amount=1000.0|$=USD|Price=100.0|Units=10.0|Ticker=AAPL|Account=Brokerage1
+2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-02|Action=SELL|Amount=500.0|$=USD|Price=50.0|Units=10.0|Ticker=MSFT|Account=Brokerage2
 ```
 
 ### 4. Duplicate Transaction Logging
@@ -72,7 +73,7 @@ These are duplicates within the Excel file itself:
 
 ```log
 2024-09-01 10:30:15 [INFO] Filtered 2 intra-import duplicate transactions.
-2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-01|Action=BUY|Amount=1000.0|$=USD|Price=100.0|Units=10.0|Ticker=AAPL
+2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-01|Action=BUY|Amount=1000.0|$=USD|Price=100.0|Units=10.0|Ticker=AAPL|Account=Brokerage1
 ```
 
 #### Database Duplicates  
@@ -81,7 +82,7 @@ These are transactions that already exist in the database:
 
 ```log
 2024-09-01 10:30:15 [INFO] Filtered 3 database duplicate transactions.
-2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-02|Action=SELL|Amount=500.0|$=USD|Price=50.0|Units=10.0|Ticker=MSFT
+2024-09-01 10:30:15 [INFO] - TxnDate=2024-01-02|Action=SELL|Amount=500.0|$=USD|Price=50.0|Units=10.0|Ticker=MSFT|Account=Brokerage2
 ```
 
 ### 5. Schema Management Logging
@@ -90,7 +91,7 @@ When new columns are added to the database:
 
 ```log
 2024-09-01 10:30:15 [DEBUG] Added new column 'Notes' to table 'Txns'
-2024-09-01 10:30:15 [DEBUG] Final ordered columns: ['TxnDate', 'Action', 'Amount', '$', 'Price', 'Units', 'Ticker', 'Notes']
+2024-09-01 10:30:15 [DEBUG] Final ordered columns: ['TxnDate', 'Action', 'Amount', '$', 'Price', 'Units', 'Ticker', 'Account', 'Notes']
 ```
 
 ## Usage
