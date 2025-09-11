@@ -13,6 +13,8 @@ from typing import Any, ClassVar
 
 import yaml
 
+from utils.optional_fields import OptionalFieldsConfig
+
 
 class Config:
     """Configuration for the folio."""
@@ -41,6 +43,7 @@ class Config:
                 "column_name": "Duplicate",
                 "approval_value": "OK",
             },
+            "optional_headers": {},
         },
     )
 
@@ -61,6 +64,8 @@ class Config:
         if not db_path.is_absolute():  # pragma: no branch
             db_path: Path = (project_root / settings["db_path"]).resolve()
         self._db_path: Path = db_path
+        optional_headers = settings.get("optional_headers", {})
+        self._optional_fields = OptionalFieldsConfig(optional_headers)
 
     @property
     def config_path(self) -> Path:
@@ -113,6 +118,11 @@ class Config:
         """Get the value that indicates duplicate transaction approval."""
         duplicate_config = self._settings.get("duplicate_approval", {})
         return duplicate_config.get("approval_value", "OK")
+
+    @property
+    def optional_fields(self) -> OptionalFieldsConfig:
+        """Get the optional fields configuration."""
+        return self._optional_fields
 
     def tickers_sheet(self) -> str:
         """Get the tickers sheet name."""
@@ -230,6 +240,12 @@ class Config:
                 )
 
             validated["duplicate_approval"] = validated_duplicate_approval
+
+        if "optional_headers" in settings and isinstance(
+            settings["optional_headers"],
+            dict,
+        ):
+            validated["optional_headers"] = settings["optional_headers"]
 
         return validated
 

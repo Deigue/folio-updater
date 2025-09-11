@@ -49,6 +49,10 @@ header_ignore: []
 duplicate_approval:
   column: Duplicate
   value: OK
+optional_headers:
+  Fees: numeric
+  Settle Date: date
+  Notes: string
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                            |
@@ -60,6 +64,7 @@ duplicate_approval:
 | **`header_keywords`**    | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |
 | **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                 |
 | **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                              |
+| **`optional_headers`**   | Optional: configure additional columns with specific data types for automatic formatting. Keys are column names, values are data types: `date`, `numeric`, `currency`, `action`, or `string`. These fields won't cause import failures if missing or invalid. |
 
 ### Essential Fields
 
