@@ -193,20 +193,50 @@ class Config:
         """
         validated: dict[str, Any] = deepcopy(dict(Config.DEFAULT_CONFIG))
 
+        Config._validate_log_level(settings, validated)
+        Config._validate_folio_path(settings, validated)
+        Config._validate_db_path(settings, validated)
+        Config._validate_sheets(settings, validated)
+        Config._validate_header_keywords(settings, validated)
+        Config._validate_header_ignore(settings, validated)
+        Config._validate_duplicate_approval(settings, validated)
+        Config._validate_optional_headers(settings, validated)
+
+        return validated
+
+    @staticmethod
+    def _validate_log_level(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
         log_level = settings.get("log_level", validated["log_level"]).upper()
         if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
-            log_level: str = validated["log_level"]
+            log_level = validated["log_level"]
         validated["log_level"] = log_level
 
-        if "folio_path" in settings:  # pragma: no branch
+    @staticmethod
+    def _validate_folio_path(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        if "folio_path" in settings:
             validated["folio_path"] = str(settings["folio_path"])
 
-        if "db_path" in settings:  # pragma: no branch
+    @staticmethod
+    def _validate_db_path(settings: dict[str, Any], validated: dict[str, Any]) -> None:
+        if "db_path" in settings:
             validated["db_path"] = str(settings["db_path"])
 
+    @staticmethod
+    def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:
         if "sheets" in settings and isinstance(settings["sheets"], dict):
             validated["sheets"].update(settings["sheets"])
 
+    @staticmethod
+    def _validate_header_keywords(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
         if "header_keywords" in settings and isinstance(
             settings["header_keywords"],
             dict,
@@ -219,9 +249,19 @@ class Config:
                 },
             )
 
+    @staticmethod
+    def _validate_header_ignore(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
         if "header_ignore" in settings and isinstance(settings["header_ignore"], list):
             validated["header_ignore"] = settings["header_ignore"]
 
+    @staticmethod
+    def _validate_duplicate_approval(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
         if "duplicate_approval" in settings and isinstance(
             settings["duplicate_approval"],
             dict,
@@ -229,25 +269,28 @@ class Config:
             duplicate_approval = settings["duplicate_approval"]
             validated_duplicate_approval = validated["duplicate_approval"].copy()
 
-            if "column_name" in duplicate_approval:  # pragma: no branch
+            if "column_name" in duplicate_approval:
                 validated_duplicate_approval["column_name"] = str(
                     duplicate_approval["column_name"],
                 )
 
-            if "approval_value" in duplicate_approval:  # pragma: no branch
+            if "approval_value" in duplicate_approval:
                 validated_duplicate_approval["approval_value"] = str(
                     duplicate_approval["approval_value"],
                 )
 
             validated["duplicate_approval"] = validated_duplicate_approval
 
+    @staticmethod
+    def _validate_optional_headers(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
         if "optional_headers" in settings and isinstance(
             settings["optional_headers"],
             dict,
         ):
             validated["optional_headers"] = settings["optional_headers"]
-
-        return validated
 
     def __str__(self) -> str:
         """Return a string representation of the Config object."""
