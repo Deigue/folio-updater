@@ -814,7 +814,7 @@ def test_import_transactions_optional_fields(
                 Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
                 # Optional fields: valid values formatted, invalid values retained
                 # When read from database, mixed columns normalize to consistent types
-                "Fees": ["5.95", "INVALID", None, "10.5", None],
+                "Fees": ["5.95", "INVALID", None, "10.50", None],
                 "Settle Date": [
                     "2023-01-03",
                     "INVALID_DATE",

@@ -127,6 +127,9 @@ class ColumnDefinition:
 # Date pattern for YYYY-MM-DD format validation
 DATE_PATTERN_YYYY_MM_DD = "[0-9][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]"
 
+# SQL type for numeric columns with precision
+NUMERIC_PRECISION = "NUMERIC(20,10)"
+
 # Column definitions for the Txns table
 TXN_COLUMN_DEFINITIONS = [
     ColumnDefinition(
@@ -147,7 +150,7 @@ TXN_COLUMN_DEFINITIONS = [
         "TEXT",
         f'CHECK("{Column.Txn.ACTION}" IN ({", ".join(repr(a.value) for a in Action)}))',
     ),
-    ColumnDefinition(Column.Txn.AMOUNT.value, "REAL"),
+    ColumnDefinition(Column.Txn.AMOUNT.value, NUMERIC_PRECISION),
     ColumnDefinition(
         Column.Txn.CURRENCY.value,
         "TEXT",
@@ -156,8 +159,8 @@ TXN_COLUMN_DEFINITIONS = [
             f"({', '.join(repr(c.value) for c in Currency)}))"
         ),
     ),
-    ColumnDefinition(Column.Txn.PRICE.value, "REAL"),
-    ColumnDefinition(Column.Txn.UNITS.value, "REAL"),
+    ColumnDefinition(Column.Txn.PRICE.value, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Txn.UNITS.value, NUMERIC_PRECISION),
     ColumnDefinition(
         Column.Txn.TICKER.value,
         "TEXT",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import ClassVar
 
 import pandas as pd
@@ -29,6 +30,18 @@ class ActionValidationRules:
     RULES: ClassVar[dict[Action, dict[str, list[str]]]] = {
         Action.CONTRIBUTION: {
             "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "optional_fields": [
+                Column.Txn.PRICE.value,
+                Column.Txn.UNITS.value,
+                Column.Txn.TICKER.value,
+            ],
+        },
+        Action.FXT: {
+            "required_fields": [
+                Column.Txn.AMOUNT.value,
+                Column.Txn.ACCOUNT.value,
+                Column.Txn.CURRENCY.value,
+            ],
             "optional_fields": [
                 Column.Txn.PRICE.value,
                 Column.Txn.UNITS.value,
@@ -485,6 +498,17 @@ class TransactionFormatter:
 
         Handles both required numeric fields and optional fields of all types.
         """
+        # Convert all numeric columns to object dtype once to prevent warnings
+        numeric_fields = [
+            Column.Txn.AMOUNT.value,
+            Column.Txn.PRICE.value,
+            Column.Txn.UNITS.value,
+        ]
+
+        for field in numeric_fields:
+            if field in self.formatted_df.columns:
+                self.formatted_df[field] = self.formatted_df[field].astype("object")
+
         for row in self.formatted_df.index:
             if row in self.exclusions:
                 continue
@@ -547,6 +571,12 @@ class TransactionFormatter:
         # Exit early if no optional fields are configured
         if not self.config.optional_fields:
             return
+
+        # Convert all optional numeric columns to object dtype to prevent warnings
+        for column in self.formatted_df.columns:
+            optional_field = self.config.optional_fields.get_field(column)
+            if optional_field and optional_field.field_type == FieldType.NUMERIC:
+                self.formatted_df[column] = self.formatted_df[column].astype("object")
 
         for column in self.formatted_df.columns:
             optional_field = self.config.optional_fields.get_field(column)
@@ -620,8 +650,9 @@ class TransactionFormatter:
 
         clean_value = str(value).strip().replace("$", "").replace(",", "")
         try:
-            float_value = float(clean_value)
-        except (ValueError, TypeError):
+            decimal_value = Decimal(clean_value)
+            formatted_value = format(decimal_value, "f")  # Always plain decimal
+        except (ValueError, TypeError, InvalidOperation):
             if required:
                 self.exclusions.append(idx)
                 reason = f"INVALID {field}"
@@ -637,7 +668,7 @@ class TransactionFormatter:
             )
             return True
         else:
-            self.formatted_df.loc[idx, field] = float_value
+            self.formatted_df.loc[idx, field] = formatted_value
             if clean_value != str(value).strip():
                 import_logger.debug(
                     AUTO_FORMAT_DEBUG,
