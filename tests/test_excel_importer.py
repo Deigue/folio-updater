@@ -130,7 +130,7 @@ def test_import_transactions_formatting(
                 "SELL",  # Good case, but units is empty
                 "SELL",  # Good case, but units is invalid
                 "WITHDRAWAL",  # New action type - money withdrawal
-                "SELL",  # Good case with NULL ticker
+                "CONTRIBUTION",  # Good case with NULL ticker
                 "BUY",  # Good case, but ticker is invalid
                 "BUY",  # Multiple invalid: empty amount, invalid price/units
                 "INVALID_ACTION",  # Multiple invalid: no currency, bad ticker/action
@@ -334,10 +334,10 @@ def test_import_transactions_formatting(
                 Column.Txn.TICKER.value: pd.NA,  # Empty ticker becomes NULL
                 Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
             },
-            # Row 18: NULL ticker with SELL action
+            # Row 18: NULL ticker with CONTRIBUTION action
             {
                 Column.Txn.TXN_DATE.value: "2023-01-18",
-                Column.Txn.ACTION.value: "SELL",
+                Column.Txn.ACTION.value: "CONTRIBUTION",
                 Column.Txn.AMOUNT.value: 1000.0,
                 Column.Txn.CURRENCY.value: "USD",
                 Column.Txn.PRICE.value: 100.0,
@@ -524,25 +524,25 @@ def test_import_account_missing(
 def test_import_action_validation(
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
-    """Test end-to-end import with transactions that previously failed."""
+    """Test end-to-end import with action-specific validation rules."""
     with temp_config() as ctx:
         config = ctx.config
         ensure_folio_exists()
 
         test_data = {
             Column.Txn.TXN_DATE.value: [
-                "2023-05-17",  # FCH that was previously rejected for missing Units
-                "2023-08-02",  # CONTRIBUTION that was previously rejected
-                "2023-09-08",  # DIVIDEND that was previously rejected
-                "2023-01-01",  # BUY transaction that should still require all fields
-                "2023-10-10",  # ROC action that was previously rejected
+                "2023-05-17",  # FCH - should import (no Ticker required)
+                "2023-08-02",  # CONTRIBUTION - should import (no Ticker required)
+                "2023-09-08",  # DIVIDEND - should REJECT (missing required Ticker)
+                "2023-01-01",  # BUY - should import (has all required fields)
+                "2023-10-10",  # ROC - should REJECT (missing required Ticker)
             ],
             Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY", "ROC"],
             Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0, 500.0],
             Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD", "CAD"],
             Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
             Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
-            Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL", pd.NA],
+            Column.Txn.TICKER.value: [pd.NA, pd.NA, pd.NA, "AAPL", pd.NA],
             Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
         }
 
@@ -554,14 +554,15 @@ def test_import_action_validation(
 
         config.db_path.unlink(missing_ok=True)
         import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
+
+        # Only expect 3 transactions to be imported (FCH, CONTRIBUTION, BUY)
+        # DIVIDEND and ROC should be rejected for missing required Ticker
         expected_df = pd.DataFrame(
             {
                 Column.Txn.TXN_DATE.value: [
-                    "2023-05-17",
-                    "2023-08-02",
-                    "2023-09-08",
-                    "2023-01-01",
-                    "2023-10-10",
+                    "2023-05-17",  # FCH
+                    "2023-08-02",  # CONTRIBUTION
+                    "2023-01-01",  # BUY
                 ],
                 Column.Txn.ACTION.value: [
                     "FCH",
@@ -570,12 +571,12 @@ def test_import_action_validation(
                     "BUY",
                     "ROC",
                 ],
-                Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0, 500.0],
-                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD", "CAD"],
-                Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
-                Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
-                Column.Txn.TICKER.value: [pd.NA, pd.NA, "COST", "AAPL", pd.NA],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+                Column.Txn.AMOUNT.value: [0.5, 500.0, 1000.0],
+                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD"],
+                Column.Txn.PRICE.value: [pd.NA, pd.NA, 100.0],
+                Column.Txn.UNITS.value: [pd.NA, pd.NA, 10.0],
+                Column.Txn.TICKER.value: [pd.NA, pd.NA, "AAPL"],
+                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 3,
             },
         )
         _verify_db_contents(expected_df)
