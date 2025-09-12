@@ -34,5 +34,5 @@ desktop.ini
 /logs
 config.yaml
 
-# Temporary files
-notebooks/sample.ipynb
+# Experimental or sample files
+notebooks/playground.ipynb
