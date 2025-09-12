@@ -567,9 +567,7 @@ def test_import_action_validation(
                 Column.Txn.ACTION.value: [
                     "FCH",
                     "CONTRIBUTION",
-                    "DIVIDEND",
                     "BUY",
-                    "ROC",
                 ],
                 Column.Txn.AMOUNT.value: [0.5, 500.0, 1000.0],
                 Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD"],
@@ -707,6 +705,179 @@ def test_import_transactions_intra_duplicate_approval(
             Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 2,
         }
         expected_df = pd.DataFrame(expected_data)
+        _verify_db_contents(expected_df)
+
+
+def test_import_transactions_optional_fields(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test importing transactions with configured optional fields.
+
+    This test verifies that:
+    1. Optional fields are formatted according to their configured data types
+    2. Invalid values retain their original values and don't cause import issues
+    3. Missing optional fields don't prevent successful import
+    4. All data types (date, numeric, currency, action, string) are handled
+    """
+    optional_config = {
+        "Fees": "numeric",
+        "Settle Date": "date",
+        "Trade Currency": "currency",
+        "Side": "action",
+        "Notes": "string",
+    }
+    with temp_config(optional_headers=optional_config) as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_optional_fields.xlsx"
+        test_data = {
+            # Essential fields - all valid
+            Column.Txn.TXN_DATE.value: [
+                "2023-01-01",
+                "2023-01-02",
+                "2023-01-03",
+                "2023-01-04",
+                "2023-01-05",
+            ],
+            Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
+            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
+            Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD", "USD"],
+            Column.Txn.PRICE.value: [100.0, 200.0, 15.0, 150.0, 80.0],
+            Column.Txn.UNITS.value: [10.0, 10.0, 10.0, 10.0, 10.0],
+            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+            # Optional fields with various formats and validity
+            "Fees": [
+                "$5.95",  # Valid numeric with formatting -> 5.95
+                "INVALID",  # Invalid numeric -> retains "INVALID"
+                "",  # Empty -> NULL
+                "10.50",  # Valid numeric -> 10.50
+                pd.NA,  # Already null -> NULL
+            ],
+            "Settle Date": [
+                "01/03/2023",  # Valid date with formatting -> 2023-01-03
+                "INVALID_DATE",  # Invalid date -> retains "INVALID_DATE"
+                "2023-01-05",  # Already formatted -> 2023-01-05
+                "",  # Empty -> NULL
+                "2023-01-07T10:30:00Z",  # ISO format -> 2023-01-07
+            ],
+            "Trade Currency": [
+                "US$",  # Valid currency with formatting -> USD
+                "INVALID_CURR",  # Invalid currency -> retains "INVALID_CURR"
+                "CAD",  # Valid currency -> CAD
+                "",  # Empty -> NULL
+                pd.NA,  # Already null -> NULL
+            ],
+            "Side": [
+                "B",  # Valid action with formatting -> BUY
+                "INVALID_ACTION",  # Invalid action -> retains "INVALID_ACTION"
+                "SELL",  # Valid action -> SELL
+                "",  # Empty -> NULL
+                "DIV",  # Valid action with formatting -> DIVIDEND
+            ],
+            "Notes": [
+                "  Some note  ",  # String with whitespace -> "Some note"
+                "Regular note",  # Normal string -> "Regular note"
+                "",  # Empty -> NULL
+                "Another note",  # Normal string -> "Another note"
+                pd.NA,  # Already null -> NULL
+            ],
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+        imported_count = import_transactions(temp_path, txn_sheet)
+
+        # All rows should import successfully (optional field issues don't reject rows)
+        expected_import_count = 5
+        assert imported_count == expected_import_count
+
+        # Create expected DataFrame with properly formatted values
+        expected_df = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE.value: [
+                    "2023-01-01",
+                    "2023-01-02",
+                    "2023-01-03",
+                    "2023-01-04",
+                    "2023-01-05",
+                ],
+                Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
+                Column.Txn.AMOUNT.value: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
+                Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD", "USD"],
+                Column.Txn.PRICE.value: [100.0, 200.0, 15.0, 150.0, 80.0],
+                Column.Txn.UNITS.value: [10.0, 10.0, 10.0, 10.0, 10.0],
+                Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
+                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+                # Optional fields: valid values formatted, invalid values retained
+                # When read from database, mixed columns normalize to consistent types
+                "Fees": ["5.95", "INVALID", None, "10.5", None],
+                "Settle Date": [
+                    "2023-01-03",
+                    "INVALID_DATE",
+                    "2023-01-05",
+                    None,
+                    "2023-01-07",
+                ],
+                "Trade Currency": ["USD", "INVALID_CURR", "CAD", None, None],
+                "Side": ["BUY", "INVALID_ACTION", "SELL", None, "DIVIDEND"],
+                "Notes": ["Some note", "Regular note", None, "Another note", None],
+            },
+        )
+
+        _verify_db_contents(expected_df)
+
+
+def test_import_transactions_no_optional_fields_required(
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Test that rows import successfully when optional fields are missing."""
+    optional_config = {
+        "Fees": "numeric",
+        "Notes": "string",
+    }
+
+    with temp_config(optional_headers=optional_config) as ctx:
+        config = ctx.config
+        ensure_folio_exists()
+
+        txn_sheet = config.transactions_sheet()
+        temp_path = config.folio_path.parent / "temp_no_optional_fields.xlsx"
+
+        # Test data with only essential fields (no optional fields)
+        test_data = {
+            Column.Txn.TXN_DATE.value: ["2023-01-01"],
+            Column.Txn.ACTION.value: ["BUY"],
+            Column.Txn.AMOUNT.value: [1000.0],
+            Column.Txn.CURRENCY.value: ["USD"],
+            Column.Txn.PRICE.value: [100.0],
+            Column.Txn.UNITS.value: [10.0],
+            Column.Txn.TICKER.value: ["AAPL"],
+            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"],
+        }
+
+        df = pd.DataFrame(test_data)
+        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        config.db_path.unlink(missing_ok=True)
+        imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
+        assert imported_count == 1
+
+        expected_df = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE.value: ["2023-01-01"],
+                Column.Txn.ACTION.value: ["BUY"],
+                Column.Txn.AMOUNT.value: [1000.0],
+                Column.Txn.CURRENCY.value: ["USD"],
+                Column.Txn.PRICE.value: [100.0],
+                Column.Txn.UNITS.value: [10.0],
+                Column.Txn.TICKER.value: ["AAPL"],
+                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"],
+            },
+        )
+
         _verify_db_contents(expected_df)
 
 

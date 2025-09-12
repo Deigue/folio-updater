@@ -40,8 +40,8 @@ def import_transactions(
         int: Number of transactions imported.
     """
     if sheet is None:  # pragma: no cover
-        excel_file = pd.ExcelFile(folio_path, engine="openpyxl")
-        sheet = str(excel_file.sheet_names[0])
+        with pd.ExcelFile(folio_path, engine="openpyxl") as xls:
+            sheet = str(xls.sheet_names[0])
 
     with db.get_connection() as conn:
         existing_count = _get_existing_transaction_count(conn)

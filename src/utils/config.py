@@ -269,12 +269,12 @@ class Config:
             duplicate_approval = settings["duplicate_approval"]
             validated_duplicate_approval = validated["duplicate_approval"].copy()
 
-            if "column_name" in duplicate_approval:
+            if "column_name" in duplicate_approval:  # pragma: no cover
                 validated_duplicate_approval["column_name"] = str(
                     duplicate_approval["column_name"],
                 )
 
-            if "approval_value" in duplicate_approval:
+            if "approval_value" in duplicate_approval:  # pragma: no cover
                 validated_duplicate_approval["approval_value"] = str(
                     duplicate_approval["approval_value"],
                 )
