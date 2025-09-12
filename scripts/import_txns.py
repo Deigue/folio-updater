@@ -6,10 +6,11 @@ from app import bootstrap
 from importers.excel_importer import import_transactions
 
 bootstrap.reload_config()
-import_path = input("Enter the path to the Excel file to import: ").strip()
+import_path = input("Enter the path to the Excel file to import: ").strip('"')
 
 if Path(import_path).exists():
     import_file = Path(import_path)
-    import_transactions(import_file, None, None)
+    num_txns = import_transactions(import_file, None, None)
+    print(f"Imported {num_txns} transactions from {import_file}.")
 else:
     print(f"File not found: {import_path}")
