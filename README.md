@@ -61,10 +61,10 @@ optional_headers:
 | **`db_path`**            | Path to the internal database file. This will be automatically created if it does not exist. Relative paths will behave similar to the `folio_path`                                                                                                                    |
 | **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                       |
 | **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                              |
-| **`header_keywords`**    | Maps internal field names (left) to a list of possible header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                        |
+| **`header_keywords`**    | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                    |
 | **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                 |
 | **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                              |
-| **`optional_headers`**   | Optional: configure additional columns with specific data types for automatic formatting. Keys are column names, values are data types: `date`, `numeric`, `currency`, `action`, or `string`. These fields won't cause import failures if missing or invalid. |
+| **`optional_headers`**   | Optional: configure additional columns with specific data types for automatic formatting. Keys are column names, values are data types: `date`, `numeric`, `currency`, `action`, or `string`. These fields won't cause import failures if missing or invalid.          |
 
 ### Essential Fields
 
@@ -78,6 +78,12 @@ Essential fields (internal names) that must be present in your Excel data:
 - `Units` - number of units
 - `Ticker` - security symbol
 - `Account` - account identifier/alias
+
+> **Note**
+> Not all fields under `header_keywords` are necessarily essential.
+> Certain fields may be specifyable under `header_keywords` that have internal logic
+> associated to them like formatting, calculations etc; but may not be critical to
+> importing.
 
 ### Flexibility
 
