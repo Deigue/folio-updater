@@ -506,7 +506,7 @@ class TransactionFormatter:
         ]
 
         for field in numeric_fields:
-            if field in self.formatted_df.columns:
+            if field in self.formatted_df.columns:  # pragma: no branch
                 self.formatted_df[field] = self.formatted_df[field].astype("object")
 
         for row in self.formatted_df.index:

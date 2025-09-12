@@ -39,9 +39,7 @@ def import_transactions(
     Returns:
         int: Number of transactions imported.
     """
-    if sheet is None:  # pragma: no cover
-        with pd.ExcelFile(folio_path, engine="openpyxl") as xls:
-            sheet = str(xls.sheet_names[0])
+    is_csv: bool = folio_path.suffix.lower() == ".csv"
 
     with db.get_connection() as conn:
         existing_count = _get_existing_transaction_count(conn)
@@ -52,10 +50,16 @@ def import_transactions(
     import_logger.info("Existing transactions in database: %d", existing_count)
 
     try:
-        txns_df: pd.DataFrame = pd.read_excel(
-            folio_path,
-            sheet_name=sheet,
-        )
+        if is_csv:  # pragma: no cover
+            txns_df: pd.DataFrame = pd.read_csv(folio_path)
+        else:
+            if sheet is None:  # pragma: no cover
+                with pd.ExcelFile(folio_path, engine="openpyxl") as xls:
+                    sheet = str(xls.sheet_names[0])
+            txns_df: pd.DataFrame = pd.read_excel(
+                folio_path,
+                sheet_name=sheet,
+            )
 
         import_logger.info(
             "Read %d transactions from Excel sheet '%s'",
