@@ -43,7 +43,7 @@ class Config:
                 "column_name": "Duplicate",
                 "approval_value": "OK",
             },
-            "optional_headers": {},
+            "optional_columns": {},
         },
     )
 
@@ -64,8 +64,8 @@ class Config:
         if not db_path.is_absolute():  # pragma: no branch
             db_path: Path = (project_root / settings["db_path"]).resolve()
         self._db_path: Path = db_path
-        optional_headers = settings.get("optional_headers", {})
-        self._optional_fields = OptionalFieldsConfig(optional_headers)
+        optional_columns = settings.get("optional_columns", {})
+        self._optional_fields = OptionalFieldsConfig(optional_columns)
 
     @property
     def config_path(self) -> Path:
@@ -200,7 +200,7 @@ class Config:
         Config._validate_header_keywords(settings, validated)
         Config._validate_header_ignore(settings, validated)
         Config._validate_duplicate_approval(settings, validated)
-        Config._validate_optional_headers(settings, validated)
+        Config._validate_optional_columns(settings, validated)
 
         return validated
 
@@ -282,15 +282,15 @@ class Config:
             validated["duplicate_approval"] = validated_duplicate_approval
 
     @staticmethod
-    def _validate_optional_headers(
+    def _validate_optional_columns(
         settings: dict[str, Any],
         validated: dict[str, Any],
     ) -> None:
-        if "optional_headers" in settings and isinstance(
-            settings["optional_headers"],
+        if "optional_columns" in settings and isinstance(
+            settings["optional_columns"],
             dict,
         ):
-            validated["optional_headers"] = settings["optional_headers"]
+            validated["optional_columns"] = settings["optional_columns"]
 
     def __str__(self) -> str:
         """Return a string representation of the Config object."""

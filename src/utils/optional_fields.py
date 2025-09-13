@@ -19,30 +19,38 @@ class FieldType(Enum):
 
 @dataclass
 class OptionalField:
-    """Represents a single optional field configuration.
-
-    Args:
-        name: The field name as it appears in the configuration
-        field_type: The data type to apply formatting
-    """
+    """Represents a single optional field configuration."""
 
     name: str
+    keywords: list[str]
     field_type: FieldType
 
+    def __init__(self, name: str, keywords: list[str], field_type: FieldType) -> None:
+        """Initialize an OptionalField.
+
+        Args:
+            name: The resolved column name.
+            keywords: List of header names to match.
+            field_type: The data type for formatting.
+        """
+        self.name = name
+        self.keywords = [k.lower() for k in keywords]
+        self.field_type = field_type
+
     @classmethod
-    def from_config_entry(cls, name: str, type_str: str) -> OptionalField:
+    def from_config_entry(cls, name: str, entry: dict) -> OptionalField:
         """Create an OptionalField from config entry.
 
         Args:
             name: Field name
-            type_str: Type string from config (e.g., "date", "numeric")
-
+            entry: Dict with 'keywords' and 'type'
         Returns:
             OptionalField instance
-
         Raises:
             ValueError: If type_str is not a valid FieldType
         """
+        keywords = entry.get("keywords", [name])
+        type_str = entry.get("type", "string")
         try:
             field_type = FieldType(type_str.lower())
         except ValueError as e:  # pragma: no cover
@@ -52,42 +60,68 @@ class OptionalField:
                 f"Valid types: {valid_types}"
             )
             raise ValueError(msg) from e
-
-        return cls(name=name, field_type=field_type)
+        return cls(name=name, keywords=keywords, field_type=field_type)
 
 
 class OptionalFieldsConfig:
-    """Configuration manager for optional fields."""
+    """Configuration manager of optional fields."""
 
-    def __init__(self, config_dict: dict[str, str] | None = None) -> None:
+    def __init__(self, config_dict: dict[str, dict] | None = None) -> None:
         """Initialize with optional fields configuration.
 
         Args:
-            config_dict: Dictionary mapping field names to type strings
+            config_dict: Dictionary mapping resolved column names to config dicts
         """
         self._fields: dict[str, OptionalField] = {}
-
+        self._keyword_map: dict[str, str] = {}
         if config_dict:
-            for name, type_str in config_dict.items():
-                field = OptionalField.from_config_entry(name, type_str)
+            for name, entry in config_dict.items():
+                field = OptionalField.from_config_entry(name, entry)
                 self._fields[name] = field
+                for kw in field.keywords:
+                    self._keyword_map[kw] = name
 
-    def get_field(self, name: str) -> OptionalField | None:
-        """Get optional field by name.
+    def resolve_column(self, header: str) -> str | None:
+        """Resolve a header name to the logical column name.
 
         Args:
-            name: Field name to look up
+            header: The header name to resolve
+        Returns:
+            The resolved column name or None
+        """
+        return self._keyword_map.get(header.lower())
 
+    def get_field(self, name: str) -> OptionalField | None:
+        """Get optional field by resolved column name.
+
+        Args:
+            name: The resolved column name
         Returns:
             OptionalField if found, None otherwise
         """
         return self._fields.get(name)
 
+    def get_field_by_header(
+        self,
+        header: str,
+    ) -> OptionalField | None:  # pragma: no cover
+        """Get optional field by header name.
+
+        Args:
+            header: The header name to resolve
+        Returns:
+            OptionalField if found, None otherwise
+        """
+        col = self.resolve_column(header)
+        if col:
+            return self.get_field(col)
+        return None
+
     def get_all_fields(self) -> dict[str, OptionalField]:  # pragma: no cover
         """Get all configured optional fields.
 
         Returns:
-            Dictionary mapping field names to OptionalField instances
+            Dictionary mapping resolved column names to OptionalField instances
         """
         return self._fields.copy()
 
@@ -95,8 +129,7 @@ class OptionalFieldsConfig:
         """Check if a field is configured as optional.
 
         Args:
-            name: Field name to check
-
+            name: The resolved column name
         Returns:
             True if field is configured, False otherwise
         """
