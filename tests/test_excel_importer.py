@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Callable
 import pandas as pd
 import pandas.testing as pd_testing
 import pytest
+import yaml
 
 from db import db
 from db.db import get_connection
@@ -719,14 +720,25 @@ def test_import_transactions_optional_fields(
     3. Missing optional fields don't prevent successful import
     4. All data types (date, numeric, currency, action, string) are handled
     """
-    optional_config = {
-        "Fees": "numeric",
-        "Settle Date": "date",
-        "Trade Currency": "currency",
-        "Side": "action",
-        "Notes": "string",
-    }
-    with temp_config(optional_headers=optional_config) as ctx:
+    config_yaml = """
+Fees:
+    keywords: ["Fees"]
+    type: numeric
+SettleDate:
+    keywords: ["Settle Date"]
+    type: date
+TradeCurrency:
+    keywords: ["Trade Currency"]
+    type: currency
+Side:
+    keywords: ["Side"]
+    type: action
+Notes:
+    keywords: ["Notes"]
+    type: string
+"""
+    optional_config = yaml.safe_load(config_yaml)
+    with temp_config(optional_columns=optional_config) as ctx:
         config = ctx.config
         ensure_folio_exists()
 
@@ -815,14 +827,14 @@ def test_import_transactions_optional_fields(
                 # Optional fields: valid values formatted, invalid values retained
                 # When read from database, mixed columns normalize to consistent types
                 "Fees": ["5.95", "INVALID", None, "10.50", None],
-                "Settle Date": [
+                "SettleDate": [
                     "2023-01-03",
                     "INVALID_DATE",
                     "2023-01-05",
                     None,
                     "2023-01-07",
                 ],
-                "Trade Currency": ["USD", "INVALID_CURR", "CAD", None, None],
+                "TradeCurrency": ["USD", "INVALID_CURR", "CAD", None, None],
                 "Side": ["BUY", "INVALID_ACTION", "SELL", None, "DIVIDEND"],
                 "Notes": ["Some note", "Regular note", None, "Another note", None],
             },

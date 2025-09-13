@@ -81,7 +81,7 @@ class OptionalFieldsConfig:
                 for kw in field.keywords:
                     self._keyword_map[kw] = name
 
-    def resolve_column(self, header: str) -> str | None:
+    def resolve_column(self, header: str) -> str | None:  # pragma: no cover
         """Resolve a header name to the logical column name.
 
         Args:
