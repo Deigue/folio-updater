@@ -32,7 +32,9 @@ desktop.ini
 # Local files
 /data
 /logs
+/backups
 config.yaml
+AGENTS.md
 
 # Experimental or sample files
 notebooks/playground.ipynb
