@@ -45,3 +45,9 @@ def get_rows(connection: sqlite3.Connection, table_name: str) -> pd.DataFrame:
     """Return all rows from a table as a DataFrame."""
     query = f'SELECT * FROM "{table_name}"'  # noqa: S608
     return pd.read_sql_query(query, connection)
+
+
+def get_row_count(connection: sqlite3.Connection, table_name: str) -> int:
+    """Return the number of rows in a table."""
+    query = f'SELECT COUNT(*) FROM "{table_name}"'  # noqa: S608
+    return connection.execute(query).fetchone()[0]
