@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from app.app_context import get_config
 from db import db, preparers
 from db.utils import format_transaction_summary
+from utils.backup import rolling_backup
 from utils.constants import Table
 from utils.logging_setup import get_import_logger
 
@@ -74,7 +76,9 @@ def import_transactions(
         return 0
 
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
-
+    db_path = get_config().db_path
+    if db_path.exists():  # pragma: no branch
+        rolling_backup(db_path)
     with db.get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)

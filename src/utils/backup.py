@@ -50,11 +50,18 @@ def rolling_backup(
                 backup_path,
             ) as backup:
                 source.backup(backup)
-            logger.debug("SQLite backup completed: %s -> %s", file_path, backup_path)
-        except sqlite3.Error:
-            logger.exception("SQLite backup failed: %s")
+                logger.debug(
+                    "SQLite backup completed: %s -> %s",
+                    file_path,
+                    backup_path,
+                )
+        except sqlite3.Error:  # pragma: no cover
+            logger.exception("SQLite backup failed: %s", file_path)
             raise
-    else:
+        finally:
+            source.close()
+            backup.close()
+    else:  # pragma: no cover
         backup_path = subdir / f"{file_stem}_{timestamp}{file_path.suffix}"
         shutil.copy2(file_path, backup_path)
         msg = f"Backup created: {file_path} -> {backup_path}"
