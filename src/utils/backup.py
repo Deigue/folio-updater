@@ -1,37 +1,49 @@
 """Backup utilities for folio application."""
 
+from __future__ import annotations
+
 import logging
 import shutil
 import sqlite3
 from datetime import datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.app_context import get_config
 from db import db
 from utils.constants import TORONTO_TZ, Table
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 def rolling_backup(
     file_path: Path,
-    max_backups: int = 50,
+    max_backups: int | None = None,
 ) -> None:
     """Create rolling backups of a file.
 
     Args:
         file_path: Path to the file to backup
-        max_backups: Number of backup files to keep (default: 50)
+        max_backups: Number of backup files to keep. If None, uses config setting.
 
     Raises:
         FileNotFoundError: If the source file doesn't exist
         PermissionError: If unable to create backup files
     """
+    config = get_config()
+    if not config.backup_enabled:  # pragma: no cover
+        logger.debug("Backups are disabled, skipping backup for: %s", file_path)
+        return
+
     if not file_path.exists():  # pragma: no cover
         raise FileNotFoundError
 
-    config = get_config()
-    backup_dir = config.project_root / "backups"
+    if max_backups is None:
+        max_backups = config.max_backups
+
+    backup_dir = config.backup_path
     file_name = file_path.name
     file_stem = file_path.stem
     subdir = backup_dir / file_name.replace(".", "_")

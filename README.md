@@ -12,6 +12,7 @@ A portfolio management system that imports and processes financial transaction d
 - **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
+- **Automatic Backup**: All updates are automatically backed up
 
 ## Setup
 
@@ -46,10 +47,13 @@ header_keywords:
   Ticker: [ "ticker", "symbol", "stock", "security"]
   Account: ["account", "alias", "account id", "accountalias"]
 header_ignore: ["ID", "ClientAccountID", "OtherCommission"]
-header_ignore: []
 duplicate_approval:
   column: Duplicate
   value: OK
+backup:
+  enabled: true
+  path: backups
+  max_backups: 50
 optional_columns:
   Fee:
     keywords: ["Fee", "Commission"]
@@ -72,6 +76,7 @@ optional_columns:
 | **`header_keywords`**    | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                                                                     |
 | **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                                                                  |
 | **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                                                                               |
+| **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
 
 ### Essential Fields

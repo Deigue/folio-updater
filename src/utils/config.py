@@ -43,6 +43,11 @@ class Config:
                 "column_name": "Duplicate",
                 "approval_value": "OK",
             },
+            "backup": {
+                "enabled": True,
+                "path": "backups",
+                "max_backups": 50,
+            },
             "optional_columns": {},
         },
     )
@@ -64,6 +69,10 @@ class Config:
         if not db_path.is_absolute():  # pragma: no branch
             db_path: Path = (project_root / settings["db_path"]).resolve()
         self._db_path: Path = db_path
+        backup_path = Path(settings["backup"]["path"])
+        if not backup_path.is_absolute():
+            backup_path: Path = (project_root / settings["backup"]["path"]).resolve()
+        self._backup_path: Path = backup_path
         optional_columns = settings.get("optional_columns", {})
         self._optional_fields = OptionalFieldsConfig(optional_columns)
 
@@ -123,6 +132,23 @@ class Config:
     def optional_fields(self) -> OptionalFieldsConfig:
         """Get the optional fields configuration."""
         return self._optional_fields
+
+    @property
+    def backup_enabled(self) -> bool:
+        """Whether backups are enabled."""
+        backup_config = self._settings.get("backup", {})
+        return backup_config.get("enabled", True)
+
+    @property
+    def backup_path(self) -> Path:
+        """The directory where backups are stored."""
+        return self._backup_path
+
+    @property
+    def max_backups(self) -> int:
+        """Maximum number of backups to keep."""
+        backup_config = self._settings.get("backup", {})
+        return backup_config.get("max_backups", 50)
 
     def tickers_sheet(self) -> str:
         """Get the tickers sheet name."""
@@ -200,6 +226,7 @@ class Config:
         Config._validate_header_keywords(settings, validated)
         Config._validate_header_ignore(settings, validated)
         Config._validate_duplicate_approval(settings, validated)
+        Config._validate_backup(settings, validated)
         Config._validate_optional_columns(settings, validated)
 
         return validated
@@ -282,6 +309,30 @@ class Config:
             validated["duplicate_approval"] = validated_duplicate_approval
 
     @staticmethod
+    def _validate_backup(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        if "backup" in settings and isinstance(settings["backup"], dict):
+            backup_config = settings["backup"]
+            validated_backup = validated["backup"].copy()
+
+            if "enabled" in backup_config:
+                enabled = backup_config["enabled"]
+                if isinstance(enabled, bool):
+                    validated_backup["enabled"] = enabled
+
+            if "path" in backup_config:
+                validated_backup["path"] = str(backup_config["path"])
+
+            if "max_backups" in backup_config:
+                max_backups = backup_config["max_backups"]
+                if isinstance(max_backups, int) and max_backups > 0:
+                    validated_backup["max_backups"] = max_backups
+
+            validated["backup"] = validated_backup
+
+    @staticmethod
     def _validate_optional_columns(
         settings: dict[str, Any],
         validated: dict[str, Any],
@@ -304,4 +355,7 @@ class Config:
         config_str += f"  Header Ignore: {self.header_ignore}\n"
         config_str += f"  Duplicate Approval Column: {self.duplicate_approval_column}\n"
         config_str += f"  Duplicate Approval Value: {self.duplicate_approval_value}\n"
+        config_str += f"  Backup Enabled: {self.backup_enabled}\n"
+        config_str += f"  Backup Path: {self.backup_path}\n"
+        config_str += f"  Max Backups: {self.max_backups}\n"
         return config_str
