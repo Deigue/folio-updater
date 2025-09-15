@@ -27,24 +27,25 @@ A portfolio management system that imports and processes financial transaction d
 This project uses a `config.yaml` file at the root of the repository.  
 It is **auto-generated** with default values the first time you run the application.
 
-### Default structure
+### Example structure
 
 ```yaml
 folio_path: data/folio.xlsx
 db_path: data/folio.db
-log_level: ERROR  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
   txns: Txns
 header_keywords:
-  TxnDate: [txndate, transaction date, date]
-  Action: [action, type, activity]
-  Amount: [amount, value, total]
-  $: [$, currency, curr]
-  Price: [price, unit price, share price]
-  Units: [units, shares, qty, quantity]
-  Ticker: [ticker, symbol, stock]
-  Account: [account, alias, account id]
+  TxnDate: ["Txn Date", "Transaction Date", "TradeDate"]
+  Action: ["Action", "Type", "Activity", "Buy/Sell"]
+  Amount: ["Amount", "Value", "Total", "Proceeds"]
+  $: [ "$", "currency", "curr", "CurrencyPrimary"]
+  Price: [ "price", "unit price", "share price" ]
+  Units: [ "units", "shares", "qty", "quantity" ]
+  Ticker: [ "ticker", "symbol", "stock", "security"]
+  Account: ["account", "alias", "account id", "accountalias"]
+header_ignore: ["ID", "ClientAccountID", "OtherCommission"]
 header_ignore: []
 duplicate_approval:
   column: Duplicate

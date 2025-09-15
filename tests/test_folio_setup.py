@@ -57,8 +57,14 @@ def test_folio_creation(
             assert tickers_df[Column.Ticker.TICKER].tolist() == DEFAULT_TICKERS
             # Transactions sheet validation
             txns_df: pd.DataFrame = pd.read_excel(folio, config.transactions_sheet())
+            txns_df = txns_df.where(pd.notna(txns_df), None)
+            assert not txns_df.empty
             txn_lists = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
             expected_txns_df = pd.concat(txn_lists, ignore_index=True)
+            expected_txns_df = expected_txns_df.where(
+                pd.notna(expected_txns_df),
+                None,
+            )
             pd_testing.assert_frame_equal(txns_df, expected_txns_df)
 
         # Capture last modified time

@@ -3,12 +3,12 @@
 import logging
 import shutil
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from app.app_context import get_config
 from db import db
-from utils.constants import Table
+from utils.constants import TORONTO_TZ, Table
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def rolling_backup(
     file_stem = file_path.stem
     subdir = backup_dir / file_name.replace(".", "_")
     subdir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(TORONTO_TZ).strftime("%Y%m%d_%H%M%S")
 
     if file_path == config.db_path:
         txn_count = 0

@@ -8,6 +8,7 @@ import pandas as pd
 from app.app_context import get_config
 from db import db, schema_manager
 from mock.mock_data import generate_transactions
+from utils.backup import rolling_backup
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
 if TYPE_CHECKING:
@@ -37,6 +38,8 @@ def _create_default_folio() -> None:
 
     schema_manager.create_txns_table()
     with db.get_connection() as conn:
+        if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
+            rolling_backup(configuration.db_path)
         transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
 
     logger.info("Created default folio at %s", configuration.folio_path)

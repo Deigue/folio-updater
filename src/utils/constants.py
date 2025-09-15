@@ -7,8 +7,12 @@ import sqlite3
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from zoneinfo import ZoneInfo
+
 if TYPE_CHECKING:
     from types import NotImplementedType
+
+TORONTO_TZ = ZoneInfo("America/Toronto")
 
 
 class AutoStrEnum(Enum):
@@ -196,4 +200,4 @@ TXN_ESSENTIALS: list[str] = [
 ]
 
 # Default tickers for newly created folio file
-DEFAULT_TICKERS = ["SPY", "AAPL"]
+DEFAULT_TICKERS = ["SPY", "AAPL", "O", "REI-UN.TO", "RY.TO"]
