@@ -77,7 +77,7 @@ def import_transactions(
 
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
     db_path = get_config().db_path
-    if db_path.exists():  # pragma: no branch
+    if existing_count > 0:  # pragma: no branch
         rolling_backup(db_path)
     with db.get_connection() as conn:
         try:

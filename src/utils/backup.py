@@ -42,8 +42,7 @@ def rolling_backup(
         txn_count = 0
         with db.get_connection() as conn:
             txn_count = db.get_row_count(conn, Table.TXNS.value)
-        txn_suffix = f"_txn{txn_count}" if txn_count >= 0 else "_txnNA"
-        backup_path = subdir / f"{file_stem}_{timestamp}{txn_suffix}{file_path.suffix}"
+        backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
         try:
             with sqlite3.connect(file_path) as source, sqlite3.connect(
