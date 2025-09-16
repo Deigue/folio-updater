@@ -70,12 +70,3 @@ class TransactionExporter:
         )
 
         return transaction_count
-
-
-        Args:
-            folio_path: Optional path to the Excel file. If None, uses config.
-        """
-        config = get_config()
-        self.folio_path = folio_path or config.folio_path
-        self.sheet_name = config.transactions_sheet()
-
