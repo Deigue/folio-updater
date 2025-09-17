@@ -7,7 +7,6 @@ import random
 from typing import TYPE_CHECKING, Callable
 
 import pandas as pd
-import pandas.testing as pd_testing
 import pytest
 import yaml
 
@@ -16,6 +15,8 @@ from db.db import get_connection
 from importers.excel_importer import import_transactions
 from mock.folio_setup import ensure_folio_exists
 from utils.constants import TXN_ESSENTIALS, Column, Table
+
+from .utils.dataframe_utils import verify_db_contents
 
 if TYPE_CHECKING:
     from contextlib import _GeneratorContextManager
@@ -72,7 +73,7 @@ def test_import_transactions_intra_dupes(
         # Verify database contains only non-duplicate transactions
         # Skip first row since it was duplicated
         expected_df = default_df.iloc[1:].copy()
-        _verify_db_contents(expected_df, last_n=expected_count)
+        verify_db_contents(expected_df, last_n=expected_count)
 
 
 def test_import_transactions_formatting(
@@ -356,7 +357,7 @@ def test_import_transactions_formatting(
         assert imported_count == expected_imports, error_msg
 
         # Compare with DB contents
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_transactions_ignore_columns(
@@ -425,7 +426,7 @@ def test_import_transactions_ignore_columns(
                 "KeepThis": ["But", "This", "Should"],
             },
         )
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_account_fallback(
@@ -484,7 +485,7 @@ def test_import_account_fallback(
                 Column.Txn.ACCOUNT.value: [fallback_account] * 3,
             },
         )
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_account_missing(
@@ -578,7 +579,7 @@ def test_import_action_validation(
                 Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 3,
             },
         )
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_transactions_db_duplicate_approval(
@@ -660,7 +661,7 @@ def test_import_transactions_db_duplicate_approval(
             Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
         }
         expected_df = pd.DataFrame(expected_data)
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_transactions_intra_duplicate_approval(
@@ -706,7 +707,7 @@ def test_import_transactions_intra_duplicate_approval(
             Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 2,
         }
         expected_df = pd.DataFrame(expected_data)
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_transactions_optional_fields(
@@ -840,7 +841,7 @@ Notes:
             },
         )
 
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def test_import_transactions_no_optional_fields_required(
@@ -890,7 +891,7 @@ def test_import_transactions_no_optional_fields_required(
             },
         )
 
-        _verify_db_contents(expected_df)
+        verify_db_contents(expected_df)
 
 
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
@@ -904,7 +905,7 @@ def _test_duplicate_import(config: Config, default_df: pd.DataFrame) -> None:
     txn_sheet = config.transactions_sheet()
     transactions = import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet)
     assert transactions == 0
-    _verify_db_contents(default_df, last_n=len(default_df))
+    verify_db_contents(default_df, last_n=len(default_df))
 
 
 def _test_empty_db_import(config: Config, default_df: pd.DataFrame) -> None:
@@ -912,7 +913,7 @@ def _test_empty_db_import(config: Config, default_df: pd.DataFrame) -> None:
     config.db_path.unlink()
     txn_sheet = config.transactions_sheet()
     assert import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet) > 0
-    _verify_db_contents(default_df, last_n=len(default_df))
+    verify_db_contents(default_df, last_n=len(default_df))
 
 
 def _test_missing_essential_column(config: Config, default_df: pd.DataFrame) -> None:
@@ -972,7 +973,7 @@ def _test_optional_columns_import(
     temp_path = config.folio_path.parent / "temp_optional_columns.xlsx"
     df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
     assert import_transactions(temp_path, None, txn_sheet) > 0
-    _verify_db_contents(df, last_n=len(df))
+    verify_db_contents(df, last_n=len(df))
     return df
 
 
@@ -1002,7 +1003,7 @@ def _test_additional_columns_with_scrambled_order(
 
     # The database should store columns in the proper order (TXN_ESSENTIALS first)
     # So we compare against the original ordered DataFrame, not the scrambled one
-    _verify_db_contents(df, last_n=len(df))
+    verify_db_contents(df, last_n=len(df))
 
 
 def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> None:
@@ -1030,7 +1031,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
                 df[col] = pd.NA
         df = df[table_df.columns]  # Reorder columns to match DB
 
-    _verify_db_contents(df, last_n=len(df))
+    verify_db_contents(df, last_n=len(df))
 
 
 def _debug_db_structure() -> None:
@@ -1045,68 +1046,3 @@ def _debug_db_structure() -> None:
             logger.debug("=== %s ===", table)
             table_df = db.get_rows(conn, table)
             logger.debug("\n%s", table_df.to_string(index=False))
-
-
-def _verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
-    imported_df = df.copy()
-    with get_connection() as conn:
-        query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
-        table_df = pd.read_sql_query(query, conn)
-        if last_n is not None:  # pragma: no branch
-            table_df = table_df.tail(last_n).reset_index(drop=True)
-            imported_df = imported_df.reset_index(drop=True)
-
-        # Normalize null values to None for consistent comparison
-        imported_df = imported_df.where(pd.notna(imported_df), None)
-        table_df = table_df.where(pd.notna(table_df), None)
-
-        # Ensure numeric columns have the same dtype for comparison
-        numeric_cols = ["Amount", "Price", "Units"]
-        for col in numeric_cols:
-            if (
-                col in imported_df.columns and col in table_df.columns
-            ):  # pragma: no branch
-                try:
-                    imported_df[col] = imported_df[col].astype(float)
-                    table_df[col] = table_df[col].astype(float)
-                except (ValueError, TypeError) as e:  # pragma: no cover
-                    logger.warning("Could not convert column '%s' to float: %s", col, e)
-
-        # Expected Data Formatters
-        imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
-
-        # Verify column ordering: TxnId first, then TXN_ESSENTIALS, then optionals
-        # The specific order of optionals doesn't matter
-        table_cols = list(table_df.columns)
-
-        # Check that TxnId is first, then TXN_ESSENTIALS follow
-        expected_start = [Column.Txn.TXN_ID.value, *TXN_ESSENTIALS]
-        actual_start = table_cols[: len(expected_start)]
-
-        if actual_start != expected_start:  # pragma: no cover
-            error_msg = (
-                f"Expected: {expected_start}, Got start of table: {actual_start}",
-            )
-            raise AssertionError(error_msg)
-
-        # Remove TxnId column from table_df for comparison since
-        # it's auto-generated and not part of the input data
-        if Column.Txn.TXN_ID.value in table_df.columns:  # pragma: no branch
-            table_df = table_df.drop(columns=[Column.Txn.TXN_ID.value])
-
-        # Reorder imported_df to match database column order for comparison
-        imported_df = imported_df.reindex(columns=table_df.columns)
-
-        try:
-            pd_testing.assert_frame_equal(
-                imported_df,
-                table_df,
-            )
-        except AssertionError as e:  # pragma: no cover
-            logger.info("DataFrame mismatch between imported data and DB contents:")
-            logger.info("Imported DataFrame:")
-            logger.info("\n%s", imported_df.to_string(index=False))
-            logger.info("DB DataFrame:")
-            logger.info("\n%s", table_df.to_string(index=False))
-            msg = f"DataFrames are not equal: {e}"
-            raise AssertionError(msg) from e

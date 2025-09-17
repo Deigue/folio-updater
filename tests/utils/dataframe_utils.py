@@ -1,0 +1,87 @@
+"""Utility functions for DataFrame related operations in tests."""
+
+from __future__ import annotations
+
+import logging
+
+import pandas as pd
+import pandas.testing as pd_testing
+
+from db.db import get_connection
+from utils.constants import TXN_ESSENTIALS, Column, Table
+
+logger: logging.Logger = logging.getLogger(__name__)
+
+
+def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
+    """Verify that the contents of the provided DataFrame match the database table.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to verify against the database.
+        last_n (int | None): If provided, only the last N rows will be compared.
+
+    Raises:
+        AssertionError: If the DataFrame contents do not match the database table.
+    """
+    imported_df = df.copy()
+    with get_connection() as conn:
+        query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
+        table_df = pd.read_sql_query(query, conn)
+        if last_n is not None:  # pragma: no branch
+            table_df = table_df.tail(last_n).reset_index(drop=True)
+            imported_df = imported_df.reset_index(drop=True)
+
+        # Normalize null values to None for consistent comparison
+        imported_df = imported_df.where(pd.notna(imported_df), None)
+        table_df = table_df.where(pd.notna(table_df), None)
+
+        # Ensure numeric columns have the same dtype for comparison
+        numeric_cols = ["Amount", "Price", "Units"]
+        for col in numeric_cols:
+            if (
+                col in imported_df.columns and col in table_df.columns
+            ):  # pragma: no branch
+                try:
+                    imported_df[col] = imported_df[col].astype(float)
+                    table_df[col] = table_df[col].astype(float)
+                except (ValueError, TypeError) as e:  # pragma: no cover
+                    logger.warning("Could not convert column '%s' to float: %s", col, e)
+
+        # Expected Data Formatters
+        imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
+
+        # Verify column ordering: TxnId first, then TXN_ESSENTIALS, then optionals
+        # The specific order of optionals doesn't matter
+        table_cols = list(table_df.columns)
+
+        # Check that TxnId is first, then TXN_ESSENTIALS follow
+        expected_start = [Column.Txn.TXN_ID.value, *TXN_ESSENTIALS]
+        actual_start = table_cols[: len(expected_start)]
+
+        if actual_start != expected_start:  # pragma: no cover
+            error_msg = (
+                f"Expected: {expected_start}, Got start of table: {actual_start}",
+            )
+            raise AssertionError(error_msg)
+
+        # Remove TxnId column from table_df for comparison since
+        # it's auto-generated and not part of the input data
+        if Column.Txn.TXN_ID.value in table_df.columns:  # pragma: no branch
+            table_df = table_df.drop(columns=[Column.Txn.TXN_ID.value])
+
+        # Reorder imported_df to match database column order for comparison
+        imported_df = imported_df.reindex(columns=table_df.columns)
+
+        try:
+            pd_testing.assert_frame_equal(
+                imported_df,
+                table_df,
+            )
+        except AssertionError as e:  # pragma: no cover
+            logger.info("DataFrame mismatch between imported data and DB contents:")
+            logger.info("Imported DataFrame:")
+            logger.info("\n%s", imported_df.to_string(index=False))
+            logger.info("DB DataFrame:")
+            logger.info("\n%s", table_df.to_string(index=False))
+            msg = f"DataFrames are not equal: {e}"
+            raise AssertionError(msg) from e

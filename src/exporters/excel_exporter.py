@@ -50,7 +50,7 @@ class TransactionExporter:
         )
         transaction_count = len(transactions_df)
         logger.debug("Found %d transactions to export...", transaction_count)
-
+        # TODO@deigue: Backup folio_path before overwriting
         with pd.ExcelWriter(
             self.folio_path,
             engine="openpyxl",
