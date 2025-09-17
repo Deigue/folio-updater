@@ -68,6 +68,8 @@ class Config:
         db_path = Path(settings["db_path"])
         if not db_path.is_absolute():  # pragma: no branch
             db_path: Path = (project_root / settings["db_path"]).resolve()
+            if db_path.parent == project_root / "data" and not db_path.parent.exists():
+                db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path: Path = db_path
         backup_path = Path(settings["backup"]["path"])
         if not backup_path.is_absolute():
