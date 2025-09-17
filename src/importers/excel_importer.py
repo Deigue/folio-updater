@@ -44,7 +44,7 @@ def import_transactions(
     is_csv: bool = folio_path.suffix.lower() == ".csv"
 
     with db.get_connection() as conn:
-        existing_count = _get_existing_transaction_count(conn)
+        existing_count = db.get_row_count(conn, Table.TXNS.value)
 
     # Log import start with detailed info
     import_logger.info("=" * 60)
@@ -82,7 +82,7 @@ def import_transactions(
     with db.get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
-            final_count = _get_existing_transaction_count(conn)
+            final_count = db.get_row_count(conn, Table.TXNS.value)
         except sqlite3.IntegrityError:  # pragma: no cover
             _analyze_and_insert_rows(conn, prepared_df)
 
@@ -132,21 +132,3 @@ def _analyze_and_insert_rows(
         import_logger.info(error_msg)
         import_logger.info(transaction_msg)
         raise
-
-
-def _get_existing_transaction_count(conn: db.sqlite3.Connection) -> int:
-    """Get the current count of transactions in the database.
-
-    Args:
-        conn: Database connection
-
-    Returns:
-        Number of existing transactions
-    """
-    try:
-        cursor = conn.cursor()
-        query = f'SELECT COUNT(*) FROM "{Table.TXNS.value}"'  # noqa: S608
-        cursor.execute(query)
-        return cursor.fetchone()[0]
-    except sqlite3.OperationalError:
-        return 0
