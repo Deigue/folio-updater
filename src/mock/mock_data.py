@@ -37,6 +37,7 @@ def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFra
         price = round(random.uniform(10, 500), 2)  # noqa: S311
         units = round(random.uniform(1, 100), 2)  # noqa: S311
         amount = price * units
+        amount = round(amount, 10)  # db schema supports up to 10 decimal places
 
         # Start with all fields present
         transaction = {
