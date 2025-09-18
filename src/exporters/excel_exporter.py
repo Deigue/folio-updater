@@ -6,9 +6,7 @@ Handles export tasks from the internal database to Excel files.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from openpyxl import load_workbook
@@ -20,7 +18,8 @@ from utils.backup import rolling_backup
 from utils.constants import Column, Table
 
 if TYPE_CHECKING:
-    from openpyxl.worksheet.worksheet import Worksheet
+    from pathlib import Path
+
 
 logger = logging.getLogger(__name__)
 
@@ -42,15 +41,7 @@ class TransactionExporter:
 
         Returns:
             int: Number of transactions exported.
-
-        Raises:
-            FileNotFoundError: If the Excel file doesn't exist.
         """
-        if not self.folio_path.exists():  # pragma: no cover
-            msg = f"Excel file not found: {self.folio_path}"
-            logger.error(msg)
-            raise FileNotFoundError(msg)
-
         with db.get_connection() as conn:
             transactions_df = db.get_rows(conn, Table.TXNS.value)
 
@@ -63,13 +54,20 @@ class TransactionExporter:
         )
         transaction_count = len(transactions_df)
         logger.debug("Found %d transactions to export...", transaction_count)
-        rolling_backup(self.folio_path)
-        check_file_read_write_access(self.folio_path)
+        if self.folio_path.exists():  # pragma: no branch
+            mode = "a"
+            sheet_exists = "replace"
+            rolling_backup(self.folio_path)
+            check_file_read_write_access(self.folio_path)
+        else:
+            mode = "w"
+            sheet_exists = None
+
         with pd.ExcelWriter(
             self.folio_path,
             engine="openpyxl",
-            mode="a",
-            if_sheet_exists="replace",
+            mode=mode,
+            if_sheet_exists=sheet_exists,
         ) as writer:
             transactions_df.to_excel(
                 writer,
