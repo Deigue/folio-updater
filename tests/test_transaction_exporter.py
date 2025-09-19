@@ -8,7 +8,7 @@ import pandas.testing as pd_testing
 
 from app.app_context import AppContext
 from db import db
-from exporters.excel_exporter import TransactionExporter
+from exporters.transaction_exporter import TransactionExporter
 from mock.folio_setup import ensure_folio_exists
 from utils.constants import Column, Table
 
