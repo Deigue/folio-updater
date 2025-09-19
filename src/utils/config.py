@@ -27,6 +27,7 @@ class Config:
             "sheets": {
                 "tickers": "Tickers",
                 "txns": "Txns",
+                "fx": "FX",
             },
             "header_keywords": {
                 "TxnDate": ["txndate", "transaction date", "date"],
@@ -159,6 +160,10 @@ class Config:
     def transactions_sheet(self) -> str:
         """Get the transactions sheet name."""
         return self._settings["sheets"]["txns"]
+
+    def forex_sheet(self) -> str:
+        """Get the forex sheet name."""
+        return self._settings["sheets"]["fx"]
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Config:

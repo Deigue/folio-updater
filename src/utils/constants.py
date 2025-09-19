@@ -81,6 +81,7 @@ class Table(AutoStrEnum):
     """Table names."""
 
     TXNS = "Txns"
+    FX = "FX"
 
 
 class Column(AutoStrEnum):
@@ -103,6 +104,13 @@ class Column(AutoStrEnum):
         """Ticker columns."""
 
         TICKER = "Ticker"
+
+    class FX(AutoStrEnum):
+        """Forex rate columns."""
+
+        DATE = "Date"
+        FXUSDCAD = "FXUSDCAD"
+        FXCADUSD = "FXCADUSD"
 
 
 class ColumnDefinition:
@@ -182,6 +190,19 @@ TXN_COLUMN_DEFINITIONS = [
             f'length("{Column.Txn.ACCOUNT}") > 0)'
         ),
     ),
+]
+
+FX_COLUMN_DEFINITIONS = [
+    ColumnDefinition(
+        Column.FX.DATE.value,
+        "TEXT",
+        (
+            f'PRIMARY KEY CHECK(length("{Column.FX.DATE}") = 10 AND '
+            f'"{Column.FX.DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
+        ),
+    ),
+    ColumnDefinition(Column.FX.FXUSDCAD.value, NUMERIC_PRECISION, "NOT NULL"),
+    ColumnDefinition(Column.FX.FXCADUSD.value, NUMERIC_PRECISION, "NOT NULL"),
 ]
 
 
