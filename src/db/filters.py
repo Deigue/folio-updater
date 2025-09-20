@@ -219,7 +219,7 @@ class TransactionFilter:
             try:
                 # Build the query to select essential columns.
                 essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)
-                query = f'SELECT {essential_cols} FROM "{Table.TXNS.value}"'  # noqa: S608
+                query = f'SELECT {essential_cols} FROM "{Table.TXNS.value}"'
                 existing_df = pd.read_sql_query(query, conn)
                 if existing_df.empty:  # pragma: no cover
                     return set()

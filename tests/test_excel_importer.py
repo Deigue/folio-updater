@@ -1024,7 +1024,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
 
     # Pad df with missing columns that exist in the database
     with get_connection() as conn:
-        query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
+        query = f'SELECT * FROM "{Table.TXNS.value}"'
         table_df = pd.read_sql_query(query, conn)
         for col in table_df.columns:
             if col not in df.columns:

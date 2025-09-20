@@ -25,7 +25,7 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
     """
     imported_df = df.copy()
     with get_connection() as conn:
-        query = f'SELECT * FROM "{Table.TXNS.value}"'  # noqa: S608
+        query = f'SELECT * FROM "{Table.TXNS.value}"'
         table_df = pd.read_sql_query(query, conn)
         if last_n is not None:  # pragma: no branch
             table_df = table_df.tail(last_n).reset_index(drop=True)
