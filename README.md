@@ -14,6 +14,11 @@ A portfolio management system that imports and processes financial transaction d
 - **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
 - **Automatic Backup**: All updates are automatically backed up
 
+### Export Functionality
+
+- **Transaction Export**: Export transactions from database to Excel sheets
+- **[Forex Rate Export](docs/forex-rates.md)**: Automatic FX Rate management
+
 ## Setup
 
 1. Clone the repository
@@ -37,6 +42,7 @@ log_level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
   txns: Txns
+  fx: FX
 header_keywords:
   TxnDate: ["Txn Date", "Transaction Date", "TradeDate"]
   Action: ["Action", "Type", "Activity", "Buy/Sell"]
@@ -111,7 +117,13 @@ Essential fields (internal names) that must be present in your Excel data:
 
 ## Usage
 
-Explore the notebooks in the `notebooks/` directory to see the system in action.
+### Quick Start with Notebooks
+
+Explore the notebooks in the `notebooks/` directory to see the system in action:
+
+- **`read_folio.ipynb`**: Read and examine folio data
+- **`forex.ipynb`**: Forex related functionality
+- **`db.ipynb`**: Database operations and exploration
 
 ## Development
 

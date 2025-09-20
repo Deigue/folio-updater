@@ -75,10 +75,10 @@ def import_transactions(
         import_logger.info("=" * 60)
         return 0
 
-    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
     db_path = get_config().db_path
     if existing_count > 0:  # pragma: no branch
         rolling_backup(db_path)
+    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
     with db.get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
