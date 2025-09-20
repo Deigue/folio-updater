@@ -8,6 +8,7 @@ import pandas as pd
 from app.app_context import get_config
 from db import db, schema_manager
 from mock.mock_data import generate_transactions
+from services.forex_service import ForexService
 from utils.backup import rolling_backup
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
@@ -15,34 +16,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-
-def _create_default_folio() -> None:
-    """Create default folio with mock data."""
-    configuration = get_config()
-    tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
-    transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
-    transactions_df = pd.concat(transactions_list, ignore_index=True)
-
-    with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
-        tickers_df.to_excel(
-            writer,
-            index=False,
-            sheet_name=configuration.tickers_sheet(),
-        )
-        transactions_df.to_excel(
-            writer,
-            index=False,
-            sheet_name=configuration.transactions_sheet(),
-        )
-
-    schema_manager.create_txns_table()
-    with db.get_connection() as conn:
-        if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
-            rolling_backup(configuration.db_path)
-        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
-
-    logger.info("Created default folio at %s", configuration.folio_path)
 
 
 def ensure_folio_exists() -> None:
@@ -78,3 +51,34 @@ def ensure_folio_exists() -> None:
         logger.debug("Folio path is valid: %s", folio_path)  # pragma: no cover
 
     _create_default_folio()
+
+
+def _create_default_folio() -> None:
+    """Create default folio with mock data."""
+    configuration = get_config()
+    tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
+    transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
+    transactions_df = pd.concat(transactions_list, ignore_index=True)
+
+    with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
+        tickers_df.to_excel(
+            writer,
+            index=False,
+            sheet_name=configuration.tickers_sheet(),
+        )
+        transactions_df.to_excel(
+            writer,
+            index=False,
+            sheet_name=configuration.transactions_sheet(),
+        )
+
+    schema_manager.create_txns_table()
+    with db.get_connection() as conn:
+        if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
+            rolling_backup(configuration.db_path)
+        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
+
+    fx_df = ForexService.get_missing_fx_data()
+    ForexService.insert_fx_data(fx_df)
+
+    logger.info("Created default folio at %s", configuration.folio_path)

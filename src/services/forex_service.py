@@ -13,7 +13,7 @@ from io import StringIO
 import pandas as pd
 import requests
 
-from db import db
+from db import db, schema_manager
 from db.db import get_connection
 from utils.constants import TORONTO_TZ, Column, Table
 
@@ -145,8 +145,8 @@ class ForexService:
             return 0
 
         with get_connection() as conn:
-            # Use INSERT OR IGNORE to avoid conflicts with existing dates
-            # Since Date is the primary key, duplicates will be ignored
+            if db.get_tables(conn).count(Table.FX.value) == 0:
+                schema_manager.create_fx_table()
             rows_inserted = fx_df.to_sql(
                 Table.FX.value,
                 conn,
