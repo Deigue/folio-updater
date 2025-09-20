@@ -7,10 +7,14 @@ from contextlib import _GeneratorContextManager, contextmanager
 from pathlib import Path
 from typing import Any, Callable, Generator
 
+import pandas as pd
 import pytest
 import yaml
+from unittest.mock import patch
 
 from app.app_context import AppContext
+from services.forex_service import ForexService
+from utils.constants import Column
 
 
 @pytest.fixture(autouse=True)
@@ -96,3 +100,22 @@ def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
         )
         for file_path, size in leftover_files:
             logger.warning("  Leftover file: %s (size: %d bytes)\n", file_path, size)
+
+
+@pytest.fixture(autouse=True)
+def mock_forex_data(request):
+    """Mock ForexService expensive API/database calls for most tests, unless disabled by marker."""
+    if request.node.get_closest_marker("no_mock_forex"):
+        # Do not mock for this test or module
+        yield
+        return
+
+    mock_fx_data = pd.DataFrame({
+        Column.FX.DATE.value: ["2022-01-01"],
+        Column.FX.FXUSDCAD.value: [1.25],
+        Column.FX.FXCADUSD.value: [0.8],
+    })
+
+    with patch.object(ForexService, "get_missing_fx_data", return_value=mock_fx_data), \
+         patch.object(ForexService, "insert_fx_data", return_value=None):
+        yield
