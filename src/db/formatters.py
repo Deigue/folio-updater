@@ -12,7 +12,7 @@ import pandas as pd
 
 from app.app_context import get_config
 from db.utils import format_transaction_summary
-from utils.constants import Action, Column, Currency
+from utils.constants import TORONTO_TZ, Action, Column, Currency
 from utils.logging_setup import get_import_logger
 from utils.optional_fields import FieldType
 
@@ -731,7 +731,7 @@ def parse_date(date_str: str) -> str | None:
     for fmt in date_formats:  # pragma: no cover
         try:
             parsed_date: datetime = datetime.strptime(date_str, fmt).replace(
-                tzinfo=timezone.utc,
+                tzinfo=TORONTO_TZ,
             )
             return parsed_date.strftime("%Y-%m-%d")
         except ValueError:  # noqa: PERF203

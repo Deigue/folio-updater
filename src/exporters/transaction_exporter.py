@@ -31,7 +31,7 @@ class TransactionExporter:
         """Initialize the transaction exporter."""
         config = get_config()
         self.folio_path = config.folio_path
-        self.sheet_name = config.transactions_sheet()
+        self.txn_sheet = config.transactions_sheet()
 
     def export_full(self) -> int:
         """Perform a full export of all transactions to Excel.
@@ -71,7 +71,7 @@ class TransactionExporter:
         ) as writer:
             transactions_df.to_excel(
                 writer,
-                sheet_name=self.sheet_name,
+                sheet_name=self.txn_sheet,
                 index=False,
             )
 
@@ -105,11 +105,11 @@ class TransactionExporter:
         try:
             excel_df = pd.read_excel(
                 self.folio_path,
-                sheet_name=self.sheet_name,
+                sheet_name=self.txn_sheet,
                 engine="openpyxl",
             )
         except ValueError as e:  # pragma: no cover
-            msg = f"Error reading sheet '{self.sheet_name}': {e}"
+            msg = f"Error reading sheet '{self.txn_sheet}': {e}"
             logger.exception(msg)
             raise ValueError(msg) from e
 
@@ -136,7 +136,7 @@ class TransactionExporter:
         rolling_backup(self.folio_path)
         check_file_read_write_access(self.folio_path)
         workbook = load_workbook(self.folio_path)
-        worksheet = workbook[self.sheet_name]
+        worksheet = workbook[self.txn_sheet]
         new_transactions_df = new_transactions_df[excel_cols]
         for _, row in new_transactions_df.iterrows():
             worksheet.append(row.tolist())
