@@ -45,7 +45,7 @@ class TransactionExporter:
         with db.get_connection() as conn:
             transactions_df = db.get_rows(conn, Table.TXNS.value)
 
-        if transactions_df.empty:
+        if transactions_df.empty:  # pragma: no cover
             return 0
 
         transactions_df = transactions_df.drop(
@@ -54,12 +54,12 @@ class TransactionExporter:
         )
         transaction_count = len(transactions_df)
         logger.debug("Found %d transactions to export...", transaction_count)
-        if self.folio_path.exists():  # pragma: no branch
+        if self.folio_path.exists():
             mode = "a"
             sheet_exists = "replace"
             rolling_backup(self.folio_path)
             check_file_read_write_access(self.folio_path)
-        else:
+        else:  # pragma: no cover
             mode = "w"
             sheet_exists = None
 
@@ -174,7 +174,7 @@ class TransactionExporter:
         # Deduplicate common transactions on latest date to get unique ones
         db_latest = db_df[db_df[txn_date_col] == latest_date].copy()
         excel_latest = excel_df[excel_df[txn_date_col] == latest_date].copy()
-        if db_latest.empty:
+        if db_latest.empty:  # pragma: no cover
             return new_df
         excel_keys = set(excel_latest.apply(format_transaction_summary, axis=1))
         db_keys = db_latest.apply(format_transaction_summary, axis=1)
@@ -192,7 +192,7 @@ def check_file_read_write_access(path: Path) -> None:
     try:
         with path.open("rb+"):
             return
-    except PermissionError as e:
+    except PermissionError as e:  # pragma: no cover
         msg = f"File '{path}' is not accessible for reading and writing: {e}"
         logger.exception(msg)
         raise

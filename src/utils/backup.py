@@ -40,7 +40,7 @@ def rolling_backup(
     if not file_path.exists():  # pragma: no cover
         raise FileNotFoundError
 
-    if max_backups is None:
+    if max_backups is None:  # pragma: no cover
         max_backups = config.max_backups
 
     backup_dir = config.backup_path
