@@ -11,6 +11,7 @@ import re
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
+from typing import TextIO
 
 
 class CSVProcessingError(Exception):
@@ -22,15 +23,97 @@ class CSVProcessingError(Exception):
 
 
 def sanitize_filename(filename: str) -> str:
-    """Sanitize a filename by replacing invalid characters with hyphens.
+    """Sanitize a filename by replacing invalid characters with safe alternatives.
 
     Args:
         filename: The filename to sanitize
 
     Returns:
-        A sanitized filename safe for filesystem use
+        A sanitized filename safe for filesystem use.
     """
-    return re.sub(r'[\\/*?:"<>|]', "-", filename)
+    sanitized = filename.strip()
+    sanitized = sanitized.replace(":", " -")
+    sanitized = re.sub(r"\s+", " ", sanitized)
+    sanitized = sanitized.replace('"', "").replace("'", "")
+
+    # Replace filesystem-invalid characters with hyphens
+    sanitized = re.sub(r'[\\/*?:"<>|]', "-", sanitized)
+
+    # Handle special cases for better readability
+    sanitized = sanitized.replace("&", "and")
+    sanitized = sanitized.replace("#", "")
+
+    # Remove leading/trailing hyphens and spaces
+    sanitized = sanitized.strip(" -")
+
+    # Replace multiple consecutive hyphens with single hyphen
+    sanitized = re.sub(r"-+", "-", sanitized)
+
+    # Ensure filename isn't empty
+    if not sanitized:
+        sanitized = "untitled"
+
+    return sanitized
+
+
+def _get_title_for_filename(
+    row: dict[str, str],
+    headers: list[str] | None,
+    row_num: int,
+) -> str:
+    """Extract and sanitize title for filename from CSV row.
+
+    Args:
+        row: CSV row data
+        headers: CSV headers
+        row_num: Row number for fallback naming
+
+    Returns:
+        Sanitized title for use as filename
+    """
+    title_value = None
+
+    # Try to get the Title column
+    if headers and "Title" in headers:
+        title_value = row.get("Title", "").strip()
+
+    # Fallback to first column if Title is empty or doesn't exist
+    if not title_value and headers:
+        title_value = row.get(headers[0], f"row_{row_num}")
+
+    # Final fallback if still empty
+    if not title_value:
+        title_value = f"row_{row_num}"
+
+    return sanitize_filename(str(title_value))
+
+
+def _write_yaml_frontmatter(
+    md_file: TextIO,
+    headers: list[str] | None,
+    row: dict[str, str],
+) -> None:
+    """Write YAML frontmatter to markdown file.
+
+    Args:
+        md_file: Open file handle
+        headers: CSV headers
+        row: CSV row data
+    """
+    md_file.write("---\n")
+    if headers:
+        for header in headers:
+            # Always include the original Title in frontmatter,
+            # even if used for filename
+            if row[header]:
+                # Handle titles with special characters that might break YAML
+                if header == "Title":
+                    # Escape quotes in YAML values
+                    title_value = row[header].replace('"', '\\"')
+                    md_file.write(f'{header}: "{title_value}"\n')
+                else:
+                    md_file.write(f"{header}: {row[header]}\n")
+    md_file.write("---\n")
 
 
 def process_csv_to_md(csv_file_path: Path, output_dir: Path) -> None:
@@ -62,22 +145,13 @@ def process_csv_to_md(csv_file_path: Path, output_dir: Path) -> None:
 
         # Iterate through each row in the CSV
         for row_num, row in enumerate(reader, start=1):
-            # Sanitize and create .md file named after the first column
-            first_column_value = row.get(headers[0], f"row_{row_num}")
-            if not first_column_value:
-                first_column_value = f"row_{row_num}"
-
-            title = sanitize_filename(str(first_column_value))
+            headers_list = list(headers) if headers else []
+            title = _get_title_for_filename(row, headers_list, row_num)
             md_filename = output_dir / f"{title}.md"
 
             # Open the .md file for writing
             with md_filename.open("w", encoding="utf-8") as md_file:
-                # Write YAML frontmatter to the .md file
-                md_file.write("---\n")
-                for header in headers:
-                    if header != headers[0] and row[header]:
-                        md_file.write(f"{header}: {row[header]}\n")
-                md_file.write("---\n")
+                _write_yaml_frontmatter(md_file, headers_list, row)
 
 
 def select_csv_file() -> Path | None:
