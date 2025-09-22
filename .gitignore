@@ -25,9 +25,8 @@ ehthumbs.db
 Icon?
 desktop.ini
 
-# SQLite databases (optional — if not meant to be in git)
-*.sqlite
-*.sqlite3
+# Distribution / packaging
+*.egg-info/
 
 # Local files
 /data
