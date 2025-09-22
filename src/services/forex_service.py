@@ -146,7 +146,7 @@ class ForexService:
         if fx_df.empty:  # pragma: no cover
             return 0
 
-        rolling_backup(get_config.db_path)
+        rolling_backup(get_config().db_path)
         with get_connection() as conn:
             if db.get_tables(conn).count(Table.FX.value) == 0:
                 schema_manager.create_fx_table()
