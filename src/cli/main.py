@@ -15,6 +15,9 @@ app = typer.Typer(
     add_completion=False,
 )
 
+app.command("getfx", help="Update foreign exchange rates")(
+    getfx.update_fx_rates,
+)
 app.command("demo", help="Create demo portfolio with mock data")(
     demo.create_folio,
 )
