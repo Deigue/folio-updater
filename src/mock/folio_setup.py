@@ -66,6 +66,8 @@ def _create_default_folio() -> None:
     tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
     transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
     transactions_df = pd.concat(transactions_list, ignore_index=True)
+    fx_df = ForexService.get_missing_fx_data()
+    ForexService.insert_fx_data(fx_df)
 
     with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
         tickers_df.to_excel(
@@ -78,14 +80,17 @@ def _create_default_folio() -> None:
             index=False,
             sheet_name=configuration.transactions_sheet(),
         )
+        fx_df.to_excel(
+            writer,
+            sheet_name=configuration.forex_sheet(),
+            index=False,
+        )
 
+    # Explicity don't call import_transactions to avoid logging for mock data.
     schema_manager.create_txns_table()
     with db.get_connection() as conn:
         if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
             rolling_backup(configuration.db_path)
         transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
-
-    fx_df = ForexService.get_missing_fx_data()
-    ForexService.insert_fx_data(fx_df)
 
     logger.info("Created default folio at %s", configuration.folio_path)
