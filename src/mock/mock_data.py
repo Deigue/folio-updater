@@ -31,7 +31,7 @@ def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFra
         action = actions[i % len(actions)]
         currency = currencies[i % len(currencies)]
         rules = ActionValidationRules.get_rules_for_action(action.value)
-        txn_date = (end_date - timedelta(days=(num_transactions - i) * 30)).strftime(
+        txn_date = (end_date - timedelta(days=(num_transactions - i) * 7)).strftime(
             "%Y-%m-%d",
         )
         price = round(random.uniform(10, 500), 2)  # noqa: S311
