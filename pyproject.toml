@@ -33,7 +33,7 @@ src = ["src"]
 exclude = ["**/Lib/**", "**/coverage/**", "**/.venv/**", "**/.git/**", "**/.vscode/**"]
 
 [tool.ruff.lint.per-file-ignores]
-"*.ipynb" = ["T201"]
+"*.ipynb" = ["T201", "F811"]
 "scripts/*" = ["T201"]
 "tests/*" = ["S101", "D103"]
 
