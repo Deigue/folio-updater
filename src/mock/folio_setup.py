@@ -18,11 +18,14 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def ensure_folio_exists() -> None:
+def ensure_folio_exists(*, mock: bool = True) -> None:
     """Ensure that the folio exists.
 
-    If the folio does not exist, create a default one with mock data. If the file
-    already exists, do nothing.
+    Checks if the folio exists. If mock is True (default), creates a folio with
+    mock data if it does not exist.
+
+    Args:
+        mock (bool, optional): Whether to create mock data in the folio.
 
     Raises:
         FileNotFoundError: If the parent directory does not exist.
@@ -33,6 +36,10 @@ def ensure_folio_exists() -> None:
     if folio_path.exists():
         logger.debug("Folio file already exists at %s", folio_path)
         return
+    if not mock:
+        msg: str = f"The folio '{folio_path}' does not exist. Please create it."
+        logger.error(msg)
+        raise FileNotFoundError(msg)
 
     folio_path_parent: Path = folio_path.parent
     default_data_dir: Path = configuration.project_root / "data"

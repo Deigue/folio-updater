@@ -92,3 +92,16 @@ def test_folio_missing(
         with pytest.raises(FileNotFoundError):
             ensure_folio_exists()
         assert not missing_path.exists()
+
+
+def test_no_mock_raises_file_not_found(
+    tmp_path: Path,
+    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+) -> None:
+    """Raise FileNotFoundError when mock is False and file does not exist."""
+    missing_path: Path = tmp_path / "nonexistent_file.xlsx"
+    assert not missing_path.exists()
+    with temp_config({"folio_path": str(missing_path)}):
+        with pytest.raises(FileNotFoundError):
+            ensure_folio_exists(mock=False)
+        assert not missing_path.exists()
