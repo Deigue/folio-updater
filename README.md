@@ -4,7 +4,16 @@ A portfolio management system that imports and processes financial transaction d
 
 ## Features
 
-### Import Transactions
+### CLI Tool
+
+**Folio** is now available as a command-line tool for managing your portfolio:
+
+- **`folio import`**: Import transactions from files
+- **`folio getfx`**: Update foreign exchange rates automatically  
+- **`folio demo`**: Create a demo portfolio with mock data for testing
+- **`folio version`**: Show the version of the folio-updater
+
+### Import and Processing Features
 
 - **[Account Management](docs/transactions/account-management.md)**: Support for multiple account aliases/identifiers
 - **Data Validation**: Comprehensive data formatting and constraint checking
@@ -19,16 +28,49 @@ A portfolio management system that imports and processes financial transaction d
 - **Transaction Export**: Export transactions from database to Excel sheets
 - **[Forex Rate Export](docs/forex-rates.md)**: Automatic FX Rate management
 
-## Setup
+## Usage
 
-1. Clone the repository
-2. Install dependencies using **[uv](https://github.com/astral-sh/uv)**:
+  1. Download and extract `folio-windows-x64.zip`
+  2. Run `folio.exe --help` to see available commands
 
-   ```bash
-   uv sync
-   ```
+Once installed, you can use the `folio` command-line tool:
 
-## Configuration (`config.yaml`)
+### Import Transactions
+
+Import transaction files into your portfolio:
+
+```bash
+# Default: Import from configured folio Excel file
+folio import
+
+# Import specific file and export new transactions to folio Excel
+folio import --file path/to/your/transactions.xlsx
+
+# Import all files from directory and export new transactions to folio Excel  
+folio import --dir C:\path\to\import\folder
+```
+
+### Update FX Rates
+
+Keep your foreign exchange rates current:
+
+```bash
+folio getfx
+```
+
+This command automatically fetches latest FX rates and updates your portfolio. If no FX data exists, it performs a full historical export.
+
+### Create Demo Portfolio
+
+Set up a demo portfolio with sample data:
+
+```bash
+folio demo
+```
+
+Perfect for testing and getting familiar with the system. Creates folio with sample transactions and FX rates.
+
+## Configuration
 
 This project uses a `config.yaml` file at the root of the repository.  
 It is **auto-generated** with default values the first time you run the application.
@@ -115,17 +157,22 @@ Essential fields (internal names) that must be present in your Excel data:
 
 - If `data/folio.xlsx` does not exist, the app will create a default file with sample data
 
-## Usage
-
-### Quick Start with Notebooks
-
-Explore the notebooks in the `notebooks/` directory to see the system in action:
-
-- **`read_folio.ipynb`**: Read and examine folio data
-- **`forex.ipynb`**: Forex related functionality
-- **`db.ipynb`**: Database operations and exploration
-
 ## Development
+
+### Setup
+
+1. Clone the repository
+2. Install dependencies using **[uv](https://github.com/astral-sh/uv)**:
+
+   ```bash
+   uv sync --all-groups
+   ```
+
+3. Install the `folio` CLI tool:
+
+   ```bash
+   uv pip install -e .
+   ```
 
 ### Python Dependency Management
 
