@@ -15,6 +15,9 @@ app = typer.Typer(
     add_completion=False,
 )
 
+app.command("import", help="Import transactions from files")(
+    import_cmd.import_transaction_files,
+)
 app.command("getfx", help="Update foreign exchange rates")(
     getfx.update_fx_rates,
 )
