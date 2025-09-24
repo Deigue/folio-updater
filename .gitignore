@@ -27,6 +27,8 @@ desktop.ini
 
 # Distribution / packaging
 *.egg-info/
+build/
+dist/
 
 # Local files
 /data
