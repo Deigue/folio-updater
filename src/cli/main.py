@@ -9,6 +9,8 @@ import typer
 
 from cli.commands import demo, getfx, import_cmd
 
+__version__ = "0.1.0"
+
 app = typer.Typer(
     name="folio",
     help="Folio Updater - Portfolio management CLI tool",
@@ -24,6 +26,12 @@ app.command("getfx", help="Update foreign exchange rates")(
 app.command("demo", help="Create demo portfolio with mock data")(
     demo.create_folio,
 )
+
+
+@app.command("version")
+def show_version() -> None:
+    """Show the version and exit."""
+    typer.echo(f"folio-updater version: {__version__}")
 
 
 def main() -> None:
