@@ -5,7 +5,7 @@
 
 a = Analysis(
     ['src/cli/main.py'],
-    pathex=[],
+    pathex=['src'],
     binaries=[],
     datas=[],
     hiddenimports=[

@@ -8,7 +8,7 @@ if (Test-Path folio-release.zip) {
 
 # --clean flag removes dist/build dirs and clears PyInstaller cache, handling file locks
 Write-Host "Building directory distribution with optimized spec..." -ForegroundColor Yellow
-uv run pyinstaller --clean folio.spec
+uv run pyinstaller --noconfirm --clean folio.spec
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed!" -ForegroundColor Red

@@ -18,7 +18,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install uv
         run: pip install uv
@@ -28,7 +28,7 @@ jobs:
 
       - name: Build optimized distribution
         run: |
-          uv run pyinstaller --clean folio.spec
+          uv run pyinstaller --noconfirm --clean folio.spec
           
       - name: Add documentation files
         run: |
