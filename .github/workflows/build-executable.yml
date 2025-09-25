@@ -87,6 +87,34 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '')
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "Extracting changelog for version: $TAG_NAME"
+          
+          # Try to extract changelog, fallback to default if not found
+          if python scripts/extract_changelog.py "$TAG_NAME" > changelog_content.txt 2>/dev/null; then
+            echo "Found changelog for $TAG_NAME"
+            CHANGELOG_CONTENT=$(cat changelog_content.txt)
+          else
+            echo "No changelog found for $TAG_NAME, using default content"
+            CHANGELOG_CONTENT=""
+          fi
+          
+          # Set multiline output
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Download distribution
         uses: actions/download-artifact@v4
         with:
@@ -98,14 +126,14 @@ jobs:
           files: folio-windows-x64.zip
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           body: |
-            ## Folio Windows Executable
+            ## folio-updater - ${{ github.event.inputs.tag || github.ref_name }}
             
-            **Directory distribution** - Extract and run `folio\folio.exe`
+            ${{ steps.changelog.outputs.changelog && '## What''s Changed' || '' }}
+            ${{ steps.changelog.outputs.changelog }}
             
-            ### Features 
-            - Auto-generates configuration on first run
-            - Import transactions from files
-            - Retrieve exchange rates
+            ${{ !steps.changelog.outputs.changelog && '### Features' || '' }}
+            ${{ !steps.changelog.outputs.changelog && '- Import transactions from files' || '' }}
+            ${{ !steps.changelog.outputs.changelog && '- Retrieve exchange rates' || '' }}
             
             ### Usage
             1. Download and extract `folio-windows-x64.zip`
