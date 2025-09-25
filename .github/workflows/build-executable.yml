@@ -1,0 +1,106 @@
+name: Build Windows Executable
+
+on:
+  push:
+    tags: ['v*']  # Trigger on version tags like v1.0.0
+  release:
+    types: [created]
+  workflow_dispatch:  # Allow manual trigger from GitHub UI
+
+jobs:
+  build-optimized:
+    name: Build Optimized Distribution
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Build optimized distribution
+        run: |
+          uv run pyinstaller --clean folio.spec
+          
+      - name: Add documentation files
+        run: |
+          Copy-Item README.md dist\folio\
+          Copy-Item LICENSE.md dist\folio\ -ErrorAction SilentlyContinue
+
+      - name: Test executable basic functionality
+        run: |
+          dist\folio\folio.exe --help
+          dist\folio\folio.exe version
+
+      - name: Test executable demo command
+        run: |
+          dist\folio\folio.exe demo --help
+          dist\folio\folio.exe demo
+          if (!(Test-Path "dist\folio\data\folio.db")) { throw "Demo did not create database" }
+          if (!(Test-Path "dist\folio\config.yaml")) { throw "Demo did not create config file" }
+
+      - name: Calculate sizes
+        id: sizes
+        run: |
+          $mainSize = [math]::Round((Get-Item "dist\folio\folio.exe").Length / 1MB, 2)
+          $totalSize = [math]::Round(((Get-ChildItem "dist\folio" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB), 2)
+          Write-Output "main-size=$mainSize" >> $env:GITHUB_OUTPUT
+          Write-Output "total-size=$totalSize" >> $env:GITHUB_OUTPUT
+          Write-Host "Main executable: $mainSize MB"
+          Write-Host "Total distribution: $totalSize MB"
+
+      - name: Create release archive
+        run: |
+          Compress-Archive -Path "dist\folio\*" -DestinationPath "dist\folio-windows-x64.zip"
+
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-windows-distribution
+          path: dist/folio-windows-x64.zip
+
+      - name: Build summary
+        run: |
+          echo "## Build Summary" >> $env:GITHUB_STEP_SUMMARY
+          echo "- Main executable: ${{ steps.sizes.outputs.main-size }} MB" >> $env:GITHUB_STEP_SUMMARY  
+          echo "- Total distribution: ${{ steps.sizes.outputs.total-size }} MB" >> $env:GITHUB_STEP_SUMMARY
+
+  release:
+    name: Create GitHub Release
+    needs: build-optimized
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: folio-windows-distribution
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: folio-windows-x64.zip
+          body: |
+            ## Folio Windows Executable
+            
+            **Directory distribution** - Extract and run `folio\folio.exe`
+            
+            ### Features 
+            - Auto-generates configuration on first run
+            - Import transactions from files
+            - Retrieve exchange rates
+            
+            ### Usage
+            1. Download and extract `folio-windows-x64.zip`
+            2. Run `folio\folio.exe --help` to see available commands
+            3. Run `folio\folio.exe demo` to create sample data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

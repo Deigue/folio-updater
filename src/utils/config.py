@@ -6,6 +6,7 @@ It provides a centralized way to access configuration values throughout the appl
 
 from __future__ import annotations
 
+import sys
 from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
@@ -201,6 +202,9 @@ class Config:
     @staticmethod
     def get_default_root_directory() -> Path:
         """Get the project root directory by searching upwards for markers."""
+        if getattr(sys, "frozen", False):
+            # Running as PyInstaller executable - files in executable directory
+            return Path(sys.executable).parent
         current = Path(__file__).resolve().parent
         while current != current.parent:
             # Check for common project markers (e.g., .git for Git repos)
