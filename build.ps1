@@ -61,6 +61,22 @@ if (!(Test-Path "dist\folio\config.yaml")) {
 
 Write-Host "  ✅ All tests passed!" -ForegroundColor Green
 
+# Clean up test artifacts before packaging
+Write-Host "Cleaning up test artifacts..." -ForegroundColor Yellow
+$testArtifacts = @(
+    "dist\folio\data",
+    "dist\folio\backups", 
+    "dist\folio\logs",
+    "dist\folio\config.yaml"
+)
+
+foreach ($artifact in $testArtifacts) {
+    if (Test-Path $artifact) {
+        Write-Host "  Removing $artifact" -ForegroundColor DarkYellow
+        Remove-Item -Path $artifact -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # Copy basic docs
 Write-Host "Adding documentation..." -ForegroundColor Yellow
 Copy-Item README.md dist\folio\

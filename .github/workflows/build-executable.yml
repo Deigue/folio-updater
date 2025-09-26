@@ -55,6 +55,22 @@ jobs:
           if (!(Test-Path "dist\folio\data\folio.db")) { throw "Demo did not create database" }
           if (!(Test-Path "dist\folio\config.yaml")) { throw "Demo did not create config file" }
 
+      - name: Clean up test artifacts
+        run: |
+          Write-Host "Cleaning up test artifacts before packaging..."
+          $testArtifacts = @(
+            "dist\folio\data",
+            "dist\folio\backups", 
+            "dist\folio\logs",
+            "dist\folio\config.yaml"
+          )
+          foreach ($artifact in $testArtifacts) {
+            if (Test-Path $artifact) {
+              Write-Host "Removing $artifact"
+              Remove-Item -Path $artifact -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
+
       - name: Calculate sizes
         id: sizes
         run: |
