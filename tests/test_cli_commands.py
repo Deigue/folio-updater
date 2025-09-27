@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import random
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable
 from unittest.mock import patch
 
@@ -15,7 +17,7 @@ from cli.commands import import_cmd
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_folio_exists
-from utils.constants import Column, Table
+from utils.constants import TORONTO_TZ, Column, Table
 
 if TYPE_CHECKING:
     from contextlib import _GeneratorContextManager
@@ -62,7 +64,7 @@ def run_cli_with_config(
 class TestDemoCommand:
     """Test the demo command functionality."""
 
-    def run_demo_command(
+    def test_demo_command(
         self,
         temp_config: Callable[
             ...,
@@ -101,9 +103,9 @@ class TestFXCommand:
             ensure_folio_exists()
 
             # Remove forex data from folio to simulate fresh state.
-            if config.folio_path.exists():
+            if config.folio_path.exists():  # pragma: no branch
                 workbook = load_workbook(config.folio_path)
-                if config.forex_sheet() in workbook.sheetnames:
+                if config.forex_sheet() in workbook.sheetnames:  # pragma: no branch
                     workbook.remove(workbook[config.forex_sheet()])
                     workbook.save(config.folio_path)
                 workbook.close()
@@ -127,16 +129,26 @@ class TestImportCommand:
     def _create_test_excel_file(
         self,
         file_path: Path,
-        sheet_name: str,
+        sheet_name: str = "Txns",
     ) -> None:
         """Create a test Excel file with sample transaction data."""
+        # Use dynamic dates based on today to ensure they're always in the future
+        today = datetime.now(TORONTO_TZ).date()
+        date1 = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        date2 = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+        random.seed(file_path.name)
+        # Generate randomized price and unit values for unique transactions
+        price1 = round(random.uniform(50.0, 500.0), 2)  # noqa: S311
+        price2 = round(random.uniform(50.0, 500.0), 2)  # noqa: S311
+        units1 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
+        units2 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
         test_data = {
-            Column.Txn.TXN_DATE.value: ["2024-01-01", "2024-01-02"],
+            Column.Txn.TXN_DATE.value: [date1, date2],
             Column.Txn.ACTION.value: ["BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0],
+            Column.Txn.AMOUNT.value: [price1 * units1, price2 * units2],
             Column.Txn.CURRENCY.value: ["USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0],
-            Column.Txn.UNITS.value: [10.0, 10.0],
+            Column.Txn.PRICE.value: [price1, price2],
+            Column.Txn.UNITS.value: [units1, units2],
             Column.Txn.TICKER.value: ["AAPL", "MSFT"],
             Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
         }
@@ -189,3 +201,93 @@ class TestImportCommand:
             assert result.exit_code == 1
             assert f"Folio file not found: {config.folio_path}" in result.stderr
 
+    def test_import_command_file(
+        self,
+        temp_config: Callable[
+            ...,
+            _GeneratorContextManager[AppContext, None, None],
+        ],
+    ) -> None:
+        """Test import command with specific file option."""
+        with temp_config() as ctx:
+            config = ctx.config
+            test_file = config.project_root / "test_import.xlsx"
+            self._create_test_excel_file(test_file)
+
+            # Create folio file for export target
+            ensure_folio_exists()
+
+            result = run_cli_with_config(
+                config,
+                import_cmd.app,
+                ["--file", str(test_file)],
+            )
+            assert result.exit_code == 0
+            # Verify via stdout keywords, core functionality is tested elsewhere.
+            assert f"Importing {test_file.name}..." in result.stdout
+            assert (
+                f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions "
+                f"from {test_file.name}" in result.stdout
+            )
+            assert "Exported" in result.stdout
+            processed_folder = config.project_root / "processed"
+            assert processed_folder.exists()
+            assert (processed_folder / test_file.name).exists()
+            assert not test_file.exists()
+
+    def test_import_command_directory(
+        self,
+        temp_config: Callable[
+            ...,
+            _GeneratorContextManager[AppContext, None, None],
+        ],
+    ) -> None:
+        """Test import command with directory option."""
+        with temp_config() as ctx:
+            config = ctx.config
+
+            # Create test directory with multiple files to import
+            import_dir = config.project_root / "import_files"
+            import_dir.mkdir()
+            file1 = import_dir / "transactions1.xlsx"
+            file2 = import_dir / "transactions2.xlsx"
+            self._create_test_excel_file(file1)
+            self._create_test_excel_file(file2)
+
+            ensure_folio_exists()
+            result = run_cli_with_config(
+                config,
+                import_cmd.app,
+                ["--dir", str(import_dir)],
+            )
+            assert result.exit_code == 0
+            assert "Found 2 files to import" in result.stdout
+            assert "Total transactions imported: 4" in result.stdout
+            assert "Export completed" in result.stdout
+            processed_folder = config.project_root / "processed"
+            assert processed_folder.exists()
+            assert (processed_folder / file1.name).exists()
+            assert (processed_folder / file2.name).exists()
+            assert not file1.exists()
+            assert not file2.exists()
+
+
+class TestVersionCommand:
+    """Test the version command functionality."""
+
+    def test_version_command(self) -> None:
+        """Test version command output."""
+        result = runner.invoke(cli_app, ["version"])
+
+        assert result.exit_code == 0
+        assert "folio-updater version:" in result.stdout
+
+
+class TestCliErrorHandling:
+    """Test CLI error handling and edge cases."""
+
+    def test_invalid_command(self) -> None:
+        """Test handling of invalid commands."""
+        result = runner.invoke(cli_app, ["invalid-command"])
+
+        assert result.exit_code == TYPER_INVALID_COMMAND_EXIT_CODE

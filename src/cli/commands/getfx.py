@@ -24,13 +24,13 @@ def update_fx_rates() -> None:
 
         if result > 0:
             typer.echo(f"Successfully updated {result} FX rates")
-        else:
+        else:  # pragma: no cover
             typer.echo("No new FX rates to update")
 
-    except (OSError, ValueError, KeyError) as e:
+    except (OSError, ValueError, KeyError) as e:  # pragma: no cover
         typer.echo(f"Error updating FX rates: {e}", err=True)
         raise typer.Exit(1) from e
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     app()

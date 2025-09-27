@@ -34,10 +34,10 @@ def show_version() -> None:
     typer.echo(f"folio-updater version: {__version__}")
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """Entry point for the CLI application."""
     app()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

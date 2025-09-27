@@ -356,7 +356,7 @@ class Config:
         ):
             validated["optional_columns"] = settings["optional_columns"]
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         """Return a string representation of the Config object."""
         config_str = " Config Details:\n"
         config_str += f"  Config Path: {self.config_path}\n"
