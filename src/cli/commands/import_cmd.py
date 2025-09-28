@@ -140,9 +140,15 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
         )
         try:
             exporter = TransactionExporter()
-            exported = exporter.export_update()
-            if exported > 0:  # pragma: no branch
-                typer.echo(f"Exported {exported} new transactions to folio Excel")
+            # Check if folio exists to determine export method
+            if exporter.folio_path.exists():
+                exported = exporter.export_update()
+                if exported > 0:  # pragma: no branch
+                    typer.echo(f"Exported {exported} new transactions to folio Excel")
+            else:
+                # Folio doesn't exist, create it with all transactions
+                exported = exporter.export_full()
+                typer.echo(f"Created folio Excel with {exported} transactions")
         except (OSError, ValueError, KeyError) as e:  # pragma: no cover
             typer.echo(f"Warning: Failed to export to folio Excel: {e}", err=True)
     else:  # pragma: no cover
@@ -183,10 +189,16 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
     if total_imported > 0:  # pragma: no branch
         try:
             exporter = TransactionExporter()
-            exported = exporter.export_update()
-            typer.echo(
-                f"Export completed. {exported} new transactions exported to folio",
-            )
+            # Check if folio exists to determine export method
+            if exporter.folio_path.exists():
+                exported = exporter.export_update()
+                typer.echo(
+                    f"Export completed. {exported} new transactions exported to folio",
+                )
+            else:
+                # Folio doesn't exist, create it with all transactions
+                exported = exporter.export_full()
+                typer.echo(f"Created folio Excel with {exported} transactions")
         except (OSError, ValueError, KeyError) as e:  # pragma: no cover
             typer.echo(f"Warning: Failed to export to folio: {e}", err=True)
 
