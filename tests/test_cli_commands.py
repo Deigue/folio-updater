@@ -214,9 +214,6 @@ class TestImportCommand:
             test_file = config.project_root / "test_import.xlsx"
             self._create_test_excel_file(test_file)
 
-            # Create folio file for export target
-            ensure_folio_exists()
-
             result = run_cli_with_config(
                 config,
                 import_cmd.app,
@@ -229,7 +226,10 @@ class TestImportCommand:
                 f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions "
                 f"from {test_file.name}" in result.stdout
             )
-            assert "Exported" in result.stdout
+            assert (
+                f"Created folio Excel with {EXPECTED_TRANSACTION_COUNT} transactions"
+                in result.stdout
+            )
             processed_folder = config.project_root / "processed"
             assert processed_folder.exists()
             assert (processed_folder / test_file.name).exists()
