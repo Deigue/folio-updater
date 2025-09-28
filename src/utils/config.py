@@ -15,6 +15,7 @@ from typing import Any, ClassVar
 import yaml
 
 from utils.optional_fields import OptionalFieldsConfig
+from utils.transforms import TransformsConfig
 
 
 class Config:
@@ -51,6 +52,7 @@ class Config:
                 "max_backups": 50,
             },
             "optional_columns": {},
+            "transforms": {"rules": []},
         },
     )
 
@@ -79,6 +81,8 @@ class Config:
         self._backup_path: Path = backup_path
         optional_columns = settings.get("optional_columns", {})
         self._optional_fields = OptionalFieldsConfig(optional_columns)
+        transforms_config = settings.get("transforms", {})
+        self._transforms = TransformsConfig(transforms_config)
 
     @property
     def config_path(self) -> Path:
@@ -136,6 +140,11 @@ class Config:
     def optional_fields(self) -> OptionalFieldsConfig:
         """Get the optional fields configuration."""
         return self._optional_fields
+
+    @property
+    def transforms(self) -> TransformsConfig:
+        """Get the transforms configuration."""
+        return self._transforms
 
     @property
     def backup_enabled(self) -> bool:
@@ -239,6 +248,7 @@ class Config:
         Config._validate_duplicate_approval(settings, validated)
         Config._validate_backup(settings, validated)
         Config._validate_optional_columns(settings, validated)
+        Config._validate_transforms(settings, validated)
 
         return validated
 
@@ -356,6 +366,14 @@ class Config:
         ):
             validated["optional_columns"] = settings["optional_columns"]
 
+    @staticmethod
+    def _validate_transforms(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        if "transforms" in settings and isinstance(settings["transforms"], dict):
+            validated["transforms"] = settings["transforms"]
+
     def __str__(self) -> str:  # pragma: no cover
         """Return a string representation of the Config object."""
         config_str = " Config Details:\n"
@@ -371,4 +389,5 @@ class Config:
         config_str += f"  Backup Enabled: {self.backup_enabled}\n"
         config_str += f"  Backup Path: {self.backup_path}\n"
         config_str += f"  Max Backups: {self.max_backups}\n"
+        config_str += f"  Transforms: {self.transforms}\n"
         return config_str
