@@ -19,6 +19,7 @@ A portfolio management system that imports and processes financial transaction d
 - **Data Validation**: Comprehensive data formatting and constraint checking
 - **Duplicate Detection**: Duplicate filtering both within imports and against existing data
 - **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
+- **[Transaction Transformation](docs/transactions/transformations.md)**:  Apply custom rules to transform transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
 - **Automatic Backup**: All updates are automatically backed up
@@ -112,6 +113,18 @@ optional_columns:
   Description:
     keywords: ["Description"]
     type: string
+transforms:
+  rules:
+  - conditions:
+      Action: ["BUY", "SELL"]
+      Ticker: ["USD.CAD"]
+    actions:
+      Action: "FXT"
+      Ticker: ""
+  - conditions:
+      Action: ["DIVIDEND"]
+    actions:
+      Fee: "0"
 
 ```
 
@@ -126,6 +139,7 @@ optional_columns:
 | **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                                                                               |
 | **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
+| **`transforms`**         | Transaction transformation rules to automatically modify imported data. Configure rules with `conditions` (criteria to match) and `actions` (changes to apply). See [Transaction Transformations](docs/transactions/transformations.md) for detailed documentation and examples.                                        |
 
 ### Essential Fields
 

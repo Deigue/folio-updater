@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Transaction transforms: Automatically modify imported transactions based on user-configurable rules.
+
 ### Changed
 
 - Import command will now initialize a folio if it does not already exist.
