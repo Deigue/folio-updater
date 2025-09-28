@@ -95,6 +95,7 @@ header_keywords:
   Units: [ "units", "shares", "qty", "quantity" ]
   Ticker: [ "ticker", "symbol", "stock", "security"]
   Account: ["account", "alias", "account id", "accountalias"]
+  Fee: ["Fee", "Fees", "Commission"]
 header_ignore: ["ID", "ClientAccountID", "OtherCommission"]
 duplicate_approval:
   column: Duplicate
@@ -104,9 +105,6 @@ backup:
   path: backups
   max_backups: 50
 optional_columns:
-  Fee:
-    keywords: ["Fee", "Commission"]
-    type: numeric
   SettleDate:
     keywords: ["SettleDate"]
     type: date

@@ -568,6 +568,13 @@ class TransactionFormatter:
 
     def _format_optional_columns(self) -> None:
         """Format all optional fields based on their configured types."""
+        # Recognized Optional Fields
+        if Column.Txn.FEE.value in self.formatted_df.columns:  # pragma: no cover
+            self.formatted_df[Column.Txn.FEE.value] = self.formatted_df[
+                Column.Txn.FEE.value
+            ].astype("object")
+            self._format_numeric_column(Column.Txn.FEE.value, required=False)
+
         # Exit early if no optional fields are configured
         if not self.config.optional_fields:
             return

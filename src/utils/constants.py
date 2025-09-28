@@ -99,6 +99,7 @@ class Column(AutoStrEnum):
         UNITS = "Units"
         TICKER = "Ticker"
         ACCOUNT = "Account"
+        FEE = "Fee"
 
     class Ticker(AutoStrEnum):
         """Ticker columns."""
