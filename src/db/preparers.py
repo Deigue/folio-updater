@@ -10,6 +10,7 @@ from db import schema_manager, table_manager
 from db.filters import TransactionFilter
 from db.formatters import TransactionFormatter
 from db.mappers import TransactionMapper
+from db.transformers import TransactionTransformer
 from utils.logging_setup import get_import_logger
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def prepare_transactions(
 
     schema_manager.create_txns_table()
     txn_df = TransactionMapper.map_headers(excel_df, account)
+    txn_df = TransactionTransformer.transform(txn_df)
     txn_df = TransactionFormatter.format_and_validate(txn_df)
     txn_df = TransactionFilter.filter_intra_import_duplicates(txn_df)
     txn_df = TransactionFilter.filter_db_duplicates(txn_df)
