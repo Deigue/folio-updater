@@ -28,7 +28,7 @@ omit = ['*/__init__.py']
 [tool.ruff]
 line-length = 88
 lint.extend-select = ["ALL"]
-lint.ignore = ["D413", "INP001", "S608"]
+lint.ignore = ["D413", "INP001", "S608", "D203", "D213"]
 src = ["src"]
 exclude = ["**/Lib/**", "**/coverage/**", "**/.venv/**", "**/.git/**", "**/.vscode/**"]
 
