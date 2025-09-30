@@ -100,6 +100,8 @@ class Column(AutoStrEnum):
         TICKER = "Ticker"
         ACCOUNT = "Account"
         FEE = "Fee"
+        SETTLE_DATE = "SettleDate"
+        SETTLE_CALCULATED = "SettleCalculated"
 
     class Ticker(AutoStrEnum):
         """Ticker columns."""
@@ -190,6 +192,19 @@ TXN_COLUMN_DEFINITIONS = [
             f'CHECK("{Column.Txn.ACCOUNT}" IS NOT NULL AND '
             f'length("{Column.Txn.ACCOUNT}") > 0)'
         ),
+    ),
+    ColumnDefinition(
+        Column.Txn.SETTLE_DATE.value,
+        "TEXT",
+        (
+            f'CHECK(length("{Column.Txn.SETTLE_DATE}") = 10 AND '
+            f'"{Column.Txn.SETTLE_DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
+        ),
+    ),
+    ColumnDefinition(
+        Column.Txn.SETTLE_CALCULATED.value,
+        "INTEGER",
+        f'CHECK("{Column.Txn.SETTLE_CALCULATED}" IN (0, 1))',
     ),
 ]
 
