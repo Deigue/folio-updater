@@ -14,6 +14,7 @@ from typing import Any, ClassVar
 
 import yaml
 
+from utils.constants import Column
 from utils.optional_fields import OptionalFieldsConfig
 from utils.transforms import TransformsConfig
 
@@ -40,6 +41,7 @@ class Config:
                 "Units": ["units", "shares", "qty", "quantity"],
                 "Ticker": ["ticker", "symbol", "stock"],
                 "Account": ["account", "alias", "account id"],
+                "SettleDate": ["settledate", "settlement date"],
             },
             "header_ignore": [],
             "duplicate_approval": {
@@ -293,7 +295,8 @@ class Config:
                 {
                     k: v
                     for k, v in settings["header_keywords"].items()
-                    if k in validated["header_keywords"]
+                    # Add internal fields that are not in the default mapping here.
+                    if k in validated["header_keywords"] or k in {Column.Txn.FEE.value}
                 },
             )
 

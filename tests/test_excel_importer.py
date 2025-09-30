@@ -726,7 +726,7 @@ Fees:
     keywords: ["Fees"]
     type: numeric
 SettleDate:
-    keywords: ["Settle Date"]
+    keywords: ["Custom Date"]
     type: date
 TradeCurrency:
     keywords: ["Trade Currency"]
@@ -769,7 +769,7 @@ Notes:
                 "10.50",  # Valid numeric -> 10.50
                 pd.NA,  # Already null -> NULL
             ],
-            "Settle Date": [
+            "Custom Date": [
                 "01/03/2023",  # Valid date with formatting -> 2023-01-03
                 "INVALID_DATE",  # Invalid date -> retains "INVALID_DATE"
                 "2023-01-05",  # Already formatted -> 2023-01-05
