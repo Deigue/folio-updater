@@ -87,16 +87,17 @@ sheets:
   txns: Txns
   fx: FX
 header_keywords:
-  TxnDate: ["Txn Date", "Transaction Date", "TradeDate"]
+  TxnDate: ["Txn Date", "Date", "Transaction Date", "TradeDate"]
   Action: ["Action", "Type", "Activity", "Buy/Sell"]
   Amount: ["Amount", "Value", "Total", "Proceeds"]
   $: [ "$", "currency", "curr", "CurrencyPrimary"]
   Price: [ "price", "unit price", "share price" ]
   Units: [ "units", "shares", "qty", "quantity" ]
   Ticker: [ "ticker", "symbol", "stock", "security"]
-  Account: ["account", "alias", "account id", "accountalias"]
+  Account: ["account", "alias", "account id", "accountalias", "account name"]
   Fee: ["Fee", "Fees", "Commission"]
-header_ignore: ["ID", "ClientAccountID", "OtherCommission"]
+  SettleDate: ["SettleDate", "Settlement Date", "Settle"]
+header_ignore: ["ID", "ClientAccountID", "OtherCommission", "Account Number"]
 duplicate_approval:
   column: Duplicate
   value: OK
@@ -105,9 +106,6 @@ backup:
   path: backups
   max_backups: 50
 optional_columns:
-  SettleDate:
-    keywords: ["SettleDate"]
-    type: date
   Description:
     keywords: ["Description"]
     type: string
@@ -122,7 +120,7 @@ transforms:
   - conditions:
       Action: ["DIVIDEND"]
     actions:
-      Fee: "0"
+      Fee: 0
 
 ```
 
@@ -152,11 +150,13 @@ Essential fields (internal names) that must be present in your Excel data:
 - `Ticker` - security symbol
 - `Account` - account identifier/alias
 
-> **Note**
-> Not all fields under `header_keywords` are necessarily essential.
-> Certain fields may be specifyable under `header_keywords` that have internal logic
-> associated to them like formatting, calculations etc; but may not be critical to
-> importing.
+### Internal Fields
+
+The system automatically manages additional internal fields:
+
+- `Fee` - Fees that may be associated with the transaction. Recognized internally as a numeric value.
+- `SettleDate` - settlement date (auto-calculated based on transaction type and market rules)
+- `SettleCalculated` - flag (0/1) indicating if settlement date was auto-calculated
 
 ### Flexibility
 
