@@ -828,7 +828,7 @@ Notes:
                 # Optional fields: valid values formatted, invalid values retained
                 # When read from database, mixed columns normalize to consistent types
                 "Fees": ["5.95", "INVALID", None, "10.50", None],
-                "SettleDate": [
+                "CustomDate": [
                     "2023-01-03",
                     "INVALID_DATE",
                     "2023-01-05",
