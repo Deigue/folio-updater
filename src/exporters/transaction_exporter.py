@@ -203,3 +203,45 @@ def remove_internal_columns(txn_df: pd.DataFrame) -> pd.DataFrame:
     ]
     return txn_df.drop(columns=internal_cols, errors="ignore")
 
+
+def reorder_folio_columns(txn_df: pd.DataFrame) -> pd.DataFrame:  # pragma: no cover
+    """Reorder columns for folio export to desired presentation order.
+
+    Desired order: SettleDate, TxnDate, Action, Amount, $, Price, Units, Fee,
+                   Account, (blank column), Ticker, (remaining columns)
+
+    Args:
+        txn_df: DataFrame with transaction data
+
+    Returns:
+        DataFrame with reordered columns
+    """
+    # Define the desired column order
+    desired_order = [
+        Column.Txn.SETTLE_DATE.value,
+        Column.Txn.TXN_DATE.value,
+        Column.Txn.ACTION.value,
+        Column.Txn.AMOUNT.value,
+        Column.Txn.CURRENCY.value,
+        Column.Txn.PRICE.value,
+        Column.Txn.UNITS.value,
+        Column.Txn.FEE.value,
+        Column.Txn.ACCOUNT.value,
+        "",  # Blank column for visual separation
+        Column.Txn.TICKER.value,
+    ]
+
+    existing_columns = txn_df.columns.tolist()
+    for col in existing_columns:
+        if col not in desired_order:
+            desired_order.append(col)
+
+    result_df = pd.DataFrame()
+    for col in desired_order:
+        if col == "":
+            # Add blank column
+            result_df[""] = ""
+        elif col in txn_df.columns:
+            result_df[col] = txn_df[col]
+
+    return result_df
