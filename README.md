@@ -12,6 +12,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio getfx`**: Update foreign exchange rates automatically  
 - **`folio demo`**: Create a demo portfolio with mock data for testing
 - **`folio version`**: Show the version of the folio-updater
+- **`folio settle-info`**: Retrieves information about calculated settlement dates
 
 ### Import and Processing Features
 
@@ -20,6 +21,7 @@ A portfolio management system that imports and processes financial transaction d
 - **Duplicate Detection**: Duplicate filtering both within imports and against existing data
 - **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
 - **[Transaction Transformation](docs/transactions/transformations.md)**:  Apply custom rules to transform transactions
+- **[Settlement Date Calculation](docs/transactions/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
 - **Automatic Backup**: All updates are automatically backed up
@@ -73,7 +75,7 @@ Perfect for testing and getting familiar with the system. Creates folio with sam
 
 ## Configuration
 
-This project uses a `config.yaml` file at the root of the repository.  
+The folio-updater uses a `config.yaml` file to manage configurations.  
 It is **auto-generated** with default values the first time you run the application.
 
 ### Example structure
@@ -87,17 +89,17 @@ sheets:
   txns: Txns
   fx: FX
 header_keywords:
-  TxnDate: ["Txn Date", "Date", "Transaction Date", "TradeDate"]
+  TxnDate: ["Txn Date", "Date", "Transaction Date", "TradeDate", "ReportDate"]
   Action: ["Action", "Type", "Activity", "Buy/Sell"]
   Amount: ["Amount", "Value", "Total", "Proceeds"]
   $: [ "$", "currency", "curr", "CurrencyPrimary"]
-  Price: [ "price", "unit price", "share price" ]
-  Units: [ "units", "shares", "qty", "quantity" ]
+  Price: [ "price", "unit price", "share price", "Put/Call"]
+  Units: [ "units", "shares", "qty", "quantity", "Multiplier"]
   Ticker: [ "ticker", "symbol", "stock", "security"]
   Account: ["account", "alias", "account id", "accountalias", "account name"]
   Fee: ["Fee", "Fees", "Commission"]
   SettleDate: ["SettleDate", "Settlement Date", "Settle"]
-header_ignore: ["ID", "ClientAccountID", "OtherCommission", "Account Number"]
+header_ignore: ["ID", "ClientAccountID", "OtherCommission", "Account Number", "Expiry"]
 duplicate_approval:
   column: Duplicate
   value: OK
@@ -118,9 +120,18 @@ transforms:
       Action: "FXT"
       Ticker: ""
   - conditions:
+      Action: "Dividends"
+    actions:
+      Action: "DIVIDEND"
+  - conditions:
       Action: ["DIVIDEND"]
     actions:
       Fee: 0
+  - conditions:
+      Action: "Deposits/Withdrawals"
+      Description: "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS"
+    actions:
+      Action: "CONTRIBUTION"
 
 ```
 
@@ -157,6 +168,9 @@ The system automatically manages additional internal fields:
 - `Fee` - Fees that may be associated with the transaction. Recognized internally as a numeric value.
 - `SettleDate` - settlement date (auto-calculated based on transaction type and market rules)
 - `SettleCalculated` - flag (0/1) indicating if settlement date was auto-calculated
+
+> [!NOTE]
+> See [Settlement Dates](docs/transactions/settlement-dates.md) for detailed information about automatic settlement date calculation.
 
 ### Flexibility
 
@@ -213,4 +227,5 @@ nbstripout --install
 
 This will automatically strip output cells from Jupyter notebooks before committing changes.
 
-Note: Add to IDE path (.venv $env:PATH) if needed by virtual environment terminal.
+> [!TIP]
+> Add to IDE path (.venv $env:PATH) if needed by virtual environment terminal.

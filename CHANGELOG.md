@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Settlement Date Auto-Calculation: Automatically calculate settlement dates for transactions based on transaction type and market calendars
+- CLI command `settle-info` to query settlement date statistics
 - Transaction transforms: Automatically modify imported transactions based on user-configurable rules.
 
 ### Changed
