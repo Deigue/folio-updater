@@ -272,6 +272,26 @@ class TestImportCommand:
             assert not file2.exists()
 
 
+class TestSettleInfoCommand:
+    """Test the settle info command functionality."""
+
+    def test_settle_info_command(
+        self,
+        temp_config: Callable[
+            ...,
+            _GeneratorContextManager[AppContext, None, None],
+        ],
+    ) -> None:
+        """Test settle info command output."""
+        with temp_config():
+            ensure_folio_exists()
+            with db.get_connection() as conn:
+                txn_count = db.get_row_count(conn, Table.TXNS.value)
+            result = runner.invoke(cli_app, ["settle-info"])
+            assert f"Calculated settlement dates: {txn_count}" in result.stdout
+            assert result.exit_code == 0
+
+
 class TestVersionCommand:
     """Test the version command functionality."""
 

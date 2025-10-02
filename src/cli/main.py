@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import typer
 
-from cli.commands import demo, getfx, import_cmd
+from cli.commands import demo, getfx, import_cmd, settle_info
 
 __version__ = "0.1.0"
 
@@ -25,6 +25,9 @@ app.command("getfx", help="Update foreign exchange rates")(
 )
 app.command("demo", help="Create demo portfolio with mock data")(
     demo.create_folio,
+)
+app.command("settle-info", help="Show settlement date information")(
+    settle_info.settlement_info,
 )
 
 
