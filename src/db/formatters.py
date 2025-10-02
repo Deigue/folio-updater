@@ -15,6 +15,7 @@ from db.utils import format_transaction_summary
 from utils.constants import TORONTO_TZ, Action, Column, Currency
 from utils.logging_setup import get_import_logger
 from utils.optional_fields import FieldType
+from utils.settlement_calculator import settlement_calculator
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
@@ -189,10 +190,11 @@ class TransactionFormatter:
         self._format_tickers()
         self._validation_action_based_columns()
         self._format_optional_columns()
+        self._finalize_exclusions()
+        self._calculate_settlement_dates()
+        return self.formatted_df
 
-        return self._finalize_exclusions()
-
-    def _finalize_exclusions(self) -> pd.DataFrame:
+    def _finalize_exclusions(self) -> None:
         """Remove excluded rows and log rejection details."""
         if self.exclusions:
             excluded_indices = set(self.exclusions)
@@ -218,8 +220,6 @@ class TransactionFormatter:
                         reason_str,
                     )
 
-        return self.formatted_df
-
     def _format_dates(self) -> None:
         """Format date columns to YYYY-MM-DD format.
 
@@ -228,6 +228,10 @@ class TransactionFormatter:
         # Format required transaction date
         if Column.Txn.TXN_DATE.value in self.formatted_df.columns:  # pragma: no cover
             self._format_date_column(Column.Txn.TXN_DATE.value, required=True)
+
+        # Format settlement date (internal field, not required)
+        if Column.Txn.SETTLE_DATE.value in self.formatted_df.columns:
+            self._format_date_column(Column.Txn.SETTLE_DATE.value, required=False)
 
         # Format optional date fields
         if self.config.optional_fields:
@@ -685,6 +689,12 @@ class TransactionFormatter:
                     clean_value,
                 )
             return True
+
+    def _calculate_settlement_dates(self) -> None:
+        """Calculate settlement dates for transactions."""
+        self.formatted_df = settlement_calculator.add_settlement_dates_to_dataframe(
+            self.formatted_df,
+        )
 
 
 def parse_date(date_str: str) -> str | None:

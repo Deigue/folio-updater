@@ -65,6 +65,11 @@ def test_folio_creation(
                 pd.notna(expected_txns_df),
                 None,
             )
+            # Don't compare auto-calculated fields
+            txns_df = txns_df.drop(
+                columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],
+                errors="ignore",
+            )
             pd_testing.assert_frame_equal(txns_df, expected_txns_df)
 
         # Capture last modified time

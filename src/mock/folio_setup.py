@@ -7,10 +7,12 @@ import pandas as pd
 
 from app.app_context import get_config
 from db import db, schema_manager
+from exporters import transaction_exporter
 from mock.mock_data import generate_transactions
 from services.forex_service import ForexService
 from utils.backup import rolling_backup
 from utils.constants import DEFAULT_TICKERS, Column, Table
+from utils.settlement_calculator import settlement_calculator
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,7 +69,11 @@ def _create_default_folio() -> None:
     transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
     transactions_df = pd.concat(transactions_list, ignore_index=True)
 
-    # Explicity don't call import_transactions to avoid logging for mock data.
+    # Explicity don't call import_transactions to avoid logging of mock data.
+    transactions_df = settlement_calculator.add_settlement_dates_to_dataframe(
+        transactions_df,
+    )
+
     schema_manager.create_txns_table()
     with db.get_connection() as conn:
         if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
@@ -76,6 +82,7 @@ def _create_default_folio() -> None:
     fx_df = ForexService.get_missing_fx_data()
     ForexService.insert_fx_data(fx_df)
 
+    transactions_df = transaction_exporter.remove_internal_columns(transactions_df)
     with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
         tickers_df.to_excel(
             writer,

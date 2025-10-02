@@ -48,10 +48,7 @@ class TransactionExporter:
         if transactions_df.empty:  # pragma: no cover
             return 0
 
-        transactions_df = transactions_df.drop(
-            columns=[Column.Txn.TXN_ID.value],
-            errors="ignore",
-        )
+        transactions_df = remove_internal_columns(transactions_df)
         transaction_count = len(transactions_df)
         logger.debug("Found %d transactions to export...", transaction_count)
         if self.folio_path.exists():
@@ -123,7 +120,8 @@ class TransactionExporter:
         logger.debug("Found %d transactions in database", len(db_df))
         logger.debug("Found %d transactions in Excel sheet", len(excel_df))
 
-        db_df = db_df.drop(Column.Txn.TXN_ID.value, errors="ignore")
+        # Remove internal columns (ID) - folio is for reporting, not re-import
+        db_df = remove_internal_columns(db_df)
         new_transactions_df = self._find_new_transactions(excel_df, db_df)
         if new_transactions_df.empty:
             return 0
@@ -196,3 +194,12 @@ def check_file_read_write_access(path: Path) -> None:
         msg = f"File '{path}' is not accessible for reading and writing: {e}"
         logger.exception(msg)
         raise
+
+
+def remove_internal_columns(txn_df: pd.DataFrame) -> pd.DataFrame:
+    """Remove internal-use-only columns from the DataFrame."""
+    internal_cols = [
+        Column.Txn.TXN_ID.value,
+    ]
+    return txn_df.drop(columns=internal_cols, errors="ignore")
+

@@ -33,7 +33,13 @@ class Config:
                 "fx": "FX",
             },
             "header_keywords": {
-                "TxnDate": ["txndate", "transaction date", "date"],
+                "TxnDate": [
+                    "txndate",
+                    "transaction date",
+                    "date",
+                    "tradedate",
+                    "reportdate",
+                ],
                 "Action": ["action", "type", "activity"],
                 "Amount": ["amount", "value", "total"],
                 "$": ["$", "currency", "curr"],
