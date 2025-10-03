@@ -21,6 +21,7 @@ A portfolio management system that imports and processes financial transaction d
 - **Duplicate Detection**: Duplicate filtering both within imports and against existing data
 - **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
 - **[Transaction Transformation](docs/transactions/transformations.md)**:  Apply custom rules to transform transactions
+- **[Merge Transforms](docs/transactions/merge-transforms.md)**: Automatically combine transactions based on custom defined rules
 - **[Settlement Date Calculation](docs/transactions/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **[Logging](docs/transactions/import-logging.md)**: Comprehensive import logging
@@ -132,7 +133,15 @@ transforms:
       Description: "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS"
     actions:
       Action: "CONTRIBUTION"
-
+  merge_groups:
+    - name: "Dividend Withholding Tax Merge"
+      match_fields: ["TxnDate", "Account", "Ticker"]
+      source_actions: ["Dividends", "Withholding Tax"]
+      target_action: "DIVIDEND"
+      amount_field: "Amount"
+      operations:
+        Fee: 0
+        Units: 0
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
@@ -146,7 +155,7 @@ transforms:
 | **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                                                                               |
 | **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
-| **`transforms`**         | Transaction transformation rules to automatically modify imported data. Configure rules with `conditions` (criteria to match) and `actions` (changes to apply). See [Transaction Transformations](docs/transactions/transformations.md) for detailed documentation and examples.                                        |
+| **`transforms`**         | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](docs/transactions/transformations.md) and [Merge Transforms](docs/transactions/merge-transforms.md) for more details.                                                                                         |
 
 ### Essential Fields
 

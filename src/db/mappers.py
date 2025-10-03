@@ -83,7 +83,7 @@ class TransactionMapper:
         excel_df = excel_df.rename(columns=mapping)
         summaries = excel_df.apply(format_transaction_summary, axis=1)
         for summary in summaries:
-            import_logger.info(" - %s", summary)
+            import_logger.info(" + %s", summary)
         return excel_df
 
     @staticmethod

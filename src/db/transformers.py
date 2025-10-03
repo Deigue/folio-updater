@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from app.app_context import get_config
+from db.utils import format_transaction_summary
+from utils.constants import Column
 from utils.logging_setup import get_import_logger
 
 if TYPE_CHECKING:
-    from utils.transforms import TransformRule
+    from utils.transforms import MergeGroup, TransformRule
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
@@ -26,9 +29,10 @@ class TransactionTransformer:
         Args:
             df: DataFrame with mapped transaction data
         """
-        self.df = df.copy()
+        self.df: pd.DataFrame = df.copy()
         self.config = get_config()
         self.transforms = self.config.transforms
+        self._has_groups: bool = False
 
     @staticmethod
     def transform(df: pd.DataFrame) -> pd.DataFrame:
@@ -52,16 +56,22 @@ class TransactionTransformer:
         Returns:
             DataFrame with all applicable transformations applied
         """
+        # Apply merge groups first (before regular transformations)
+        if self.transforms and self.transforms.merge_groups:
+            for group_index, group in enumerate(self.transforms.merge_groups):
+                import_logger.debug(
+                    "Applying merge group %d: %s",
+                    group_index + 1,
+                    group.name,
+                )
+                self._apply_merge_group(group)
+
+        # Regular transformation rules
         if not self.transforms or not self.transforms.rules:
             import_logger.debug(
                 "No transformation rules configured, skipping transforms",
             )
             return self.df
-
-        import_logger.info(
-            "Applying %d transformation rule(s)",
-            len(self.transforms.rules),
-        )
 
         for rule_index, rule in enumerate(self.transforms.rules):
             import_logger.debug("Applying transformation rule %d", rule_index + 1)
@@ -96,12 +106,6 @@ class TransactionTransformer:
             import_logger.debug("No rows match transformation conditions")
             return
 
-        import_logger.info(
-            "Transforming %d row(s) matching conditions: %s",
-            matching_rows,
-            dict(rule.conditions),
-        )
-
         # Apply transformations to matching rows
         for field_name, new_value in rule.actions.items():
             if field_name not in self.df.columns:
@@ -111,14 +115,13 @@ class TransactionTransformer:
                 )
                 continue
 
-            # Log before transformation for debugging
+            # Log transformations
             old_values = self.df.loc[mask, field_name].unique().tolist()
-            import_logger.debug(
-                "Transforming field '%s': %s -> %s",
-                field_name,
-                old_values,
-                new_value,
+            msg = (
+                f"Transforming {matching_rows} matched row(s) on field '{field_name}': "
+                f"{old_values} -> {new_value}"
             )
+            import_logger.info(msg)
 
             if new_value == "":
                 self.df.loc[mask, field_name] = pd.NA
@@ -207,3 +210,213 @@ class TransactionTransformer:
 
         # For non-numeric columns, return as string
         return new_value
+
+    def _apply_merge_group(self, group: MergeGroup) -> None:
+        """Apply a merge group to combine related transactions.
+
+        Args:
+            group: MergeGroup configuration specifying how to merge transactions
+        """
+        if not self._validate_merge_group_columns(group):
+            return
+
+        matching_rows = self._get_matching_rows_for_merge(group)
+        if matching_rows.empty:
+            return
+
+        groups = matching_rows.groupby(group.match_fields, dropna=False)
+        rows_to_drop = []
+        rows_to_add = []
+
+        for group_key, group_df in groups:
+            merged_row = self._try_merge_group(group, group_df, group_key)
+            if merged_row is not None:
+                if not self._has_groups:
+                    self._has_groups = True
+                    import_logger.info(
+                        "Applying merge tranformations",
+                    )
+                rows_to_drop.extend(group_df.index.tolist())
+                rows_to_add.append(merged_row)
+
+                import_logger.info(" + %s", format_transaction_summary(merged_row))
+                dropped_rows = group_df.apply(
+                    format_transaction_summary,
+                    axis=1,
+                )
+                import_logger.info(" - %s", dropped_rows)
+
+        # Apply changes to DataFrame
+        self._apply_merge_changes(group, rows_to_drop, rows_to_add)
+
+    def _validate_merge_group_columns(
+        self,
+        group: MergeGroup,
+    ) -> bool:
+        """Validate that all required columns exist for merge group.
+
+        Args:
+            group: MergeGroup configuration
+            action_col: Name of the Action column
+
+        Returns:
+            True if all columns exist, False otherwise
+        """
+        missing_fields = [f for f in group.match_fields if f not in self.df.columns]
+        if missing_fields:
+            import_logger.warning(
+                "Match fields %s not found in data, skipping merge group '%s'",
+                missing_fields,
+                group.name,
+            )
+            return False
+
+        if group.amount_field not in self.df.columns:
+            import_logger.warning(
+                "Amount field '%s' not found, skipping merge group '%s'",
+                group.amount_field,
+                group.name,
+            )
+            return False
+
+        return True
+
+    def _get_matching_rows_for_merge(
+        self,
+        group: MergeGroup,
+    ) -> pd.DataFrame:
+        """Get rows that match source actions for merging.
+
+        Args:
+            group: MergeGroup configuration
+            action_col: Name of the Action column
+
+        Returns:
+            DataFrame with matching rows
+        """
+        action_mask = (
+            self.df[Column.Txn.ACTION.value].astype(str).isin(group.source_actions)
+        )
+        matching_rows = self.df[action_mask].copy()
+
+        if matching_rows.empty:
+            import_logger.debug(
+                "No rows match source actions %s for merge group '%s'",
+                group.source_actions,
+                group.name,
+            )
+        else:
+            import_logger.debug(
+                "Found %d row(s) matching source actions for merge group '%s'",
+                len(matching_rows),
+                group.name,
+            )
+
+        return matching_rows
+
+    def _try_merge_group(
+        self,
+        group: MergeGroup,
+        group_df: pd.DataFrame,
+        group_key: tuple,
+    ) -> pd.Series | None:
+        """Try to merge a group of transactions.
+
+        Args:
+            group: MergeGroup configuration
+            group_df: DataFrame with transactions in this group
+            action_col: Name of the Action column
+            group_key: Tuple identifying this group
+
+        Returns:
+            Merged row as Series, or None if merging not applicable
+        """
+        # Check if we have multiple source actions in this group
+        unique_actions = group_df[Column.Txn.ACTION.value].astype(str).unique()
+        min_actions_for_merge = 2
+        if len(unique_actions) < min_actions_for_merge:
+            return None
+
+        # Check if we have all expected source actions
+        has_all_actions = all(
+            action in unique_actions for action in group.source_actions
+        )
+        if not has_all_actions:
+            import_logger.debug(
+                "Group %s missing some source actions, skipping",
+                group_key,
+            )
+            return None
+
+        merged_row = self._create_merged_row(group, group_df)
+
+        import_logger.debug(
+            "Merged %d row(s) into 1 %s for group %s",
+            len(group_df),
+            group.target_action,
+            group_key,
+        )
+
+        return merged_row
+
+    def _create_merged_row(
+        self,
+        group: MergeGroup,
+        group_df: pd.DataFrame,
+    ) -> pd.Series:
+        """Create a merged row from a group of transactions.
+
+        Args:
+            group: MergeGroup configuration
+            group_df: DataFrame with transactions to merge
+            action_col: Name of the Action column
+
+        Returns:
+            Merged row as Series
+        """
+        # Sum the amounts - ensure numeric conversion and cast to Decimal
+        amount_series = pd.to_numeric(group_df[group.amount_field], errors="coerce")
+        total_amount = Decimal(str(amount_series.sum())).quantize(
+            Decimal("0.0000000001"),  # 10 decimal places (decimal[20,10])
+        )
+
+        # Create merged row (use first row as template)
+        merged_row = group_df.iloc[0].copy()
+        merged_row[Column.Txn.ACTION.value] = group.target_action
+        merged_row[group.amount_field] = float(total_amount)
+
+        for field, value in group.operations.items():
+            if field in merged_row.index:
+                converted_value = self._convert_value_to_column_dtype(
+                    field,
+                    str(value),
+                )
+                merged_row[field] = converted_value
+
+        return merged_row
+
+    def _apply_merge_changes(
+        self,
+        group: MergeGroup,
+        rows_to_drop: list[int],
+        rows_to_add: list[pd.Series],
+    ) -> None:
+        """Apply merge changes to the DataFrame.
+
+        Args:
+            group: MergeGroup configuration
+            rows_to_drop: List of row indices to remove
+            rows_to_add: List of merged rows to add
+        """
+        if rows_to_drop:
+            self.df = self.df.drop(index=rows_to_drop)
+            if rows_to_add:
+                new_rows_df = pd.DataFrame(rows_to_add)
+                self.df = pd.concat([self.df, new_rows_df], ignore_index=True)
+
+            import_logger.debug(
+                "Merge group '%s': Removed %d row(s), added %d merged row(s)",
+                group.name,
+                len(rows_to_drop),
+                len(rows_to_add),
+            )

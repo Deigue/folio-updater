@@ -156,7 +156,7 @@ class TransformsConfig:
                 and len(source_actions) >= min_source_actions,
                 isinstance(target_action, str) and target_action,
                 isinstance(amount_field, str) and amount_field,
-            ]
+            ],
         ):  # pragma: no cover
             return None
 
