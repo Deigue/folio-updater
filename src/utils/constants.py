@@ -3,66 +3,21 @@
 # Internal transaction fields that are essential for processing
 from __future__ import annotations
 
-import sqlite3
-from enum import Enum
-from typing import TYPE_CHECKING
+from enum import StrEnum
 
 from zoneinfo import ZoneInfo
-
-if TYPE_CHECKING:
-    from types import NotImplementedType
 
 TORONTO_TZ = ZoneInfo("America/Toronto")
 
 
-class AutoStrEnum(Enum):
-    """Enum that automatically creates a string representation of the enum value."""
-
-    def __str__(self) -> str:
-        """Return a string representation of the enum value."""
-        return self.value
-
-    def __conform__(self, protocol: sqlite3.PrepareProtocol) -> str:  # pragma: no cover
-        """Conform to string for sqlite3."""
-        if protocol is sqlite3.PrepareProtocol:
-            return self.value
-        msg = f"Cannot conform {self} to {protocol}"
-        raise TypeError(msg)
-
-    def __hash__(self) -> int:
-        """Hash the enum value."""
-        return hash(self.value)
-
-    def __eq__(self, other: object) -> bool | NotImplementedType:  # pragma: no cover
-        """Compare the enum value to another enum or a string.
-
-        If the `other` argument is an instance of `AutoStrEnum`, compare the
-        underlying values.
-
-        If the `other` argument is a string, compare the string representations
-        of the enum values.
-
-        If the `other` argument is any other type, return `NotImplemented`.
-        """
-        if isinstance(other, AutoStrEnum):
-            return self.value == other.value
-        if isinstance(other, str):
-            return self.value == other
-        return NotImplemented
-
-    def __repr__(self) -> str:  # pragma: no cover
-        """Representation of this enum should be a string."""
-        return self.value
-
-
-class Currency(AutoStrEnum):
+class Currency(StrEnum):
     """Currency codes."""
 
     USD = "USD"
     CAD = "CAD"
 
 
-class Action(AutoStrEnum):
+class Action(StrEnum):
     """Transaction actions."""
 
     BUY = "BUY"  # This represents buying a stock
@@ -77,17 +32,17 @@ class Action(AutoStrEnum):
     WITHDRAWAL = "WITHDRAWAL"  # Take out money from the portfolio
 
 
-class Table(AutoStrEnum):
+class Table(StrEnum):
     """Table names."""
 
     TXNS = "Txns"
     FX = "FX"
 
 
-class Column(AutoStrEnum):
+class Column(StrEnum):
     """Constants for column names."""
 
-    class Txn(AutoStrEnum):
+    class Txn(StrEnum):
         """Transaction columns."""
 
         TXN_ID = "TxnId"
@@ -103,12 +58,12 @@ class Column(AutoStrEnum):
         SETTLE_DATE = "SettleDate"
         SETTLE_CALCULATED = "SettleCalculated"
 
-    class Ticker(AutoStrEnum):
+    class Ticker(StrEnum):
         """Ticker columns."""
 
         TICKER = "Ticker"
 
-    class FX(AutoStrEnum):
+    class FX(StrEnum):
         """Forex rate columns."""
 
         DATE = "Date"
@@ -148,12 +103,12 @@ NUMERIC_PRECISION = "NUMERIC(20,10)"
 # Column definitions for the Txns table
 TXN_COLUMN_DEFINITIONS = [
     ColumnDefinition(
-        Column.Txn.TXN_ID.value,
+        Column.Txn.TXN_ID,
         "INTEGER",
         "PRIMARY KEY AUTOINCREMENT",
     ),
     ColumnDefinition(
-        Column.Txn.TXN_DATE.value,
+        Column.Txn.TXN_DATE,
         "TEXT",
         (
             f'CHECK(length("{Column.Txn.TXN_DATE}") = 10 AND '
@@ -161,23 +116,23 @@ TXN_COLUMN_DEFINITIONS = [
         ),
     ),
     ColumnDefinition(
-        Column.Txn.ACTION.value,
+        Column.Txn.ACTION,
         "TEXT",
-        f'CHECK("{Column.Txn.ACTION}" IN ({", ".join(repr(a.value) for a in Action)}))',
+        f'CHECK("{Column.Txn.ACTION}" IN ({", ".join(repr(str(a)) for a in Action)}))',
     ),
-    ColumnDefinition(Column.Txn.AMOUNT.value, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Txn.AMOUNT, NUMERIC_PRECISION),
     ColumnDefinition(
-        Column.Txn.CURRENCY.value,
+        Column.Txn.CURRENCY,
         "TEXT",
         (
             f'CHECK("{Column.Txn.CURRENCY}" IN '
-            f"({', '.join(repr(c.value) for c in Currency)}))"
+            f"({', '.join(repr(str(c)) for c in Currency)}))"
         ),
     ),
-    ColumnDefinition(Column.Txn.PRICE.value, NUMERIC_PRECISION),
-    ColumnDefinition(Column.Txn.UNITS.value, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Txn.PRICE, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Txn.UNITS, NUMERIC_PRECISION),
     ColumnDefinition(
-        Column.Txn.TICKER.value,
+        Column.Txn.TICKER,
         "TEXT",
         (
             f'CHECK("{Column.Txn.TICKER}" IS NULL OR ('
@@ -186,7 +141,7 @@ TXN_COLUMN_DEFINITIONS = [
         ),
     ),
     ColumnDefinition(
-        Column.Txn.ACCOUNT.value,
+        Column.Txn.ACCOUNT,
         "TEXT",
         (
             f'CHECK("{Column.Txn.ACCOUNT}" IS NOT NULL AND '
@@ -194,7 +149,7 @@ TXN_COLUMN_DEFINITIONS = [
         ),
     ),
     ColumnDefinition(
-        Column.Txn.SETTLE_DATE.value,
+        Column.Txn.SETTLE_DATE,
         "TEXT",
         (
             f'CHECK(length("{Column.Txn.SETTLE_DATE}") = 10 AND '
@@ -202,7 +157,7 @@ TXN_COLUMN_DEFINITIONS = [
         ),
     ),
     ColumnDefinition(
-        Column.Txn.SETTLE_CALCULATED.value,
+        Column.Txn.SETTLE_CALCULATED,
         "INTEGER",
         f'CHECK("{Column.Txn.SETTLE_CALCULATED}" IN (0, 1))',
     ),
@@ -210,30 +165,27 @@ TXN_COLUMN_DEFINITIONS = [
 
 FX_COLUMN_DEFINITIONS = [
     ColumnDefinition(
-        Column.FX.DATE.value,
+        Column.FX.DATE,
         "TEXT",
         (
             f'PRIMARY KEY CHECK(length("{Column.FX.DATE}") = 10 AND '
             f'"{Column.FX.DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
         ),
     ),
-    ColumnDefinition(Column.FX.FXUSDCAD.value, NUMERIC_PRECISION, "NOT NULL"),
-    ColumnDefinition(Column.FX.FXCADUSD.value, NUMERIC_PRECISION, "NOT NULL"),
+    ColumnDefinition(Column.FX.FXUSDCAD, NUMERIC_PRECISION, "NOT NULL"),
+    ColumnDefinition(Column.FX.FXCADUSD, NUMERIC_PRECISION, "NOT NULL"),
 ]
 
 
 TXN_ESSENTIALS: list[str] = [
-    str(col)
-    for col in [
-        Column.Txn.TXN_DATE,  # Date of transaction
-        Column.Txn.ACTION,  # BUY/SELL
-        Column.Txn.AMOUNT,  # Total amount (Price * Units)
-        Column.Txn.CURRENCY,  # Currency
-        Column.Txn.PRICE,  # Price per unit
-        Column.Txn.UNITS,  # Number of units
-        Column.Txn.TICKER,  # Stock or ETF ticker
-        Column.Txn.ACCOUNT,  # Account alias where transaction occurred
-    ]
+    Column.Txn.TXN_DATE,  # Date of transaction
+    Column.Txn.ACTION,  # BUY/SELL
+    Column.Txn.AMOUNT,  # Total amount (Price * Units)
+    Column.Txn.CURRENCY,  # Currency
+    Column.Txn.PRICE,  # Price per unit
+    Column.Txn.UNITS,  # Number of units
+    Column.Txn.TICKER,  # Stock or ETF ticker
+    Column.Txn.ACCOUNT,  # Account alias where transaction occurred
 ]
 
 # Default tickers for newly created folio file
