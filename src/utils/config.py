@@ -33,21 +33,21 @@ class Config:
                 "fx": "FX",
             },
             "header_keywords": {
-                "TxnDate": [
+                str(Column.Txn.TXN_DATE): [
                     "txndate",
                     "transaction date",
                     "date",
                     "tradedate",
                     "reportdate",
                 ],
-                "Action": ["action", "type", "activity"],
-                "Amount": ["amount", "value", "total"],
-                "$": ["$", "currency", "curr"],
-                "Price": ["price", "unit price", "share price"],
-                "Units": ["units", "shares", "qty", "quantity"],
-                "Ticker": ["ticker", "symbol", "stock"],
-                "Account": ["account", "alias", "account id"],
-                "SettleDate": ["settledate", "settlement date"],
+                str(Column.Txn.ACTION): ["action", "type", "activity"],
+                str(Column.Txn.AMOUNT): ["amount", "value", "total"],
+                str(Column.Txn.CURRENCY): ["$", "currency", "curr"],
+                str(Column.Txn.PRICE): ["price", "unit price", "share price"],
+                str(Column.Txn.UNITS): ["units", "shares", "qty", "quantity"],
+                str(Column.Txn.TICKER): ["ticker", "symbol", "stock"],
+                str(Column.Txn.ACCOUNT): ["account", "alias", "account id"],
+                str(Column.Txn.SETTLE_DATE): ["settledate", "settlement date"],
             },
             "header_ignore": [],
             "duplicate_approval": {
@@ -302,7 +302,7 @@ class Config:
                     k: v
                     for k, v in settings["header_keywords"].items()
                     # Add internal fields that are not in the default mapping here.
-                    if k in validated["header_keywords"] or k in {Column.Txn.FEE.value}
+                    if k in validated["header_keywords"] or k in {str(Column.Txn.FEE)}
                 },
             )
 

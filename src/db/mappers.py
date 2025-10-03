@@ -67,16 +67,17 @@ class TransactionMapper:
             import_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
 
         # Ensure TXN_ESSENTIALS are present in the mapping
-        if unmatched and Column.Txn.ACCOUNT.value in unmatched and account is not None:
+        if unmatched and Column.Txn.ACCOUNT in unmatched and account is not None:
             import_logger.info(
                 "Account column not found in Excel, using fallback value: %s",
                 account,
             )
-            excel_df[Column.Txn.ACCOUNT.value] = account
-            unmatched.remove(Column.Txn.ACCOUNT.value)
+            excel_df[Column.Txn.ACCOUNT] = account
+            unmatched.remove(Column.Txn.ACCOUNT)
 
         if unmatched:
-            error_message = f"Could not map essential columns: {unmatched}"
+            unmatched_str = {str(col) for col in unmatched}
+            error_message = f"Could not map essential columns: {unmatched_str}"
             import_logger.error(error_message)
             raise ValueError(error_message)
 
