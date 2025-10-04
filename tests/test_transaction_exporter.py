@@ -14,6 +14,8 @@ from utils.constants import Column, Table
 
 from .utils.dataframe_utils import verify_db_contents
 
+GENERATED_TRANSACTIONS = 50
+
 
 def test_export_full(
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
@@ -54,9 +56,9 @@ def test_export_update_empty_excel_sheet(
 
         transaction_exporter = TransactionExporter()
 
-        # Should return 0 when Excel sheet is empty
+        # Since Excel is empty, it should export all transactions from DB
         update_count: int = transaction_exporter.export_update()
-        assert update_count == 0
+        assert update_count == GENERATED_TRANSACTIONS
 
 
 def test_export_update_empty_database(

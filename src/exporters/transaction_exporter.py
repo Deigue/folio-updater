@@ -81,7 +81,7 @@ class TransactionExporter:
 
         return transaction_count
 
-    def export_update(self) -> int:
+    def export_update(self, transaction_count: int | None = None) -> int:
         """Perform an incremental export of new transactions to Excel.
 
         This only adds new transactions from the database having a date equal or greater
@@ -99,37 +99,48 @@ class TransactionExporter:
             logger.error(msg)
             raise FileNotFoundError(msg)
 
+        excel_df = None
         try:
-            excel_df = pd.read_excel(
-                self.folio_path,
-                sheet_name=self.txn_sheet,
-                engine="openpyxl",
-            )
+            if transaction_count is None or transaction_count <= 0:
+                excel_df = pd.read_excel(
+                    self.folio_path,
+                    sheet_name=self.txn_sheet,
+                    engine="openpyxl",
+                )
+                logger.debug("Found %d transactions in Excel sheet", len(excel_df))
+                excel_cols = excel_df.columns.tolist()
+            else:
+                excel_cols = pd.read_excel(
+                    self.folio_path,
+                    sheet_name=self.txn_sheet,
+                    nrows=0,
+                    engine="openpyxl",
+                ).columns.tolist()
         except ValueError as e:  # pragma: no cover
             msg = f"Error reading sheet '{self.txn_sheet}': {e}"
             logger.exception(msg)
             raise ValueError(msg) from e
 
         with db.get_connection() as conn:
-            db_df = db.get_rows(conn, Table.TXNS)
+            db_df = db.get_rows(conn, Table.TXNS, "tail", transaction_count)
 
-        if db_df.empty or excel_df.empty:
+        if db_df.empty:
             return 0
 
         logger.debug("Starting incremental export...")
-        logger.debug("Found %d transactions in database", len(db_df))
-        logger.debug("Found %d transactions in Excel sheet", len(excel_df))
+        logger.debug("Scanned %d transactions from database", len(db_df))
 
-        # Remove internal columns (ID) - folio is for reporting, not re-import
         db_df = remove_internal_columns(db_df)
-        new_transactions_df = self._find_new_transactions(excel_df, db_df)
+        if excel_df is None:
+            new_transactions_df = db_df
+        else:
+            new_transactions_df = self._find_new_transactions(excel_df, db_df)
+
         if new_transactions_df.empty:
             return 0
         txn_count = len(new_transactions_df)
         msg = f"Found {txn_count} new transactions to export"
         logger.info(msg)
-
-        excel_cols = excel_df.columns.tolist()
 
         rolling_backup(self.folio_path)
         check_file_read_write_access(self.folio_path)
@@ -140,12 +151,12 @@ class TransactionExporter:
             worksheet.append(row.tolist())
         workbook.save(self.folio_path)
         workbook.close()
-        logger.info("=" * 60)
+        logger.info("=" * 80)
         logger.info(
             "Update export completed: %d new transactions exported",
             txn_count,
         )
-        logger.info("=" * 60)
+        logger.info("=" * 80)
         return txn_count
 
     def _find_new_transactions(
@@ -153,7 +164,7 @@ class TransactionExporter:
         excel_df: pd.DataFrame,
         db_df: pd.DataFrame,
     ) -> pd.DataFrame:
-        """Find new transactions from the database based on the transaction date.
+        """Find new transactions from the database.
 
         Args:
             excel_df: DataFrame with existing Excel transactions.
@@ -162,27 +173,10 @@ class TransactionExporter:
         Returns:
             DataFrame containing only new transactions.
         """
-        # Assumes that excel_df is reliably formatted since this is meant to be called
-        # after a prior full export.
-        txn_date_col = Column.Txn.TXN_DATE
-        latest_date = excel_df[txn_date_col].max()
-        logger.debug("Latest transaction date in Excel: %s", latest_date)
-        new_df = db_df[db_df[txn_date_col] > latest_date].copy()
-
-        # Deduplicate common transactions on latest date to get unique ones
-        db_latest = db_df[db_df[txn_date_col] == latest_date].copy()
-        excel_latest = excel_df[excel_df[txn_date_col] == latest_date].copy()
-        if db_latest.empty:  # pragma: no cover
-            return new_df
-        excel_keys = set(excel_latest.apply(format_transaction_summary, axis=1))
-        db_keys = db_latest.apply(format_transaction_summary, axis=1)
+        excel_keys = set(excel_df.apply(format_transaction_summary, axis=1))
+        db_keys = db_df.apply(format_transaction_summary, axis=1)
         mask = ~db_keys.isin(excel_keys)
-        unique_txns = db_latest[mask].copy()
-
-        if not unique_txns.empty:
-            new_df = pd.concat([new_df, unique_txns], ignore_index=True)
-
-        return new_df
+        return db_df[mask].copy()
 
 
 def check_file_read_write_access(path: Path) -> None:

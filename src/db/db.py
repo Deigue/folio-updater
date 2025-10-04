@@ -41,13 +41,33 @@ def get_tables(connection: sqlite3.Connection) -> list[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
-def get_rows(connection: sqlite3.Connection, table_name: str) -> pd.DataFrame:
-    """Return all rows from a table as a DataFrame."""
-    query = f'SELECT * FROM "{table_name}"'
+def get_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    which: str | None = None,
+    n: int | None = None,
+) -> pd.DataFrame:
+    """Return rows from a table as a DataFrame.
+
+    Optionally specify 'which' ('head' or 'tail') and 'n' (number of rows).
+    """
+    if n is not None and n <= 0:
+        n = None
+    if which == "head" and n is not None:
+        query = f'SELECT * FROM "{table_name}" LIMIT {n}'
+    elif which == "tail" and n is not None:
+        query = f'SELECT * FROM "{table_name}" ORDER BY rowid DESC LIMIT {n}'
+    else:
+        query = f'SELECT * FROM "{table_name}"'
     try:
-        return pd.read_sql_query(query, connection)
+        df = pd.read_sql_query(query, connection)
     except pd.errors.DatabaseError:  # pragma: no cover
         return pd.DataFrame()
+
+    # For tail, reverse to preserve original order
+    if which == "tail" and n is not None:
+        return df.iloc[::-1].reset_index(drop=True)
+    return df
 
 
 def get_row_count(connection: sqlite3.Connection, table_name: str) -> int:

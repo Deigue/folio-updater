@@ -142,7 +142,7 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
             exporter = TransactionExporter()
             # Check if folio exists to determine export method
             if exporter.folio_path.exists():  # pragma: no cover
-                exported = exporter.export_update()
+                exported = exporter.export_update(num_txns)
                 if exported > 0:  # pragma: no branch
                     typer.echo(f"Exported {exported} new transactions to folio Excel")
             else:
@@ -191,7 +191,7 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
             exporter = TransactionExporter()
             # Check if folio exists to determine export method
             if exporter.folio_path.exists():
-                exported = exporter.export_update()
+                exported = exporter.export_update(num_txns)
                 typer.echo(
                     f"Export completed. {exported} new transactions exported to folio",
                 )
