@@ -117,7 +117,7 @@ class ForexExporter:
             logger.info("FX sheet is empty, performing full export")
             return self.export_full()
 
-        latest_excel_date = excel_df[Column.FX.DATE.value].max()
+        latest_excel_date = excel_df[Column.FX.DATE].max()
         logger.debug("Latest FX date in Excel: %s", latest_excel_date)
 
         self._ensure_fx_data_current()

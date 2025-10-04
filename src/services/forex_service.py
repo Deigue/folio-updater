@@ -39,11 +39,11 @@ class ForexService:
         try:
             with get_connection() as conn:
                 tables = db.get_tables(conn)
-                if Table.FX.value not in tables:
+                if Table.FX not in tables:
                     logger.debug("FX table does not exist")
                     return None
 
-                query = f'SELECT MAX("{Column.FX.DATE.value}") FROM "{Table.FX.value}"'
+                query = f'SELECT MAX("{Column.FX.DATE}") FROM "{Table.FX}"'
                 result = conn.execute(query).fetchone()
                 if result and result[0]:
                     logger.debug("Latest FX date in database: %s", result[0])
@@ -68,27 +68,27 @@ class ForexService:
         try:
             with get_connection() as conn:
                 tables = db.get_tables(conn)
-                if Table.FX.value not in tables:  # pragma: no cover
+                if Table.FX not in tables:  # pragma: no cover
                     logger.debug("FX table does not exist")
                     return pd.DataFrame()
 
                 if start_date:
                     query = f"""
-                    SELECT "{Column.FX.DATE.value}",
-                           "{Column.FX.FXUSDCAD.value}",
-                           "{Column.FX.FXCADUSD.value}"
-                    FROM "{Table.FX.value}"
-                    WHERE "{Column.FX.DATE.value}" >= ?
-                    ORDER BY "{Column.FX.DATE.value}"
+                    SELECT "{Column.FX.DATE}",
+                           "{Column.FX.FXUSDCAD}",
+                           "{Column.FX.FXCADUSD}"
+                    FROM "{Table.FX}"
+                    WHERE "{Column.FX.DATE}" >= ?
+                    ORDER BY "{Column.FX.DATE}"
                     """
                     df = pd.read_sql_query(query, conn, params=[start_date])
                 else:
                     query = f"""
-                    SELECT "{Column.FX.DATE.value}",
-                           "{Column.FX.FXUSDCAD.value}",
-                           "{Column.FX.FXCADUSD.value}"
-                    FROM "{Table.FX.value}"
-                    ORDER BY "{Column.FX.DATE.value}"
+                    SELECT "{Column.FX.DATE}",
+                           "{Column.FX.FXUSDCAD}",
+                           "{Column.FX.FXCADUSD}"
+                    FROM "{Table.FX}"
+                    ORDER BY "{Column.FX.DATE}"
                     """
                     df = pd.read_sql_query(query, conn)
 
@@ -148,10 +148,10 @@ class ForexService:
 
         rolling_backup(get_config().db_path)
         with get_connection() as conn:
-            if db.get_tables(conn).count(Table.FX.value) == 0:
+            if db.get_tables(conn).count(Table.FX) == 0:
                 schema_manager.create_fx_table()
             rows_inserted = fx_df.to_sql(
-                Table.FX.value,
+                Table.FX,
                 conn,
                 if_exists="append",
                 index=False,
@@ -236,22 +236,22 @@ class ForexService:
 
         fx_df = raw_df[[date_col, usdcad_col]].copy()
         fx_df = fx_df.dropna()
-        fx_df.columns = [Column.FX.DATE.value, Column.FX.FXUSDCAD.value]
+        fx_df.columns = [Column.FX.DATE, Column.FX.FXUSDCAD]
 
         # Ensure date format is YYYY-MM-DD
-        fx_df[Column.FX.DATE.value] = pd.to_datetime(
-            fx_df[Column.FX.DATE.value],
+        fx_df[Column.FX.DATE] = pd.to_datetime(
+            fx_df[Column.FX.DATE],
         ).dt.strftime("%Y-%m-%d")
 
         # Calculate inverse rate (CAD to USD)
-        fx_df[Column.FX.FXCADUSD.value] = 1.0 / fx_df[Column.FX.FXUSDCAD.value].astype(
+        fx_df[Column.FX.FXCADUSD] = 1.0 / fx_df[Column.FX.FXUSDCAD].astype(
             float,
         )
 
-        fx_df[Column.FX.FXUSDCAD.value] = fx_df[Column.FX.FXUSDCAD.value].round(10)
-        fx_df[Column.FX.FXCADUSD.value] = fx_df[Column.FX.FXCADUSD.value].round(10)
+        fx_df[Column.FX.FXUSDCAD] = fx_df[Column.FX.FXUSDCAD].round(10)
+        fx_df[Column.FX.FXCADUSD] = fx_df[Column.FX.FXCADUSD].round(10)
 
-        fx_df = fx_df.sort_values(Column.FX.DATE.value).reset_index(drop=True)
+        fx_df = fx_df.sort_values(Column.FX.DATE).reset_index(drop=True)
 
         logger.debug("Processed %d FX records from API", len(fx_df))
         return fx_df
@@ -266,13 +266,13 @@ class ForexService:
         try:
             with get_connection() as conn:
                 tables = db.get_tables(conn)
-                if Table.TXNS.value not in tables:
+                if Table.TXNS not in tables:
                     logger.debug("Txns table does not exist")
                     return None
 
                 query = (
-                    f'SELECT MIN("{Column.Txn.TXN_DATE.value}") '
-                    f'FROM "{Table.TXNS.value}"'
+                    f'SELECT MIN("{Column.Txn.TXN_DATE}") '
+                    f'FROM "{Table.TXNS}"'
                 )
                 result = conn.execute(query).fetchone()
                 if result and result[0]:

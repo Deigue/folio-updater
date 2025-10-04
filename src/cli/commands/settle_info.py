@@ -20,8 +20,8 @@ def settlement_info() -> None:
             # Get total number of transactions with calculated settlement dates
             calculated_query = f"""
             SELECT COUNT(*) as count
-            FROM "{Table.TXNS.value}"
-            WHERE "{Column.Txn.SETTLE_CALCULATED.value}" = 1
+            FROM "{Table.TXNS}"
+            WHERE "{Column.Txn.SETTLE_CALCULATED}" = 1
             """
 
             cursor = conn.execute(calculated_query)
@@ -30,7 +30,7 @@ def settlement_info() -> None:
             # Get total number of transactions
             total_query = f"""
             SELECT COUNT(*) as count
-            FROM "{Table.TXNS.value}"
+            FROM "{Table.TXNS}"
             """
 
             cursor = conn.execute(total_query)
@@ -47,18 +47,18 @@ def settlement_info() -> None:
                 # Get list of transactions with calculated settlement dates
                 list_query = f"""
                 SELECT
-                    "{Column.Txn.TXN_ID.value}",
-                    "{Column.Txn.TXN_DATE.value}",
-                    "{Column.Txn.ACTION.value}",
-                    "{Column.Txn.TICKER.value}",
-                    "{Column.Txn.AMOUNT.value}",
-                    "{Column.Txn.CURRENCY.value}",
-                    "{Column.Txn.SETTLE_DATE.value}",
-                    "{Column.Txn.ACCOUNT.value}"
-                FROM "{Table.TXNS.value}"
-                WHERE "{Column.Txn.SETTLE_CALCULATED.value}" = 1
-                ORDER BY "{Column.Txn.TXN_DATE.value}" DESC,
-                         "{Column.Txn.TXN_ID.value}" DESC
+                    "{Column.Txn.TXN_ID}",
+                    "{Column.Txn.TXN_DATE}",
+                    "{Column.Txn.ACTION}",
+                    "{Column.Txn.TICKER}",
+                    "{Column.Txn.AMOUNT}",
+                    "{Column.Txn.CURRENCY}",
+                    "{Column.Txn.SETTLE_DATE}",
+                    "{Column.Txn.ACCOUNT}"
+                FROM "{Table.TXNS}"
+                WHERE "{Column.Txn.SETTLE_CALCULATED}" = 1
+                ORDER BY "{Column.Txn.TXN_DATE}" DESC,
+                         "{Column.Txn.TXN_ID}" DESC
                 """
 
                 cursor = conn.execute(list_query)

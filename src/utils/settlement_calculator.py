@@ -67,13 +67,13 @@ class SettlementCalculator:
             return df
 
         # Initialize columns if they don't exist
-        if Column.Txn.SETTLE_DATE.value not in df.columns:
-            df[Column.Txn.SETTLE_DATE.value] = pd.NA
-        if Column.Txn.SETTLE_CALCULATED.value not in df.columns:
-            df[Column.Txn.SETTLE_CALCULATED.value] = 0
+        if Column.Txn.SETTLE_DATE not in df.columns:
+            df[Column.Txn.SETTLE_DATE] = pd.NA
+        if Column.Txn.SETTLE_CALCULATED not in df.columns:
+            df[Column.Txn.SETTLE_CALCULATED] = 0
 
-        min_date = df[Column.Txn.TXN_DATE.value].min()
-        max_date = df[Column.Txn.TXN_DATE.value].max()
+        min_date = df[Column.Txn.TXN_DATE].min()
+        max_date = df[Column.Txn.TXN_DATE].max()
         if pd.isna(min_date) or pd.isna(max_date):
             return df
 
@@ -86,21 +86,21 @@ class SettlementCalculator:
         cad_schedule = self._get_calendar_schedule(Currency.CAD, start_ts, end_ts)
 
         # Process by currency for cache efficiency
-        unique_currency_values = df[Column.Txn.CURRENCY.value].dropna().unique()
+        unique_currency_values = df[Column.Txn.CURRENCY].dropna().unique()
         for currency_str in unique_currency_values:
             try:
                 currency = Currency(currency_str)
             except ValueError:
                 # Non-standard currency - fallback to simple business day logic
-                currency_mask = df[Column.Txn.CURRENCY.value] == currency_str
-                df.loc[currency_mask, Column.Txn.SETTLE_DATE.value] = df.loc[
+                currency_mask = df[Column.Txn.CURRENCY] == currency_str
+                df.loc[currency_mask, Column.Txn.SETTLE_DATE] = df.loc[
                     currency_mask,
-                    Column.Txn.TXN_DATE.value,
+                    Column.Txn.TXN_DATE,
                 ]
-                df.loc[currency_mask, Column.Txn.SETTLE_CALCULATED.value] = 1
+                df.loc[currency_mask, Column.Txn.SETTLE_CALCULATED] = 1
                 continue
 
-            currency_mask = df[Column.Txn.CURRENCY.value] == currency.value
+            currency_mask = df[Column.Txn.CURRENCY] == currency.value
             if not currency_mask.any():
                 continue
 
@@ -181,16 +181,16 @@ class SettlementCalculator:
             schedule: Pre-loaded calendar schedule
         """
         # Check if we already have a valid settlement date
-        existing_settle_date = df.loc[idx, Column.Txn.SETTLE_DATE.value]
+        existing_settle_date = df.loc[idx, Column.Txn.SETTLE_DATE]
         if pd.notna(existing_settle_date) and self._is_valid_date(
             str(existing_settle_date),
         ):
-            df.loc[idx, Column.Txn.SETTLE_CALCULATED.value] = 0
+            df.loc[idx, Column.Txn.SETTLE_CALCULATED] = 0
             return
 
         # Get transaction data (already validated by formatter)
-        txn_date_str = df.loc[idx, Column.Txn.TXN_DATE.value]
-        action_str = df.loc[idx, Column.Txn.ACTION.value]
+        txn_date_str = df.loc[idx, Column.Txn.TXN_DATE]
+        action_str = df.loc[idx, Column.Txn.ACTION]
 
         # Convert to objects we need (no try/except needed - data is pre-validated)
         txn_date = self._get_date_from_string(str(txn_date_str))
@@ -207,8 +207,8 @@ class SettlementCalculator:
                 schedule,
             )
 
-        df.loc[idx, Column.Txn.SETTLE_DATE.value] = settle_date
-        df.loc[idx, Column.Txn.SETTLE_CALCULATED.value] = 1
+        df.loc[idx, Column.Txn.SETTLE_DATE] = settle_date
+        df.loc[idx, Column.Txn.SETTLE_CALCULATED] = 1
 
     def _calculate_with_preloaded_schedule(
         self,

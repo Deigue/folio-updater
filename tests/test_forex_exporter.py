@@ -26,14 +26,14 @@ def test_export_full_with_existing_data(
         schema_manager.create_fx_table()
         fx_data = pd.DataFrame(
             {
-                Column.FX.DATE.value: ["2022-01-03", "2022-01-04", "2022-01-05"],
-                Column.FX.FXUSDCAD.value: [1.2635, 1.2658, 1.2701],
-                Column.FX.FXCADUSD.value: [1 / 1.2635, 1 / 1.2658, 1 / 1.2701],
+                Column.FX.DATE: ["2022-01-03", "2022-01-04", "2022-01-05"],
+                Column.FX.FXUSDCAD: [1.2635, 1.2658, 1.2701],
+                Column.FX.FXCADUSD: [1 / 1.2635, 1 / 1.2658, 1 / 1.2701],
             },
         )
 
         with db.get_connection() as conn:
-            fx_data.to_sql(Table.FX.value, conn, if_exists="append", index=False)
+            fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
         # Mock API call to return empty (no new data needed)
         with patch.object(
@@ -54,9 +54,9 @@ def test_export_full_with_missing_data(
     with temp_config():
         mock_fx_data = pd.DataFrame(
             {
-                Column.FX.DATE.value: ["2022-01-03", "2022-01-04"],
-                Column.FX.FXUSDCAD.value: [1.2635, 1.2658],
-                Column.FX.FXCADUSD.value: [1 / 1.2635, 1 / 1.2658],
+                Column.FX.DATE: ["2022-01-03", "2022-01-04"],
+                Column.FX.FXUSDCAD: [1.2635, 1.2658],
+                Column.FX.FXCADUSD: [1 / 1.2635, 1 / 1.2658],
             },
         )
 
@@ -70,9 +70,9 @@ def test_export_full_with_missing_data(
 
             # Check that the data was inserted into the DB
             with db.get_connection() as conn:
-                df = db.get_rows(conn, Table.FX.value)
+                df = db.get_rows(conn, Table.FX)
                 assert len(df) == len(mock_fx_data)
-                assert set(df[Column.FX.DATE.value]) == {"2022-01-03", "2022-01-04"}
+                assert set(df[Column.FX.DATE]) == {"2022-01-03", "2022-01-04"}
             assert result == len(mock_fx_data)  # Expected 2 records exported
 
 
@@ -84,9 +84,9 @@ def test_export_update(
         schema_manager.create_fx_table()
         fx_data = pd.DataFrame(
             {
-                Column.FX.DATE.value: ["2022-01-01", "2022-01-02", "2022-01-03"],
-                Column.FX.FXUSDCAD.value: [1.25, 1.26, 1.27],
-                Column.FX.FXCADUSD.value: [1 / 1.25, 1 / 1.26, 1 / 1.27],
+                Column.FX.DATE: ["2022-01-01", "2022-01-02", "2022-01-03"],
+                Column.FX.FXUSDCAD: [1.25, 1.26, 1.27],
+                Column.FX.FXCADUSD: [1 / 1.25, 1 / 1.26, 1 / 1.27],
             },
         )
         # Create minimal folio Excel file required by the app
@@ -95,14 +95,14 @@ def test_export_update(
             fx_data.to_excel(writer, index=False, sheet_name=ctx.config.forex_sheet())
 
         with db.get_connection() as conn:
-            fx_data.to_sql(Table.FX.value, conn, if_exists="append", index=False)
+            fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
         # Patch API to return only new data
         new_fx_data = pd.DataFrame(
             {
-                Column.FX.DATE.value: ["2022-01-04", "2022-01-05"],
-                Column.FX.FXUSDCAD.value: [1.28, 1.29],
-                Column.FX.FXCADUSD.value: [1 / 1.28, 1 / 1.29],
+                Column.FX.DATE: ["2022-01-04", "2022-01-05"],
+                Column.FX.FXUSDCAD: [1.28, 1.29],
+                Column.FX.FXCADUSD: [1 / 1.28, 1 / 1.29],
             },
         )
         with patch.object(
@@ -116,7 +116,7 @@ def test_export_update(
             # Should append only the new rows to the Excel file
             fx_sheet = pd.read_excel(folio_path, sheet_name=ctx.config.forex_sheet())
             assert len(fx_sheet) == len(fx_data) + len(new_fx_data)
-            assert set(fx_sheet[Column.FX.DATE.value]) == {
+            assert set(fx_sheet[Column.FX.DATE]) == {
                 "2022-01-01",
                 "2022-01-02",
                 "2022-01-03",
@@ -141,8 +141,8 @@ def test_export_full_real_api(
             )
             pd.DataFrame(
                 {
-                    Column.Txn.TICKER.value: ["MOCK"],
-                    Column.Txn.TXN_DATE.value: [
+                    Column.Txn.TICKER: ["MOCK"],
+                    Column.Txn.TXN_DATE: [
                         (datetime.now(TORONTO_TZ) - timedelta(days=60)).strftime(
                             "%Y-%m-%d",
                         ),
@@ -158,7 +158,7 @@ def test_export_full_real_api(
         fx_sheet = pd.read_excel(folio_path, sheet_name=ctx.config.forex_sheet())
         assert len(fx_sheet) >= 40  # noqa: PLR2004
         # Ensure all FX dates are within the expected range (tz-aware)
-        fx_dates = pd.to_datetime(fx_sheet[Column.FX.DATE.value])
+        fx_dates = pd.to_datetime(fx_sheet[Column.FX.DATE])
         fx_dates = fx_dates.dt.tz_localize(
             TORONTO_TZ,
             ambiguous="NaT",
@@ -184,9 +184,9 @@ def test_export_update_real_api(
         ]
         fx_data = pd.DataFrame(
             {
-                Column.FX.DATE.value: fx_dates,
-                Column.FX.FXUSDCAD.value: [1.25 + 0.01 * i for i in range(10)],
-                Column.FX.FXCADUSD.value: [1 / (1.25 + 0.01 * i) for i in range(10)],
+                Column.FX.DATE: fx_dates,
+                Column.FX.FXUSDCAD: [1.25 + 0.01 * i for i in range(10)],
+                Column.FX.FXCADUSD: [1 / (1.25 + 0.01 * i) for i in range(10)],
             },
         )
         folio_path = ctx.config.folio_path
@@ -194,14 +194,14 @@ def test_export_update_real_api(
         with pd.ExcelWriter(folio_path, engine="openpyxl") as writer:
             pd.DataFrame(
                 {
-                    Column.Txn.TICKER.value: ["MOCK"],
-                    Column.Txn.TXN_DATE.value: [fx_dates[0]],
+                    Column.Txn.TICKER: ["MOCK"],
+                    Column.Txn.TXN_DATE: [fx_dates[0]],
                 },
             ).to_excel(writer, index=False, sheet_name=ctx.config.transactions_sheet())
             fx_data.to_excel(writer, index=False, sheet_name=ctx.config.forex_sheet())
 
         with db.get_connection() as conn:
-            fx_data.to_sql(Table.FX.value, conn, if_exists="append", index=False)
+            fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
         exporter = ForexExporter()
         result = exporter.export_update()
@@ -210,8 +210,8 @@ def test_export_update_real_api(
             sheet_name=ctx.config.forex_sheet(),
         )
         assert len(fx_sheet) > len(fx_data)
-        assert set(fx_dates).issubset(set(fx_sheet[Column.FX.DATE.value]))
-        fx_dates_all = pd.to_datetime(fx_sheet[Column.FX.DATE.value])
+        assert set(fx_dates).issubset(set(fx_sheet[Column.FX.DATE]))
+        fx_dates_all = pd.to_datetime(fx_sheet[Column.FX.DATE])
         fx_dates_all = fx_dates_all.dt.tz_localize(
             TORONTO_TZ,
             ambiguous="NaT",

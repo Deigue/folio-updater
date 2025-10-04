@@ -143,7 +143,7 @@ class TransformsConfig:
         match_fields = group_config.get("match_fields", [])
         source_actions = group_config.get("source_actions", [])
         target_action = group_config.get("target_action", "")
-        amount_field = group_config.get("amount_field", Column.Txn.AMOUNT.value)
+        amount_field = group_config.get("amount_field", Column.Txn.AMOUNT)
         operations = group_config.get("operations", {})
 
         # Validate required fields (need at least 2 source actions to merge)

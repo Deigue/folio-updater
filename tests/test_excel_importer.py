@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
 import pandas as pd
 import pytest
@@ -89,7 +89,7 @@ def test_import_transactions_formatting(
 
         # Each row represents a specific test scenario
         test_data = {
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2023-01-01",  # Good case - all columns perfect
                 "01/02/2023",  # Auto-formatted date (MM/DD/YYYY -> YYYY-MM-DD)
                 "2023-01-03T10:30:45Z",  # ISO 8601 format with timezone
@@ -113,7 +113,7 @@ def test_import_transactions_formatting(
                 "2023-01-20",  # Multiple invalid: empty amount, invalid price/units
                 "2023-01-21",  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.ACTION.value: [
+            Column.Txn.ACTION: [
                 "BUY",  # Good case
                 "SELL",  # Good case
                 "DIVIDEND",  # New action type - dividend payment
@@ -137,7 +137,7 @@ def test_import_transactions_formatting(
                 "BUY",  # Multiple invalid: empty amount, invalid price/units
                 "INVALID_ACTION",  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.AMOUNT.value: [
+            Column.Txn.AMOUNT: [
                 1000.0,  # Good case
                 2000.0,  # Good case
                 1500.0,  # Good case
@@ -161,7 +161,7 @@ def test_import_transactions_formatting(
                 "",  # Multiple invalid: empty amount, invalid price/units
                 1000.0,  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.CURRENCY.value: [
+            Column.Txn.CURRENCY: [
                 "USD",  # Good case
                 "USD",  # Good case
                 "USD",  # Good case
@@ -185,7 +185,7 @@ def test_import_transactions_formatting(
                 "USD",  # Multiple invalid: empty amount, invalid price/units
                 None,  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.PRICE.value: [
+            Column.Txn.PRICE: [
                 100.0,  # Good case
                 200.0,  # Good case
                 150.0,  # Good case
@@ -209,7 +209,7 @@ def test_import_transactions_formatting(
                 "INVALID_PRICE",  # Multiple invalid: empty amount, invalid price/units
                 100.0,  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.UNITS.value: [
+            Column.Txn.UNITS: [
                 10.0,  # Good case
                 10.0,  # Good case
                 10.0,  # Good case
@@ -233,7 +233,7 @@ def test_import_transactions_formatting(
                 "INVALID_UNITS",  # Multiple invalid: empty amount, invalid price/units
                 10.0,  # Multiple invalid: no currency, bad ticker/action
             ],
-            Column.Txn.TICKER.value: [
+            Column.Txn.TICKER: [
                 "AAPL",  # Good case
                 "MSFT",  # Good case
                 "aapl",  # Lowercase ticker - should be uppercased
@@ -272,80 +272,80 @@ def test_import_transactions_formatting(
         expected_rows = [
             # Row 0: Good case - all columns perfect
             {
-                Column.Txn.TXN_DATE.value: "2023-01-01",
-                Column.Txn.ACTION.value: "BUY",
-                Column.Txn.AMOUNT.value: 1000.0,
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 100.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: "AAPL",
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-01",
+                Column.Txn.ACTION: "BUY",
+                Column.Txn.AMOUNT: 1000.0,
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 100.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: "AAPL",
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 1: Auto-formatted date
             {
-                Column.Txn.TXN_DATE.value: "2023-01-02",
-                Column.Txn.ACTION.value: "SELL",
-                Column.Txn.AMOUNT.value: 2000.0,
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 200.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: "MSFT",
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-02",
+                Column.Txn.ACTION: "SELL",
+                Column.Txn.AMOUNT: 2000.0,
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 200.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: "MSFT",
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 2: ISO 8601 date format, DIVIDEND action, ticker case formatting
             {
-                Column.Txn.TXN_DATE.value: "2023-01-03",
-                Column.Txn.ACTION.value: "DIVIDEND",
-                Column.Txn.AMOUNT.value: 1500.0,
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 150.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: "AAPL",  # Uppercased from "aapl"
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-03",
+                Column.Txn.ACTION: "DIVIDEND",
+                Column.Txn.AMOUNT: 1500.0,
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 150.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: "AAPL",  # Uppercased from "aapl"
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 7: Action abbreviation (DIV -> DIVIDEND)
             {
-                Column.Txn.TXN_DATE.value: "2023-01-07",
-                Column.Txn.ACTION.value: "DIVIDEND",  # Normalized from "DIV"
-                Column.Txn.AMOUNT.value: 1000.0,  # Normalized from "$1,000.00"
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 100.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: "NFLX",
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-07",
+                Column.Txn.ACTION: "DIVIDEND",  # Normalized from "DIV"
+                Column.Txn.AMOUNT: 1000.0,  # Normalized from "$1,000.00"
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 100.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: "NFLX",
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 12: ISO format with ms, CONTRIBUTION, alternative currency format
             {
-                Column.Txn.TXN_DATE.value: "2023-01-12",
-                Column.Txn.ACTION.value: "CONTRIBUTION",
-                Column.Txn.AMOUNT.value: 1000.0,
-                Column.Txn.CURRENCY.value: "USD",  # Normalized from "US$"
-                Column.Txn.PRICE.value: 100.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: "PYPL",
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-12",
+                Column.Txn.ACTION: "CONTRIBUTION",
+                Column.Txn.AMOUNT: 1000.0,
+                Column.Txn.CURRENCY: "USD",  # Normalized from "US$"
+                Column.Txn.PRICE: 100.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: "PYPL",
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 17: Empty ticker with WITHDRAWAL action
             {
-                Column.Txn.TXN_DATE.value: "2023-01-17",
-                Column.Txn.ACTION.value: "WITHDRAWAL",
-                Column.Txn.AMOUNT.value: 1000.0,
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 100.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: pd.NA,  # Empty ticker becomes NULL
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-17",
+                Column.Txn.ACTION: "WITHDRAWAL",
+                Column.Txn.AMOUNT: 1000.0,
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 100.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: pd.NA,  # Empty ticker becomes NULL
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
             # Row 18: NULL ticker with CONTRIBUTION action
             {
-                Column.Txn.TXN_DATE.value: "2023-01-18",
-                Column.Txn.ACTION.value: "CONTRIBUTION",
-                Column.Txn.AMOUNT.value: 1000.0,
-                Column.Txn.CURRENCY.value: "USD",
-                Column.Txn.PRICE.value: 100.0,
-                Column.Txn.UNITS.value: 10.0,
-                Column.Txn.TICKER.value: pd.NA,  # NULL ticker stays NULL
-                Column.Txn.ACCOUNT.value: "TEST-ACCOUNT",
+                Column.Txn.TXN_DATE: "2023-01-18",
+                Column.Txn.ACTION: "CONTRIBUTION",
+                Column.Txn.AMOUNT: 1000.0,
+                Column.Txn.CURRENCY: "USD",
+                Column.Txn.PRICE: 100.0,
+                Column.Txn.UNITS: 10.0,
+                Column.Txn.TICKER: pd.NA,  # NULL ticker stays NULL
+                Column.Txn.ACCOUNT: "TEST-ACCOUNT",
             },
         ]
 
@@ -384,22 +384,22 @@ def test_import_transactions_ignore_columns(
         temp_path = config.folio_path.parent / "temp_ignore_columns.xlsx"
 
         test_data = {
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2025-02-05T20:29:41.785270Z",
                 "2025-02-07 00:00:00",
                 "2025-02-08",
             ],
-            Column.Txn.ACTION.value: [
+            Column.Txn.ACTION: [
                 "BUY",
                 "DIVIDEND",
                 "CONTRIBUTION",
             ],
-            Column.Txn.AMOUNT.value: [1000.0, 50.0, 2000.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD", "CAD"],
-            Column.Txn.PRICE.value: [100.0, 0.0, 200.0],
-            Column.Txn.UNITS.value: [10.0, 0.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "AAPL", "SHOP"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT", "TEST-ACCOUNT"],
+            Column.Txn.AMOUNT: [1000.0, 50.0, 2000.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "CAD"],
+            Column.Txn.PRICE: [100.0, 0.0, 200.0],
+            Column.Txn.UNITS: [10.0, 0.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "AAPL", "SHOP"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT", "TEST-ACCOUNT"],
             "IgnoreMe": ["This", "Should", "Not"],  # Should be ignored
             "AlsoIgnore": ["Be", "In", "DB"],  # Should be ignored
             "KeepThis": ["But", "This", "Should"],  # Should be kept
@@ -411,14 +411,14 @@ def test_import_transactions_ignore_columns(
         import_transactions(temp_path, None, txn_sheet)
         expected_df = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: ["2025-02-05", "2025-02-07", "2025-02-08"],
-                Column.Txn.ACTION.value: ["BUY", "DIVIDEND", "CONTRIBUTION"],
-                Column.Txn.AMOUNT.value: [1000.0, 50.0, 2000.0],
-                Column.Txn.CURRENCY.value: ["USD", "USD", "CAD"],
-                Column.Txn.PRICE.value: [100.0, 0.0, 200.0],
-                Column.Txn.UNITS.value: [10.0, 0.0, 10.0],
-                Column.Txn.TICKER.value: ["AAPL", "AAPL", "SHOP"],
-                Column.Txn.ACCOUNT.value: [
+                Column.Txn.TXN_DATE: ["2025-02-05", "2025-02-07", "2025-02-08"],
+                Column.Txn.ACTION: ["BUY", "DIVIDEND", "CONTRIBUTION"],
+                Column.Txn.AMOUNT: [1000.0, 50.0, 2000.0],
+                Column.Txn.CURRENCY: ["USD", "USD", "CAD"],
+                Column.Txn.PRICE: [100.0, 0.0, 200.0],
+                Column.Txn.UNITS: [10.0, 0.0, 10.0],
+                Column.Txn.TICKER: ["AAPL", "AAPL", "SHOP"],
+                Column.Txn.ACCOUNT: [
                     "TEST-ACCOUNT",
                     "TEST-ACCOUNT",
                     "TEST-ACCOUNT",
@@ -448,21 +448,21 @@ def test_import_account_fallback(
 
         # Create test data WITHOUT Account column
         test_data = {
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2025-03-01",
                 "2025-03-02",
                 "2025-03-03",
             ],
-            Column.Txn.ACTION.value: [
+            Column.Txn.ACTION: [
                 "BUY",
                 "SELL",
                 "DIVIDEND",
             ],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0, 0.0],
-            Column.Txn.UNITS.value: [10.0, 10.0, 0.0],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL"],
+            Column.Txn.AMOUNT: [1000.0, 2000.0, 500.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "USD"],
+            Column.Txn.PRICE: [100.0, 200.0, 0.0],
+            Column.Txn.UNITS: [10.0, 10.0, 0.0],
+            Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL"],
             # Note: NO Account column in this test data
         }
 
@@ -475,14 +475,14 @@ def test_import_account_fallback(
         import_transactions(temp_path, fallback_account, txn_sheet)
         expected_df = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: ["2025-03-01", "2025-03-02", "2025-03-03"],
-                Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND"],
-                Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0],
-                Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
-                Column.Txn.PRICE.value: [100.0, 200.0, 0.0],
-                Column.Txn.UNITS.value: [10.0, 10.0, 0.0],
-                Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL"],
-                Column.Txn.ACCOUNT.value: [fallback_account] * 3,
+                Column.Txn.TXN_DATE: ["2025-03-01", "2025-03-02", "2025-03-03"],
+                Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND"],
+                Column.Txn.AMOUNT: [1000.0, 2000.0, 500.0],
+                Column.Txn.CURRENCY: ["USD", "USD", "USD"],
+                Column.Txn.PRICE: [100.0, 200.0, 0.0],
+                Column.Txn.UNITS: [10.0, 10.0, 0.0],
+                Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL"],
+                Column.Txn.ACCOUNT: [fallback_account] * 3,
             },
         )
         verify_db_contents(expected_df)
@@ -501,13 +501,13 @@ def test_import_account_missing(
 
         # Create test data WITHOUT Account column
         test_data = {
-            Column.Txn.TXN_DATE.value: ["2025-03-01"],
-            Column.Txn.ACTION.value: ["BUY"],
-            Column.Txn.AMOUNT.value: [1000.0],
-            Column.Txn.CURRENCY.value: ["USD"],
-            Column.Txn.PRICE.value: [100.0],
-            Column.Txn.UNITS.value: [10.0],
-            Column.Txn.TICKER.value: ["AAPL"],
+            Column.Txn.TXN_DATE: ["2025-03-01"],
+            Column.Txn.ACTION: ["BUY"],
+            Column.Txn.AMOUNT: [1000.0],
+            Column.Txn.CURRENCY: ["USD"],
+            Column.Txn.PRICE: [100.0],
+            Column.Txn.UNITS: [10.0],
+            Column.Txn.TICKER: ["AAPL"],
             # Note: NO Account column in this test data
         }
 
@@ -532,20 +532,20 @@ def test_import_action_validation(
         ensure_folio_exists()
 
         test_data = {
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2023-05-17",  # FCH - should import (no Ticker required)
                 "2023-08-02",  # CONTRIBUTION - should import (no Ticker required)
                 "2023-09-08",  # DIVIDEND - should REJECT (missing required Ticker)
                 "2023-01-01",  # BUY - should import (has all required fields)
                 "2023-10-10",  # ROC - should REJECT (missing required Ticker)
             ],
-            Column.Txn.ACTION.value: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY", "ROC"],
-            Column.Txn.AMOUNT.value: [0.5, 500.0, 0.87, 1000.0, 500.0],
-            Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD", "USD", "CAD"],
-            Column.Txn.PRICE.value: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
-            Column.Txn.UNITS.value: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
-            Column.Txn.TICKER.value: [pd.NA, pd.NA, pd.NA, "AAPL", pd.NA],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+            Column.Txn.ACTION: ["FCH", "CONTRIBUTION", "DIVIDEND", "BUY", "ROC"],
+            Column.Txn.AMOUNT: [0.5, 500.0, 0.87, 1000.0, 500.0],
+            Column.Txn.CURRENCY: ["CAD", "CAD", "USD", "USD", "CAD"],
+            Column.Txn.PRICE: [pd.NA, pd.NA, pd.NA, 100.0, pd.NA],
+            Column.Txn.UNITS: [pd.NA, pd.NA, pd.NA, 10.0, pd.NA],
+            Column.Txn.TICKER: [pd.NA, pd.NA, pd.NA, "AAPL", pd.NA],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 5,
         }
 
         # Create Excel file with test data
@@ -561,22 +561,22 @@ def test_import_action_validation(
         # DIVIDEND and ROC should be rejected for missing required Ticker
         expected_df = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: [
+                Column.Txn.TXN_DATE: [
                     "2023-05-17",  # FCH
                     "2023-08-02",  # CONTRIBUTION
                     "2023-01-01",  # BUY
                 ],
-                Column.Txn.ACTION.value: [
+                Column.Txn.ACTION: [
                     "FCH",
                     "CONTRIBUTION",
                     "BUY",
                 ],
-                Column.Txn.AMOUNT.value: [0.5, 500.0, 1000.0],
-                Column.Txn.CURRENCY.value: ["CAD", "CAD", "USD"],
-                Column.Txn.PRICE.value: [pd.NA, pd.NA, 100.0],
-                Column.Txn.UNITS.value: [pd.NA, pd.NA, 10.0],
-                Column.Txn.TICKER.value: [pd.NA, pd.NA, "AAPL"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 3,
+                Column.Txn.AMOUNT: [0.5, 500.0, 1000.0],
+                Column.Txn.CURRENCY: ["CAD", "CAD", "USD"],
+                Column.Txn.PRICE: [pd.NA, pd.NA, 100.0],
+                Column.Txn.UNITS: [pd.NA, pd.NA, 10.0],
+                Column.Txn.TICKER: [pd.NA, pd.NA, "AAPL"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 3,
             },
         )
         verify_db_contents(expected_df)
@@ -591,14 +591,14 @@ def test_import_transactions_db_duplicate_approval(
 
         # First, import some initial transactions
         initial_data = {
-            Column.Txn.TXN_DATE.value: ["2024-01-01", "2024-01-02"],
-            Column.Txn.ACTION.value: ["BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0],
-            Column.Txn.UNITS.value: [10.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+            Column.Txn.TXN_DATE: ["2024-01-01", "2024-01-02"],
+            Column.Txn.ACTION: ["BUY", "SELL"],
+            Column.Txn.AMOUNT: [1000.0, 2000.0],
+            Column.Txn.CURRENCY: ["USD", "USD"],
+            Column.Txn.PRICE: [100.0, 200.0],
+            Column.Txn.UNITS: [10.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "MSFT"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
         }
 
         initial_df = pd.DataFrame(initial_data)
@@ -611,16 +611,16 @@ def test_import_transactions_db_duplicate_approval(
         assert initial_count == expected_initial_count
 
         # Now try to import duplicates without approval - should be rejected
-        duplicate_data = {
+        duplicate_data: dict[str, Any] = {
             # First is duplicate
-            Column.Txn.TXN_DATE.value: ["2024-01-01", "2024-01-03"],
-            Column.Txn.ACTION.value: ["BUY", "DIVIDEND"],
-            Column.Txn.AMOUNT.value: [1000.0, 500.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 0.0],
-            Column.Txn.UNITS.value: [10.0, 0.0],
-            Column.Txn.TICKER.value: ["AAPL", "AAPL"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+            Column.Txn.TXN_DATE: ["2024-01-01", "2024-01-03"],
+            Column.Txn.ACTION: ["BUY", "DIVIDEND"],
+            Column.Txn.AMOUNT: [1000.0, 500.0],
+            Column.Txn.CURRENCY: ["USD", "USD"],
+            Column.Txn.PRICE: [100.0, 0.0],
+            Column.Txn.UNITS: [10.0, 0.0],
+            Column.Txn.TICKER: ["AAPL", "AAPL"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
         }
 
         duplicate_df = pd.DataFrame(duplicate_data)
@@ -646,19 +646,19 @@ def test_import_transactions_db_duplicate_approval(
 
         # Verify final database contents
         expected_data = {
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2024-01-01",
                 "2024-01-02",
                 "2024-01-03",
                 "2024-01-01",
             ],
-            Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY"],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 500.0, 1000.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0, 0.0, 100.0],
-            Column.Txn.UNITS.value: [10.0, 10.0, 0.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "AAPL"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 4,
+            Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND", "BUY"],
+            Column.Txn.AMOUNT: [1000.0, 2000.0, 500.0, 1000.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "USD", "USD"],
+            Column.Txn.PRICE: [100.0, 200.0, 0.0, 100.0],
+            Column.Txn.UNITS: [10.0, 10.0, 0.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL", "AAPL"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 4,
         }
         expected_df = pd.DataFrame(expected_data)
         verify_db_contents(expected_df)
@@ -675,14 +675,14 @@ def test_import_transactions_intra_duplicate_approval(
         approval_column = config.duplicate_approval_column
         # First two are duplicates, second has approval
         test_data = {
-            Column.Txn.TXN_DATE.value: ["2024-02-01", "2024-02-01", "2024-02-02"],
-            Column.Txn.ACTION.value: ["BUY", "BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [1000.0, 1000.0, 2000.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 100.0, 200.0],
-            Column.Txn.UNITS.value: [10.0, 10.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "AAPL", "MSFT"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 3,
+            Column.Txn.TXN_DATE: ["2024-02-01", "2024-02-01", "2024-02-02"],
+            Column.Txn.ACTION: ["BUY", "BUY", "SELL"],
+            Column.Txn.AMOUNT: [1000.0, 1000.0, 2000.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "USD"],
+            Column.Txn.PRICE: [100.0, 100.0, 200.0],
+            Column.Txn.UNITS: [10.0, 10.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "AAPL", "MSFT"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 3,
             approval_column: ["", "OK", ""],
         }
 
@@ -697,14 +697,14 @@ def test_import_transactions_intra_duplicate_approval(
 
         # Verify database contents
         expected_data = {
-            Column.Txn.TXN_DATE.value: ["2024-02-01", "2024-02-02"],
-            Column.Txn.ACTION.value: ["BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0],
-            Column.Txn.UNITS.value: [10.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 2,
+            Column.Txn.TXN_DATE: ["2024-02-01", "2024-02-02"],
+            Column.Txn.ACTION: ["BUY", "SELL"],
+            Column.Txn.AMOUNT: [1000.0, 2000.0],
+            Column.Txn.CURRENCY: ["USD", "USD"],
+            Column.Txn.PRICE: [100.0, 200.0],
+            Column.Txn.UNITS: [10.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "MSFT"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 2,
         }
         expected_df = pd.DataFrame(expected_data)
         verify_db_contents(expected_df)
@@ -747,20 +747,20 @@ Notes:
         temp_path = config.folio_path.parent / "temp_optional_fields.xlsx"
         test_data = {
             # Essential fields - all valid
-            Column.Txn.TXN_DATE.value: [
+            Column.Txn.TXN_DATE: [
                 "2023-01-01",
                 "2023-01-02",
                 "2023-01-03",
                 "2023-01-04",
                 "2023-01-05",
             ],
-            Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
-            Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD", "USD"],
-            Column.Txn.PRICE.value: [100.0, 200.0, 15.0, 150.0, 80.0],
-            Column.Txn.UNITS.value: [10.0, 10.0, 10.0, 10.0, 10.0],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+            Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
+            Column.Txn.AMOUNT: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "USD", "USD", "USD"],
+            Column.Txn.PRICE: [100.0, 200.0, 15.0, 150.0, 80.0],
+            Column.Txn.UNITS: [10.0, 10.0, 10.0, 10.0, 10.0],
+            Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 5,
             # Optional fields with various formats and validity
             "Fees": [
                 "$5.95",  # Valid numeric with formatting -> 5.95
@@ -811,20 +811,20 @@ Notes:
         # Create expected DataFrame with properly formatted values
         expected_df = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: [
+                Column.Txn.TXN_DATE: [
                     "2023-01-01",
                     "2023-01-02",
                     "2023-01-03",
                     "2023-01-04",
                     "2023-01-05",
                 ],
-                Column.Txn.ACTION.value: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
-                Column.Txn.AMOUNT.value: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
-                Column.Txn.CURRENCY.value: ["USD", "USD", "USD", "USD", "USD"],
-                Column.Txn.PRICE.value: [100.0, 200.0, 15.0, 150.0, 80.0],
-                Column.Txn.UNITS.value: [10.0, 10.0, 10.0, 10.0, 10.0],
-                Column.Txn.TICKER.value: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"] * 5,
+                Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
+                Column.Txn.AMOUNT: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
+                Column.Txn.CURRENCY: ["USD", "USD", "USD", "USD", "USD"],
+                Column.Txn.PRICE: [100.0, 200.0, 15.0, 150.0, 80.0],
+                Column.Txn.UNITS: [10.0, 10.0, 10.0, 10.0, 10.0],
+                Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 5,
                 # Optional fields: valid values formatted, invalid values retained
                 # When read from database, mixed columns normalize to consistent types
                 "Fees": ["5.95", "INVALID", None, "10.50", None],
@@ -862,14 +862,14 @@ def test_import_transactions_no_optional_fields_required(
 
         # Test data with only essential fields (no optional fields)
         test_data = {
-            Column.Txn.TXN_DATE.value: ["2023-01-01"],
-            Column.Txn.ACTION.value: ["BUY"],
-            Column.Txn.AMOUNT.value: [1000.0],
-            Column.Txn.CURRENCY.value: ["USD"],
-            Column.Txn.PRICE.value: [100.0],
-            Column.Txn.UNITS.value: [10.0],
-            Column.Txn.TICKER.value: ["AAPL"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"],
+            Column.Txn.TXN_DATE: ["2023-01-01"],
+            Column.Txn.ACTION: ["BUY"],
+            Column.Txn.AMOUNT: [1000.0],
+            Column.Txn.CURRENCY: ["USD"],
+            Column.Txn.PRICE: [100.0],
+            Column.Txn.UNITS: [10.0],
+            Column.Txn.TICKER: ["AAPL"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"],
         }
 
         df = pd.DataFrame(test_data)
@@ -880,14 +880,14 @@ def test_import_transactions_no_optional_fields_required(
 
         expected_df = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: ["2023-01-01"],
-                Column.Txn.ACTION.value: ["BUY"],
-                Column.Txn.AMOUNT.value: [1000.0],
-                Column.Txn.CURRENCY.value: ["USD"],
-                Column.Txn.PRICE.value: [100.0],
-                Column.Txn.UNITS.value: [10.0],
-                Column.Txn.TICKER.value: ["AAPL"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT"],
+                Column.Txn.TXN_DATE: ["2023-01-01"],
+                Column.Txn.ACTION: ["BUY"],
+                Column.Txn.AMOUNT: [1000.0],
+                Column.Txn.CURRENCY: ["USD"],
+                Column.Txn.PRICE: [100.0],
+                Column.Txn.UNITS: [10.0],
+                Column.Txn.TICKER: ["AAPL"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"],
             },
         )
 
@@ -1024,7 +1024,7 @@ def _test_lesser_columns_import(config: Config, default_df: pd.DataFrame) -> Non
 
     # Pad df with missing columns that exist in the database
     with get_connection() as conn:
-        query = f'SELECT * FROM "{Table.TXNS.value}"'
+        query = f'SELECT * FROM "{Table.TXNS}"'
         table_df = pd.read_sql_query(query, conn)
         for col in table_df.columns:
             if col not in df.columns:

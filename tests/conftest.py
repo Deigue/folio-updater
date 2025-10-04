@@ -112,9 +112,9 @@ def mock_forex_data(request: pytest.FixtureRequest) -> Generator[None, Any, None
 
     mock_fx_data = pd.DataFrame(
         {
-            Column.FX.DATE.value: ["2022-01-01"],
-            Column.FX.FXUSDCAD.value: [1.25],
-            Column.FX.FXCADUSD.value: [0.8],
+            Column.FX.DATE: ["2022-01-01"],
+            Column.FX.FXUSDCAD: [1.25],
+            Column.FX.FXCADUSD: [0.8],
         },
     )
 

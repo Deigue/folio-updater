@@ -33,7 +33,7 @@ def _normalize_dataframes(
                 logger.warning("Could not convert column '%s' to float: %s", col, e)
 
     # Expected Data Formatters
-    if Column.Txn.TICKER.value in imported_df.columns:
+    if Column.Txn.TICKER in imported_df.columns:
         imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
 
     return imported_df, table_df
@@ -45,11 +45,11 @@ def _drop_calculated_columns(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Drop the calculated columns from the provided DataFrames."""
     imported_df = imported_df.drop(
-        columns=[Column.Txn.SETTLE_CALCULATED.value, Column.Txn.SETTLE_DATE.value],
+        columns=[Column.Txn.SETTLE_CALCULATED, Column.Txn.SETTLE_DATE],
         errors="ignore",
     )
     table_df = table_df.drop(
-        columns=[Column.Txn.SETTLE_CALCULATED.value, Column.Txn.SETTLE_DATE.value],
+        columns=[Column.Txn.SETTLE_CALCULATED, Column.Txn.SETTLE_DATE],
         errors="ignore",
     )
     return imported_df, table_df
@@ -58,7 +58,7 @@ def _drop_calculated_columns(
 def _verify_column_order(table_df: pd.DataFrame) -> None:
     """Verify that the database table has expected column ordering."""
     table_cols = list(table_df.columns)
-    expected_start = [Column.Txn.TXN_ID.value, *TXN_ESSENTIALS]
+    expected_start = [Column.Txn.TXN_ID, *TXN_ESSENTIALS]
     actual_start = table_cols[: len(expected_start)]
 
     if actual_start != expected_start:  # pragma: no cover
@@ -78,7 +78,7 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
     """
     imported_df = df.copy()
     with get_connection() as conn:
-        query = f'SELECT * FROM "{Table.TXNS.value}"'
+        query = f'SELECT * FROM "{Table.TXNS}"'
         table_df = pd.read_sql_query(query, conn)
 
         if last_n is not None:  # pragma: no branch
@@ -93,8 +93,8 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
 
         # Remove TxnId column from table_df for comparison since
         # it's auto-generated and not part of the input data
-        if Column.Txn.TXN_ID.value in table_df.columns:  # pragma: no branch
-            table_df = table_df.drop(columns=[Column.Txn.TXN_ID.value])
+        if Column.Txn.TXN_ID in table_df.columns:  # pragma: no branch
+            table_df = table_df.drop(columns=[Column.Txn.TXN_ID])
 
         # We don't compare calculated columns
         imported_df, table_df = _drop_calculated_columns(imported_df, table_df)

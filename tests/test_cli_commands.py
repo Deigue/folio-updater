@@ -82,7 +82,7 @@ class TestDemoCommand:
             assert config.folio_path.exists()
             assert config.db_path.exists()
             with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.TXNS.value)
+                count = db.get_row_count(conn, Table.TXNS)
                 assert count > 0
 
 
@@ -112,14 +112,14 @@ class TestFXCommand:
 
             # Drop the FX rates table to force fresh fetch
             with db.get_connection() as conn:
-                conn.execute(f"DROP TABLE IF EXISTS {Table.FX.value}")
+                conn.execute(f"DROP TABLE IF EXISTS {Table.FX}")
                 conn.commit()
 
             result = run_cli_with_config(config, cli_app, ["getfx"])
             assert result.exit_code == 0
             assert "Successfully updated" in result.stdout
             with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.FX.value)
+                count = db.get_row_count(conn, Table.FX)
                 assert count > 0
 
 
@@ -143,14 +143,14 @@ class TestImportCommand:
         units1 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
         units2 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
         test_data = {
-            Column.Txn.TXN_DATE.value: [date1, date2],
-            Column.Txn.ACTION.value: ["BUY", "SELL"],
-            Column.Txn.AMOUNT.value: [price1 * units1, price2 * units2],
-            Column.Txn.CURRENCY.value: ["USD", "USD"],
-            Column.Txn.PRICE.value: [price1, price2],
-            Column.Txn.UNITS.value: [units1, units2],
-            Column.Txn.TICKER.value: ["AAPL", "MSFT"],
-            Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+            Column.Txn.TXN_DATE: [date1, date2],
+            Column.Txn.ACTION: ["BUY", "SELL"],
+            Column.Txn.AMOUNT: [price1 * units1, price2 * units2],
+            Column.Txn.CURRENCY: ["USD", "USD"],
+            Column.Txn.PRICE: [price1, price2],
+            Column.Txn.UNITS: [units1, units2],
+            Column.Txn.TICKER: ["AAPL", "MSFT"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
         }
 
         df = pd.DataFrame(test_data)
@@ -183,7 +183,7 @@ class TestImportCommand:
 
             # Verify data was imported to database
             with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.TXNS.value)
+                count = db.get_row_count(conn, Table.TXNS)
                 assert count == EXPECTED_TRANSACTION_COUNT
 
     def test_import_command_missing_folio(
@@ -286,7 +286,7 @@ class TestSettleInfoCommand:
         with temp_config():
             ensure_folio_exists()
             with db.get_connection() as conn:
-                txn_count = db.get_row_count(conn, Table.TXNS.value)
+                txn_count = db.get_row_count(conn, Table.TXNS)
             result = runner.invoke(cli_app, ["settle-info"])
             assert f"Calculated settlement dates: {txn_count}" in result.stdout
             assert result.exit_code == 0

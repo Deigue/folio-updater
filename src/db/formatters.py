@@ -30,61 +30,61 @@ class ActionValidationRules:
     # Action-specific validation rules
     RULES: ClassVar[dict[Action, dict[str, list[str]]]] = {
         Action.CONTRIBUTION: {
-            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
             ],
         },
         Action.FXT: {
             "required_fields": [
-                Column.Txn.AMOUNT.value,
-                Column.Txn.ACCOUNT.value,
-                Column.Txn.CURRENCY.value,
+                Column.Txn.AMOUNT,
+                Column.Txn.ACCOUNT,
+                Column.Txn.CURRENCY,
             ],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
             ],
         },
         Action.DIVIDEND: {
             "required_fields": [
-                Column.Txn.AMOUNT.value,
-                Column.Txn.ACCOUNT.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.AMOUNT,
+                Column.Txn.ACCOUNT,
+                Column.Txn.TICKER,
             ],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
             ],
         },
         Action.FCH: {
-            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
             ],
         },
         Action.WITHDRAWAL: {
-            "required_fields": [Column.Txn.AMOUNT.value, Column.Txn.ACCOUNT.value],
+            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
             ],
         },
         Action.ROC: {
             "required_fields": [
-                Column.Txn.AMOUNT.value,
-                Column.Txn.ACCOUNT.value,
-                Column.Txn.TICKER.value,
+                Column.Txn.AMOUNT,
+                Column.Txn.ACCOUNT,
+                Column.Txn.TICKER,
             ],
             "optional_fields": [
-                Column.Txn.PRICE.value,
-                Column.Txn.UNITS.value,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
             ],
         },
     }
@@ -92,10 +92,10 @@ class ActionValidationRules:
     # Default rule for actions that require all fields (BUY, SELL, etc.)
     DEFAULT: ClassVar[dict[str, list[str]]] = {
         "required_fields": [
-            Column.Txn.AMOUNT.value,
-            Column.Txn.PRICE.value,
-            Column.Txn.UNITS.value,
-            Column.Txn.TICKER.value,
+            Column.Txn.AMOUNT,
+            Column.Txn.PRICE,
+            Column.Txn.UNITS,
+            Column.Txn.TICKER,
         ],
         "optional_fields": [],
     }
@@ -226,12 +226,12 @@ class TransactionFormatter:
         Handles both required transaction date and optional date fields.
         """
         # Format required transaction date
-        if Column.Txn.TXN_DATE.value in self.formatted_df.columns:  # pragma: no cover
-            self._format_date_column(Column.Txn.TXN_DATE.value, required=True)
+        if Column.Txn.TXN_DATE in self.formatted_df.columns:  # pragma: no cover
+            self._format_date_column(Column.Txn.TXN_DATE, required=True)
 
         # Format settlement date (internal field, not required)
-        if Column.Txn.SETTLE_DATE.value in self.formatted_df.columns:
-            self._format_date_column(Column.Txn.SETTLE_DATE.value, required=False)
+        if Column.Txn.SETTLE_DATE in self.formatted_df.columns:
+            self._format_date_column(Column.Txn.SETTLE_DATE, required=False)
 
         # Format optional date fields
         if self.config.optional_fields:
@@ -300,8 +300,8 @@ class TransactionFormatter:
         Handles both required transaction action and optional action fields.
         """
         # Format required transaction action
-        if Column.Txn.ACTION.value in self.formatted_df.columns:  # pragma: no cover
-            self._format_action_column(Column.Txn.ACTION.value, required=True)
+        if Column.Txn.ACTION in self.formatted_df.columns:  # pragma: no cover
+            self._format_action_column(Column.Txn.ACTION, required=True)
 
         # Format optional action fields
         if self.config.optional_fields:
@@ -384,8 +384,8 @@ class TransactionFormatter:
         Handles both required transaction currency and optional currency fields.
         """
         # Format required transaction currency
-        if Column.Txn.CURRENCY.value in self.formatted_df.columns:  # pragma: no cover
-            self._format_currency_column(Column.Txn.CURRENCY.value, required=True)
+        if Column.Txn.CURRENCY in self.formatted_df.columns:  # pragma: no cover
+            self._format_currency_column(Column.Txn.CURRENCY, required=True)
 
         # Format optional currency fields
         if self.config.optional_fields:
@@ -467,10 +467,10 @@ class TransactionFormatter:
         Ticker is optional - if empty/null, it will be kept as null.
         If present, it must be uppercase and contain only valid characters.
         """
-        if Column.Txn.TICKER.value not in self.formatted_df.columns:  # pragma: no cover
+        if Column.Txn.TICKER not in self.formatted_df.columns:  # pragma: no cover
             return
 
-        ticker_col = Column.Txn.TICKER.value
+        ticker_col = Column.Txn.TICKER
 
         for idx in self.formatted_df.index:
             if idx in self.exclusions:
@@ -504,9 +504,9 @@ class TransactionFormatter:
         """
         # Convert all numeric columns to object dtype once to prevent warnings
         numeric_fields = [
-            Column.Txn.AMOUNT.value,
-            Column.Txn.PRICE.value,
-            Column.Txn.UNITS.value,
+            Column.Txn.AMOUNT,
+            Column.Txn.PRICE,
+            Column.Txn.UNITS,
         ]
 
         for field in numeric_fields:
@@ -523,7 +523,7 @@ class TransactionFormatter:
 
     def _get_validation_rules_for_row(self, idx: int) -> dict[str, list[str]]:
         """Get validation rules for a specific row based on its action."""
-        action_col = Column.Txn.ACTION.value
+        action_col = Column.Txn.ACTION
         if action_col not in self.formatted_df.columns:  # pragma: no cover
             return ActionValidationRules.DEFAULT
 
@@ -541,9 +541,9 @@ class TransactionFormatter:
         """Validate all required fields for a row (both numeric and non-numeric)."""
         # First validate numeric fields
         numeric_fields = [
-            Column.Txn.AMOUNT.value,
-            Column.Txn.PRICE.value,
-            Column.Txn.UNITS.value,
+            Column.Txn.AMOUNT,
+            Column.Txn.PRICE,
+            Column.Txn.UNITS,
         ]
 
         for field in numeric_fields:
@@ -573,11 +573,11 @@ class TransactionFormatter:
     def _format_optional_columns(self) -> None:
         """Format all optional fields based on their configured types."""
         # Recognized Optional Fields
-        if Column.Txn.FEE.value in self.formatted_df.columns:  # pragma: no cover
-            self.formatted_df[Column.Txn.FEE.value] = self.formatted_df[
-                Column.Txn.FEE.value
+        if Column.Txn.FEE in self.formatted_df.columns:  # pragma: no cover
+            self.formatted_df[Column.Txn.FEE] = self.formatted_df[
+                Column.Txn.FEE
             ].astype("object")
-            self._format_numeric_column(Column.Txn.FEE.value, required=False)
+            self._format_numeric_column(Column.Txn.FEE, required=False)
 
         # Exit early if no optional fields are configured
         if not self.config.optional_fields:

@@ -295,7 +295,7 @@ class TransactionTransformer:
             DataFrame with matching rows
         """
         action_mask = (
-            self.df[Column.Txn.ACTION.value].astype(str).isin(group.source_actions)
+            self.df[Column.Txn.ACTION].astype(str).isin(group.source_actions)
         )
         matching_rows = self.df[action_mask].copy()
 
@@ -332,7 +332,7 @@ class TransactionTransformer:
             Merged row as Series, or None if merging not applicable
         """
         # Check if we have multiple source actions in this group
-        unique_actions = group_df[Column.Txn.ACTION.value].astype(str).unique()
+        unique_actions = group_df[Column.Txn.ACTION].astype(str).unique()
         min_actions_for_merge = 2
         if len(unique_actions) < min_actions_for_merge:
             return None
@@ -382,7 +382,7 @@ class TransactionTransformer:
 
         # Create merged row (use first row as template)
         merged_row = group_df.iloc[0].copy()
-        merged_row[Column.Txn.ACTION.value] = group.target_action
+        merged_row[Column.Txn.ACTION] = group.target_action
         merged_row[group.amount_field] = float(total_amount)
 
         for field, value in group.operations.items():

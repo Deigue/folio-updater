@@ -219,7 +219,7 @@ class TransactionFilter:
             try:
                 # Build the query to select essential columns.
                 essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)
-                query = f'SELECT {essential_cols} FROM "{Table.TXNS.value}"'
+                query = f'SELECT {essential_cols} FROM "{Table.TXNS}"'
                 existing_df = pd.read_sql_query(query, conn)
                 if existing_df.empty:  # pragma: no cover
                     return set()
@@ -231,7 +231,7 @@ class TransactionFilter:
             except (sqlite3.Error, pd.errors.DatabaseError):  # pragma: no cover
                 import_logger.debug(
                     "Table '%s' does not exist yet, no existing transactions to check.",
-                    Table.TXNS.value,
+                    Table.TXNS,
                 )
                 return set()
             else:

@@ -35,8 +35,8 @@ class TestTransactionTransformer:
         with temp_config():
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY"],
-                    Column.Txn.TICKER.value: ["AAPL"],
+                    Column.Txn.ACTION: ["BUY"],
+                    Column.Txn.TICKER: ["AAPL"],
                 },
             )
             result = TransactionTransformer.transform(df)
@@ -64,23 +64,23 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY", "SELL", "BUY"],
-                    Column.Txn.TICKER.value: ["USD.CAD", "USD.CAD", "AAPL"],
-                    Column.Txn.AMOUNT.value: [1000, 1000, 500],
+                    Column.Txn.ACTION: ["BUY", "SELL", "BUY"],
+                    Column.Txn.TICKER: ["USD.CAD", "USD.CAD", "AAPL"],
+                    Column.Txn.AMOUNT: [1000, 1000, 500],
                 },
             )
 
             result = TransactionTransformer.transform(df)
 
             # First two rows should be transformed to FXT with empty ticker
-            assert result.iloc[0][Column.Txn.ACTION.value] == "FXT"
-            assert pd.isna(result.iloc[0][Column.Txn.TICKER.value])
-            assert result.iloc[1][Column.Txn.ACTION.value] == "FXT"
-            assert pd.isna(result.iloc[1][Column.Txn.TICKER.value])
+            assert result.iloc[0][Column.Txn.ACTION] == "FXT"
+            assert pd.isna(result.iloc[0][Column.Txn.TICKER])
+            assert result.iloc[1][Column.Txn.ACTION] == "FXT"
+            assert pd.isna(result.iloc[1][Column.Txn.TICKER])
 
             # Third row should remain unchanged
-            assert result.iloc[2][Column.Txn.ACTION.value] == "BUY"
-            assert result.iloc[2][Column.Txn.TICKER.value] == "AAPL"
+            assert result.iloc[2][Column.Txn.ACTION] == "BUY"
+            assert result.iloc[2][Column.Txn.TICKER] == "AAPL"
 
     def test_dividend_fee_transform(
         self,
@@ -101,8 +101,8 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["DIVIDEND", "BUY"],
-                    Column.Txn.TICKER.value: ["AAPL", "MSFT"],
+                    Column.Txn.ACTION: ["DIVIDEND", "BUY"],
+                    Column.Txn.TICKER: ["AAPL", "MSFT"],
                     "Fee": [5.0, 9.95],
                 },
             )
@@ -137,8 +137,8 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY", "DIVIDEND", "SELL"],
-                    Column.Txn.TICKER.value: ["USD.CAD", "AAPL", "USD.CAD"],
+                    Column.Txn.ACTION: ["BUY", "DIVIDEND", "SELL"],
+                    Column.Txn.TICKER: ["USD.CAD", "AAPL", "USD.CAD"],
                     "Fee": [FEE_AMOUNT, 5.0, FEE_AMOUNT],
                 },
             )
@@ -146,10 +146,10 @@ class TestTransactionTransformer:
             result = TransactionTransformer.transform(df)
 
             # First rule should transform BUY/SELL USD.CAD to FXT
-            assert result.iloc[0][Column.Txn.ACTION.value] == "FXT"
-            assert pd.isna(result.iloc[0][Column.Txn.TICKER.value])
-            assert result.iloc[2][Column.Txn.ACTION.value] == "FXT"
-            assert pd.isna(result.iloc[2][Column.Txn.TICKER.value])
+            assert result.iloc[0][Column.Txn.ACTION] == "FXT"
+            assert pd.isna(result.iloc[0][Column.Txn.TICKER])
+            assert result.iloc[2][Column.Txn.ACTION] == "FXT"
+            assert pd.isna(result.iloc[2][Column.Txn.TICKER])
 
             # Second rule should set fee to 0 for dividends
             assert result.iloc[1]["Fee"] == 0
@@ -174,8 +174,8 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY", "DIVIDEND"],
-                    Column.Txn.TICKER.value: ["USD.CAD", "AAPL"],
+                    Column.Txn.ACTION: ["BUY", "DIVIDEND"],
+                    Column.Txn.TICKER: ["USD.CAD", "AAPL"],
                 },
             )
 
@@ -200,8 +200,8 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY"],
-                    Column.Txn.TICKER.value: ["AAPL"],
+                    Column.Txn.ACTION: ["BUY"],
+                    Column.Txn.TICKER: ["AAPL"],
                 },
             )
 
@@ -226,8 +226,8 @@ class TestTransactionTransformer:
         with temp_config(transforms_config):
             df = pd.DataFrame(
                 {
-                    Column.Txn.ACTION.value: ["BUY"],
-                    Column.Txn.TICKER.value: ["AAPL"],
+                    Column.Txn.ACTION: ["BUY"],
+                    Column.Txn.TICKER: ["AAPL"],
                 },
             )
 

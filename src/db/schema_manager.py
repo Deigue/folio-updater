@@ -29,7 +29,7 @@ def create_txns_table() -> None:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
     columns_def = [col_def.to_sql() for col_def in TXN_COLUMN_DEFINITIONS]
-    _create_table(Table.TXNS.value, columns_def)
+    _create_table(Table.TXNS, columns_def)
 
 
 def create_fx_table() -> None:
@@ -44,7 +44,7 @@ def create_fx_table() -> None:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
     columns_def = [col_def.to_sql() for col_def in FX_COLUMN_DEFINITIONS]
-    _create_table(Table.FX.value, columns_def)
+    _create_table(Table.FX, columns_def)
 
 
 def _create_table(table_name: str, columns_def: list[str]) -> None:

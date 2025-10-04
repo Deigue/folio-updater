@@ -76,9 +76,9 @@ def _create_default_folio() -> None:
 
     schema_manager.create_txns_table()
     with db.get_connection() as conn:
-        if db.get_row_count(conn, Table.TXNS.value) > 0:  # pragma: no cover
+        if db.get_row_count(conn, Table.TXNS) > 0:  # pragma: no cover
             rolling_backup(configuration.db_path)
-        transactions_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
+        transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
     fx_df = ForexService.get_missing_fx_data()
     ForexService.insert_fx_data(fx_df)
 

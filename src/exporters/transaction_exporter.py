@@ -43,7 +43,7 @@ class TransactionExporter:
             int: Number of transactions exported.
         """
         with db.get_connection() as conn:
-            transactions_df = db.get_rows(conn, Table.TXNS.value)
+            transactions_df = db.get_rows(conn, Table.TXNS)
 
         if transactions_df.empty:  # pragma: no cover
             return 0
@@ -111,7 +111,7 @@ class TransactionExporter:
             raise ValueError(msg) from e
 
         with db.get_connection() as conn:
-            db_df = db.get_rows(conn, Table.TXNS.value)
+            db_df = db.get_rows(conn, Table.TXNS)
 
         if db_df.empty or excel_df.empty:
             return 0
@@ -164,7 +164,7 @@ class TransactionExporter:
         """
         # Assumes that excel_df is reliably formatted since this is meant to be called
         # after a prior full export.
-        txn_date_col = Column.Txn.TXN_DATE.value
+        txn_date_col = Column.Txn.TXN_DATE
         latest_date = excel_df[txn_date_col].max()
         logger.debug("Latest transaction date in Excel: %s", latest_date)
         new_df = db_df[db_df[txn_date_col] > latest_date].copy()
@@ -199,7 +199,7 @@ def check_file_read_write_access(path: Path) -> None:
 def remove_internal_columns(txn_df: pd.DataFrame) -> pd.DataFrame:
     """Remove internal-use-only columns from the DataFrame."""
     internal_cols = [
-        Column.Txn.TXN_ID.value,
+        Column.Txn.TXN_ID,
     ]
     return txn_df.drop(columns=internal_cols, errors="ignore")
 
@@ -218,17 +218,17 @@ def reorder_folio_columns(txn_df: pd.DataFrame) -> pd.DataFrame:  # pragma: no c
     """
     # Define the desired column order
     desired_order = [
-        Column.Txn.SETTLE_DATE.value,
-        Column.Txn.TXN_DATE.value,
-        Column.Txn.ACTION.value,
-        Column.Txn.AMOUNT.value,
-        Column.Txn.CURRENCY.value,
-        Column.Txn.PRICE.value,
-        Column.Txn.UNITS.value,
-        Column.Txn.FEE.value,
-        Column.Txn.ACCOUNT.value,
+        Column.Txn.SETTLE_DATE,
+        Column.Txn.TXN_DATE,
+        Column.Txn.ACTION,
+        Column.Txn.AMOUNT,
+        Column.Txn.CURRENCY,
+        Column.Txn.PRICE,
+        Column.Txn.UNITS,
+        Column.Txn.FEE,
+        Column.Txn.ACCOUNT,
         "",  # Blank column for visual separation
-        Column.Txn.TICKER.value,
+        Column.Txn.TICKER,
     ]
 
     existing_columns = txn_df.columns.tolist()

@@ -22,7 +22,7 @@ def test_export_full(
         config = ctx.config
         ensure_folio_exists()
         with db.get_connection() as conn:
-            db_count = db.get_row_count(conn, Table.TXNS.value)
+            db_count = db.get_row_count(conn, Table.TXNS)
         transaction_exporter = TransactionExporter()
         export_count: int = transaction_exporter.export_full()
         excel_df = pd.read_excel(config.folio_path, config.transactions_sheet())
@@ -90,7 +90,7 @@ def test_export_update_with_newer_transactions(
 
         # Seed new dates based on existing latest date in Excel.
         excel_df_initial = pd.read_excel(config.folio_path, config.transactions_sheet())
-        latest_date = excel_df_initial[Column.Txn.TXN_DATE.value].max()
+        latest_date = excel_df_initial[Column.Txn.TXN_DATE].max()
         newer_dates = [
             pd.to_datetime(latest_date) + pd.Timedelta(days=1),
             pd.to_datetime(latest_date) + pd.Timedelta(days=2),
@@ -101,20 +101,20 @@ def test_export_update_with_newer_transactions(
         # Using dates well after the latest to ensure they are clearly newer
         newer_transactions = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: newer_dates_str,
-                Column.Txn.ACTION.value: ["BUY", "SELL"],
-                Column.Txn.AMOUNT.value: [1000.0, 500.0],
-                Column.Txn.CURRENCY.value: ["CAD", "USD"],
-                Column.Txn.PRICE.value: [100.0, 50.0],
-                Column.Txn.UNITS.value: [10.0, 10.0],
-                Column.Txn.TICKER.value: ["TEST", "DEMO"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+                Column.Txn.TXN_DATE: newer_dates_str,
+                Column.Txn.ACTION: ["BUY", "SELL"],
+                Column.Txn.AMOUNT: [1000.0, 500.0],
+                Column.Txn.CURRENCY: ["CAD", "USD"],
+                Column.Txn.PRICE: [100.0, 50.0],
+                Column.Txn.UNITS: [10.0, 10.0],
+                Column.Txn.TICKER: ["TEST", "DEMO"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
             },
         )
         new_txn_count = len(newer_transactions)
         with db.get_connection() as conn:
             newer_transactions.to_sql(
-                Table.TXNS.value,
+                Table.TXNS,
                 conn,
                 if_exists="append",
                 index=False,
@@ -135,15 +135,15 @@ def test_export_update_with_duplicate_transactions(
         config = ctx.config
         ensure_folio_exists()
         excel_df_initial = pd.read_excel(config.folio_path, config.transactions_sheet())
-        latest_date = excel_df_initial[Column.Txn.TXN_DATE.value].max()
+        latest_date = excel_df_initial[Column.Txn.TXN_DATE].max()
         latest_transactions = excel_df_initial[
-            excel_df_initial[Column.Txn.TXN_DATE.value] == latest_date
+            excel_df_initial[Column.Txn.TXN_DATE] == latest_date
         ].copy()
 
         duplicate_transactions = latest_transactions.head(3).copy()
         with db.get_connection() as conn:
             duplicate_transactions.to_sql(
-                Table.TXNS.value,
+                Table.TXNS,
                 conn,
                 if_exists="append",
                 index=False,
@@ -165,23 +165,23 @@ def test_export_update_mixed_duplicate_and_new_transactions(
         ensure_folio_exists()
         excel_df_initial = pd.read_excel(config.folio_path, config.transactions_sheet())
         initial_excel_count = len(excel_df_initial)
-        latest_date = excel_df_initial[Column.Txn.TXN_DATE.value].max()
+        latest_date = excel_df_initial[Column.Txn.TXN_DATE].max()
         latest_transactions = excel_df_initial[
-            excel_df_initial[Column.Txn.TXN_DATE.value] == latest_date
+            excel_df_initial[Column.Txn.TXN_DATE] == latest_date
         ].copy()
 
         duplicate_transactions = latest_transactions.head(3).copy()
         # Create new transactions on the same latest date (different data)
         new_transactions_same_date = pd.DataFrame(
             {
-                Column.Txn.TXN_DATE.value: [latest_date, latest_date],
-                Column.Txn.ACTION.value: ["BUY", "SELL"],
-                Column.Txn.AMOUNT.value: [2000.0, 1500.0],
-                Column.Txn.CURRENCY.value: ["CAD", "USD"],
-                Column.Txn.PRICE.value: [200.0, 150.0],
-                Column.Txn.UNITS.value: [10.0, 10.0],
-                Column.Txn.TICKER.value: ["UNIQUE1", "UNIQUE2"],
-                Column.Txn.ACCOUNT.value: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
+                Column.Txn.TXN_DATE: [latest_date, latest_date],
+                Column.Txn.ACTION: ["BUY", "SELL"],
+                Column.Txn.AMOUNT: [2000.0, 1500.0],
+                Column.Txn.CURRENCY: ["CAD", "USD"],
+                Column.Txn.PRICE: [200.0, 150.0],
+                Column.Txn.UNITS: [10.0, 10.0],
+                Column.Txn.TICKER: ["UNIQUE1", "UNIQUE2"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
             },
         )
         new_txn_count = len(new_transactions_same_date)
@@ -189,13 +189,13 @@ def test_export_update_mixed_duplicate_and_new_transactions(
         # Insert both duplicate and new transactions into database
         with db.get_connection() as conn:
             duplicate_transactions.to_sql(
-                Table.TXNS.value,
+                Table.TXNS,
                 conn,
                 if_exists="append",
                 index=False,
             )
             new_transactions_same_date.to_sql(
-                Table.TXNS.value,
+                Table.TXNS,
                 conn,
                 if_exists="append",
                 index=False,

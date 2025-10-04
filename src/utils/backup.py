@@ -53,7 +53,7 @@ def rolling_backup(
     if file_path == config.db_path:
         txn_count = 0
         with db.get_connection() as conn:
-            txn_count = db.get_row_count(conn, Table.TXNS.value)
+            txn_count = db.get_row_count(conn, Table.TXNS)
         backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
         try:

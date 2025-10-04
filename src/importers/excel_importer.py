@@ -44,7 +44,7 @@ def import_transactions(
     is_csv: bool = folio_path.suffix.lower() == ".csv"
 
     with db.get_connection() as conn:
-        existing_count = db.get_row_count(conn, Table.TXNS.value)
+        existing_count = db.get_row_count(conn, Table.TXNS)
 
     # Log import start with detailed info
     import_logger.info("=" * 60)
@@ -81,8 +81,8 @@ def import_transactions(
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
     with db.get_connection() as conn:
         try:
-            prepared_df.to_sql(Table.TXNS.value, conn, if_exists="append", index=False)
-            final_count = db.get_row_count(conn, Table.TXNS.value)
+            prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+            final_count = db.get_row_count(conn, Table.TXNS)
         except sqlite3.IntegrityError:  # pragma: no cover
             _analyze_and_insert_rows(conn, prepared_df)
 
@@ -117,7 +117,7 @@ def _analyze_and_insert_rows(
         for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
             row_df = pd.DataFrame([row])
             row_df.to_sql(
-                Table.TXNS.value,
+                Table.TXNS,
                 conn,
                 if_exists="append",
                 index=False,
