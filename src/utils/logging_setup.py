@@ -20,27 +20,32 @@ COLORS: dict[int, str] = {
 }
 
 RESET: str = "\033[0m"
-LOG_FORMAT = "%(asctime)s [%(levelname)-8s] [%(name)s(%(lineno)d)] %(message)s"
-DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOG_FORMAT = "%(asctime)s %(levelname)-8s %(module)s:%(lineno)4d %(message)s"
+DATE_FORMAT = "%m-%d %H:%M:%S"
 
 
-class ColorFormatter(logging.Formatter):
+class CompactFormatter(logging.Formatter):
+    """Formatter that enforces strict padding for module name and line number."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with strict module/line number padding."""
+        module = record.module[:12].ljust(12)
+        original_module = record.module
+        record.module = module
+        result = super().format(record)
+        record.module = original_module
+        return result
+
+
+class ColorFormatter(CompactFormatter):
     """Custom formatter to colorize log levels in console output."""
 
     def format(self, record: logging.LogRecord) -> str:
         """Colorize log levels in console output."""
-        # Store original level name for file logs
         levelname_orig = record.levelname
         color: str = COLORS.get(record.levelno, RESET)
         record.levelname = f"{color}{record.levelname}{RESET}"
-
-        formatter = logging.Formatter(
-            LOG_FORMAT,
-            datefmt=DATE_FORMAT,
-        )
-        output: str = formatter.format(record)
-
-        # Restore original so file logs aren't colorized
+        output: str = super().format(record)
         record.levelname = levelname_orig
         return output
 
@@ -67,10 +72,10 @@ def init_logging(level: int = logging.INFO) -> None:
     )
     if not console_exists:  # pragma: no branch
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(ColorFormatter())
+        console_handler.setFormatter(ColorFormatter(LOG_FORMAT, datefmt=DATE_FORMAT))
         root_logger.addHandler(console_handler)
 
-    # File handler
+    # File handler (folio.log)
     file_exists = any(
         isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
         for h in root_logger.handlers
@@ -84,10 +89,7 @@ def init_logging(level: int = logging.INFO) -> None:
             encoding="utf-8",
         )
         file_handler.setFormatter(
-            logging.Formatter(
-                LOG_FORMAT,
-                datefmt=DATE_FORMAT,
-            ),
+            CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
         )
         root_logger.addHandler(file_handler)
 
@@ -123,10 +125,7 @@ def _setup_import_logger(log_dir: Path, level: int) -> None:
             encoding="utf-8",
         )
         import_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s [%(levelname)-8s] [%(module)s(%(lineno)d)] %(message)s",
-                datefmt=DATE_FORMAT,
-            ),
+            CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
         )
         import_logger.addHandler(import_handler)
         import_logger.setLevel(level)
