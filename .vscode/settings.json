@@ -1,4 +1,8 @@
 {
+    "python.analysis.extraPaths": [
+        "./src",
+        "./tests",
+    ],
     "python.testing.pytestArgs": [
         "--cov=.",
         "--cov-report=term-missing",
