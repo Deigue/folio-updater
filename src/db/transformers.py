@@ -118,7 +118,7 @@ class TransactionTransformer:
             # Log transformations
             old_values = self.df.loc[mask, field_name].unique().tolist()
             msg = (
-                f"Transforming {matching_rows} matched row(s) on field '{field_name}': "
+                f"TRANSFORM '{field_name}' for {matching_rows} row(s): "
                 f"{old_values} -> {new_value}"
             )
             import_logger.info(msg)
@@ -201,8 +201,7 @@ class TransactionTransformer:
             except ValueError:
                 # If conversion fails, log warning and return as string
                 import_logger.warning(
-                    "Could not convert '%s' to numeric type for column '%s', "
-                    "using string value",
+                    "CONVERT FAIL '%s' to numeric for column '%s' (use string)",
                     new_value,
                     field_name,
                 )
@@ -234,7 +233,7 @@ class TransactionTransformer:
                 if not self._has_groups:
                     self._has_groups = True
                     import_logger.info(
-                        "Applying merge tranformations",
+                        "MERGE transactions",
                     )
                 rows_to_drop.extend(group_df.index.tolist())
                 rows_to_add.append(merged_row)
@@ -244,7 +243,8 @@ class TransactionTransformer:
                     format_transaction_summary,
                     axis=1,
                 )
-                import_logger.info(" - %s", dropped_rows)
+                for row in dropped_rows:
+                    import_logger.info(" - %s", row)
 
         # Apply changes to DataFrame
         self._apply_merge_changes(group, rows_to_drop, rows_to_add)
@@ -265,17 +265,17 @@ class TransactionTransformer:
         missing_fields = [f for f in group.match_fields if f not in self.df.columns]
         if missing_fields:
             import_logger.warning(
-                "Match fields %s not found in data, skipping merge group '%s'",
-                missing_fields,
+                "SKIP merge group '%s' (missing fields: %s)",
                 group.name,
+                missing_fields,
             )
             return False
 
         if group.amount_field not in self.df.columns:
             import_logger.warning(
-                "Amount field '%s' not found, skipping merge group '%s'",
-                group.amount_field,
+                "SKIP merge group '%s' (missing amount field: %s)",
                 group.name,
+                group.amount_field,
             )
             return False
 
@@ -294,9 +294,7 @@ class TransactionTransformer:
         Returns:
             DataFrame with matching rows
         """
-        action_mask = (
-            self.df[Column.Txn.ACTION].astype(str).isin(group.source_actions)
-        )
+        action_mask = self.df[Column.Txn.ACTION].astype(str).isin(group.source_actions)
         matching_rows = self.df[action_mask].copy()
 
         if matching_rows.empty:

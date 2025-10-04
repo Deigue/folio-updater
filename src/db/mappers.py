@@ -57,7 +57,7 @@ class TransactionMapper:
         )
 
         if ignored_columns:
-            import_logger.info("Ignoring columns: %s", ignored_columns)
+            import_logger.info("IGNORE columns: %s", ignored_columns)
             excel_df = excel_df.drop(columns=ignored_columns)
 
         if mapping:
@@ -69,7 +69,7 @@ class TransactionMapper:
         # Ensure TXN_ESSENTIALS are present in the mapping
         if unmatched and Column.Txn.ACCOUNT in unmatched and account is not None:
             import_logger.info(
-                "Account column not found in Excel, using fallback value: %s",
+                "FALLBACK account column using: %s",
                 account,
             )
             excel_df[Column.Txn.ACCOUNT] = account
@@ -77,7 +77,7 @@ class TransactionMapper:
 
         if unmatched:
             unmatched_str = {str(col) for col in unmatched}
-            error_message = f"Could not map essential columns: {unmatched_str}"
+            error_message = f"MISSING essential columns: {unmatched_str}"
             import_logger.error(error_message)
             raise ValueError(error_message)
 
@@ -166,7 +166,7 @@ class TransactionMapper:
 
         if is_essential:
             import_logger.warning(
-                "Column '%s' is in ignore list but is essential - keeping it",
+                "KEEP column '%s' (in ignore list but essential)",
                 normalized_column,
             )
             return False

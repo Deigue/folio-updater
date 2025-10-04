@@ -204,7 +204,7 @@ class TransactionFormatter:
 
             excluded_count = len(excluded_indices)
             import_logger.warning(
-                "Excluded %d transactions due to invalid formatting.",
+                "EXCLUDE %d transactions (invalid formatting)",
                 excluded_count,
             )
 
@@ -214,8 +214,7 @@ class TransactionFormatter:
                     reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
                     reason_str = ", ".join(reasons)
                     import_logger.warning(
-                        "%d - %s (%s)",
-                        idx,
+                        " - %s (%s)",
                         format_transaction_summary(row),
                         reason_str,
                     )

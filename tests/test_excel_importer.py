@@ -518,7 +518,7 @@ def test_import_account_missing(
         # Import WITHOUT account fallback should fail
         with pytest.raises(
             ValueError,
-            match=r"Could not map essential columns: \{'Account'\}",
+            match=r"MISSING essential columns: \{'Account'\}",
         ):
             import_transactions(temp_path, None, txn_sheet)  # No account parameter
 
@@ -932,7 +932,7 @@ def _test_missing_essential_column(config: Config, default_df: pd.DataFrame) -> 
 
     with pytest.raises(
         ValueError,
-        match=rf"Could not map essential columns: \{{'{essential_to_remove}'\}}\s*",
+        match=rf"MISSING essential columns: \{{'{essential_to_remove}'\}}\s*",
     ):
         import_transactions(temp_path, None, txn_sheet)
 

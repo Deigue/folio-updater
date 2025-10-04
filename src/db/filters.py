@@ -158,19 +158,19 @@ class TransactionFilter:
         # Log approved duplicates
         if approved_mask.any():
             approved_count = approved_mask.sum()
-            msg = f"Approved {approved_count} {duplicate_type} duplicate transactions."
+            msg = f"APPROVE {approved_count} {duplicate_type} duplicates"
             import_logger.info(msg)
             approved_summaries = txn_df[approved_mask].apply(
                 format_transaction_summary,
                 axis=1,
             )
             for summary in approved_summaries:
-                import_logger.info(" - %s", summary)
+                import_logger.info(" * %s", summary)
 
         # Log rejected duplicates
         if rejected_mask.any():  # pragma: no branch
             rejected_count = rejected_mask.sum()
-            msg = f"Filtered {rejected_count} {duplicate_type} duplicate transactions."
+            msg = f"SKIP {rejected_count} {duplicate_type} duplicates"
             import_logger.warning(msg)
             rejected_summaries = txn_df[rejected_mask].apply(
                 format_transaction_summary,

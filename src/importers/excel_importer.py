@@ -47,9 +47,8 @@ def import_transactions(
         existing_count = db.get_row_count(conn, Table.TXNS)
 
     # Log import start with detailed info
-    import_logger.info("=" * 60)
-    import_logger.info("Starting import from: %s", folio_path)
-    import_logger.info("Existing transactions in database: %d", existing_count)
+    import_logger.info('IMPORT "%s"', folio_path)
+    import_logger.info("EXISTING %d transactions in database", existing_count)
 
     try:
         if is_csv:  # pragma: no cover
@@ -64,15 +63,16 @@ def import_transactions(
             )
 
         import_logger.info(
-            "Read %d transactions from Excel sheet '%s'",
+            "READ %d transactions from sheet '%s'",
             len(txns_df),
             sheet,
         )
     except ValueError:  # pragma: no cover
         error_msg = f"No '{sheet}' sheet found in {folio_path}."
         import_logger.warning(error_msg)
-        import_logger.info("Import completed: 0 transactions imported")
-        import_logger.info("=" * 60)
+        import_logger.info("DONE: 0 imported")
+        import_logger.info("=" * 80)
+        import_logger.info("")
         return 0
 
     db_path = get_config().db_path
@@ -87,10 +87,11 @@ def import_transactions(
             _analyze_and_insert_rows(conn, prepared_df)
 
     txn_count = len(prepared_df)
-    msg: str = f"Import completed: {txn_count} transactions imported"
+    msg: str = f"DONE: {txn_count} imported"
     import_logger.info(msg)
-    import_logger.info("Total transactions in database: %d", final_count)
-    import_logger.info("=" * 60)
+    import_logger.info("TOTAL %d transactions in database", final_count)
+    import_logger.info("=" * 80)
+    import_logger.info("")
 
     return txn_count
 
