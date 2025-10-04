@@ -102,15 +102,20 @@ def test_bootstrap(
 
         root_logger: logging.Logger = logging.getLogger()
         original_level: int = root_logger.level
-        new_config: Config = bootstrap.reload_config(tmp_path)
-        assert new_config.folio_path == good_folio
-        assert new_config.log_level == "INFO"
-        assert new_config.tickers_sheet() == "TKR"
-        assert new_config.transactions_sheet() == "TXNS"
-        assert new_config.header_keywords["TxnDate"] == ["settledate"]
-
-        # --- 3. Ensure logging is configured ---
-        logger.debug("This message is colorized!")
-
-        # Restore side-effects of reload_config
-        root_logger.setLevel(original_level)
+        original_handlers = list(root_logger.handlers)
+        try:
+            new_config: Config = bootstrap.reload_config(tmp_path)
+            assert new_config.folio_path == good_folio
+            assert new_config.log_level == "INFO"
+            assert new_config.tickers_sheet() == "TKR"
+            assert new_config.transactions_sheet() == "TXNS"
+            assert new_config.header_keywords["TxnDate"] == ["settledate"]
+            logger.debug("This message is colorized!")
+        finally:
+            root_logger.setLevel(original_level)
+            for handler in root_logger.handlers:
+                if handler not in original_handlers:
+                    root_logger.removeHandler(handler)
+            for handler in original_handlers:
+                if handler not in root_logger.handlers:
+                    root_logger.addHandler(handler)
