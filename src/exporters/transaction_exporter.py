@@ -84,8 +84,11 @@ class TransactionExporter:
     def export_update(self, transaction_count: int | None = None) -> int:
         """Perform an incremental export of new transactions to Excel.
 
-        This only adds new transactions from the database having a date equal or greater
-        than the latest date acquired from the Excel sheet.
+        This method will append new transactions to the folio from the database.
+
+        Args:
+            transaction_count: Number of recent transactions to consider from the
+                database. If 0 or not provided, all transactions will be considered.
 
         Returns:
             int: Number of new transactions exported.
