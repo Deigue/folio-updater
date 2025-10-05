@@ -34,6 +34,9 @@ def prepare_transactions(
     if excel_df.empty:  # pragma: no cover
         return excel_df
 
+    import_logger.debug(
+        "PREPARE transactions: mapping → transforming → formatting → filtering",
+    )
     schema_manager.create_txns_table()
     txn_df = TransactionMapper.map_headers(excel_df, account)
     txn_df = TransactionTransformer.transform(txn_df)

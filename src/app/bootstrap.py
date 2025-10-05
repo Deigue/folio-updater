@@ -27,8 +27,7 @@ def reload_config(project_root: Path | None = None) -> Config:
     config: Config = get_config()
     level_int: int = getattr(logging, config.log_level.upper())
     init_logging(level_int)
-
-    logger.info("Loaded config and set log level to: %s", config.log_level)
+    logger.info("INIT config (log level: %s)", logging.getLevelName(level_int))
     if config.folio_path is not None and not config.folio_path.parent.exists():
         logger.warning(
             "Folio directory does not exist: %s",

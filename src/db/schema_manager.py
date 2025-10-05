@@ -57,7 +57,8 @@ def _create_table(table_name: str, columns_def: list[str]) -> None:
     try:
         with get_connection() as conn:
             conn.execute(sql)
-    except sqlite3.DatabaseError as e:  # pragma: no cover
+            logger.debug("CREATE table '%s'", table_name)
+    except sqlite3.DatabaseError as e:
         msg = f"Failed to create table '{table_name}': {e}"
         logger.exception(msg)
         raise

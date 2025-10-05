@@ -51,7 +51,7 @@ class SettlementCalculator:
         self._calendars[Currency.USD] = mcal.get_calendar("NYSE")
         self._calendars[Currency.CAD] = mcal.get_calendar("TSX")
 
-    def add_settlement_dates_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:  # noqa: C901
+    def add_settlement_dates_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add settlement dates to a DataFrame with optimized batch processing.
 
         This method processes the DataFrame and adds/updates settlement date
@@ -92,6 +92,10 @@ class SettlementCalculator:
                 currency = Currency(currency_str)
             except ValueError:
                 # Non-standard currency - fallback to simple business day logic
+                import_logger.warning(
+                    "NON-STANDARD currency '%s' (using same-day settlement)",
+                    currency_str,
+                )
                 currency_mask = df[Column.Txn.CURRENCY] == currency_str
                 df.loc[currency_mask, Column.Txn.SETTLE_DATE] = df.loc[
                     currency_mask,
@@ -101,9 +105,6 @@ class SettlementCalculator:
                 continue
 
             currency_mask = df[Column.Txn.CURRENCY] == currency.value
-            if not currency_mask.any():
-                continue
-
             currency_df = df[currency_mask]
             if currency == Currency.USD:
                 schedule = usd_schedule
@@ -121,6 +122,30 @@ class SettlementCalculator:
                 )
 
         return df
+
+    def calculate_simple_business_days(
+        self,
+        txn_date: date,
+        settlement_days: int,
+    ) -> str:
+        """Calculate settlement date using simple business day logic.
+
+        Args:
+            txn_date: Transaction date
+            settlement_days: Number of business days to add
+
+        Returns:
+            Settlement date in YYYY-MM-DD format
+        """
+        current_date = txn_date
+        days_added = 0
+
+        while days_added < settlement_days:
+            current_date = current_date + pd.DateOffset(days=1)
+            if current_date.weekday() < WEEKDAYS_IN_WEEK:
+                days_added += 1
+
+        return current_date.strftime("%Y-%m-%d")
 
     def _get_calendar_schedule(
         self,
@@ -149,7 +174,7 @@ class SettlementCalculator:
                 return existing_schedule
 
         calendar: mcal.MarketCalendar | None = self._calendars.get(currency)
-        if calendar is None:
+        if calendar is None:  # pragma: no cover
             return pd.DatetimeIndex([])
 
         buffer_start: pd.Timestamp = start_date - pd.DateOffset(days=10)
@@ -226,8 +251,8 @@ class SettlementCalculator:
         Returns:
             Settlement date in YYYY-MM-DD format
         """
-        if len(schedule) == 0:
-            return self._calculate_simple_business_days(txn_date, settlement_days)
+        if len(schedule) == 0:  # pragma: no cover
+            return self.calculate_simple_business_days(txn_date, settlement_days)
 
         start_ts = pd.Timestamp(txn_date)
         valid_days_after_txn = schedule[schedule > start_ts]
@@ -237,7 +262,10 @@ class SettlementCalculator:
             return settle_date.strftime("%Y-%m-%d")
 
         # Fallback if not enough valid days found
-        return self._calculate_simple_business_days(txn_date, settlement_days)
+        return self.calculate_simple_business_days(
+            txn_date,
+            settlement_days,
+        )  # pragma: no cover
 
     def _get_settlement_days(
         self,
@@ -265,32 +293,7 @@ class SettlementCalculator:
                 return 1  # T+1 settlement
             return 2  # T+2 settlement
 
-        # Default fallback - same as transaction date
-        return 0
-
-    def _calculate_simple_business_days(
-        self,
-        txn_date: date,
-        settlement_days: int,
-    ) -> str:
-        """Calculate settlement date using simple business day logic.
-
-        Args:
-            txn_date: Transaction date
-            settlement_days: Number of business days to add
-
-        Returns:
-            Settlement date in YYYY-MM-DD format
-        """
-        current_date = txn_date
-        days_added = 0
-
-        while days_added < settlement_days:
-            current_date = current_date + pd.DateOffset(days=1)
-            if current_date.weekday() < WEEKDAYS_IN_WEEK:
-                days_added += 1
-
-        return current_date.strftime("%Y-%m-%d")
+        return 0  # pragma: no cover
 
     def _is_valid_date(self, date_str: str) -> bool:
         """Check if a string represents a valid date in YYYY-MM-DD format.

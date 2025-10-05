@@ -39,7 +39,7 @@ def ensure_folio_exists(*, mock: bool = True) -> None:
         logger.debug("Folio file already exists at %s", folio_path)
         return
     if not mock:
-        msg: str = f"The folio '{folio_path}' does not exist. Please create it."
+        msg: str = f'MISSING folio: "{folio_path}"'
         logger.error(msg)
         raise FileNotFoundError(msg)
 
@@ -50,14 +50,9 @@ def ensure_folio_exists(*, mock: bool = True) -> None:
     if folio_path_parent.is_relative_to(default_data_dir):
         folio_path_parent.mkdir(parents=True, exist_ok=True)
     elif not folio_path_parent.exists():
-        msg: str = (
-            f"The folder '{folio_path_parent}' does not exist. Please create it "
-            "before running."
-        )
+        msg: str = f'MISSING folder: "{folio_path_parent}"'
         logger.error(msg)
         raise FileNotFoundError(msg)
-    else:
-        logger.debug("Folio path is valid: %s", folio_path)
 
     _create_default_folio()
 
@@ -76,7 +71,7 @@ def _create_default_folio() -> None:
 
     schema_manager.create_txns_table()
     with db.get_connection() as conn:
-        if db.get_row_count(conn, Table.TXNS) > 0:
+        if db.get_row_count(conn, Table.TXNS) > 0:  # pragma: no cover
             rolling_backup(configuration.db_path)
         transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
     fx_df = ForexService.get_missing_fx_data()

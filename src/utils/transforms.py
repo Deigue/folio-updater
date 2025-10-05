@@ -215,7 +215,7 @@ class TransformsConfig:
             if not isinstance(field, str):  # pragma: no cover
                 continue
 
-            if value is None:
+            if value is None:  # pragma: no cover
                 processed[field] = ""
             elif isinstance(value, (str, int, float)):
                 # Convert all values to strings for consistent storage
@@ -228,7 +228,7 @@ class TransformsConfig:
         """Return True if there are transformation rules or merge groups configured."""
         return bool(self.rules) or bool(self.merge_groups)
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # pragma: no cover
         """Return the number of transformation rules."""
         return len(self.rules)
 

@@ -111,7 +111,7 @@ class ForexService:
         """
         try:
             url = f"{cls.BOC_BASE_URL}?start_date={start_date}"
-            logger.debug("Fetching FX rates from URL: %s", url)
+            logger.debug("FETCH FX rates from BoC API (start_date=%s)", start_date)
 
             response = requests.get(url, timeout=30)
             response.raise_for_status()
@@ -270,10 +270,7 @@ class ForexService:
                     logger.debug("Txns table does not exist")
                     return None
 
-                query = (
-                    f'SELECT MIN("{Column.Txn.TXN_DATE}") '
-                    f'FROM "{Table.TXNS}"'
-                )
+                query = f'SELECT MIN("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}"'
                 result = conn.execute(query).fetchone()
                 if result and result[0]:
                     logger.debug("Earliest transaction date: %s", result[0])

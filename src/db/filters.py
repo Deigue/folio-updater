@@ -45,6 +45,11 @@ class TransactionFilter:
             axis=1,
         )
         new_keys: set[str] = set(new_keys_series)
+        import_logger.debug(
+            "CHECK duplicates: %d existing keys, %d new keys",
+            len(existing_keys),
+            len(new_keys),
+        )
         duplicates: set[str] = existing_keys & new_keys
         if not duplicates:  # pragma: no cover
             return txn_df
