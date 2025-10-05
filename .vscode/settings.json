@@ -4,8 +4,6 @@
         "./tests",
     ],
     "python.testing.pytestArgs": [
-        "--cov=.",
-        "--cov-report=term-missing",
         "--color=yes",
         "-vv",
     ],

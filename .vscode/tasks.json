@@ -10,6 +10,14 @@
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "label": "coverage",
+            "type": "shell",
+            "command": "cmd /c uv run python -m pytest --cov=. --cov-report=term-missing",
+            "group": "test",
+            "presentation": {"reveal": "always"},
+            "problemMatcher": [],
         }
     ]
 }
