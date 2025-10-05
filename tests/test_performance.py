@@ -8,12 +8,12 @@ import logging
 import pstats
 import sys
 import time
-from io import StringIO
 from pathlib import Path
 
 import pytest
 
 SLOW_IMPORT_THRESHOLD_MS = 200
+MAX_FUNCTION_DISPLAY_LENGTH = 58
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,25 +101,23 @@ def test_profile_test_suite() -> None:  # pragma: no cover
 
     profiler.disable()
 
-    # Print statistics
-    s = StringIO()
-    stats = pstats.Stats(profiler, stream=s).sort_stats("cumulative")
-    stats.print_stats(50)  # Top 50 functions
+    # Use print_stats with a filter for our code
+    logger.info("\n%s", "=" * 100)
+    logger.info("TOP 50 PROJECT FUNCTIONS BY CUMULATIVE TIME")
+    logger.info("%s", "=" * 100)
 
-    logger.info("\n%s", "=" * 80)
-    logger.info("TOP 50 FUNCTIONS BY CUMULATIVE TIME")
-    logger.info("%s\n", "=" * 80)
-    logger.info("%s", s.getvalue())
+    stats = pstats.Stats(profiler)
+    stats.sort_stats("cumulative")
 
-    # Print by total time as well
-    s = StringIO()
-    stats = pstats.Stats(profiler, stream=s).sort_stats("tottime")
-    stats.print_stats(30)  # Top 30 functions
+    # Filter to project files only
+    stats.print_stats("folio-updater", 50)
 
-    logger.info("\n%s", "=" * 80)
-    logger.info("TOP 30 FUNCTIONS BY TOTAL TIME")
-    logger.info("%s\n", "=" * 80)
-    logger.info("%s", s.getvalue())
+    logger.info("\n%s", "=" * 100)
+    logger.info("TOP 30 PROJECT FUNCTIONS BY TOTAL TIME (self time)")
+    logger.info("%s", "=" * 100)
+
+    stats.sort_stats("tottime")
+    stats.print_stats("folio-updater", 30)
 
 
 def test_profile_imports() -> None:

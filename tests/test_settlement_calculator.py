@@ -1,163 +1,149 @@
-"""Tests for settlement date calculation functionality."""
+"""Optimized tests for settlement calculator - concise and comprehensive."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 import pandas as pd
+import pytest
 
 from utils.constants import TORONTO_TZ, Action, Column, Currency
 from utils.settlement_calculator import SettlementCalculator
 
+# Shared calculator instance
+calculator = SettlementCalculator()
 
-class TestSettlementCalculator:
-    """Tests for the SettlementCalculator class."""
 
-    def setup_method(self) -> None:
-        """Set up test fixtures."""
-        self.calculator = SettlementCalculator()
-
-    def test_add_settlement_dates_to_dataframe_empty(self) -> None:
-        """Test that empty dataframes are handled correctly."""
-        empty_df = pd.DataFrame()
-        result = self.calculator.add_settlement_dates_to_dataframe(empty_df)
+@pytest.mark.parametrize(
+    (
+        "scenario",
+        "txn_date",
+        "action",
+        "currency",
+        "settle_date",
+        "expected_settle",
+        "expected_calculated",
+    ),
+    [
+        # Empty dataframe - special case
+        ("empty", None, None, None, None, None, None),
+        # Existing valid settlement date - preserve it
+        (
+            "valid_existing",
+            "2024-06-03",
+            Action.BUY,
+            Currency.USD,
+            "2024-06-05",
+            "2024-06-05",
+            0,
+        ),
+        # Invalid settlement date - recalculate
+        (
+            "invalid_existing",
+            "2024-06-03",
+            Action.BUY,
+            Currency.USD,
+            "invalid-date",
+            "2024-06-04",
+            1,
+        ),
+        # No existing date - calculate
+        (
+            "no_existing",
+            "2024-06-03",
+            Action.DIVIDEND,
+            Currency.USD,
+            None,
+            "2024-06-03",
+            1,
+        ),
+        # Missing required data - should not crash
+        ("missing_data", None, Action.BUY, Currency.USD, None, pd.NA, 0),
+        # Non-standard currency (EUR)
+        (
+            "nonstandard_currency",
+            "2025-10-02",
+            "BUY",
+            "EUR",
+            None,
+            "2025-10-06",
+            1,
+        ),
+    ],
+)
+def test_settlement_scenarios(  # noqa: PLR0913
+    scenario: str,
+    txn_date: str | None,
+    action: str | None,
+    currency: str | None,
+    settle_date: str | None,
+    expected_settle: str | None,
+    expected_calculated: int | None,
+) -> None:
+    """Test various settlement date calculation scenarios."""
+    if scenario == "empty":
+        result = calculator.add_settlement_dates_to_dataframe(pd.DataFrame())
         assert result.empty
+        return
 
-    def test_add_settlement_dates_to_dataframe_with_existing_valid_date(self) -> None:
-        """Test that existing valid settlement dates are preserved."""
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: ["2024-06-03"],
-                Column.Txn.ACTION: [Action.BUY],
-                Column.Txn.CURRENCY: [Currency.USD],
-                Column.Txn.SETTLE_DATE: ["2024-06-05"],  # Existing valid date
-            },
-        )
+    df = pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: [txn_date if txn_date is not None else pd.NA],
+            Column.Txn.ACTION: [action],
+            Column.Txn.CURRENCY: [currency],
+        },
+    )
 
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
+    if settle_date is not None:
+        df[Column.Txn.SETTLE_DATE] = [settle_date]
 
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-05"
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 0  # Not calculated
+    result = calculator.add_settlement_dates_to_dataframe(df)
 
-    def test_add_settlement_dates_to_dataframe_with_invalid_date(self) -> None:
-        """Test that invalid settlement dates are recalculated."""
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: ["2024-06-03"],
-                Column.Txn.ACTION: [Action.BUY],
-                Column.Txn.CURRENCY: [Currency.USD],
-                Column.Txn.SETTLE_DATE: ["invalid-date"],  # Invalid date
-            },
-        )
-
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
-
-        # Should be calculated to T+1 from transaction date
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-04"
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1  # Calculated
-
-    def test_add_settlement_dates_to_dataframe_no_existing_date(self) -> None:
-        """Test calculation when no settlement date exists."""
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: ["2024-06-03"],
-                Column.Txn.ACTION: [Action.DIVIDEND],
-                Column.Txn.CURRENCY: [Currency.USD],
-            },
-        )
-
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
-
-        # Dividend should settle same day
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-03"
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1  # Calculated
-
-    def test_add_settlement_dates_to_dataframe_missing_required_data(self) -> None:
-        """Test handling of missing required data."""
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: [pd.NA],  # Missing transaction date
-                Column.Txn.ACTION: [Action.BUY],
-                Column.Txn.CURRENCY: [Currency.USD],
-            },
-        )
-
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
-
-        # Should not crash, but settlement date should remain unset
+    if expected_settle is pd.NA:
         assert pd.isna(result.loc[0, Column.Txn.SETTLE_DATE])
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 0
+    else:
+        assert result.loc[0, Column.Txn.SETTLE_DATE] == expected_settle
 
-    def test_add_settlement_dates_to_dataframe_nonstandard_currency(self) -> None:
-        """Test handling of a non-standard currency."""
-        # Create a DataFrame with unsupported currency
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: ["2025-10-02"],
-                Column.Txn.ACTION: ["BUY"],
-                Column.Txn.CURRENCY: ["EUR"],
-                Column.Txn.SETTLE_DATE: [None],
-                Column.Txn.SETTLE_CALCULATED: [0],
-            },
-        )
+    assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == expected_calculated
 
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-10-06"
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1  # Calculated
 
-    def test_multiple_transactions_dataframe(self) -> None:
-        """Test processing multiple transactions with mixed scenarios."""
-        df = pd.DataFrame(
-            {
-                Column.Txn.TXN_DATE: [
-                    "2024-06-03",  # Monday
-                    "2024-06-03",  # Monday
-                    "2024-06-03",  # Monday
-                ],
-                Column.Txn.ACTION: [
-                    Action.BUY,  # Should be T+1
-                    Action.DIVIDEND,  # Should be same day
-                    Action.SELL,  # Should be T+1
-                ],
-                Column.Txn.CURRENCY: [
-                    Currency.USD,
-                    Currency.USD,
-                    Currency.CAD,
-                ],
-                Column.Txn.SETTLE_DATE: [
-                    pd.NA,  # Will be calculated
-                    "2024-06-05",  # Existing valid date
-                    pd.NA,  # Will be calculated
-                ],
-            },
-        )
+def test_multiple_txns() -> None:
+    """Test processing multiple transactions with mixed scenarios."""
+    df = pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: ["2024-06-03", "2024-06-03", "2024-06-03"],
+            Column.Txn.ACTION: [Action.BUY, Action.DIVIDEND, Action.SELL],
+            Column.Txn.CURRENCY: [Currency.USD, Currency.USD, Currency.CAD],
+            Column.Txn.SETTLE_DATE: [pd.NA, "2024-06-05", pd.NA],
+        },
+    )
 
-        result = self.calculator.add_settlement_dates_to_dataframe(df)
+    result = calculator.add_settlement_dates_to_dataframe(df)
 
-        # Check first transaction (BUY, no existing date)
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-04"  # T+1
-        assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1
+    # BUY, no existing date -> T+1
+    assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-04"
+    assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1
 
-        # Check second transaction (DIVIDEND, existing date)
-        assert result.loc[1, Column.Txn.SETTLE_DATE] == "2024-06-05"  # Preserved
-        assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
+    # DIVIDEND, existing date -> preserved
+    assert result.loc[1, Column.Txn.SETTLE_DATE] == "2024-06-05"
+    assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
 
-        # Check third transaction (SELL, no existing date)
-        assert result.loc[2, Column.Txn.SETTLE_DATE] == "2024-06-04"  # T+1
-        assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 1
+    # SELL, no existing date -> T+1
+    assert result.loc[2, Column.Txn.SETTLE_DATE] == "2024-06-04"
+    assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 1
 
-    def test_calculate_simple_business_days(self) -> None:
-        """Test simple business day calculation."""
-        monday = datetime(2025, 10, 6, tzinfo=TORONTO_TZ).date()  # Monday
-        result = self.calculator.calculate_simple_business_days(monday, 1)
-        assert result == "2025-10-07"  # Tuesday
 
-        result = self.calculator.calculate_simple_business_days(monday, 2)
-        assert result == "2025-10-08"  # Wednesday
-
-        friday = datetime(2025, 10, 10, tzinfo=TORONTO_TZ).date()  # Friday
-        result = self.calculator.calculate_simple_business_days(friday, 1)
-        assert result == "2025-10-13"  # Monday
-
-        result = self.calculator.calculate_simple_business_days(friday, 3)
-        assert result == "2025-10-15"  # Wednesday
+@pytest.mark.parametrize(
+    ("start_date", "days", "expected"),
+    [
+        ("2025-10-06", 1, "2025-10-07"),
+        ("2025-10-06", 2, "2025-10-08"),
+        ("2025-10-10", 1, "2025-10-13"),
+        ("2025-10-10", 3, "2025-10-15"),
+    ],
+)
+def test_business_days(start_date: str, days: int, expected: str) -> None:
+    """Test simple business day calculation."""
+    start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ).date()
+    result = calculator.calculate_simple_business_days(start, days)
+    assert result == expected
