@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import logging
-import random
 from typing import TYPE_CHECKING, Any, Callable
 
 import pandas as pd
 import pytest
 
-from db.db import get_connection
 from importers.excel_importer import import_transactions
 from mock.folio_setup import ensure_folio_exists
-from utils.constants import TXN_ESSENTIALS, Column, Table
+from utils.constants import TXN_ESSENTIALS, Column
 
 from .utils.dataframe_utils import verify_db_contents
 
