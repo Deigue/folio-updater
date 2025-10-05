@@ -352,7 +352,6 @@ def test_import_scenarios(  # noqa: PLR0913,PLR0915
     """Mega test covering all formatting, validation, and optional field scenarios."""
     with temp_config(**config_overrides) as ctx:
         config = ctx.config
-        # ensure_folio_exists()
         temp_path = config.folio_path.parent / f"test_{scenario}.xlsx"
 
         # Create test DataFrame
@@ -534,79 +533,6 @@ def test_import_duplicate_handling(
         assert intra_approval_count == 2  # noqa: PLR2004 (test assertion)
 
 
-def test_import_column_handling(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
-    """Test handling of missing, extra, and scrambled columns."""
-    with temp_config() as ctx:
-        config = ctx.config
-        ensure_folio_exists()
-
-        default_df = _get_default_dataframe(config)
-        txn_sheet = config.transactions_sheet()
-
-        # Test 1: Extra columns
-        df = default_df.copy()
-        extra_cols = {
-            "ExtraCol1": ["foo"] * len(default_df),
-            "ExtraCol2": ["123"] * len(default_df),
-            "ExtraCol3": pd.date_range("2020-01-01", periods=len(default_df)),
-        }
-        df = _add_extra_columns_to_df(df, extra_cols)
-        df = _modify_essential_for_uniqueness(df, ".extra")
-
-        temp_path = config.folio_path.parent / "temp_extra_columns.xlsx"
-        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-
-        config.db_path.unlink(missing_ok=True)
-        assert import_transactions(temp_path, None, txn_sheet) > 0
-        verify_db_contents(df, last_n=len(df))
-
-        # Test 2: Scrambled column order
-        df2 = df.copy()
-        more_extra_cols = {
-            "ExtraCol4": ["bar"] * len(df2),
-            "ExtraCol5": [456] * len(df2),
-            "ExtraCol6": pd.date_range("2021-02-01", periods=len(df2)),
-        }
-        df2 = _add_extra_columns_to_df(df2, more_extra_cols)
-        df2 = _modify_essential_for_uniqueness(df2, ".scrambled")
-
-        cols = list(df2.columns)
-        random.shuffle(cols)
-        df_scrambled = df2[cols]
-
-        temp_path2 = config.folio_path.parent / "temp_scrambled.xlsx"
-        df_scrambled.to_excel(temp_path2, index=False, sheet_name=txn_sheet)
-        assert import_transactions(temp_path2, None, txn_sheet) > 0
-        verify_db_contents(df2, last_n=len(df2))
-
-        # Test 3: Fewer columns than DB (pad with NULL)
-        df3 = default_df.copy()
-        extra_cols3 = {
-            "ExtraCol7": ["wat"] * len(default_df),
-            "ExtraCol8": [789] * len(default_df),
-            "ExtraCol9": pd.date_range("2022-03-01", periods=len(default_df)),
-        }
-        df3 = _add_extra_columns_to_df(df3, extra_cols3)
-        df3 = _modify_essential_for_uniqueness(df3, ".lesser")
-
-        temp_path3 = config.folio_path.parent / "lesser_columns.xlsx"
-        df3.to_excel(temp_path3, index=False, sheet_name=txn_sheet)
-        assert import_transactions(temp_path3, None, txn_sheet) > 0
-
-        # Pad df3 with missing columns from DB
-        with get_connection() as conn:
-            query = f'SELECT * FROM "{Table.TXNS}"'
-            table_df = pd.read_sql_query(query, conn)
-            for col in table_df.columns:
-                if col not in df3.columns:
-                    df3[col] = pd.NA
-            df3 = df3[table_df.columns]
-
-        verify_db_contents(df3, last_n=len(df3))
-
-
 def test_import_missing_essential_column(
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
 ) -> None:
@@ -630,80 +556,8 @@ def test_import_missing_essential_column(
             import_transactions(temp_path, None, txn_sheet)
 
 
-def test_import_account_missing(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
-    """Test that import fails when Account column is missing and no fallback."""
-    with temp_config() as ctx:
-        config = ctx.config
-        ensure_folio_exists()
-
-        txn_sheet = config.transactions_sheet()
-        temp_path = config.folio_path.parent / "temp_account_missing.xlsx"
-
-        test_data = {
-            Column.Txn.TXN_DATE: ["2025-03-01"],
-            Column.Txn.ACTION: ["BUY"],
-            Column.Txn.AMOUNT: [1000.0],
-            Column.Txn.CURRENCY: ["USD"],
-            Column.Txn.PRICE: [100.0],
-            Column.Txn.UNITS: [10.0],
-            Column.Txn.TICKER: ["AAPL"],
-        }
-
-        df = pd.DataFrame(test_data)
-        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-        config.db_path.unlink(missing_ok=True)
-
-        with pytest.raises(
-            ValueError,
-            match=r"MISSING essential columns: \{'Account'\}",
-        ):
-            import_transactions(temp_path, None, txn_sheet)
-
-
-def test_import_basic_flow(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
-    """Test basic import flow: duplicate import, empty DB, and re-import."""
-    with temp_config() as ctx:
-        config = ctx.config
-        ensure_folio_exists()
-
-        default_df = _get_default_dataframe(config)
-        txn_sheet = config.transactions_sheet()
-
-        # Test 1: Import duplicates (should be 0)
-        transactions = import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet)
-        assert transactions == 0
-        verify_db_contents(default_df, last_n=len(default_df))
-
-        # Test 2: Empty DB and import
-        config.db_path.unlink()
-        assert import_transactions(config.folio_path, "TEST-ACCOUNT", txn_sheet) > 0
-        verify_db_contents(default_df, last_n=len(default_df))
-
-
 # Helper functions
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions sheet."""
     txn_sheet = config.transactions_sheet()
     return pd.read_excel(config.folio_path, sheet_name=txn_sheet)
-
-
-def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame:
-    """Add extra columns to DataFrame with proper type conversion."""
-    for col, data in extra_cols.items():
-        if isinstance(data, list):
-            df[col] = pd.Series(data).astype(str)
-        else:
-            df[col] = data.astype(str)
-    return df
-
-
-def _modify_essential_for_uniqueness(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
-    """Modify an essential column's data to make rows unique for testing."""
-    df = df.copy()
-    if "Ticker" in df.columns:
-        df["Ticker"] = df["Ticker"].astype(str) + suffix
-    return df
