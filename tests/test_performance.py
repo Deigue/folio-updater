@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import cProfile
+import io
 import logging
 import pstats
 import sys
@@ -81,11 +82,7 @@ def _discover_test_imports() -> set[str]:
 
 @pytest.mark.skip(reason="Performance profiling - run manually when needed")
 def test_profile_test_suite() -> None:  # pragma: no cover
-    """Profile the entire test suite to identify bottlenecks.
-
-    Run with:
-      uv run python -m pytest tests/test_performance.py::test_profile_test_suite -v -s
-    """
+    """Profile the entire test suite to identify bottlenecks."""
     profiler = cProfile.Profile()
     profiler.enable()
 
@@ -101,33 +98,43 @@ def test_profile_test_suite() -> None:  # pragma: no cover
 
     profiler.disable()
 
-    # Use print_stats with a filter for our code
+    # Print cumulative stats and log them immediately so the header is
+    # followed by its corresponding data in the logs (pytest capture can
+    # otherwise interleave buffered output).
     logger.info("\n%s", "=" * 100)
-    logger.info("TOP 50 PROJECT FUNCTIONS BY CUMULATIVE TIME")
+    logger.info("TOP 80 FUNCTIONS BY CUMULATIVE TIME (unfiltered)")
     logger.info("%s", "=" * 100)
 
-    stats = pstats.Stats(profiler)
-    stats.sort_stats("cumulative")
+    buf = io.StringIO()
+    stats_cum = pstats.Stats(profiler, stream=buf)
+    stats_cum.sort_stats("cumulative")
+    stats_cum.print_stats(80)
+    contents = buf.getvalue()
+    logger.info("\n%s", contents)
 
-    # Filter to project files only
-    stats.print_stats("folio-updater", 50)
+    # Clear buffer for the next section
+    buf.truncate(0)
+    buf.seek(0)
 
+    # Print total (self) time stats and log immediately
     logger.info("\n%s", "=" * 100)
-    logger.info("TOP 30 PROJECT FUNCTIONS BY TOTAL TIME (self time)")
+    logger.info("TOP 80 FUNCTIONS BY TOTAL TIME (self time, unfiltered)")
     logger.info("%s", "=" * 100)
 
-    stats.sort_stats("tottime")
-    stats.print_stats("folio-updater", 30)
+    stats_tot = pstats.Stats(profiler, stream=buf)
+    stats_tot.sort_stats("tottime")
+    stats_tot.print_stats(80)
+    contents = buf.getvalue()
+    logger.info("\n%s", contents)
 
 
+@pytest.mark.skip(reason="Performance profiling - run manually when needed")
 def test_profile_imports() -> None:
     """Profile import times to identify slow imports.
 
     Dynamically discovers all modules imported by test files and profiles them.
     Uses fresh Python subprocess to avoid import caching.
 
-    Run with:
-      uv run python -m pytest tests/test_performance.py::test_profile_imports -v -s
     """
     logger.info("\n%s", "=" * 80)
     logger.info("MODULE IMPORT TIMES (Fresh imports, no cache)")
