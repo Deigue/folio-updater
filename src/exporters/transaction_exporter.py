@@ -56,7 +56,7 @@ class TransactionExporter:
             sheet_exists = "replace"
             rolling_backup(self.folio_path)
             check_file_read_write_access(self.folio_path)
-        else:  # pragma: no cover
+        else:
             mode = "w"
             sheet_exists = None
 
@@ -72,12 +72,12 @@ class TransactionExporter:
                 index=False,
             )
 
-        logger.info("=" * 60)
+        logger.info("=" * 80)
         logger.info(
             "Full export completed: %d transactions exported",
             transaction_count,
         )
-        logger.info("=" * 60)
+        logger.info("=" * 80)
 
         return transaction_count
 
@@ -119,7 +119,7 @@ class TransactionExporter:
                     nrows=0,
                     engine="openpyxl",
                 ).columns.tolist()
-        except ValueError as e:  # pragma: no cover
+        except ValueError as e:
             msg = f"Error reading sheet '{self.txn_sheet}': {e}"
             logger.exception(msg)
             raise ValueError(msg) from e
@@ -187,7 +187,7 @@ def check_file_read_write_access(path: Path) -> None:
     try:
         with path.open("rb+"):
             return
-    except PermissionError as e:  # pragma: no cover
+    except PermissionError as e:
         msg = f"File '{path}' is not accessible for reading and writing: {e}"
         logger.exception(msg)
         raise

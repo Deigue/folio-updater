@@ -113,7 +113,7 @@ class ActionValidationRules:
         try:
             action_enum = Action(action)
             return cls.RULES.get(action_enum, cls.DEFAULT)
-        except ValueError:  # pragma: no cover
+        except ValueError:
             # If action is not a valid enum, use default rules
             return cls.DEFAULT
 
@@ -209,7 +209,7 @@ class TransactionFormatter:
             )
 
             for idx in sorted(excluded_indices):
-                if idx < len(self.original_df):  # pragma: no branch
+                if idx < len(self.original_df):
                     row = self.original_df.iloc[idx]
                     reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
                     reason_str = ", ".join(reasons)
@@ -225,7 +225,7 @@ class TransactionFormatter:
         Handles both required transaction date and optional date fields.
         """
         # Format required transaction date
-        if Column.Txn.TXN_DATE in self.formatted_df.columns:  # pragma: no cover
+        if Column.Txn.TXN_DATE in self.formatted_df.columns:
             self._format_date_column(Column.Txn.TXN_DATE, required=True)
 
         # Format settlement date (internal field, not required)
@@ -299,7 +299,7 @@ class TransactionFormatter:
         Handles both required transaction action and optional action fields.
         """
         # Format required transaction action
-        if Column.Txn.ACTION in self.formatted_df.columns:  # pragma: no cover
+        if Column.Txn.ACTION in self.formatted_df.columns:
             self._format_action_column(Column.Txn.ACTION, required=True)
 
         # Format optional action fields
@@ -383,7 +383,7 @@ class TransactionFormatter:
         Handles both required transaction currency and optional currency fields.
         """
         # Format required transaction currency
-        if Column.Txn.CURRENCY in self.formatted_df.columns:  # pragma: no cover
+        if Column.Txn.CURRENCY in self.formatted_df.columns:
             self._format_currency_column(Column.Txn.CURRENCY, required=True)
 
         # Format optional currency fields
@@ -509,7 +509,7 @@ class TransactionFormatter:
         ]
 
         for field in numeric_fields:
-            if field in self.formatted_df.columns:  # pragma: no branch
+            if field in self.formatted_df.columns:
                 self.formatted_df[field] = self.formatted_df[field].astype("object")
 
         for row in self.formatted_df.index:

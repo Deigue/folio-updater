@@ -921,10 +921,6 @@ def _test_missing_essential_column(config: Config, default_df: pd.DataFrame) -> 
     df = default_df.copy()
     essential_to_remove = next(iter(TXN_ESSENTIALS))
 
-    if essential_to_remove not in df.columns:  # pragma: no cover
-        msg = f"Essential column '{essential_to_remove}' is missing."
-        raise ValueError(msg)
-
     df = df.drop(columns=[essential_to_remove])
     txn_sheet = config.transactions_sheet()
     temp_path = config.folio_path.parent / "temp_missing_essential.xlsx"
@@ -950,7 +946,7 @@ def _add_extra_columns_to_df(df: pd.DataFrame, extra_cols: dict) -> pd.DataFrame
 def _modify_essential_for_uniqueness(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
     """Modify an essential column's data to make rows unique for testing."""
     df = df.copy()
-    if "Ticker" in df.columns:  # pragma: no branch
+    if "Ticker" in df.columns:
         df["Ticker"] = df["Ticker"].astype(str) + suffix
     return df
 

@@ -60,7 +60,7 @@ def import_transaction_files(
             num_txns = import_transactions(folio_path, None, txn_sheet)
             typer.echo(f"Successfully imported {num_txns} transactions")
 
-        except (OSError, ValueError, KeyError) as e:  # pragma: no cover
+        except (OSError, ValueError, KeyError) as e:
             typer.echo(f"Error importing from folio: {e}", err=True)
             raise typer.Exit(1) from e
 
@@ -74,7 +74,7 @@ def import_transaction_files(
         base_path = file_path.parent  # Same directory as the file
         _import_file_and_export(file_path, base_path)
 
-    elif directory:  # pragma: no branch
+    elif directory:
         # Import from directory
         dir_path = Path(directory)
         if not dir_path.exists():  # pragma: no cover
@@ -122,10 +122,13 @@ def _import_single_file_to_db(file_path: Path) -> int:
         txn_sheet = config.transactions_sheet()
         num_txns = import_transactions(file_path, None, txn_sheet)
 
-    except (OSError, ValueError, KeyError) as e:  # pragma: no cover
+    except (OSError, ValueError, KeyError) as e:
         typer.echo(f"Error importing {file_path.name}: {e}", err=True)
         return 0
     else:
+        typer.echo(
+            f"Successfully imported {num_txns} transactions from {file_path.name}",
+        )
         return num_txns
 
 
@@ -135,9 +138,6 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
     num_txns = _import_single_file_to_db(file_path)
 
     if num_txns > 0:
-        typer.echo(
-            f"Successfully imported {num_txns} transactions from {file_path.name}",
-        )
         try:
             exporter = TransactionExporter()
             # Check if folio exists to determine export method
@@ -149,7 +149,7 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
                 # Folio doesn't exist, create it with all transactions
                 exported = exporter.export_full()
                 typer.echo(f"Created folio Excel with {exported} transactions")
-        except (OSError, ValueError, KeyError) as e:  # pragma: no cover
+        except (OSError, ValueError, KeyError) as e:
             typer.echo(f"Warning: Failed to export to folio Excel: {e}", err=True)
     else:  # pragma: no cover
         typer.echo(
@@ -179,14 +179,13 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
     # Import all files to database first
     for file_path in import_files:
         num_txns = _import_single_file_to_db(file_path)
-        typer.echo(f"Imported {num_txns} transactions from {file_path.name}")
         total_imported += num_txns
         _move_file(file_path, processed_folder)
 
     typer.echo(f"Total transactions imported: {total_imported}")
 
     # Export all new transactions to folio
-    if total_imported > 0:  # pragma: no branch
+    if total_imported > 0:
         try:
             exporter = TransactionExporter()
             # Check if folio exists to determine export method
@@ -199,7 +198,7 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
                 # Folio doesn't exist, create it with all transactions
                 exported = exporter.export_full()
                 typer.echo(f"Created folio Excel with {exported} transactions")
-        except (OSError, ValueError, KeyError) as e:  # pragma: no cover
+        except (OSError, ValueError, KeyError) as e:
             typer.echo(f"Warning: Failed to export to folio: {e}", err=True)
 
 

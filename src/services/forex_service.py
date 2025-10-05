@@ -50,7 +50,7 @@ class ForexService:
                     return result[0]
                 logger.debug("No FX rates found in database")  # pragma: no cover
                 return None  # pragma: no cover
-        except sqlite3.Error as e:  # pragma: no cover
+        except sqlite3.Error as e:
             logger.debug("Could not get latest FX date from database: %s", e)
             return None
 
@@ -95,7 +95,7 @@ class ForexService:
                 logger.debug("Retrieved %d FX rates from database", len(df))
                 return df
 
-        except sqlite3.Error as e:  # pragma: no cover
+        except sqlite3.Error as e:
             logger.debug("Could not get FX rates from database: %s", e)
             return pd.DataFrame()
 
@@ -126,10 +126,10 @@ class ForexService:
             raw_df = pd.read_csv(csv_data)
             return cls._process_fx_data(raw_df)
 
-        except requests.RequestException:  # pragma: no cover
+        except requests.RequestException:
             logger.exception("Failed to fetch FX rates from Bank of Canada URL.")
             return pd.DataFrame()
-        except (ValueError, KeyError):  # pragma: no cover
+        except (ValueError, KeyError):
             logger.exception("Error processing FX data from Bank of Canada URL.")
             return pd.DataFrame()
 

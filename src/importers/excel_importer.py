@@ -54,7 +54,7 @@ def import_transactions(
         if is_csv:  # pragma: no cover
             txns_df: pd.DataFrame = pd.read_csv(folio_path)
         else:
-            if sheet is None:  # pragma: no cover
+            if sheet is None:
                 with pd.ExcelFile(folio_path, engine="openpyxl") as xls:
                     sheet = str(xls.sheet_names[0])
             txns_df: pd.DataFrame = pd.read_excel(
@@ -67,7 +67,7 @@ def import_transactions(
             len(txns_df),
             sheet,
         )
-    except ValueError:  # pragma: no cover
+    except ValueError:
         error_msg = f"No '{sheet}' sheet found in {folio_path}."
         import_logger.warning(error_msg)
         import_logger.info("DONE: 0 imported")
@@ -76,14 +76,14 @@ def import_transactions(
         return 0
 
     db_path = get_config().db_path
-    if existing_count > 0:  # pragma: no branch
+    if existing_count > 0:
         rolling_backup(db_path)
     prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
     with db.get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
             final_count = db.get_row_count(conn, Table.TXNS)
-        except sqlite3.IntegrityError:  # pragma: no cover
+        except sqlite3.IntegrityError:
             _analyze_and_insert_rows(conn, prepared_df)
 
     txn_count = len(prepared_df)

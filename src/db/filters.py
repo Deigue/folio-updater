@@ -37,7 +37,7 @@ class TransactionFilter:
             return txn_df
 
         existing_keys = TransactionFilter._get_db_transaction_keys()
-        if not existing_keys:  # pragma: no cover
+        if not existing_keys:
             return txn_df
 
         new_keys_series: pd.Series[str] = txn_df.apply(
@@ -168,7 +168,7 @@ class TransactionFilter:
                 import_logger.info(" * %s", summary)
 
         # Log rejected duplicates
-        if rejected_mask.any():  # pragma: no branch
+        if rejected_mask.any():
             rejected_count = rejected_mask.sum()
             msg = f"SKIP {rejected_count} {duplicate_type} duplicates"
             import_logger.warning(msg)
@@ -228,7 +228,7 @@ class TransactionFilter:
                 existing_keys.update(
                     existing_df.apply(TransactionFilter._generate_key, axis=1),
                 )
-            except (sqlite3.Error, pd.errors.DatabaseError):  # pragma: no cover
+            except (sqlite3.Error, pd.errors.DatabaseError):
                 import_logger.debug(
                     "Table '%s' does not exist yet, no existing transactions to check.",
                     Table.TXNS,

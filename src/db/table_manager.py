@@ -44,7 +44,7 @@ def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
                         column,
                         Table.TXNS,
                     )
-                except sqlite3.OperationalError:  # pragma: no cover
+                except sqlite3.OperationalError:
                     logger.exception("Could not add column '%s'", column)
 
     final_columns = existing_columns + new_columns

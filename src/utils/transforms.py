@@ -90,7 +90,7 @@ class TransformsConfig:
 
         for rule_config in rules_list:
             rule = self._parse_rule(rule_config)
-            if rule:  # pragma: no branch
+            if rule:
                 self.rules.append(rule)
 
         # Parse merge groups
@@ -196,7 +196,7 @@ class TransformsConfig:
                 str(v) for v in values_list if isinstance(v, (str, int, float))
             ]
 
-            if string_values:  # pragma: no branch
+            if string_values:
                 processed[field] = string_values
 
         return processed
@@ -215,20 +215,20 @@ class TransformsConfig:
             if not isinstance(field, str):  # pragma: no cover
                 continue
 
-            if value is None:  # pragma: no cover
+            if value is None:
                 processed[field] = ""
-            elif isinstance(value, (str, int, float)):  # pragma: no branch
+            elif isinstance(value, (str, int, float)):
                 # Convert all values to strings for consistent storage
                 processed[field] = str(value) if value != "" else ""
             # Skip invalid action values (dict, list, etc.)
 
         return processed
 
-    def __bool__(self) -> bool:  # pragma: no cover
+    def __bool__(self) -> bool:
         """Return True if there are transformation rules or merge groups configured."""
         return bool(self.rules) or bool(self.merge_groups)
 
-    def __len__(self) -> int:  # pragma: no cover
+    def __len__(self) -> int:
         """Return the number of transformation rules."""
         return len(self.rules)
 

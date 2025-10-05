@@ -15,6 +15,7 @@ class Currency(StrEnum):
 
     USD = "USD"
     CAD = "CAD"
+    EUR = "EUR"
 
 
 class Action(StrEnum):

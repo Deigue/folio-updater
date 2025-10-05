@@ -17,7 +17,7 @@ def format_transaction_summary(row: pd.Series) -> str:
     essential_parts = []
     for col in TXN_ESSENTIALS:
         value = row.get(col, "N/A")
-        if pd.isna(value):  # pragma: no cover
+        if pd.isna(value):
             value = "N/A"
         essential_parts.append(f"{col}={value}")
 

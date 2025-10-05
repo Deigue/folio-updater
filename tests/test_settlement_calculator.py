@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pandas as pd
 
-from utils.constants import Action, Column, Currency
+from utils.constants import TORONTO_TZ, Action, Column, Currency
 from utils.settlement_calculator import SettlementCalculator
 
 
@@ -100,9 +102,7 @@ class TestSettlementCalculator:
         )
 
         result = self.calculator.add_settlement_dates_to_dataframe(df)
-
-        # Should add a settlement date, but fallback to simple business day logic
-        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-10-02"
+        assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-10-06"
         assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1  # Calculated
 
     def test_multiple_transactions_dataframe(self) -> None:
@@ -145,3 +145,19 @@ class TestSettlementCalculator:
         # Check third transaction (SELL, no existing date)
         assert result.loc[2, Column.Txn.SETTLE_DATE] == "2024-06-04"  # T+1
         assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 1
+
+    def test_calculate_simple_business_days(self) -> None:
+        """Test simple business day calculation."""
+        monday = datetime(2025, 10, 6, tzinfo=TORONTO_TZ).date()  # Monday
+        result = self.calculator.calculate_simple_business_days(monday, 1)
+        assert result == "2025-10-07"  # Tuesday
+
+        result = self.calculator.calculate_simple_business_days(monday, 2)
+        assert result == "2025-10-08"  # Wednesday
+
+        friday = datetime(2025, 10, 10, tzinfo=TORONTO_TZ).date()  # Friday
+        result = self.calculator.calculate_simple_business_days(friday, 1)
+        assert result == "2025-10-13"  # Monday
+
+        result = self.calculator.calculate_simple_business_days(friday, 3)
+        assert result == "2025-10-15"  # Wednesday

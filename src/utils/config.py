@@ -78,13 +78,13 @@ class Config:
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
         self._folio_path: Path = folio_path
         db_path = Path(settings["db_path"])
-        if not db_path.is_absolute():  # pragma: no branch
+        if not db_path.is_absolute():
             db_path: Path = (project_root / settings["db_path"]).resolve()
             if db_path.parent == project_root / "data" and not db_path.parent.exists():
                 db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path: Path = db_path
         backup_path = Path(settings["backup"]["path"])
-        if not backup_path.is_absolute():  # pragma: no branch
+        if not backup_path.is_absolute():
             backup_path: Path = (project_root / settings["backup"]["path"]).resolve()
         self._backup_path: Path = backup_path
         optional_columns = settings.get("optional_columns", {})
@@ -326,12 +326,12 @@ class Config:
             duplicate_approval = settings["duplicate_approval"]
             validated_duplicate_approval = validated["duplicate_approval"].copy()
 
-            if "column_name" in duplicate_approval:  # pragma: no cover
+            if "column_name" in duplicate_approval:
                 validated_duplicate_approval["column_name"] = str(
                     duplicate_approval["column_name"],
                 )
 
-            if "approval_value" in duplicate_approval:  # pragma: no cover
+            if "approval_value" in duplicate_approval:
                 validated_duplicate_approval["approval_value"] = str(
                     duplicate_approval["approval_value"],
                 )
@@ -347,19 +347,19 @@ class Config:
             backup_config = settings["backup"]
             validated_backup = validated["backup"].copy()
 
-            if "enabled" in backup_config:  # pragma: no branch
+            if "enabled" in backup_config:
                 enabled = backup_config["enabled"]
-                if isinstance(enabled, bool):  # pragma: no branch
+                if isinstance(enabled, bool):
                     validated_backup["enabled"] = enabled
 
-            if "path" in backup_config:  # pragma: no branch
+            if "path" in backup_config:
                 validated_backup["path"] = str(backup_config["path"])
 
-            if "max_backups" in backup_config:  # pragma: no branch
+            if "max_backups" in backup_config:
                 max_backups = backup_config["max_backups"]
                 if (
                     isinstance(max_backups, int) and max_backups > 0
-                ):  # pragma: no branch
+                ):
                     validated_backup["max_backups"] = max_backups
 
             validated["backup"] = validated_backup

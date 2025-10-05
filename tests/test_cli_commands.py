@@ -103,9 +103,9 @@ class TestFXCommand:
             ensure_folio_exists()
 
             # Remove forex data from folio to simulate fresh state.
-            if config.folio_path.exists():  # pragma: no branch
+            if config.folio_path.exists():
                 workbook = load_workbook(config.folio_path)
-                if config.forex_sheet() in workbook.sheetnames:  # pragma: no branch
+                if config.forex_sheet() in workbook.sheetnames:
                     workbook.remove(workbook[config.forex_sheet()])
                     workbook.save(config.folio_path)
                 workbook.close()

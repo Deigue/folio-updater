@@ -118,4 +118,4 @@ def test_bootstrap(
                     root_logger.removeHandler(handler)
             for handler in original_handlers:
                 if handler not in root_logger.handlers:
-                    root_logger.addHandler(handler)
+                    root_logger.addHandler(handler)  # pragma: no cover

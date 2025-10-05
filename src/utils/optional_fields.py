@@ -53,7 +53,7 @@ class OptionalField:
         type_str = entry.get("type", "string")
         try:
             field_type = FieldType(type_str.lower())
-        except ValueError as e:  # pragma: no cover
+        except ValueError as e:
             valid_types = [ft.value for ft in FieldType]
             msg = (
                 f"Invalid field type '{type_str}' for field '{name}'. "

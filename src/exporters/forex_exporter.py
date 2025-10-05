@@ -71,9 +71,9 @@ class ForexExporter:
                 index=False,
             )
 
-        logger.info("=" * 60)
+        logger.info("=" * 80)
         logger.info("Full export completed: %d fx rates exported", fx_count)
-        logger.info("=" * 60)
+        logger.info("=" * 80)
 
         return fx_count
 
@@ -104,7 +104,7 @@ class ForexExporter:
                 sheet_name=self.forex_sheet,
                 engine="openpyxl",
             )
-        except ValueError as e:  # pragma: no cover
+        except ValueError as e:
             # Sheet might not exist yet, perform full export
             if "Worksheet named" in str(e) and "not found" in str(e):
                 logger.info("FX sheet doesn't exist, performing full export")
@@ -144,9 +144,9 @@ class ForexExporter:
         workbook.save(self.folio_path)
         workbook.close()
 
-        logger.info("=" * 60)
+        logger.info("=" * 80)
         logger.info("Update export completed: %d new FX rates exported", fx_count)
-        logger.info("=" * 60)
+        logger.info("=" * 80)
 
         return fx_count
 
@@ -169,7 +169,7 @@ class ForexExporter:
         try:
             with self.folio_path.open("rb+"):
                 return
-        except PermissionError as e:  # pragma: no cover
+        except PermissionError as e:
             msg = (
                 f"File '{self.folio_path}' is not accessible for "
                 f"reading and writing: {e}"

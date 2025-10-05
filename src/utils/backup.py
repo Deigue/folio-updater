@@ -40,7 +40,7 @@ def rolling_backup(
     if not file_path.exists():  # pragma: no cover
         raise FileNotFoundError
 
-    if max_backups is None:  # pragma: no cover
+    if max_backups is None:
         max_backups = config.max_backups
 
     backup_dir = config.backup_path
@@ -66,13 +66,13 @@ def rolling_backup(
                     file_path,
                     backup_path,
                 )
-        except sqlite3.Error:  # pragma: no cover
+        except sqlite3.Error:
             logger.exception("SQLite backup failed: %s", file_path)
             raise
         finally:
             source.close()
             backup.close()
-    else:  # pragma: no cover
+    else:
         backup_path = subdir / f"{file_stem}_{timestamp}{file_path.suffix}"
         shutil.copy2(file_path, backup_path)
         msg = f"Backup created: {file_path} -> {backup_path}"

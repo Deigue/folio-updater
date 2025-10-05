@@ -27,7 +27,7 @@ def create_folio() -> None:
         typer.echo("Demo portfolio created successfully!")
         typer.echo("Check your database path for the generated folio database.")
 
-    except (OSError, ValueError, KeyError) as e:  # pragma: no cover
+    except (OSError, ValueError, KeyError) as e:
         typer.echo(f"Error creating demo portfolio: {e}", err=True)
         raise typer.Exit(1) from e
 

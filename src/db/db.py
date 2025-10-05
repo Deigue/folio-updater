@@ -17,10 +17,10 @@ logger: logging.Logger = logging.getLogger(__name__)
 @contextmanager
 def get_connection() -> Generator[sqlite3.Connection, None, None]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
+    db_path = get_config().db_path
     try:
-        db_path = get_config().db_path
         conn: sqlite3.Connection = sqlite3.connect(db_path)
-    except sqlite3.OperationalError:  # pragma: no cover
+    except sqlite3.OperationalError:
         logger.exception("Error connecting to database: %s", str(db_path))
         raise
     try:
@@ -61,7 +61,7 @@ def get_rows(
         query = f'SELECT * FROM "{table_name}"'
     try:
         df = pd.read_sql_query(query, connection)
-    except pd.errors.DatabaseError:  # pragma: no cover
+    except pd.errors.DatabaseError:
         return pd.DataFrame()
 
     # For tail, reverse to preserve original order
@@ -75,5 +75,5 @@ def get_row_count(connection: sqlite3.Connection, table_name: str) -> int:
     query = f'SELECT COUNT(*) FROM "{table_name}"'
     try:
         return connection.execute(query).fetchone()[0]
-    except sqlite3.OperationalError:  # pragma: no cover
+    except sqlite3.OperationalError:
         return 0

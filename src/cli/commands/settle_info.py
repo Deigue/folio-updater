@@ -41,7 +41,7 @@ def settlement_info() -> None:
             typer.echo(f"  Calculated settlement dates: {calculated_count}")
             typer.echo(f"  Provided settlement dates: {total_count - calculated_count}")
 
-            if calculated_count > 0:  # pragma: no branch
+            if calculated_count > 0:
                 typer.echo("\nTransactions with calculated settlement dates:")
 
                 # Get list of transactions with calculated settlement dates
@@ -93,6 +93,6 @@ def settlement_info() -> None:
                     )
             else:  # pragma: no cover
                 typer.echo("\nNo transactions found with calculated settlement dates.")
-    except sqlite3.DatabaseError as e:  # pragma: no cover
+    except sqlite3.DatabaseError as e:
         typer.echo("Database error querying settlement info:", err=True)
         typer.echo(str(e), err=True)

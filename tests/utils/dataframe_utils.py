@@ -29,7 +29,7 @@ def _normalize_dataframes(
             try:
                 imported_df[col] = imported_df[col].astype(float)
                 table_df[col] = table_df[col].astype(float)
-            except (ValueError, TypeError) as e:  # pragma: no cover
+            except (ValueError, TypeError) as e:
                 logger.warning("Could not convert column '%s' to float: %s", col, e)
 
     # Expected Data Formatters
@@ -81,7 +81,7 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
         query = f'SELECT * FROM "{Table.TXNS}"'
         table_df = pd.read_sql_query(query, conn)
 
-        if last_n is not None:  # pragma: no branch
+        if last_n is not None:
             table_df = table_df.tail(last_n).reset_index(drop=True)
             imported_df = imported_df.reset_index(drop=True)
 
@@ -93,7 +93,7 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
 
         # Remove TxnId column from table_df for comparison since
         # it's auto-generated and not part of the input data
-        if Column.Txn.TXN_ID in table_df.columns:  # pragma: no branch
+        if Column.Txn.TXN_ID in table_df.columns:
             table_df = table_df.drop(columns=[Column.Txn.TXN_ID])
 
         # We don't compare calculated columns
@@ -106,7 +106,7 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
 
         try:
             pd_testing.assert_frame_equal(imported_df, table_df)
-        except AssertionError as e:  # pragma: no cover
+        except AssertionError as e:
             logger.info("DataFrame mismatch between imported data and DB contents:")
             logger.info("Imported DataFrame:")
             logger.info("\n%s", imported_df.to_string(index=False))

@@ -53,7 +53,7 @@ class AppContext:
         """Get the singleton instance."""
         if cls._instance is None:
             with cls._lock:
-                cls._instance = cls()  # pragma: no cover
+                cls._instance = cls()
         return cls._instance
 
     @property
