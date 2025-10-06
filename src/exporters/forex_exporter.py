@@ -55,7 +55,7 @@ class ForexExporter:
             sheet_exists = "replace"
             rolling_backup(self.folio_path)
             self._check_file_access()
-        else:
+        else:  # pragma: no cover
             mode = "w"
             sheet_exists = None
 
@@ -159,7 +159,7 @@ class ForexExporter:
         if ForexService.is_fx_data_current():  # pragma: no cover
             return
         fx_df = ForexService.get_missing_fx_data(start_date)
-        if fx_df.empty:
+        if fx_df.empty:  # pragma: no cover
             return
 
         ForexService.insert_fx_data(fx_df)

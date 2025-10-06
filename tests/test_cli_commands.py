@@ -96,6 +96,7 @@ class TestFXCommand:
             ...,
             _GeneratorContextManager[AppContext, None, None],
         ],
+        cached_fx_data: Callable[[str | None], pd.DataFrame],
     ) -> None:
         """Test getfx command through main CLI app."""
         with temp_config() as ctx:
@@ -115,12 +116,17 @@ class TestFXCommand:
                 conn.execute(f"DROP TABLE IF EXISTS {Table.FX}")
                 conn.commit()
 
-            result = run_cli_with_config(config, cli_app, ["getfx"])
-            assert result.exit_code == 0
-            assert "Successfully updated" in result.stdout
-            with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.FX)
-                assert count > 0
+            # Use cached FX data instead of real API call
+            with patch(
+                "services.forex_service.ForexService.get_fx_rates_from_boc",
+            ) as mock_fx:
+                mock_fx.return_value = cached_fx_data(None)
+                result = run_cli_with_config(config, cli_app, ["getfx"])
+                assert result.exit_code == 0
+                assert "Successfully updated" in result.stdout
+                with db.get_connection() as conn:
+                    count = db.get_row_count(conn, Table.FX)
+                    assert count > 0
 
 
 class TestImportCommand:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import _GeneratorContextManager, contextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Generator
 from unittest.mock import patch
@@ -14,7 +15,10 @@ import yaml
 
 from app.app_context import AppContext
 from services.forex_service import ForexService
-from utils.constants import Column
+from utils.constants import TORONTO_TZ, Column
+
+# Shared cache for real FX API data (fetched once per test session)
+_fx_cache: dict[str, pd.DataFrame] = {}
 
 
 @pytest.fixture(autouse=True)
@@ -124,3 +128,23 @@ def mock_forex_data(request: pytest.FixtureRequest) -> Generator[None, Any, None
         return_value=mock_fx_data,
     ), patch.object(ForexService, "insert_fx_data", return_value=None):
         yield
+
+
+@pytest.fixture(scope="session")
+def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
+    """Fixture returning a function to fetch and slice cached FX data."""
+    cache_key = "fx_data_60days"
+    if cache_key not in _fx_cache:
+        default_start = (datetime.now(TORONTO_TZ) - timedelta(days=60)).strftime(
+            "%Y-%m-%d",
+        )
+        forex_service = ForexService()
+        _fx_cache[cache_key] = forex_service.get_fx_rates_from_boc(default_start)
+
+    def get_fx_data(start_date: str | None = None) -> pd.DataFrame:
+        df = _fx_cache[cache_key].copy()
+        if start_date is not None:
+            df = df[df[Column.FX.DATE] >= start_date]
+        return df
+
+    return get_fx_data
