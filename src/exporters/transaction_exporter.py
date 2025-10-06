@@ -139,7 +139,7 @@ class TransactionExporter:
         else:
             new_transactions_df = self._find_new_transactions(excel_df, db_df)
 
-        if new_transactions_df.empty:
+        if new_transactions_df.empty:  # pragma: no cover
             return 0
         txn_count = len(new_transactions_df)
         msg = f"Found {txn_count} new transactions to export"

@@ -339,7 +339,7 @@ pd.set_option("display.max_colwidth", None)
         ),
     ],
 )
-def test_import_scenarios(  # noqa: PLR0913,PLR0915
+def test_import_scenarios(  # noqa: PLR0915
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
     scenario: str,
     test_data: dict[str, Any],
@@ -467,7 +467,7 @@ def test_import_duplicate_handling(
 
         config.db_path.unlink(missing_ok=True)
         initial_count = import_transactions(initial_path, "TEST-ACCOUNT", txn_sheet)
-        assert initial_count == 2  # noqa: PLR2004 (test assertion)
+        assert initial_count == 2
 
         # Try to import duplicate - should be rejected
         duplicate_data: dict[str, Any] = {
@@ -528,7 +528,7 @@ def test_import_duplicate_handling(
             "TEST-ACCOUNT",
             txn_sheet,
         )
-        assert intra_approval_count == 2  # noqa: PLR2004 (test assertion)
+        assert intra_approval_count == 2
 
 
 def test_import_missing_essential_column(

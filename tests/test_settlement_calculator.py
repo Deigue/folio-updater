@@ -71,7 +71,7 @@ calculator = SettlementCalculator()
         ),
     ],
 )
-def test_settlement_scenarios(  # noqa: PLR0913
+def test_settlement_scenarios(
     scenario: str,
     txn_date: str | None,
     action: str | None,
