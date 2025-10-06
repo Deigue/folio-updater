@@ -35,7 +35,10 @@ branch = false
 
 [tool.coverage.report]
 show_missing = true
-omit = ['*/__init__.py']
+omit = [
+    '*/__init__.py',
+    'tests/test_performance.py'
+]
 exclude_lines = [
     "if TYPE_CHECKING:",
     "pragma: no cover",
