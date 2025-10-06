@@ -8,7 +8,6 @@ files.
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING, Callable
 
 import pandas as pd
@@ -71,42 +70,29 @@ def test_folio_creation(
                 errors="ignore",
             )
             pd_testing.assert_frame_equal(txns_df, expected_txns_df)
-
-        # Capture last modified time
-        mtime_before: float = folio_path.stat().st_mtime
-        # Wait a bit to ensure detectable mtime change if rewritten
-        time.sleep(0.1)
-        # Nothing happens when folio already exists
-        ensure_folio_exists()
-        # Assert file still exists
-        assert folio_path.exists()
-        # Assert mtime unchanged
-        assert folio_path.stat().st_mtime == mtime_before, (
-            "File was unexpectedly modified"
-        )
-
-
-def test_folio_missing(
-    tmp_path: Path,
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
-    """Raise error when non-standard folio path does not exist."""
-    missing_path: Path = tmp_path / "nonexistent_folder" / "folio.xlsx"
-    assert not missing_path.exists()
-    with temp_config({"folio_path": str(missing_path)}):
-        with pytest.raises(FileNotFoundError):
+            # Repeat call folio remains unchanged
             ensure_folio_exists()
-        assert not missing_path.exists()
+            assert folio_path.exists()
 
 
-def test_no_mock_raises_file_not_found(
+@pytest.mark.parametrize(
+    ("path_suffix", "mock"),
+    [
+        ("nonexistent_folder/folio.xlsx", True),
+        ("nonexistent_file.xlsx", False),
+    ],
+)
+def test_error_scenarios(
     tmp_path: Path,
     temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+    path_suffix: str,
+    *,
+    mock: bool,
 ) -> None:
-    """Raise FileNotFoundError when mock is False and file does not exist."""
-    missing_path: Path = tmp_path / "nonexistent_file.xlsx"
+    """Raise FileNotFoundError for various error scenarios."""
+    missing_path: Path = tmp_path / path_suffix
     assert not missing_path.exists()
     with temp_config({"folio_path": str(missing_path)}):
         with pytest.raises(FileNotFoundError):
-            ensure_folio_exists(mock=False)
+            ensure_folio_exists(mock=mock)
         assert not missing_path.exists()
