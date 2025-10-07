@@ -37,6 +37,7 @@ dist/
 /backups
 config.yaml
 AGENTS.md
+docs/PERFORMANCE.md
 
 # Experimental or sample files
 notebooks/playground.ipynb
