@@ -7,13 +7,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import pandas as pd
-import pandas_market_calendars as mcal
 
 from utils.constants import TORONTO_TZ, Action, Column, Currency
 from utils.logging_setup import get_import_logger
 
 if TYPE_CHECKING:
     from datetime import date
+
+    import pandas_market_calendars as mcal
 
 import_logger = get_import_logger()
 
@@ -45,6 +46,8 @@ class SettlementCalculator:
 
     def __init__(self) -> None:
         """Initialize the settlement calculator with market calendars."""
+        import pandas_market_calendars as mcal
+
         self._calendars: dict[Currency, mcal.MarketCalendar] = {}
         self._calendar_schedules: dict[Currency, pd.DatetimeIndex] = {}
         # Initialize market calendars
