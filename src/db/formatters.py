@@ -343,7 +343,7 @@ class TransactionFormatter:
             action_mapping: Mapping for action normalization
         """
         value = self.formatted_df.loc[idx, column]
-        if pd.isna(value):
+        if pd.isna(value) or str(value).strip() == "":
             if required:
                 self.exclusions.append(idx)
                 reason = f"MISSING {column}"
