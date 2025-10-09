@@ -7,11 +7,11 @@ import pandas as pd
 
 from app.app_context import get_config
 from db import db, schema_manager
-from exporters import transaction_exporter
+from exporters.parquet_exporter import ParquetExporter
 from mock.mock_data import generate_transactions
 from services.forex_service import ForexService
 from utils.backup import rolling_backup
-from utils.constants import DEFAULT_TICKERS, Column, Table
+from utils.constants import DEFAULT_TICKERS, Table
 from utils.settlement_calculator import settlement_calculator
 
 if TYPE_CHECKING:
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def ensure_folio_exists(*, mock: bool = True) -> None:
+def ensure_data_exists(*, mock: bool = True) -> None:
     """Ensure that the folio exists.
 
     Checks if the folio exists. If mock is True (default), creates a folio with
@@ -34,16 +34,16 @@ def ensure_folio_exists(*, mock: bool = True) -> None:
 
     """
     configuration = get_config()
-    folio_path: Path = configuration.folio_path
-    if folio_path.exists():
-        logger.debug("Folio file already exists at %s", folio_path)
+    transaction_data = configuration.txn_parquet
+    if transaction_data.exists():
+        logger.debug("Transaction data file already exists at %s", transaction_data)
         return
     if not mock:
-        msg: str = f'MISSING folio: "{folio_path}"'
+        msg: str = f'MISSING transaction data: "{transaction_data}"'
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    folio_path_parent: Path = folio_path.parent
+    folio_path_parent: Path = configuration.folio_path.parent
     default_data_dir: Path = configuration.project_root / "data"
 
     # Only create data folder in automated fashion
@@ -54,17 +54,16 @@ def ensure_folio_exists(*, mock: bool = True) -> None:
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    _create_default_folio()
+    _create_mock_data()
 
 
-def _create_default_folio() -> None:
+def _create_mock_data() -> None:
     """Create default folio with mock data."""
     configuration = get_config()
-    tickers_df = pd.DataFrame({Column.Ticker.TICKER: DEFAULT_TICKERS})
     transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
     transactions_df = pd.concat(transactions_list, ignore_index=True)
 
-    # Explicity don't call import_transactions to avoid logging of mock data.
+    # Only settlement calculation needed, mock data is already clean.
     transactions_df = settlement_calculator.add_settlement_dates_to_dataframe(
         transactions_df,
     )
@@ -76,23 +75,7 @@ def _create_default_folio() -> None:
         transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
     fx_df = ForexService.get_missing_fx_data()
     ForexService.insert_fx_data(fx_df)
+    exporter = ParquetExporter()
+    exporter.export_all()
 
-    transactions_df = transaction_exporter.remove_internal_columns(transactions_df)
-    with pd.ExcelWriter(configuration.folio_path, engine="openpyxl") as writer:
-        tickers_df.to_excel(
-            writer,
-            index=False,
-            sheet_name=configuration.tickers_sheet(),
-        )
-        transactions_df.to_excel(
-            writer,
-            index=False,
-            sheet_name=configuration.transactions_sheet(),
-        )
-        fx_df.to_excel(
-            writer,
-            sheet_name=configuration.forex_sheet(),
-            index=False,
-        )
-
-    logger.info("Created default folio at %s", configuration.folio_path)
+    logger.info("CREATED mock data at %s", configuration.data_path)

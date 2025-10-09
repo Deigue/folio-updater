@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from contextlib import _GeneratorContextManager, contextmanager
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Generator
+from typing import TYPE_CHECKING, Any, Callable, Generator
 from unittest.mock import patch
 
 import pandas as pd
@@ -16,6 +16,10 @@ import yaml
 from app.app_context import AppContext
 from services.forex_service import ForexService
 from utils.constants import TORONTO_TZ, Column
+
+
+if TYPE_CHECKING:
+    from .test_types import TempContext
 
 # Shared cache for real FX API data (fetched once per test session)
 _fx_cache: dict[str, pd.DataFrame] = {}
@@ -28,9 +32,7 @@ def reset_app_context() -> None:
 
 
 @pytest.fixture
-def temp_config(
-    tmp_path: Path,
-) -> Callable[..., _GeneratorContextManager[AppContext, None, None]]:
+def temp_ctx(tmp_path: Path) -> TempContext:
     """Create a temporary project structure with an isolated config.yaml.
 
     Args:
@@ -43,7 +45,7 @@ def temp_config(
     """
 
     @contextmanager
-    def _temp_config(
+    def _temp_ctx(
         overrides: dict[str, Any] | None = None,
         **kwargs: str | list[str] | dict[str, Any],
     ) -> Generator[AppContext, Any, None]:
@@ -55,8 +57,9 @@ def temp_config(
         overrides.update(kwargs)
 
         config_path: Path = tmp_path / "config.yaml"
-        with Path.open(config_path, "w") as f:
-            yaml.safe_dump(overrides, f, default_flow_style=False)
+        if overrides:
+            with Path.open(config_path, "w") as f:
+                yaml.safe_dump(overrides, f, default_flow_style=False)
 
         # Get a fresh instance after the reset_app_context fixture has run
         app_ctx = AppContext.get_instance()
@@ -69,13 +72,13 @@ def temp_config(
             config_path.unlink(missing_ok=True)
 
             # Clean artifacts created by folio_setup/mock_data
-            for pattern in ("*.xlsx", "*.db"):
+            for pattern in ("*.xlsx", "*.db", "*.parquet"):
                 for file_path in tmp_path.rglob(pattern):
                     file_path.unlink(missing_ok=True)
 
             _log_cleanup_status(tmp_path)
 
-    return _temp_config
+    return _temp_ctx
 
 
 def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
