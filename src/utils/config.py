@@ -25,7 +25,7 @@ class Config:
     DEFAULT_CONFIG: ClassVar[MappingProxyType[str, Any]] = MappingProxyType(
         {
             "folio_path": "data/folio.xlsx",
-            "db_path": "data/folio.db",
+            "data_path": "data",
             "log_level": "ERROR",
             "sheets": {
                 "tickers": "Tickers",
@@ -77,12 +77,12 @@ class Config:
         if not folio_path.is_absolute():
             folio_path: Path = (project_root / settings["folio_path"]).resolve()
         self._folio_path: Path = folio_path
-        db_path = Path(settings["db_path"])
-        if not db_path.is_absolute():
-            db_path: Path = (project_root / settings["db_path"]).resolve()
-            if db_path.parent == project_root / "data" and not db_path.parent.exists():
-                db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path: Path = db_path
+        data_path = Path(settings["data_path"])
+        if not data_path.is_absolute():
+            data_path: Path = (project_root / settings["data_path"]).resolve()
+            if not data_path.exists():
+                data_path.mkdir(parents=True, exist_ok=True)
+        self._data_path: Path = data_path
         backup_path = Path(settings["backup"]["path"])
         if not backup_path.is_absolute():
             backup_path: Path = (project_root / settings["backup"]["path"]).resolve()
@@ -103,9 +103,14 @@ class Config:
         return self._folio_path
 
     @property
+    def data_path(self) -> Path:
+        """Get the data directory path."""
+        return self._data_path
+
+    @property
     def db_path(self) -> Path:
         """Get the database path."""
-        return self._db_path
+        return self._data_path / "folio.db"
 
     @property
     def project_root(self) -> Path:
@@ -171,17 +176,44 @@ class Config:
         backup_config = self._settings.get("backup", {})
         return backup_config.get("max_backups", 50)
 
-    def tickers_sheet(self) -> str:
-        """Get the tickers sheet name."""
+    @property
+    def tkr_sheet(self) -> str:
+        """Get the tickers sheet name.
+
+        Renamed from tickers_sheet().
+        """
         return self._settings["sheets"]["tickers"]
 
-    def transactions_sheet(self) -> str:
-        """Get the transactions sheet name."""
+    @property
+    def txn_sheet(self) -> str:
+        """Get the transactions sheet name.
+
+        Renamed from transactions_sheet().
+        """
         return self._settings["sheets"]["txns"]
 
-    def forex_sheet(self) -> str:
-        """Get the forex sheet name."""
+    @property
+    def fx_sheet(self) -> str:
+        """Get the forex sheet name.
+
+        Renamed from forex_sheet().
+        """
         return self._settings["sheets"]["fx"]
+
+    @property
+    def txn_parquet(self) -> Path:
+        """Path to transactions.parquet in data path."""
+        return self._data_path / "transactions.parquet"
+
+    @property
+    def fx_parquet(self) -> Path:
+        """Path to forex.parquet in data path."""
+        return self._data_path / "forex.parquet"
+
+    @property
+    def tkr_parquet(self) -> Path:
+        """Path to tickers.parquet in data path."""
+        return self._data_path / "tickers.parquet"
 
     @classmethod
     def load(cls, project_root: Path | None = None) -> Config:
@@ -249,7 +281,7 @@ class Config:
 
         Config._validate_log_level(settings, validated)
         Config._validate_folio_path(settings, validated)
-        Config._validate_db_path(settings, validated)
+        Config._validate_data_path(settings, validated)
         Config._validate_sheets(settings, validated)
         Config._validate_header_keywords(settings, validated)
         Config._validate_header_ignore(settings, validated)
@@ -279,9 +311,12 @@ class Config:
             validated["folio_path"] = str(settings["folio_path"])
 
     @staticmethod
-    def _validate_db_path(settings: dict[str, Any], validated: dict[str, Any]) -> None:
-        if "db_path" in settings:
-            validated["db_path"] = str(settings["db_path"])
+    def _validate_data_path(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        if "data_path" in settings:
+            validated["data_path"] = str(settings["data_path"])
 
     @staticmethod
     def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:
@@ -357,9 +392,7 @@ class Config:
 
             if "max_backups" in backup_config:
                 max_backups = backup_config["max_backups"]
-                if (
-                    isinstance(max_backups, int) and max_backups > 0
-                ):
+                if isinstance(max_backups, int) and max_backups > 0:
                     validated_backup["max_backups"] = max_backups
 
             validated["backup"] = validated_backup
