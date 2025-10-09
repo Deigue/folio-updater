@@ -11,6 +11,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "pandas>=2.0.3",
     "pandas-market-calendars>=4.0.0",
+    "pyarrow>=17.0.0",
     "pyyaml>=6.0.2",
     "typer>=0.9.0",
 ]
@@ -22,7 +23,7 @@ folio = "cli.main:main"
 # sync addopts with .vscode/settings.json
 addopts = "--color=yes -vv"
 log_cli = true
-log_cli_level = "ERROR"
+log_cli_level = "INFO"
 log_cli_format = "[%(levelname)s] %(name)s(%(lineno)d): %(message)s"
 testpaths = ["tests"]
 pythonpath = ["src"]
@@ -60,6 +61,10 @@ exclude = ["**/Lib/**", "**/coverage/**", "**/.venv/**", "**/.git/**", "**/.vsco
 "*.ipynb" = ["T201", "F811"]
 "scripts/*" = ["T201"]
 "tests/*" = ["S101", "D103", "PLR0913", "PLR2004"]
+"src/cli/main.py" = ["PLC0415"]  # Allow function-level imports for lazy loading
+
+[tool.ruff.lint.flake8-tidy-imports]
+banned-module-level-imports = ["pandas_market_calendars"]
 
 [tool.uv]
 managed=true
