@@ -1,4 +1,8 @@
-"""Performance profiling tests for the entire test suite."""
+"""Performance profiling script for folio-updater.
+
+This script can be run manually to profile imports and test suite execution.
+Run with: uv run python scripts/run_performance_test.py
+"""
 
 from __future__ import annotations
 
@@ -51,14 +55,11 @@ def _discover_test_imports() -> set[str]:
     Returns:
         Set of unique module names imported across all test files.
     """
-    test_dir = Path(__file__).parent
+    test_dir = Path(__file__).parent.parent / "tests"
     src_modules = _get_src_module_names()
     modules = set()
 
     for test_file in test_dir.glob("test_*.py"):
-        if test_file.name == "test_performance.py":
-            continue  # Skip ourselves
-
         try:
             content = test_file.read_text(encoding="utf-8")
             tree = ast.parse(content)
@@ -80,9 +81,12 @@ def _discover_test_imports() -> set[str]:
     return modules
 
 
-@pytest.mark.skip(reason="Performance profiling - run manually when needed")
-def test_profile_test_suite() -> None:  # pragma: no cover
+def profile_test_suite() -> None:  # pragma: no cover
     """Profile the entire test suite to identify bottlenecks."""
+    logger.info("\n%s", "=" * 100)
+    logger.info("PROFILING TEST SUITE")
+    logger.info("%s\n", "=" * 100)
+
     profiler = cProfile.Profile()
     profiler.enable()
 
@@ -91,25 +95,25 @@ def test_profile_test_suite() -> None:  # pragma: no cover
         [
             "tests",
             "-v",
-            "--ignore=tests/test_performance.py",  # Don't profile ourselves
             "--log-cli-level=ERROR",
         ],
     )
 
     profiler.disable()
 
-    # Print cumulative stats and log them immediately so the header is
-    # followed by its corresponding data in the logs (pytest capture can
-    # otherwise interleave buffered output).
+    # * Cumulative time: for finding where total time accumulates.
+    # * Total time: isolates time spent in each function itself without subcalls.
     logger.info("\n%s", "=" * 100)
     logger.info("TOP 80 FUNCTIONS BY CUMULATIVE TIME (unfiltered)")
     logger.info("%s", "=" * 100)
 
+    # TODO(deigue): #33 Filter out test framework functions (pytest, unittest, etc.)
     buf = io.StringIO()
     stats_cum = pstats.Stats(profiler, stream=buf)
     stats_cum.sort_stats("cumulative")
     stats_cum.print_stats(80)
     contents = buf.getvalue()
+    # Flush to logger immediately under header
     logger.info("\n%s", contents)
 
     # Clear buffer for the next section
@@ -128,8 +132,7 @@ def test_profile_test_suite() -> None:  # pragma: no cover
     logger.info("\n%s", contents)
 
 
-@pytest.mark.skip(reason="Performance profiling - run manually when needed")
-def test_profile_imports() -> None:
+def profile_imports() -> None:
     """Profile import times to identify slow imports.
 
     Dynamically discovers all modules imported by test files and profiles them.
@@ -181,6 +184,67 @@ def test_profile_imports() -> None:
     logger.info("%s", "=" * 80)
 
 
+def run_quick_test_suite() -> float:
+    """Run test suite and return execution time in seconds."""
+    logger.info("\n%s", "=" * 100)
+    logger.info("QUICK TEST SUITE RUN")
+    logger.info("%s\n", "=" * 100)
+
+    start_time = time.perf_counter()
+
+    # Run pytest
+    exit_code = pytest.main(
+        [
+            "tests",
+            "-v",
+            "--ignore=tests/test_performance.py",
+            "--log-cli-level=ERROR",
+            "-q",  # Quiet mode
+        ],
+    )
+
+    elapsed = time.perf_counter() - start_time
+
+    logger.info("\n%s", "=" * 100)
+    logger.info("Test Suite Completed in %.2f seconds", elapsed)
+    logger.info("Exit Code: %d", exit_code)
+    logger.info("%s", "=" * 100)
+
+    return elapsed
+
+
 if __name__ == "__main__":  # pragma: no cover
-    # Allow running this directly
-    pytest.main([__file__, "-v", "-s"])
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Run quick test without profiling",
+    )
+    parser.add_argument(
+        "--imports",
+        action="store_true",
+        help="Profile import times only",
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Run full profiling of test suite",
+    )
+
+    args = parser.parse_args()
+
+    if args.quick:
+        run_quick_test_suite()
+    elif args.imports:
+        profile_imports()
+    elif args.profile:
+        profile_test_suite()
+    else:
+        # Default: run quick test suite
+        print(
+            "Running quick test suite. "
+            "Use --profile or --imports for detailed analysis.",
+        )
+        run_quick_test_suite()
