@@ -9,7 +9,8 @@ A portfolio management system that imports and processes financial transaction d
 **Folio** is now available as a command-line tool for managing your portfolio:
 
 - **`folio import`**: Import transactions from files
-- **`folio getfx`**: Update foreign exchange rates automatically  
+- **`folio getfx`**: Update foreign exchange rates automatically
+- **`folio generate`**: Generate the latest portfolio
 - **`folio demo`**: Create a demo portfolio with mock data for testing
 - **`folio version`**: Show the version of the folio-updater
 - **`folio settle-info`**: Retrieves information about calculated settlement dates
@@ -47,10 +48,10 @@ Import transaction files into your portfolio:
 # Default: Import from configured folio Excel file
 folio import
 
-# Import specific file and export new transactions to folio Excel
+# Import specific file
 folio import --file path/to/your/transactions.xlsx
 
-# Import all files from directory and export new transactions to folio Excel  
+# Import all files from directory
 folio import --dir C:\path\to\import\folder
 ```
 
@@ -63,6 +64,16 @@ folio getfx
 ```
 
 This command automatically fetches latest FX rates and updates your portfolio. If no FX data exists, it performs a full historical export.
+
+### Generate Portfolio
+
+Creates portfolio Excel file
+
+```bash
+folio generate
+```
+
+This retrieves the latest data from the Parquet data files in the configured `data_path` and combines them into a Excel workbook at `folio_path`. Use this whenever you want to view or analyze your data in Excel.
 
 ### Create Demo Portfolio
 
@@ -83,7 +94,7 @@ It is **auto-generated** with default values the first time you run the applicat
 
 ```yaml
 folio_path: data/folio.xlsx
-db_path: data/folio.db
+data_path: data
 log_level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 sheets:
   tickers: Tickers
@@ -146,8 +157,8 @@ transforms:
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`folio_path`**         | Path to your portfolio Excel file. If this is **relative**, it is treated as relative to the project root (default: `data/folio.xlsx`). If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders.                                                  |
-| **`db_path`**            | Path to the internal database file. This will be automatically created if it does not exist. Relative paths will behave similar to the `folio_path`                                                                                                                                                                     |
+| **`folio_path`**         | Path to your portfolio Excel file. If this is **relative**, it will be based on the path of the executable. If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. Generate this with `folio generate`.                                         |
+| **`data_path`**          | Folder path where data files are stored (automatically created if it does not exist). Relative paths will behave similar to the `folio_path`. Default: `data`                                                                                                                                                           |
 | **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                                                                        |
 | **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                                                                               |
 | **`header_keywords`**    | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                                                                     |

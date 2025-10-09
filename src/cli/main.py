@@ -45,6 +45,14 @@ def getfx_cmd() -> None:
     update_fx_rates()
 
 
+@app.command("generate", help="Generate the portfolio with latest data")
+def generate_cmd() -> None:
+    """Generate the portfolio with latest data."""
+    from cli.commands.generate import generate_excel
+
+    generate_excel()
+
+
 @app.command("demo", help="Create demo portfolio with mock data")
 def demo_cmd() -> None:
     """Create demo portfolio with mock data."""
