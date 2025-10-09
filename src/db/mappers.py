@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -22,11 +23,11 @@ class TransactionMapper:
     """Class to handle mapping of transaction DataFrame columns."""
 
     @staticmethod
-    def map_headers(excel_df: pd.DataFrame, account: str | None = None) -> pd.DataFrame:
+    def map_headers(df: pd.DataFrame, account: str | None = None) -> pd.DataFrame:
         """Map DataFrame columns from Excel headers to internal names.
 
         Args:
-            excel_df: DataFrame read from Excel with transaction data.
+            df: DataFrame with raw header names.
             account: Optional account identifier to use as fallback when
                 Account column is missing from the Excel file.
 
@@ -51,14 +52,14 @@ class TransactionMapper:
             }
 
         mapping, unmatched, ignored_columns = TransactionMapper._process_columns(
-            excel_df.columns,
+            df.columns,
             normalized_ignore,
             norm_keywords,
         )
 
         if ignored_columns:
             import_logger.info("IGNORE columns: %s", ignored_columns)
-            excel_df = excel_df.drop(columns=ignored_columns)
+            df = df.drop(columns=ignored_columns)
 
         if mapping:
             pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
@@ -72,7 +73,7 @@ class TransactionMapper:
                 "FALLBACK account column using: %s",
                 account,
             )
-            excel_df[Column.Txn.ACCOUNT] = account
+            df[Column.Txn.ACCOUNT] = account
             unmatched.remove(Column.Txn.ACCOUNT)
 
         if unmatched:
@@ -81,11 +82,13 @@ class TransactionMapper:
             import_logger.error(error_message)
             raise ValueError(error_message)
 
-        excel_df = excel_df.rename(columns=mapping)
-        summaries = excel_df.apply(format_transaction_summary, axis=1)
-        for summary in summaries:
-            import_logger.info(" + %s", summary)
-        return excel_df
+        df = df.rename(columns=mapping)
+
+        if import_logger.isEnabledFor(logging.INFO):
+            summaries = df.apply(format_transaction_summary, axis=1)
+            for summary in summaries:
+                import_logger.info(" + %s", summary)
+        return df
 
     @staticmethod
     def remove_approval_column(txn_df: pd.DataFrame) -> pd.DataFrame:

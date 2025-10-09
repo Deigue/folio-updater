@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import sqlite3
 from typing import TYPE_CHECKING
 
@@ -165,24 +166,28 @@ class TransactionFilter:
             approved_count = approved_mask.sum()
             msg = f"APPROVE {approved_count} {duplicate_type} duplicates"
             import_logger.info(msg)
-            approved_summaries = txn_df[approved_mask].apply(
-                format_transaction_summary,
-                axis=1,
-            )
-            for summary in approved_summaries:
-                import_logger.info(" * %s", summary)
+
+            if import_logger.isEnabledFor(logging.INFO):
+                approved_summaries = txn_df[approved_mask].apply(
+                    format_transaction_summary,
+                    axis=1,
+                )
+                for summary in approved_summaries:
+                    import_logger.info(" * %s", summary)
 
         # Log rejected duplicates
         if rejected_mask.any():
             rejected_count = rejected_mask.sum()
             msg = f"SKIP {rejected_count} {duplicate_type} duplicates"
             import_logger.warning(msg)
-            rejected_summaries = txn_df[rejected_mask].apply(
-                format_transaction_summary,
-                axis=1,
-            )
-            for summary in rejected_summaries:
-                import_logger.warning(" - %s", summary)
+
+            if import_logger.isEnabledFor(logging.WARNING):
+                rejected_summaries = txn_df[rejected_mask].apply(
+                    format_transaction_summary,
+                    axis=1,
+                )
+                for summary in rejected_summaries:
+                    import_logger.warning(" - %s", summary)
 
     @staticmethod
     def _generate_key(row: pd.Series) -> str:

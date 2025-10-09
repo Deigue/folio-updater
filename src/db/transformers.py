@@ -239,12 +239,14 @@ class TransactionTransformer:
                 rows_to_add.append(merged_row)
 
                 import_logger.info(" + %s", format_transaction_summary(merged_row))
-                dropped_rows = group_df.apply(
-                    format_transaction_summary,
-                    axis=1,
-                )
-                for row in dropped_rows:
-                    import_logger.info(" - %s", row)
+
+                if import_logger.isEnabledFor(logging.INFO):
+                    dropped_rows = group_df.apply(
+                        format_transaction_summary,
+                        axis=1,
+                    )
+                    for row in dropped_rows:
+                        import_logger.info(" - %s", row)
 
         # Apply changes to DataFrame
         self._apply_merge_changes(group, rows_to_drop, rows_to_add)

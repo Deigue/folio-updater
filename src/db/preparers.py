@@ -18,27 +18,27 @@ import_logger = get_import_logger()
 
 
 def prepare_transactions(
-    excel_df: pd.DataFrame,
+    df: pd.DataFrame,
     account: str | None = None,
 ) -> pd.DataFrame:
     """Prepare DataFrame for database insertion by applying filters and mappings.
 
     Args:
-        excel_df: Raw transaction DataFrame from Excel
+        df: Raw transaction DataFrame
         account: Optional account identifier to use as fallback when Account
             column is missing from the Excel file.
 
     Returns:
         Prepared DataFrame ready for database insertion
     """
-    if excel_df.empty:  # pragma: no cover
-        return excel_df
+    if df.empty:  # pragma: no cover
+        return df
 
     import_logger.debug(
         "PREPARE transactions: mapping → transforming → formatting → filtering",
     )
     schema_manager.create_txns_table()
-    txn_df = TransactionMapper.map_headers(excel_df, account)
+    txn_df = TransactionMapper.map_headers(df, account)
     txn_df = TransactionTransformer.transform(txn_df)
     txn_df = TransactionFormatter.format_and_validate(txn_df)
     txn_df = TransactionFilter.filter_intra_import_duplicates(txn_df)
