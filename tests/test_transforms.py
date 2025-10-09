@@ -8,12 +8,9 @@ import pandas as pd
 import pytest
 
 if TYPE_CHECKING:
-    from contextlib import _GeneratorContextManager
     from typing import Callable
 
-    from app.app_context import AppContext
-
-    TempConfigType = Callable[..., _GeneratorContextManager[AppContext, None, None]]
+    from .test_types import TempContext
 from db.transformers import TransactionTransformer
 from utils.constants import Column
 
@@ -121,14 +118,14 @@ FEE_AMOUNT = 9.95
     ],
 )
 def test_transform_scenarios(
-    temp_config: TempConfigType,
+    temp_ctx: TempContext,
     scenario: str,  # noqa: ARG001 (used for test naming)
     test_data: dict,
     config: dict,
     validate: Callable,
 ) -> None:
     """Test various transformation scenarios with parametrized data."""
-    with temp_config(config):
+    with temp_ctx(config):
         df = pd.DataFrame(test_data)
         result = TransactionTransformer.transform(df)
         assert validate(result)

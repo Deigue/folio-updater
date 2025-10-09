@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 import pytest
 
 from db import db
-from mock.folio_setup import ensure_folio_exists
+from mock.folio_setup import ensure_data_exists
 from utils.constants import Table
 
 if TYPE_CHECKING:
-    from contextlib import _GeneratorContextManager
-
-    from app.app_context import AppContext
+    from .test_types import TempContext
 
 MOCK_TRANSACTION_COUNT = 50
 TEST_ROW_COUNT = 10
@@ -27,7 +25,7 @@ TEST_ROW_COUNT = 10
     ],
 )
 def test_get_rows(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+    temp_ctx: TempContext,
     which: str | None,
     n: int | None,
     expected_len: int,
@@ -35,8 +33,8 @@ def test_get_rows(
     check_last: int | None,
 ) -> None:
     """Test get_rows with various which and n parameters."""
-    with temp_config():
-        ensure_folio_exists()
+    with temp_ctx():
+        ensure_data_exists()
 
         with db.get_connection() as conn:
             rows = db.get_rows(conn, Table.TXNS, which=which, n=n)
