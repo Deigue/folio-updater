@@ -12,7 +12,7 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
-from exporters.transaction_exporter import TransactionExporter
+from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
 
 app = typer.Typer()
@@ -56,7 +56,7 @@ def import_transaction_files(
                 raise typer.Exit(1)
 
             typer.echo(f"Importing transactions from folio: {folio_path}")
-            txn_sheet = config.transactions_sheet()
+            txn_sheet = config.txn_sheet
             num_txns = import_transactions(folio_path, None, txn_sheet)
             typer.echo(f"Successfully imported {num_txns} transactions")
 
@@ -119,7 +119,7 @@ def _import_single_file_to_db(file_path: Path) -> int:
     try:
         typer.echo(f"Importing {file_path.name}...")
         config = get_config()
-        txn_sheet = config.transactions_sheet()
+        txn_sheet = config.txn_sheet
         num_txns = import_transactions(file_path, None, txn_sheet)
 
     except (OSError, ValueError, KeyError) as e:
@@ -133,24 +133,21 @@ def _import_single_file_to_db(file_path: Path) -> int:
 
 
 def _import_file_and_export(file_path: Path, base_path: Path) -> None:
-    """Import a single file and export to folio."""
+    """Import a single file and export to Parquet."""
     processed_folder = _create_processed_folder(base_path)
     num_txns = _import_single_file_to_db(file_path)
 
     if num_txns > 0:
         try:
-            exporter = TransactionExporter()
-            # Check if folio exists to determine export method
-            if exporter.folio_path.exists():  # pragma: no cover
-                exported = exporter.export_update(num_txns)
-                if exported > 0:  # pragma: no branch
-                    typer.echo(f"Exported {exported} new transactions to folio Excel")
-            else:
-                # Folio doesn't exist, create it with all transactions
-                exported = exporter.export_full()
-                typer.echo(f"Created folio Excel with {exported} transactions")
+            exporter = ParquetExporter()
+            exported = exporter.export_transactions()
+            if exported > 0:
+                typer.echo(f"✓ Exported {exported} transactions to Parquet")
         except (OSError, ValueError, KeyError) as e:
-            typer.echo(f"Warning: Failed to export to folio Excel: {e}", err=True)
+            typer.echo(
+                f"Warning: Failed to export to Parquet: {e}",
+                err=True,
+            )
     else:  # pragma: no cover
         typer.echo(
             f"No transactions imported from {file_path.name}",
@@ -159,7 +156,7 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
 
 
 def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
-    """Import all files from directory and export to folio."""
+    """Import all files from directory and export to Parquet."""
     supported_extensions = {".xlsx", ".xls", ".csv"}
     import_files = [
         f
@@ -184,22 +181,14 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
 
     typer.echo(f"Total transactions imported: {total_imported}")
 
-    # Export all new transactions to folio
+    # Export all transactions to Parquet
     if total_imported > 0:
         try:
-            exporter = TransactionExporter()
-            # Check if folio exists to determine export method
-            if exporter.folio_path.exists():
-                exported = exporter.export_update(num_txns)
-                typer.echo(
-                    f"Export completed. {exported} new transactions exported to folio",
-                )
-            else:  # pragma: no cover
-                # Folio doesn't exist, create it with all transactions
-                exported = exporter.export_full()
-                typer.echo(f"Created folio Excel with {exported} transactions")
+            exporter = ParquetExporter()
+            exported = exporter.export_transactions()
+            typer.echo(f"✓ Export completed: {exported} transactions to Parquet")
         except (OSError, ValueError, KeyError) as e:
-            typer.echo(f"Warning: Failed to export to folio: {e}", err=True)
+            typer.echo(f"Warning: Failed to export to Parquet: {e}", err=True)
 
 
 if __name__ == "__main__":  # pragma: no cover

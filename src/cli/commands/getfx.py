@@ -8,7 +8,7 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from exporters.forex_exporter import ForexExporter
+from exporters.parquet_exporter import ParquetExporter
 
 app = typer.Typer()
 
@@ -19,8 +19,8 @@ def update_fx_rates() -> None:
     bootstrap.reload_config()
 
     try:
-        exporter = ForexExporter()
-        result = exporter.export_update()
+        exporter = ParquetExporter()
+        result = exporter.export_forex()
 
         if result > 0:
             typer.echo(f"Successfully updated {result} FX rates")
