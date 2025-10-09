@@ -17,6 +17,7 @@ from app.app_context import AppContext
 from services.forex_service import ForexService
 from utils.constants import TORONTO_TZ, Column
 
+from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
 
 if TYPE_CHECKING:
     from .test_types import TempContext
@@ -29,6 +30,14 @@ _fx_cache: dict[str, pd.DataFrame] = {}
 def reset_app_context() -> None:
     """Automatically reset AppContext before each test."""
     AppContext.reset_singleton()
+
+
+@pytest.fixture(autouse=True)
+def activate_dataframe_cache(
+    dataframe_cache_patching: None,  # noqa: F811
+) -> None:
+    """Globally activate DataFrame cache patching for all tests."""
+    # The fixture is only needed for activation
 
 
 @pytest.fixture
