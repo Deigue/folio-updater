@@ -43,11 +43,10 @@ class ForexService:
                     logger.debug("FX table does not exist")
                     return None
 
-                query = f'SELECT MAX("{Column.FX.DATE}") FROM "{Table.FX}"'
-                result = conn.execute(query).fetchone()
-                if result and result[0]:
-                    logger.debug("Latest FX date in database: %s", result[0])
-                    return result[0]
+                result = db.get_max_value(conn, Table.FX, Column.FX.DATE)
+                if result:
+                    logger.debug("Latest FX date in database: %s", result)
+                    return result
                 logger.debug("No FX rates found in database")  # pragma: no cover
                 return None  # pragma: no cover
         except sqlite3.Error as e:
@@ -73,24 +72,15 @@ class ForexService:
                     return pd.DataFrame()
 
                 if start_date:  # pragma: no cover
-                    query = f"""
-                    SELECT "{Column.FX.DATE}",
-                           "{Column.FX.FXUSDCAD}",
-                           "{Column.FX.FXCADUSD}"
-                    FROM "{Table.FX}"
-                    WHERE "{Column.FX.DATE}" >= ?
-                    ORDER BY "{Column.FX.DATE}"
-                    """
-                    df = pd.read_sql_query(query, conn, params=[start_date])
+                    condition = f'"{Column.FX.DATE}" >= "{start_date}"'
                 else:
-                    query = f"""
-                    SELECT "{Column.FX.DATE}",
-                           "{Column.FX.FXUSDCAD}",
-                           "{Column.FX.FXCADUSD}"
-                    FROM "{Table.FX}"
-                    ORDER BY "{Column.FX.DATE}"
-                    """
-                    df = pd.read_sql_query(query, conn)
+                    condition = None
+                df = db.get_rows(
+                    conn,
+                    Table.FX,
+                    condition=condition,
+                    order_by=Column.FX.DATE,
+                )
 
                 logger.debug("Retrieved %d FX rates from database", len(df))
                 return df
@@ -270,11 +260,10 @@ class ForexService:
                     logger.debug("Txns table does not exist")
                     return None
 
-                query = f'SELECT MIN("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}"'
-                result = conn.execute(query).fetchone()
-                if result and result[0]:
-                    logger.debug("Earliest transaction date: %s", result[0])
-                    return result[0]
+                result = db.get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
+                if result:
+                    logger.debug("Earliest transaction date: %s", result)
+                    return result
                 logger.debug("No transactions found in database")
                 return None
         except sqlite3.Error as e:

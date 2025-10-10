@@ -68,8 +68,7 @@ def test_getfx_command(
 
         # Drop the FX rates table to force fresh fetch
         with db.get_connection() as conn:
-            conn.execute(f"DROP TABLE IF EXISTS {Table.FX}")
-            conn.commit()
+            db.drop_table(conn, Table.FX)
 
         # Use cached FX data instead of real API call
         with patch(

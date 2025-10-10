@@ -6,13 +6,15 @@ Handles exporting database to Parquet files.
 from __future__ import annotations
 
 import logging
-
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from app.app_context import get_config
 from db import db
 from services.forex_service import ForexService
 from utils.constants import Column, Table
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +83,15 @@ class ParquetExporter:
             int: Number of tickers exported.
         """
         with db.get_connection() as conn:
-            tickers_df = pd.read_sql_query(
-                f"SELECT DISTINCT {Column.Txn.TICKER} FROM {Table.TXNS} "
-                f"WHERE {Column.Txn.TICKER} IS NOT NULL AND {Column.Txn.TICKER} != '' "
-                f"ORDER BY {Column.Txn.TICKER}",
+            filter_condition = (
+                f'"{Column.Txn.TICKER}" IS NOT NULL AND "{Column.Txn.TICKER}" != \'\''
+            )
+            tickers_df = db.get_distinct_values(
                 conn,
+                Table.TXNS,
+                Column.Txn.TICKER,
+                filter_condition=filter_condition,
+                order_by=f'"{Column.Txn.TICKER}"',
             )
 
         if tickers_df.empty:  # pragma: no cover

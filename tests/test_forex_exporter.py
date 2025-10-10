@@ -93,7 +93,7 @@ def test_forex_export_parquet(
         )
         with db.get_connection() as conn:
             # Clear FX table and insert old data
-            conn.execute(f"DELETE FROM {Table.FX}")
+            db.drop_table(conn, Table.FX)
             old_fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
         # Export with update scenario - should fetch missing dates
