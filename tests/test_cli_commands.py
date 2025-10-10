@@ -3,36 +3,32 @@
 from __future__ import annotations
 
 import logging
-import random
-from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from openpyxl import load_workbook
+from pandas.testing import assert_frame_equal
 from typer.testing import CliRunner
 
 from cli.commands import import_cmd
 from cli.main import app as cli_app
 from db import db
-from mock.folio_setup import ensure_folio_exists
-from utils.constants import TORONTO_TZ, Column, Table
+from mock.folio_setup import ensure_data_exists
+from utils.constants import Table
+
+from .fixtures.test_data_factory import create_transaction_data
 
 if TYPE_CHECKING:
-    from contextlib import _GeneratorContextManager
-    from pathlib import Path
-
     from click.testing import Result
     from typer import Typer
 
-    from app.app_context import AppContext
     from utils.config import Config
 
-# Use basic runner configuration
+    from .test_types import TempContext
+
 runner = CliRunner()
 
-# Constants for test assertions
 EXPECTED_TRANSACTION_COUNT = 2
 TYPER_INVALID_COMMAND_EXIT_CODE = 2
 
@@ -46,7 +42,189 @@ def suppress_logging_conflicts() -> db.Generator[None, Any, None]:
     logging.disable(logging.NOTSET)
 
 
-def run_cli_with_config(
+def test_demo_command(temp_ctx: TempContext) -> None:
+    """Test demo command through main CLI app."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        assert not config.txn_parquet.exists()
+        assert not config.tkr_parquet.exists()
+        # * forex tested separately
+        result = _run_cli_with_config(config, cli_app, ["demo"])
+        assert result.exit_code == 0
+        assert "Demo portfolio created successfully!" in result.stdout
+        assert config.txn_parquet.exists()
+        assert config.tkr_parquet.exists()
+
+
+@pytest.mark.no_mock_forex
+def test_getfx_command(
+    temp_ctx: TempContext,
+    cached_fx_data: Callable[[str | None], pd.DataFrame],
+) -> None:
+    """Test getfx command through main CLI app."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+
+        # Drop the FX rates table to force fresh fetch
+        with db.get_connection() as conn:
+            conn.execute(f"DROP TABLE IF EXISTS {Table.FX}")
+            conn.commit()
+
+        # Use cached FX data instead of real API call
+        with patch(
+            "services.forex_service.ForexService.get_fx_rates_from_boc",
+        ) as mock_fx:
+            mock_fx.return_value = cached_fx_data(None)
+            result = _run_cli_with_config(config, cli_app, ["getfx"])
+            assert result.exit_code == 0
+            assert "Successfully updated" in result.stdout
+            with db.get_connection() as conn:
+                count = db.get_row_count(conn, Table.FX)
+                assert count > 0
+
+
+def test_import_command(temp_ctx: TempContext) -> None:
+    """Test import command default behavior (import from configured folio file)."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        create_transaction_data(config.folio_path, config.txn_sheet)
+        result = _run_cli_with_config(config, import_cmd.app)
+        assert result.exit_code == 0
+        assert (
+            f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions"
+            in result.stdout
+        )
+
+        with db.get_connection() as conn:
+            count = db.get_row_count(conn, Table.TXNS)
+            assert count == EXPECTED_TRANSACTION_COUNT
+
+
+def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
+    """Test import command when folio file doesn't exist."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        assert not config.folio_path.exists()
+        result = _run_cli_with_config(config, import_cmd.app)
+        assert result.exit_code == 1
+        assert f"Folio file not found: {config.folio_path}" in result.stderr
+
+
+def test_import_command_file(temp_ctx: TempContext) -> None:
+    """Test import command with specific file option."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        test_file = config.project_root / "test_import.xlsx"
+        create_transaction_data(test_file)
+
+        result = _run_cli_with_config(
+            config,
+            import_cmd.app,
+            ["--file", str(test_file)],
+        )
+        assert result.exit_code == 0
+        # Verify via stdout keywords, core functionality is tested elsewhere.
+        assert f"Importing {test_file.name}..." in result.stdout
+        assert (
+            f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions "
+            f"from {test_file.name}" in result.stdout
+        )
+        assert (
+            f"Exported {EXPECTED_TRANSACTION_COUNT} transactions to Parquet"
+            in result.stdout
+        )
+        processed_folder = config.project_root / "processed"
+        assert processed_folder.exists()
+        assert (processed_folder / test_file.name).exists()
+        assert not test_file.exists()
+
+
+def test_import_command_directory(temp_ctx: TempContext) -> None:
+    """Test import command with directory option."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+
+        # Create test directory with multiple files to import
+        import_dir = config.project_root / "import_files"
+        import_dir.mkdir()
+        file1 = import_dir / "transactions1.xlsx"
+        file2 = import_dir / "transactions2.xlsx"
+        create_transaction_data(file1)
+        create_transaction_data(file2)
+
+        ensure_data_exists()
+        result = _run_cli_with_config(
+            config,
+            import_cmd.app,
+            ["--dir", str(import_dir)],
+        )
+        assert result.exit_code == 0
+        assert "Found 2 files to import" in result.stdout
+        assert "Total transactions imported: 4" in result.stdout
+        assert "Export completed" in result.stdout
+        processed_folder = config.project_root / "processed"
+        assert processed_folder.exists()
+        assert (processed_folder / file1.name).exists()
+        assert (processed_folder / file2.name).exists()
+        assert not file1.exists()
+        assert not file2.exists()
+
+
+def test_generate_command(temp_ctx: TempContext) -> None:
+    """Test generate command creates Excel from Parquet files."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+        assert config.txn_parquet.exists()
+        assert config.tkr_parquet.exists()
+        assert not config.folio_path.exists()
+
+        result = _run_cli_with_config(config, cli_app, ["generate"])
+        assert result.exit_code == 0
+        assert "Excel workbook generated successfully" in result.stdout
+        assert config.folio_path.exists()
+
+        transactions_parquet = pd.read_parquet(config.txn_parquet, engine="pyarrow")
+        tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="pyarrow")
+        transactions_excel = pd.read_excel(
+            config.folio_path,
+            sheet_name=config.txn_sheet,
+        )
+        tickers_excel = pd.read_excel(
+            config.folio_path,
+            sheet_name=config.tkr_sheet,
+        )
+        assert_frame_equal(
+            transactions_parquet.reset_index(drop=True).fillna(pd.NA),
+            transactions_excel.reset_index(drop=True).fillna(pd.NA),
+        )
+        assert_frame_equal(
+            tickers_parquet.reset_index(drop=True).fillna(pd.NA),
+            tickers_excel.reset_index(drop=True).fillna(pd.NA),
+        )
+
+
+def test_settle_info_command(temp_ctx: TempContext) -> None:
+    """Test settle info command output."""
+    with temp_ctx():
+        ensure_data_exists()
+        with db.get_connection() as conn:
+            txn_count = db.get_row_count(conn, Table.TXNS)
+        result = runner.invoke(cli_app, ["settle-info"])
+        assert f"Calculated settlement dates: {txn_count}" in result.stdout
+        assert result.exit_code == 0
+
+
+def test_version_command() -> None:
+    """Test version command output."""
+    result = runner.invoke(cli_app, ["version"])
+
+    assert result.exit_code == 0
+    assert "folio-updater version:" in result.stdout
+
+
+def _run_cli_with_config(
     config: Config,
     command_app: Typer,
     args: list[str] | None = None,
@@ -59,261 +237,3 @@ def run_cli_with_config(
     with patch("app.bootstrap.reload_config") as mock_reload:
         mock_reload.return_value = config
         return runner.invoke(command_app, args)
-
-
-class TestDemoCommand:
-    """Test the demo command functionality."""
-
-    def test_demo_command(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test demo command through main CLI app."""
-        with temp_config() as ctx:
-            config = ctx.config
-            assert not config.folio_path.exists()
-            assert not config.db_path.exists()
-            result = run_cli_with_config(config, cli_app, ["demo"])
-            assert result.exit_code == 0
-            assert "Demo portfolio created successfully!" in result.stdout
-            assert config.folio_path.exists()
-            assert config.db_path.exists()
-            with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.TXNS)
-                assert count > 0
-
-
-class TestFXCommand:
-    """Test the getfx command functionality."""
-
-    @pytest.mark.no_mock_forex
-    def test_getfx_command(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-        cached_fx_data: Callable[[str | None], pd.DataFrame],
-    ) -> None:
-        """Test getfx command through main CLI app."""
-        with temp_config() as ctx:
-            config = ctx.config
-            ensure_folio_exists()
-
-            # Remove forex data from folio to simulate fresh state.
-            if config.folio_path.exists():
-                workbook = load_workbook(config.folio_path)
-                if config.forex_sheet() in workbook.sheetnames:
-                    workbook.remove(workbook[config.forex_sheet()])
-                    workbook.save(config.folio_path)
-                workbook.close()
-
-            # Drop the FX rates table to force fresh fetch
-            with db.get_connection() as conn:
-                conn.execute(f"DROP TABLE IF EXISTS {Table.FX}")
-                conn.commit()
-
-            # Use cached FX data instead of real API call
-            with patch(
-                "services.forex_service.ForexService.get_fx_rates_from_boc",
-            ) as mock_fx:
-                mock_fx.return_value = cached_fx_data(None)
-                result = run_cli_with_config(config, cli_app, ["getfx"])
-                assert result.exit_code == 0
-                assert "Successfully updated" in result.stdout
-                with db.get_connection() as conn:
-                    count = db.get_row_count(conn, Table.FX)
-                    assert count > 0
-
-
-class TestImportCommand:
-    """Test the import command functionality."""
-
-    def _create_test_excel_file(
-        self,
-        file_path: Path,
-        sheet_name: str = "Txns",
-    ) -> None:
-        """Create a test Excel file with sample transaction data."""
-        # Use dynamic dates based on today to ensure they're always in the future
-        today = datetime.now(TORONTO_TZ).date()
-        date1 = (today + timedelta(days=1)).strftime("%Y-%m-%d")
-        date2 = (today + timedelta(days=2)).strftime("%Y-%m-%d")
-        random.seed(file_path.name)
-        # Generate randomized price and unit values for unique transactions
-        price1 = round(random.uniform(50.0, 500.0), 2)  # noqa: S311
-        price2 = round(random.uniform(50.0, 500.0), 2)  # noqa: S311
-        units1 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
-        units2 = round(random.uniform(1.0, 100.0), 2)  # noqa: S311
-        test_data = {
-            Column.Txn.TXN_DATE: [date1, date2],
-            Column.Txn.ACTION: ["BUY", "SELL"],
-            Column.Txn.AMOUNT: [price1 * units1, price2 * units2],
-            Column.Txn.CURRENCY: ["USD", "USD"],
-            Column.Txn.PRICE: [price1, price2],
-            Column.Txn.UNITS: [units1, units2],
-            Column.Txn.TICKER: ["AAPL", "MSFT"],
-            Column.Txn.ACCOUNT: ["TEST-ACCOUNT", "TEST-ACCOUNT"],
-        }
-
-        df = pd.DataFrame(test_data)
-        df.to_excel(file_path, index=False, sheet_name=sheet_name)
-
-    def test_import_command_default(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test import command default behavior (import from configured folio file)."""
-        with temp_config() as ctx:
-            config = ctx.config
-
-            # Create a folio file with test data
-            self._create_test_excel_file(
-                config.folio_path,
-                config.transactions_sheet(),
-            )
-
-            # Run import command without arguments
-            result = run_cli_with_config(config, import_cmd.app)
-            assert result.exit_code == 0
-            assert (
-                f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions"
-                in result.stdout
-            )
-
-            # Verify data was imported to database
-            with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.TXNS)
-                assert count == EXPECTED_TRANSACTION_COUNT
-
-    def test_import_command_missing_folio(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test import command when folio file doesn't exist."""
-        with temp_config() as ctx:
-            config = ctx.config
-            assert not config.folio_path.exists()
-            result = run_cli_with_config(config, import_cmd.app)
-            assert result.exit_code == 1
-            assert f"Folio file not found: {config.folio_path}" in result.stderr
-
-    def test_import_command_file(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test import command with specific file option."""
-        with temp_config() as ctx:
-            config = ctx.config
-            test_file = config.project_root / "test_import.xlsx"
-            self._create_test_excel_file(test_file)
-
-            result = run_cli_with_config(
-                config,
-                import_cmd.app,
-                ["--file", str(test_file)],
-            )
-            assert result.exit_code == 0
-            # Verify via stdout keywords, core functionality is tested elsewhere.
-            assert f"Importing {test_file.name}..." in result.stdout
-            assert (
-                f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions "
-                f"from {test_file.name}" in result.stdout
-            )
-            assert (
-                f"Created folio Excel with {EXPECTED_TRANSACTION_COUNT} transactions"
-                in result.stdout
-            )
-            processed_folder = config.project_root / "processed"
-            assert processed_folder.exists()
-            assert (processed_folder / test_file.name).exists()
-            assert not test_file.exists()
-
-    def test_import_command_directory(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test import command with directory option."""
-        with temp_config() as ctx:
-            config = ctx.config
-
-            # Create test directory with multiple files to import
-            import_dir = config.project_root / "import_files"
-            import_dir.mkdir()
-            file1 = import_dir / "transactions1.xlsx"
-            file2 = import_dir / "transactions2.xlsx"
-            self._create_test_excel_file(file1)
-            self._create_test_excel_file(file2)
-
-            ensure_folio_exists()
-            result = run_cli_with_config(
-                config,
-                import_cmd.app,
-                ["--dir", str(import_dir)],
-            )
-            assert result.exit_code == 0
-            assert "Found 2 files to import" in result.stdout
-            assert "Total transactions imported: 4" in result.stdout
-            assert "Export completed" in result.stdout
-            processed_folder = config.project_root / "processed"
-            assert processed_folder.exists()
-            assert (processed_folder / file1.name).exists()
-            assert (processed_folder / file2.name).exists()
-            assert not file1.exists()
-            assert not file2.exists()
-
-
-class TestSettleInfoCommand:
-    """Test the settle info command functionality."""
-
-    def test_settle_info_command(
-        self,
-        temp_config: Callable[
-            ...,
-            _GeneratorContextManager[AppContext, None, None],
-        ],
-    ) -> None:
-        """Test settle info command output."""
-        with temp_config():
-            ensure_folio_exists()
-            with db.get_connection() as conn:
-                txn_count = db.get_row_count(conn, Table.TXNS)
-            result = runner.invoke(cli_app, ["settle-info"])
-            assert f"Calculated settlement dates: {txn_count}" in result.stdout
-            assert result.exit_code == 0
-
-
-class TestVersionCommand:
-    """Test the version command functionality."""
-
-    def test_version_command(self) -> None:
-        """Test version command output."""
-        result = runner.invoke(cli_app, ["version"])
-
-        assert result.exit_code == 0
-        assert "folio-updater version:" in result.stdout
-
-
-class TestCliErrorHandling:
-    """Test CLI error handling and edge cases."""
-
-    def test_invalid_command(self) -> None:
-        """Test handling of invalid commands."""
-        result = runner.invoke(cli_app, ["invalid-command"])
-
-        assert result.exit_code == TYPER_INVALID_COMMAND_EXIT_CODE

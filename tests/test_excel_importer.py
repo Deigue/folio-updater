@@ -3,22 +3,22 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import pytest
 
 from importers.excel_importer import import_transactions
-from mock.folio_setup import ensure_folio_exists
+from mock.folio_setup import ensure_data_exists
 from utils.constants import TXN_ESSENTIALS, Column
 
+from .fixtures.dataframe_cache import register_test_dataframe
 from .utils.dataframe_utils import verify_db_contents
 
 if TYPE_CHECKING:
-    from contextlib import _GeneratorContextManager
-
-    from app.app_context import AppContext
     from utils.config import Config
+
+    from .test_types import TempContext
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -340,7 +340,7 @@ pd.set_option("display.max_colwidth", None)
     ],
 )
 def test_import_scenarios(  # noqa: PLR0915
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
+    temp_ctx: TempContext,
     scenario: str,
     test_data: dict[str, Any],
     expected_count: int,
@@ -348,13 +348,11 @@ def test_import_scenarios(  # noqa: PLR0915
     config_overrides: dict[str, Any],
 ) -> None:
     """Mega test covering all formatting, validation, and optional field scenarios."""
-    with temp_config(**config_overrides) as ctx:
+    with temp_ctx(**config_overrides) as ctx:
         config = ctx.config
         temp_path = config.folio_path.parent / f"test_{scenario}.xlsx"
-
-        # Create test DataFrame
         df = pd.DataFrame(test_data)
-        df.to_excel(temp_path, index=False)
+        register_test_dataframe(temp_path, df)
 
         # Clear database
         config.db_path.unlink(missing_ok=True)
@@ -425,24 +423,21 @@ def test_import_scenarios(  # noqa: PLR0915
             # Add account column with fallback value
             expected_df[Column.Txn.ACCOUNT] = "FALLBACK-ACCOUNT"
 
-        # Verify database contents
         verify_db_contents(expected_df, last_n=expected_count)
 
 
-def test_import_duplicate_handling(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
+def test_import_duplicate_handling(temp_ctx: TempContext) -> None:
     """Test duplicate detection for both DB and intra-file duplicates."""
-    with temp_config() as ctx:
+    with temp_ctx() as ctx:
         config = ctx.config
-        ensure_folio_exists()
-        txn_sheet = config.transactions_sheet()
+        ensure_data_exists()
+        txn_sheet = config.txn_sheet
 
         # Test 1: Intra-file duplicates (without approval)
         default_df = _get_default_dataframe(config)
         df_with_dupes = pd.concat([default_df, default_df.iloc[[0]]], ignore_index=True)
         temp_path = config.folio_path.parent / "temp_intra_dupes.xlsx"
-        df_with_dupes.to_excel(temp_path, index=False, sheet_name=txn_sheet)
+        register_test_dataframe(temp_path, df_with_dupes, txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
         imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
@@ -463,7 +458,7 @@ def test_import_duplicate_handling(
 
         initial_df = pd.DataFrame(initial_data)
         initial_path = config.folio_path.parent / "initial_transactions.xlsx"
-        initial_df.to_excel(initial_path, index=False, sheet_name=txn_sheet)
+        register_test_dataframe(initial_path, initial_df, txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
         initial_count = import_transactions(initial_path, "TEST-ACCOUNT", txn_sheet)
@@ -483,7 +478,7 @@ def test_import_duplicate_handling(
 
         duplicate_df = pd.DataFrame(duplicate_data)
         duplicate_path = config.folio_path.parent / "duplicate_transactions.xlsx"
-        duplicate_df.to_excel(duplicate_path, index=False, sheet_name=txn_sheet)
+        register_test_dataframe(duplicate_path, duplicate_df, txn_sheet)
         no_approval_count = import_transactions(
             duplicate_path,
             "TEST-ACCOUNT",
@@ -496,7 +491,7 @@ def test_import_duplicate_handling(
         duplicate_data_with_approval[config.duplicate_approval_column] = ["OK", ""]
         approved_df = pd.DataFrame(duplicate_data_with_approval)
         approved_path = config.folio_path.parent / "approved_duplicates.xlsx"
-        approved_df.to_excel(approved_path, index=False, sheet_name=txn_sheet)
+        register_test_dataframe(approved_path, approved_df, txn_sheet)
         approved_count = import_transactions(approved_path, "TEST-ACCOUNT", txn_sheet)
         assert approved_count == 1  # The approved duplicate
 
@@ -516,11 +511,7 @@ def test_import_duplicate_handling(
 
         intra_approval_df = pd.DataFrame(intra_approval_data)
         intra_approval_path = config.folio_path.parent / "intra_approval.xlsx"
-        intra_approval_df.to_excel(
-            intra_approval_path,
-            index=False,
-            sheet_name=txn_sheet,
-        )
+        register_test_dataframe(intra_approval_path, intra_approval_df, txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
         intra_approval_count = import_transactions(
@@ -531,22 +522,20 @@ def test_import_duplicate_handling(
         assert intra_approval_count == 2
 
 
-def test_import_missing_essential_column(
-    temp_config: Callable[..., _GeneratorContextManager[AppContext, None, None]],
-) -> None:
+def test_import_missing_essential_column(temp_ctx: TempContext) -> None:
     """Test that import fails when essential column is missing."""
-    with temp_config() as ctx:
+    with temp_ctx() as ctx:
         config = ctx.config
-        ensure_folio_exists()
+        ensure_data_exists()
 
         default_df = _get_default_dataframe(config)
         essential_to_remove = next(iter(TXN_ESSENTIALS))
 
         df = default_df.drop(columns=[essential_to_remove])
-        txn_sheet = config.transactions_sheet()
+        txn_sheet = config.txn_sheet
         temp_path = config.folio_path.parent / "temp_missing_essential.xlsx"
-        df.to_excel(temp_path, index=False, sheet_name=txn_sheet)
-
+        register_test_dataframe(temp_path, df, txn_sheet)
+        logging.getLogger("importer").setLevel(logging.CRITICAL)
         with pytest.raises(
             ValueError,
             match=rf"MISSING essential columns: \{{'{essential_to_remove}'\}}\s*",
@@ -556,6 +545,5 @@ def test_import_missing_essential_column(
 
 # Helper functions
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
-    """Get the default DataFrame from the transactions sheet."""
-    txn_sheet = config.transactions_sheet()
-    return pd.read_excel(config.folio_path, sheet_name=txn_sheet)
+    """Get the default DataFrame from the transactions parquet."""
+    return pd.read_parquet(config.txn_parquet, engine="pyarrow")
