@@ -9,7 +9,7 @@ import sqlite3
 
 import typer
 
-from db.db import get_connection
+from db.db import get_connection, get_row_count
 from utils.constants import Column, Table
 
 
@@ -18,23 +18,14 @@ def settlement_info() -> None:
     try:
         with get_connection() as conn:
             # Get total number of transactions with calculated settlement dates
-            calculated_query = f"""
-            SELECT COUNT(*) as count
-            FROM "{Table.TXNS}"
-            WHERE "{Column.Txn.SETTLE_CALCULATED}" = 1
-            """
-
-            cursor = conn.execute(calculated_query)
-            calculated_count = cursor.fetchone()[0]
+            calculated_count = get_row_count(
+                conn,
+                Table.TXNS,
+                condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
+            )
 
             # Get total number of transactions
-            total_query = f"""
-            SELECT COUNT(*) as count
-            FROM "{Table.TXNS}"
-            """
-
-            cursor = conn.execute(total_query)
-            total_count = cursor.fetchone()[0]
+            total_count = get_row_count(conn, Table.TXNS)
 
             typer.echo("Settlement Date Statistics:")
             typer.echo(f"  Total transactions: {total_count}")

@@ -70,9 +70,15 @@ def get_rows(
     return df
 
 
-def get_row_count(connection: sqlite3.Connection, table_name: str) -> int:
-    """Return the number of rows in a table."""
+def get_row_count(
+    connection: sqlite3.Connection,
+    table_name: str,
+    condition: str | None = None,
+) -> int:
+    """Return the number of rows in a table, optionally filtered by a condition."""
     query = f'SELECT COUNT(*) FROM "{table_name}"'
+    if condition:
+        query += f" WHERE {condition}"
     try:
         return connection.execute(query).fetchone()[0]
     except sqlite3.OperationalError:
