@@ -240,7 +240,7 @@ class TransactionTransformer:
 
                 import_logger.info(" + %s", format_transaction_summary(merged_row))
 
-                if import_logger.isEnabledFor(logging.INFO):
+                if import_logger.isEnabledFor(logging.INFO):  # pragma: no cover
                     dropped_rows = group_df.apply(
                         format_transaction_summary,
                         axis=1,

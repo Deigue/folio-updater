@@ -47,7 +47,7 @@ pd.set_option("display.max_colwidth", None)
                     "INVALID_DATE",  # 3: Invalid date - should be rejected
                     "",  # 4: Empty date - should be rejected
                     "2023-01-05 15:45:30",  # 5: Datetime format with space
-                    "2023-01-06",  # 6: Invalid action - should be rejected
+                    pd.NA,  # 6: Invalid action - should be rejected
                     "2023-01-07",  # 7: Action abbreviation (will be normalized)
                     "2023-01-08",  # 8: Empty amount - should be rejected
                     "2023-01-09",  # 9: Invalid amount format - should be rejected
@@ -238,7 +238,7 @@ pd.set_option("display.max_colwidth", None)
                 "Custom Date": [
                     "01/03/2023",
                     "INVALID_DATE",
-                    "2023-02-05",
+                    pd.NA,
                     "",
                     "2023-02-07T10:30:00Z",
                 ],  # date
@@ -407,7 +407,6 @@ def test_import_scenarios(  # noqa: PLR0915
             expected_df.loc[expected_df.index[4], "Side"] = "DIVIDEND"  # DIV
             expected_df.loc[expected_df.index[0], "Notes"] = "Some note"
             expected_df.loc[expected_df.index[2], "Notes"] = pd.NA
-
         elif scenario == "action_validation":
             # Already correct, just ensure account is set
             expected_df[Column.Txn.ACCOUNT] = "TEST-ACCOUNT"

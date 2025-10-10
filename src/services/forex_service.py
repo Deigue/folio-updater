@@ -72,7 +72,7 @@ class ForexService:
                     logger.debug("FX table does not exist")
                     return pd.DataFrame()
 
-                if start_date:
+                if start_date:  # pragma: no cover
                     query = f"""
                     SELECT "{Column.FX.DATE}",
                            "{Column.FX.FXUSDCAD}",

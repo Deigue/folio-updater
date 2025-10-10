@@ -22,6 +22,13 @@ TEST_ROW_COUNT = 10
     [
         (None, 0, MOCK_TRANSACTION_COUNT, 1, MOCK_TRANSACTION_COUNT),
         ("head", TEST_ROW_COUNT, TEST_ROW_COUNT, 1, TEST_ROW_COUNT),
+        (
+            "tail",
+            TEST_ROW_COUNT,
+            TEST_ROW_COUNT,
+            MOCK_TRANSACTION_COUNT - TEST_ROW_COUNT + 1,
+            MOCK_TRANSACTION_COUNT,
+        ),
     ],
 )
 def test_get_rows(

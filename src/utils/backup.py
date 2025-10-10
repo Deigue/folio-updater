@@ -33,11 +33,11 @@ def rolling_backup(
         PermissionError: If unable to create backup files
     """
     config = get_config()
-    if not config.backup_enabled:  # pragma: no cover
+    if not config.backup_enabled:
         logger.debug("Backups are disabled, skipping backup for: %s", file_path)
         return
 
-    if not file_path.exists():  # pragma: no cover
+    if not file_path.exists():
         raise FileNotFoundError
 
     if max_backups is None:
@@ -84,6 +84,6 @@ def rolling_backup(
         key=lambda f: f.stat().st_mtime,
         reverse=True,
     )
-    for old_backup in backups[max_backups:]:  # pragma: no cover
+    for old_backup in backups[max_backups:]:
         logger.debug("Removing old backup: %s", old_backup)
         old_backup.unlink()

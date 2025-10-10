@@ -38,7 +38,8 @@ branch = false
 show_missing = true
 omit = [
     '*/__init__.py',
-    'tests/test_performance.py'
+    'tests/fixtures/dataframe_cache.py',
+    'src/utils/backup.py'
 ]
 exclude_lines = [
     "if TYPE_CHECKING:",

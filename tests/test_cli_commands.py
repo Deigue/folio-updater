@@ -89,7 +89,7 @@ def test_import_command(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         create_transaction_data(config.folio_path, config.txn_sheet)
-        result = _run_cli_with_config(config, import_cmd.app)
+        result = _run_cli_with_config(config, cli_app, ["import"])
         assert result.exit_code == 0
         assert (
             f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions"
