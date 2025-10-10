@@ -14,6 +14,7 @@ import pstats
 import sys
 import time
 from pathlib import Path
+from typing import Any, Callable, cast
 
 import pytest
 
@@ -33,7 +34,7 @@ def _get_src_module_names() -> set[str]:
     src_dir = Path(__file__).parent.parent / "src"
     modules = set()
 
-    if not src_dir.exists():  # pragma: no cover
+    if not src_dir.exists():
         return modules
 
     for item in src_dir.iterdir():
@@ -81,7 +82,7 @@ def _discover_test_imports() -> set[str]:
     return modules
 
 
-def profile_test_suite() -> None:  # pragma: no cover
+def profile_test_suite() -> None:
     """Profile the entire test suite to identify bottlenecks."""
     logger.info("\n%s", "=" * 100)
     logger.info("PROFILING TEST SUITE")
@@ -103,31 +104,86 @@ def profile_test_suite() -> None:  # pragma: no cover
 
     # * Cumulative time: for finding where total time accumulates.
     # * Total time: isolates time spent in each function itself without subcalls.
-    logger.info("\n%s", "=" * 100)
-    logger.info("TOP 80 FUNCTIONS BY CUMULATIVE TIME (unfiltered)")
-    logger.info("%s", "=" * 100)
-
-    # TODO(deigue): #33 Filter out test framework functions (pytest, unittest, etc.)
     buf = io.StringIO()
-    stats_cum = pstats.Stats(profiler, stream=buf)
+
+    def _is_app_func(func: tuple[Any, ...]) -> bool:
+        """Return True for functions that belong to our application or tests.
+
+        Accept functions whose filename resolves under the repository `src/`
+        or `tests/` directories.
+        """
+        try:
+            filename = func[0] or ""
+        except (TypeError, IndexError):
+            return False
+
+        if not filename:
+            return False
+
+        # Normalize path for matching
+        filename_norm = filename.replace("\\", "/").lower()
+
+        try:
+            file_path = Path(filename).resolve()
+            repo_root = Path(__file__).parent.parent.resolve()
+            src_dir = (repo_root / "src").resolve()
+            tests_dir = (repo_root / "tests").resolve()
+
+            # Check whether the file path is under src/ or tests/
+            if src_dir in file_path.parents or tests_dir in file_path.parents:
+                return True
+        except (OSError, RuntimeError, ValueError) as exc:
+            logger.debug("Path resolution failed for %r: %s", filename, exc)
+
+        # Fallback indicators (package names or subpackages)
+        app_indicators = (
+            "/src/",
+            "/tests/",
+            "folio_updater",
+            "preparers",
+            "formatters",
+            "transformers",
+            "/app/",
+            "/services/",
+            "/db/",
+            "/exporters/",
+        )
+
+        return any(ind in filename_norm for ind in app_indicators)
+
+    def _filtered_stats_from_profiler(
+        prof: cProfile.Profile,
+        predicate: Callable[[tuple[Any, ...]], bool],
+    ) -> pstats.Stats:
+        """Return Stats containing only entries matching the predicate.
+
+        The returned Stats has its stream set to `buf` so it can be printed directly.
+        """
+        base = pstats.Stats(prof)
+        filtered = {k: v for k, v in getattr(base, "stats", {}).items() if predicate(k)}
+        new_stats = pstats.Stats(prof, stream=buf)
+        cast("Any", new_stats).stats = filtered
+        return new_stats
+
+    # Print only application code: top 30 by cumulative time
+    stats_cum = _filtered_stats_from_profiler(profiler, _is_app_func)
     stats_cum.sort_stats("cumulative")
-    stats_cum.print_stats(80)
+    logger.info("\n%s", "=" * 80)
+    logger.info("APPLICATION CODE - TOP 30 BY CUMULATIVE TIME")
+    logger.info("%s", "=" * 80)
+    stats_cum.print_stats(30)
     contents = buf.getvalue()
-    # Flush to logger immediately under header
     logger.info("\n%s", contents)
 
-    # Clear buffer for the next section
+    # Clear buffer and print top 30 by total time
     buf.truncate(0)
     buf.seek(0)
-
-    # Print total (self) time stats and log immediately
-    logger.info("\n%s", "=" * 100)
-    logger.info("TOP 80 FUNCTIONS BY TOTAL TIME (self time, unfiltered)")
-    logger.info("%s", "=" * 100)
-
-    stats_tot = pstats.Stats(profiler, stream=buf)
+    stats_tot = _filtered_stats_from_profiler(profiler, _is_app_func)
     stats_tot.sort_stats("tottime")
-    stats_tot.print_stats(80)
+    logger.info("\n%s", "=" * 80)
+    logger.info("APPLICATION CODE - TOP 30 BY TOTAL TIME")
+    logger.info("%s", "=" * 80)
+    stats_tot.print_stats(30)
     contents = buf.getvalue()
     logger.info("\n%s", contents)
 
@@ -146,7 +202,7 @@ def profile_imports() -> None:
     # Dynamically discover imports from all test files
     import_tests = sorted(_discover_test_imports())
 
-    if not import_tests:  # pragma: no cover
+    if not import_tests:
         logger.info("No modules found to profile!")
         return
 
@@ -191,13 +247,10 @@ def run_quick_test_suite() -> float:
     logger.info("%s\n", "=" * 100)
 
     start_time = time.perf_counter()
-
-    # Run pytest
     exit_code = pytest.main(
         [
             "tests",
             "-v",
-            "--ignore=tests/test_performance.py",
             "--log-cli-level=ERROR",
             "-q",  # Quiet mode
         ],
@@ -213,7 +266,7 @@ def run_quick_test_suite() -> float:
     return elapsed
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -242,7 +295,6 @@ if __name__ == "__main__":  # pragma: no cover
     elif args.profile:
         profile_test_suite()
     else:
-        # Default: run quick test suite
         print(
             "Running quick test suite. "
             "Use --profile or --imports for detailed analysis.",
