@@ -118,6 +118,15 @@ class ActionValidationRules:
             return cls.DEFAULT
 
 
+def _to_decimal_format(value: str) -> str | None:
+    """Try convert verified string to a plain decimal string."""
+    try:
+        decimal_value = Decimal(str(value))
+        return format(decimal_value, "f")
+    except (ValueError, TypeError, InvalidOperation):
+        return None
+
+
 class TransactionFormatter:
     """Formatter for transaction data before database insertion."""
 
@@ -183,13 +192,13 @@ class TransactionFormatter:
 
     def _process(self) -> pd.DataFrame:
         """Process the transaction data through all formatting steps."""
+        original_df = self.formatted_df.copy(deep=True)
         self._format_dates()
         self._format_actions()
         self._format_currencies()
-        self._format_tickers()
-        self._validation_action_based_columns()
-        self._format_optional_columns()
+        self._format_rule_columns()
         self._finalize_exclusions()
+        self._log_formatting_changes(original_df)
         self._calculate_settlement_dates()
         return self.formatted_df
 
@@ -200,6 +209,9 @@ class TransactionFormatter:
             self.formatted_df = self.formatted_df[
                 ~self.formatted_df.index.isin(excluded_indices)
             ]
+
+            if not import_logger.isEnabledFor(logging.WARNING):
+                return
 
             excluded_count = len(excluded_indices)
             import_logger.warning(
@@ -218,20 +230,57 @@ class TransactionFormatter:
                         reason_str,
                     )
 
-    def _format_dates(self) -> None:
-        """Format date columns to YYYY-MM-DD format.
+    def _log_formatting_changes(self, original_df: pd.DataFrame) -> None:
+        """Log all retained formatting changes for debugging.
 
-        Handles both required transaction date and optional date fields.
+        Args:
+            original_df: Original DataFrame before any formatting
         """
-        # Format required transaction date
+        if not import_logger.isEnabledFor(logging.DEBUG):
+            return
+
+        try:
+            for column in self.formatted_df.columns:
+                if column not in original_df.columns:
+                    continue
+
+                orig_str = original_df[column].astype(str).fillna("")
+                curr_str = self.formatted_df[column].astype(str).fillna("")
+                changed_mask = orig_str != curr_str
+
+                if changed_mask.any():
+                    for idx in changed_mask[changed_mask].index:
+                        orig_val = (
+                            original_df[column].iloc[idx]
+                            if idx < len(original_df)
+                            else ""
+                        )
+                        curr_val = (
+                            self.formatted_df[column].iloc[idx]
+                            if idx < len(self.formatted_df)
+                            else ""
+                        )
+                        import_logger.debug(
+                            AUTO_FORMAT_DEBUG,
+                            idx,
+                            column,
+                            orig_val,
+                            curr_val,
+                        )
+        except (TypeError, ValueError) as exc:
+            import_logger.warning(
+                "Comparison failed for column '%s' due to error: %s",
+                column,
+                exc,
+            )
+
+    def _format_dates(self) -> None:
+        """Format date columns."""
         if Column.Txn.TXN_DATE in self.formatted_df.columns:
             self._format_date_column(Column.Txn.TXN_DATE, required=True)
-
-        # Format settlement date (internal field, not required)
         if Column.Txn.SETTLE_DATE in self.formatted_df.columns:
             self._format_date_column(Column.Txn.SETTLE_DATE, required=False)
 
-        # Format optional date fields
         if self.config.optional_fields:
             for column in self.formatted_df.columns:
                 optional_field = self.config.optional_fields.get_field(column)
@@ -239,69 +288,54 @@ class TransactionFormatter:
                     self._format_date_column(column, required=False)
 
     def _format_date_column(self, column: str, *, required: bool) -> None:
-        """Format a specific date column.
-
-        Args:
-            column: Column name to format
-            required: Whether this column is required (affects exclusion behavior)
-        """
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:  # pragma: no cover
-                continue
-            self._process_date_value(idx, column, required=required)
-
-    def _process_date_value(self, idx: int, column: str, *, required: bool) -> None:
-        """Process a single date value for formatting.
-
-        Args:
-            idx: Row index
-            column: Column name
-            required: Whether the column is required
-        """
-        value = self.formatted_df.loc[idx, column]
-        if pd.isna(value):
-            if required:
-                self.exclusions.append(idx)
-                reason = f"MISSING {column}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[idx, column] = pd.NA
-            return
-
-        formatted_date: str | None = parse_date(str(value))
-        if formatted_date is None:
-            if required:
-                self.exclusions.append(idx)
-                reason = f"INVALID {column}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                import_logger.debug(
-                    "%d - Invalid optional date field '%s': '%s'",
-                    idx,
-                    column,
-                    value,
-                )
+        """Format all dates for the specified column."""
+        col_series = self.formatted_df[column]
+        if required:
+            missing_mask = col_series.isna()
+            if missing_mask.any():
+                missing_indices = col_series[missing_mask].index
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
         else:
-            if formatted_date != str(value).strip():
-                import_logger.debug(
-                    AUTO_FORMAT_DEBUG,
-                    idx,
-                    column,
-                    value,
-                    formatted_date,
-                )
-            self.formatted_df.loc[idx, column] = formatted_date
+            self.formatted_df.loc[col_series.isna(), column] = pd.NA
+
+        non_missing_mask = col_series.notna()
+        if non_missing_mask.any():
+            non_missing_series = col_series[non_missing_mask]
+            parsed_dates = non_missing_series.apply(parse_date)
+            invalid_mask = parsed_dates.isna()
+
+            if invalid_mask.any():
+                invalid_indices = non_missing_series[invalid_mask].index
+                if required:
+                    self.exclusions.extend(invalid_indices)
+                    for idx in invalid_indices:
+                        reason = f"INVALID {column}"
+                        self.rejection_reasons.setdefault(idx, []).append(reason)
+                else:
+                    for idx in invalid_indices:
+                        value = non_missing_series.loc[idx]
+                        import_logger.debug(
+                            "%d - Invalid optional date field '%s': '%s'",
+                            idx,
+                            column,
+                            value,
+                        )
+
+        valid_parsed_mask = parsed_dates.notna()
+        if valid_parsed_mask.any():
+            valid_indices = non_missing_series[valid_parsed_mask].index
+            self.formatted_df.loc[valid_indices, column] = parsed_dates[
+                valid_parsed_mask
+            ]
 
     def _format_actions(self) -> None:
-        """Format action columns to valid enum values.
-
-        Handles both required transaction action and optional action fields.
-        """
-        # Format required transaction action
+        """Format action columns."""
         if Column.Txn.ACTION in self.formatted_df.columns:
             self._format_action_column(Column.Txn.ACTION, required=True)
 
-        # Format optional action fields
         if self.config.optional_fields:
             for column in self.formatted_df.columns:
                 optional_field = self.config.optional_fields.get_field(column)
@@ -309,83 +343,59 @@ class TransactionFormatter:
                     self._format_action_column(column, required=False)
 
     def _format_action_column(self, column: str, *, required: bool) -> None:
-        """Format a specific action column.
+        """Format all actions for the specified column."""
+        col_series = self.formatted_df[column]
 
-        Args:
-            column: Column name to format
-            required: Whether this column is required (affects exclusion behavior)
-        """
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:
-                continue
-            self._process_action_value(
-                idx,
-                column,
-                required=required,
-            )
-
-    def _process_action_value(
-        self,
-        idx: int,
-        column: str,
-        *,
-        required: bool,
-    ) -> None:
-        """Process a single action value for formatting and validation.
-
-        Args:
-            idx: Row index
-            column: Column name
-            value: Value to process
-            required: Whether the column is required
-            valid_actions: Set of valid action strings
-            action_mapping: Mapping for action normalization
-        """
-        value = self.formatted_df.loc[idx, column]
-        if pd.isna(value) or str(value).strip() == "":
+        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
+        if missing_mask.any():
+            missing_indices = col_series[missing_mask].index
             if required:
-                self.exclusions.append(idx)
-                reason = f"MISSING {column}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
             else:
-                self.formatted_df.loc[idx, column] = pd.NA
-            return
+                self.formatted_df.loc[missing_indices, column] = pd.NA
 
-        action_str = str(value).strip().upper()
-        normalized_action = self.ACTION_MAP.get(action_str, action_str)
-
-        if normalized_action in actions:
-            if normalized_action != action_str:
-                import_logger.debug(
-                    AUTO_FORMAT_DEBUG,
-                    idx,
-                    column,
-                    value,
-                    normalized_action,
-                )
-            self.formatted_df.loc[idx, column] = normalized_action
-        elif required:
-            self.exclusions.append(idx)
-            reason = f"INVALID {column}"
-            self.rejection_reasons.setdefault(idx, []).append(reason)
-        else:
-            import_logger.debug(
-                "%d - Invalid optional action field '%s': '%s'",
-                idx,
-                column,
-                value,
+        non_missing_mask = ~missing_mask
+        if non_missing_mask.any():
+            non_missing_series = col_series[~missing_mask]
+            action_str_series = non_missing_series.astype(str).str.strip().str.upper()
+            normalized_series = action_str_series.map(self.ACTION_MAP).fillna(
+                action_str_series,
             )
+
+            valid_actions_mask = normalized_series.isin(actions)
+            invalid_mask = ~valid_actions_mask
+
+            if invalid_mask.any():
+                invalid_indices = non_missing_series[invalid_mask].index
+                if required:
+                    self.exclusions.extend(invalid_indices)
+                    for idx in invalid_indices:
+                        reason = f"INVALID {column}"
+                        self.rejection_reasons.setdefault(idx, []).append(reason)
+                else:
+                    for idx in invalid_indices:
+                        value = non_missing_series.loc[idx]
+                        import_logger.debug(
+                            "%d - Invalid optional action field '%s': '%s'",
+                            idx,
+                            column,
+                            value,
+                        )
+
+        if valid_actions_mask.any():
+            valid_indices = non_missing_series[valid_actions_mask].index
+            self.formatted_df.loc[valid_indices, column] = normalized_series[
+                valid_actions_mask
+            ]
 
     def _format_currencies(self) -> None:
-        """Format currency columns to valid enum values.
-
-        Handles both required transaction currency and optional currency fields.
-        """
-        # Format required transaction currency
+        """Format currency columns."""
         if Column.Txn.CURRENCY in self.formatted_df.columns:
             self._format_currency_column(Column.Txn.CURRENCY, required=True)
 
-        # Format optional currency fields
         if self.config.optional_fields:
             for column in self.formatted_df.columns:
                 optional_field = self.config.optional_fields.get_field(column)
@@ -393,300 +403,249 @@ class TransactionFormatter:
                     self._format_currency_column(column, required=False)
 
     def _format_currency_column(self, column: str, *, required: bool) -> None:
-        """Format a specific currency column.
-
-        Args:
-            column: Column name to format
-            required: Whether this column is required (affects exclusion behavior)
-        """
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:
-                continue
-            self._process_currency_value(
-                idx,
-                column,
-                required=required,
-            )
-
-    def _process_currency_value(
-        self,
-        idx: int,
-        column: str,
-        *,
-        required: bool,
-    ) -> None:
-        """Process a single currency value for formatting and validation.
-
-        Args:
-            idx: Row index
-            column: Column name
-            required: Whether the column is required
-            valid_currencies: Set of valid currency strings
-            currency_mapping: Mapping for currency normalization
-        """
-        value = self.formatted_df.loc[idx, column]
-        if pd.isna(value):
+        """Format all."""
+        col_series = self.formatted_df[column]
+        missing_mask = col_series.isna()
+        if missing_mask.any():
+            missing_indices = col_series[missing_mask].index
             if required:
-                self.exclusions.append(idx)
-                reason = f"MISSING {column}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
             else:
-                self.formatted_df.loc[idx, column] = pd.NA
-            return
+                self.formatted_df.loc[missing_indices, column] = pd.NA
 
-        currency_str = str(value).strip().upper()
-        normalized_currency = self.CURRENCY_MAP.get(currency_str, currency_str)
-
-        if normalized_currency in currencies:
-            if normalized_currency != currency_str:
-                import_logger.debug(
-                    AUTO_FORMAT_DEBUG,
-                    idx,
-                    column,
-                    value,
-                    normalized_currency,
-                )
-            self.formatted_df.loc[idx, column] = normalized_currency
-        elif required:
-            self.exclusions.append(idx)
-            reason = f"INVALID {column}"
-            self.rejection_reasons.setdefault(idx, []).append(reason)
-        else:
-            import_logger.debug(
-                "%d - Invalid optional currency field '%s': '%s'",
-                idx,
-                column,
-                value,
+        non_missing_mask = ~missing_mask
+        if non_missing_mask.any():
+            non_missing_series = col_series[~missing_mask]
+            currency_str_series = non_missing_series.astype(str).str.strip().str.upper()
+            normalized_series = currency_str_series.map(self.CURRENCY_MAP).fillna(
+                currency_str_series,
             )
+            valid_currencies_mask = normalized_series.isin(currencies)
+            invalid_mask = ~valid_currencies_mask
 
-    def _format_tickers(self) -> None:
-        """Format ticker column to uppercase and trim whitespace.
+            if invalid_mask.any():
+                invalid_indices = non_missing_series[invalid_mask].index
+                if required:
+                    self.exclusions.extend(invalid_indices)
+                    for idx in invalid_indices:
+                        reason = f"INVALID {column}"
+                        self.rejection_reasons.setdefault(idx, []).append(reason)
+                else:
+                    for idx in invalid_indices:
+                        value = non_missing_series.loc[idx]
+                        import_logger.debug(
+                            "%d - Invalid optional currency field '%s': '%s'",
+                            idx,
+                            column,
+                            value,
+                        )
 
-        Ticker is optional - if empty/null, it will be kept as null.
-        If present, it must be uppercase and contain only valid characters.
-        """
-        if Column.Txn.TICKER not in self.formatted_df.columns:  # pragma: no cover
-            return
+        if valid_currencies_mask.any():
+            valid_indices = non_missing_series[valid_currencies_mask].index
+            self.formatted_df.loc[valid_indices, column] = normalized_series[
+                valid_currencies_mask
+            ]
 
-        ticker_col = Column.Txn.TICKER
+    def _format_rule_columns(self) -> None:
+        """Format rule based columns."""
+        action_series = self.formatted_df[Column.Txn.ACTION]
+        for action_value in action_series.dropna().unique():
+            action_mask = action_series == action_value
+            action_indices = self.formatted_df[action_mask].index
 
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:
+            if len(action_indices) == 0:
                 continue
 
-            value = self.formatted_df.loc[idx, ticker_col]
-            if pd.isna(value) or str(value).strip() == "":
-                self.formatted_df.loc[idx, ticker_col] = pd.NA
-                continue
+            try:
+                rules = ActionValidationRules.get_rules_for_action(str(action_value))
+            except (KeyError, ValueError):
+                rules = ActionValidationRules.DEFAULT
 
-            ticker_str = str(value).strip().upper()
-            if not re.match(r"^[A-Z0-9.-]+$", ticker_str) or len(ticker_str) == 0:
-                self.exclusions.append(idx)
-                reason = f"INVALID {ticker_col}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                if ticker_str != str(value).strip():
-                    import_logger.debug(
-                        AUTO_FORMAT_DEBUG,
-                        idx,
-                        ticker_col,
-                        value,
-                        ticker_str,
-                    )
-                self.formatted_df.loc[idx, ticker_col] = ticker_str
+            import_logger.debug(
+                "Processing %d rows with action %s using rules %s",
+                len(action_indices),
+                action_value,
+                rules,
+            )
+            self._format_rows_with_rules(action_indices, rules)
 
-    def _validation_action_based_columns(self) -> None:
-        """Validate fields based on action-specific rules and format numeric fields.
+        invalid_action_mask = action_series.isna()
+        if invalid_action_mask.any():
+            invalid_indices = self.formatted_df[invalid_action_mask].index
+            self._format_rows_with_rules(invalid_indices, ActionValidationRules.DEFAULT)
 
-        Handles both required numeric fields and optional fields of all types.
-        """
-        # Convert all numeric columns to object dtype once to prevent warnings
-        numeric_fields = [
+    def _format_rows_with_rules(
+        self,
+        rows: pd.Index,
+        rules: dict[str, list[str]],
+    ) -> None:
+        """Format all columns for given indices based on validation rules."""
+        required_fields = set(rules["required_fields"])
+        is_required = Column.Txn.TICKER in required_fields
+        self._format_ticker_for_rows(
+            Column.Txn.TICKER,
+            rows,
+            required=is_required,
+        )
+
+        numeric_fields: list[str] = [
             Column.Txn.AMOUNT,
             Column.Txn.PRICE,
             Column.Txn.UNITS,
+            Column.Txn.FEE,
         ]
+
+        if self.config.optional_fields:
+            for column in self.formatted_df.columns:
+                optional_field = self.config.optional_fields.get_field(column)
+                if optional_field and optional_field.field_type == FieldType.NUMERIC:
+                    numeric_fields.append(column)
+                if optional_field and optional_field.field_type == FieldType.STRING:
+                    self._format_string_for_rows(
+                        column,
+                        rows,
+                        required=False,
+                    )
 
         for field in numeric_fields:
             if field in self.formatted_df.columns:
                 self.formatted_df[field] = self.formatted_df[field].astype("object")
+                is_required = field in required_fields
+                self._format_numeric_for_rows(
+                    field,
+                    rows,
+                    required=is_required,
+                )
 
-        for row in self.formatted_df.index:
-            if row in self.exclusions:
-                continue
-
-            rules = self._get_validation_rules_for_row(row)
-            required_fields = rules["required_fields"]
-            self._validate_required_for_row(row, required_fields)
-
-    def _get_validation_rules_for_row(self, idx: int) -> dict[str, list[str]]:
-        """Get validation rules for a specific row based on its action."""
-        action_col = Column.Txn.ACTION
-        if action_col not in self.formatted_df.columns:  # pragma: no cover
-            return ActionValidationRules.DEFAULT
-
-        action_value = self.formatted_df.loc[idx, action_col]
-        if pd.isna(action_value):  # pragma: no cover
-            return ActionValidationRules.DEFAULT
-
-        return ActionValidationRules.get_rules_for_action(str(action_value))
-
-    def _validate_required_for_row(
+    def _format_ticker_for_rows(
         self,
-        row: int,
-        required_fields: list[str],
-    ) -> None:
-        """Validate all required fields for a row (both numeric and non-numeric)."""
-        # First validate numeric fields
-        numeric_fields = [
-            Column.Txn.AMOUNT,
-            Column.Txn.PRICE,
-            Column.Txn.UNITS,
-        ]
-
-        for field in numeric_fields:
-            if field not in self.formatted_df.columns:  # pragma: no cover
-                continue
-
-            is_required = field in required_fields
-            success = self._process_numeric_value(row, field, required=is_required)
-
-            if is_required and not success:
-                return  # Row already excluded, no need to check other fields
-
-        # Now validate non-numeric required fields
-        non_numeric_required_fields = [
-            field
-            for field in required_fields
-            if field not in numeric_fields and field in self.formatted_df.columns
-        ]
-
-        for field in non_numeric_required_fields:
-            value = self.formatted_df.loc[row, field]
-            if pd.isna(value) or (isinstance(value, str) and value.strip() == ""):
-                self.exclusions.append(row)
-                reason = f"MISSING {field}"
-                self.rejection_reasons.setdefault(row, []).append(reason)
-
-    def _format_optional_columns(self) -> None:
-        """Format all optional fields based on their configured types."""
-        # Recognized Optional Fields
-        if Column.Txn.FEE in self.formatted_df.columns:  # pragma: no cover
-            self.formatted_df[Column.Txn.FEE] = self.formatted_df[
-                Column.Txn.FEE
-            ].astype("object")
-            self._format_numeric_column(Column.Txn.FEE, required=False)
-
-        # Exit early if no optional fields are configured
-        if not self.config.optional_fields:
-            return
-
-        # Convert all optional numeric columns to object dtype to prevent warnings
-        for column in self.formatted_df.columns:
-            optional_field = self.config.optional_fields.get_field(column)
-            if optional_field and optional_field.field_type == FieldType.NUMERIC:
-                self.formatted_df[column] = self.formatted_df[column].astype("object")
-
-        for column in self.formatted_df.columns:
-            optional_field = self.config.optional_fields.get_field(column)
-            if optional_field is None:
-                continue
-
-            field_type = optional_field.field_type
-            if field_type == FieldType.NUMERIC:
-                self._format_numeric_column(column, required=False)
-            elif field_type == FieldType.STRING:
-                self._format_string_column(column)
-
-    def _format_string_column(self, column: str) -> None:
-        """Format a string column by trimming whitespace.
-
-        Args:
-            column: Column name to format
-        """
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:  # pragma: no cover
-                continue
-
-            value = self.formatted_df.loc[idx, column]
-            if pd.isna(value) or str(value).strip() == "":
-                self.formatted_df.loc[idx, column] = pd.NA
-            else:
-                string_value = str(value).strip()
-                if string_value != str(value):
-                    import_logger.debug(
-                        AUTO_FORMAT_DEBUG,
-                        idx,
-                        column,
-                        value,
-                        string_value,
-                    )
-                self.formatted_df.loc[idx, column] = string_value
-
-    def _format_numeric_column(self, column: str, *, required: bool) -> None:
-        """Format a specific numeric column.
-
-        Args:
-            column: Column name to format
-            required: Whether this column is required (affects exclusion behavior)
-        """
-        for idx in self.formatted_df.index:
-            if idx in self.exclusions:  # pragma: no cover
-                continue
-            self._process_numeric_value(idx, column, required=required)
-
-    def _process_numeric_value(
-        self,
-        idx: int,
-        field: str,
+        column: str,
+        indices: pd.Index,
         *,
         required: bool,
-    ) -> bool:
-        """Format a numeric field value.
-
-        Returns:
-            True if successful or field is optional, False if required field failed
-        """
-        value = self.formatted_df.loc[idx, field]
-        if pd.isna(value) or str(value).strip() == "":
+    ) -> None:
+        """Vectorized formatting of ticker column for specific row indices."""
+        col_series = self.formatted_df.loc[indices, column]
+        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
+        if missing_mask.any():
+            missing_indices = col_series[missing_mask].index
             if required:
-                self.exclusions.append(idx)
-                reason = f"MISSING {field}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
-                return False
-            self.formatted_df.loc[idx, field] = pd.NA
-            return True
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
+            else:
+                self.formatted_df.loc[missing_indices, column] = pd.NA
 
-        clean_value = str(value).strip().replace("$", "").replace(",", "")
-        try:
-            decimal_value = Decimal(clean_value)
-            formatted_value = format(decimal_value, "f")  # Always plain decimal
-        except (ValueError, TypeError, InvalidOperation):
-            if required:
-                self.exclusions.append(idx)
-                reason = f"INVALID {field}"
-                self.rejection_reasons.setdefault(idx, []).append(reason)
-                return False
+        non_missing_mask = ~missing_mask
+        if non_missing_mask.any():
+            non_missing_series = col_series[non_missing_mask]
+            ticker_str_series = non_missing_series.astype(str).str.strip().str.upper()
 
-            # For optional fields, just create a log entry
-            import_logger.debug(
-                "%d - Invalid optional numeric field '%s': '%s'",
-                idx,
-                field,
-                value,
+            ticker_pattern = r"^[A-Z0-9.-]+$"
+            valid_mask = ticker_str_series.str.match(ticker_pattern) & (
+                ticker_str_series.str.len() > 0
             )
-            return True
-        else:
-            self.formatted_df.loc[idx, field] = formatted_value
-            if clean_value != str(value).strip():
-                import_logger.debug(
-                    AUTO_FORMAT_DEBUG,
-                    idx,
-                    field,
-                    value,
-                    clean_value,
-                )
-            return True
+            invalid_mask = ~valid_mask
+
+            if invalid_mask.any():
+                invalid_indices = non_missing_series[invalid_mask].index
+                if required:
+                    self.exclusions.extend(invalid_indices)
+                    for idx in invalid_indices:
+                        reason = f"INVALID {column}"
+                        self.rejection_reasons.setdefault(idx, []).append(reason)
+
+            if valid_mask.any():
+                valid_indices = non_missing_series[valid_mask].index
+                self.formatted_df.loc[valid_indices, column] = ticker_str_series[
+                    valid_mask
+                ]
+
+    def _format_string_for_rows(
+        self,
+        column: str,
+        rows: pd.Index,
+        *,
+        required: bool,
+    ) -> None:
+        """Format string column for the given row indices."""
+        col_series = self.formatted_df.loc[rows, column]
+        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
+        if missing_mask.any():
+            missing_indices = col_series[missing_mask].index
+            if required:
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
+            else:
+                self.formatted_df.loc[missing_indices, column] = pd.NA
+
+        non_missing_mask = ~missing_mask
+        if non_missing_mask.any():
+            non_missing_series = col_series[non_missing_mask]
+            trimmed_series = non_missing_series.astype(str).str.strip()
+            self.formatted_df.loc[non_missing_series.index, column] = trimmed_series
+
+    def _format_numeric_for_rows(
+        self,
+        column: str,
+        indices: pd.Index,
+        *,
+        required: bool,
+    ) -> None:
+        """Format numeric column for the given row indices."""
+        col_series = self.formatted_df.loc[indices, column]
+        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
+        if missing_mask.any():
+            missing_indices = col_series[missing_mask].index
+            if required:
+                self.exclusions.extend(missing_indices)
+                for idx in missing_indices:
+                    reason = f"MISSING {column}"
+                    self.rejection_reasons.setdefault(idx, []).append(reason)
+            else:
+                self.formatted_df.loc[missing_indices, column] = pd.NA
+
+        non_missing_mask = ~missing_mask
+        if non_missing_mask.any():
+            non_missing_series = col_series[non_missing_mask]
+            cleaned_series = (
+                non_missing_series.astype(str)
+                .str.strip()
+                .str.replace("$", "", regex=False)
+                .str.replace(",", "", regex=False)
+            )
+
+            formatted_series = cleaned_series.apply(_to_decimal_format)
+            invalid_mask = formatted_series.isna()
+            if invalid_mask.any():
+                invalid_indices = non_missing_series[invalid_mask].index
+                if required:
+                    self.exclusions.extend(invalid_indices)
+                    for idx in invalid_indices:
+                        reason = f"INVALID {column}"
+                        self.rejection_reasons.setdefault(idx, []).append(reason)
+                else:
+                    for idx in invalid_indices:
+                        value = non_missing_series.loc[idx]
+                        import_logger.debug(
+                            "%d - Invalid optional numeric field '%s': '%s'",
+                            idx,
+                            column,
+                            value,
+                        )
+
+            valid_formatted_mask = formatted_series.notna()
+            if valid_formatted_mask.any():
+                valid_indices = non_missing_series[valid_formatted_mask].index
+                self.formatted_df.loc[valid_indices, column] = formatted_series[
+                    valid_formatted_mask
+                ]
 
     def _calculate_settlement_dates(self) -> None:
         """Calculate settlement dates for transactions."""
