@@ -132,10 +132,6 @@ transforms:
       Action: "FXT"
       Ticker: ""
   - conditions:
-      Action: "Dividends"
-    actions:
-      Action: "DIVIDEND"
-  - conditions:
       Action: ["DIVIDEND"]
     actions:
       Fee: 0

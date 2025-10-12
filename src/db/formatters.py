@@ -97,7 +97,7 @@ class ActionValidationRules:
             Column.Txn.UNITS,
             Column.Txn.TICKER,
         ],
-        "optional_fields": [],
+        "optional_fields": [Column.Txn.FEE],
     }
 
     @classmethod
@@ -136,7 +136,7 @@ class TransactionFormatter:
         "SOLD": "SELL",
         "SALE": "SELL",
         "DIV": "DIVIDEND",
-        "DIVIDEND": "DIVIDEND",
+        "DIVIDENDS": "DIVIDEND",
         "BORROW": "BRW",
         "BORROWING": "BRW",
         "CONTRIB": "CONTRIBUTION",
@@ -144,7 +144,6 @@ class TransactionFormatter:
         "FEE": "FCH",
         "FEES": "FCH",
         "INTEREST": "FCH",
-        "RSU": "FCH",
         "FOREX": "FXT",
         "FX": "FXT",
         "CURRENCY": "FXT",
