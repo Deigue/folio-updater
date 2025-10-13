@@ -14,8 +14,10 @@ import pytest
 import yaml
 
 from app.app_context import AppContext
+from mock.mock_data import get_mock_data_date_range
 from services.forex_service import ForexService
-from utils.constants import TORONTO_TZ, Column
+from utils.constants import TORONTO_TZ, Column, Currency
+from utils.settlement_calculator import settlement_calculator
 
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
 
@@ -160,3 +162,38 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
         return df
 
     return get_fx_data
+
+
+@pytest.fixture(scope="session", autouse=True)
+def preload_settlement_schedules() -> None:
+    """Pre-load settlement calculator schedules once for the entire test suite.
+
+    This fixture runs once per test session and caches market calendar schedules
+    to minimize pandas_market_calendars API interactions during tests.
+    """
+    logger = logging.getLogger(__name__)
+    start_date, end_date = get_mock_data_date_range()
+    buffer_start = start_date - pd.Timedelta(days=10)
+    buffer_end = end_date + pd.Timedelta(days=30)
+
+    logger.debug(
+        "PRE-LOADING market calendars for testing from %s to %s",
+        buffer_start.date(),
+        buffer_end.date(),
+    )
+
+    # Pre-load schedules into instance cache
+    settlement_calculator.calendar_schedules[Currency.USD] = (
+        settlement_calculator.get_calendar_schedule(
+            Currency.USD,
+            buffer_start,
+            buffer_end,
+        )
+    )
+    settlement_calculator.calendar_schedules[Currency.CAD] = (
+        settlement_calculator.get_calendar_schedule(
+            Currency.CAD,
+            buffer_start,
+            buffer_end,
+        )
+    )

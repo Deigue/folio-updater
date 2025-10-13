@@ -1,5 +1,7 @@
 """Generate deterministic mock data for the folio."""
 
+from __future__ import annotations
+
 import logging
 import random
 from datetime import datetime, timedelta
@@ -10,6 +12,22 @@ from db.formatters import ActionValidationRules
 from utils.constants import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
 
 logger = logging.getLogger(__name__)
+
+
+def get_mock_data_date_range(
+    num_transactions: int = 10,
+) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Get the date range for mock data generation.
+
+    Args:
+        num_transactions: Number of transactions per ticker
+
+    Returns:
+        Tuple of (start_date, end_date) for the mock data
+    """
+    end_date = pd.Timestamp(datetime.now(TORONTO_TZ))
+    start_date = end_date - timedelta(days=num_transactions * 7)
+    return start_date, end_date
 
 
 def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFrame:
