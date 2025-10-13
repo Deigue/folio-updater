@@ -83,7 +83,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
             config_path.unlink(missing_ok=True)
 
             # Clean artifacts created by folio_setup/mock_data
-            for pattern in ("*.xlsx", "*.db", "*.parquet"):
+            for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv"):
                 for file_path in tmp_path.rglob(pattern):
                     file_path.unlink(missing_ok=True)
 
@@ -117,7 +117,7 @@ def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
             total_size,
         )
         for file_path, size in leftover_files:
-            logger.warning("  Leftover file: %s (size: %d bytes)\n", file_path, size)
+            logger.warning("  LEFTOVER FILE: %s (size: %d bytes)\n", file_path, size)
 
 
 @pytest.fixture(autouse=True)
