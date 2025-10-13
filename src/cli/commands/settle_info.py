@@ -9,6 +9,7 @@ import sqlite3
 
 import typer
 
+from db import db
 from db.db import get_connection, get_row_count
 from utils.constants import Column, Table
 
@@ -34,26 +35,30 @@ def settlement_info() -> None:
 
             if calculated_count > 0:
                 typer.echo("\nTransactions with calculated settlement dates:")
+                df = db.get_rows(
+                    conn,
+                    Table.TXNS,
+                    condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
+                    order_by=(
+                        f'"{Column.Txn.TXN_DATE}" DESC, "{Column.Txn.TXN_ID}" DESC'
+                    ),
+                )
 
-                # Get list of transactions with calculated settlement dates
-                list_query = f"""
-                SELECT
-                    "{Column.Txn.TXN_ID}",
-                    "{Column.Txn.TXN_DATE}",
-                    "{Column.Txn.ACTION}",
-                    "{Column.Txn.TICKER}",
-                    "{Column.Txn.AMOUNT}",
-                    "{Column.Txn.CURRENCY}",
-                    "{Column.Txn.SETTLE_DATE}",
-                    "{Column.Txn.ACCOUNT}"
-                FROM "{Table.TXNS}"
-                WHERE "{Column.Txn.SETTLE_CALCULATED}" = 1
-                ORDER BY "{Column.Txn.TXN_DATE}" DESC,
-                         "{Column.Txn.TXN_ID}" DESC
-                """
-
-                cursor = conn.execute(list_query)
-                transactions = cursor.fetchall()
+                columns = [
+                    Column.Txn.TXN_ID,
+                    Column.Txn.TXN_DATE,
+                    Column.Txn.ACTION,
+                    Column.Txn.TICKER,
+                    Column.Txn.AMOUNT,
+                    Column.Txn.CURRENCY,
+                    Column.Txn.SETTLE_DATE,
+                    Column.Txn.ACCOUNT,
+                ]
+                transactions = (
+                    df[columns].itertuples(index=False, name=None)
+                    if not df.empty
+                    else []
+                )
 
                 # Header
                 typer.echo(
