@@ -41,9 +41,8 @@ class TransactionFilter:
         if not existing_keys:
             return txn_df
 
-        new_keys_series: pd.Series[str] = txn_df.apply(
-            TransactionFilter._generate_key,
-            axis=1,
+        new_keys_series: pd.Series[str] = TransactionFilter._generate_keys(
+            txn_df,
         )
         new_keys: set[str] = set(new_keys_series)
         import_logger.debug(
@@ -85,7 +84,8 @@ class TransactionFilter:
         if txn_df.empty:  # pragma: no cover
             return txn_df
 
-        keys = txn_df.apply(TransactionFilter._generate_key, axis=1)
+        # Use vectorized key generation
+        keys = TransactionFilter._generate_keys(txn_df)
         duplicate_mask = keys.duplicated(keep=False)
         num_dupes = duplicate_mask.sum()
 
@@ -190,30 +190,52 @@ class TransactionFilter:
                     import_logger.warning(" - %s", summary)
 
     @staticmethod
-    def _generate_key(row: pd.Series) -> str:
-        """Generate a synthetic primary key from TXN_ESSENTIAL columns.
+    def _generate_keys(txn_df: pd.DataFrame) -> pd.Series:
+        """Generate synthetic primary keys based on TXN_ESSENTIALS.
+
+        This method processes the entire DataFrame columnwise and generates synthetic
+        key representations for all rows.
 
         Args:
-            row: A pandas Series containing transaction data.
+            txn_df: DataFrame with transaction data
 
         Returns:
-            A hash string representing the synthetic primary key.
+            Series of hash strings representing synthetic primary keys
         """
+        if txn_df.empty:  # pragma: no cover
+            return pd.Series([], dtype=str)
 
-        def normalize_value(val: str | float | None) -> str:
-            if pd.isna(val):  # pragma: no cover
-                return ""
-            # Try to treat as float, format to 8 decimals, else as string
-            try:
-                fval = float(val)
-                # Remove trailing zeros and dot if not needed
-                return f"{fval:.8f}".rstrip("0").rstrip(".")
-            except (ValueError, TypeError):
-                return str(val).strip()
+        normalized_cols = []
+        for col in TXN_ESSENTIALS:
+            if col not in txn_df.columns:
+                normalized_cols.append(
+                    pd.Series([""] * len(txn_df), index=txn_df.index),
+                )
+                continue
 
-        key_parts = [normalize_value(row.get(col, "")) for col in TXN_ESSENTIALS]
-        key_string = "|".join(key_parts)
-        return hashlib.sha256(key_string.encode("utf-8")).hexdigest()
+            col_series = txn_df[col].fillna("")
+            numeric_series = pd.to_numeric(col_series, errors="coerce")
+            numeric_mask = ~numeric_series.isna()
+            normalized = col_series.astype(str)
+
+            # For numeric values, format to 8 decimals and strip trailing zeros
+            if numeric_mask.any():
+                formatted_numeric = numeric_series[numeric_mask].apply(
+                    lambda x: f"{x:.8f}".rstrip("0").rstrip("."),
+                )
+                normalized.loc[numeric_mask] = formatted_numeric
+
+            normalized = normalized.str.strip()
+            normalized_cols.append(normalized)
+
+        # Concatenate all columns with separator
+        key_string = normalized_cols[0].astype(str)
+        for col_series in normalized_cols[1:]:
+            key_string = key_string + "|" + col_series.astype(str)
+
+        return key_string.apply(
+            lambda x: hashlib.sha256(x.encode("utf-8")).hexdigest(),
+        )
 
     @staticmethod
     def _get_db_transaction_keys() -> set[str]:
@@ -234,10 +256,10 @@ class TransactionFilter:
                 if existing_df.empty:  # pragma: no cover
                     return set()
 
-                existing_keys: set[str] = set()
-                existing_keys.update(
-                    existing_df.apply(TransactionFilter._generate_key, axis=1),
+                existing_keys_series = TransactionFilter._generate_keys(
+                    existing_df,
                 )
+                existing_keys: set[str] = set(existing_keys_series)
             except (sqlite3.Error, pd.errors.DatabaseError):
                 import_logger.debug(
                     "Table '%s' does not exist yet, no existing transactions to check.",
