@@ -30,13 +30,11 @@ def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
     """
     with get_connection() as conn:
         existing_columns = db.get_columns(conn, Table.TXNS)
+        new_columns = [col for col in txn_df.columns if col not in existing_columns]
 
-    new_columns = [col for col in txn_df.columns if col not in existing_columns]
-
-    if new_columns:
-        for column in new_columns:
-            alter_sql = f'ALTER TABLE "{Table.TXNS}" ADD COLUMN "{column}" TEXT'
-            with get_connection() as conn:
+        if new_columns:
+            for column in new_columns:
+                alter_sql = f'ALTER TABLE "{Table.TXNS}" ADD COLUMN "{column}" TEXT'
                 try:
                     conn.execute(alter_sql)
                     logger.debug(
