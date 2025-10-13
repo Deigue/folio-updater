@@ -58,7 +58,6 @@ a = Analysis(
         'sklearn',
         
         # Development/debugging tools
-        'pydoc',
         'doctest',
         'pdb',
         'profile',
