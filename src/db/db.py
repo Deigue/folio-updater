@@ -151,3 +151,42 @@ def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
         connection.commit()
     except sqlite3.OperationalError:
         logger.exception("Error dropping table: %s", table_name)
+
+
+def add_column_to_table(
+    connection: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+    column_type: str = "TEXT",
+) -> bool:
+    """Add a column to a table if it doesn't already exist.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to modify
+        column_name: Name of the column to add
+        column_type: SQL data type for the column (defaults to TEXT)
+
+    Returns:
+        True if column was added or already exists, False if there was an error
+    """
+    try:
+        existing_columns = get_columns(connection, table_name)
+        if column_name in existing_columns:
+            return True
+
+        alter_sql = (
+            f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {column_type}'
+        )
+        connection.execute(alter_sql)
+        logger.debug("Added column '%s' to table '%s'", column_name, table_name)
+    except sqlite3.OperationalError:
+        logger.exception(
+            "Could not add column '%s' to table '%s'",
+            column_name,
+            table_name,
+        )
+        return False
+    else:
+        return True
+

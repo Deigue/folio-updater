@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 from typing import TYPE_CHECKING
 
 from db import db
@@ -34,16 +33,7 @@ def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
 
         if new_columns:
             for column in new_columns:
-                alter_sql = f'ALTER TABLE "{Table.TXNS}" ADD COLUMN "{column}" TEXT'
-                try:
-                    conn.execute(alter_sql)
-                    logger.debug(
-                        "Added new column '%s' to table '%s'",
-                        column,
-                        Table.TXNS,
-                    )
-                except sqlite3.OperationalError:
-                    logger.exception("Could not add column '%s'", column)
+                db.add_column_to_table(conn, Table.TXNS, column, "TEXT")
 
     final_columns = existing_columns + new_columns
     logger.debug("Final ordered columns: %s", final_columns)
