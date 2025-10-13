@@ -49,16 +49,16 @@ class SettlementCalculator:
         import pandas_market_calendars as mcal
 
         self._calendars: dict[Currency, mcal.MarketCalendar] = {}
-        self._calendar_schedules: dict[Currency, pd.DatetimeIndex] = {}
+        self.calendar_schedules: dict[Currency, pd.DatetimeIndex] = {}
         # Initialize market calendars
         self._calendars[Currency.USD] = mcal.get_calendar("NYSE")
         self._calendars[Currency.CAD] = mcal.get_calendar("TSX")
 
     def add_settlement_dates_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add settlement dates to a DataFrame with optimized batch processing.
+        """Add and calculate settlement dates in the DataFrame.
 
         This method processes the DataFrame and adds/updates settlement date
-        and settlement calculated columns based on the business rules.
+        and settlement calculated columns based on the market calendars.
 
         Args:
             df: DataFrame with transaction data
@@ -69,62 +69,71 @@ class SettlementCalculator:
         if df.empty:
             return df
 
-        # Initialize columns if they don't exist
-        if Column.Txn.SETTLE_DATE not in df.columns:
-            df[Column.Txn.SETTLE_DATE] = pd.NA
-        if Column.Txn.SETTLE_CALCULATED not in df.columns:
-            df[Column.Txn.SETTLE_CALCULATED] = 0
+        df_copy = df.copy()
+        if Column.Txn.SETTLE_DATE not in df_copy.columns:
+            df_copy[Column.Txn.SETTLE_DATE] = pd.NA
+        if Column.Txn.SETTLE_CALCULATED not in df_copy.columns:
+            df_copy[Column.Txn.SETTLE_CALCULATED] = 0
 
-        min_date = df[Column.Txn.TXN_DATE].min()
-        max_date = df[Column.Txn.TXN_DATE].max()
-        if pd.isna(min_date) or pd.isna(max_date):
-            return df
+        needs_calculation = df_copy[Column.Txn.SETTLE_DATE].isna() | ~df_copy[
+            Column.Txn.SETTLE_DATE
+        ].astype(str).str.match(r"^\d{4}-\d{2}-\d{2}$")
+        has_valid_txn_date = ~df_copy[Column.Txn.TXN_DATE].isna()
+        needs_calculation = needs_calculation & has_valid_txn_date
 
-        start_ts = pd.Timestamp(min_date)
-        # Add buffer for T+2 settlements plus weekends/holidays
-        end_ts = pd.Timestamp(max_date) + pd.DateOffset(days=10)
+        if not needs_calculation.any():
+            return df_copy
 
-        # Pre-load calendar schedules for USD and CAD
-        usd_schedule = self._get_calendar_schedule(Currency.USD, start_ts, end_ts)
-        cad_schedule = self._get_calendar_schedule(Currency.CAD, start_ts, end_ts)
+        # Pre-load schedules for the date range if not already cached
+        min_date = df_copy[Column.Txn.TXN_DATE].min()
+        max_date = df_copy[Column.Txn.TXN_DATE].max()
+        if not pd.isna(min_date) and not pd.isna(max_date):
+            start_ts = pd.Timestamp(min_date).tz_localize(TORONTO_TZ)
+            end_ts = pd.Timestamp(max_date).tz_localize(TORONTO_TZ)
+            self._ensure_schedules_loaded(start_ts, end_ts)
 
-        # Process by currency for cache efficiency
-        unique_currency_values = df[Column.Txn.CURRENCY].dropna().unique()
-        for currency_str in unique_currency_values:
-            try:
-                currency = Currency(currency_str)
-            except ValueError:
-                # Non-standard currency - fallback to simple business day logic
-                import_logger.warning(
-                    "NON-STANDARD currency '%s' (using same-day settlement)",
-                    currency_str,
-                )
-                currency_mask = df[Column.Txn.CURRENCY] == currency_str
-                df.loc[currency_mask, Column.Txn.SETTLE_DATE] = df.loc[
-                    currency_mask,
-                    Column.Txn.TXN_DATE,
-                ]
-                df.loc[currency_mask, Column.Txn.SETTLE_CALCULATED] = 1
-                continue
+        for currency in df_copy[needs_calculation][Column.Txn.CURRENCY].unique():
+            currency_mask = needs_calculation & (
+                df_copy[Column.Txn.CURRENCY] == currency
+            )
+            if currency_mask.any():
+                schedule = self.calendar_schedules.get(currency, pd.DatetimeIndex([]))
+                currency_indices = df_copy[currency_mask].index
+                for idx in currency_indices:
+                    self._process_settlement_for_row_optimized(
+                        df_copy,
+                        idx,
+                        currency,
+                        schedule,
+                    )
 
-            currency_mask = df[Column.Txn.CURRENCY] == currency.value
-            currency_df = df[currency_mask]
-            if currency == Currency.USD:
-                schedule = usd_schedule
-            elif currency == Currency.CAD:
-                schedule = cad_schedule
-            else:
-                schedule = self._get_calendar_schedule(currency, start_ts, end_ts)
+        return df_copy
 
-            for idx in currency_df.index:
-                self._process_settlement_for_row_optimized(
-                    df,
-                    idx,
+    def _ensure_schedules_loaded(
+        self,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> None:
+        """Ensure calendar schedules are loaded for the given date range.
+
+        Args:
+            start_date: Start date (timezone-aware)
+            end_date: End date (timezone-aware)
+        """
+        # Check if we need to load/expand schedules
+        for currency in [Currency.USD, Currency.CAD]:
+            if (
+                currency not in self.calendar_schedules
+                or len(self.calendar_schedules[currency]) == 0
+            ):
+                # Load schedule with buffer
+                buffer_start = start_date - pd.Timedelta(days=10)
+                buffer_end = end_date + pd.Timedelta(days=30)
+                self.calendar_schedules[currency] = self.get_calendar_schedule(
                     currency,
-                    schedule,
+                    buffer_start,
+                    buffer_end,
                 )
-
-        return df
 
     def calculate_simple_business_days(
         self,
@@ -150,7 +159,7 @@ class SettlementCalculator:
 
         return current_date.strftime("%Y-%m-%d")
 
-    def _get_calendar_schedule(
+    def get_calendar_schedule(
         self,
         currency: Currency,
         start_date: pd.Timestamp,
@@ -167,8 +176,8 @@ class SettlementCalculator:
             DatetimeIndex of valid trading days
         """
         # Check if we have a cached schedule that covers our range
-        if currency in self._calendar_schedules:
-            existing_schedule = self._calendar_schedules[currency]
+        if currency in self.calendar_schedules:
+            existing_schedule = self.calendar_schedules[currency]
             if (
                 len(existing_schedule) > 0
                 and existing_schedule[0] <= start_date
@@ -190,7 +199,7 @@ class SettlementCalculator:
         valid_days: pd.DatetimeIndex = pd.DatetimeIndex(schedule.index)
 
         # Cache the schedule
-        self._calendar_schedules[currency] = valid_days
+        self.calendar_schedules[currency] = valid_days
         return valid_days
 
     def _process_settlement_for_row_optimized(
