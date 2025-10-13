@@ -12,6 +12,7 @@ from db.formatters import ActionValidationRules
 from utils.constants import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
 
 logger = logging.getLogger(__name__)
+SEED_DATE: datetime = datetime(2025, 10, 1, tzinfo=TORONTO_TZ)
 
 
 def get_mock_data_date_range(
@@ -25,7 +26,7 @@ def get_mock_data_date_range(
     Returns:
         Tuple of (start_date, end_date) for the mock data
     """
-    end_date = pd.Timestamp(datetime.now(TORONTO_TZ))
+    end_date = pd.Timestamp(SEED_DATE)
     start_date = end_date - timedelta(days=num_transactions * 7)
     return start_date, end_date
 
@@ -41,7 +42,7 @@ def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFra
         pd.DataFrame: A DataFrame with the mock transactions.
     """
     random.seed(ticker)  # Deterministic per ticker.
-    end_date: datetime = datetime.now(TORONTO_TZ)
+    end_date: datetime = SEED_DATE
     transactions = []
     actions = list(Action)
     currencies = list(Currency)

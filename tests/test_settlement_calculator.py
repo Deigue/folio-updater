@@ -30,31 +30,41 @@ calculator = SettlementCalculator()
         # Existing valid settlement date - preserve it
         (
             "valid_existing",
-            "2024-06-03",
+            "2025-07-24",
             Action.BUY,
             Currency.USD,
-            "2024-06-05",
-            "2024-06-05",
+            "2025-07-29",
+            "2025-07-29",
             0,
         ),
         # Invalid settlement date - recalculate
         (
             "invalid_existing",
-            "2024-06-03",
+            "2025-07-24",
             Action.BUY,
             Currency.USD,
             "invalid-date",
-            "2024-06-04",
+            "2025-07-25",
             1,
         ),
-        # No existing date - calculate
+        # No existing sameday settlement - calculated set 0
         (
-            "no_existing",
-            "2024-06-03",
+            "no_existing_sameday",
+            "2025-07-24",
             Action.DIVIDEND,
             Currency.USD,
             None,
-            "2024-06-03",
+            "2025-07-24",
+            0,
+        ),
+        # No existing business settlement - calculated set 1
+        (
+            "no_existing_business",
+            "2025-08-05",
+            Action.BUY,
+            Currency.USD,
+            None,
+            "2025-08-06",
             1,
         ),
         # Missing required data - should not crash
@@ -62,11 +72,21 @@ calculator = SettlementCalculator()
         # Non-standard currency (EUR)
         (
             "nonstandard_currency",
-            "2025-10-02",
+            "2025-08-18",
             "BUY",
             "EUR",
             None,
-            "2025-10-06",
+            "2025-08-20",
+            1,
+        ),
+        # Unrecognized currency (GBP)
+        (
+            "unrecognized_currency",
+            "2025-08-18",
+            "BUY",
+            "GBP",
+            None,
+            "2025-08-20",
             1,
         ),
     ],
@@ -111,35 +131,35 @@ def test_multiple_txns() -> None:
     """Test processing multiple transactions with mixed scenarios."""
     df = pd.DataFrame(
         {
-            Column.Txn.TXN_DATE: ["2024-06-03", "2024-06-03", "2024-06-03"],
+            Column.Txn.TXN_DATE: ["2025-07-24", "2025-07-24", "2025-07-24"],
             Column.Txn.ACTION: [Action.BUY, Action.DIVIDEND, Action.SELL],
             Column.Txn.CURRENCY: [Currency.USD, Currency.USD, Currency.CAD],
-            Column.Txn.SETTLE_DATE: [pd.NA, "2024-06-05", pd.NA],
+            Column.Txn.SETTLE_DATE: [pd.NA, "2025-07-29", pd.NA],
         },
     )
 
     result = calculator.add_settlement_dates_to_dataframe(df)
 
     # BUY, no existing date -> T+1
-    assert result.loc[0, Column.Txn.SETTLE_DATE] == "2024-06-04"
+    assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1
 
     # DIVIDEND, existing date -> preserved
-    assert result.loc[1, Column.Txn.SETTLE_DATE] == "2024-06-05"
+    assert result.loc[1, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
 
     # SELL, no existing date -> T+1
-    assert result.loc[2, Column.Txn.SETTLE_DATE] == "2024-06-04"
+    assert result.loc[2, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 1
 
 
 @pytest.mark.parametrize(
     ("start_date", "days", "expected"),
     [
-        ("2025-10-06", 1, "2025-10-07"),
-        ("2025-10-06", 2, "2025-10-08"),
-        ("2025-10-10", 1, "2025-10-13"),
-        ("2025-10-10", 3, "2025-10-15"),
+        ("2025-07-24", 1, "2025-07-25"),
+        ("2025-07-24", 2, "2025-07-28"),
+        ("2025-08-05", 1, "2025-08-06"),
+        ("2025-08-18", 3, "2025-08-21"),
     ],
 )
 def test_business_days(start_date: str, days: int, expected: str) -> None:

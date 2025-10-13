@@ -15,7 +15,8 @@ from cli.commands import import_cmd
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_data_exists
-from utils.constants import Table
+from utils.constants import Column, Table
+from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
 
 from .fixtures.test_data_factory import create_transaction_data
 
@@ -209,9 +210,18 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
     with temp_ctx():
         ensure_data_exists()
         with db.get_connection() as conn:
-            txn_count = db.get_row_count(conn, Table.TXNS)
+            # Just count BUSINESS_DAY_SETTLE_ACTIONS transactions, this should represent
+            # the total transactions that were auto-calculated.
+            actions = [a.value for a in BUSINESS_DAY_SETTLE_ACTIONS]
+            action_list = ",".join(f"'{a}'" for a in actions)
+            condition = f"{Column.Txn.ACTION} IN ({action_list}) "
+            calculated_count = db.get_row_count(
+                conn,
+                Table.TXNS,
+                condition=condition,
+            )
         result = runner.invoke(cli_app, ["settle-info"])
-        assert f"Calculated settlement dates: {txn_count}" in result.stdout
+        assert f"Calculated settlement dates: {calculated_count}" in result.stdout
         assert result.exit_code == 0
 
 

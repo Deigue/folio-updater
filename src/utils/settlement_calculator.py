@@ -217,7 +217,6 @@ class SettlementCalculator:
             currency: Currency for the transaction
             schedule: Pre-loaded calendar schedule
         """
-        # Check if we already have a valid settlement date
         existing_settle_date = df.loc[idx, Column.Txn.SETTLE_DATE]
         if pd.notna(existing_settle_date) and self._is_valid_date(
             str(existing_settle_date),
@@ -232,7 +231,11 @@ class SettlementCalculator:
         # Convert to objects we need (no try/except needed - data is pre-validated)
         txn_date = self._get_date_from_string(str(txn_date_str))
         action = Action(action_str)
-        settlement_days = self._get_settlement_days(action, currency, txn_date)
+        settlement_days, is_calculated = self._get_settlement_days(
+            action,
+            currency,
+            txn_date,
+        )
 
         if settlement_days == 0:
             settle_date = txn_date_str
@@ -245,7 +248,7 @@ class SettlementCalculator:
             )
 
         df.loc[idx, Column.Txn.SETTLE_DATE] = settle_date
-        df.loc[idx, Column.Txn.SETTLE_CALCULATED] = 1
+        df.loc[idx, Column.Txn.SETTLE_CALCULATED] = is_calculated
 
     def _calculate_with_preloaded_schedule(
         self,
@@ -284,7 +287,7 @@ class SettlementCalculator:
         action: Action,
         currency: Currency,
         txn_date: date,
-    ) -> int:
+    ) -> tuple[int, int]:
         """Get number of settlement days for a transaction.
 
         Args:
@@ -293,19 +296,19 @@ class SettlementCalculator:
             txn_date: Transaction date
 
         Returns:
-            Number of business days for settlement (0 for same-day)
+            Tuple of (settlement days, 0/1 for calculated or not)
         """
         if action in SAME_DAY_SETTLE_ACTIONS:
-            return 0
+            return 0, 0
 
         if action in BUSINESS_DAY_SETTLE_ACTIONS:
             # Check if T+1 is effective for this currency and date
             effective_date = T_PLUS_1_EFFECTIVE_DATES.get(currency)
             if effective_date and txn_date >= effective_date:
-                return 1  # T+1 settlement
-            return 2  # T+2 settlement
+                return 1, 1  # T+1 settlement
+            return 2, 1  # T+2 settlement
 
-        return 0  # pragma: no cover
+        return 0, 0  # pragma: no cover
 
     def _is_valid_date(self, date_str: str) -> bool:
         """Check if a string represents a valid date in YYYY-MM-DD format.
