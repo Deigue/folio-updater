@@ -132,7 +132,7 @@ def test_multiple_txns() -> None:
     df = pd.DataFrame(
         {
             Column.Txn.TXN_DATE: ["2025-07-24", "2025-07-24", "2025-07-24"],
-            Column.Txn.ACTION: [Action.BUY, Action.DIVIDEND, Action.SELL],
+            Column.Txn.ACTION: [Action.BUY, Action.DIVIDEND, Action.DIVIDEND],
             Column.Txn.CURRENCY: [Currency.USD, Currency.USD, Currency.CAD],
             Column.Txn.SETTLE_DATE: [pd.NA, "2025-07-29", pd.NA],
         },
@@ -141,16 +141,16 @@ def test_multiple_txns() -> None:
     result = calculator.add_settlement_dates_to_dataframe(df)
 
     # BUY, no existing date -> T+1
-    assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-07-29"
+    assert result.loc[0, Column.Txn.SETTLE_DATE] == "2025-07-25"
     assert result.loc[0, Column.Txn.SETTLE_CALCULATED] == 1
 
     # DIVIDEND, existing date -> preserved
     assert result.loc[1, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
 
-    # SELL, no existing date -> T+1
-    assert result.loc[2, Column.Txn.SETTLE_DATE] == "2025-07-29"
-    assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 1
+    # DIVIDEND, no existing date -> same day as txn date
+    assert result.loc[2, Column.Txn.SETTLE_DATE] == "2025-07-24"
+    assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 0
 
 
 @pytest.mark.parametrize(
