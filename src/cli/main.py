@@ -62,11 +62,18 @@ def demo_cmd() -> None:
 
 
 @app.command("settle-info", help="Show settlement date information")
-def settle_info_cmd() -> None:
+def settle_info_cmd(
+    file: str | None = typer.Option(
+        None,
+        "-f",
+        "--file",
+        help="Monthly statement file to import for settlement date updates",
+    ),
+) -> None:
     """Show settlement date information."""
     from cli.commands.settle_info import settlement_info
 
-    settlement_info()
+    settlement_info(file=file)
 
 
 @app.command("version")

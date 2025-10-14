@@ -6,16 +6,38 @@ Handles querying settlement date information for transactions in the database.
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import typer
 
+from app import bootstrap
 from db import db
 from db.db import get_connection, get_row_count
+from importers.excel_importer import import_statements
 from utils.constants import Column, Table
 
 
-def settlement_info() -> None:
-    """Show settlement date information for transactions in the database."""
+def settlement_info(file: str | None = None) -> None:
+    """Show settlement date information for transactions in the database.
+
+    Args:
+        file: Optional path to monthly statement file to import for settlement updates
+    """
+    bootstrap.reload_config()
+    if file:
+        statement_path = Path(file)
+        if not statement_path.exists():
+            typer.echo(f"ERROR: Statement file '{file}' does not exist.", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"Importing settlement dates from: {statement_path}")
+        updates = import_statements(statement_path)
+        if updates > 0:
+            typer.echo(f"Successfully updated {updates} settlement dates.")
+        else:
+            typer.echo("No settlement dates were updated.")
+        typer.echo()  # Add spacing
+
     try:
         with get_connection() as conn:
             # Get total number of transactions with calculated settlement dates
@@ -67,7 +89,6 @@ def settlement_info() -> None:
                 )
                 typer.echo("-" * 85)
 
-                # Transaction rows
                 for txn in transactions:
                     (
                         txn_id,
