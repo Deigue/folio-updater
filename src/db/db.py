@@ -190,3 +190,45 @@ def add_column_to_table(
     else:
         return True
 
+
+def update_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    updates: list[dict],
+    where_columns: list[str],
+    set_columns: list[str],
+) -> int:
+    """Update multiple rows in a table in batch.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to update
+        updates: List of dicts containing the data for each update
+        where_columns: List of column names to use in WHERE clause
+        set_columns: List of column names to set in UPDATE clause
+
+    Returns:
+        Number of rows updated
+    """
+    if not updates:
+        return 0
+
+    # Build the UPDATE query with placeholders
+    set_clause = ", ".join(f'"{col}" = ?' for col in set_columns)
+    where_clause = " AND ".join(f'"{col}" = ?' for col in where_columns)
+    query = f'UPDATE "{table_name}" SET {set_clause} WHERE {where_clause}'
+
+    try:
+        params_list = []
+        for update_data in updates:
+            set_values = [update_data[col] for col in set_columns]
+            where_values = [update_data[col] for col in where_columns]
+            params_list.append(tuple(set_values + where_values))
+
+        cursor = connection.executemany(query, params_list)
+        connection.commit()
+    except sqlite3.OperationalError:
+        logger.exception("Error updating rows in table '%s'", table_name)
+        return 0
+    else:
+        return cursor.rowcount
