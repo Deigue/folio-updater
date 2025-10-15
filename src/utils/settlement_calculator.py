@@ -180,8 +180,8 @@ class SettlementCalculator:
             existing_schedule = self.calendar_schedules[currency]
             if (
                 len(existing_schedule) > 0
-                and existing_schedule[0] <= start_date
-                and existing_schedule[-1] >= end_date
+                and existing_schedule[0].tz_localize(TORONTO_TZ) <= start_date
+                and existing_schedule[-1].tz_localize(TORONTO_TZ) >= end_date
             ):
                 return existing_schedule
 

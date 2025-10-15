@@ -54,10 +54,10 @@ def ensure_data_exists(*, mock: bool = True) -> None:
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    _create_mock_data()
+    create_mock_data()
 
 
-def _create_mock_data() -> None:
+def create_mock_data() -> None:
     """Create default folio with mock data."""
     configuration = get_config()
     transactions_list = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
@@ -78,4 +78,4 @@ def _create_mock_data() -> None:
     exporter = ParquetExporter()
     exporter.export_all()
 
-    logger.info("CREATED mock data at %s", configuration.data_path)
+    logger.info('CREATED mock data at "%s"', configuration.data_path)

@@ -62,7 +62,7 @@ def test_forex_export_parquet(
         # Verify Parquet file created with expected data
         assert parquet_path.exists()
         fx_parquet = pd.read_parquet(parquet_path, engine="pyarrow")
-        assert len(fx_parquet) >= 40  # 60 days should have ~40 business days
+        assert len(fx_parquet) >= 35  # expect atleast 35+ days with stat holidays
         assert result == len(fx_parquet)
 
         # Verify dates are within expected range
