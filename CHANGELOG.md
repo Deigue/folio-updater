@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+
+## [0.2.0] - 2025-10-15
+
+### Added
+
 - `settle-info` has a `--file` option to import settlement dates from monthly statements
 - CLI command `generate` to create latest folio from current data
 - Transaction transforms: Automatically modify imported transactions based on user-configurable rules
