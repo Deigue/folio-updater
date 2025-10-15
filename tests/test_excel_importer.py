@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from importers.excel_importer import import_transactions
+from db import schema_manager
+from importers.excel_importer import import_statements, import_transactions
 from mock.folio_setup import ensure_data_exists
 from utils.constants import TXN_ESSENTIALS, Column
 
@@ -540,6 +541,41 @@ def test_import_missing_essential_column(temp_ctx: TempContext) -> None:
             match=rf"MISSING essential columns: \{{'{essential_to_remove}'\}}\s*",
         ):
             import_transactions(temp_path, None, txn_sheet)
+
+
+def test_import_statements_missing_columns(
+    temp_ctx: TempContext,
+) -> None:
+    """Test statement import with missing required columns."""
+    with temp_ctx() as ctx:
+        schema_manager.create_txns_table()
+        incomplete_df = pd.DataFrame(
+            [
+                {
+                    "date": "2024-01-16",
+                    "amount": 1000.50,
+                    # Missing currency, transaction, description
+                },
+            ],
+        )
+
+        statement_file = ctx.config.project_root / "incomplete_statement.xlsx"
+        register_test_dataframe(statement_file, incomplete_df)
+        result = import_statements(statement_file)
+        assert result == 0
+
+
+def test_import_statements_empty_file(
+    temp_ctx: TempContext,
+) -> None:
+    """Test statement import with empty file."""
+    with temp_ctx() as ctx:
+        schema_manager.create_txns_table()
+        empty_df = pd.DataFrame()
+        statement_file = ctx.config.project_root / "empty_statement.xlsx"
+        register_test_dataframe(statement_file, empty_df)
+        result = import_statements(statement_file)
+        assert result == 0
 
 
 # Helper functions

@@ -15,8 +15,8 @@ from cli.commands import import_cmd
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_data_exists
+from tests.fixtures.dataframe_cache import register_test_dataframe
 from utils.constants import Column, Table
-from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
 
 from .fixtures.test_data_factory import create_transaction_data
 
@@ -51,7 +51,7 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         assert not config.tkr_parquet.exists()
         # * forex tested separately
         result = _run_cli_with_config(config, cli_app, ["demo"])
-        assert result.exit_code == 0
+        assert_cli_success(result)
         assert "Demo portfolio created successfully!" in result.stdout
         assert config.txn_parquet.exists()
         assert config.tkr_parquet.exists()
@@ -77,7 +77,7 @@ def test_getfx_command(
         ) as mock_fx:
             mock_fx.return_value = cached_fx_data(None)
             result = _run_cli_with_config(config, cli_app, ["getfx"])
-            assert result.exit_code == 0
+            assert_cli_success(result)
             assert "Successfully updated" in result.stdout
             with db.get_connection() as conn:
                 count = db.get_row_count(conn, Table.FX)
@@ -90,12 +90,11 @@ def test_import_command(temp_ctx: TempContext) -> None:
         config = ctx.config
         create_transaction_data(config.folio_path, config.txn_sheet)
         result = _run_cli_with_config(config, cli_app, ["import"])
-        assert result.exit_code == 0
+        assert_cli_success(result)
         assert (
             f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions"
             in result.stdout
         )
-
         with db.get_connection() as conn:
             count = db.get_row_count(conn, Table.TXNS)
             assert count == EXPECTED_TRANSACTION_COUNT
@@ -117,13 +116,12 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         config = ctx.config
         test_file = config.project_root / "test_import.xlsx"
         create_transaction_data(test_file)
-
         result = _run_cli_with_config(
             config,
             import_cmd.app,
             ["--file", str(test_file)],
         )
-        assert result.exit_code == 0
+        assert_cli_success(result)
         # Verify via stdout keywords, core functionality is tested elsewhere.
         assert f"Importing {test_file.name}..." in result.stdout
         assert (
@@ -144,7 +142,6 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
     """Test import command with directory option."""
     with temp_ctx() as ctx:
         config = ctx.config
-
         # Create test directory with multiple files to import
         import_dir = config.project_root / "import_files"
         import_dir.mkdir()
@@ -152,14 +149,13 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         file2 = import_dir / "transactions2.xlsx"
         create_transaction_data(file1)
         create_transaction_data(file2)
-
         ensure_data_exists()
         result = _run_cli_with_config(
             config,
             import_cmd.app,
             ["--dir", str(import_dir)],
         )
-        assert result.exit_code == 0
+        assert_cli_success(result)
         assert "Found 2 files to import" in result.stdout
         assert "Total transactions imported: 4" in result.stdout
         assert "Export completed" in result.stdout
@@ -179,12 +175,10 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert config.txn_parquet.exists()
         assert config.tkr_parquet.exists()
         assert not config.folio_path.exists()
-
         result = _run_cli_with_config(config, cli_app, ["generate"])
-        assert result.exit_code == 0
+        assert_cli_success(result)
         assert "Excel workbook generated successfully" in result.stdout
         assert config.folio_path.exists()
-
         transactions_parquet = pd.read_parquet(config.txn_parquet, engine="pyarrow")
         tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="pyarrow")
         transactions_excel = pd.read_excel(
@@ -207,29 +201,67 @@ def test_generate_command(temp_ctx: TempContext) -> None:
 
 def test_settle_info_command(temp_ctx: TempContext) -> None:
     """Test settle info command output."""
-    with temp_ctx():
+    with temp_ctx() as ctx:
         ensure_data_exists()
         with db.get_connection() as conn:
-            # Just count BUSINESS_DAY_SETTLE_ACTIONS transactions, this should represent
+            # Count transactions with SETTLE_CALCULATED = 1, this should represent
             # the total transactions that were auto-calculated.
-            actions = [a.value for a in BUSINESS_DAY_SETTLE_ACTIONS]
-            action_list = ",".join(f"'{a}'" for a in actions)
-            condition = f"{Column.Txn.ACTION} IN ({action_list}) "
             calculated_count = db.get_row_count(
                 conn,
                 Table.TXNS,
-                condition=condition,
+                condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
             )
-        result = runner.invoke(cli_app, ["settle-info"])
+        result = _run_cli_with_config(ctx.config, cli_app, ["settle-info"])
         assert f"Calculated settlement dates: {calculated_count}" in result.stdout
-        assert result.exit_code == 0
+        assert_cli_success(result)
+
+
+def test_settle_info_with_file_import(temp_ctx: TempContext) -> None:
+    """Test settle info command with file import."""
+    with temp_ctx() as ctx:
+        ensure_data_exists()
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-07-25",
+                    "amount": 17995.355,
+                    "currency": "USD",
+                    "transaction": "BUY",
+                    "description": "SPY - 94.34 SHARES 2025-07-23",
+                },
+            ],
+        )
+
+        statement_file = ctx.config.project_root / "test_statement.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+        result = _run_cli_with_config(
+            ctx.config,
+            cli_app,
+            [
+                "settle-info",
+                "-f",
+                str(statement_file),
+            ],
+        )
+        assert "Successfully updated 1 settlement dates." in result.stdout
+        assert_cli_success(result)
+
+
+def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
+    """Test settle info command with nonexistent file."""
+    with temp_ctx() as ctx:
+        nonexistent_file = ctx.config.project_root / "does_not_exist.xlsx"
+
+        result = runner.invoke(cli_app, ["settle-info", "-f", str(nonexistent_file)])
+        assert "does not exist" in result.stderr
+        assert result.exit_code == 1
 
 
 def test_version_command() -> None:
     """Test version command output."""
     result = runner.invoke(cli_app, ["version"])
 
-    assert result.exit_code == 0
+    assert_cli_success(result)
     assert "folio-updater version:" in result.stdout
 
 
@@ -246,3 +278,17 @@ def _run_cli_with_config(
     with patch("app.bootstrap.reload_config") as mock_reload:
         mock_reload.return_value = config
         return runner.invoke(command_app, args)
+
+
+def assert_cli_success(result: Result) -> None:  # pragma: no cover
+    if result.exit_code != 0:
+        print("STDOUT:", result.stdout)
+        print("STDERR:", result.stderr)
+        if result.exception:
+            print("EXCEPTION:", repr(result.exception))
+    assert result.exit_code == 0, (
+        f"CLI failed: {result.exit_code}\n"
+        f"STDOUT:\n{result.stdout}\n"
+        f"STDERR:\n{result.stderr}\n"
+        f"EXCEPTION:\n{result.exception!r}"
+    )
