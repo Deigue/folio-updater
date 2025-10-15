@@ -13,7 +13,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio generate`**: Generate the latest portfolio
 - **`folio demo`**: Create a demo portfolio with mock data for testing
 - **`folio version`**: Show the version of the folio-updater
-- **`folio settle-info`**: Retrieves information about calculated settlement dates
+- **`folio settle-info`**: Retrieve and update settlement date information
 
 ### Import and Processing Features
 
@@ -84,6 +84,33 @@ folio demo
 ```
 
 Perfect for testing and getting familiar with the system. Creates folio with sample transactions and FX rates.
+
+### Settlement Date Info
+
+Retrieve settlement date information:
+
+```bash
+folio settle-info
+```
+
+Calculated settlement dates can be updated with actual values by importing broker monthly statements. (.csv or .xlsx)
+
+```bash
+folio settle-info -f path/to/statement.xlsx
+```
+
+**Expected Statement Format:**
+
+- `date`: Settlement date from the statement
+- `amount`: Transaction amount (used for matching)
+- `currency`: Transaction currency
+- `transaction`: Action type (BUY, SELL, etc.)
+- `description`: Contains ticker symbol, units, and original transaction date
+
+**Statement Description Format Examples:**
+
+- `"AAPL - BUY 100 SHARES ON 2024-01-15"`
+- `"DOL - Dollarama Inc: Bought 1.0000 shares (executed at 2029-02-05)"`
 
 ## Configuration
 
