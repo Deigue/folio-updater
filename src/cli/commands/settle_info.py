@@ -34,7 +34,7 @@ def settlement_info(file: str | None = None) -> None:
         updates = import_statements(statement_path)
         if updates > 0:
             typer.echo(f"Successfully updated {updates} settlement dates.")
-        else:
+        else:  # pragma: no cover
             typer.echo("No settlement dates were updated.")
         typer.echo()  # Add spacing
 

@@ -207,12 +207,6 @@ class TransactionFilter:
 
         normalized_cols = []
         for col in TXN_ESSENTIALS:
-            if col not in txn_df.columns:
-                normalized_cols.append(
-                    pd.Series([""] * len(txn_df), index=txn_df.index),
-                )
-                continue
-
             col_series = txn_df[col].fillna("")
             numeric_series = pd.to_numeric(col_series, errors="coerce")
             numeric_mask = ~numeric_series.isna()

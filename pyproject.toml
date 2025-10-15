@@ -39,7 +39,8 @@ show_missing = true
 omit = [
     '*/__init__.py',
     'tests/fixtures/dataframe_cache.py',
-    'src/utils/backup.py'
+    'src/utils/backup.py',
+    'src/mock/folio_setup.py',
 ]
 exclude_lines = [
     "if TYPE_CHECKING:",

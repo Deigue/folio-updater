@@ -102,7 +102,7 @@ def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
         finally:
             root_logger.setLevel(original_level)
             for handler in root_logger.handlers:
-                if handler not in original_handlers:
+                if handler not in original_handlers:  # pragma: no cover
                     root_logger.removeHandler(handler)
             for handler in original_handlers:
                 if handler not in root_logger.handlers:

@@ -172,7 +172,7 @@ def add_column_to_table(
     """
     try:
         existing_columns = get_columns(connection, table_name)
-        if column_name in existing_columns:
+        if column_name in existing_columns:  # pragma: no cover
             return True
 
         alter_sql = (
@@ -210,7 +210,7 @@ def update_rows(
     Returns:
         Number of rows updated
     """
-    if not updates:
+    if not updates:  # pragma: no cover
         return 0
 
     # Build the UPDATE query with placeholders

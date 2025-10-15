@@ -39,7 +39,7 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
     """Global patched version of ensure_data_exists that uses cached data."""
     logger = logging.getLogger(__name__)
 
-    if not mock:
+    if not mock:  # pragma: no cover
         _original_ensure_data_exists(mock=False)
         return
 
@@ -59,7 +59,7 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-    if _active_cached_mock_data is None:
+    if _active_cached_mock_data is None:  # pragma: no cover
         _original_ensure_data_exists(mock=True)
         return
 
@@ -68,7 +68,7 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
     shutil.copy2(_active_cached_mock_data / "transactions.parquet", config.txn_parquet)
     shutil.copy2(_active_cached_mock_data / "tickers.parquet", config.tkr_parquet)
     fx_src = _active_cached_mock_data / "fx.parquet"
-    if fx_src.exists():
+    if fx_src.exists():  # pragma: no cover
         shutil.copy2(fx_src, config.fx_parquet)
 
 

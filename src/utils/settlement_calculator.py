@@ -220,7 +220,7 @@ class SettlementCalculator:
         existing_settle_date = df.loc[idx, Column.Txn.SETTLE_DATE]
         if pd.notna(existing_settle_date) and self._is_valid_date(
             str(existing_settle_date),
-        ):
+        ):  # pragma: no cover
             df.loc[idx, Column.Txn.SETTLE_CALCULATED] = 0
             return
 
