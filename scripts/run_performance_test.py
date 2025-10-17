@@ -13,6 +13,7 @@ import logging
 import pstats
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -84,9 +85,10 @@ def _discover_test_imports() -> set[str]:
 
 def profile_test_suite() -> None:
     """Profile the entire test suite to identify bottlenecks."""
-    logger.info("\n%s", "=" * 100)
+    logger.info("%s", "=" * 100)
     logger.info("PROFILING TEST SUITE")
     logger.info("%s\n", "=" * 100)
+    original_level = logger.level
 
     profiler = cProfile.Profile()
     profiler.enable()
@@ -100,92 +102,129 @@ def profile_test_suite() -> None:
         ],
     )
 
+    # Flush all pytest outputs before profiling results
     profiler.disable()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    with suppress(ValueError):
+        for handler in logging.root.handlers:
+            handler.flush()
 
-    # * Cumulative time: for finding where total time accumulates.
-    # * Total time: isolates time spent in each function itself without subcalls.
-    buf = io.StringIO()
-
-    def _is_app_func(func: tuple[Any, ...]) -> bool:
-        """Return True for functions that belong to our application or tests.
-
-        Accept functions whose filename resolves under the repository `src/`
-        or `tests/` directories.
-        """
-        try:
-            filename = func[0] or ""
-        except (TypeError, IndexError):
-            return False
-
-        if not filename:
-            return False
-
-        # Normalize path for matching
-        filename_norm = filename.replace("\\", "/").lower()
-
-        try:
-            file_path = Path(filename).resolve()
-            repo_root = Path(__file__).parent.parent.resolve()
-            src_dir = (repo_root / "src").resolve()
-            tests_dir = (repo_root / "tests").resolve()
-
-            # Check whether the file path is under src/ or tests/
-            if src_dir in file_path.parents or tests_dir in file_path.parents:
-                return True
-        except (OSError, RuntimeError, ValueError) as exc:
-            logger.debug("Path resolution failed for %r: %s", filename, exc)
-
-        # Fallback indicators (package names or subpackages)
-        app_indicators = (
-            "/src/",
-            "/tests/",
-            "folio_updater",
-            "preparers",
-            "formatters",
-            "transformers",
-            "/app/",
-            "/services/",
-            "/db/",
-            "/exporters/",
-        )
-
-        return any(ind in filename_norm for ind in app_indicators)
-
-    def _filtered_stats_from_profiler(
-        prof: cProfile.Profile,
-        predicate: Callable[[tuple[Any, ...]], bool],
-    ) -> pstats.Stats:
-        """Return Stats containing only entries matching the predicate.
-
-        The returned Stats has its stream set to `buf` so it can be printed directly.
-        """
-        base = pstats.Stats(prof)
-        filtered = {k: v for k, v in getattr(base, "stats", {}).items() if predicate(k)}
-        new_stats = pstats.Stats(prof, stream=buf)
-        cast("Any", new_stats).stats = filtered
-        return new_stats
-
+    _restore_logger_after_pytest(original_level)
     # Print only application code: top 30 by cumulative time
-    stats_cum = _filtered_stats_from_profiler(profiler, _is_app_func)
-    stats_cum.sort_stats("cumulative")
-    logger.info("\n%s", "=" * 80)
+    logger.info("%s", "=" * 80)
     logger.info("APPLICATION CODE - TOP 30 BY CUMULATIVE TIME")
     logger.info("%s", "=" * 80)
-    stats_cum.print_stats(30)
-    contents = buf.getvalue()
-    logger.info("\n%s", contents)
+    cumulative_output = _get_filtered_stats_output(
+        profiler,
+        _is_app_func,
+        "cumulative",
+        30,
+    )
+    logger.info("\n%s", cumulative_output)
 
-    # Clear buffer and print top 30 by total time
-    buf.truncate(0)
-    buf.seek(0)
-    stats_tot = _filtered_stats_from_profiler(profiler, _is_app_func)
-    stats_tot.sort_stats("tottime")
-    logger.info("\n%s", "=" * 80)
+    # Print top 30 by total time
+    logger.info("%s", "=" * 80)
     logger.info("APPLICATION CODE - TOP 30 BY TOTAL TIME")
     logger.info("%s", "=" * 80)
-    stats_tot.print_stats(30)
-    contents = buf.getvalue()
-    logger.info("\n%s", contents)
+    tottime_output = _get_filtered_stats_output(
+        profiler,
+        _is_app_func,
+        "tottime",
+        30,
+    )
+    logger.info("\n%s", tottime_output)
+
+
+def _is_app_func(func: tuple[Any, ...]) -> bool:
+    """Return True for functions from our app or tests.
+
+    Accept functions whose filename resolves under the repository `src/`
+    or `tests/` directories.
+    """
+    try:
+        filename = func[0] or ""
+    except (TypeError, IndexError):
+        return False
+
+    if not filename:
+        return False
+
+    # Normalize path for matching
+    filename_norm = filename.replace("\\", "/").lower()
+
+    try:
+        file_path = Path(filename).resolve()
+        repo_root = Path(__file__).parent.parent.resolve()
+        src_dir = (repo_root / "src").resolve()
+        tests_dir = (repo_root / "tests").resolve()
+
+        # Check whether the file path is under src/ or tests/
+        if src_dir in file_path.parents or tests_dir in file_path.parents:
+            return True
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug("Path resolution failed for %r: %s", filename, exc)
+
+    # Fallback indicators (package names or subpackages)
+    app_indicators = (
+        "/src/",
+        "/tests/",
+        "folio_updater",
+        "preparers",
+        "formatters",
+        "transformers",
+        "/app/",
+        "/services/",
+        "/db/",
+        "/exporters/",
+    )
+
+    return any(ind in filename_norm for ind in app_indicators)
+
+
+def _get_filtered_stats_output(
+    prof: cProfile.Profile,
+    predicate: Callable[[tuple[Any, ...]], bool],
+    sort_key: str,
+    limit: int = 30,
+) -> str:
+    """Return filtered stats output as a string.
+
+    Args:
+        prof: The cProfile.Profile object
+        predicate: Function to filter stats entries
+        sort_key: Key to sort stats by (e.g., 'cumulative', 'tottime')
+        limit: Maximum number of entries to include
+
+    Returns:
+        String containing the formatted stats output
+    """
+    base = pstats.Stats(prof)
+    filtered = {k: v for k, v in getattr(base, "stats", {}).items() if predicate(k)}
+    buf = io.StringIO()
+    new_stats = pstats.Stats(prof, stream=buf)
+    cast("Any", new_stats).stats = filtered
+    new_stats.sort_stats(sort_key)
+    new_stats.print_stats(limit)
+
+    output = buf.getvalue()
+    buf.close()
+    return output
+
+
+def _restore_logger_after_pytest(original_level: int) -> None:
+    """Restore logger state after pytest has potentially modified it.
+
+    Args:
+        original_level: Original logging level to restore
+    """
+    logger.handlers.clear()
+    logging.basicConfig(
+        level=original_level,
+        format="%(levelname)s:%(name)s:%(message)s",
+        force=True,
+    )
+    logger.setLevel(original_level)
 
 
 def profile_imports() -> None:
@@ -195,7 +234,7 @@ def profile_imports() -> None:
     Uses fresh Python subprocess to avoid import caching.
 
     """
-    logger.info("\n%s", "=" * 80)
+    logger.info("%s", "=" * 80)
     logger.info("MODULE IMPORT TIMES (Fresh imports, no cache)")
     logger.info("%s\n", "=" * 80)
 
@@ -233,7 +272,7 @@ def profile_imports() -> None:
     total_time = sum(d for _, d in results)
     slow_count = sum(1 for _, d in results if d > SLOW_IMPORT_THRESHOLD_MS)
 
-    logger.info("\n%s", "=" * 80)
+    logger.info("%s", "=" * 80)
     logger.info("Total modules: %d", len(results))
     logger.info("Total import time: %.3fms", total_time)
     logger.info("Slow imports (>%dms): %d", SLOW_IMPORT_THRESHOLD_MS, slow_count)
@@ -242,9 +281,10 @@ def profile_imports() -> None:
 
 def run_quick_test_suite() -> float:
     """Run test suite and return execution time in seconds."""
-    logger.info("\n%s", "=" * 100)
+    logger.info("%s", "=" * 100)
     logger.info("QUICK TEST SUITE RUN")
     logger.info("%s\n", "=" * 100)
+    original_level = logger.level
 
     start_time = time.perf_counter()
     exit_code = pytest.main(
@@ -258,7 +298,8 @@ def run_quick_test_suite() -> float:
 
     elapsed = time.perf_counter() - start_time
 
-    logger.info("\n%s", "=" * 100)
+    _restore_logger_after_pytest(original_level)
+    logger.info("%s", "=" * 100)
     logger.info("Test Suite Completed in %.2f seconds", elapsed)
     logger.info("Exit Code: %d", exit_code)
     logger.info("%s", "=" * 100)
