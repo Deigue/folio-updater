@@ -7,5 +7,6 @@
         "--color=yes",
         "-vv",
     ],
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python.terminal.activateEnvInCurrentTerminal": true
 }
