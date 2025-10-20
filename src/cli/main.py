@@ -13,6 +13,7 @@ app = typer.Typer(
     name="folio",
     help="Folio Updater - Portfolio management CLI tool",
     add_completion=False,
+    no_args_is_help=True,
 )
 
 
