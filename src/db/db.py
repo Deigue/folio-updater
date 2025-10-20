@@ -97,9 +97,12 @@ def get_max_value(
     connection: sqlite3.Connection,
     table_name: str,
     column_name: str,
+    condition: str | None = None,
 ) -> str | None:
-    """Return the maximum value in a column."""
+    """Return the maximum value in a column, optionally filtered by a condition."""
     query = f'SELECT MAX("{column_name}") FROM "{table_name}"'
+    if condition:
+        query += f" WHERE {condition}"
     try:
         result = connection.execute(query).fetchone()
         return result[0] if result and result[0] else None
