@@ -479,3 +479,7 @@ class Config:
         config_str += f"  Max Backups: {self.max_backups}\n"
         config_str += f"  Transforms: {self.transforms}\n"
         return config_str
+
+    def __repr__(self) -> str:
+        """Return a concise representation of the Config object."""
+        return f"<Config config_path={self.config_path}>"
