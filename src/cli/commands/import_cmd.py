@@ -24,31 +24,32 @@ def import_transaction_files(
         None,
         "-f",
         "--file",
-        help="Specific file to import (imports to database and exports to folio)",
+        help="Specific file to import",
     ),
     directory: str | None = typer.Option(
         None,
         "-d",
         "--dir",
-        help="Directory with files to import (imports all and exports to folio)",
+        help=(
+            "Directory with files to import. Use 'default' to use default import "
+            "directory."
+        ),
     ),
 ) -> None:
     """Import transactions into the folio.
 
     Default behavior: Import transactions from the configured folio Excel file.
-    --file: Import specific file, then export new transactions to folio Excel.
-    --dir: Import all files from directory, then export new transactions to folio Excel.
-    Files are moved to 'processed' folder on success, 'review' folder on issues.
+    --file: Import specific file.
+    --dir: Import all files from directory.
     """
     config = bootstrap.reload_config()
 
-    # Check for conflicting options
     if file and directory:  # pragma: no cover
         typer.echo("Error: Cannot specify both --file and --dir options", err=True)
         raise typer.Exit(1)
 
     if not file and not directory:
-        # Default behavior: import from config folio path
+        # Default behavior: import from folio excel
         try:
             folio_path = config.folio_path
             if not folio_path.exists():
@@ -65,38 +66,31 @@ def import_transaction_files(
             raise typer.Exit(1) from e
 
     elif file:
-        # Import specific file
         file_path = Path(file)
         if not file_path.exists():  # pragma: no cover
             typer.echo(f"File not found: {file}", err=True)
             raise typer.Exit(1)
 
-        base_path = file_path.parent  # Same directory as the file
-        _import_file_and_export(file_path, base_path)
+        _import_file_and_export(file_path)
 
     elif directory:
-        # Import from directory
-        dir_path = Path(directory)
-        if not dir_path.exists():  # pragma: no cover
-            typer.echo(f"Directory not found: {directory}", err=True)
-            raise typer.Exit(1)
+        if directory == "default":  # pragma: no cover
+            imports_path = config.imports_path
+            directory = str(imports_path)
+        else:
+            dir_path = Path(directory)
+            if not dir_path.exists():  # pragma: no cover
+                typer.echo(f"Directory not found: {directory}", err=True)
+                raise typer.Exit(1)
 
-        base_path = dir_path.parent  # Parent of the import directory
-        _import_directory_and_export(dir_path, base_path)
-
-
-def _create_processed_folder(base_path: Path) -> Path:
-    """Ensure target processed folder exists."""
-    processed_folder = base_path / "processed"
-
-    processed_folder.mkdir(exist_ok=True)
-
-    return processed_folder
+        _import_directory_and_export(dir_path)
 
 
-def _move_file(file_path: Path, destination_folder: Path) -> None:
+def _move_file(file_path: Path) -> None:
     """Move a file to the destination folder."""
-    destination = destination_folder / file_path.name
+    config = get_config()
+    processed_path = config.processed_path
+    destination = processed_path / file_path.name
 
     # Handle filename conflicts
     counter = 1
@@ -104,11 +98,11 @@ def _move_file(file_path: Path, destination_folder: Path) -> None:
     suffix = file_path.suffix
 
     while destination.exists():  # pragma: no cover
-        destination = destination_folder / f"{base_name}_{counter}{suffix}"
+        destination = processed_path / f"{base_name}_{counter}{suffix}"
         counter += 1
 
     shutil.move(str(file_path), str(destination))
-    typer.echo(f"Moved {file_path.name} to {destination_folder.name}/")
+    typer.echo(f"Moved {file_path.name} to {processed_path.name}/")
 
 
 def _import_single_file_to_db(file_path: Path) -> int:
@@ -132,9 +126,8 @@ def _import_single_file_to_db(file_path: Path) -> int:
         return num_txns
 
 
-def _import_file_and_export(file_path: Path, base_path: Path) -> None:
+def _import_file_and_export(file_path: Path) -> None:
     """Import a single file and export to Parquet."""
-    processed_folder = _create_processed_folder(base_path)
     num_txns = _import_single_file_to_db(file_path)
 
     if num_txns > 0:
@@ -152,10 +145,10 @@ def _import_file_and_export(file_path: Path, base_path: Path) -> None:
         typer.echo(
             f"No transactions imported from {file_path.name}",
         )
-    _move_file(file_path, processed_folder)
+    _move_file(file_path)
 
 
-def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
+def _import_directory_and_export(dir_path: Path) -> None:
     """Import all files from directory and export to Parquet."""
     supported_extensions = {".xlsx", ".xls", ".csv"}
     import_files = [
@@ -168,7 +161,6 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
         typer.echo(f"No supported files found in {dir_path}")
         raise typer.Exit(1)
 
-    processed_folder = _create_processed_folder(base_path)
     typer.echo(f"Found {len(import_files)} files to import")
 
     total_imported = 0
@@ -177,7 +169,7 @@ def _import_directory_and_export(dir_path: Path, base_path: Path) -> None:
     for file_path in import_files:
         num_txns = _import_single_file_to_db(file_path)
         total_imported += num_txns
-        _move_file(file_path, processed_folder)
+        _move_file(file_path)
 
     typer.echo(f"Total transactions imported: {total_imported}")
 

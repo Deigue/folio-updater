@@ -23,13 +23,16 @@ def import_transactions_cmd(
         None,
         "-f",
         "--file",
-        help="Specific file to import (imports to database and exports to folio)",
+        help="Specific file to import",
     ),
     directory: str | None = typer.Option(
         None,
         "-d",
         "--dir",
-        help="Directory with files to import (imports all and exports to folio)",
+        help=(
+            "Directory with files to import. Use 'default' to use default import "
+            "directory."
+        ),
     ),
 ) -> None:
     """Import transactions into the folio."""

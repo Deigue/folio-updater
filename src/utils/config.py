@@ -87,6 +87,8 @@ class Config:
         if not backup_path.is_absolute():
             backup_path: Path = (project_root / settings["backup"]["path"]).resolve()
         self._backup_path: Path = backup_path
+        self._imports_path: Path = data_path / "imports"
+        self._processed_path: Path = data_path / "processed"
         optional_columns = settings.get("optional_columns", {})
         self._optional_fields = OptionalFieldsConfig(optional_columns)
         transforms_config = settings.get("transforms", {})
@@ -169,6 +171,30 @@ class Config:
     def backup_path(self) -> Path:
         """The directory where backups are stored."""
         return self._backup_path
+
+    @property
+    def imports_path(self) -> Path:
+        """The directory where files to be imported are staged.
+
+        This directory holds downloaded files that are ready for processing
+        and import into the folio database. The directory is created
+        lazily when first accessed.
+        """
+        if not self._imports_path.exists():
+            self._imports_path.mkdir(parents=True, exist_ok=True)
+        return self._imports_path
+
+    @property
+    def processed_path(self) -> Path:
+        """The directory where processed files are moved.
+
+        This directory holds files that have already been imported
+        into the folio database. The directory is created
+        lazily when first accessed.
+        """
+        if not self._processed_path.exists():
+            self._processed_path.mkdir(parents=True, exist_ok=True)
+        return self._processed_path
 
     @property
     def max_backups(self) -> int:

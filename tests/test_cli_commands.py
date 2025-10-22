@@ -132,7 +132,7 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
             f"Exported {EXPECTED_TRANSACTION_COUNT} transactions to Parquet"
             in result.stdout
         )
-        processed_folder = config.project_root / "processed"
+        processed_folder = config.processed_path
         assert processed_folder.exists()
         assert (processed_folder / test_file.name).exists()
         assert not test_file.exists()
@@ -142,9 +142,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
     """Test import command with directory option."""
     with temp_ctx() as ctx:
         config = ctx.config
-        # Create test directory with multiple files to import
-        import_dir = config.project_root / "import_files"
-        import_dir.mkdir()
+        import_dir = config.imports_path
         file1 = import_dir / "transactions1.xlsx"
         file2 = import_dir / "transactions2.xlsx"
         create_transaction_data(file1)
@@ -159,7 +157,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         assert "Found 2 files to import" in result.stdout
         assert "Total transactions imported: 4" in result.stdout
         assert "Export completed" in result.stdout
-        processed_folder = config.project_root / "processed"
+        processed_folder = config.processed_path
         assert processed_folder.exists()
         assert (processed_folder / file1.name).exists()
         assert (processed_folder / file2.name).exists()
