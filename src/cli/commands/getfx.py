@@ -24,7 +24,7 @@ def update_fx_rates() -> None:
 
         if result > 0:
             typer.echo(f"Successfully updated {result} FX rates")
-        else:  # pragma: no cover
+        else:
             typer.echo("No new FX rates to update")
 
     except (OSError, ValueError, KeyError) as e:

@@ -52,6 +52,8 @@ exclude_lines = [
     "def __len__",
     "if __name__ == .__main__.:",
     "def main", # CLI main function
+    "typer.echo", # typer output
+    "typer.Exit", # typer exit calls
 ]
 
 

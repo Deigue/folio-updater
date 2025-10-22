@@ -34,7 +34,7 @@ def settlement_info(file: str | None = None) -> None:
         updates = import_statements(statement_path)
         if updates > 0:
             typer.echo(f"Successfully updated {updates} settlement dates.")
-        else:  # pragma: no cover
+        else:
             typer.echo("No settlement dates were updated.")
         typer.echo()  # Add spacing
 
@@ -108,7 +108,7 @@ def settlement_info(file: str | None = None) -> None:
                         f"{amount_str:<12} {currency:<4} "
                         f"{settle_date:<12} {account:<10}",
                     )
-            else:  # pragma: no cover
+            else:
                 typer.echo("\nNo transactions found with calculated settlement dates.")
     except sqlite3.DatabaseError as e:
         typer.echo("Database error querying settlement info:", err=True)

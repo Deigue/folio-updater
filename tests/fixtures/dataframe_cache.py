@@ -103,7 +103,7 @@ class DataFrameCache:
         self._sheet_cache.clear()
         logger.debug("Cleared DataFrame cache")
 
-    def has_key(self, filename: str | Path) -> bool:  # pragma: no cover
+    def has_key(self, filename: str | Path) -> bool:
         """Check if a key exists in the cache."""
         key = str(filename)
         return key in self._cache or Path(key).name in self._cache
@@ -130,7 +130,7 @@ def register_test_dataframe(
     _dataframe_cache.register_dataframe(filename, df, sheet_name)
 
 
-def clear_test_dataframes() -> None:  # pragma: no cover
+def clear_test_dataframes() -> None:
     """Clear all cached test DataFrames."""
     _dataframe_cache.clear()
 

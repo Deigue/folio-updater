@@ -26,7 +26,7 @@ def generate_excel() -> None:
 
     if success:
         typer.echo("Excel workbook generated successfully!")
-    else:  # pragma: no cover
+    else:
         typer.echo("Error: Failed to generate Excel workbook", err=True)
         raise typer.Exit(1)
 

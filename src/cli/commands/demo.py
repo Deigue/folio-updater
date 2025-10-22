@@ -31,7 +31,7 @@ def create_folio() -> None:
         if success:
             typer.echo("Demo portfolio created successfully!")
             typer.echo("Check your database path for the generated folio database.")
-        else:  # pragma: no cover
+        else:
             typer.echo("Error: Failed to create demo portfolio", err=True)
             raise typer.Exit(1)
 

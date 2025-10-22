@@ -48,7 +48,7 @@ def import_transaction_files(
     """
     config = bootstrap.reload_config()
 
-    if file and directory:  # pragma: no cover
+    if file and directory:
         typer.echo("Error: Cannot specify both --file and --dir options", err=True)
         raise typer.Exit(1)
 
@@ -57,7 +57,7 @@ def import_transaction_files(
         _import_folio(config)
     elif file:
         file_path = Path(file)
-        if not file_path.exists():  # pragma: no cover
+        if not file_path.exists():
             typer.echo(f"File not found: {file}", err=True)
             raise typer.Exit(1)
 
@@ -68,7 +68,7 @@ def import_transaction_files(
             dir_path = config.imports_path
         else:
             dir_path = Path(directory)
-            if not dir_path.exists():  # pragma: no cover
+            if not dir_path.exists():
                 typer.echo(f"Directory not found: {directory}", err=True)
                 raise typer.Exit(1)
 
@@ -121,7 +121,7 @@ def _import_file_and_export(file_path: Path) -> None:
     typer.echo(f"Successfully imported {num_txns} transactions")
     if num_txns > 0:
         _export_to_parquet()
-    else:  # pragma: no cover
+    else:
         typer.echo(
             f"No transactions imported from {file_path.name}",
         )
@@ -137,7 +137,7 @@ def _import_directory_and_export(dir_path: Path) -> None:
         if f.is_file() and f.suffix.lower() in supported_extensions
     ]
 
-    if not import_files:  # pragma: no cover
+    if not import_files:
         typer.echo(f"No supported files found in {dir_path}")
         raise typer.Exit(1)
 
@@ -154,7 +154,7 @@ def _import_directory_and_export(dir_path: Path) -> None:
     typer.echo(f"Total transactions imported: {total_imported}")
     if total_imported > 0:
         _export_to_parquet()
-    else:  # pragma: no cover
+    else:
         typer.echo("No transactions imported")
 
 
@@ -172,7 +172,7 @@ def _import_folio(config: Config) -> None:
         typer.echo(f"Successfully imported {num_txns} transactions")
         if num_txns > 0:
             _export_to_parquet()
-        else:  # pragma: no cover
+        else:
             typer.echo("No transactions imported from folio")
 
     except (OSError, ValueError, KeyError) as e:
