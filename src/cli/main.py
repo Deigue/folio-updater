@@ -80,6 +80,50 @@ def settle_info_cmd(
     settlement_info(file=file)
 
 
+@app.command("download", help="Download statements from brokers")
+def download_cmd(
+    broker: str = typer.Option(
+        "ibkr",
+        "-b",
+        "--broker",
+        help="Broker to download from (default: 'ibkr')",
+    ),
+    from_date: str | None = typer.Option(
+        None,
+        "-f",
+        "--from",
+        help="Date in YYYY-MM-DD format (default: latest transaction from broker)",
+    ),
+    to_date: str | None = typer.Option(
+        None,
+        "-t",
+        "--to",
+        help="Date in YYYY-MM-DD format (default: today)",
+    ),
+    token: str | None = typer.Option(
+        None,
+        "--token",
+        help="Set the flex token for IBKR (will be stored securely)",
+    ),
+    reference_code: str | None = typer.Option(
+        None,
+        "-r",
+        "--reference",
+        help="Reference code to retry download for (IBKR only)",
+    ),
+) -> None:
+    """Download statements from broker and save as CSV files."""
+    from cli.commands.download import download_statements
+
+    download_statements(
+        broker=broker,
+        from_date=from_date,
+        to_date=to_date,
+        token=token,
+        reference_code=reference_code,
+    )
+
+
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""

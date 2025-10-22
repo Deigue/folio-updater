@@ -164,7 +164,7 @@ class IBKRService:
         if not token:
             msg = (
                 "No flex token found in keyring. Please store your token using: "
-                "folio --broker ibkr --token <your_token>"
+                "folio --broker ibkr --token YOUR_TOKEN"
             )
             logger.error(msg)
             raise IBKRAuthenticationError(msg)
@@ -314,7 +314,7 @@ class IBKRService:
 
     def download_statement_with_polling(
         self,
-        request: DownloadRequest,
+        request: DownloadRequest | str,
     ) -> str:
         """Download a Flex statement.
 
@@ -327,12 +327,15 @@ class IBKRService:
         Raises:
             IBKRTimeoutError: If statement is not ready after max attempts
         """
-        reference_code = self.send_request(request)
-        logger.info(
-            "WAIT %d seconds to allow statement to process...",
-            INITIAL_WAIT_SECONDS,
-        )
-        time.sleep(INITIAL_WAIT_SECONDS)
+        if isinstance(request, str):
+            reference_code = request
+        else:
+            reference_code = self.send_request(request)
+            logger.info(
+                "WAIT %d seconds to allow statement to process...",
+                INITIAL_WAIT_SECONDS,
+            )
+            time.sleep(INITIAL_WAIT_SECONDS)
 
         for attempt in range(1, MAX_POLL_ATTEMPTS + 1):
             statement_data = self.get_statement(reference_code)
@@ -358,7 +361,7 @@ class IBKRService:
     def save_statement_as_csv(
         self,
         csv_content: str,
-        request: DownloadRequest,
+        request: DownloadRequest | str,
     ) -> int:
         """Save CSV statement content directly to file.
 
@@ -374,19 +377,27 @@ class IBKRService:
             return 0
 
         config = get_config()
-        csv_name = (
-            f"ibkr_{request.query_name}_{request.from_date}_{request.to_date}.csv"
-        )
+        if isinstance(request, str):
+            csv_name = f"ibkr_ref_{request}.csv"
+        else:
+            csv_name = (
+                f"ibkr_{request.query_name}_{request.from_date}_{request.to_date}.csv"
+            )
         output_path: Path = config.imports_path / csv_name
 
-        with output_path.open("w", encoding="utf-8") as f:
-            f.write(csv_content)
+        try:
+            with output_path.open("w", encoding="utf-8") as f:
+                f.write(csv_content)
+        except OSError as e:
+            msg = f"Failed to save CSV to {output_path}: {e}"
+            logger.exception(msg)
+            raise IBKRServiceError(msg) from e
 
         line_count = len(csv_content.strip().split("\n"))
         logger.info('Saved %d lines to "%s"', line_count, output_path)
         return line_count
 
-    def download_and_save_statement(self, request: DownloadRequest) -> int:
+    def download_and_save_statement(self, request: DownloadRequest | str) -> int:
         """Download a Flex query statement and save it as CSV.
 
         Args:
