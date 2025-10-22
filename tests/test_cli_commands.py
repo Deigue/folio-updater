@@ -156,7 +156,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         assert_cli_success(result)
         assert "Found 2 files to import" in result.stdout
         assert "Total transactions imported: 4" in result.stdout
-        assert "Export completed" in result.stdout
+        assert "Exported 54 transactions to Parquet" in result.stdout
         processed_folder = config.processed_path
         assert processed_folder.exists()
         assert (processed_folder / file1.name).exists()
@@ -250,7 +250,11 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         nonexistent_file = ctx.config.project_root / "does_not_exist.xlsx"
 
-        result = runner.invoke(cli_app, ["settle-info", "-f", str(nonexistent_file)])
+        result = _run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "-f", str(nonexistent_file)],
+        )
         assert "does not exist" in result.stderr
         assert result.exit_code == 1
 
