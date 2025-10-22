@@ -40,5 +40,5 @@ def create_folio() -> None:
         raise typer.Exit(1) from e
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     app()

@@ -30,7 +30,7 @@ def test_default_config(tmp_path: Path, temp_ctx: TempContext) -> None:
     # Load a default config.yaml
     with temp_ctx(Config.DEFAULT_CONFIG) as ctx:
         assert ctx.config.config_path.exists()
-        logger.info("Default Configuration:\n%s", ctx.config)
+        logger.debug("Default Configuration:\n%s", ctx.config)
         with Path.open(ctx.config.config_path) as f:
             config_yaml = yaml.safe_load(f)
             assert config_yaml == Config.DEFAULT_CONFIG

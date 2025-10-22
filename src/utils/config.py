@@ -462,7 +462,7 @@ class Config:
         if "transforms" in settings and isinstance(settings["transforms"], dict):
             validated["transforms"] = settings["transforms"]
 
-    def __str__(self) -> str:  # pragma: no cover
+    def __str__(self) -> str:
         """Return a string representation of the Config object."""
         config_str = " Config Details:\n"
         config_str += f"  Config Path: {self.config_path}\n"

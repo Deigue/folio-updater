@@ -190,5 +190,5 @@ def _export_to_parquet() -> None:
         typer.echo(f"Warning: Failed to export to Parquet: {e}", err=True)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     app()

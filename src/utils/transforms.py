@@ -24,7 +24,7 @@ class TransformRule:
         self.conditions = conditions
         self.actions = actions
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:
         """Return string representation of the rule."""
         return f"TransformRule(conditions={self.conditions}, actions={self.actions})"
 
@@ -59,7 +59,7 @@ class MergeGroup:
         self.amount_field = amount_field
         self.operations = operations or {}
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:
         """Return string representation of the merge group."""
         return (
             f"MergeGroup(name={self.name}, "
@@ -228,15 +228,15 @@ class TransformsConfig:
         """Return True if there are transformation rules or merge groups configured."""
         return bool(self.rules) or bool(self.merge_groups)
 
-    def __len__(self) -> int:  # pragma: no cover
+    def __len__(self) -> int:
         """Return the number of transformation rules."""
         return len(self.rules)
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str:
         """Return string representation of the configuration."""
         return f"TransformsConfig(rules={self.rules})"
 
-    def __str__(self) -> str:  # pragma: no cover
+    def __str__(self) -> str:
         """Return a pretty-printed string representation of the configuration."""
         if not self.rules and not self.merge_groups:
             return "TransformsConfig(no rules or merge groups configured)"

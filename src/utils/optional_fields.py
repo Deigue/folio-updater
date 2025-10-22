@@ -135,7 +135,7 @@ class OptionalFieldsConfig:
         """
         return name in self._fields
 
-    def __len__(self) -> int:  # pragma: no cover
+    def __len__(self) -> int:
         """Return number of configured optional fields."""
         return len(self._fields)
 

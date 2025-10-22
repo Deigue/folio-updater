@@ -254,5 +254,5 @@ def _get_previous_month(dt: datetime) -> datetime:
     return dt.replace(year=year, month=month, day=1)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     app()

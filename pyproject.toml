@@ -33,20 +33,25 @@ markers = [
 
 [tool.coverage.run]
 branch = false
-
-[tool.coverage.report]
-show_missing = true
 omit = [
     '*/__init__.py',
     'tests/fixtures/dataframe_cache.py',
     'src/utils/backup.py',
     'src/mock/folio_setup.py',
 ]
+[tool.coverage.report]
+show_missing = true
+
 exclude_lines = [
     "if TYPE_CHECKING:",
     "pragma: no cover",
     "except.*Error.*:",
-    "except.*Exception.*:"
+    "except.*Exception.*:",
+    "def __repr__",
+    "def __str__",
+    "def __len__",
+    "if __name__ == .__main__.:",
+    "def main", # CLI main function
 ]
 
 
