@@ -59,6 +59,12 @@ class Config:
                 "path": "backups",
                 "max_backups": 50,
             },
+            "brokers": {
+                "ibkr": {
+                    "FlexReport": "111111",
+                    "CashActivity": "999999",
+                },
+            },
             "optional_columns": {},
             "transforms": {"rules": []},
         },
@@ -203,6 +209,11 @@ class Config:
         return backup_config.get("max_backups", 50)
 
     @property
+    def brokers(self) -> dict[str, dict[str, str]]:
+        """Get broker configuration."""
+        return self._settings.get("brokers", {})
+
+    @property
     def tkr_sheet(self) -> str:
         """Get the tickers sheet name.
 
@@ -313,6 +324,7 @@ class Config:
         Config._validate_header_ignore(settings, validated)
         Config._validate_duplicate_approval(settings, validated)
         Config._validate_backup(settings, validated)
+        Config._validate_brokers(settings, validated)
         Config._validate_optional_columns(settings, validated)
         Config._validate_transforms(settings, validated)
 
@@ -422,6 +434,14 @@ class Config:
                     validated_backup["max_backups"] = max_backups
 
             validated["backup"] = validated_backup
+
+    @staticmethod
+    def _validate_brokers(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        if "brokers" in settings and isinstance(settings["brokers"], dict):
+            validated["brokers"] = settings["brokers"]
 
     @staticmethod
     def _validate_optional_columns(
