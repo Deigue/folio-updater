@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
@@ -14,6 +15,9 @@ from app import bootstrap
 from app.app_context import get_config
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
+
+if TYPE_CHECKING:
+    from utils.config import Config
 
 app = typer.Typer()
 
@@ -50,21 +54,7 @@ def import_transaction_files(
 
     if not file and not directory:
         # Default behavior: import from folio excel
-        try:
-            folio_path = config.folio_path
-            if not folio_path.exists():
-                typer.echo(f"Folio file not found: {folio_path}", err=True)
-                raise typer.Exit(1)
-
-            typer.echo(f"Importing transactions from folio: {folio_path}")
-            txn_sheet = config.txn_sheet
-            num_txns = import_transactions(folio_path, None, txn_sheet)
-            typer.echo(f"Successfully imported {num_txns} transactions")
-
-        except (OSError, ValueError, KeyError) as e:
-            typer.echo(f"Error importing from folio: {e}", err=True)
-            raise typer.Exit(1) from e
-
+        _import_folio(config)
     elif file:
         file_path = Path(file)
         if not file_path.exists():  # pragma: no cover
@@ -75,8 +65,7 @@ def import_transaction_files(
 
     elif directory:
         if directory == "default":  # pragma: no cover
-            imports_path = config.imports_path
-            directory = str(imports_path)
+            dir_path = config.imports_path
         else:
             dir_path = Path(directory)
             if not dir_path.exists():  # pragma: no cover
@@ -129,18 +118,9 @@ def _import_single_file_to_db(file_path: Path) -> int:
 def _import_file_and_export(file_path: Path) -> None:
     """Import a single file and export to Parquet."""
     num_txns = _import_single_file_to_db(file_path)
-
+    typer.echo(f"Successfully imported {num_txns} transactions")
     if num_txns > 0:
-        try:
-            exporter = ParquetExporter()
-            exported = exporter.export_transactions()
-            if exported > 0:
-                typer.echo(f"✓ Exported {exported} transactions to Parquet")
-        except (OSError, ValueError, KeyError) as e:
-            typer.echo(
-                f"Warning: Failed to export to Parquet: {e}",
-                err=True,
-            )
+        _export_to_parquet()
     else:  # pragma: no cover
         typer.echo(
             f"No transactions imported from {file_path.name}",
@@ -172,15 +152,42 @@ def _import_directory_and_export(dir_path: Path) -> None:
         _move_file(file_path)
 
     typer.echo(f"Total transactions imported: {total_imported}")
-
-    # Export all transactions to Parquet
     if total_imported > 0:
-        try:
-            exporter = ParquetExporter()
-            exported = exporter.export_transactions()
-            typer.echo(f"✓ Export completed: {exported} transactions to Parquet")
-        except (OSError, ValueError, KeyError) as e:
-            typer.echo(f"Warning: Failed to export to Parquet: {e}", err=True)
+        _export_to_parquet()
+    else:  # pragma: no cover
+        typer.echo("No transactions imported")
+
+
+def _import_folio(config: Config) -> None:
+    """Import transactions from folio Excel file."""
+    try:
+        folio_path = config.folio_path
+        if not folio_path.exists():
+            typer.echo(f"Folio file not found: {folio_path}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"Importing transactions from folio: {folio_path}")
+        txn_sheet = config.txn_sheet
+        num_txns = import_transactions(folio_path, None, txn_sheet)
+        typer.echo(f"Successfully imported {num_txns} transactions")
+        if num_txns > 0:
+            _export_to_parquet()
+        else:  # pragma: no cover
+            typer.echo("No transactions imported from folio")
+
+    except (OSError, ValueError, KeyError) as e:
+        typer.echo(f"Error importing from folio: {e}", err=True)
+        raise typer.Exit(1) from e
+
+
+def _export_to_parquet() -> None:
+    """Export transactions to Parquet."""
+    try:
+        exporter = ParquetExporter()
+        exported = exporter.export_transactions()
+        typer.echo(f"✓ Exported {exported} transactions to Parquet")
+    except (OSError, ValueError, KeyError) as e:
+        typer.echo(f"Warning: Failed to export to Parquet: {e}", err=True)
 
 
 if __name__ == "__main__":  # pragma: no cover
