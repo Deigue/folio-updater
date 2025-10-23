@@ -18,6 +18,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Security
 
+## [0.3.0] - 2025-10-23
+
+### Added
+
+- `download` CLI command to fetch transaction data from brokers
+- `folio import -d default` can be used to import from the default import folder
+
+### Changed
+
+- `import` and `processed` folders are now generated in the configured `data` folder
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Just running `folio` will now show help message instead of error about missing subcommand
+- Default `folio import` now also exports to Parquet like all other import commands
+  
+### Security
 
 ## [0.2.0] - 2025-10-15
 
