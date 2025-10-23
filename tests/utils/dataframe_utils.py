@@ -61,7 +61,7 @@ def _verify_column_order(table_df: pd.DataFrame) -> None:
     expected_start = [Column.Txn.TXN_ID, *TXN_ESSENTIALS]
     actual_start = table_cols[: len(expected_start)]
 
-    if actual_start != expected_start:  # pragma: no cover
+    if actual_start != expected_start:
         error_msg = (f"Expected: {expected_start}, Got start of table: {actual_start}",)
         raise AssertionError(error_msg)
 

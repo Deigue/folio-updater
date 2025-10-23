@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pandas as pd
@@ -15,6 +15,8 @@ from services.forex_service import ForexService
 from utils.constants import TORONTO_TZ, Column, Table
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .test_types import TempContext
 
 pytestmark = pytest.mark.no_mock_forex

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import _GeneratorContextManager
-from typing import Callable
 
 from app.app_context import AppContext
 

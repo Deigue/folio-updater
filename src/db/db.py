@@ -5,17 +5,20 @@ from __future__ import annotations
 import logging
 import sqlite3
 from contextlib import contextmanager
-from typing import Generator
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from app.app_context import get_config
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def get_connection() -> Generator[sqlite3.Connection, None, None]:
+def get_connection() -> Generator[sqlite3.Connection]:
     """Return sqlite3.Connection. Ensure parent data folder exists."""
     db_path = get_config().db_path
     try:

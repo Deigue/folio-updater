@@ -136,7 +136,7 @@ def clear_test_dataframes() -> None:
 
 
 @pytest.fixture(autouse=True)
-def auto_clear_dataframe_cache() -> Generator[None, None, None]:
+def auto_clear_dataframe_cache() -> Generator[None]:
     """Automatically clear the DataFrame cache before each test."""
     _dataframe_cache.clear()
     yield
@@ -144,7 +144,7 @@ def auto_clear_dataframe_cache() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def dataframe_cache_patching() -> Generator[None, None, None]:  # noqa: C901
+def dataframe_cache_patching() -> Generator[None]:  # noqa: C901
     """Patch pandas read operations to use the DataFrame cache.
 
     This fixture patches pandas.read_excel and pandas.read_csv to check
@@ -205,14 +205,12 @@ def dataframe_cache_patching() -> Generator[None, None, None]:  # noqa: C901
     _original_read_csv = pd.read_csv
     _original_excel_file = pd.ExcelFile
 
-    with patch("pandas.read_excel", side_effect=mock_read_excel), patch(
-        "pandas.read_csv",
-        side_effect=mock_read_csv,
-    ), patch("pandas.ExcelFile", side_effect=MockExcelFile), patch(
-        "importers.excel_importer.pd.read_excel",
-        side_effect=mock_read_excel,
-    ), patch("importers.excel_importer.pd.read_csv", side_effect=mock_read_csv), patch(
-        "importers.excel_importer.pd.ExcelFile",
-        side_effect=MockExcelFile,
+    with (
+        patch("pandas.read_excel", side_effect=mock_read_excel),
+        patch("pandas.read_csv", side_effect=mock_read_csv),
+        patch("pandas.ExcelFile", side_effect=MockExcelFile),
+        patch("importers.excel_importer.pd.read_excel", side_effect=mock_read_excel),
+        patch("importers.excel_importer.pd.read_csv", side_effect=mock_read_csv),
+        patch("importers.excel_importer.pd.ExcelFile", side_effect=MockExcelFile),
     ):
         yield

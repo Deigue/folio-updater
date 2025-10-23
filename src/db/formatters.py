@@ -711,7 +711,7 @@ def parse_date(date_str: str) -> str | None:
                 tzinfo=TORONTO_TZ,
             )
             return parsed_date.strftime("%Y-%m-%d")
-        except ValueError:  # noqa: PERF203
+        except ValueError:
             continue
 
     return None

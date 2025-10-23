@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from enum import StrEnum
-
 from zoneinfo import ZoneInfo
 
 TORONTO_TZ = ZoneInfo("America/Toronto")

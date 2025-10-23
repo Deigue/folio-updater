@@ -8,8 +8,10 @@ This script helps manage the CHANGELOG.md file by:
 
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+
+from utils.constants import TORONTO_TZ
 
 CHANGELOG_PATH = Path("CHANGELOG.md")
 EXPECTED_ARGS = 2
@@ -23,7 +25,7 @@ def prepare_release(version: str) -> None:
 
     content = CHANGELOG_PATH.read_text(encoding="utf-8")
     clean_version = version.lstrip("v")
-    current_date = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+    current_date = datetime.now(tz=TORONTO_TZ).strftime("%Y-%m-%d")
     new_version_header = f"## [{clean_version}] - {current_date}"
     unreleased_pattern = r"^## \[Unreleased\]"
 

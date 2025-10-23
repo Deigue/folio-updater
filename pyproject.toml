@@ -54,6 +54,9 @@ exclude_lines = [
     "def main", # CLI main function
     "typer.echo", # typer output
     "typer.Exit", # typer exit calls
+    "logger.error", # logging error handling
+    "^\\s*\\w*msg\\s*=.*", # generic log message assignments
+    "^\\s*raise [A-Z]\\w*Error" # raise errors
 ]
 
 

@@ -7,7 +7,7 @@ import shutil
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Generator
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pandas as pd
@@ -24,6 +24,8 @@ from utils.settlement_calculator import settlement_calculator
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
+
     from .test_types import TempContext
 
 # Store the original function before any monkey patching
@@ -111,7 +113,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
     def _temp_ctx(
         overrides: dict[str, Any] | None = None,
         **kwargs: str | list[str] | dict[str, Any],
-    ) -> Generator[AppContext, Any, None]:
+    ) -> Generator[AppContext, Any]:
         if overrides is None:
             overrides = {}
 
@@ -230,11 +232,10 @@ def cached_mock_data(tmp_path_factory: pytest.TempPathFactory) -> Path:
     app_ctx = AppContext.get_instance()
     app_ctx.initialize(cache_dir)
 
-    with patch.object(
-        ForexService,
-        "get_missing_fx_data",
-        return_value=mock_fx_data,
-    ), patch.object(ForexService, "insert_fx_data", return_value=None):
+    with (
+        patch.object(ForexService, "get_missing_fx_data", return_value=mock_fx_data),
+        patch.object(ForexService, "insert_fx_data", return_value=None),
+    ):
         create_mock_data()
 
     AppContext.reset_singleton()
@@ -245,7 +246,7 @@ def cached_mock_data(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture(autouse=True)
 def use_cached_mock_data(
     cached_mock_data: Path,
-) -> Generator[None, Any, None]:
+) -> Generator[None, Any]:
     """Set the global cached mock data path for the patched ensure_data_exists."""
     global _active_cached_mock_data  # noqa: PLW0603
 
@@ -293,7 +294,7 @@ def preload_settlement_schedules() -> None:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_mock_data_cache(cached_mock_data: Path) -> Generator[None, Any, None]:  # noqa: ARG001
+def cleanup_mock_data_cache(cached_mock_data: Path) -> Generator[None, Any]:  # noqa: ARG001
     """Cleanup the mock_data_cache directory after the test session."""
     cache_root = _mock_data_cache.get("root")
     yield

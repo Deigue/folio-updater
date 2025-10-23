@@ -8,13 +8,12 @@ import pandas as pd
 import pytest
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from .test_types import TempContext
 from db.transformers import TransactionTransformer
 from utils.constants import Column
 
-# Test constants
 FEE_AMOUNT = 9.95
 
 

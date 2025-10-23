@@ -15,9 +15,12 @@ import sys
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 SLOW_IMPORT_THRESHOLD_MS = 200
 MAX_FUNCTION_DISPLAY_LENGTH = 58

@@ -41,9 +41,7 @@ class AppContext:
 
     def __init__(self) -> None:
         """Private constructor to prevent direct instantiation."""
-        if (
-            AppContext._instance is not None and not AppContext._allow_reinit
-        ):  # pragma: no cover
+        if AppContext._instance is not None and not AppContext._allow_reinit:
             msg = "Use AppContext.get_instance() instead"
             raise RuntimeError(msg)
         self._config: Config | None = None

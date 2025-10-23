@@ -187,9 +187,7 @@ class ForexService:
         for raw_line in observations_lines:
             cleaned_line = raw_line.strip()
             if cleaned_line and cleaned_line != "\r":
-                # Remove BOM if present
-                if cleaned_line.startswith("\ufeff"):  # pragma: no cover
-                    cleaned_line = cleaned_line[1:]
+                cleaned_line = cleaned_line.removeprefix("\ufeff")  # Remove BOM
                 clean_lines.append(cleaned_line)
 
         return "\n".join(clean_lines)

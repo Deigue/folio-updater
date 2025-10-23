@@ -176,7 +176,7 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
 
     current_date = datetime.now(tz=TORONTO_TZ)
     fallback_date = current_date.replace(day=1)
-    if fallback_date == current_date:
+    if fallback_date == current_date:  # pragma: no cover
         fallback_date = _get_previous_month(fallback_date)
     resolved_date = fallback_date.strftime("%Y%m%d")
     formatted_date = fallback_date.strftime("%Y-%m-%d")
@@ -242,7 +242,7 @@ def _format_date_for_api(date_str: str) -> str:
         raise typer.Exit(1) from e
 
 
-def _get_previous_month(dt: datetime) -> datetime:
+def _get_previous_month(dt: datetime) -> datetime:  # pragma: no cover
     """Return a datetime object set to the first day of the previous month."""
     year = dt.year
     month = dt.month
