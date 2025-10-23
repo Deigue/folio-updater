@@ -14,6 +14,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio demo`**: Create a demo portfolio with mock data for testing
 - **`folio version`**: Show the version of the folio-updater
 - **`folio settle-info`**: Retrieve and update settlement date information
+- **`folio download`**: Download statements from brokers (e.g., Interactive Brokers)
 
 ### Import and Processing Features
 
@@ -26,12 +27,16 @@ A portfolio management system that imports and processes financial transaction d
 - **[Settlement Date Calculation](docs/transactions/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **Logging**: Comprehensive audit trail of import operations
-- **Automatic Backup**: All updates are automatically backed up
+- **Automatic Backup**: All updates are automatically backed up (configurable)
 
 ### Export Functionality
 
 - **Transaction Export**: Export transactions from database to Excel sheets
 - **[Forex Rate Export](docs/forex-rates.md)**: Automatic FX Rate management
+
+### Download Statements
+
+- **[Interactive Brokers Integration](docs/transactions/ibkr-integration.md)**: Download Flex query statements directly using IBKR Flex API
 
 ## Usage
 
@@ -112,6 +117,10 @@ folio settle-info -f path/to/statement.xlsx
 - `"AAPL - BUY 100 SHARES ON 2024-01-15"`
 - `"DOL - Dollarama Inc: Bought 1.0000 shares (executed at 2029-02-05)"`
 
+### Download Transactions
+
+*Refer to [IBKR Integration Usage](docs/transactions/ibkr-integration.md#usage) for detailed information.*
+
 ## Configuration
 
 The folio-updater uses a `config.yaml` file to manage configurations.  
@@ -176,6 +185,10 @@ transforms:
       operations:
         Fee: 0
         Units: 0
+brokers:
+  ibkr:
+    FlexReport: "FLEX_QUERY_ID_FOR_TRADES"
+    CashActivity: "FLEX_QUERY_ID_FOR_CASH_ACTIVITIES"
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
@@ -190,6 +203,7 @@ transforms:
 | **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
 | **`transforms`**         | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](docs/transactions/transformations.md) and [Merge Transforms](docs/transactions/merge-transforms.md) for more details.                                                                                         |
+| **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](docs/transactions/ibkr-integration.md#configuration) for more details.                                                                                                                                                                                  |
 
 ### Essential Fields
 

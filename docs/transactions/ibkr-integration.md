@@ -52,13 +52,20 @@ This guide explains how to set up and use the Interactive Brokers (IBKR) integra
         CashActivity: "123456789"    # Your actual Flex Query ID for cash activities
     ```
 
+    > [!IMPORTANT]
+    > When the query name contains `Activity`, it will be treated as Cash Activity; otherwise, it will be treated as Trade Confirmation.
+    <!-- Blockquote separator -->
+    > [!CAUTION]
+    > `Activity` Flex Queries can only be produced upto yesterday's date. Attempting to download today's date will result in an error. \
+    > The `to_date` fallback mechanism will handle this automatically, as long as the query name contains `Activity`.
+
 2. **Set Flex Token**: Store your IBKR Flex Token securely:
 
     ```bash
     folio download --broker ibkr --token YOUR_FLEX_TOKEN_HERE
     ```
 
-    > [!NOTE]
+    > [!TIP]
     > Your token will be saved securely in your system's keyring, so you won't need to enter it again.
 
 3. *(Optional)* Use the Example [config.yaml](/README.md#example-structure) that is compatible with the Recommended Flex Query setup.
