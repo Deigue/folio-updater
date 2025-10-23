@@ -132,7 +132,11 @@ def download_statements(
         typer.echo("\n⚠ No transactions downloaded")
 
 
-def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
+def _resolve_from_date(
+    from_date_str: str | None,
+    broker: str,
+    account_override: str | None = None,
+) -> str:
     """Resolve the from date, using fallbacks if not specified.
 
     Fallback to latest transaction date from broker, or first of current month.
@@ -140,6 +144,7 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
     Args:
         from_date_str (str | None): The from date string provided by user.
         broker (str): The broker identifier.
+        account_override (str | None): Optional account to filter transactions.
 
     Returns:
         str: The resolved from date in YYYYMMDD format.
@@ -150,7 +155,10 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
     # Fallback handling
     try:
         with db.get_connection() as conn:
-            account_has_broker = f"UPPER(Account) LIKE UPPER('%{broker}%')"
+            if account_override:
+                account_has_broker = f"Account = '{account_override}'"
+            else:  # pragma: no cover
+                account_has_broker = f"UPPER(Account) LIKE UPPER('%{broker}%')"
             latest_date_str: str | None = db.get_max_value(
                 conn,
                 Table.TXNS,

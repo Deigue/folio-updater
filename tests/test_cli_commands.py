@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pandas as pd
@@ -12,15 +12,22 @@ from pandas.testing import assert_frame_equal
 from typer.testing import CliRunner
 
 from cli.commands import import_cmd
+from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_data_exists
 from tests.fixtures.dataframe_cache import register_test_dataframe
+from tests.fixtures.ibkr_mocking import (
+    IBKRMockContext,
+    get_default_mock_csv,
+)
 from utils.constants import Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from click.testing import Result
     from typer import Typer
 
@@ -257,6 +264,105 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
         )
         assert "does not exist" in result.stderr
         assert result.exit_code == 1
+
+
+@pytest.mark.parametrize(
+    ("scenario", "cli_args", "query_ids", "expected_output", "setup_action"),
+    [
+        (
+            "default",
+            [],
+            {
+                "brokers": {
+                    "ibkr": {
+                        "FlexReport": "abc123",
+                        "ActivityStatement": "efg456",
+                    },
+                },
+            },
+            "ActivityStatement: 3 lines received",
+            None,
+        ),
+        (
+            "set_token",
+            ["--token", "MOCK_TOKEN"],
+            None,
+            "Flex token stored securely",
+            None,
+        ),
+        (
+            "reference_code",
+            ["-r", "ref123"],
+            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
+            "ref123: Received",
+            None,
+        ),
+        (
+            "no_queries",
+            [],
+            None,
+            "No transactions downloaded",
+            None,
+        ),
+        (
+            "custom_dates",
+            ["--from", "2025-10-01", "--to", "2025-10-21"],
+            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
+            "FlexReport: 3 lines received",
+            None,
+        ),
+        (
+            "db_date",
+            [],
+            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
+            "Using latest IBKR transaction date: 2025-09-24",
+            "setup_db",
+        ),
+    ],
+)
+def test_download_scenarios(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
+    cli_args: list[str],
+    query_ids: dict,
+    expected_output: str,
+    setup_action: str | None,
+) -> None:
+    """Test various download scenarios."""
+    if scenario in ["default", "custom_dates", "reference_code", "db_date"]:
+        mock_csv_data = get_default_mock_csv()
+    else:
+        mock_csv_data = ""
+
+    with (
+        temp_ctx(query_ids) as ctx,
+        IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
+    ):
+        config = ctx.config
+        if setup_action == "setup_db":
+            ensure_data_exists()
+            monkeypatch.setattr(
+                "cli.commands.download._resolve_from_date",
+                lambda from_date_str, broker: _resolve_from_date(
+                    from_date_str,
+                    broker,
+                    account_override="MOCK-ACCOUNT",
+                ),
+            )
+
+        result = _run_cli_with_config(config, cli_app, ["download", *cli_args])
+
+        if scenario in ["set_token", "no_queries"]:
+            assert_cli_success(result)
+            assert expected_output in result.stdout
+            ibkr_mock.assert_no_csv_written()
+        elif scenario in ["default", "custom_dates", "reference_code", "db_date"]:
+            assert_cli_success(result)
+            assert expected_output in result.stdout
+            ibkr_mock.assert_csv_written(mock_csv_data)
+        else:  # pragma: no cover
+            pytest.fail(f"Unknown scenario: {scenario}")
 
 
 def test_version_command() -> None:
