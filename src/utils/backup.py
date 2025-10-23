@@ -57,9 +57,10 @@ def rolling_backup(
         backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
         try:
-            with sqlite3.connect(file_path) as source, sqlite3.connect(
-                backup_path,
-            ) as backup:
+            with (
+                sqlite3.connect(file_path) as source,
+                sqlite3.connect(backup_path) as backup,
+            ):
                 source.backup(backup)
                 logger.debug(
                     "SQLite backup completed: %s -> %s",
