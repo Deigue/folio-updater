@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "folio-updater",
+			"path": ".."
+		},
+		{
+			"name": "ws-api-python",
+			"path": "../../ws-api-python"
+		}
+	],
+	"settings": {}
+}
