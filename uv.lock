@@ -1343,12 +1343,12 @@ wheels = [
 
 [[package]]
 name = "ws-api"
-version = "0.16.0"
+version = "0.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/36/c2aab6ffeb0866c947f4f57fee4ab13c6f29c7d70b325ca1e10c6b4bad03/ws_api-0.16.0.tar.gz", hash = "sha256:f5bd84a796ce3573ed5cf145be883698002fe80cd9396fa91b66c14a9d272395", size = 25782, upload-time = "2025-08-12T00:44:42.337Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/67/40662e29d00bbd31d3b1642c5fbf3e4588624979757f1e2e6cc1d2ea281f/ws_api-0.19.0.tar.gz", hash = "sha256:318400e4357a05d42fbd5e1622507e1579b49d5d373837709bd55286d813cb55", size = 26036, upload-time = "2025-10-25T10:19:28.16Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c6/61/186535e1759c13e0a0131d08b672a5925a253614fc8beb680126d0cac9f3/ws_api-0.16.0-py3-none-any.whl", hash = "sha256:d32b71001dfb36fdeb2c1bbe1ce6d0ac19cd76ed8109d75ef134b3dc6dcd64f9", size = 24230, upload-time = "2025-08-12T00:44:41.009Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/16/9afd0e3fb2af4005d22f753962df19028b2515a31d84af799a8346c03ffe/ws_api-0.19.0-py3-none-any.whl", hash = "sha256:70f69f51a938a4d9eda6e95cb535c9bc6ca6350baa279236c560018a542cea57", size = 24506, upload-time = "2025-10-25T10:19:26.659Z" },
 ]
