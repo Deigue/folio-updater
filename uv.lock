@@ -419,7 +419,7 @@ dev = [
     { name = "nbstripout", specifier = ">=0.8.1" },
     { name = "pyinstaller", specifier = ">=6.16.0" },
     { name = "ruff", specifier = ">=0.12.10" },
-    { name = "ws-api", specifier = ">=0.19.0" },
+    { name = "ws-api", editable = "../ws-api-python" },
 ]
 experiments = [{ name = "yfinance", specifier = ">=0.2.66" }]
 test = [
@@ -1547,15 +1547,14 @@ wheels = [
 
 [[package]]
 name = "ws-api"
-version = "0.19.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.18.1"
+source = { editable = "../ws-api-python" }
 dependencies = [
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/67/40662e29d00bbd31d3b1642c5fbf3e4588624979757f1e2e6cc1d2ea281f/ws_api-0.19.0.tar.gz", hash = "sha256:318400e4357a05d42fbd5e1622507e1579b49d5d373837709bd55286d813cb55", size = 26036, upload-time = "2025-10-25T10:19:28.16Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/16/9afd0e3fb2af4005d22f753962df19028b2515a31d84af799a8346c03ffe/ws_api-0.19.0-py3-none-any.whl", hash = "sha256:70f69f51a938a4d9eda6e95cb535c9bc6ca6350baa279236c560018a542cea57", size = 24506, upload-time = "2025-10-25T10:19:26.659Z" },
-]
+
+[package.metadata]
+requires-dist = [{ name = "requests" }]
 
 [[package]]
 name = "yfinance"

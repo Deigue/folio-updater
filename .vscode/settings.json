@@ -2,7 +2,10 @@
     "python.analysis.extraPaths": [
         "./src",
         "./tests",
+        "../ws-api-python"
     ],
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.indexing": true,
     "python.testing.pytestArgs": [
         "--color=yes",
         "-vv",

@@ -82,13 +82,17 @@ banned-module-level-imports = ["pandas_market_calendars"]
 [tool.uv]
 managed=true
 
+[tool.uv.sources]
+ws-api = { path = "../ws-api-python", editable = true }
+
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
     "nbstripout>=0.8.1",
     "pyinstaller>=6.16.0",
     "ruff>=0.12.10",
-    "ws-api>=0.19.0",
+    #"ws-api>=0.19.0",
+    "ws-api",
 ]
 experiments = [
     "yfinance>=0.2.66",
