@@ -48,10 +48,10 @@ def download_statements(
         "--to",
         help="Date in YYYY-MM-DD format (default: today)",
     ),
-    token: str | None = typer.Option(
-        None,
-        "--token",
-        help="Set the flex token for IBKR (will be stored securely)",
+    *,
+    token: bool = typer.Option(
+        default=False,
+        help="Prompt to set/override the flex token for IBKR",
     ),
     reference_code: str | None = typer.Option(
         None,
@@ -65,8 +65,8 @@ def download_statements(
     This command downloads Flex Query statements from Interactive Brokers
     and saves them as CSV files in the imports directory for later import.
 
-    Before first use, you need to set your IBKR flex token:
-    folio download --broker ibkr --token YOUR_TOKEN
+    If no flex token is found in the keyring, you will be prompted to enter it.
+    Use --token to force setting a new token (exits after setting).
     """
     config = bootstrap.reload_config()
     if broker not in SUPPORTED_BROKERS:
@@ -77,18 +77,29 @@ def download_statements(
         )
         raise typer.Exit(1)
 
-    # ! Firstly handle token as it is needed for everything else
     with IBKRService() as ibkr:
         if token:
-            ibkr.set_token(token)
+            typer.echo("Setting new IBKR flex token...")
+            new_token = typer.prompt(
+                "Enter your IBKR flex token",
+                hide_input=True,
+                confirmation_prompt=True,
+            )
+            ibkr.set_token(new_token)
             typer.echo("✓ Flex token stored securely")
             return
 
         try:
-            token = ibkr.get_token()
-        except IBKRServiceError as e:
-            typer.echo(f"✗ {e}", err=True)
-            raise typer.Exit(1) from None
+            ibkr.get_token()
+        except IBKRServiceError:
+            typer.echo("No IBKR flex token found in keyring.")
+            new_token = typer.prompt(
+                "Enter your IBKR flex token",
+                hide_input=True,
+                confirmation_prompt=True,
+            )
+            ibkr.set_token(new_token)
+            typer.echo("✓ Flex token stored securely")
 
         if reference_code:
             try:

@@ -1,6 +1,6 @@
 """Interactive Brokers Service.
 
-This module provides functions to interact with the Interactive Brokers API..
+This module provides functions to interact with the Interactive Brokers API.
 
 Authentication is handled using keyring for secure token storage.
 """
@@ -164,10 +164,7 @@ class IBKRService:
         """
         token = keyring.get_password(KEYRING_SYSTEM, KEYRING_USERNAME)
         if not token:
-            msg = (
-                "No flex token found in keyring. Please store your token using: "
-                "folio --broker ibkr --token YOUR_TOKEN"
-            )
+            msg = "No flex token found in keyring."
             logger.error(msg)
             raise IBKRAuthenticationError(msg)
         return token

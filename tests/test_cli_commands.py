@@ -16,6 +16,7 @@ from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_data_exists
+from services.ibkr_service import IBKRAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
     IBKRMockContext,
@@ -285,10 +286,10 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
         ),
         (
             "set_token",
-            ["--token", "MOCK_TOKEN"],
+            [],
             None,
             "Flex token stored securely",
-            None,
+            "setup_token_prompt",
         ),
         (
             "reference_code",
@@ -317,6 +318,13 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
             {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
             "Using latest IBKR transaction date: 2025-09-24",
             "setup_db",
+        ),
+        (
+            "token_override",
+            ["--token"],
+            None,
+            "Setting new IBKR flex token",
+            "setup_token_override",
         ),
     ],
 )
@@ -350,10 +358,30 @@ def test_download_scenarios(
                     account_override="MOCK-ACCOUNT",
                 ),
             )
+        elif setup_action == "setup_token_prompt":
+
+            def mock_get_token(_self: object) -> str:
+                msg = "No token found"
+                raise IBKRAuthenticationError(msg)
+
+            def mock_prompt(*_args: object, **_kwargs: object) -> str:
+                return "test_token_from_prompt"
+
+            monkeypatch.setattr(
+                "services.ibkr_service.IBKRService.get_token",
+                mock_get_token,
+            )
+            monkeypatch.setattr("typer.prompt", mock_prompt)
+        elif setup_action == "setup_token_override":
+
+            def mock_prompt(*_args: object, **_kwargs: object) -> str:
+                return "test_token_override"
+
+            monkeypatch.setattr("typer.prompt", mock_prompt)
 
         result = _run_cli_with_config(config, cli_app, ["download", *cli_args])
 
-        if scenario in ["set_token", "no_queries"]:
+        if scenario in ["set_token", "no_queries", "token_override"]:
             assert_cli_success(result)
             assert expected_output in result.stdout
             ibkr_mock.assert_no_csv_written()

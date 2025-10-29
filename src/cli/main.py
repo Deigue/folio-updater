@@ -100,10 +100,10 @@ def download_cmd(
         "--to",
         help="Date in YYYY-MM-DD format (default: today)",
     ),
-    token: str | None = typer.Option(
-        None,
-        "--token",
-        help="Set the flex token for IBKR (will be stored securely)",
+    *,
+    token: bool = typer.Option(
+        default=False,
+        help="Prompt to set/override the flex token for IBKR",
     ),
     reference_code: str | None = typer.Option(
         None,
