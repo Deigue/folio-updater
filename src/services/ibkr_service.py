@@ -34,7 +34,7 @@ IBKR_SENDREQUEST_URL = (
     "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest"
 )
 IBKR_GETSTATEMENT_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement"
-KEYRING_SYSTEM = "ibkr"
+KEYRING_SERVICE = "folio-updater.ibkr"
 KEYRING_USERNAME = "flex_token"
 MAX_RETRIES = 3
 RETRY_BACKOFF_FACTOR = 1
@@ -162,7 +162,7 @@ class IBKRService:
         Raises:
             IBKRAuthenticationError: If no token is found in keyring
         """
-        token = keyring.get_password(KEYRING_SYSTEM, KEYRING_USERNAME)
+        token = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
         if not token:
             msg = "No flex token found in keyring."
             logger.error(msg)
@@ -175,7 +175,7 @@ class IBKRService:
         Args:
             token: The flex token to store
         """
-        keyring.set_password(KEYRING_SYSTEM, KEYRING_USERNAME, token)
+        keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, token)
         logger.info("Flex token stored in keyring successfully")
 
     def send_request(
