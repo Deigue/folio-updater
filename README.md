@@ -189,6 +189,8 @@ brokers:
   ibkr:
     FlexReport: "FLEX_QUERY_ID_FOR_TRADES"
     CashActivity: "FLEX_QUERY_ID_FOR_CASH_ACTIVITIES"
+  wealthsimple:
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0"
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
