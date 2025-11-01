@@ -1,9 +1,7 @@
 [project]
 name = "folio-updater"
 version = "0.3.0"
-authors = [
-    { name = "Deigue"},
-]
+authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -15,6 +13,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "typer>=0.9.0",
     "keyring>=25.5.0",
+    "ws-api>=0.21.1",
 ]
 
 [project.scripts]
@@ -29,7 +28,7 @@ log_cli_format = "[%(levelname)s] %(name)s(%(lineno)d): %(message)s"
 testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
-    "no_mock_forex: Disable the mock_forex_data fixture for this test or module."
+    "no_mock_forex: Disable the mock_forex_data fixture for this test or module.",
 ]
 
 [tool.coverage.run]
@@ -52,12 +51,12 @@ exclude_lines = [
     "def __str__",
     "def __len__",
     "if __name__ == .__main__.:",
-    "def main", # CLI main function
-    "typer.echo", # typer output
-    "typer.Exit", # typer exit calls
-    "logger.error", # logging error handling
-    "^\\s*\\w*msg\\s*=.*", # generic log message assignments
-    "^\\s*raise [A-Z]\\w*Error" # raise errors
+    "def main",                   # CLI main function
+    "typer.echo",                 # typer output
+    "typer.Exit",                 # typer exit calls
+    "logger.error",               # logging error handling
+    "^\\s*\\w*msg\\s*=.*",        # generic log message assignments
+    "^\\s*raise [A-Z]\\w*Error",  # raise errors
 ]
 
 
@@ -66,21 +65,27 @@ exclude_lines = [
 [tool.ruff]
 line-length = 88
 lint.extend-select = ["ALL"]
-lint.ignore = ["D413", "INP001", "S608", "D203", "D213","PGH004"]
+lint.ignore = ["D413", "INP001", "S608", "D203", "D213", "PGH004"]
 src = ["src"]
-exclude = ["**/Lib/**", "**/coverage/**", "**/.venv/**", "**/.git/**", "**/.vscode/**"]
+exclude = [
+    "**/Lib/**",
+    "**/coverage/**",
+    "**/.venv/**",
+    "**/.git/**",
+    "**/.vscode/**",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["T201", "F811"]
 "scripts/*" = ["T201"]
 "tests/*" = ["S101", "D103", "PLR0913", "PLR2004", "T201"]
-"src/cli/main.py" = ["PLC0415"]  # Allow function-level imports for lazy loading
+"src/cli/main.py" = ["PLC0415"]                 # Allow function-level imports for lazy loading
 
 [tool.ruff.lint.flake8-tidy-imports]
 banned-module-level-imports = ["pandas_market_calendars"]
 
 [tool.uv]
-managed=true
+managed = true
 
 [tool.uv.sources]
 ws-api = { path = "../ws-api-python", editable = true }
@@ -91,13 +96,7 @@ dev = [
     "nbstripout>=0.8.1",
     "pyinstaller>=6.16.0",
     "ruff>=0.12.10",
-    #"ws-api>=0.19.0",
     "ws-api",
 ]
-experiments = [
-    "yfinance>=0.2.66",
-]
-test = [
-    "pytest>=8.3.5",
-    "pytest-cov>=5.0.0",
-]
+experiments = ["yfinance>=0.2.66"]
+test = ["pytest>=8.3.5", "pytest-cov>=5.0.0"]
