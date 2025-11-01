@@ -17,7 +17,7 @@
             "command": "cmd /c uv run python -m pytest --cov=. --cov-report=term-missing --log-cli-level=ERROR",
             "group": "test",
             "presentation": {"reveal": "always"},
-            "problemMatcher": [],
+            "problemMatcher": []
         }
     ]
 }

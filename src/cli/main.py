@@ -109,10 +109,10 @@ def download_cmd(
         None,
         "-r",
         "--reference",
-        help="Reference code to retry download for (IBKR only)",
+        help="Reference code to retry download for IBKR",
     ),
 ) -> None:
-    """Download statements from broker and save as CSV files."""
+    """Download transactions from broker and save as CSV files."""
     from cli.commands.download import download_statements
 
     download_statements(

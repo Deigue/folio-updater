@@ -384,6 +384,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pyyaml" },
     { name = "typer" },
+    { name = "ws-api" },
 ]
 
 [package.dev-dependencies]
@@ -411,6 +412,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=17.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "typer", specifier = ">=0.9.0" },
+    { name = "ws-api", editable = "../ws-api-python" },
 ]
 
 [package.metadata.requires-dev]
@@ -1555,6 +1557,9 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "requests" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = ">=0.12.0" }]
 
 [[package]]
 name = "yfinance"

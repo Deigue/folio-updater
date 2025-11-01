@@ -57,10 +57,10 @@ def download_statements(
         None,
         "-r",
         "--reference",
-        help="Reference code to retry download for (IBKR only)",
+        help="Reference code to retry download for IBKR",
     ),
 ) -> None:
-    """Download statements from broker and save as CSV files.
+    """Download transactions from broker and save as CSV files.
 
     This command downloads Flex Query statements from Interactive Brokers
     and saves them as CSV files in the imports directory for later import.
@@ -77,42 +77,39 @@ def download_statements(
         )
         raise typer.Exit(1)
 
+    if broker == "wealthsimple":
+        wealthsimple_statements(from_date, to_date)
+
+    if broker == "ibkr":
+        _handle_ibkr_download(
+            config=config,
+            from_date=from_date,
+            to_date=to_date,
+            token=token,
+            reference_code=reference_code,
+        )
+
+
+def _handle_ibkr_download(
+    config: Config,
+    from_date: str | None,
+    to_date: str | None,
+    reference_code: str | None,
+    *,
+    token: bool,
+) -> None:
+    files_downloaded: bool = False
     with IBKRService() as ibkr:
-        if token:
-            typer.echo("Setting new IBKR flex token...")
-            new_token = typer.prompt(
-                "Enter your IBKR flex token",
-                hide_input=True,
-                confirmation_prompt=True,
-            )
-            ibkr.set_token(new_token)
-            typer.echo("✓ Flex token stored securely")
+        if _handle_ibkr_token(ibkr, token=token):
             return
 
-        try:
-            ibkr.get_token()
-        except IBKRServiceError:
-            typer.echo("No IBKR flex token found in keyring.")
-            new_token = typer.prompt(
-                "Enter your IBKR flex token",
-                hide_input=True,
-                confirmation_prompt=True,
-            )
-            ibkr.set_token(new_token)
-            typer.echo("✓ Flex token stored securely")
-
         if reference_code:
-            try:
-                lines = ibkr.download_and_save_statement(reference_code)
-                typer.echo(f"✓ {reference_code}: Received {lines} lines")
-            except IBKRServiceError as e:
-                typer.echo(f"✗ {reference_code}: {e}", err=True)
-                raise typer.Exit(1) from None
+            _handle_ibkr_reference_code(ibkr, reference_code)
+            return
 
-        broker_config: dict[str, str] = _get_broker_config(config, broker)
+        broker_config: dict[str, str] = _get_broker_config(config, "ibkr")
         resolved_to_date: str = _resolve_to_date(to_date)
-        resolved_from_date: str = _resolve_from_date(from_date, broker)
-        files_downloaded: bool = False
+        resolved_from_date: str = _resolve_from_date(from_date, "ibkr")
         placeholder_ids = {"111111", "999999"}
 
         for query_name, query_id in broker_config.items():
@@ -141,6 +138,55 @@ def download_statements(
         typer.echo("  folio import --dir default")
     else:
         typer.echo("\n⚠ No transactions downloaded")
+
+
+def _handle_ibkr_token(ibkr: IBKRService, *, token: bool) -> bool:
+    if token:
+        typer.echo("Setting new IBKR flex token...")
+        new_token = typer.prompt(
+            "Enter your IBKR flex token",
+            hide_input=True,
+            confirmation_prompt=True,
+        )
+        ibkr.set_token(new_token)
+        typer.echo("✓ Flex token stored securely")
+        return True
+
+    try:
+        ibkr.get_token()
+    except IBKRServiceError:
+        typer.echo("No IBKR flex token found in keyring.")
+        new_token = typer.prompt(
+            "Enter your IBKR flex token",
+            hide_input=True,
+            confirmation_prompt=True,
+        )
+        ibkr.set_token(new_token)
+        typer.echo("✓ Flex token stored securely")
+    return False
+
+
+def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
+    try:
+        lines = ibkr.download_and_save_statement(reference_code)
+        typer.echo(f"✓ {reference_code}: Received {lines} lines")
+    except IBKRServiceError as e:
+        typer.echo(f"✗ {reference_code}: {e}", err=True)
+        raise typer.Exit(1) from None
+
+
+def wealthsimple_statements(
+    from_date: str | None,
+    to_date: str | None,
+) -> None:
+    """Placeholder for Wealthsimple statement download.
+
+    Args:
+        from_date (str | None): From date string.
+        to_date (str | None): To date string.
+    """
+    typer.echo("Wealthsimple statement download not yet implemented.")
+    raise typer.Exit(1)
 
 
 def _resolve_from_date(
