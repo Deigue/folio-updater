@@ -27,6 +27,8 @@ from app.app_context import get_config
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from datetime import datetime
+
     from utils.config import Config
 
 
@@ -327,3 +329,58 @@ class WealthsimpleService:
         logger.info("Retrieved %d accounts", len(accounts))
         return accounts
 
+    def get_activities(
+        self,
+        account_id: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        *,
+        load_all: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Get activities (transactions) for an account.
+
+        Args:
+            account_id: Account ID to retrieve activities for
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            load_all: Whether to load all pages of results
+
+        Returns:
+            List of activity dictionaries
+
+        Raises:
+            WealthsimpleServiceError: If API not initialized
+        """
+        ws = self.ensure_authenticated()
+        activities = ws.get_activities(
+            account_id,
+            start_date=start_date,
+            end_date=end_date,
+            load_all=load_all,
+        )
+        logger.info(
+            "Retrieved %d activities for account: %s",
+            len(activities) if activities else 0,
+            account_id,
+        )
+        return activities or []
+
+    def get_account_balances(
+        self,
+        account_id: str,
+    ) -> dict[str, float]:  # pragma: no cover
+        """Get balances for a specific account.
+
+        Args:
+            account_id: Account ID to retrieve balances for
+
+        Returns:
+            Dictionary mapping security IDs to quantities
+
+        Raises:
+            WealthsimpleServiceError: If API not initialized
+        """
+        ws = self.ensure_authenticated()
+        balances = ws.get_account_balances(account_id)
+        logger.debug("Retrieved balances for account: %s", account_id)
+        return balances
