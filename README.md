@@ -176,6 +176,10 @@ transforms:
       Description: "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS"
     actions:
       Action: "CONTRIBUTION"
+  - conditions:
+      Action: "Broker Interest Received"
+    actions:
+        Action: "FCH"
   merge_groups:
     - name: "Dividend Withholding Tax Merge"
       match_fields: ["TxnDate", "Account", "Ticker"]
