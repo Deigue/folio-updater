@@ -87,6 +87,18 @@ class ActionValidationRules:
                 Column.Txn.UNITS,
             ],
         },
+        Action.SPLIT: {
+            "required_fields": [
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
+                Column.Txn.ACCOUNT,
+            ],
+            "optional_fields": [
+                Column.Txn.AMOUNT,
+                Column.Txn.FEE,
+            ],
+        },
     }
 
     # Default rule for actions that require all fields (BUY, SELL, etc.)
@@ -96,6 +108,7 @@ class ActionValidationRules:
             Column.Txn.PRICE,
             Column.Txn.UNITS,
             Column.Txn.TICKER,
+            Column.Txn.CURRENCY,
         ],
         "optional_fields": [Column.Txn.FEE],
     }
