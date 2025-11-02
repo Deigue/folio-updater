@@ -5,7 +5,6 @@ Handles downloading statements from brokers like IBKR.
 
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from datetime import datetime
@@ -15,12 +14,14 @@ import typer
 
 from app import bootstrap
 from db import db
+from models.activity_feed_item import ActivityFeedItem
 from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
 from services.wealthsimple_service import WealthsimpleService
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.logging_setup import get_import_logger
 
 if TYPE_CHECKING:
+    from models.activity_feed_item import ActivityFeedItem
     from utils.config import Config
 
 app = typer.Typer()
@@ -184,19 +185,26 @@ def wealthsimple_transactions(
     """Retrieve wealthsimple transactions.
 
     Args:
-        from_date (str | None): From date string.
-        to_date (str | None): To date string.
+        from_date (str | None): From date string in YYYY-MM-DD format.
+        to_date (str | None): To date string IN YYYY-MM-DD format.
     """
     ws = WealthsimpleService()
-    from_date = _resolve_from_date(from_date, "WS")
-    from_dt = datetime.strptime(from_date, "%Y%m%d").replace(tzinfo=TORONTO_TZ)
+    resolved_to_date: str = _resolve_to_date(to_date)
+    resolved_from_date: str = _resolve_from_date(from_date, "ws")
+    from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
+        tzinfo=TORONTO_TZ,
+    )
     typer.echo(f"From Date: {from_dt.isoformat()}")
-    if to_date:
-        to_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ)
+    to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
+        tzinfo=TORONTO_TZ,
+    )
+
     accounts = [a["id"] for a in ws.get_accounts() if a["description"] != "Cash"]
-    activities = ws.get_activities(accounts, from_dt, to_dt)
+    activities: list[ActivityFeedItem] = ws.get_activities(accounts, from_dt, to_dt)
+
+    typer.echo(f"\nRetrieved {len(activities)} activities\n")
     for activity in activities:
-        typer.echo(json.dumps(activity, indent=2))
+        _print_activity_feed_item(activity)
 
 
 def _resolve_from_date(
@@ -327,6 +335,22 @@ def _get_previous_month(dt: datetime) -> datetime:  # pragma: no cover
     else:
         month -= 1
     return dt.replace(year=year, month=month, day=1)
+
+
+def _print_activity_feed_item(activity: ActivityFeedItem) -> None:
+    """Print a formatted activity feed item.
+
+    Args:
+        activity: The activity feed item to print.
+    """
+    typer.echo(f"Date: {activity.occurred_at.isoformat()}")
+    typer.echo(f"Type: {activity.type} ({activity.sub_type})")
+    typer.echo(f"Asset: {activity.asset_symbol}")
+    typer.echo(f"Quantity: {activity.asset_quantity}")
+    typer.echo(f"Amount: {activity.amount} {activity.currency}")
+    typer.echo(f"Status: {activity.status}")
+    typer.echo(f"Description: {activity.description}")
+    typer.echo("-" * 60)
 
 
 if __name__ == "__main__":
