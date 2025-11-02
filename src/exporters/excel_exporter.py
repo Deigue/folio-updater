@@ -58,7 +58,8 @@ class ExcelExporter:
 
         if not transactions_path.exists():  # pragma: no cover
             ParquetExporter().export_transactions()
-            return None
+            if not transactions_path.exists():
+                return None
 
         logger.info("Reading Parquet files from %s...", self.data_path)
 
@@ -77,7 +78,8 @@ class ExcelExporter:
 
         if not forex_path.exists():
             ParquetExporter().export_forex()
-            return pd.DataFrame()
+            if not forex_path.exists():
+                return pd.DataFrame()
 
         try:
             forex_df = pd.read_parquet(forex_path, engine="pyarrow")
@@ -94,7 +96,8 @@ class ExcelExporter:
 
         if not tickers_path.exists():  # pragma: no cover
             ParquetExporter().export_tickers()
-            return pd.DataFrame()
+            if not tickers_path.exists():
+                return pd.DataFrame()
 
         try:
             tickers_df = pd.read_parquet(tickers_path, engine="pyarrow")
