@@ -5,9 +5,11 @@ Handles downloading statements from brokers like IBKR.
 
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
 from datetime import datetime
+from time import strptime
 from typing import TYPE_CHECKING
 
 import typer
@@ -15,6 +17,7 @@ import typer
 from app import bootstrap
 from db import db
 from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
+from services.wealthsimple_service import WealthsimpleService
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.logging_setup import get_import_logger
 
@@ -25,7 +28,7 @@ app = typer.Typer()
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
-SUPPORTED_BROKERS = {"ibkr"}
+SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 
 
 @app.command(name="")
@@ -78,7 +81,7 @@ def download_statements(
         raise typer.Exit(1)
 
     if broker == "wealthsimple":
-        wealthsimple_statements(from_date, to_date)
+        wealthsimple_transactions(from_date, to_date)
 
     if broker == "ibkr":
         _handle_ibkr_download(
@@ -175,18 +178,26 @@ def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
         raise typer.Exit(1) from None
 
 
-def wealthsimple_statements(
+def wealthsimple_transactions(
     from_date: str | None,
     to_date: str | None,
 ) -> None:
-    """Placeholder for Wealthsimple statement download.
+    """Retrieve wealthsimple transactions.
 
     Args:
         from_date (str | None): From date string.
         to_date (str | None): To date string.
     """
-    typer.echo("Wealthsimple statement download not yet implemented.")
-    raise typer.Exit(1)
+    ws = WealthsimpleService()
+    if from_date:
+        from_dt = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ)
+    if to_date:
+        to_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ)
+    accounts = [a["id"] for a in ws.get_accounts() if a["description"] != "Cash"]
+    activities = ws.get_activities(accounts, from_dt, to_dt)
+    for activity in activities:
+        typer.echo(json.dumps(activity, indent=2))
+    # typer.echo("Wealthsimple statement download not yet implemented.")
 
 
 def _resolve_from_date(

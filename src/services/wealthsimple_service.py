@@ -331,7 +331,7 @@ class WealthsimpleService:
 
     def get_activities(
         self,
-        account_id: str,
+        account_id: str | list[str],
         start_date: datetime | None = None,
         end_date: datetime | None = None,
         *,
