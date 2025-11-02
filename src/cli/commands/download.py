@@ -9,7 +9,6 @@ import json
 import logging
 import sqlite3
 from datetime import datetime
-from time import strptime
 from typing import TYPE_CHECKING
 
 import typer
@@ -189,15 +188,15 @@ def wealthsimple_transactions(
         to_date (str | None): To date string.
     """
     ws = WealthsimpleService()
-    if from_date:
-        from_dt = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ)
+    from_date = _resolve_from_date(from_date, "WS")
+    from_dt = datetime.strptime(from_date, "%Y%m%d").replace(tzinfo=TORONTO_TZ)
+    typer.echo(f"From Date: {from_dt.isoformat()}")
     if to_date:
         to_dt = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ)
     accounts = [a["id"] for a in ws.get_accounts() if a["description"] != "Cash"]
     activities = ws.get_activities(accounts, from_dt, to_dt)
     for activity in activities:
         typer.echo(json.dumps(activity, indent=2))
-    # typer.echo("Wealthsimple statement download not yet implemented.")
 
 
 def _resolve_from_date(
