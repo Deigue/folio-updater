@@ -10,6 +10,7 @@ import logging
 import pandas as pd
 
 from app.app_context import get_config
+from exporters.parquet_exporter import ParquetExporter
 from utils.backup import rolling_backup
 from utils.constants import Column
 
@@ -56,7 +57,7 @@ class ExcelExporter:
         transactions_path = self.txn_parquet
 
         if not transactions_path.exists():  # pragma: no cover
-            logger.error("Transaction parquet file not found: %s", transactions_path)
+            ParquetExporter().export_transactions()
             return None
 
         logger.info("Reading Parquet files from %s...", self.data_path)
@@ -75,7 +76,7 @@ class ExcelExporter:
         forex_path = self.fx_parquet
 
         if not forex_path.exists():
-            logger.debug("Forex parquet file not found: %s", forex_path)
+            ParquetExporter().export_forex()
             return pd.DataFrame()
 
         try:
@@ -92,7 +93,7 @@ class ExcelExporter:
         tickers_path = self.tkr_parquet
 
         if not tickers_path.exists():  # pragma: no cover
-            logger.debug("Tickers parquet file not found: %s", tickers_path)
+            ParquetExporter().export_tickers()
             return pd.DataFrame()
 
         try:
