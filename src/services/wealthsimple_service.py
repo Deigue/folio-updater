@@ -24,6 +24,7 @@ from ws_api import (
 )
 
 from app.app_context import get_config
+from models.activity_feed_item import ActivityFeedItem
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -336,7 +337,7 @@ class WealthsimpleService:
         end_date: datetime | None = None,
         *,
         load_all: bool = False,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ActivityFeedItem]:
         """Get activities (transactions) for an account.
 
         Args:
@@ -346,7 +347,7 @@ class WealthsimpleService:
             load_all: Whether to load all pages of results
 
         Returns:
-            List of activity dictionaries
+            List of activity feed items
 
         Raises:
             WealthsimpleServiceError: If API not initialized
@@ -363,7 +364,9 @@ class WealthsimpleService:
             len(activities) if activities else 0,
             account_id,
         )
-        return activities or []
+        return [
+            ActivityFeedItem.from_dict(activity) for activity in (activities or [])
+        ]
 
     def get_account_balances(
         self,
