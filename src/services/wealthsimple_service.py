@@ -364,7 +364,7 @@ class WealthsimpleService:
             load_all=load_all,
         )
         logger.info(
-            "Retrieved %d activities for account: %s",
+            "RETRIEVED %d activities for accounts: %s",
             len(activities) if activities else 0,
             account_id,
         )
@@ -565,6 +565,6 @@ class WealthsimpleService:
                 return Decimal(0)
             price = amount_val / units_val
             # Quantize to 10 decimal places (Decimal[20,10])
-            return price.quantize(Decimal("0.0000000001"))
+            return price.quantize(Decimal("0.0000000001")).normalize()
         except (ValueError, TypeError, ZeroDivisionError):
             return Decimal(0)
