@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
+from app.app_context import get_config
 from db import db
 from models.activity_feed_item import ActivityFeedItem
 from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
@@ -207,12 +208,16 @@ def wealthsimple_transactions(
         load_all=True,
     )
 
-    typer.echo(f"\nRetrieved {len(activities)} activities\n")
-    for activity in activities:
-        _print_activity_feed_item(activity)
+    typer.echo(f"\nRetrieved {len(activities)} transactions\n")
 
     csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
     ws.export_activities_to_csv(activities, csv_name)
+    if len(activities) > 0:
+        typer.echo(f'Files saved to: "{get_config().imports_path}"')
+        typer.echo("\nTo import these files, run:")
+        typer.echo("  folio import --dir default")
+    else:
+        typer.echo("\n⚠ No transactions downloaded")
 
 
 def _resolve_from_date(
@@ -345,7 +350,7 @@ def _get_previous_month(dt: datetime) -> datetime:  # pragma: no cover
     return dt.replace(year=year, month=month, day=1)
 
 
-def _print_activity_feed_item(activity: ActivityFeedItem) -> None:
+def _print_activity_feed_item(activity: ActivityFeedItem) -> None:  # pragma: no cover
     """Print a formatted activity feed item.
 
     Args:
