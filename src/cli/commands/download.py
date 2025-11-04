@@ -206,6 +206,9 @@ def wealthsimple_transactions(
     for activity in activities:
         _print_activity_feed_item(activity)
 
+    csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
+    ws.export_activities_to_csv(activities, csv_name)
+
 
 def _resolve_from_date(
     from_date_str: str | None,
@@ -344,6 +347,7 @@ def _print_activity_feed_item(activity: ActivityFeedItem) -> None:
         activity: The activity feed item to print.
     """
     typer.echo(f"Date: {activity.occurred_at.isoformat()}")
+    typer.echo(f"Account ID: {activity.account_id}")
     typer.echo(f"Type: {activity.type} ({activity.sub_type})")
     typer.echo(f"Asset: {activity.asset_symbol}")
     typer.echo(f"Quantity: {activity.asset_quantity}")

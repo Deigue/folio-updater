@@ -7,9 +7,11 @@ Authentication Tokens are managed using the keyring library.
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +27,8 @@ from ws_api import (
 
 from app.app_context import get_config
 from models.activity_feed_item import ActivityFeedItem
+from utils.constants import TXN_ESSENTIALS, Action
+from utils.transforms import normalize_canadian_ticker
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -94,7 +98,7 @@ class WealthsimpleService:
     def _store_username(self, username: str) -> None:
         """Store the username as the default in keyring."""
         keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME_KEY, username)
-        logger.debug("Stored username as default: %s", username)
+        logger.debug("STORED username as default: %s", username)
 
     def _persist_session_callback(self) -> Callable[..., None]:
         """Get a callback function for persisting ws-api sessions."""
@@ -256,12 +260,12 @@ class WealthsimpleService:
                     self._persist_session_callback(),
                     username,
                 )
-                logger.info("Successfully logged in to Wealthsimple.")
+                logger.info("SUCCESS: Logged in to Wealthsimple.")
                 break
             except OTPRequiredException:
                 otp_answer = prompt_func("TOTP code: ")
             except LoginFailedException:
-                logger.exception("Login failed for user %s", username)
+                logger.exception("LOGIN FAILED for user %s", username)
                 username = None
                 password = None
                 otp_answer = None
@@ -327,7 +331,7 @@ class WealthsimpleService:
         """
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
-        logger.info("Retrieved %d accounts", len(accounts))
+        logger.debug("RETRIEVED %d accounts", len(accounts))
         return accounts
 
     def get_activities(
@@ -364,9 +368,7 @@ class WealthsimpleService:
             len(activities) if activities else 0,
             account_id,
         )
-        return [
-            ActivityFeedItem.from_dict(activity) for activity in (activities or [])
-        ]
+        return [ActivityFeedItem.from_dict(activity) for activity in (activities or [])]
 
     def get_account_balances(
         self,
@@ -387,3 +389,182 @@ class WealthsimpleService:
         balances = ws.get_account_balances(account_id)
         logger.debug("Retrieved balances for account: %s", account_id)
         return balances
+
+    def export_activities_to_csv(
+        self,
+        activities: list[ActivityFeedItem],
+        csv_name: str,
+    ) -> None:
+        """Export activity feed items to a CSV file.
+
+        Args:
+            activities: List of activity feed items to export
+            csv_name: Name of the output CSV file
+        """
+        config = get_config()
+        output_path: Path = config.imports_path / csv_name
+        rows = [self._convert_activity_to_csv_row(activity) for activity in activities]
+
+        with output_path.open("w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(TXN_ESSENTIALS)
+            writer.writerows(rows)
+
+        logger.info('EXPORTED %d activities to CSV: "%s"', len(activities), output_path)
+
+    def _convert_activity_to_csv_row(self, activity: ActivityFeedItem) -> list[str]:
+        """Convert an ActivityFeedItem to a CSV row.
+
+        Args:
+            activity: The activity feed item to convert
+
+        Returns:
+            List of string values for CSV row
+        """
+        action = self._normalize_action(activity.type)
+        ticker = normalize_canadian_ticker(activity.asset_symbol, activity.currency)
+        account = self._map_account_id(activity.account_id)
+        amount = self._normalize_amount(activity.amount, action, activity.amount_sign)
+        units = self._normalize_units(activity.asset_quantity)
+        price = self._get_price_string(activity.amount, activity.asset_quantity)
+
+        return [
+            activity.occurred_at.strftime("%Y-%m-%d"),  # TxnDate
+            action,  # Action
+            amount,  # Amount
+            activity.currency or "",  # $
+            price,  # Price
+            units,  # Units
+            ticker or "",  # Ticker
+            account,  # Account
+        ]
+
+    @staticmethod
+    def _normalize_action(action_type: str | None) -> str:
+        """Normalize action type to standard actions.
+
+        Args:
+            action_type: The action type from activity
+
+        Returns:
+            Normalized action string
+        """
+        action = action_type or ""
+        if action == "DIY_BUY":
+            return Action.BUY
+        if action == "DIY_SELL":
+            return Action.SELL
+        return action
+
+    @staticmethod
+    def _normalize_amount(
+        amount: str | None,
+        action: str,
+        amount_sign: str | None,
+    ) -> str:
+        """Normalize amount, making it negative for BUY actions.
+
+        Args:
+            amount: The transaction amount
+            action: The normalized action type
+            amount_sign: The sign indicator from activity
+
+        Returns:
+            Normalized amount string
+        """
+        normalized = amount or ""
+        sign = amount_sign or ""
+        if action == Action.BUY:
+            sign = "negative"
+
+        if normalized:
+            try:
+                amount_val = Decimal(str(normalized))
+                if amount_val > 0 and sign == "negative":
+                    normalized = str(-amount_val)
+            except (ValueError, TypeError):
+                pass
+
+        return normalized
+
+    @staticmethod
+    def _normalize_units(units: str | None) -> str:
+        """Normalize units, removing unnecessary trailing zeros.
+
+        Args:
+            units: The asset quantity
+
+        Returns:
+            Normalized units string
+        """
+        normalized = units or ""
+        if normalized:
+            try:
+                units_val = Decimal(str(normalized))
+                normalized = str(units_val.normalize())
+            except (ValueError, TypeError):
+                pass
+
+        return normalized
+
+    def _get_price_string(self, amount: str | None, units: str | None) -> str:
+        """Get price string formatted for CSV output.
+
+        Args:
+            amount: The transaction amount
+            units: The asset quantity
+
+        Returns:
+            Price string, empty if not calculable
+        """
+        if not amount or not units:
+            return ""
+
+        price_val: Decimal = self._calculate_price(amount, units)
+        return str(price_val) if price_val > 0 else ""
+
+    @staticmethod
+    def _map_account_id(account_id: str | None) -> str:
+        """Map account_id to account name.
+
+        Args:
+            account_id: The account identifier
+
+        Returns:
+            Mapped account name
+        """
+        account: str = "UNKNOWN"
+        if not account_id:
+            return account
+        account_lower = account_id.lower()
+        if "tfsa" in account_lower:
+            account = "WS-TFSA"
+        if "non-registered" in account_lower:
+            account = "WS-PERSONAL"
+        return account
+
+    @staticmethod
+    def _calculate_price(amount: str | None, units: str | None) -> Decimal:
+        """Calculate price per unit from amount and units.
+
+        Returns Decimal[20,10] format for database compatibility.
+
+        Args:
+            amount: The transaction amount
+            units: The number of units
+
+        Returns:
+            Price per unit
+        """
+        if not amount or not units:
+            return Decimal(0)
+        try:
+            amount_val = Decimal(str(amount)).copy_abs()
+            units_val = Decimal(str(units)).copy_abs()
+            if units_val == 0:
+                return Decimal(0)
+            price = amount_val / units_val
+            # Quantize to 10 decimal places (Decimal[20,10])
+            return price.quantize(Decimal("0.0000000001"))
+        except (ValueError, TypeError, ZeroDivisionError):
+            return Decimal(0)
