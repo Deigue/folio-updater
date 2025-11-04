@@ -10,8 +10,10 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 import tempfile
 from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -428,12 +430,23 @@ class WealthsimpleService:
         Returns:
             List of string values for CSV row
         """
-        action = self._normalize_action(activity.type)
+        action = self._normalize_action(
+            activity.type,
+            activity.sub_type,
+            activity.amount,
+        )
         ticker = normalize_canadian_ticker(activity.asset_symbol, activity.currency)
         account = self._map_account_id(activity.account_id)
         amount = self._normalize_amount(activity.amount, action, activity.amount_sign)
         units = self._normalize_units(activity.asset_quantity)
         price = self._get_price_string(activity.amount, activity.asset_quantity)
+
+        # Handle stock splits: extract ratio from description and override price/units
+        if action == Action.SPLIT and activity.description:
+            split_from, split_to = self._extract_split_ratio(activity.description)
+            if split_from and split_to:
+                price = str(split_from)
+                units = str(split_to)
 
         return [
             activity.occurred_at.strftime("%Y-%m-%d"),  # TxnDate
@@ -447,11 +460,17 @@ class WealthsimpleService:
         ]
 
     @staticmethod
-    def _normalize_action(action_type: str | None) -> str:
+    def _normalize_action(
+        action_type: str | None,
+        sub_type: str | None,
+        amount: str | None,
+    ) -> str:
         """Normalize action type to standard actions.
 
         Args:
             action_type: The action type from activity
+            sub_type: The sub-type from activity
+            amount: The transaction amount
 
         Returns:
             Normalized action string
@@ -461,6 +480,16 @@ class WealthsimpleService:
             return Action.BUY
         if action == "DIY_SELL":
             return Action.SELL
+        if action == "CORPORATE_ACTION" and sub_type == "SUBDIVISION":
+            return Action.SPLIT
+        if action in {"INTERNAL_TRANSFER", "INSTITUTIONAL_TRANSFER_INTENT"}:
+            if sub_type in {"SOURCE", "TRANSFER_OUT"}:
+                # Institutional transfers may have null amounts. This will needs to be
+                # entered manually by the user later.
+                if amount is None:
+                    amount = "0"
+                return Action.WITHDRAWAL
+            return Action.CONTRIBUTION
         return action
 
     @staticmethod
@@ -513,6 +542,55 @@ class WealthsimpleService:
                 pass
 
         return normalized
+
+    @staticmethod
+    def _extract_split_ratio(description: str) -> tuple[Decimal | None, Decimal | None]:
+        """Extract stock split ratio from description.
+
+        Parses description like "Subdivision: 60.5 -> 90.75 shares of XYZ"
+        to extract the held shares (from) and total shares (to).
+
+        For example: if held_shares=60 and total_shares=90,
+        this represents a split where for every 2 old shares, you get 3 new shares.
+        The function returns (2, 3) representing the FROM:TO ratio.
+
+        Args:
+            description: The activity description containing split information
+
+        Returns:
+            Tuple of (split_from_ratio, split_to_ratio) as Decimals,
+            or (None, None) if parsing fails.
+        """
+        if not description:
+            return None, None
+
+        # Match pattern: "Subdivision: X -> Y shares" where X and Y can be floats
+        pattern = r"(\d+(?:\.\d+)?)\s*->\s*(\d+(?:\.\d+)?)\s*shares"
+        match = re.search(pattern, description)
+        if not match:
+            return None, None
+
+        try:
+            held_shares = float(match.group(1))
+            total_shares = float(match.group(2))
+
+            if held_shares <= 0 or total_shares <= 0:
+                return None, None
+
+            # Use fractions to calculate exact ratio and avoid floating point errors
+            # Calculate the ratio as total_shares / held_shares (new per old)
+            held_fraction = Fraction(held_shares).limit_denominator()
+            total_fraction = Fraction(total_shares).limit_denominator()
+            ratio = total_fraction / held_fraction
+
+            # Convert to simplest integer ratio (FROM : TO)
+            split_from = Decimal(ratio.denominator)
+            split_to = Decimal(ratio.numerator)
+        except (ValueError, ZeroDivisionError) as e:
+            logger.warning("Failed to extract split ratio from description: %s", e)
+            return None, None
+        else:
+            return split_from, split_to
 
     def _get_price_string(self, amount: str | None, units: str | None) -> str:
         """Get price string formatted for CSV output.
