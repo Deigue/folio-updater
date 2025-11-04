@@ -8,6 +8,7 @@ Authentication is handled using keyring for secure token storage.
 # ruff: noqa: S314
 from __future__ import annotations
 
+import csv
 import logging
 import time
 import xml.etree.ElementTree as ET
@@ -370,6 +371,9 @@ class IBKRService:
 
         Returns:
             int: Number of lines saved (including header)
+
+        Raises:
+            IBKRServiceError: If saving to file fails
         """
         if not csv_content:  # pragma: no cover
             logger.warning("No CSV content to save")
@@ -385,16 +389,23 @@ class IBKRService:
         output_path: Path = config.imports_path / csv_name
 
         try:
-            with output_path.open("w", encoding="utf-8") as f:
-                f.write(csv_content)
+            lines = csv_content.strip().split("\n")
+            if not lines:
+                logger.warning("No CSV content to save")
+                return 0
+
+            with output_path.open("w", newline="", encoding="utf-8") as csvfile:
+                reader = csv.reader(lines)
+                writer = csv.writer(csvfile)
+                writer.writerows(reader)
+
         except OSError as e:
             msg = f"Failed to save CSV to {output_path}: {e}"
             logger.exception(msg)
             raise IBKRServiceError(msg) from e
 
-        line_count = len(csv_content.strip().split("\n"))
-        logger.info('Saved %d lines to "%s"', line_count, output_path)
-        return line_count
+        logger.info('Saved %d lines to "%s"', len(lines), output_path)
+        return len(lines)
 
     def download_and_save_statement(self, request: DownloadRequest | str) -> int:
         """Download a Flex query statement and save it as CSV.
