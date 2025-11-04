@@ -16,6 +16,7 @@ from utils.backup import rolling_backup
 from utils.constants import Column, Table
 from utils.logging_setup import get_import_logger
 from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
+from utils.transforms import normalize_canadian_ticker
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -266,9 +267,7 @@ def _extract_statement_row_data(row: pd.Series) -> dict | None:
         return None
 
     currency = row["currency"]
-    # Add .TO suffix for CAD tickers if not present
-    if currency == "CAD" and ticker and not ticker.endswith(".TO"):  # pragma: no cover
-        ticker = f"{ticker}.TO"
+    ticker = normalize_canadian_ticker(ticker, currency)
 
     return {
         "settlement_date": settlement_date,

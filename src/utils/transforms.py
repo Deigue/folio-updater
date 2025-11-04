@@ -7,6 +7,21 @@ from typing import Any
 from utils.constants import Column
 
 
+def normalize_canadian_ticker(ticker: str | None, currency: str | None) -> str | None:
+    """Add .TO suffix for CAD tickers if not present.
+
+    Args:
+        ticker: The ticker symbol to normalize
+        currency: The currency code
+
+    Returns:
+        Normalized ticker symbol with .TO suffix for CAD tickers
+    """
+    if currency == "CAD" and ticker and not ticker.endswith(".TO"):
+        return f"{ticker}.TO"
+    return ticker
+
+
 class TransformRule:
     """A single transformation rule with conditions and actions."""
 
