@@ -331,6 +331,13 @@ class WealthsimpleService:
         """
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
+        config = get_config()
+        ws_config = config.brokers.get("wealthsimple", {})
+        if ws_config.get("exclude_accounts"):
+            excluded = ws_config["exclude_accounts"]
+            accounts = [a for a in accounts if a["description"] not in excluded]
+            logger.debug("EXCLUDED accounts %s", excluded)
+
         logger.debug("RETRIEVED %d accounts", len(accounts))
         return accounts
 

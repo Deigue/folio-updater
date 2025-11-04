@@ -199,7 +199,7 @@ def wealthsimple_transactions(
         tzinfo=TORONTO_TZ,
     )
 
-    accounts = [a["id"] for a in ws.get_accounts() if a["description"] != "Cash"]
+    accounts = [a["id"] for a in ws.get_accounts()]
     activities: list[ActivityFeedItem] = ws.get_activities(accounts, from_dt, to_dt)
 
     typer.echo(f"\nRetrieved {len(activities)} activities\n")
