@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .test_types import TempContext
 from db.transformers import TransactionTransformer
 from utils.constants import Column
+from utils.transforms import normalize_canadian_ticker
 
 FEE_AMOUNT = 9.95
 
@@ -128,3 +129,21 @@ def test_transform_scenarios(
         df = pd.DataFrame(test_data)
         result = TransactionTransformer.transform(df)
         assert validate(result)
+
+
+def test_normalize_canadian_ticker() -> None:
+    """Test the normalize_canadian_ticker function.
+
+    This function should add .TO suffix for CAD tickers if not present.
+    """
+    # CAD ticker without .TO suffix
+    assert normalize_canadian_ticker("SHOP", "CAD") == "SHOP.TO"
+    assert normalize_canadian_ticker("TDB902", "CAD") == "TDB902.TO"
+
+    # Test CAD ticker with .TO suffix - no change
+    assert normalize_canadian_ticker("SHOP.TO", "CAD") == "SHOP.TO"
+    assert normalize_canadian_ticker("TDB902.TO", "CAD") == "TDB902.TO"
+
+    # Test non-CAD currency - no change
+    assert normalize_canadian_ticker("AAPL", "USD") == "AAPL"
+    assert normalize_canadian_ticker("GOOGL", "USD") == "GOOGL"
