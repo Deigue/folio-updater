@@ -554,8 +554,6 @@ class WealthsimpleService:
     def _calculate_price(amount: str | None, units: str | None) -> Decimal:
         """Calculate price per unit from amount and units.
 
-        Returns Decimal[20,10] format for database compatibility.
-
         Args:
             amount: The transaction amount
             units: The number of units
@@ -571,7 +569,6 @@ class WealthsimpleService:
             if units_val == 0:
                 return Decimal(0)
             price = amount_val / units_val
-            # Quantize to 10 decimal places (Decimal[20,10])
-            return price.quantize(Decimal("0.0000000001")).normalize()
+            return price.quantize(Decimal("0.01"))
         except (ValueError, TypeError, ZeroDivisionError):
             return Decimal(0)
