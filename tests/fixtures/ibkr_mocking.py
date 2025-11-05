@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import difflib
+import io
 from typing import TYPE_CHECKING, Self
 
 import keyring
@@ -89,6 +91,7 @@ class IBKRMockContext:
         def mock_path_open(
             path_self: object,
             mode: str,
+            newline: str | None = None,  # noqa: ARG001
             encoding: str | None = None,  # noqa: ARG001
         ) -> object:
             class MockFile:
@@ -167,14 +170,15 @@ def create_mock_csv_data(rows: list[dict[str, str]]) -> str:
         return ""
 
     headers = list(rows[0].keys())
-    header_line = '"' + '","'.join(headers) + '"\n'
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
 
-    data_lines = []
+    writer.writerow(headers)
     for row in rows:
         values = [str(row.get(header, "")) for header in headers]
-        data_lines.append('"' + '","'.join(values) + '"\n')
+        writer.writerow(values)
 
-    return (header_line + "".join(data_lines)).rstrip("\n")
+    return output.getvalue()
 
 
 # Common test data
