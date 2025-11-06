@@ -22,6 +22,11 @@ from tests.fixtures.ibkr_mocking import (
     IBKRMockContext,
     get_default_mock_csv,
 )
+from tests.fixtures.wealthsimple_mocking import (
+    WealthsimpleMockContext,
+    get_default_mock_activities,
+    get_expected_wealthsimple_csv,
+)
 from utils.constants import Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
@@ -326,6 +331,27 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
             "Setting new IBKR flex token",
             "setup_token_override",
         ),
+        (
+            "wealthsimple_default",
+            ["-b", "wealthsimple"],
+            None,
+            "Retrieved 6 transactions",
+            "setup_wealthsimple",
+        ),
+        (
+            "wealthsimple_custom_dates",
+            ["-b", "wealthsimple", "--from", "2025-10-01", "--to", "2025-10-21"],
+            None,
+            "Retrieved 6 transactions",
+            "setup_wealthsimple",
+        ),
+        (
+            "wealthsimple_no_transactions",
+            ["-b", "wealthsimple"],
+            None,
+            "No transactions downloaded",
+            "setup_wealthsimple_empty",
+        ),
     ],
 )
 def test_download_scenarios(
@@ -338,6 +364,74 @@ def test_download_scenarios(
     setup_action: str | None,
 ) -> None:
     """Test various download scenarios."""
+    if scenario.startswith("wealthsimple"):
+        _test_wealthsimple_scenario(
+            temp_ctx,
+            monkeypatch,
+            cli_args,
+            query_ids,
+            expected_output,
+            setup_action,
+        )
+    else:
+        _test_ibkr_scenario(
+            temp_ctx,
+            monkeypatch,
+            scenario,
+            cli_args,
+            query_ids,
+            expected_output,
+            setup_action,
+        )
+
+
+def _setup_ibkr_test_scenario(
+    setup_action: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Set up IBKR-specific test scenario configurations."""
+    if setup_action == "setup_db":
+        ensure_data_exists()
+        monkeypatch.setattr(
+            "cli.commands.download._resolve_from_date",
+            lambda from_date_str, broker: _resolve_from_date(
+                from_date_str,
+                broker,
+                account_override="MOCK-ACCOUNT",
+            ),
+        )
+    elif setup_action == "setup_token_prompt":
+
+        def mock_get_token(_self: object) -> str:
+            msg = "No token found"
+            raise IBKRAuthenticationError(msg)
+
+        def mock_prompt(*_args: object, **_kwargs: object) -> str:
+            return "test_token_from_prompt"
+
+        monkeypatch.setattr(
+            "services.ibkr_service.IBKRService.get_token",
+            mock_get_token,
+        )
+        monkeypatch.setattr("typer.prompt", mock_prompt)
+    elif setup_action == "setup_token_override":
+
+        def mock_prompt(*_args: object, **_kwargs: object) -> str:
+            return "test_token_override"
+
+        monkeypatch.setattr("typer.prompt", mock_prompt)
+
+
+def _test_ibkr_scenario(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
+    cli_args: list[str],
+    query_ids: dict,
+    expected_output: str,
+    setup_action: str | None,
+) -> None:
+    """Test IBKR download scenarios."""
     if scenario in ["default", "custom_dates", "reference_code", "db_date"]:
         mock_csv_data = get_default_mock_csv()
     else:
@@ -347,50 +441,50 @@ def test_download_scenarios(
         temp_ctx(query_ids) as ctx,
         IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
     ):
-        config = ctx.config
-        if setup_action == "setup_db":
-            ensure_data_exists()
-            monkeypatch.setattr(
-                "cli.commands.download._resolve_from_date",
-                lambda from_date_str, broker: _resolve_from_date(
-                    from_date_str,
-                    broker,
-                    account_override="MOCK-ACCOUNT",
-                ),
-            )
-        elif setup_action == "setup_token_prompt":
+        _setup_ibkr_test_scenario(setup_action, monkeypatch)
+        result = _run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
 
-            def mock_get_token(_self: object) -> str:
-                msg = "No token found"
-                raise IBKRAuthenticationError(msg)
-
-            def mock_prompt(*_args: object, **_kwargs: object) -> str:
-                return "test_token_from_prompt"
-
-            monkeypatch.setattr(
-                "services.ibkr_service.IBKRService.get_token",
-                mock_get_token,
-            )
-            monkeypatch.setattr("typer.prompt", mock_prompt)
-        elif setup_action == "setup_token_override":
-
-            def mock_prompt(*_args: object, **_kwargs: object) -> str:
-                return "test_token_override"
-
-            monkeypatch.setattr("typer.prompt", mock_prompt)
-
-        result = _run_cli_with_config(config, cli_app, ["download", *cli_args])
+        assert_cli_success(result)
+        assert expected_output in result.stdout
 
         if scenario in ["set_token", "no_queries", "token_override"]:
-            assert_cli_success(result)
-            assert expected_output in result.stdout
             ibkr_mock.assert_no_csv_written()
         elif scenario in ["default", "custom_dates", "reference_code", "db_date"]:
-            assert_cli_success(result)
-            assert expected_output in result.stdout
             ibkr_mock.assert_csv_written(mock_csv_data)
-        else:  # pragma: no cover
-            pytest.fail(f"Unknown scenario: {scenario}")
+
+
+def _test_wealthsimple_scenario(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+    cli_args: list[str],
+    query_ids: dict,
+    expected_output: str,
+    setup_action: str | None,
+) -> None:
+    """Test Wealthsimple download scenarios."""
+    if setup_action == "setup_wealthsimple":
+        mock_activities = get_default_mock_activities()
+        expected_csv = get_expected_wealthsimple_csv()
+    elif setup_action == "setup_wealthsimple_empty":
+        mock_activities = []
+        expected_csv = ""
+
+    with (
+        temp_ctx(query_ids) as ctx,
+        WealthsimpleMockContext(
+            monkeypatch,
+            mock_activities=mock_activities,
+        ) as ws_mock,
+    ):
+        result = _run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
+
+        assert_cli_success(result)
+        assert expected_output in result.stdout
+
+        if len(mock_activities) > 0:
+            ws_mock.assert_csv_written(expected_csv)
+        else:
+            ws_mock.assert_no_csv_written()
 
 
 def test_version_command() -> None:
