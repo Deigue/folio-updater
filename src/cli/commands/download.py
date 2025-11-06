@@ -33,7 +33,7 @@ SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 
 
 @app.command(name="")
-def download_statements(
+def download_statements(  # noqa: PLR0913
     broker: str = typer.Option(
         "ibkr",
         "-b",
@@ -63,6 +63,10 @@ def download_statements(
         "--reference",
         help="Reference code to retry download for IBKR",
     ),
+    reset: bool = typer.Option(
+        default=False,
+        help="Reset stored credentials for Wealthsimple and exit",
+    ),
 ) -> None:
     """Download transactions from broker and save as CSV files.
 
@@ -80,6 +84,10 @@ def download_statements(
             err=True,
         )
         raise typer.Exit(1)
+
+    if reset:  # pragma: no cover
+        _handle_reset(broker)
+        return
 
     if broker == "wealthsimple":
         wealthsimple_transactions(from_date, to_date)
@@ -177,6 +185,24 @@ def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
     except IBKRServiceError as e:
         typer.echo(f"✗ {reference_code}: {e}", err=True)
         raise typer.Exit(1) from None
+
+
+def _handle_reset(broker: str) -> None:  # pragma: no cover
+    """Reset stored credentials for the specified broker.
+
+    Args:
+        broker: The broker identifier to reset credentials for.
+    """
+    if broker == "wealthsimple":
+        ws = WealthsimpleService()
+        ws.reset_credentials()
+        typer.echo("✓ Wealthsimple credentials reset successfully")
+    else:
+        typer.echo(
+            f"Credential reset not supported for broker '{broker}'",
+            err=True,
+        )
+        raise typer.Exit(1)
 
 
 def wealthsimple_transactions(

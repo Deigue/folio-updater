@@ -80,7 +80,7 @@ def settle_info_cmd(
     settlement_info(file=file)
 
 
-@app.command("download", help="Download statements from brokers")
+@app.command("download", help="Download transactions from brokers")
 def download_cmd(
     broker: str = typer.Option(
         "ibkr",
