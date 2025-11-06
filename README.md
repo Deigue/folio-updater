@@ -36,7 +36,8 @@ A portfolio management system that imports and processes financial transaction d
 
 ### Download Statements
 
-- **[Interactive Brokers Integration](docs/transactions/ibkr-integration.md)**: Download Flex query statements directly using IBKR Flex API
+- **[Interactive Brokers Integration](docs/download/ibkr-integration.md)**: Download Flex query statements directly using IBKR Flex API
+- **[Wealthsimple Integration](docs/download/wealthsimple-integration.md)**: Download transactions from Wealthsimple accounts
 
 ## Usage
 
@@ -119,7 +120,13 @@ folio settle-info -f path/to/statement.xlsx
 
 ### Download Transactions
 
-*Refer to [IBKR Integration Usage](docs/transactions/ibkr-integration.md#usage) for detailed information.*
+Download transaction information directly from brokers.
+
+```bash
+folio download --broker ibkr --from 2024-01-01 --to 2024-12-31
+```
+
+*Refer to [IBKR Integration Usage](docs/download/ibkr-integration.md#usage) and [Wealthsimple Integration Usage](docs/download/wealthsimple-integration.md#usage) for detailed information.*
 
 ## Configuration
 
@@ -210,7 +217,7 @@ brokers:
 | **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
 | **`transforms`**         | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](docs/transactions/transformations.md) and [Merge Transforms](docs/transactions/merge-transforms.md) for more details.                                                                                         |
-| **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](docs/transactions/ibkr-integration.md#configuration) for more details.                                                                                                                                                                                  |
+| **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](docs/transactions/ibkr-integration.md#configuration) and [Wealthsimple Configuration](docs/transactions/wealthsimple-integration.md#configuration) for more details.                                                                                       |
 
 ### Essential Fields
 
