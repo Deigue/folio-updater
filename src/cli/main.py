@@ -111,6 +111,10 @@ def download_cmd(
         "--reference",
         help="Reference code to retry download for IBKR",
     ),
+    reset: bool = typer.Option(
+        default=False,
+        help="Reset stored credentials for Wealthsimple and exit",
+    ),
 ) -> None:
     """Download transactions from broker and save as CSV files."""
     from cli.commands.download import download_statements
@@ -121,6 +125,7 @@ def download_cmd(
         to_date=to_date,
         token=token,
         reference_code=reference_code,
+        reset=reset
     )
 
 
