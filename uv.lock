@@ -393,7 +393,6 @@ dev = [
     { name = "nbstripout" },
     { name = "pyinstaller" },
     { name = "ruff" },
-    { name = "ws-api" },
 ]
 experiments = [
     { name = "yfinance" },
@@ -412,7 +411,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=17.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "typer", specifier = ">=0.9.0" },
-    { name = "ws-api", editable = "../ws-api-python" },
+    { name = "ws-api", specifier = ">=0.21.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -421,7 +420,6 @@ dev = [
     { name = "nbstripout", specifier = ">=0.8.1" },
     { name = "pyinstaller", specifier = ">=6.16.0" },
     { name = "ruff", specifier = ">=0.12.10" },
-    { name = "ws-api", editable = "../ws-api-python" },
 ]
 experiments = [{ name = "yfinance", specifier = ">=0.2.66" }]
 test = [
@@ -1547,17 +1545,15 @@ wheels = [
 
 [[package]]
 name = "ws-api"
-version = "0.19.0"
-source = { editable = "../ws-api-python" }
+version = "0.21.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
 ]
-
-[package.metadata]
-requires-dist = [{ name = "requests" }]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.12.0" }]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/e2/c04cbb0209d1151bdc5ee7c27e78f8bfe35a34fac88495cc88c7e7be474f/ws_api-0.21.0.tar.gz", hash = "sha256:e6c1c10906d45618ab99a63865b2bc57a0b6a1080b9fd95a4e607f05747ca4b5", size = 27095, upload-time = "2025-10-31T13:01:30.86Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/36/58/e87b3887dad6192dc07414709874f838cb272c7b8f5f12f2350a5fcb7041/ws_api-0.21.0-py3-none-any.whl", hash = "sha256:1a4dc96fab01865d20cca9e1ae23ae831e962b6cf6b25f7268616f91e962e034", size = 25517, upload-time = "2025-10-31T13:01:29.867Z" },
+]
 
 [[package]]
 name = "yfinance"

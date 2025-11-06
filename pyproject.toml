@@ -13,7 +13,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "typer>=0.9.0",
     "keyring>=25.5.0",
-    "ws-api>=0.21.1",
+    "ws-api>=0.21.0",
 ]
 
 [project.scripts]
@@ -87,8 +87,8 @@ banned-module-level-imports = ["pandas_market_calendars"]
 [tool.uv]
 managed = true
 
-[tool.uv.sources]
-ws-api = { path = "../ws-api-python", editable = true }
+#[tool.uv.sources]
+#ws-api = { path = "../ws-api-python", editable = true }
 
 [dependency-groups]
 dev = [
@@ -96,7 +96,6 @@ dev = [
     "nbstripout>=0.8.1",
     "pyinstaller>=6.16.0",
     "ruff>=0.12.10",
-    "ws-api",
 ]
 experiments = ["yfinance>=0.2.66"]
 test = ["pytest>=8.3.5", "pytest-cov>=5.0.0"]

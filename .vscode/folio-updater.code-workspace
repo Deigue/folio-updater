@@ -9,5 +9,9 @@
 			"path": "../../ws-api-python"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"github-actions.workflows.pinned.workflows": [
+			"folio-updater/.github/workflows/build-executable.yml"
+		]
+	}
 }
