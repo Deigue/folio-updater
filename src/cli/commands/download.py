@@ -210,9 +210,9 @@ def wealthsimple_transactions(
 
     typer.echo(f"\nRetrieved {len(activities)} transactions\n")
 
-    csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
-    ws.export_activities_to_csv(activities, csv_name)
     if len(activities) > 0:
+        csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
+        ws.export_activities_to_csv(activities, csv_name)
         typer.echo(f'Files saved to: "{get_config().imports_path}"')
         typer.echo("\nTo import these files, run:")
         typer.echo("  folio import --dir default")
