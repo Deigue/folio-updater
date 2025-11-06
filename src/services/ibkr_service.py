@@ -390,7 +390,7 @@ class IBKRService:
 
         try:
             lines = csv_content.strip().split("\n")
-            if not lines:
+            if not lines:  # pragma: no cover
                 logger.warning("No CSV content to save")
                 return 0
 

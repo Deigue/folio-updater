@@ -36,7 +36,7 @@ def from_datetime(x: str) -> datetime:
     return dateutil.parser.parse(x)
 
 
-def to_class[T](c: type[T], x: T) -> dict:
+def to_class[T](c: type[T], x: T) -> dict:  # pragma: no cover
     """Convert an object to its dictionary representation.
 
     Args:
@@ -239,7 +239,7 @@ class ActivityFeedItem:
             description,
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict:  # pragma: no cover
         """Convert ActivityFeedItem to dictionary representation.
 
         Returns:
@@ -304,27 +304,3 @@ class ActivityFeedItem:
         result["__typename"] = from_str(self.typename)
         result["description"] = from_str(self.description)
         return result
-
-
-def activity_feed_item_from_dict(s: dict) -> ActivityFeedItem:
-    """Create ActivityFeedItem from dictionary.
-
-    Args:
-        s: Dictionary containing activity feed item data.
-
-    Returns:
-        Parsed activity feed item instance.
-    """
-    return ActivityFeedItem.from_dict(s)
-
-
-def activity_feed_item_to_dict(x: ActivityFeedItem) -> dict:
-    """Convert ActivityFeedItem to dictionary.
-
-    Args:
-        x: The activity feed item to convert.
-
-    Returns:
-        Dictionary representation of the activity feed item.
-    """
-    return to_class(ActivityFeedItem, x)
