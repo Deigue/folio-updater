@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import ctypes
 import logging
+import os
+import sys
 from logging.handlers import TimedRotatingFileHandler
 from typing import TYPE_CHECKING
 
@@ -22,6 +25,35 @@ COLORS: dict[int, str] = {
 RESET: str = "\033[0m"
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(module)s:%(lineno)4d %(message)s"
 DATE_FORMAT = "%m-%d %H:%M:%S"
+
+
+def _supports_color() -> bool:
+    """Check if the terminal supports ANSI color codes.
+
+    Returns:
+        True if colors should be used, False otherwise
+    """
+    if sys.platform == "win32":
+        # Windows Terminal, ConEmu, and other modern terminals set these
+        if os.environ.get("WT_SESSION") or os.environ.get("ANSICON"):
+            return True
+        # Check if stdout is a terminal and supports colors
+        if hasattr(sys.stdout, "isatty") and sys.stdout.isatty():
+            # Try to enable ANSI support on Windows 10+
+            try:
+                kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+                # Enable virtual terminal processing (0x0004)
+                handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+                mode = ctypes.c_ulong()
+                if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                    mode.value |= 0x0004
+                    if kernel32.SetConsoleMode(handle, mode):
+                        return True
+            except (AttributeError, OSError):
+                # If we can't enable ANSI, fall back to no colors
+                pass
+        return False
+    return hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
 
 class CompactFormatter(logging.Formatter):
@@ -65,14 +97,24 @@ def init_logging(level: int = logging.INFO) -> None:
     root_logger: logging.Logger = logging.getLogger()
     root_logger.setLevel(level)
 
-    # Console handler (colorized)
+    use_colors = _supports_color()
+
+    # Console handler (colorized if supported)
     console_exists = any(
-        isinstance(h, logging.StreamHandler) and isinstance(h.formatter, ColorFormatter)
+        isinstance(h, logging.StreamHandler)
+        and isinstance(h.formatter, (ColorFormatter, CompactFormatter))
         for h in root_logger.handlers
     )
     if not console_exists:
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(ColorFormatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+        if use_colors:
+            console_handler.setFormatter(
+                ColorFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
+            )
+        else:
+            console_handler.setFormatter(
+                CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
+            )
         root_logger.addHandler(console_handler)
 
     # File handler (folio.log)
