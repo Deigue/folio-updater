@@ -18,6 +18,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Security
 
+## [0.4.0] - 2025-11-06
+
+### Added
+
+- `download` now supports Wealthsimple
+
+### Changed
+
+- Credential storage is prompt-based instead of argument-based for better security
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Parquet is automatically generated when only db file is present
+- Allow `SPLIT` transactions to be properly imported (Amount and Fee are now optional)
+- Only apply console colorization if terminal supports it
+
+### Security
+
 ## [0.3.0] - 2025-10-23
 
 ### Added
