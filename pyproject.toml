@@ -87,8 +87,8 @@ banned-module-level-imports = ["pandas_market_calendars"]
 [tool.uv]
 managed = true
 
-#[tool.uv.sources]
-#ws-api = { path = "../ws-api-python", editable = true }
+[tool.uv.sources]
+ws-api = { path = "../ws-api-python", editable = true }
 
 [dependency-groups]
 dev = [
