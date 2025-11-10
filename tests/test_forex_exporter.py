@@ -63,7 +63,7 @@ def test_forex_export_parquet(
 
         # Verify Parquet file created with expected data
         assert parquet_path.exists()
-        fx_parquet = pd.read_parquet(parquet_path, engine="pyarrow")
+        fx_parquet = pd.read_parquet(parquet_path, engine="fastparquet")
         assert len(fx_parquet) >= 35  # expect atleast 35+ days with stat holidays
         assert result == len(fx_parquet)
 
@@ -109,7 +109,7 @@ def test_forex_export_parquet(
             result_update = exporter.export_forex()
 
         # Verify Parquet updated with all data (including new fetched data)
-        fx_parquet_after = pd.read_parquet(parquet_path, engine="pyarrow")
+        fx_parquet_after = pd.read_parquet(parquet_path, engine="fastparquet")
         assert len(fx_parquet_after) >= 20  # Old 10 + new ~10
         assert result_update == len(fx_parquet_after)
 

@@ -190,8 +190,8 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert_cli_success(result)
         assert "Excel workbook generated successfully" in result.stdout
         assert config.folio_path.exists()
-        transactions_parquet = pd.read_parquet(config.txn_parquet, engine="pyarrow")
-        tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="pyarrow")
+        transactions_parquet = pd.read_parquet(config.txn_parquet, engine="fastparquet")
+        tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
         transactions_excel = pd.read_excel(
             config.folio_path,
             sheet_name=config.txn_sheet,

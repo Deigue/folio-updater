@@ -64,7 +64,7 @@ class ExcelExporter:
         logger.info("Reading Parquet files from %s...", self.data_path)
 
         try:
-            transactions_df = pd.read_parquet(transactions_path, engine="pyarrow")
+            transactions_df = pd.read_parquet(transactions_path, engine="fastparquet")
         except (OSError, ValueError):
             logger.exception("Error reading transactions parquet")
             return None
@@ -82,7 +82,7 @@ class ExcelExporter:
                 return pd.DataFrame()
 
         try:
-            forex_df = pd.read_parquet(forex_path, engine="pyarrow")
+            forex_df = pd.read_parquet(forex_path, engine="fastparquet")
             logger.debug("Loaded %d FX rates", len(forex_df))
         except (OSError, ValueError):
             logger.warning("Error reading forex parquet")
@@ -100,7 +100,7 @@ class ExcelExporter:
                 return pd.DataFrame()
 
         try:
-            tickers_df = pd.read_parquet(tickers_path, engine="pyarrow")
+            tickers_df = pd.read_parquet(tickers_path, engine="fastparquet")
             logger.debug("Loaded %d tickers", len(tickers_df))
         except (OSError, ValueError):
             logger.warning("Error reading tickers parquet")

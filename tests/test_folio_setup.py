@@ -39,14 +39,14 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         assert config.tkr_parquet.exists()
         # * forex is tested separately
 
-        tickers_df = pd.read_parquet(config.tkr_parquet, engine="pyarrow")
+        tickers_df = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
         assert tickers_df.shape == (len(DEFAULT_TICKERS), 1)
         assert set(tickers_df.columns) == {Column.Ticker.TICKER}
         assert sorted(tickers_df[Column.Ticker.TICKER].tolist()) == sorted(
             DEFAULT_TICKERS,
         )
 
-        txns_df = pd.read_parquet(config.txn_parquet, engine="pyarrow")
+        txns_df = pd.read_parquet(config.txn_parquet, engine="fastparquet")
         txns_df = txns_df.where(pd.notna(txns_df), None)
         assert not txns_df.empty
         txn_lists = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
@@ -64,7 +64,7 @@ def test_data_creation(temp_ctx: TempContext) -> None:
 
         # Repeat call data remains same.
         ensure_data_exists()
-        txns_df_2 = pd.read_parquet(config.txn_parquet, engine="pyarrow")
+        txns_df_2 = pd.read_parquet(config.txn_parquet, engine="fastparquet")
         pd_testing.assert_frame_equal(txns_df, txns_df_2)
 
 

@@ -27,7 +27,7 @@ LOG_FORMAT = "%(asctime)s %(levelname)-8s %(module)s:%(lineno)4d %(message)s"
 DATE_FORMAT = "%m-%d %H:%M:%S"
 
 
-def _supports_color() -> bool:
+def _supports_color() -> bool: # pragma: no cover
     """Check if the terminal supports ANSI color codes.
 
     Returns:
@@ -69,7 +69,7 @@ class CompactFormatter(logging.Formatter):
         return result
 
 
-class ColorFormatter(CompactFormatter):
+class ColorFormatter(CompactFormatter): # pragma: no cover
     """Custom formatter to colorize log levels in console output."""
 
     def format(self, record: logging.LogRecord) -> str:
@@ -107,7 +107,7 @@ def init_logging(level: int = logging.INFO) -> None:
     )
     if not console_exists:
         console_handler = logging.StreamHandler()
-        if use_colors:
+        if use_colors: # pragma: no cover
             console_handler.setFormatter(
                 ColorFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
             )

@@ -25,5 +25,5 @@ def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
         # Read from Parquet and verify
         parquet_path = config.txn_parquet
         assert parquet_path.exists()
-        parquet_df = pd.read_parquet(parquet_path, engine="pyarrow")
+        parquet_df = pd.read_parquet(parquet_path, engine="fastparquet")
         verify_db_contents(parquet_df, len(parquet_df))

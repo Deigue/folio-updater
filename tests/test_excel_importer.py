@@ -581,4 +581,4 @@ def test_import_statements_empty_file(
 # Helper functions
 def _get_default_dataframe(config: Config) -> pd.DataFrame:
     """Get the default DataFrame from the transactions parquet."""
-    return pd.read_parquet(config.txn_parquet, engine="pyarrow")
+    return pd.read_parquet(config.txn_parquet, engine="fastparquet")
