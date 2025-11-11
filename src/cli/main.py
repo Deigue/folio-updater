@@ -125,7 +125,7 @@ def download_cmd(
         to_date=to_date,
         token=token,
         reference_code=reference_code,
-        reset=reset
+        reset=reset,
     )
 
 

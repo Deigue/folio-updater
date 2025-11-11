@@ -79,7 +79,8 @@ exclude = [
 "*.ipynb" = ["T201", "F811","ERA001","COM812"]
 "scripts/*" = ["T201"]
 "tests/*" = ["S101", "D103", "PLR0913", "PLR2004", "T201"]
-"src/cli/main.py" = ["PLC0415"]                 # Allow function-level imports for lazy loading
+"src/cli/main.py" = ["PLC0415"]
+"src/cli/*" = ["PLR0913"]                 # Allow function-level imports for lazy loading
 
 [tool.ruff.lint.flake8-tidy-imports]
 banned-module-level-imports = ["pandas_market_calendars"]
