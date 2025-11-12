@@ -1,0 +1,1 @@
+"""Account model for Wealthsimple."""

@@ -28,7 +28,7 @@ from ws_api import (
 )
 
 from app.app_context import get_config
-from models.activity_feed_item import ActivityFeedItem
+from models.wealthsimple.activity_feed_item import ActivityFeedItem
 from utils.constants import TXN_ESSENTIALS, Action
 from utils.transforms import normalize_canadian_ticker
 

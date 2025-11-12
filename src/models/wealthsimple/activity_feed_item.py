@@ -1,4 +1,4 @@
-"""Models for parsing Wealthsimple activity feed data."""
+"""Activity Feed Item from Wealthsimple."""
 
 from dataclasses import dataclass
 from datetime import datetime
