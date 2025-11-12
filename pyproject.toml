@@ -13,7 +13,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "typer>=0.9.0",
     "keyring>=25.5.0",
-    "ws-api>=0.21.0",
+    "ws-api>=0.22.0",
 ]
 
 [project.scripts]
@@ -76,11 +76,22 @@ exclude = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"*.ipynb" = ["T201", "F811","ERA001","COM812"]
+"*.ipynb" = [
+    "T201",
+    "F811",
+    "ERA001",
+    "COM812",
+]
 "scripts/*" = ["T201"]
-"tests/*" = ["S101", "D103", "PLR0913", "PLR2004", "T201"]
+"tests/*" = [
+    "S101",
+    "D103",
+    "PLR0913",
+    "PLR2004",
+    "T201",
+]
 "src/cli/main.py" = ["PLC0415"]
-"src/cli/*" = ["PLR0913"]                 # Allow function-level imports for lazy loading
+"src/cli/*" = ["PLR0913"] # Allow function-level imports for lazy loading
 
 [tool.ruff.lint.flake8-tidy-imports]
 banned-module-level-imports = ["pandas_market_calendars"]
