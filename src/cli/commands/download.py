@@ -33,7 +33,7 @@ SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 
 
 @app.command(name="")
-def download_statements(  # noqa: PLR0913
+def download_statements(
     broker: str = typer.Option(
         "ibkr",
         "-b",
@@ -53,9 +53,9 @@ def download_statements(  # noqa: PLR0913
         help="Date in YYYY-MM-DD format (default: today)",
     ),
     *,
-    token: bool = typer.Option(
+    credentials: bool = typer.Option(
         default=False,
-        help="Prompt to set/override the flex token for IBKR",
+        help="Manage credentials for the broker",
     ),
     reference_code: str | None = typer.Option(
         None,
@@ -63,19 +63,8 @@ def download_statements(  # noqa: PLR0913
         "--reference",
         help="Reference code to retry download for IBKR",
     ),
-    reset: bool = typer.Option(
-        default=False,
-        help="Reset stored credentials for Wealthsimple and exit",
-    ),
 ) -> None:
-    """Download transactions from broker and save as CSV files.
-
-    This command downloads Flex Query statements from Interactive Brokers
-    and saves them as CSV files in the imports directory for later import.
-
-    If no flex token is found in the keyring, you will be prompted to enter it.
-    Use --token to force setting a new token (exits after setting).
-    """
+    """Download transactions from broker and save as CSV file."""
     config = bootstrap.reload_config()
     if broker not in SUPPORTED_BROKERS:
         typer.echo(
@@ -85,8 +74,8 @@ def download_statements(  # noqa: PLR0913
         )
         raise typer.Exit(1)
 
-    if reset:  # pragma: no cover
-        _handle_reset(broker)
+    if credentials:  # pragma: no cover
+        _handle_credentials(broker)
         return
 
     if broker == "wealthsimple":
@@ -97,7 +86,6 @@ def download_statements(  # noqa: PLR0913
             config=config,
             from_date=from_date,
             to_date=to_date,
-            token=token,
             reference_code=reference_code,
         )
 
@@ -107,13 +95,10 @@ def _handle_ibkr_download(
     from_date: str | None,
     to_date: str | None,
     reference_code: str | None,
-    *,
-    token: bool,
 ) -> None:
     files_downloaded: bool = False
     with IBKRService() as ibkr:
-        if _handle_ibkr_token(ibkr, token=token):
-            return
+        _ensure_ibkr_token(ibkr)
 
         if reference_code:
             _handle_ibkr_reference_code(ibkr, reference_code)
@@ -152,18 +137,12 @@ def _handle_ibkr_download(
         typer.echo("\n⚠ No transactions downloaded")
 
 
-def _handle_ibkr_token(ibkr: IBKRService, *, token: bool) -> bool:
-    if token:
-        typer.echo("Setting new IBKR flex token...")
-        new_token = typer.prompt(
-            "Enter your IBKR flex token",
-            hide_input=True,
-            confirmation_prompt=True,
-        )
-        ibkr.set_token(new_token)
-        typer.echo("✓ Flex token stored securely")
-        return True
+def _ensure_ibkr_token(ibkr: IBKRService) -> None:
+    """Ensure IBKR token exists, prompting if necessary.
 
+    Args:
+        ibkr: The IBKR service instance.
+    """
     try:
         ibkr.get_token()
     except IBKRServiceError:
@@ -175,7 +154,6 @@ def _handle_ibkr_token(ibkr: IBKRService, *, token: bool) -> bool:
         )
         ibkr.set_token(new_token)
         typer.echo("✓ Flex token stored securely")
-    return False
 
 
 def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
@@ -187,19 +165,32 @@ def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
         raise typer.Exit(1) from None
 
 
-def _handle_reset(broker: str) -> None:  # pragma: no cover
-    """Reset stored credentials for the specified broker.
+def _handle_credentials(broker: str) -> None:  # pragma: no cover
+    """Manage credentials for the specified broker.
+
+    For IBKR, prompts to set/override the flex token.
+    For Wealthsimple, resets stored credentials.
 
     Args:
-        broker: The broker identifier to reset credentials for.
+        broker: The broker identifier.
     """
-    if broker == "wealthsimple":
+    if broker == "ibkr":
+        typer.echo("Setting new IBKR flex token...")
+        with IBKRService() as ibkr:
+            new_token = typer.prompt(
+                "Enter your IBKR flex token",
+                hide_input=True,
+                confirmation_prompt=True,
+            )
+            ibkr.set_token(new_token)
+            typer.echo("✓ Flex token stored securely")
+    elif broker == "wealthsimple":
         ws = WealthsimpleService()
         ws.reset_credentials()
         typer.echo("✓ Wealthsimple credentials reset successfully")
     else:
         typer.echo(
-            f"Credential reset not supported for broker '{broker}'",
+            f"Credential management not supported for broker '{broker}'",
             err=True,
         )
         raise typer.Exit(1)

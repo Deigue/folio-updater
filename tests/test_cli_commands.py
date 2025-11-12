@@ -325,8 +325,8 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
             "setup_db",
         ),
         (
-            "token_override",
-            ["--token"],
+            "credentials_ibkr",
+            ["--credentials"],
             None,
             "Setting new IBKR flex token",
             "setup_token_override",

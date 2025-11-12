@@ -59,10 +59,10 @@ This guide explains how to set up and use the Interactive Brokers (IBKR) integra
     > `Activity` Flex Queries can only be produced upto yesterday's date. Attempting to download today's date will result in an error. \
     > The `to_date` fallback mechanism will handle this automatically, as long as the query name contains `Activity`.
 
-2. **Set Flex Token**: When you first run the download command, you will be prompted to enter your IBKR Flex Token. To force setting a new token (override existing), use the `--token` flag
+2. **Set Flex Token**: When you first run the download command, you will be prompted to enter your IBKR Flex Token. To force setting a new token (override existing), use the `--credentials` flag
 
     ```bash
-    folio download --broker ibkr --token
+    folio download --broker ibkr --credentials
     ```
 
     > [!TIP]
@@ -107,7 +107,7 @@ folio download [OPTIONS]
 - `--broker, -b`: Broker to download from (e.g. ibkr)
 - `--from, -f`: Date in YYYY-MM-DD format (default: latest transaction from broker)
 - `--to, -t`: Date in YYYY-MM-DD format (default: today)
-- `--token`: Prompt to set/override the flex token for IBKR (exits after setting)
+- `--credentials`: Manage credentials (set/override IBKR flex token)
 - `--reference, -r`: Reference code to retry download for IBKR
 
 ## Troubleshooting
@@ -117,7 +117,7 @@ folio download [OPTIONS]
 If you get authentication errors:
 
 1. Verify your token is correct
-2. Re-set the token: `folio download --broker ibkr --token`
+2. Re-set the token: `folio download --broker ibkr --credentials`
 3. Check that your IBKR account has Flex Query access
 
 ### Query ID Issues

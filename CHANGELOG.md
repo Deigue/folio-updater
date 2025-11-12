@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - Use `fastparquet` as default Parquet engine instead of `pyarrow` for better performance and lower memory usage
+- Consolidated credential management flag to `--credentials` for `download`
 
 ### Deprecated
 

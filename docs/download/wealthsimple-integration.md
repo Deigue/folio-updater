@@ -80,5 +80,5 @@ folio import --dir data/imports/
 If you need to reset your Wealthsimple credentials (e.g., to switch accounts or fix authentication issues):
 
 ```bash
-folio download --broker wealthsimple --reset
+folio download --broker wealthsimple --credentials
 ```

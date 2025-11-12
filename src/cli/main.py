@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import typer
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 app = typer.Typer(
     name="folio",
@@ -101,19 +101,15 @@ def download_cmd(
         help="Date in YYYY-MM-DD format (default: today)",
     ),
     *,
-    token: bool = typer.Option(
+    credentials: bool = typer.Option(
         default=False,
-        help="Prompt to set/override the flex token for IBKR",
+        help="Manage credentials for the broker",
     ),
     reference_code: str | None = typer.Option(
         None,
         "-r",
         "--reference",
         help="Reference code to retry download for IBKR",
-    ),
-    reset: bool = typer.Option(
-        default=False,
-        help="Reset stored credentials for Wealthsimple and exit",
     ),
 ) -> None:
     """Download transactions from broker and save as CSV files."""
@@ -123,9 +119,8 @@ def download_cmd(
         broker=broker,
         from_date=from_date,
         to_date=to_date,
-        token=token,
+        credentials=credentials,
         reference_code=reference_code,
-        reset=reset,
     )
 
 
