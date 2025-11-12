@@ -36,7 +36,7 @@ def from_datetime(x: str) -> datetime:
     return dateutil.parser.parse(x)
 
 
-def to_class[T](c: type[T], x: T) -> dict:  # pragma: no cover
+def to_class[T](c: type[T], x: T) -> dict:
     """Convert an object to its dictionary representation.
 
     Args:
@@ -239,7 +239,7 @@ class ActivityFeedItem:
             description,
         )
 
-    def to_dict(self) -> dict:  # pragma: no cover
+    def to_dict(self) -> dict:
         """Convert ActivityFeedItem to dictionary representation.
 
         Returns:

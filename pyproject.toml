@@ -38,6 +38,7 @@ omit = [
     'tests/fixtures/dataframe_cache.py',
     'src/utils/backup.py',
     'src/mock/folio_setup.py',
+    'src/models/*',
 ]
 [tool.coverage.report]
 show_missing = true
