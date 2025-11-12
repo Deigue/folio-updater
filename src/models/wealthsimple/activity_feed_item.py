@@ -3,60 +3,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-import dateutil.parser
-
-
-def from_str(x: str | None) -> str | None:
-    """Validate and return a string value or None.
-
-    Args:
-        x: The value to validate as a string or None.
-
-    Returns:
-        The input string value or None.
-
-    Raises:
-        TypeError: If x is not a string or None.
-    """
-    if x is not None and not isinstance(x, str):
-        msg = f"Expected str or None, got {type(x).__name__}"
-        raise TypeError(msg)
-    return x
-
-
-def from_datetime(x: str) -> datetime:
-    """Parse and return a datetime value from a string.
-
-    Args:
-        x: ISO format datetime string to parse.
-
-    Returns:
-        Parsed datetime object.
-    """
-    return dateutil.parser.parse(x)
-
-
-def to_class[T](c: type[T], x: T) -> dict:
-    """Convert an object to its dictionary representation.
-
-    Args:
-        c: The class type of the object.
-        x: The object instance to convert.
-
-    Returns:
-        Dictionary representation of the object.
-
-    Raises:
-        TypeError: If x is not an instance of c.
-    """
-    if not isinstance(x, c):
-        msg = f"Expected instance of {c.__name__}, got {type(x).__name__}"
-        raise TypeError(msg)
-    return x.to_dict()  # type: ignore[attr-defined]
+from models.base import BaseModel, from_datetime, from_str
 
 
 @dataclass
-class ActivityFeedItem:
+class ActivityFeedItem(BaseModel):
     """Represents an activity feed item from Wealthsimple API.
 
     Attributes:
