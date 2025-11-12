@@ -57,6 +57,10 @@ def download_statements(
         default=False,
         help="Reset credentials for the broker",
     ),
+    statement: bool = typer.Option(
+        default=False,
+        help="Download monthly statement using from date (Wealthsimple only)",
+    ),
     reference_code: str | None = typer.Option(
         None,
         "-r",
@@ -79,7 +83,10 @@ def download_statements(
         return
 
     if broker == "wealthsimple":
-        wealthsimple_transactions(from_date, to_date)
+        if statement and from_date:
+            wealthsimple_statement(from_date)
+        else:
+            wealthsimple_transactions(from_date, to_date)
 
     if broker == "ibkr":
         _handle_ibkr_download(
@@ -212,7 +219,6 @@ def wealthsimple_transactions(
     from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
         tzinfo=TORONTO_TZ,
     )
-    typer.echo(f"From Date: {from_dt.isoformat()}")
     to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
         tzinfo=TORONTO_TZ,
     )
@@ -235,6 +241,20 @@ def wealthsimple_transactions(
         typer.echo("  folio import --dir default")
     else:
         typer.echo("\n⚠ No transactions downloaded")
+
+
+def wealthsimple_statement(from_date: str) -> None:
+    """Retrieve wealthsimple monthly statement.
+
+    Args:
+        from_date (str | None): From date string in YYYY-MM-DD format.
+            Example: '2024-05-01' for May 2024 statement.
+    """
+    ws = WealthsimpleService()
+    accounts = [a["id"] for a in ws.get_accounts()]
+    for account_id in accounts:
+        statement = ws.get_monthly_statement(account_id, from_date)
+        print(statement)
 
 
 def _resolve_from_date(

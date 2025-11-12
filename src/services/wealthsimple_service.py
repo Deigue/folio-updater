@@ -382,6 +382,25 @@ class WealthsimpleService:
         )
         return [ActivityFeedItem.from_dict(activity) for activity in (activities or [])]
 
+    def get_monthly_statement(self, account_id: str, period: str) -> list[Any]:
+        """Get monthly statement for a given period.
+
+        Args:
+            account_id: The ID of the account to retrieve the statement for
+            period: Date in 'YYYY-MM-DD' format
+                Example: '2024-05-01' for May 2024 statement.
+
+        Returns:
+            List of statement entries
+
+        Raises:
+            WealthsimpleServiceError: If API not initialized
+        """
+        ws = self.ensure_authenticated()
+        statement = ws.get_statement_transactions(account_id, period)
+        logger.info("RETRIEVED monthly statement for period: %s", period)
+        return statement
+
     def get_account_balances(
         self,
         account_id: str,

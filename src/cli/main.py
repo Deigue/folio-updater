@@ -105,6 +105,10 @@ def download_cmd(
         default=False,
         help="Reset credentials for the broker",
     ),
+    statement: bool = typer.Option(
+        default=False,
+        help="Download monthly statement using from date (Wealthsimple only)",
+    ),
     reference_code: str | None = typer.Option(
         None,
         "-r",
@@ -120,6 +124,7 @@ def download_cmd(
         from_date=from_date,
         to_date=to_date,
         credentials=credentials,
+        statement=statement,
         reference_code=reference_code,
     )
 
