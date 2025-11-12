@@ -8,7 +8,7 @@ from models.base import BaseModel, from_datetime, from_str
 
 @dataclass
 class ActivityFeedItem(BaseModel):
-    """Represents an activity feed item from Wealthsimple API.
+    """Activity feed item from Wealthsimple API.
 
     Attributes:
         account_id: The account identifier.
@@ -71,7 +71,7 @@ class ActivityFeedItem(BaseModel):
 
     @staticmethod
     def from_dict(obj: dict) -> "ActivityFeedItem":
-        """Create ActivityFeedItem from dictionary.
+        """Create ActivityFeedItem from a dictionary.
 
         Args:
             obj: Dictionary containing activity feed item data.
