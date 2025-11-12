@@ -55,7 +55,7 @@ def download_statements(
     *,
     credentials: bool = typer.Option(
         default=False,
-        help="Manage credentials for the broker",
+        help="Reset credentials for the broker",
     ),
     reference_code: str | None = typer.Option(
         None,
