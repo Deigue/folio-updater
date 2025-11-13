@@ -71,17 +71,7 @@ class ActivityFeedItem(BaseModel):
 
     @staticmethod
     def from_dict(obj: dict) -> "ActivityFeedItem":
-        """Create ActivityFeedItem from a dictionary.
-
-        Args:
-            obj: Dictionary containing activity feed item data.
-
-        Returns:
-            Parsed activity feed item instance.
-
-        Raises:
-            TypeError: If obj is not a dictionary.
-        """
+        """Create ActivityFeedItem from a dictionary."""
         if not isinstance(obj, dict):
             msg = f"Expected dict, got {type(obj).__name__}"
             raise TypeError(msg)
@@ -191,11 +181,7 @@ class ActivityFeedItem(BaseModel):
         )
 
     def to_dict(self) -> dict:
-        """Convert ActivityFeedItem to dictionary representation.
-
-        Returns:
-            Dictionary representation of the activity feed item.
-        """
+        """Convert ActivityFeedItem to a dictionary representation."""
         result: dict = {}
         result["accountId"] = from_str(self.account_id)
         result["aftOriginatorName"] = from_str(self.aft_originator_name)
