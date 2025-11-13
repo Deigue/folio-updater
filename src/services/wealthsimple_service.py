@@ -30,6 +30,9 @@ from ws_api import (
 from app.app_context import get_config
 from models.wealthsimple.account import Account
 from models.wealthsimple.activity_feed_item import ActivityFeedItem
+from models.wealthsimple.monthly_statement_txn import (
+    BrokerageMonthlyStatementTransaction,
+)
 from utils.constants import TXN_ESSENTIALS, Action
 from utils.transforms import normalize_canadian_ticker
 
@@ -388,7 +391,11 @@ class WealthsimpleService:
         )
         return [ActivityFeedItem.from_dict(activity) for activity in (activities or [])]
 
-    def get_monthly_statement(self, account_id: str, period: str) -> list[Any]:
+    def get_monthly_statement(
+        self,
+        account_id: str,
+        period: str,
+    ) -> list[BrokerageMonthlyStatementTransaction]:
         """Get monthly statement for a given period.
 
         Args:
@@ -397,7 +404,7 @@ class WealthsimpleService:
                 Example: '2024-05-01' for May 2024 statement.
 
         Returns:
-            List of statement entries
+            List of BrokerageMonthlyStatementTransaction entries
 
         Raises:
             WealthsimpleServiceError: If API not initialized
@@ -405,7 +412,10 @@ class WealthsimpleService:
         ws = self.ensure_authenticated()
         statement = ws.get_statement_transactions(account_id, period)
         logger.info("RETRIEVED monthly statement for period: %s", period)
-        return statement
+        return [
+            BrokerageMonthlyStatementTransaction.from_dict(txn)
+            for txn in (statement or [])
+        ]
 
     def get_account_balances(
         self,
