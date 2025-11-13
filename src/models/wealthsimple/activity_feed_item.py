@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from models.base import BaseModel, from_datetime, from_str
+from models.base import SerializableModel, from_datetime, from_str
 
 
 @dataclass
-class ActivityFeedItem(BaseModel):
+class ActivityFeedItem(SerializableModel):
     """Activity feed item from Wealthsimple API.
 
     Attributes:
