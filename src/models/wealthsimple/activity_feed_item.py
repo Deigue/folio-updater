@@ -8,20 +8,7 @@ from models.base import SerializableModel, from_datetime, from_str
 
 @dataclass
 class ActivityFeedItem(SerializableModel):
-    """Activity feed item from Wealthsimple API.
-
-    Attributes:
-        account_id: The account identifier.
-        occurred_at: The timestamp when the activity occurred.
-        amount: The transaction amount.
-        asset_symbol: The symbol of the asset involved.
-        security_id: The security identifier.
-        status: The status of the transaction.
-        sub_type: The sub-type of the transaction.
-        type: The type of transaction.
-        typename: The GraphQL typename.
-        description: Description of the activity.
-    """
+    """Activity feed item from Wealthsimple API."""
 
     account_id: str | None
     aft_originator_name: str | None
@@ -72,10 +59,6 @@ class ActivityFeedItem(SerializableModel):
     @staticmethod
     def from_dict(obj: dict) -> "ActivityFeedItem":
         """Create ActivityFeedItem from a dictionary."""
-        if not isinstance(obj, dict):
-            msg = f"Expected dict, got {type(obj).__name__}"
-            raise TypeError(msg)
-
         account_id = from_str(obj.get("accountId"))
         aft_originator_name = from_str(obj.get("aftOriginatorName"))
         aft_transaction_category = from_str(
@@ -179,65 +162,3 @@ class ActivityFeedItem(SerializableModel):
             typename,
             description,
         )
-
-    def to_dict(self) -> dict:
-        """Convert ActivityFeedItem to a dictionary representation."""
-        result: dict = {}
-        result["accountId"] = from_str(self.account_id)
-        result["aftOriginatorName"] = from_str(self.aft_originator_name)
-        result["aftTransactionCategory"] = from_str(
-            self.aft_transaction_category,
-        )
-        result["aftTransactionType"] = from_str(self.aft_transaction_type)
-        result["amount"] = from_str(self.amount)
-        result["amountSign"] = from_str(self.amount_sign)
-        result["assetQuantity"] = from_str(self.asset_quantity)
-        result["assetSymbol"] = from_str(self.asset_symbol)
-        result["canonicalId"] = from_str(self.canonical_id)
-        result["currency"] = from_str(self.currency)
-        result["eTransferEmail"] = from_str(self.e_transfer_email)
-        result["eTransferName"] = from_str(self.e_transfer_name)
-        result["externalCanonicalId"] = from_str(self.external_canonical_id)
-        result["identityId"] = from_str(self.identity_id)
-        result["institutionName"] = from_str(self.institution_name)
-        result["occurredAt"] = self.occurred_at.isoformat()
-        result["p2pHandle"] = from_str(self.p2_p_handle)
-        result["p2pMessage"] = from_str(self.p2_p_message)
-        result["spendMerchant"] = from_str(self.spend_merchant)
-        result["securityId"] = from_str(self.security_id)
-        result["billPayCompanyName"] = from_str(self.bill_pay_company_name)
-        result["billPayPayeeNickname"] = from_str(
-            self.bill_pay_payee_nickname,
-        )
-        result["redactedExternalAccountNumber"] = from_str(
-            self.redacted_external_account_number,
-        )
-        result["opposingAccountId"] = from_str(self.opposing_account_id)
-        result["status"] = from_str(self.status)
-        result["subType"] = from_str(self.sub_type)
-        result["type"] = from_str(self.type)
-        result["strikePrice"] = from_str(self.strike_price)
-        result["contractType"] = from_str(self.contract_type)
-        result["expiryDate"] = from_str(self.expiry_date)
-        result["chequeNumber"] = from_str(self.cheque_number)
-        result["provisionalCreditAmount"] = from_str(
-            self.provisional_credit_amount,
-        )
-        result["primaryBlocker"] = from_str(self.primary_blocker)
-        result["interestRate"] = from_str(self.interest_rate)
-        result["frequency"] = from_str(self.frequency)
-        result["counterAssetSymbol"] = from_str(self.counter_asset_symbol)
-        result["rewardProgram"] = from_str(self.reward_program)
-        result["counterPartyCurrency"] = from_str(
-            self.counter_party_currency,
-        )
-        result["counterPartyCurrencyAmount"] = from_str(
-            self.counter_party_currency_amount,
-        )
-        result["counterPartyName"] = from_str(self.counter_party_name)
-        result["fxRate"] = from_str(self.fx_rate)
-        result["fees"] = from_str(self.fees)
-        result["reference"] = from_str(self.reference)
-        result["__typename"] = from_str(self.typename)
-        result["description"] = from_str(self.description)
-        return result
