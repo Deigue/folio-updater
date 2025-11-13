@@ -28,6 +28,7 @@ from ws_api import (
 )
 
 from app.app_context import get_config
+from models.wealthsimple.account import Account
 from models.wealthsimple.activity_feed_item import ActivityFeedItem
 from utils.constants import TXN_ESSENTIALS, Action
 from utils.transforms import normalize_canadian_ticker
@@ -325,22 +326,27 @@ class WealthsimpleService:
                 raise WealthsimpleAuthenticationError(msg)
         return self._ws_api
 
-    def get_accounts(self) -> list[dict[str, Any]]:
+    def get_accounts(self) -> list[Account]:
         """Get all Wealthsimple accounts.
 
         Returns:
-            List of account dictionaries
+            List of Account objects
 
         Raises:
             WealthsimpleServiceError: If API not initialized
         """
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
+        accounts = [Account.from_dict(a) for a in accounts]
         config = get_config()
         ws_config = config.brokers.get("wealthsimple", {})
         if ws_config.get("exclude_accounts"):
             excluded = ws_config["exclude_accounts"]
-            accounts = [a for a in accounts if a["description"] not in excluded]
+            accounts = [
+                a
+                for a in accounts
+                if a.description is not None and a.description not in excluded
+            ]
             logger.debug("EXCLUDED accounts %s", excluded)
 
         logger.debug("RETRIEVED %d accounts", len(accounts))

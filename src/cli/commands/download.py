@@ -223,7 +223,7 @@ def wealthsimple_transactions(
         tzinfo=TORONTO_TZ,
     )
 
-    accounts = [a["id"] for a in ws.get_accounts()]
+    accounts = [a.id for a in ws.get_accounts()]
     activities: list[ActivityFeedItem] = ws.get_activities(
         accounts,
         from_dt,
@@ -251,7 +251,7 @@ def wealthsimple_statement(from_date: str) -> None:
             Example: '2024-05-01' for May 2024 statement.
     """
     ws = WealthsimpleService()
-    accounts = [a["id"] for a in ws.get_accounts()]
+    accounts = [a.id for a in ws.get_accounts()]
     for account_id in accounts:
         statement = ws.get_monthly_statement(account_id, from_date)
         print(statement)
