@@ -25,6 +25,27 @@ def from_str(x: str | None) -> str | None:
     return x
 
 
+def from_str_strict(x: str | None) -> str:
+    """Validate and return a string value or raise an error.
+
+    Args:
+        x: The value to validate as a string or None.
+
+    Returns:
+        The input string value.
+
+    Raises:
+        TypeError: If x is not a string.
+    """
+    if x is None:
+        msg = "Expected str, got None"
+        raise TypeError(msg)
+    if not isinstance(x, str):
+        msg = f"Expected str, got {type(x).__name__}"
+        raise TypeError(msg)
+    return x
+
+
 def from_bool(x: object) -> bool:
     """Validate and return a boolean value.
 
@@ -78,23 +99,6 @@ def from_list[T](f: Callable[[object], T], x: object) -> list[T]:
         msg = f"Expected list, got {type(x).__name__}"
         raise TypeError(msg)
     return [f(y) for y in x]
-
-
-def from_none(x: object) -> None:
-    """Validate that a value is None.
-
-    Args:
-        x: The value to validate.
-
-    Returns:
-        None if x is None.
-
-    Raises:
-        TypeError: If x is not None.
-    """
-    if x is not None:
-        msg = f"Expected None, got {type(x).__name__}"
-        raise TypeError(msg)
 
 
 def to_enum[T](c: type[T], x: object) -> str:

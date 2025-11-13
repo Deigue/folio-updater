@@ -9,8 +9,8 @@ from models.base import (
     from_datetime,
     from_int,
     from_list,
-    from_none,
     from_str,
+    from_str_strict,
     to_class,
     to_enum,
 )
@@ -72,7 +72,7 @@ class AccountOwner:
         result: dict = {}
         result["accountId"] = from_str(self.account_id)
         result["identityId"] = from_str(self.identity_id)
-        result["accountNickname"] = from_none(self.account_nickname)
+        result["accountNickname"] = from_str(self.account_nickname)
         result["clientCanonicalId"] = from_str(self.client_canonical_id)
         result["accountOpeningAgreementsSigned"] = from_bool(
             self.account_opening_agreements_signed,
@@ -80,7 +80,7 @@ class AccountOwner:
         result["name"] = from_str(self.name)
         result["email"] = from_str(self.email)
         result["ownershipType"] = from_str(self.ownership_type)
-        result["activeInvitation"] = from_none(self.active_invitation)
+        result["activeInvitation"] = from_str(self.active_invitation)
         result["sentInvitations"] = from_list(lambda x: x, self.sent_invitations)
         result["__typename"] = from_str(self.typename)
         return result
@@ -138,7 +138,7 @@ class SimpleReturns:
             msg = "Missing 'amount' field in SimpleReturns dictionary"
             raise ValueError(msg)
         amount = Money.from_dict(amount_dict)
-        as_of = from_none(obj.get("asOf"))
+        as_of = from_str(obj.get("asOf"))
         rate = from_str(obj.get("rate"))
         reference_date_raw = obj.get("referenceDate")
         if reference_date_raw is None:
@@ -152,7 +152,7 @@ class SimpleReturns:
         """Convert SimpleReturns to a dictionary representation."""
         result: dict = {}
         result["amount"] = to_class(Money, self.amount)
-        result["asOf"] = from_none(self.as_of)
+        result["asOf"] = from_str(self.as_of)
         result["rate"] = from_str(self.rate)
         result["referenceDate"] = self.reference_date.isoformat()
         result["__typename"] = from_str(self.typename)
@@ -207,7 +207,10 @@ class AccountCurrentFinancials:
 
         total_withdrawals_dict = obj.get("totalWithdrawals")
         if total_withdrawals_dict is None:
-            msg = "Missing 'totalWithdrawals' field in AccountCurrentFinancials dictionary"
+            msg = (
+                "Missing 'totalWithdrawals' field in "
+                "AccountCurrentFinancials dictionary"
+            )
             raise ValueError(msg)
         total_withdrawals = Money.from_dict(total_withdrawals_dict)
 
@@ -268,6 +271,179 @@ class AccountFinancials:
 
 
 @dataclass
+class CustodianAccountCurrentFinancialValues:
+    """Custodian account current financial values."""
+
+    deposits: Money
+    earnings: Money
+    net_deposits: Money
+    net_liquidation_value: Money
+    withdrawals: Money
+    typename: str | None
+
+    @staticmethod
+    def from_dict(obj: dict) -> "CustodianAccountCurrentFinancialValues":
+        """Create CustodianAccountCurrentFinancialValues from a dictionary."""
+        if not isinstance(obj, dict):
+            msg = f"Expected dict, got {type(obj).__name__}"
+            raise TypeError(msg)
+        deposits_dict = obj.get("deposits")
+        if deposits_dict is None:
+            msg = (
+                "Missing 'deposits' field in "
+                "CustodianAccountCurrentFinancialValues dictionary"
+            )
+            raise ValueError(msg)
+        deposits = Money.from_dict(deposits_dict)
+
+        earnings_dict = obj.get("earnings")
+        if earnings_dict is None:
+            msg = (
+                "Missing 'earnings' field in "
+                "CustodianAccountCurrentFinancialValues dictionary"
+            )
+            raise ValueError(msg)
+        earnings = Money.from_dict(earnings_dict)
+
+        net_deposits_dict = obj.get("netDeposits")
+        if net_deposits_dict is None:
+            msg = (
+                "Missing 'netDeposits' field in "
+                "CustodianAccountCurrentFinancialValues dictionary"
+            )
+            raise ValueError(msg)
+        net_deposits = Money.from_dict(net_deposits_dict)
+
+        net_liquidation_value_dict = obj.get("netLiquidationValue")
+        if net_liquidation_value_dict is None:
+            msg = (
+                "Missing 'netLiquidationValue' field in "
+                "CustodianAccountCurrentFinancialValues dictionary"
+            )
+            raise ValueError(msg)
+        net_liquidation_value = Money.from_dict(net_liquidation_value_dict)
+
+        withdrawals_dict = obj.get("withdrawals")
+        if withdrawals_dict is None:
+            msg = (
+                "Missing 'withdrawals' field in "
+                "CustodianAccountCurrentFinancialValues dictionary"
+            )
+            raise ValueError(msg)
+        withdrawals = Money.from_dict(withdrawals_dict)
+
+        typename = from_str(obj.get("__typename"))
+        return CustodianAccountCurrentFinancialValues(
+            deposits,
+            earnings,
+            net_deposits,
+            net_liquidation_value,
+            withdrawals,
+            typename,
+        )
+
+    def to_dict(self) -> dict:
+        """CustodianAccountCurrentFinancialValues to dict."""
+        result: dict = {}
+        result["deposits"] = to_class(Money, self.deposits)
+        result["earnings"] = to_class(Money, self.earnings)
+        result["netDeposits"] = to_class(Money, self.net_deposits)
+        result["netLiquidationValue"] = to_class(Money, self.net_liquidation_value)
+        result["withdrawals"] = to_class(Money, self.withdrawals)
+        result["__typename"] = from_str(self.typename)
+        return result
+
+
+@dataclass
+class CustodianAccountFinancialsSo:
+    """Custodian account financials SO information."""
+
+    current: CustodianAccountCurrentFinancialValues
+    typename: str | None
+
+    @staticmethod
+    def from_dict(obj: dict) -> "CustodianAccountFinancialsSo":
+        """Create CustodianAccountFinancialsSo from a dictionary."""
+        if not isinstance(obj, dict):
+            msg = f"Expected dict, got {type(obj).__name__}"
+            raise TypeError(msg)
+        current_dict = obj.get("current")
+        if current_dict is None:
+            msg = "Missing 'current' field in CustodianAccountFinancialsSo dictionary"
+            raise ValueError(msg)
+        current = CustodianAccountCurrentFinancialValues.from_dict(current_dict)
+        typename = from_str(obj.get("__typename"))
+        return CustodianAccountFinancialsSo(current, typename)
+
+    def to_dict(self) -> dict:
+        """Convert CustodianAccountFinancialsSo to a dictionary representation."""
+        result: dict = {}
+        result["current"] = to_class(
+            CustodianAccountCurrentFinancialValues,
+            self.current,
+        )
+        result["__typename"] = from_str(self.typename)
+        return result
+
+
+@dataclass
+class CustodianAccount:
+    """Custodian account information."""
+
+    id: str | None
+    branch: str | None
+    custodian: str | None
+    status: str | None
+    updated_at: datetime | None
+    typename: str | None
+    financials: CustodianAccountFinancialsSo
+
+    @staticmethod
+    def from_dict(obj: dict) -> "CustodianAccount":
+        """Create CustodianAccount from a dictionary."""
+        if not isinstance(obj, dict):
+            msg = f"Expected dict, got {type(obj).__name__}"
+            raise TypeError(msg)
+        account_id = from_str(obj.get("id"))
+        branch = from_str(obj.get("branch"))
+        custodian = from_str(obj.get("custodian"))
+        status = from_str(obj.get("status"))
+        updated_at_raw = obj.get("updatedAt")
+        updated_at = (
+            from_datetime(updated_at_raw) if updated_at_raw is not None else None
+        )
+        typename = from_str(obj.get("__typename"))
+        financials_dict = obj.get("financials")
+        if financials_dict is None:
+            msg = "Missing 'financials' field in CustodianAccount dictionary"
+            raise ValueError(msg)
+        financials = CustodianAccountFinancialsSo.from_dict(financials_dict)
+        return CustodianAccount(
+            account_id,
+            branch,
+            custodian,
+            status,
+            updated_at,
+            typename,
+            financials,
+        )
+
+    def to_dict(self) -> dict:
+        """Convert CustodianAccount to a dictionary representation."""
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["branch"] = from_str(self.branch)
+        result["custodian"] = from_str(self.custodian)
+        result["status"] = from_str(self.status)
+        result["updatedAt"] = (
+            self.updated_at.isoformat() if self.updated_at is not None else None
+        )
+        result["__typename"] = from_str(self.typename)
+        result["financials"] = to_class(CustodianAccountFinancialsSo, self.financials)
+        return result
+
+
+@dataclass
 class Account:
     """Wealthsimple account data.
 
@@ -277,3 +453,169 @@ class Account:
     """
 
     id: str
+    archived_at: datetime | None
+    branch: str | None
+    closed_at: datetime | None
+    created_at: datetime
+    cache_expired_at: datetime | None
+    currency: Currency
+    required_identity_verification: str | None
+    unified_account_type: str | None
+    supported_currencies: list[Currency]
+    nickname: str | None
+    status: str | None
+    account_owner_configuration: str | None
+    account_features: list[Any]
+    account_owners: list[AccountOwner]
+    account_type: str | None
+    typename: str | None
+    linked_account: str | None
+    financials: AccountFinancials
+    custodian_accounts: list[CustodianAccount]
+    number: str | None
+    description: str | None
+
+    @staticmethod
+    def from_dict(obj: dict) -> "Account":
+        """Create Account from a dictionary."""
+        if not isinstance(obj, dict):
+            msg = f"Expected dict, got {type(obj).__name__}"
+            raise TypeError(msg)
+        account_id = from_str_strict(obj.get("id"))
+        archived_at_raw = obj.get("archivedAt")
+        archived_at = (
+            from_datetime(archived_at_raw) if archived_at_raw is not None else None
+        )
+        branch = from_str(obj.get("branch"))
+        closed_at_raw = obj.get("closedAt")
+        closed_at = from_datetime(closed_at_raw) if closed_at_raw is not None else None
+        created_at_raw = obj.get("createdAt")
+        if created_at_raw is None:
+            msg = "Missing 'createdAt' field in Account dictionary"
+            raise ValueError(msg)
+        created_at = from_datetime(created_at_raw)
+        cache_expired_at_raw = obj.get("cacheExpiredAt")
+        cache_expired_at = (
+            from_datetime(cache_expired_at_raw)
+            if cache_expired_at_raw is not None
+            else None
+        )
+        currency = Currency(obj.get("currency"))
+        required_identity_verification = from_str(
+            obj.get("requiredIdentityVerification"),
+        )
+        unified_account_type = from_str(obj.get("unifiedAccountType"))
+        supported_currencies = from_list(
+            lambda x: Currency(x),
+            obj.get("supportedCurrencies"),
+        )
+        nickname = from_str(obj.get("nickname"))
+        status = from_str(obj.get("status"))
+        account_owner_configuration = from_str(
+            obj.get("accountOwnerConfiguration"),
+        )
+        account_features = from_list(lambda x: x, obj.get("accountFeatures"))
+
+        def parse_account_owner(x) -> AccountOwner:  # noqa: ANN001
+            if not isinstance(x, dict):
+                msg = f"Expected dict in accountOwners list, got {type(x).__name__}"
+                raise TypeError(msg)
+            return AccountOwner.from_dict(x)
+
+        account_owners = from_list(
+            parse_account_owner,
+            obj.get("accountOwners"),
+        )
+        account_type = from_str(obj.get("type"))
+        typename = from_str(obj.get("__typename"))
+        linked_account = from_str(obj.get("linkedAccount"))
+        financials_dict = obj.get("financials")
+        if financials_dict is None:
+            msg = "Missing 'financials' field in Account dictionary"
+            raise ValueError(msg)
+        financials = AccountFinancials.from_dict(financials_dict)
+
+        def parse_custodian_account(x) -> CustodianAccount:  # noqa: ANN001
+            if not isinstance(x, dict):
+                msg = f"Expected dict in custodianAccounts list, got {type(x).__name__}"
+                raise TypeError(msg)
+            return CustodianAccount.from_dict(x)
+
+        custodian_accounts = from_list(
+            parse_custodian_account,
+            obj.get("custodianAccounts"),
+        )
+        number = from_str(obj.get("number"))
+        description = from_str(obj.get("description"))
+        return Account(
+            account_id,
+            archived_at,
+            branch,
+            closed_at,
+            created_at,
+            cache_expired_at,
+            currency,
+            required_identity_verification,
+            unified_account_type,
+            supported_currencies,
+            nickname,
+            status,
+            account_owner_configuration,
+            account_features,
+            account_owners,
+            account_type,
+            typename,
+            linked_account,
+            financials,
+            custodian_accounts,
+            number,
+            description,
+        )
+
+    def to_dict(self) -> dict:
+        """Convert the Account instance to a dictionary representation."""
+        result: dict = {}
+        result["id"] = from_str(self.id)
+        result["archivedAt"] = (
+            self.archived_at.isoformat() if self.archived_at is not None else None
+        )
+        result["branch"] = from_str(self.branch)
+        result["closedAt"] = (
+            self.closed_at.isoformat() if self.closed_at is not None else None
+        )
+        result["createdAt"] = self.created_at.isoformat()
+        result["cacheExpiredAt"] = (
+            self.cache_expired_at.isoformat()
+            if self.cache_expired_at is not None
+            else None
+        )
+        result["currency"] = to_enum(Currency, self.currency)
+        result["requiredIdentityVerification"] = from_str(
+            self.required_identity_verification,
+        )
+        result["unifiedAccountType"] = from_str(self.unified_account_type)
+        result["supportedCurrencies"] = from_list(
+            lambda x: to_enum(Currency, x),
+            self.supported_currencies,
+        )
+        result["nickname"] = from_str(self.nickname)
+        result["status"] = from_str(self.status)
+        result["accountOwnerConfiguration"] = from_str(
+            self.account_owner_configuration,
+        )
+        result["accountFeatures"] = from_list(lambda x: x, self.account_features)
+        result["accountOwners"] = from_list(
+            lambda x: to_class(AccountOwner, x),
+            self.account_owners,
+        )
+        result["type"] = from_str(self.account_type)
+        result["__typename"] = from_str(self.typename)
+        result["linkedAccount"] = from_str(self.linked_account)
+        result["financials"] = to_class(AccountFinancials, self.financials)
+        result["custodianAccounts"] = from_list(
+            lambda x: to_class(CustodianAccount, x),
+            self.custodian_accounts,
+        )
+        result["number"] = from_str(self.number)
+        result["description"] = from_str(self.description)
+        return result
