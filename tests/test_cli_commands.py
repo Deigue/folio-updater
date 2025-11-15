@@ -24,8 +24,10 @@ from tests.fixtures.ibkr_mocking import (
 )
 from tests.fixtures.wealthsimple_mocking import (
     WealthsimpleMockContext,
-    get_default_mock_activities,
+    get_expected_statement_txn_csv,
     get_expected_wealthsimple_csv,
+    get_mock_activities,
+    get_mock_statement_transactions,
 )
 from utils.constants import Column, Table
 
@@ -352,6 +354,13 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
             "No transactions downloaded",
             "setup_wealthsimple_empty",
         ),
+        (
+            "wealthsimple_statement",
+            ["-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
+            None,
+            "Downloaded 2 statement transactions",
+            "setup_wealthsimple_statement",
+        ),
     ],
 )
 def test_download_scenarios(
@@ -463,9 +472,16 @@ def _test_wealthsimple_scenario(
 ) -> None:
     """Test Wealthsimple download scenarios."""
     if setup_action == "setup_wealthsimple":
-        mock_activities = get_default_mock_activities()
+        mock_activities = get_mock_activities()
         expected_csv = get_expected_wealthsimple_csv()
     elif setup_action == "setup_wealthsimple_empty":
+        mock_activities = []
+        expected_csv = ""
+    elif setup_action == "setup_wealthsimple_statement":
+        mock_activities = get_mock_statement_transactions()
+        expected_csv = get_expected_statement_txn_csv()
+
+    else:
         mock_activities = []
         expected_csv = ""
 
@@ -515,10 +531,10 @@ def assert_cli_success(result: Result) -> None:  # pragma: no cover
         print("STDOUT:", result.stdout)
         print("STDERR:", result.stderr)
         if result.exception:
-            print("EXCEPTION:", repr(result.exception))
+            print("EXCEPTION:", str(result.exception))
     assert result.exit_code == 0, (
         f"CLI failed: {result.exit_code}\n"
         f"STDOUT:\n{result.stdout}\n"
         f"STDERR:\n{result.stderr}\n"
-        f"EXCEPTION:\n{result.exception!r}"
+        f"EXCEPTION:\n{str(result.exception) if result.exception else 'None'}"
     )
