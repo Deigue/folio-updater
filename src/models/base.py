@@ -1,5 +1,6 @@
 """Base model class for API response serialization and deserialization."""
 
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import fields, is_dataclass
@@ -12,10 +13,25 @@ import dateutil.parser
 T = TypeVar("T")
 
 
+def get_last_3_frames() -> str:
+    """Get the last 3 stack frames excluding the current frame.
+
+    Returns:
+        Formatted string of the last 3 method calls in the stack.
+    """
+    stack_lines = traceback.format_stack()[:-1]  # Exclude current frame
+    # Keep only the last 3 method calls
+    stack_lines = stack_lines[-3:]
+    return "".join(stack_lines)
+
+
 def from_str(x: str | None) -> str | None:
     """Validate and return a string value or None."""
     if x is not None and not isinstance(x, str):
-        msg = f"Expected str or None, got {type(x).__name__}"
+        msg = (
+            f"Expected str or None, got {type(x).__name__}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x
 
@@ -23,10 +39,12 @@ def from_str(x: str | None) -> str | None:
 def from_str_strict(x: str | None) -> str:
     """Validate and return a string value or raise an error."""
     if x is None:
-        msg = "Expected str, got None"
+        msg = f"Expected str, got None\nCall stack:\n{get_last_3_frames()}"
         raise TypeError(msg)
     if not isinstance(x, str):
-        msg = f"Expected str, got {type(x).__name__}"
+        msg = (
+            f"Expected str, got {type(x).__name__}\nCall stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x
 
@@ -34,7 +52,9 @@ def from_str_strict(x: str | None) -> str:
 def from_bool(x: object) -> bool:
     """Validate and return a boolean value."""
     if not isinstance(x, bool):
-        msg = f"Expected bool, got {type(x).__name__}"
+        msg = (
+            f"Expected bool, got {type(x).__name__}\nCall stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x
 
@@ -44,7 +64,10 @@ def from_bool_optional(x: object | None) -> bool | None:
     if x is None:
         return None
     if not isinstance(x, bool):
-        msg = f"Expected bool or None, got {type(x).__name__}"
+        msg = (
+            f"Expected bool or None, got {type(x).__name__}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x
 
@@ -52,15 +75,44 @@ def from_bool_optional(x: object | None) -> bool | None:
 def from_int(x: object) -> int:
     """Validate and return an integer value."""
     if not isinstance(x, int) or isinstance(x, bool):
-        msg = f"Expected int, got {type(x).__name__}"
+        msg = (
+            f"Expected int, got {type(x).__name__}\nCall stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x
+
+
+def from_enum[T: Enum](enum_class: type[T], value: object) -> T:
+    """Validate and return an enum value from any hashable type.
+
+    Args:
+        enum_class: The enum class to validate against.
+        value: The value to convert to enum (must be a valid enum value).
+
+    Returns:
+        The enum member.
+
+    Raises:
+        ValueError: If value is not a valid enum member.
+    """
+    try:
+        return enum_class(value)
+    except (ValueError, KeyError) as e:
+        valid_values = [member.value for member in enum_class]
+        msg = (
+            f"Expected {enum_class.__name__}, got {value!r}\n"
+            f"Valid values: {valid_values}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
+        raise ValueError(msg) from e
 
 
 def from_list[T](f: Callable[[object], T], x: object) -> list[T]:
     """Convert a list by applying a function to each element."""
     if not isinstance(x, list):
-        msg = f"Expected list, got {type(x).__name__}"
+        msg = (
+            f"Expected list, got {type(x).__name__}\nCall stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return [f(y) for y in x]
 
@@ -68,7 +120,10 @@ def from_list[T](f: Callable[[object], T], x: object) -> list[T]:
 def to_enum[T](c: type[T], x: object) -> str:
     """Convert an enum value to its string representation."""
     if not isinstance(x, c):
-        msg = f"Expected instance of {c.__name__}, got {type(x).__name__}"
+        msg = (
+            f"Expected instance of {c.__name__}, got {type(x).__name__}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x.value  # type: ignore[union-attr]
 
@@ -76,14 +131,21 @@ def to_enum[T](c: type[T], x: object) -> str:
 def to_class[T](c: type[T], x: object) -> dict:
     """Convert an object to its dictionary representation."""
     if not isinstance(x, c):
-        msg = f"Expected instance of {c.__name__}, got {type(x).__name__}"
+        msg = (
+            f"Expected instance of {c.__name__}, got {type(x).__name__}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
     return x.to_dict()  # type: ignore[attr-defined]
 
 
 def from_datetime(x: str) -> datetime:
     """Parse and return a datetime value from a string."""
-    return dateutil.parser.parse(x)
+    try:
+        return dateutil.parser.parse(x)
+    except (ValueError, TypeError) as e:
+        msg = f"Failed to parse datetime: {x!r}\nCall stack:\n{get_last_3_frames()}"
+        raise ValueError(msg) from e
 
 
 def from_datetime_optional(x: str | None) -> datetime | None:
@@ -116,14 +178,20 @@ def parse_obj[T](
     if key is not None:
         value_dict = obj.get(key) if obj else None
         if value_dict is None:
-            msg = f"Missing '{key}' field in {class_name} dictionary"
+            msg = (
+                f"Missing '{key}' field in {class_name} dictionary\n"
+                f"Call stack:\n{get_last_3_frames()}"
+            )
             raise ValueError(msg)
     else:
         # Otherwise deserialize obj directly
         value_dict = obj
 
     if not isinstance(value_dict, dict):
-        msg = f"Expected dict, got {type(value_dict).__name__}"
+        msg = (
+            f"Expected dict, got {type(value_dict).__name__}\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
         raise TypeError(msg)
 
     return deserializer(value_dict)
