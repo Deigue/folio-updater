@@ -31,7 +31,7 @@ class WealthsimpleMockContext:
             mock_activities: List of activity dictionaries to return from get_activities
         """
         self.monkeypatch = monkeypatch
-        self.mock_accounts = mock_accounts or get_default_mock_accounts()
+        self.mock_accounts = mock_accounts or get_mock_accounts()
         self.mock_activities = mock_activities or []
         self.written_csvs: dict[str, str] = {}
 
@@ -83,7 +83,15 @@ class WealthsimpleMockContext:
                 *,
                 load_all: bool = False,
             ) -> list[dict[str, Any]]:
-                """Mock get_activities method - return raw dicts like real API."""
+                """Mock get_activities method."""
+                return outer_self.mock_activities
+
+            def get_statement_transactions(
+                self,
+                account_id: str,
+                period: str,
+            ) -> list[Any]:
+                """Mock get_statement_transactions method."""
                 return outer_self.mock_activities
 
             def set_security_market_data_cache(
@@ -181,7 +189,7 @@ class WealthsimpleMockContext:
         )
 
 
-def create_mock_activities(
+def _create_mock_activities(
     activities_data: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Create mock activity data from simplified dictionaries.
@@ -247,8 +255,8 @@ def create_mock_activities(
     return mock_activities
 
 
-def get_default_mock_accounts() -> list[dict[str, Any]]:
-    """Get default mock account data for testing."""
+def get_mock_accounts() -> list[dict[str, Any]]:
+    """Get mock account data for testing."""
     return [
         {
             "id": "test-account-1",
@@ -369,9 +377,9 @@ def get_default_mock_accounts() -> list[dict[str, Any]]:
     ]
 
 
-def get_default_mock_activities() -> list[dict[str, Any]]:
-    """Get default mock activity data for testing."""
-    return create_mock_activities(
+def get_mock_activities() -> list[dict[str, Any]]:
+    """Get mock activity data for testing."""
+    return _create_mock_activities(
         [
             # BUY activity to test DIY_BUY action normalization
             {
@@ -462,7 +470,7 @@ def get_default_mock_activities() -> list[dict[str, Any]]:
 
 
 def get_expected_wealthsimple_csv() -> str:
-    """Get the expected CSV output for the default Wealthsimple test activities."""
+    """Get the expected CSV output for Wealthsimple test activities."""
     return (
         "TxnDate,Action,Amount,$,Price,Units,Ticker,Account\r\n"
         "2025-10-02,BUY,-287.74,USD,287.74,1,SPY,WS-TFSA\r\n"
@@ -471,4 +479,30 @@ def get_expected_wealthsimple_csv() -> str:
         "2025-10-05,CONTRIBUTION,1000.00,CAD,,,,WS-TFSA\r\n"
         "2025-10-06,WITHDRAWAL,,CAD,,,,WS-TFSA\r\n"
         "2025-10-07,BUY,-123.45,CAD,30.11,4.1,XIC.TO,WS-TFSA\r\n"
+    )
+
+
+def get_mock_statement_transactions() -> list[dict[str, Any]]:
+    """Get mock statement transaction data for testing.
+
+    Returns a list of dicts shaped similarly to what the WS API returns.
+    """
+    return [
+        {
+            "balance": "1000.00",
+            "cashMovement": "-500.00",
+            "unit": "10",
+            "description": "MSFT - BUY 1.0 SHARES",
+            "transactionDate": "2025-10-08T12:00:00-04:00",
+            "transactionType": "BUY",
+            "__typename": "BrokerageMonthlyStatementTransactions",
+        },
+    ]
+
+
+def get_expected_statement_txn_csv() -> str:
+    """Get the expected CSV output for Wealthsimple statement transactions."""
+    return (
+        "date,amount,currency,transaction,description\r\n"
+        "2025-10-08,-500.00,CAD,BUY,MSFT - BUY 1.0 SHARES\r\n"
     )
