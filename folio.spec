@@ -1,17 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+
 # PyInstaller spec for folio CLI
 # This excludes all unnecessary modules to minimize distribution size
 
+# Build pathex with conditional local ws-api path
+pathex = ['src']
+ws_api_local_path = os.path.join('..', 'ws-api-python')
+if os.path.exists(ws_api_local_path):
+    pathex.append(os.path.abspath(ws_api_local_path))
+
 a = Analysis(
     ['src/cli/main.py'],
-    pathex=['src'],
+    pathex=pathex,
     binaries=[],
     datas=[],
     hiddenimports=[
         # Essential hidden imports only
         'openpyxl.styles.stylesheet',
         'secrets',  # Required by numpy.random
+        # ws_api package - ensure it's included whether from local source or PyPI
+        'ws_api',
     ],
     hookspath=[],
     hooksconfig={},
