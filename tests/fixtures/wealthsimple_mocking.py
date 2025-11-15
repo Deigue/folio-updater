@@ -491,7 +491,7 @@ def get_mock_statement_transactions() -> list[dict[str, Any]]:
         {
             "balance": "1000.00",
             "cashMovement": "-500.00",
-            "unit": "10",
+            "unit": "$CAD",
             "description": "MSFT - BUY 1.0 SHARES",
             "transactionDate": "2025-10-08T12:00:00-04:00",
             "transactionType": "BUY",

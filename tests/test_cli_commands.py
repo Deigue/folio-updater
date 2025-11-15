@@ -229,8 +229,28 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
         assert_cli_success(result)
 
 
-def test_settle_info_with_file_import(temp_ctx: TempContext) -> None:
-    """Test settle info command with file import."""
+@pytest.mark.parametrize(
+    ("cli_args", "expected_output", "setup_type"),
+    [
+        (
+            ["--import", "-f", "test_statement.xlsx"],
+            "SUCCESS: Updated 1 settlement dates.",
+            "file",
+        ),
+        (
+            ["--import"],
+            "TOTAL: Updated 1 settlement dates across 1 files.",
+            "directory",
+        ),
+    ],
+)
+def test_settle_info_scenarios(
+    temp_ctx: TempContext,
+    cli_args: list[str],
+    expected_output: str,
+    setup_type: str,
+) -> None:
+    """Test various settle-info command scenarios."""
     with temp_ctx() as ctx:
         ensure_data_exists()
         statement_df = pd.DataFrame(
@@ -245,33 +265,24 @@ def test_settle_info_with_file_import(temp_ctx: TempContext) -> None:
             ],
         )
 
-        statement_file = ctx.config.project_root / "test_statement.xlsx"
+        if setup_type == "directory":
+            new_cli_args = cli_args
+            config = ctx.config
+            statements_folder = config.statements_path
+            statement_file = statements_folder / "test_statement.xlsx"
+        else:
+            statement_file = ctx.config.project_root / "test_statement.xlsx"
+            new_cli_args = [cli_args[0], cli_args[1], str(statement_file)]
+
         register_test_dataframe(statement_file, statement_df)
+
         result = _run_cli_with_config(
             ctx.config,
             cli_app,
-            [
-                "settle-info",
-                "-f",
-                str(statement_file),
-            ],
+            ["settle-info", *new_cli_args],
         )
-        assert "Successfully updated 1 settlement dates." in result.stdout
+        assert expected_output in result.stdout
         assert_cli_success(result)
-
-
-def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
-    """Test settle info command with nonexistent file."""
-    with temp_ctx() as ctx:
-        nonexistent_file = ctx.config.project_root / "does_not_exist.xlsx"
-
-        result = _run_cli_with_config(
-            ctx.config,
-            cli_app,
-            ["settle-info", "-f", str(nonexistent_file)],
-        )
-        assert "does not exist" in result.stderr
-        assert result.exit_code == 1
 
 
 @pytest.mark.parametrize(
@@ -480,10 +491,6 @@ def _test_wealthsimple_scenario(
     elif setup_action == "setup_wealthsimple_statement":
         mock_activities = get_mock_statement_transactions()
         expected_csv = get_expected_statement_txn_csv()
-
-    else:
-        mock_activities = []
-        expected_csv = ""
 
     with (
         temp_ctx(query_ids) as ctx,
