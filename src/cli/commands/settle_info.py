@@ -14,6 +14,7 @@ from app import bootstrap
 from app.app_context import get_config
 from db import db
 from db.db import get_connection, get_row_count
+from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_statements
 from utils.constants import Column, Table
 
@@ -60,9 +61,15 @@ def _handle_statement_import(file: str | None) -> None:
         if not statement_path.exists():
             typer.echo(f"ERROR: Statement file '{file}' does not exist.", err=True)
             raise typer.Exit(1)
-        _import_single_statement(statement_path)
+        updates = _import_single_statement(statement_path)
     else:
-        _import_statements_from_directory()
+        updates = _import_statements_from_directory()
+
+    # Updates parquets if any settlement dates were updated
+    if updates > 0:
+        parquet_exporter = ParquetExporter()
+        parquet_exporter.export_all()
+        typer.echo("EXPORTED updated transactions to Parquet.")
     typer.echo()
 
 
