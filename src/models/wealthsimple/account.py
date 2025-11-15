@@ -9,10 +9,12 @@ from models.base import (
     from_bool_optional,
     from_datetime,
     from_datetime_optional,
+    from_enum,
     from_int,
     from_list,
     from_str,
     from_str_strict,
+    get_last_3_frames,
     parse_obj,
 )
 from utils.constants import Currency
@@ -69,7 +71,7 @@ class Money(SerializableModel):
         return Money(
             amount=from_str(obj.get("amount")),
             cents=from_int(obj.get("cents")),
-            currency=Currency(obj.get("currency")),
+            currency=from_enum(Currency, obj.get("currency")),
             typename=from_str(obj.get("__typename")),
         )
 
@@ -256,13 +258,21 @@ class Account(SerializableModel):
 
         def parse_account_owner(x: Any) -> AccountOwner:  # noqa: ANN401
             if not isinstance(x, dict):
-                msg = f"Expected dict in accountOwners list, got {type(x).__name__}"
+                msg = (
+                    f"Expected dict in accountOwners list, "
+                    f"got {type(x).__name__}\n"
+                    f"Call stack:\n{get_last_3_frames()}"
+                )
                 raise TypeError(msg)
             return AccountOwner.from_dict(x)
 
         def parse_custodian_account(x: Any) -> CustodianAccount:  # noqa: ANN401
             if not isinstance(x, dict):
-                msg = f"Expected dict in custodianAccounts list, got {type(x).__name__}"
+                msg = (
+                    f"Expected dict in custodianAccounts list, "
+                    f"got {type(x).__name__}\n"
+                    f"Call stack:\n{get_last_3_frames()}"
+                )
                 raise TypeError(msg)
             return CustodianAccount.from_dict(x)
 
@@ -278,14 +288,14 @@ class Account(SerializableModel):
             closed_at=from_datetime_optional(obj.get("closedAt")),
             created_at=from_datetime(created_at_raw),
             cache_expired_at=from_datetime_optional(obj.get("cacheExpiredAt")),
-            currency=Currency(obj.get("currency")),
+            currency=from_enum(Currency, obj.get("currency")),
             required_identity_verification=from_str(
                 obj.get("requiredIdentityVerification"),
             ),
             unified_account_type=from_str(obj.get("unifiedAccountType")),
             supported_currencies=from_list(
-                lambda x: Currency(x),
-                obj.get("supportedCurrencies") or [],
+                lambda x: from_enum(Currency, x),
+                obj.get("supportedCurrencies"),
             ),
             nickname=from_str(obj.get("nickname")),
             status=from_str(obj.get("status")),

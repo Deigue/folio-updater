@@ -3,7 +3,12 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from models.base import SerializableModel, from_datetime, from_str
+from models.base import (
+    SerializableModel,
+    from_datetime,
+    from_str,
+    get_last_3_frames,
+)
 
 
 @dataclass
@@ -21,15 +26,12 @@ class BrokerageMonthlyStatementTransaction(SerializableModel):
     @staticmethod
     def from_dict(obj: dict) -> "BrokerageMonthlyStatementTransaction":
         """Create BrokerageMonthlyStatementTransaction from a dictionary."""
-        if not isinstance(obj, dict):
-            msg = f"Expected dict, got {type(obj).__name__}"
-            raise TypeError(msg)
-
         transaction_date_raw = obj.get("transactionDate")
         if transaction_date_raw is None:
             msg = (
                 "Missing 'transactionDate' field in "
-                "BrokerageMonthlyStatementTransaction dictionary"
+                "BrokerageMonthlyStatementTransaction dictionary\n"
+                f"Call stack:\n{get_last_3_frames()}"
             )
             raise ValueError(msg)
 
