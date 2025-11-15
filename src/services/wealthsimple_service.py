@@ -459,6 +459,33 @@ class WealthsimpleService:
 
         logger.info('EXPORTED %d activities to CSV: "%s"', len(activities), output_path)
 
+    def export_statement_to_csv(
+        self,
+        statement_txns: list[BrokerageMonthlyStatementTransaction],
+        csv_name: str,
+    ) -> None:
+        """Export statement transactions to a CSV file.
+
+        Args:
+            statement_txns: List of statement transactions to export
+            csv_name: Name of the output CSV file
+        """
+        config = get_config()
+        output_path: Path = config.statements_path / csv_name
+        headers = ["date", "amount", "currency", "transaction", "description"]
+        rows = [self._convert_statement_txn_to_csv_row(txn) for txn in statement_txns]
+
+        with output_path.open("w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(headers)
+            writer.writerows(rows)
+
+        logger.info(
+            'EXPORTED %d statement transactions to CSV: "%s"',
+            len(statement_txns),
+            output_path,
+        )
+
     def _convert_activity_to_csv_row(self, activity: ActivityFeedItem) -> list[str]:
         """Convert an ActivityFeedItem to a CSV row.
 
@@ -495,6 +522,38 @@ class WealthsimpleService:
             units,  # Units
             ticker or "",  # Ticker
             account,  # Account
+        ]
+
+    def _convert_statement_txn_to_csv_row(
+        self,
+        statement_txn: BrokerageMonthlyStatementTransaction,
+    ) -> list[str]:
+        """Convert a BrokerageMonthlyStatementTransaction to a statement CSV row.
+
+        Expected format: ["date", "amount", "currency", "transaction", "description"]
+
+        Args:
+            statement_txn: The statement transaction to convert
+
+        Returns:
+            List of string values for statement CSV row
+        """
+        date_str = statement_txn.transaction_date.strftime("%Y-%m-%d")
+        amount = statement_txn.cash_movement or "0"
+        # Extract currency code from unit field (e.g., "$CAD" -> "CAD")
+        currency = "CAD"
+        if statement_txn.unit:
+            currency = statement_txn.unit.lstrip("$").upper()
+
+        transaction_type = statement_txn.transaction_type or ""
+        description = statement_txn.description or ""
+
+        return [
+            date_str,  # date
+            amount,  # amount
+            currency,  # currency
+            transaction_type,  # transaction
+            description,  # description
         ]
 
     @staticmethod

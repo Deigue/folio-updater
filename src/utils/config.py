@@ -102,6 +102,7 @@ class Config:
         self._backup_path: Path = backup_path
         self._imports_path: Path = data_path / "imports"
         self._processed_path: Path = data_path / "processed"
+        self._statements_path: Path = data_path / "statements"
         optional_columns = settings.get("optional_columns", {})
         self._optional_fields = OptionalFieldsConfig(optional_columns)
         transforms_config = settings.get("transforms", {})
@@ -208,6 +209,18 @@ class Config:
         if not self._processed_path.exists():
             self._processed_path.mkdir(parents=True, exist_ok=True)
         return self._processed_path
+
+    @property
+    def statements_path(self) -> Path:
+        """The directory where statement files are stored.
+
+        This directory holds monthly statement files that can be imported
+        to update settlement dates. The directory is created
+        lazily when first accessed.
+        """
+        if not self._statements_path.exists():
+            self._statements_path.mkdir(parents=True, exist_ok=True)
+        return self._statements_path
 
     @property
     def max_backups(self) -> int:

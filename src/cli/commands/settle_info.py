@@ -11,33 +11,118 @@ from pathlib import Path
 import typer
 
 from app import bootstrap
+from app.app_context import get_config
 from db import db
 from db.db import get_connection, get_row_count
 from importers.excel_importer import import_statements
 from utils.constants import Column, Table
 
 
-def settlement_info(file: str | None = None) -> None:
+def settlement_info(
+    file: str | None = typer.Option(
+        None,
+        "-f",
+        "--file",
+        help="Path to monthly statement file to import for settlement updates",
+    ),
+    *,
+    import_flag: bool = typer.Option(
+        False,  # noqa: FBT003
+        "-i",
+        "--import",
+        help="Import statement files to update settlement dates",
+    ),
+) -> None:
     """Show settlement date information for transactions in the database.
 
     Args:
         file: Optional path to monthly statement file to import for settlement updates
+        import_flag: Whether to import statement files for settlement updates
     """
     bootstrap.reload_config()
+    if file and not import_flag:
+        typer.echo(
+            "ERROR: The --file/-f option only works with --import enabled.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    if import_flag:
+        _handle_statement_import(file)
+
+    _display_settlement_statistics()
+
+
+def _handle_statement_import(file: str | None) -> None:
+    """Handle statement import based on file parameter."""
     if file:
         statement_path = Path(file)
         if not statement_path.exists():
             typer.echo(f"ERROR: Statement file '{file}' does not exist.", err=True)
             raise typer.Exit(1)
+        _import_single_statement(statement_path)
+    else:
+        _import_statements_from_directory()
+    typer.echo()
 
-        typer.echo(f"Importing settlement dates from: {statement_path}")
-        updates = import_statements(statement_path)
+
+def _import_single_statement(statement_path: Path) -> int:
+    """Import a single statement file and return number of updates."""
+    typer.echo(f"IMPORTING settlement dates from: {statement_path}")
+    updates = import_statements(statement_path)
+    if updates > 0:
+        typer.echo(f"SUCCESS: Updated {updates} settlement dates.")
+    else:
+        typer.echo("No settlement dates were updated.")
+    return updates
+
+
+def _import_statements_from_directory() -> int:
+    """Import all statement files from the statements directory."""
+    config = get_config()
+    statements_dir = config.statements_path
+
+    if not statements_dir.exists():
+        typer.echo(
+            f"ERROR: Statements directory '{statements_dir}' does not exist.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    xlsx_files = list(statements_dir.glob("*.xlsx"))
+    csv_files = list(statements_dir.glob("*.csv"))
+    statement_files = xlsx_files + csv_files
+
+    if not statement_files:
+        typer.echo(
+            f"No statement files (.xlsx or .csv) found in '{statements_dir}'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    typer.echo(
+        f"FOUND {len(statement_files)} statement file(s) in '{statements_dir}'",
+    )
+
+    total_updates = 0
+    for statement_file in statement_files:
+        typer.echo(f"IMPORTING settlement dates from: {statement_file.name}")
+        updates = import_statements(statement_file)
+        total_updates += updates
         if updates > 0:
-            typer.echo(f"Successfully updated {updates} settlement dates.")
+            typer.echo(f"  ✓ Updated {updates} settlement dates.")
         else:
-            typer.echo("No settlement dates were updated.")
-        typer.echo()  # Add spacing
+            typer.echo("  - No settlement dates updated.")
 
+    typer.echo(
+        f"\nTOTAL: Updated {total_updates} settlement dates across "
+        f"{len(statement_files)} files.",
+    )
+    return total_updates
+
+
+def _display_settlement_statistics() -> None:
+    """Display settlement date statistics for all transactions."""
     try:
         with get_connection() as conn:
             # Get total number of transactions with calculated settlement dates

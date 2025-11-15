@@ -73,11 +73,18 @@ def settle_info_cmd(
         "--file",
         help="Monthly statement file to import for settlement date updates",
     ),
+    *,
+    import_flag: bool = typer.Option(
+        False,  # noqa: FBT003
+        "-i",
+        "--import",
+        help="Import statement files to update settlement dates",
+    ),
 ) -> None:
     """Show settlement date information."""
     from cli.commands.settle_info import settlement_info
 
-    settlement_info(file=file)
+    settlement_info(file=file, import_flag=import_flag)
 
 
 @app.command("download", help="Download transactions from brokers")

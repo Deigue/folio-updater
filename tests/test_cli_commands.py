@@ -358,7 +358,7 @@ def test_settle_info_with_nonexistent_file(temp_ctx: TempContext) -> None:
             "wealthsimple_statement",
             ["-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
             None,
-            "Downloaded 2 statement transactions",
+            "Retrieved 2 statement transactions",
             "setup_wealthsimple_statement",
         ),
     ],

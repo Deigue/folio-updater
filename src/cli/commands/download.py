@@ -251,10 +251,33 @@ def wealthsimple_statement(from_date: str) -> None:
             Example: '2024-05-01' for May 2024 statement.
     """
     ws = WealthsimpleService()
-    accounts = [a.id for a in ws.get_accounts()]
-    for account_id in accounts:
-        statement = ws.get_monthly_statement(account_id, from_date)
-        print(statement)
+    accounts = ws.get_accounts()
+
+    total_transactions = 0
+    exported_files = []
+
+    for account in accounts:
+        statement = ws.get_monthly_statement(account.id, from_date)
+        account_id = account.nickname or account.id
+        if statement:
+            date_for_filename = from_date.replace("-", "")[:6]  # YYYY-MM-DD -> YYYYMM
+            csv_name = f"ws_statement_{account_id}_{date_for_filename}.csv"
+            ws.export_statement_to_csv(statement, csv_name)
+            total_transactions += len(statement)
+            exported_files.append(csv_name)
+        else:
+            typer.echo(f"No statement transactions found for account {account_id}")
+
+    if exported_files:
+        config = get_config()
+        typer.echo(f"\nRetrieved {total_transactions} statement transactions")
+        typer.echo(f'Files saved to: "{config.statements_path}"')
+        for filename in exported_files:
+            typer.echo(f"  - {filename}")
+        typer.echo("\nTo import these statement files, run:")
+        typer.echo("  folio settle-info --import")
+    else:
+        typer.echo("\n⚠ No statement transactions downloaded")
 
 
 def _resolve_from_date(
