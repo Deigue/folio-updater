@@ -75,6 +75,25 @@ After downloading, import the files into your folio database:
 folio import --dir data/imports/
 ```
 
+### Download Monthly Statements
+
+Monthly statements can be downloaded which contain settlement date information
+
+```bash
+
+# Download monthly statement for April 2024
+folio download --broker wealthsimple --statement --from 2024-04-01
+```
+
+### Import Settlement Dates from Statements
+
+After downloading monthly statements, they can be imported back to the folio.
+This updates settlement dates to their real values based on the statements.
+
+```bash
+folio settle-info --import
+```
+
 ### Resetting Credentials
 
 If you need to reset your Wealthsimple credentials (e.g., to switch accounts or fix authentication issues):

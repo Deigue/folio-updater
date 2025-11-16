@@ -96,14 +96,17 @@ Perfect for testing and getting familiar with the system. Creates folio with sam
 Retrieve settlement date information:
 
 ```bash
+# Check current settlement date info
 folio settle-info
+
+# Import settlement date info from downloaded statements
+folio settle-info --import
+
+# Import specified monthly statement
+folio settle-info --import -f path/to/statement.xlsx
 ```
 
-Calculated settlement dates can be updated with actual values by importing broker monthly statements. (.csv or .xlsx)
-
-```bash
-folio settle-info -f path/to/statement.xlsx
-```
+Calculated settlement dates can be updated with actual values by importing broker monthly statements.
 
 **Expected Statement Format:**
 
@@ -124,6 +127,7 @@ Download transaction information directly from brokers.
 
 ```bash
 folio download --broker ibkr --from 2024-01-01 --to 2024-12-31
+folio download --broker wealthsimple --statement --from 2024-04-01
 ```
 
 *Refer to [IBKR Integration Usage](docs/download/ibkr-integration.md#usage) and [Wealthsimple Integration Usage](docs/download/wealthsimple-integration.md#usage) for detailed information.*

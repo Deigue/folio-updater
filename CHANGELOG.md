@@ -10,16 +10,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
-- Use `fastparquet` as default Parquet engine instead of `pyarrow` for better performance and lower memory usage
-- Consolidated credential management flag to `--credentials` for `download`
-
 ### Deprecated
 
 ### Removed
 
 ### Fixed
 
+### Security
+
+## [0.5.1] - 2025-11-15
+
+### Added
+
+- `settle-info` command now uses `--import` to enable import functionality
+- Added `--statement` option for the `download` command to download monthly statements from Wealthsimple
+- Default `--import` for `settle-info` will batch import statements from the `download` command
+
+### Changed
+
+- Use `fastparquet` as default Parquet engine instead of `pyarrow` for better performance and lower memory usage
+- Consolidated credential management to `--credentials` for `download`
+- Enhanced `settle-info` command: `--file/-f` option can only be used in `--import` mode
+
+### Deprecated
+
+### Removed
+
+- Removed `pyarrow` dependency to lower install size
+
+### Fixed
+
 - Fixed `reset` option always applying for `download` command
+- Fixed settlement date imports not updating Parquet files
 
 ### Security
 
