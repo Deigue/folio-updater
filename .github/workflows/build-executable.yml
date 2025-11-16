@@ -31,8 +31,8 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Install dependencies
-        run: uv sync --no-sources
+      - name: Install dependencies with temporary config
+        run: uv sync
 
       - name: Build optimized distribution
         run: |
