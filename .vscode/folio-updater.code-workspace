@@ -12,6 +12,8 @@
 	"settings": {
 		"github-actions.workflows.pinned.workflows": [
 			"folio-updater/.github/workflows/build-executable.yml"
-		]
+		],
+		"terminal.integrated.defaultProfile.windows": "NuShell",
+		"terminal.integrated.cwd": "${workspaceFolder:folio-updater}",
 	}
 }
