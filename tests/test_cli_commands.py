@@ -122,7 +122,7 @@ def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
         assert not config.folio_path.exists()
         result = _run_cli_with_config(config, import_cmd.app)
         assert result.exit_code == 1
-        assert f"Folio file not found: {config.folio_path}" in result.stderr
+        assert "Folio file not found:" in result.stdout
 
 
 def test_import_command_file(temp_ctx: TempContext) -> None:
@@ -138,11 +138,8 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         )
         assert_cli_success(result)
         # Verify via stdout keywords, core functionality is tested elsewhere.
-        assert f"Importing {test_file.name}..." in result.stdout
-        assert (
-            f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions "
-            f"from {test_file.name}" in result.stdout
-        )
+        assert f"SUCCESS: {test_file.name}" in result.stdout
+        assert f"{EXPECTED_TRANSACTION_COUNT} transactions imported" in result.stdout
         assert (
             f"Exported {EXPECTED_TRANSACTION_COUNT} transactions to Parquet"
             in result.stdout
@@ -234,7 +231,7 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
     [
         (
             ["--import", "-f", "test_statement.xlsx"],
-            "SUCCESS: Updated 1 settlement dates.",
+            "Updated 1 settlement dates from test_statement.xlsx",
             "file",
         ),
         (

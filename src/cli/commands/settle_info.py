@@ -151,7 +151,7 @@ def _import_statements_from_directory() -> int:
         )
 
     print_info(
-        f"Total: Updated {total_updates} settlement dates across "
+        f"TOTAL: Updated {total_updates} settlement dates across "
         f"{len(statement_files)} files.",
     )
     return total_updates
