@@ -40,6 +40,7 @@ omit = [
     'src/utils/backup.py',
     'src/mock/folio_setup.py',
     'src/models/*',
+    'src/cli/display.py',
 ]
 [tool.coverage.report]
 show_missing = true
@@ -56,6 +57,8 @@ exclude_lines = [
     "def main",                   # CLI main function
     "typer.echo",                 # typer output
     "typer.Exit",                 # typer exit calls
+    "print_error",                # custom print error function
+    "print_warning",              # custom print warning function
     "logger.error",               # logging error handling
     "^\\s*\\w*msg\\s*=.*",        # generic log message assignments
     "^\\s*raise [A-Z]\\w*Error",  # raise errors
