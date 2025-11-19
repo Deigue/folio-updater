@@ -10,7 +10,6 @@ import sqlite3
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import typer
 
 from app import bootstrap

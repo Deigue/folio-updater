@@ -8,6 +8,7 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
+from cli.display import print_error, print_info, print_success
 from exporters.excel_exporter import ExcelExporter
 from mock.folio_setup import ensure_data_exists
 
@@ -29,14 +30,14 @@ def create_folio() -> None:
         success = exporter.generate_excel()
 
         if success:
-            typer.echo("Demo portfolio created successfully!")
-            typer.echo("Check your database path for the generated folio database.")
+            print_success("Demo portfolio created successfully!")
+            print_info("Check your database path for the generated folio database.")
         else:
-            typer.echo("Error: Failed to create demo portfolio", err=True)
+            print_error("Error: Failed to create demo portfolio")
             raise typer.Exit(1)
 
     except (OSError, ValueError, KeyError) as e:
-        typer.echo(f"Error creating demo portfolio: {e}", err=True)
+        print_error(f"Error creating demo portfolio: {e}")
         raise typer.Exit(1) from e
 
 

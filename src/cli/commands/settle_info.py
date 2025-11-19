@@ -182,8 +182,6 @@ def _display_settlement_statistics() -> None:
             display.show_statistics_panel(stats)
 
             if calculated_count > 0:
-                print_info("Transactions with calculated settlement dates:")
-
                 df = db.get_rows(
                     conn,
                     Table.TXNS,

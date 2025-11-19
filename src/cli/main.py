@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import typer
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 app = typer.Typer(
     name="folio",
