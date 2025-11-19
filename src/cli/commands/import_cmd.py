@@ -13,6 +13,15 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
+from cli.display import (
+    ProgressDisplay,
+    TransactionDisplay,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+)
+from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
 
@@ -49,7 +58,7 @@ def import_transaction_files(
     config = bootstrap.reload_config()
 
     if file and directory:
-        typer.echo("Error: Cannot specify both --file and --dir options", err=True)
+        print_error("Cannot specify both --file and --dir options")
         raise typer.Exit(1)
 
     if not file and not directory:
@@ -58,7 +67,7 @@ def import_transaction_files(
     elif file:
         file_path = Path(file)
         if not file_path.exists():
-            typer.echo(f"File not found: {file}", err=True)
+            print_error(f"File not found: {file}")
             raise typer.Exit(1)
 
         _import_file_and_export(file_path)
@@ -69,7 +78,7 @@ def import_transaction_files(
         else:
             dir_path = Path(directory)
             if not dir_path.exists():
-                typer.echo(f"Directory not found: {directory}", err=True)
+                print_error(f"Directory not found: {directory}")
                 raise typer.Exit(1)
 
         _import_directory_and_export(dir_path)
@@ -91,7 +100,7 @@ def _move_file(file_path: Path) -> None:
         counter += 1
 
     shutil.move(str(file_path), str(destination))
-    typer.echo(f"Moved {file_path.name} to {processed_path.name}/")
+    print_info(f"Moved {file_path.name} to {processed_path.name}/")
 
 
 def _import_single_file_to_db(file_path: Path) -> int:
@@ -99,18 +108,30 @@ def _import_single_file_to_db(file_path: Path) -> int:
 
     Returns number of transactions_imported.
     """
-    try:
-        typer.echo(f"Importing {file_path.name}...")
-        config = get_config()
-        txn_sheet = config.txn_sheet
-        num_txns = import_transactions(file_path, None, txn_sheet)
+    display = TransactionDisplay()
 
-    except (OSError, ValueError, KeyError) as e:
-        typer.echo(f"Error importing {file_path.name}: {e}", err=True)
-        return 0
-    else:
-        typer.echo(
-            f"Successfully imported {num_txns} transactions from {file_path.name}",
+    with ProgressDisplay.file_import_progress() as progress:
+        task = progress.add_task(f"Importing {file_path.name}...", total=None)
+
+        try:
+            config = get_config()
+            txn_sheet = config.txn_sheet
+            num_txns = import_transactions(file_path, None, txn_sheet)
+            progress.remove_task(task)
+
+        except (OSError, ValueError, KeyError) as e:
+            progress.remove_task(task)
+            print_error(f"Error importing {file_path.name}: {e}")
+            return 0
+
+        with get_connection() as conn:
+            total_count = get_row_count(conn, "transactions")
+
+        display.show_import_summary(
+            file_path.name,
+            num_txns,
+            total_count,
+            success=num_txns > 0,
         )
         return num_txns
 
@@ -118,13 +139,11 @@ def _import_single_file_to_db(file_path: Path) -> int:
 def _import_file_and_export(file_path: Path) -> None:
     """Import a single file and export to Parquet."""
     num_txns = _import_single_file_to_db(file_path)
-    typer.echo(f"Successfully imported {num_txns} transactions")
+
     if num_txns > 0:
         _export_to_parquet()
     else:
-        typer.echo(
-            f"No transactions imported from {file_path.name}",
-        )
+        print_warning(f"No transactions imported from {file_path.name}")
     _move_file(file_path)
 
 
@@ -138,24 +157,42 @@ def _import_directory_and_export(dir_path: Path) -> None:
     ]
 
     if not import_files:
-        typer.echo(f"No supported files found in {dir_path}")
+        print_error(f"No supported files found in {dir_path}")
         raise typer.Exit(1)
 
-    typer.echo(f"Found {len(import_files)} files to import")
+    print_info(f"Found {len(import_files)} files to import")
 
+    # Create summary table for all imports
+    import_results = []
     total_imported = 0
 
     # Import all files to database first
     for file_path in import_files:
         num_txns = _import_single_file_to_db(file_path)
+        import_results.append(
+            {
+                "File": file_path.name,
+                "Transactions": num_txns,
+                "Status": "✅ Success" if num_txns > 0 else "⚠️  No data",
+            },
+        )
         total_imported += num_txns
         _move_file(file_path)
 
-    typer.echo(f"Total transactions imported: {total_imported}")
+    # Display summary table
+    if import_results:
+        display = TransactionDisplay()
+        display.show_data_table(
+            import_results,
+            title="Import Summary",
+            max_rows=20,
+        )
+
     if total_imported > 0:
+        print_success(f"Total transactions imported: {total_imported}")
         _export_to_parquet()
     else:
-        typer.echo("No transactions imported")
+        print_warning("No transactions imported")
 
 
 def _import_folio(config: Config) -> None:
@@ -163,31 +200,40 @@ def _import_folio(config: Config) -> None:
     try:
         folio_path = config.folio_path
         if not folio_path.exists():
-            typer.echo(f"Folio file not found: {folio_path}", err=True)
+            print_error(f"Folio file not found: {folio_path}")
             raise typer.Exit(1)
 
-        typer.echo(f"Importing transactions from folio: {folio_path}")
-        txn_sheet = config.txn_sheet
-        num_txns = import_transactions(folio_path, None, txn_sheet)
-        typer.echo(f"Successfully imported {num_txns} transactions")
+        with ProgressDisplay.file_import_progress() as progress:
+            task = progress.add_task(
+                f"Importing from folio: {folio_path.name}...",
+                total=None,
+            )
+            txn_sheet = config.txn_sheet
+            num_txns = import_transactions(folio_path, None, txn_sheet)
+            progress.remove_task(task)
+
         if num_txns > 0:
+            print_success(f"Successfully imported {num_txns} transactions")
             _export_to_parquet()
         else:
-            typer.echo("No transactions imported from folio")
+            print_warning("No transactions imported from folio")
 
     except (OSError, ValueError, KeyError) as e:
-        typer.echo(f"Error importing from folio: {e}", err=True)
+        print_error(f"Error importing from folio: {e}")
         raise typer.Exit(1) from e
 
 
 def _export_to_parquet() -> None:
     """Export transactions to Parquet."""
     try:
-        exporter = ParquetExporter()
-        exported = exporter.export_transactions()
-        typer.echo(f"✓ Exported {exported} transactions to Parquet")
+        with ProgressDisplay.file_import_progress() as progress:
+            task = progress.add_task("Exporting to Parquet...", total=None)
+            exporter = ParquetExporter()
+            exported = exporter.export_transactions()
+            progress.remove_task(task)
+        print_success(f"Exported {exported} transactions to Parquet")
     except (OSError, ValueError, KeyError) as e:
-        typer.echo(f"Warning: Failed to export to Parquet: {e}", err=True)
+        print_warning(f"Failed to export to Parquet: {e}")
 
 
 if __name__ == "__main__":

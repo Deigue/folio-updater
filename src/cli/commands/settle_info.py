@@ -12,6 +12,14 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
+from cli.display import (
+    ProgressDisplay,
+    TransactionDisplay,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+)
 from db import db
 from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
@@ -42,10 +50,7 @@ def settlement_info(
     """
     bootstrap.reload_config()
     if file and not import_flag:
-        typer.echo(
-            "ERROR: The --file/-f option only works with --import enabled.",
-            err=True,
-        )
+        print_error("The --file/-f option only works with --import enabled.")
         raise typer.Exit(1)
 
     if import_flag:
@@ -59,7 +64,7 @@ def _handle_statement_import(file: str | None) -> None:
     if file:
         statement_path = Path(file)
         if not statement_path.exists():
-            typer.echo(f"ERROR: Statement file '{file}' does not exist.", err=True)
+            print_error(f"Statement file '{file}' does not exist.")
             raise typer.Exit(1)
         updates = _import_single_statement(statement_path)
     else:
@@ -67,20 +72,27 @@ def _handle_statement_import(file: str | None) -> None:
 
     # Updates parquets if any settlement dates were updated
     if updates > 0:
-        parquet_exporter = ParquetExporter()
-        parquet_exporter.export_all()
-        typer.echo("EXPORTED updated transactions to Parquet.")
-    typer.echo()
+        with ProgressDisplay.file_import_progress() as progress:
+            task = progress.add_task("Exporting to Parquet...", total=None)
+            parquet_exporter = ParquetExporter()
+            parquet_exporter.export_all()
+            progress.remove_task(task)
+        print_success("Exported updated transactions to Parquet.")
+    print_info("")
 
 
 def _import_single_statement(statement_path: Path) -> int:
-    """Import a single statement file and return number of updates."""
-    typer.echo(f"IMPORTING settlement dates from: {statement_path}")
-    updates = import_statements(statement_path)
+    """Import a single statement file."""
+    with ProgressDisplay.file_import_progress() as progress:
+        task = progress.add_task(f"Importing {statement_path.name}...", total=None)
+        updates = import_statements(statement_path)
+        progress.remove_task(task)
+
     if updates > 0:
-        typer.echo(f"SUCCESS: Updated {updates} settlement dates.")
+        print_success(f"Updated {updates} settlement dates from {statement_path.name}")
     else:
-        typer.echo("No settlement dates were updated.")
+        print_warning(f"No settlement dates updated from {statement_path.name}")
+
     return updates
 
 
@@ -90,10 +102,7 @@ def _import_statements_from_directory() -> int:
     statements_dir = config.statements_path
 
     if not statements_dir.exists():
-        typer.echo(
-            f"ERROR: Statements directory '{statements_dir}' does not exist.",
-            err=True,
-        )
+        print_error(f"Statements directory '{statements_dir}' does not exist.")
         raise typer.Exit(1)
 
     xlsx_files = list(statements_dir.glob("*.xlsx"))
@@ -101,35 +110,57 @@ def _import_statements_from_directory() -> int:
     statement_files = xlsx_files + csv_files
 
     if not statement_files:
-        typer.echo(
-            f"No statement files (.xlsx or .csv) found in '{statements_dir}'.",
-            err=True,
-        )
+        print_error(f"No statement files (.xlsx or .csv) found in '{statements_dir}'.")
         raise typer.Exit(1)
 
-    typer.echo(
-        f"FOUND {len(statement_files)} statement file(s) in '{statements_dir}'",
-    )
+    print_info(f"Found {len(statement_files)} statement file(s) in '{statements_dir}'")
 
     total_updates = 0
-    for statement_file in statement_files:
-        typer.echo(f"IMPORTING settlement dates from: {statement_file.name}")
-        updates = import_statements(statement_file)
-        total_updates += updates
-        if updates > 0:
-            typer.echo(f"  ✓ Updated {updates} settlement dates.")
-        else:
-            typer.echo("  - No settlement dates updated.")
+    import_results = []
 
-    typer.echo(
-        f"\nTOTAL: Updated {total_updates} settlement dates across "
+    for statement_file in statement_files:
+        with ProgressDisplay.file_import_progress() as progress:
+            task = progress.add_task(f"Importing {statement_file.name}...", total=None)
+            updates = import_statements(statement_file)
+            progress.remove_task(task)
+
+        total_updates += updates
+        status = "✅ Success" if updates > 0 else "⚠️  No updates"
+        import_results.append(
+            {
+                "File": statement_file.name,
+                "Updates": updates,
+                "Status": status,
+            },
+        )
+
+        if updates > 0:
+            print_success(
+                f"Updated {updates} settlement dates from {statement_file.name}",
+            )
+        else:
+            print_warning(f"No settlement dates updated from {statement_file.name}")
+
+    # Show summary table
+    if import_results:
+        display = TransactionDisplay()
+        display.show_data_table(
+            import_results,
+            title="Statement Import Summary",
+            max_rows=20,
+        )
+
+    print_info(
+        f"Total: Updated {total_updates} settlement dates across "
         f"{len(statement_files)} files.",
     )
     return total_updates
 
 
 def _display_settlement_statistics() -> None:
-    """Display settlement date statistics for all transactions."""
+    """Display settlement date statistics for transactions."""
+    display = TransactionDisplay()
+
     try:
         with get_connection() as conn:
             # Get total number of transactions with calculated settlement dates
@@ -142,13 +173,17 @@ def _display_settlement_statistics() -> None:
             # Get total number of transactions
             total_count = get_row_count(conn, Table.TXNS)
 
-            typer.echo("Settlement Date Statistics:")
-            typer.echo(f"  Total transactions: {total_count}")
-            typer.echo(f"  Calculated settlement dates: {calculated_count}")
-            typer.echo(f"  Provided settlement dates: {total_count - calculated_count}")
+            # Show statistics panel
+            stats: dict[str, int | str] = {
+                "Total transactions": total_count,
+                "Calculated settlement dates": calculated_count,
+                "Provided settlement dates": total_count - calculated_count,
+            }
+            display.show_statistics_panel(stats)
 
             if calculated_count > 0:
-                typer.echo("\nTransactions with calculated settlement dates:")
+                print_info("Transactions with calculated settlement dates:")
+
                 df = db.get_rows(
                     conn,
                     Table.TXNS,
@@ -158,50 +193,13 @@ def _display_settlement_statistics() -> None:
                     ),
                 )
 
-                columns = [
-                    Column.Txn.TXN_ID,
-                    Column.Txn.TXN_DATE,
-                    Column.Txn.ACTION,
-                    Column.Txn.TICKER,
-                    Column.Txn.AMOUNT,
-                    Column.Txn.CURRENCY,
-                    Column.Txn.SETTLE_DATE,
-                    Column.Txn.ACCOUNT,
-                ]
-                transactions = (
-                    df[columns].itertuples(index=False, name=None)
-                    if not df.empty
-                    else []
+                # Display with Rich table
+                display.show_transactions_table(
+                    df,
+                    title="Transactions with Calculated Settlement Dates",
                 )
-
-                # Header
-                typer.echo(
-                    f"{'ID':<6} {'TxnDate':<12} {'Action':<12} {'Ticker':<10} "
-                    f"{'Amount':<12} {'Curr':<4} {'SettleDate':<12} {'Account':<10}",
-                )
-                typer.echo("-" * 85)
-
-                for txn in transactions:
-                    (
-                        txn_id,
-                        txn_date,
-                        action,
-                        ticker,
-                        amount,
-                        currency,
-                        settle_date,
-                        account,
-                    ) = txn
-                    ticker_str = ticker or ""
-                    amount_str = f"{float(amount):,.2f}" if amount else "0.00"
-
-                    typer.echo(
-                        f"{txn_id:<6} {txn_date:<12} {action:<12} {ticker_str:<10} "
-                        f"{amount_str:<12} {currency:<4} "
-                        f"{settle_date:<12} {account:<10}",
-                    )
             else:
-                typer.echo("\nNo transactions found with calculated settlement dates.")
+                print_warning("No transactions found with calculated settlement dates.")
+
     except sqlite3.DatabaseError as e:
-        typer.echo("Database error querying settlement info:", err=True)
-        typer.echo(str(e), err=True)
+        print_error(f"Database error querying settlement info: {e}")

@@ -10,10 +10,19 @@ import sqlite3
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import typer
 
 from app import bootstrap
 from app.app_context import get_config
+from cli.display import (
+    ProgressDisplay,
+    TransactionDisplay,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+)
 from db import db
 from models.wealthsimple.activity_feed_item import ActivityFeedItem
 from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
@@ -71,10 +80,8 @@ def download_statements(
     """Download transactions from broker and save as CSV file."""
     config = bootstrap.reload_config()
     if broker not in SUPPORTED_BROKERS:
-        typer.echo(
-            f"Error: Broker '{broker}' not supported. "
-            f"Supported brokers: {SUPPORTED_BROKERS}",
-            err=True,
+        print_error(
+            f"Broker '{broker}' not supported. Supported brokers: {SUPPORTED_BROKERS}",
         )
         raise typer.Exit(1)
 
@@ -132,16 +139,16 @@ def _handle_ibkr_download(
                 )
                 lines: int = ibkr.download_and_save_statement(request)
                 files_downloaded = True
-                typer.echo(f"✓ {query_name}: {lines} lines received")
+                print_success(f"{query_name}: {lines} lines received")
             except IBKRServiceError as e:
-                typer.echo(f"✗ {query_name}: {e}", err=True)
+                print_error(f"{query_name}: {e}")
 
     if files_downloaded:
-        typer.echo(f'Files saved to: "{config.imports_path}"')
-        typer.echo("\nTo import these files, run:")
-        typer.echo("  folio import --dir default")
+        print_success(f'Files saved to: "{config.imports_path}"')
+        print_info("To import these files, run:")
+        print_info("  folio import --dir default")
     else:
-        typer.echo("\n⚠ No transactions downloaded")
+        print_warning("No transactions downloaded")
 
 
 def _ensure_ibkr_token(ibkr: IBKRService) -> None:
@@ -196,10 +203,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
         ws.reset_credentials()
         typer.echo("✓ Wealthsimple credentials reset successfully")
     else:
-        typer.echo(
-            f"Credential management not supported for broker '{broker}'",
-            err=True,
-        )
+        print_error(f"Credential management not supported for broker '{broker}'")
         raise typer.Exit(1)
 
 
@@ -207,7 +211,7 @@ def wealthsimple_transactions(
     from_date: str | None,
     to_date: str | None,
 ) -> None:
-    """Retrieve wealthsimple transactions.
+    """Download Wealthsimple transactions.
 
     Args:
         from_date (str | None): From date string in YYYY-MM-DD format.
@@ -216,31 +220,68 @@ def wealthsimple_transactions(
     ws = WealthsimpleService()
     resolved_to_date: str = _resolve_to_date(to_date)
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
-    from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
-        tzinfo=TORONTO_TZ,
-    )
-    to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
-        tzinfo=TORONTO_TZ,
-    )
 
-    accounts = [a.id for a in ws.get_accounts()]
-    activities: list[ActivityFeedItem] = ws.get_activities(
-        accounts,
-        from_dt,
-        to_dt,
-        load_all=True,
-    )
+    with ProgressDisplay.api_download_progress() as progress:
+        task = progress.add_task("Connecting to Wealthsimple API...", total=None)
 
-    typer.echo(f"\nRetrieved {len(activities)} transactions\n")
+        from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
+            tzinfo=TORONTO_TZ,
+        )
+        to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
+            tzinfo=TORONTO_TZ,
+        )
+        accounts = [a.id for a in ws.get_accounts()]
+
+        progress.update(task, description="Downloading transactions...")
+        activities: list[ActivityFeedItem] = ws.get_activities(
+            accounts,
+            from_dt,
+            to_dt,
+            load_all=True,
+        )
+        progress.remove_task(task)
+
+    print_info(f"Retrieved {len(activities)} transactions")
 
     if len(activities) > 0:
+        display = TransactionDisplay()
+
+        # Display sample of retrieved activities
+        description_max_length = 30
+        sample_data = [
+            {
+                "Date": act.occurred_at.strftime("%Y-%m-%d"),
+                "Action": act.type,
+                "Ticker": act.asset_symbol or "",
+                "Amount": float(act.amount) if act.amount else 0,
+                "Currency": act.currency,
+                "Account": (act.account_id[:8] + "..." if act.account_id else ""),
+                "Description": (
+                    (act.description[:description_max_length] + "...")
+                    if (
+                        act.description is not None
+                        and len(act.description) > description_max_length
+                    )
+                    else (act.description if act.description is not None else "")
+                ),
+            }
+            for act in activities[:10]
+        ]
+
+        display.show_data_table(
+            sample_data,
+            title=f"Downloaded Transactions Preview ({len(activities)} total)",
+            max_rows=10,
+        )
+
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
         ws.export_activities_to_csv(activities, csv_name)
-        typer.echo(f'Files saved to: "{get_config().imports_path}"')
-        typer.echo("\nTo import these files, run:")
-        typer.echo("  folio import --dir default")
+
+        print_success(f'File saved: "{get_config().imports_path}/{csv_name}"')
+        print_info("To import these files, run:")
+        print_info("  folio import --dir default")
     else:
-        typer.echo("\n⚠ No transactions downloaded")
+        print_warning("No transactions downloaded")
 
 
 def wealthsimple_statement(from_date: str) -> None:
@@ -266,18 +307,18 @@ def wealthsimple_statement(from_date: str) -> None:
             total_transactions += len(statement)
             exported_files.append(csv_name)
         else:
-            typer.echo(f"No statement transactions found for account {account_id}")
+            print_warning(f"No statement transactions found for account {account_id}")
 
     if exported_files:
         config = get_config()
-        typer.echo(f"\nRetrieved {total_transactions} statement transactions")
-        typer.echo(f'Files saved to: "{config.statements_path}"')
+        print_success(f"Retrieved {total_transactions} statement transactions")
+        print_success(f'Files saved to: "{config.statements_path}"')
         for filename in exported_files:
-            typer.echo(f"  - {filename}")
-        typer.echo("\nTo import these statement files, run:")
-        typer.echo("  folio settle-info --import")
+            print_info(f"  - {filename}")
+        print_info("To import these statement files, run:")
+        print_info("  folio settle-info --import")
     else:
-        typer.echo("\n⚠ No statement transactions downloaded")
+        print_warning("No statement transactions downloaded")
 
 
 def _resolve_from_date(
