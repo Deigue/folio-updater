@@ -1,7 +1,6 @@
 """Rich display utilities for CLI commands.
 
-This module provides beautiful table formatting, progress indicators, and
-consistent styling for the folio CLI using the Rich library.
+This module provides custom display functions for the folio CLI.
 """
 
 from __future__ import annotations
@@ -28,6 +27,124 @@ TRANSACTION_COLORS = {
     "ROC": "magenta",
     "SPLIT": "purple",
 }
+
+
+def _get_pagination_prompt(current_page: int, total_pages: int) -> str:
+    """Get navigation prompt based on current page position.
+
+    Args:
+        current_page: Current page number (0-indexed)
+        total_pages: Total number of pages
+
+    Returns:
+        Navigation prompt text
+    """
+    is_first = current_page == 0
+    is_last = current_page == total_pages - 1
+
+    if is_first and not is_last:
+        return "[dim]Press [bold]n[/bold] for next page, [bold]q[/bold] to quit[/dim]"
+    if is_last and not is_first:
+        return (
+            "[dim]Press [bold]p[/bold] for previous page, [bold]q[/bold] to quit[/dim]"
+        )
+    return (
+        "[dim]Press [bold]n[/bold] for next,"
+        " [bold]p[/bold] for previous, [bold]q[/bold] to quit[/dim]"
+    )
+
+
+def _handle_pagination_input(
+    user_input: str,
+    current_page: int,
+    total_pages: int,
+) -> tuple[int, bool]:
+    """Handle user input for pagination.
+
+    Args:
+        user_input: User's input string
+        current_page: Current page number
+        total_pages: Total number of pages
+
+    Returns:
+        Tuple of (new_page_number, should_exit)
+    """
+    if user_input == "q":
+        return current_page, True
+    if user_input == "n" and current_page < total_pages - 1:
+        return current_page + 1, False
+    if user_input == "p" and current_page > 0:
+        return current_page - 1, False
+    return current_page, False
+
+
+def page_transactions(
+    df: pd.DataFrame,
+    title: str = "Transactions",
+    page_size: int = 20,
+) -> None:
+    """Display transactions with paging support for large datasets.
+
+    This function displays transaction data in pageable format, allowing
+    navigation through large transaction lists without overwhelming the console.
+
+    Args:
+        df: DataFrame containing transaction data
+        title: Title for the transaction display
+        page_size: Number of transactions to show per page
+    """
+    if df.empty:
+        console.print(f"[yellow]No transactions to display for {title}[/yellow]")
+        return
+
+    total_rows = len(df)
+    if total_rows <= page_size:
+        display = TransactionDisplay()
+        display.show_transactions_table(df, title=title, max_rows=total_rows)
+        return
+
+    total_pages = (total_rows + page_size - 1) // page_size
+    current_page = 0
+
+    while True:
+        # Calculate slice for current page
+        start_idx = current_page * page_size
+        end_idx = min(start_idx + page_size, total_rows)
+        page_df = df.iloc[start_idx:end_idx]
+
+        console.clear()
+        console.rule(
+            f"{title} - Page {current_page + 1}/{total_pages}",
+            style="bright_blue",
+        )
+
+        display = TransactionDisplay()
+        display.show_transactions_table(page_df, max_rows=page_size)
+
+        console.print(
+            f"\n[dim]Showing transactions {start_idx + 1}-{end_idx} of"
+            f" {total_rows}[/dim]",
+        )
+
+        if current_page == 0 and total_pages == 1:
+            break  # Only one page, no navigation needed
+
+        prompt = _get_pagination_prompt(current_page, total_pages)
+        console.print(f"\n{prompt}")
+
+        try:
+            user_input = input().strip().lower()
+            current_page, should_exit = _handle_pagination_input(
+                user_input,
+                current_page,
+                total_pages,
+            )
+            if should_exit:
+                break
+        except (KeyboardInterrupt, EOFError):
+            break
+
+    console.rule("End of Transactions", style="dim")
 
 
 class TransactionDisplay:
@@ -237,39 +354,3 @@ class ProgressDisplay:
             console=console,
             transient=True,
         )
-
-
-def print_success(message: str) -> None:
-    """Print success message with green checkmark.
-
-    Args:
-        message: Success message to display
-    """
-    console.print(f"✅ [green]{message}[/green]")
-
-
-def print_error(message: str) -> None:
-    """Print error message with red X.
-
-    Args:
-        message: Error message to display
-    """
-    console.print(f"❌ [red]{message}[/red]")
-
-
-def print_warning(message: str) -> None:
-    """Print warning message with yellow warning sign.
-
-    Args:
-        message: Warning message to display
-    """
-    console.print(f"⚠️  [yellow]{message}[/yellow]")
-
-
-def print_info(message: str) -> None:
-    """Print info message with blue info icon.
-
-    Args:
-        message: Info message to display
-    """
-    console.print(f"i  [blue]{message}[/blue]")
