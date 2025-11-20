@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import StringIO
 
 import pandas as pd
@@ -296,7 +296,7 @@ class ForexService:
 
         Args:
             start_date: Optional start date. If None, uses earliest transaction date
-                       or defaults to 2022-01-01.
+                   or defaults to approximately 30 days ago.
 
         Returns:
             DataFrame with missing FX rates.
@@ -307,7 +307,9 @@ class ForexService:
             if start_date is None:
                 start_date = cls.get_earliest_transaction_date()
             if start_date is None:
-                start_date = "2022-01-01"
+                start_date = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime(
+                    "%Y-%m-%d",
+                )
             logger.info("No FX data found, getting FX from %s to today", start_date)
             return cls.get_fx_rates_from_boc(start_date)
 
