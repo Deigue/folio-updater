@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.5.2"
+version = "0.5.3"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -41,6 +41,7 @@ omit = [
     'src/mock/folio_setup.py',
     'src/models/*',
     'src/cli/display.py',
+    'src/cli/console.py'
 ]
 [tool.coverage.report]
 show_missing = true

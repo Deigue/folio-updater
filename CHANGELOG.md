@@ -10,11 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Improved CLI output formatting and colorization
+
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Fixed log messages duplicating in console output
 
 ### Security
 
