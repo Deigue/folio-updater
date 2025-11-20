@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import typer
 
+from cli import console_print
+
 __version__ = "0.5.2"
 
 app = typer.Typer(
@@ -139,7 +141,7 @@ def download_cmd(
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""
-    typer.echo(f"folio-updater version: {__version__}")
+    console_print(f"folio-updater version: {__version__}")
 
 
 def main() -> None:
