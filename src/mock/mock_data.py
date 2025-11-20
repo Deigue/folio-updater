@@ -13,10 +13,11 @@ from utils.constants import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
 
 logger = logging.getLogger(__name__)
 SEED_DATE: datetime = datetime(2025, 10, 1, tzinfo=TORONTO_TZ)
+DEFAULT_TXN_COUNT: int = 12
 
 
 def get_mock_data_date_range(
-    num_transactions: int = 10,
+    num_transactions: int = DEFAULT_TXN_COUNT,
 ) -> tuple[pd.Timestamp, pd.Timestamp]:
     """Get the date range for mock data generation.
 
@@ -31,12 +32,15 @@ def get_mock_data_date_range(
     return start_date, end_date
 
 
-def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFrame:
+def generate_transactions(
+    ticker: str,
+    num_transactions: int = DEFAULT_TXN_COUNT,
+) -> pd.DataFrame:
     """Generate a deterministic set of mock transactions for a given ticker.
 
     Args:
         ticker (str): The stock ticker symbol to generate transactions for.
-        num_transactions (int, optional): Number of transactions (Default 10)
+        num_transactions (int, optional): Number of transactions
 
     Returns:
         pd.DataFrame: A DataFrame with the mock transactions.
@@ -57,6 +61,13 @@ def generate_transactions(ticker: str, num_transactions: int = 10) -> pd.DataFra
         units = round(random.uniform(1, 100), 2)  # noqa: S311
         amount = price * units
         amount = round(amount, 10)  # db schema supports up to 10 decimal places
+
+        if action in [Action.BUY, Action.WITHDRAWAL]:
+            amount = -amount
+        elif action in [Action.SELL]:
+            units = -units
+        elif action in [Action.FXT, Action.FCH]:
+            amount = random.choice([-1, 1]) * amount  # noqa: S311
 
         # Start with all fields present
         transaction = {

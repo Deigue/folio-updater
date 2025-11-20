@@ -16,6 +16,7 @@ from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from db import db
 from mock.folio_setup import ensure_data_exists
+from mock.mock_data import DEFAULT_TXN_COUNT, generate_transactions
 from services.ibkr_service import IBKRAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
@@ -29,7 +30,7 @@ from tests.fixtures.wealthsimple_mocking import (
     get_mock_activities,
     get_mock_statement_transactions,
 )
-from utils.constants import Column, Table
+from utils.constants import DEFAULT_TICKERS, Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
 
@@ -155,6 +156,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         import_dir = config.imports_path
         file1 = import_dir / "transactions1.xlsx"
         file2 = import_dir / "transactions2.xlsx"
+        file_count: int = 2
         create_transaction_data(file1)
         create_transaction_data(file2)
         ensure_data_exists()
@@ -165,8 +167,11 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         )
         assert_cli_success(result)
         assert "Found 2 files to import" in result.stdout
-        assert "Total transactions imported: 4" in result.stdout
-        assert "Exported 54 transactions to Parquet" in result.stdout
+        txn_count = EXPECTED_TRANSACTION_COUNT * file_count
+        assert f"Total transactions imported: {txn_count}" in result.stdout
+        mock_txn_count = DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
+        total_txns = mock_txn_count + txn_count
+        assert f"Exported {total_txns} transactions to Parquet" in result.stdout
         processed_folder = config.processed_path
         assert processed_folder.exists()
         assert (processed_folder / file1.name).exists()
@@ -248,14 +253,19 @@ def test_settle_info_scenarios(
     """Test various settle-info command scenarios."""
     with temp_ctx() as ctx:
         ensure_data_exists()
+        txn_data = generate_transactions(DEFAULT_TICKERS[0], DEFAULT_TXN_COUNT)
         statement_df = pd.DataFrame(
             [
                 {
                     "date": "2025-07-25",
-                    "amount": 17995.355,
-                    "currency": "USD",
-                    "transaction": "BUY",
-                    "description": "SPY - 94.34 SHARES 2025-07-23",
+                    "amount": txn_data.iloc[0][Column.Txn.AMOUNT],
+                    "currency": txn_data.iloc[0][Column.Txn.CURRENCY].value,
+                    "transaction": txn_data.iloc[0][Column.Txn.ACTION].value,
+                    "description": (
+                        f"{DEFAULT_TICKERS[0]} - "
+                        f"{txn_data.iloc[0][Column.Txn.UNITS]} SHARES "
+                        f"{txn_data.iloc[0][Column.Txn.TXN_DATE]}"
+                    ),
                 },
             ],
         )

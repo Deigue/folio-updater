@@ -204,9 +204,9 @@ class TransactionDisplay:
 
             # Color coding for amounts
             if action in ["SELL", "CONTRIBUTION"] or amount > 0:
-                amount_display = f"[green]+{amount_str}[/green]"
+                amount_display = f"[green]{amount_str}[/green]"
             elif action in ["BUY", "WITHDRAWAL"] or amount < 0:
-                amount_display = f"[red]-{amount_str}[/red]"
+                amount_display = f"[red]{amount_str}[/red]"
             else:
                 amount_display = f"[white]{amount_str}[/white]"
 

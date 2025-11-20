@@ -4,11 +4,11 @@ import pandas as pd
 
 from exporters.parquet_exporter import ParquetExporter
 from mock.folio_setup import ensure_data_exists
+from mock.mock_data import DEFAULT_TXN_COUNT
+from utils.constants import DEFAULT_TICKERS
 
 from .test_types import TempContext
 from .utils.dataframe_utils import verify_db_contents
-
-GENERATED_TRANSACTIONS = 50
 
 
 def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
@@ -20,7 +20,7 @@ def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
         # Test 1: Initial export from database to Parquet
         exporter = ParquetExporter()
         export_count: int = exporter.export_transactions()
-        assert export_count == GENERATED_TRANSACTIONS
+        assert export_count == DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
 
         # Read from Parquet and verify
         parquet_path = config.txn_parquet

@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - Fixed log messages duplicating in console output
 - Default `import` now imports from the `imports` folder in the `data` directory
+- Mock data generation properly uses negative amounts based on transaction type
 
 ### Security
 
