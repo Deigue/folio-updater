@@ -57,8 +57,8 @@ exclude_lines = [
     "def main",                   # CLI main function
     "typer.echo",                 # typer output
     "typer.Exit",                 # typer exit calls
-    "print_error",                # custom print error function
-    "print_warning",              # custom print warning function
+    "console_error",              # ignore console error
+    "console_warning",            # ignore console warning
     "logger.error",               # logging error handling
     "^\\s*\\w*msg\\s*=.*",        # generic log message assignments
     "^\\s*raise [A-Z]\\w*Error",  # raise errors
@@ -70,7 +70,15 @@ exclude_lines = [
 [tool.ruff]
 line-length = 88
 lint.extend-select = ["ALL"]
-lint.ignore = ["D413", "INP001", "S608", "D203", "D213", "PGH004"]
+lint.ignore = [
+    "D413",
+    "INP001",
+    "S608",
+    "D203",
+    "D213",
+    "PGH004",
+    "RUF001"
+]
 src = ["src"]
 exclude = [
     "**/Lib/**",

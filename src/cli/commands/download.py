@@ -14,13 +14,15 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
-from cli.display import (
+from cli import (
     ProgressDisplay,
     TransactionDisplay,
-    print_error,
-    print_info,
-    print_success,
-    print_warning,
+    console_error,
+    console_info,
+    console_print,
+    console_rule,
+    console_success,
+    console_warning,
 )
 from db import db
 from models.wealthsimple.activity_feed_item import ActivityFeedItem
@@ -79,7 +81,7 @@ def download_statements(
     """Download transactions from broker and save as CSV file."""
     config = bootstrap.reload_config()
     if broker not in SUPPORTED_BROKERS:
-        print_error(
+        console_error(
             f"Broker '{broker}' not supported. Supported brokers: {SUPPORTED_BROKERS}",
         )
         raise typer.Exit(1)
@@ -124,10 +126,7 @@ def _handle_ibkr_download(
 
         for query_name, query_id in broker_config.items():
             if not query_id or query_id in placeholder_ids:
-                typer.echo(
-                    f"Skipping {query_name}: No valid query ID configured",
-                    err=True,
-                )
+                console_warning(f"Skipping {query_name}: No valid query ID configured")
                 continue
             try:
                 request = DownloadRequest(
@@ -138,16 +137,16 @@ def _handle_ibkr_download(
                 )
                 lines: int = ibkr.download_and_save_statement(request)
                 files_downloaded = True
-                print_success(f"{query_name}: {lines} lines received")
+                console_success(f"{query_name}: {lines} lines received")
             except IBKRServiceError as e:
-                print_error(f"{query_name}: {e}")
+                console_error(f"{query_name}: {e}")
 
     if files_downloaded:
-        print_success(f'Files saved to: "{config.imports_path}"')
-        print_info("To import these files, run:")
-        print_info("  folio import --dir default")
+        console_success(f'Files saved to: "{config.imports_path}"')
+        console_info("To import these files, run:")
+        console_info("  folio import --dir default")
     else:
-        print_warning("No transactions downloaded")
+        console_warning("No transactions downloaded")
 
 
 def _ensure_ibkr_token(ibkr: IBKRService) -> None:
@@ -159,22 +158,22 @@ def _ensure_ibkr_token(ibkr: IBKRService) -> None:
     try:
         ibkr.get_token()
     except IBKRServiceError:
-        typer.echo("No IBKR flex token found in keyring.")
+        console_info("No IBKR flex token found in keyring.")
         new_token = typer.prompt(
             "Enter your IBKR flex token",
             hide_input=True,
             confirmation_prompt=True,
         )
         ibkr.set_token(new_token)
-        typer.echo("✓ Flex token stored securely")
+        console_success("Flex token stored securely")
 
 
 def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
     try:
         lines = ibkr.download_and_save_statement(reference_code)
-        typer.echo(f"✓ {reference_code}: Received {lines} lines")
+        console_success(f"{reference_code}: Received {lines} lines")
     except IBKRServiceError as e:
-        typer.echo(f"✗ {reference_code}: {e}", err=True)
+        console_error(f"{reference_code}: {e}")
         raise typer.Exit(1) from None
 
 
@@ -188,7 +187,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
         broker: The broker identifier.
     """
     if broker == "ibkr":
-        typer.echo("Setting new IBKR flex token...")
+        console_info("Setting new IBKR flex token...")
         with IBKRService() as ibkr:
             new_token = typer.prompt(
                 "Enter your IBKR flex token",
@@ -196,13 +195,13 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
                 confirmation_prompt=True,
             )
             ibkr.set_token(new_token)
-            typer.echo("✓ Flex token stored securely")
+            console_success("Flex token stored securely")
     elif broker == "wealthsimple":
         ws = WealthsimpleService()
         ws.reset_credentials()
-        typer.echo("✓ Wealthsimple credentials reset successfully")
+        console_success("Wealthsimple credentials reset successfully")
     else:
-        print_error(f"Credential management not supported for broker '{broker}'")
+        console_error(f"Credential management not supported for broker '{broker}'")
         raise typer.Exit(1)
 
 
@@ -240,7 +239,7 @@ def wealthsimple_transactions(
         )
         progress.remove_task(task)
 
-    print_info(f"Retrieved {len(activities)} transactions")
+    console_info(f"Retrieved {len(activities)} transactions")
 
     if len(activities) > 0:
         display = TransactionDisplay()
@@ -276,11 +275,11 @@ def wealthsimple_transactions(
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
         ws.export_activities_to_csv(activities, csv_name)
 
-        print_success(f'File saved: "{get_config().imports_path}/{csv_name}"')
-        print_info("To import these files, run:")
-        print_info("  folio import --dir default")
+        console_success(f'File saved: "{get_config().imports_path}/{csv_name}"')
+        console_info("To import these files, run:")
+        console_info("  folio import --dir default")
     else:
-        print_warning("No transactions downloaded")
+        console_warning("No transactions downloaded")
 
 
 def wealthsimple_statement(from_date: str) -> None:
@@ -306,18 +305,18 @@ def wealthsimple_statement(from_date: str) -> None:
             total_transactions += len(statement)
             exported_files.append(csv_name)
         else:
-            print_warning(f"No statement transactions found for account {account_id}")
+            console_warning(f"No statement transactions found for account {account_id}")
 
     if exported_files:
         config = get_config()
-        print_success(f"Retrieved {total_transactions} statement transactions")
-        print_success(f'Files saved to: "{config.statements_path}"')
+        console_success(f"Retrieved {total_transactions} statement transactions")
+        console_success(f'Files saved to: "{config.statements_path}"')
         for filename in exported_files:
-            print_info(f"  - {filename}")
-        print_info("To import these statement files, run:")
-        print_info("  folio settle-info --import")
+            console_info(f"  - {filename}")
+        console_info("To import these statement files, run:")
+        console_info("  folio settle-info --import")
     else:
-        print_warning("No statement transactions downloaded")
+        console_warning("No statement transactions downloaded")
 
 
 def _resolve_from_date(
@@ -359,16 +358,13 @@ def _resolve_from_date(
                     "%Y-%m-%d",
                 ).replace(tzinfo=TORONTO_TZ)
                 resolved_date = latest_date.strftime("%Y%m%d")
-                typer.echo(
+                console_info(
                     f"from_date: Using latest {broker.upper()} transaction date: "
                     f"{latest_date_str}",
                 )
                 return resolved_date
     except (ValueError, OSError, sqlite3.Error) as e:
-        typer.echo(
-            f"Warning: Could not determine latest transaction date: {e}",
-            err=True,
-        )
+        console_warning(f"Warning: Could not determine latest transaction date: {e}")
 
     current_date = datetime.now(tz=TORONTO_TZ)
     fallback_date = current_date.replace(day=1)
@@ -376,7 +372,7 @@ def _resolve_from_date(
         fallback_date = _get_previous_month(fallback_date)
     resolved_date = fallback_date.strftime("%Y%m%d")
     formatted_date = fallback_date.strftime("%Y-%m-%d")
-    typer.echo(f"from_date: Using fallback date: {formatted_date}")
+    console_info(f"from_date: Using fallback date: {formatted_date}")
     return resolved_date
 
 
@@ -407,11 +403,10 @@ def _get_broker_config(config: Config, broker: str) -> dict[str, str]:
     """
     broker_config: dict[str, str] | None = config.brokers.get(broker)
     if not broker_config:
-        typer.echo(
+        console_error(
             f"Error: No configuration found for broker '{broker}' in config.yaml",
-            err=True,
         )
-        typer.echo("Please add broker configuration to config.yaml", err=True)
+        console_error("Please add broker configuration to config.yaml")
         raise typer.Exit(1)
     return broker_config
 
@@ -431,10 +426,7 @@ def _format_date_for_api(date_str: str) -> str:
         )
         return parsed_date.strftime("%Y%m%d")
     except ValueError as e:
-        typer.echo(
-            f"Error: Invalid date format. Use YYYY-MM-DD: {e}",
-            err=True,
-        )
+        console_error(f"Error: Invalid date format. Use YYYY-MM-DD: {e}")
         raise typer.Exit(1) from e
 
 
@@ -456,15 +448,15 @@ def _print_activity_feed_item(activity: ActivityFeedItem) -> None:  # pragma: no
     Args:
         activity: The activity feed item to print.
     """
-    typer.echo(f"Date: {activity.occurred_at.isoformat()}")
-    typer.echo(f"Account ID: {activity.account_id}")
-    typer.echo(f"Type: {activity.type} ({activity.sub_type})")
-    typer.echo(f"Asset: {activity.asset_symbol}")
-    typer.echo(f"Quantity: {activity.asset_quantity}")
-    typer.echo(f"Amount: {activity.amount} {activity.currency}")
-    typer.echo(f"Status: {activity.status}")
-    typer.echo(f"Description: {activity.description}")
-    typer.echo("-" * 60)
+    console_print(f"Date: {activity.occurred_at.isoformat()}")
+    console_print(f"Account ID: {activity.account_id}")
+    console_print(f"Type: {activity.type} ({activity.sub_type})")
+    console_print(f"Asset: {activity.asset_symbol}")
+    console_print(f"Quantity: {activity.asset_quantity}")
+    console_print(f"Amount: {activity.amount} {activity.currency}")
+    console_print(f"Status: {activity.status}")
+    console_print(f"Description: {activity.description}")
+    console_rule()
 
 
 if __name__ == "__main__":
