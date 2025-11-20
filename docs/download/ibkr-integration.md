@@ -93,7 +93,7 @@ folio download --broker ibkr --from 2024-01-01 --to 2024-12-31
 After downloading, import the files into your folio database:
 
 ```bash
-folio import --dir data/imports/
+folio import
 ```
 
 ## Command Reference
@@ -139,7 +139,7 @@ If you get timeout errors:
 ## Data Flow
 
 1. **Download**: `folio download` → Downloads CSV files to `data/imports/`
-2. **Import**: `folio import --dir data/imports/` → Imports CSV data to database
+2. **Import**: `folio import` → Imports CSV data to database
 3. **Generate**: `folio generate` → Creates updated Excel portfolio file
 
 This integration allows you to automatically sync your IBKR transactions to the folio.

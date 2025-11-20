@@ -144,7 +144,7 @@ def _handle_ibkr_download(
     if files_downloaded:
         console_success(f'Files saved to: "{config.imports_path}"')
         console_info("To import these files, run:")
-        console_info("  folio import --dir default")
+        console_info("  folio import")
     else:
         console_warning("No transactions downloaded")
 
@@ -277,7 +277,7 @@ def wealthsimple_transactions(
 
         console_success(f'File saved: "{get_config().imports_path}/{csv_name}"')
         console_info("To import these files, run:")
-        console_info("  folio import --dir default")
+        console_info("  folio import")
     else:
         console_warning("No transactions downloaded")
 

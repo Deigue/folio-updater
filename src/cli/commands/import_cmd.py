@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import typer
 
@@ -25,9 +24,6 @@ from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
 
-if TYPE_CHECKING:
-    from utils.config import Config
-
 app = typer.Typer()
 
 
@@ -43,17 +39,14 @@ def import_transaction_files(
         None,
         "-d",
         "--dir",
-        help=(
-            "Directory with files to import. Use 'default' to use default import "
-            "directory."
-        ),
+        help="Directory with files to import",
     ),
 ) -> None:
     """Import transactions into the folio.
 
-    Default behavior: Import transactions from the configured folio Excel file.
+    Default behavior: Import all files from the default import directory.
     --file: Import specific file.
-    --dir: Import all files from directory.
+    --dir: Import all files from specified directory.
     """
     config = bootstrap.reload_config()
 
@@ -62,8 +55,8 @@ def import_transaction_files(
         raise typer.Exit(1)
 
     if not file and not directory:
-        # Default behavior: import from folio excel
-        _import_folio(config)
+        # Default behavior: import from default import directory
+        _import_directory_and_export(config.imports_path)
     elif file:
         file_path = Path(file)
         if not file_path.exists():
@@ -73,13 +66,10 @@ def import_transaction_files(
         _import_file_and_export(file_path)
 
     elif directory:
-        if directory == "default":  # pragma: no cover
-            dir_path = config.imports_path
-        else:
-            dir_path = Path(directory)
-            if not dir_path.exists():
-                console_error(f"Directory not found: {directory}")
-                raise typer.Exit(1)
+        dir_path = Path(directory)
+        if not dir_path.exists():
+            console_error(f"Directory not found: {directory}")
+            raise typer.Exit(1)
 
         _import_directory_and_export(dir_path)
 
@@ -193,34 +183,6 @@ def _import_directory_and_export(dir_path: Path) -> None:
         _export_to_parquet()
     else:
         console_warning("No transactions imported")
-
-
-def _import_folio(config: Config) -> None:
-    """Import transactions from folio Excel file."""
-    try:
-        folio_path = config.folio_path
-        if not folio_path.exists():
-            console_error(f"Folio file not found: {folio_path}")
-            raise typer.Exit(1)
-
-        with ProgressDisplay.file_import_progress() as progress:
-            task = progress.add_task(
-                f"Importing from folio: {folio_path.name}...",
-                total=None,
-            )
-            txn_sheet = config.txn_sheet
-            num_txns = import_transactions(folio_path, None, txn_sheet)
-            progress.remove_task(task)
-
-        if num_txns > 0:
-            console_success(f"Successfully imported {num_txns} transactions")
-            _export_to_parquet()
-        else:
-            console_warning("No transactions imported from folio")
-
-    except (OSError, ValueError, KeyError) as e:
-        console_error(f"Error importing from folio: {e}")
-        raise typer.Exit(1) from e
 
 
 def _export_to_parquet() -> None:

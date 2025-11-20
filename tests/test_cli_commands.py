@@ -100,29 +100,27 @@ def test_getfx_command(
 
 
 def test_import_command(temp_ctx: TempContext) -> None:
-    """Test import command default behavior (import from configured folio file)."""
+    """Test import command default behavior."""
     with temp_ctx() as ctx:
         config = ctx.config
-        create_transaction_data(config.folio_path, config.txn_sheet)
+        txn_file = config.imports_path / "transactions.xlsx"
+        create_transaction_data(txn_file, config.txn_sheet)
         result = _run_cli_with_config(config, cli_app, ["import"])
         assert_cli_success(result)
-        assert (
-            f"Successfully imported {EXPECTED_TRANSACTION_COUNT} transactions"
-            in result.stdout
-        )
+        assert f"{EXPECTED_TRANSACTION_COUNT} transactions imported" in result.stdout
         with db.get_connection() as conn:
             count = db.get_row_count(conn, Table.TXNS)
             assert count == EXPECTED_TRANSACTION_COUNT
 
 
 def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
-    """Test import command when folio file doesn't exist."""
+    """Test import command when files don't exist."""
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
         result = _run_cli_with_config(config, import_cmd.app)
         assert result.exit_code == 1
-        assert "Folio file not found:" in result.stdout
+        assert "No supported files found" in result.stdout
 
 
 def test_import_command_file(temp_ctx: TempContext) -> None:

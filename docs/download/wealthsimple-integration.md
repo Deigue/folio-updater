@@ -72,7 +72,7 @@ folio download --broker wealthsimple --from 2024-01-01 --to 2024-12-31
 After downloading, import the files into your folio database:
 
 ```bash
-folio import --dir data/imports/
+folio import
 ```
 
 ### Download Monthly Statements

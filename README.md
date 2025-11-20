@@ -51,13 +51,13 @@ Once installed, you can use the `folio` command-line tool:
 Import transaction files into your portfolio:
 
 ```bash
-# Default: Import from configured folio Excel file
+# Default: Import all files from the default import directory
 folio import
 
 # Import specific file
 folio import --file path/to/your/transactions.xlsx
 
-# Import all files from directory
+# Import all files from a custom directory
 folio import --dir C:\path\to\import\folder
 ```
 

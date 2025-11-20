@@ -9,7 +9,7 @@ import typer
 
 from cli import console_print
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 
 app = typer.Typer(
     name="folio",
@@ -31,10 +31,7 @@ def import_transactions_cmd(
         None,
         "-d",
         "--dir",
-        help=(
-            "Directory with files to import. Use 'default' to use default import "
-            "directory."
-        ),
+        help=("Directory with files to import."),
     ),
 ) -> None:
     """Import transactions into the folio."""
