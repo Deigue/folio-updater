@@ -8,7 +8,7 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from cli.display import print_error, print_success, print_warning
+from cli import console_error, console_success, console_warning
 from exporters.parquet_exporter import ParquetExporter
 
 app = typer.Typer()
@@ -24,12 +24,12 @@ def update_fx_rates() -> None:
         result = exporter.export_forex()
 
         if result > 0:
-            print_success(f"Successfully updated {result} FX rates")
+            console_success(f"Successfully updated {result} FX rates")
         else:
-            print_warning("No new FX rates to update")
+            console_warning("No new FX rates to update")
 
     except (OSError, ValueError, KeyError) as e:
-        print_error(f"Error updating FX rates: {e}")
+        console_error(f"Error updating FX rates: {e}")
         raise typer.Exit(1) from e
 
 

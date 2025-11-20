@@ -8,7 +8,7 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from cli.display import print_error, print_success
+from cli import console_error, console_success
 from exporters.excel_exporter import ExcelExporter
 
 app = typer.Typer()
@@ -26,9 +26,9 @@ def generate_excel() -> None:
     success = exporter.generate_excel()
 
     if success:
-        print_success("Excel workbook generated successfully!")
+        console_success("Excel workbook generated successfully!")
     else:
-        print_error("Error: Failed to generate Excel workbook")
+        console_error("Error: Failed to generate Excel workbook")
         raise typer.Exit(1)
 
 

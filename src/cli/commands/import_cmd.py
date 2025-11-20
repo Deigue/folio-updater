@@ -13,13 +13,13 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
-from cli.display import (
+from cli import (
     ProgressDisplay,
     TransactionDisplay,
-    print_error,
-    print_info,
-    print_success,
-    print_warning,
+    console_error,
+    console_info,
+    console_success,
+    console_warning,
 )
 from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
@@ -58,7 +58,7 @@ def import_transaction_files(
     config = bootstrap.reload_config()
 
     if file and directory:
-        print_error("Cannot specify both --file and --dir options")
+        console_error("Cannot specify both --file and --dir options")
         raise typer.Exit(1)
 
     if not file and not directory:
@@ -67,7 +67,7 @@ def import_transaction_files(
     elif file:
         file_path = Path(file)
         if not file_path.exists():
-            print_error(f"File not found: {file}")
+            console_error(f"File not found: {file}")
             raise typer.Exit(1)
 
         _import_file_and_export(file_path)
@@ -78,7 +78,7 @@ def import_transaction_files(
         else:
             dir_path = Path(directory)
             if not dir_path.exists():
-                print_error(f"Directory not found: {directory}")
+                console_error(f"Directory not found: {directory}")
                 raise typer.Exit(1)
 
         _import_directory_and_export(dir_path)
@@ -100,7 +100,7 @@ def _move_file(file_path: Path) -> None:
         counter += 1
 
     shutil.move(str(file_path), str(destination))
-    print_info(f"Moved {file_path.name} to {processed_path.name}/")
+    console_info(f"Moved {file_path.name} to {processed_path.name}/")
 
 
 def _import_single_file_to_db(file_path: Path) -> int:
@@ -121,7 +121,7 @@ def _import_single_file_to_db(file_path: Path) -> int:
 
         except (OSError, ValueError, KeyError) as e:
             progress.remove_task(task)
-            print_error(f"Error importing {file_path.name}: {e}")
+            console_error(f"Error importing {file_path.name}: {e}")
             return 0
 
         with get_connection() as conn:
@@ -143,7 +143,7 @@ def _import_file_and_export(file_path: Path) -> None:
     if num_txns > 0:
         _export_to_parquet()
     else:
-        print_warning(f"No transactions imported from {file_path.name}")
+        console_warning(f"No transactions imported from {file_path.name}")
     _move_file(file_path)
 
 
@@ -157,10 +157,10 @@ def _import_directory_and_export(dir_path: Path) -> None:
     ]
 
     if not import_files:
-        print_error(f"No supported files found in {dir_path}")
+        console_error(f"No supported files found in {dir_path}")
         raise typer.Exit(1)
 
-    print_info(f"Found {len(import_files)} files to import")
+    console_info(f"Found {len(import_files)} files to import")
 
     # Create summary table for all imports
     import_results = []
@@ -189,10 +189,10 @@ def _import_directory_and_export(dir_path: Path) -> None:
         )
 
     if total_imported > 0:
-        print_success(f"Total transactions imported: {total_imported}")
+        console_success(f"Total transactions imported: {total_imported}")
         _export_to_parquet()
     else:
-        print_warning("No transactions imported")
+        console_warning("No transactions imported")
 
 
 def _import_folio(config: Config) -> None:
@@ -200,7 +200,7 @@ def _import_folio(config: Config) -> None:
     try:
         folio_path = config.folio_path
         if not folio_path.exists():
-            print_error(f"Folio file not found: {folio_path}")
+            console_error(f"Folio file not found: {folio_path}")
             raise typer.Exit(1)
 
         with ProgressDisplay.file_import_progress() as progress:
@@ -213,13 +213,13 @@ def _import_folio(config: Config) -> None:
             progress.remove_task(task)
 
         if num_txns > 0:
-            print_success(f"Successfully imported {num_txns} transactions")
+            console_success(f"Successfully imported {num_txns} transactions")
             _export_to_parquet()
         else:
-            print_warning("No transactions imported from folio")
+            console_warning("No transactions imported from folio")
 
     except (OSError, ValueError, KeyError) as e:
-        print_error(f"Error importing from folio: {e}")
+        console_error(f"Error importing from folio: {e}")
         raise typer.Exit(1) from e
 
 
@@ -231,9 +231,9 @@ def _export_to_parquet() -> None:
             exporter = ParquetExporter()
             exported = exporter.export_transactions()
             progress.remove_task(task)
-        print_success(f"Exported {exported} transactions to Parquet")
+        console_success(f"Exported {exported} transactions to Parquet")
     except (OSError, ValueError, KeyError) as e:
-        print_warning(f"Failed to export to Parquet: {e}")
+        console_warning(f"Failed to export to Parquet: {e}")
 
 
 if __name__ == "__main__":

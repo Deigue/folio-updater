@@ -12,13 +12,13 @@ import typer
 
 from app import bootstrap
 from app.app_context import get_config
-from cli.display import (
+from cli import (
     ProgressDisplay,
     TransactionDisplay,
-    print_error,
-    print_info,
-    print_success,
-    print_warning,
+    console_error,
+    console_info,
+    console_success,
+    console_warning,
 )
 from db import db
 from db.db import get_connection, get_row_count
@@ -50,7 +50,7 @@ def settlement_info(
     """
     bootstrap.reload_config()
     if file and not import_flag:
-        print_error("The --file/-f option only works with --import enabled.")
+        console_error("The --file/-f option only works with --import enabled.")
         raise typer.Exit(1)
 
     if import_flag:
@@ -64,7 +64,7 @@ def _handle_statement_import(file: str | None) -> None:
     if file:
         statement_path = Path(file)
         if not statement_path.exists():
-            print_error(f"Statement file '{file}' does not exist.")
+            console_error(f"Statement file '{file}' does not exist.")
             raise typer.Exit(1)
         updates = _import_single_statement(statement_path)
     else:
@@ -77,8 +77,8 @@ def _handle_statement_import(file: str | None) -> None:
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
             progress.remove_task(task)
-        print_success("Exported updated transactions to Parquet.")
-    print_info("")
+        console_success("Exported updated transactions to Parquet.")
+    console_info("")
 
 
 def _import_single_statement(statement_path: Path) -> int:
@@ -89,9 +89,13 @@ def _import_single_statement(statement_path: Path) -> int:
         progress.remove_task(task)
 
     if updates > 0:
-        print_success(f"Updated {updates} settlement dates from {statement_path.name}")
+        console_success(
+            f"Updated {updates} settlement dates from {statement_path.name}",
+        )
     else:
-        print_warning(f"No settlement dates updated from {statement_path.name}")
+        console_warning(
+            f"No settlement dates updated from {statement_path.name}",
+        )
 
     return updates
 
@@ -102,7 +106,7 @@ def _import_statements_from_directory() -> int:
     statements_dir = config.statements_path
 
     if not statements_dir.exists():
-        print_error(f"Statements directory '{statements_dir}' does not exist.")
+        console_error(f"Statements directory '{statements_dir}' does not exist.")
         raise typer.Exit(1)
 
     xlsx_files = list(statements_dir.glob("*.xlsx"))
@@ -110,10 +114,14 @@ def _import_statements_from_directory() -> int:
     statement_files = xlsx_files + csv_files
 
     if not statement_files:
-        print_error(f"No statement files (.xlsx or .csv) found in '{statements_dir}'.")
+        console_error(
+            f"No statement files (.xlsx or .csv) found in '{statements_dir}'.",
+        )
         raise typer.Exit(1)
 
-    print_info(f"Found {len(statement_files)} statement file(s) in '{statements_dir}'")
+    console_info(
+        f"Found {len(statement_files)} statement file(s) in '{statements_dir}'",
+    )
 
     total_updates = 0
     import_results = []
@@ -135,11 +143,11 @@ def _import_statements_from_directory() -> int:
         )
 
         if updates > 0:
-            print_success(
+            console_success(
                 f"Updated {updates} settlement dates from {statement_file.name}",
             )
         else:
-            print_warning(f"No settlement dates updated from {statement_file.name}")
+            console_warning(f"No settlement dates updated from {statement_file.name}")
 
     # Show summary table
     if import_results:
@@ -150,7 +158,7 @@ def _import_statements_from_directory() -> int:
             max_rows=20,
         )
 
-    print_info(
+    console_info(
         f"TOTAL: Updated {total_updates} settlement dates across "
         f"{len(statement_files)} files.",
     )
@@ -197,7 +205,9 @@ def _display_settlement_statistics() -> None:
                     title="Transactions with Calculated Settlement Dates",
                 )
             else:
-                print_warning("No transactions found with calculated settlement dates.")
+                console_warning(
+                    "No transactions found with calculated settlement dates.",
+                )
 
     except sqlite3.DatabaseError as e:
-        print_error(f"Database error querying settlement info: {e}")
+        console_error(f"Database error querying settlement info: {e}")
