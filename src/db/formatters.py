@@ -186,24 +186,26 @@ class TransactionFormatter:
         self.exclusions: list[int] = []
         self.rejection_reasons: dict[int, list[str]] = {}
         self.config = get_config()
+        self.excluded_df = pd.DataFrame()
 
     @staticmethod
-    def format_and_validate(df: pd.DataFrame) -> pd.DataFrame:
+    def format_and_validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Format and validate transaction data, removing invalid rows.
 
         Args:
             df: DataFrame with transaction data
 
         Returns:
-            DataFrame with formatted data and invalid rows removed
+            Tuple of (formatted_df, excluded_df)
         """
         if df.empty:  # pragma: no cover
-            return df
+            return df, pd.DataFrame()
 
         formatter = TransactionFormatter(df)
-        return formatter._process()
+        formatter._process()
+        return formatter.formatted_df, formatter.excluded_df
 
-    def _process(self) -> pd.DataFrame:
+    def _process(self) -> None:
         """Process the transaction data through all formatting steps."""
         original_df = self.formatted_df.copy(deep=True)
         self._format_dates()
@@ -213,12 +215,21 @@ class TransactionFormatter:
         self._finalize_exclusions()
         self._log_formatting_changes(original_df)
         self._calculate_settlement_dates()
-        return self.formatted_df
 
     def _finalize_exclusions(self) -> None:
         """Remove excluded rows and log rejection details."""
         if self.exclusions:
             excluded_indices = set(self.exclusions)
+            self.excluded_df = self.original_df.loc[list(excluded_indices)].copy()
+            if not self.excluded_df.empty:
+                reasons_list = []
+                for idx in self.excluded_df.index:
+                    reasons = self.rejection_reasons.get(idx, ["Unknown"])
+                    reasons_list.append("; ".join(reasons))
+                self.excluded_df = self.excluded_df.assign(
+                    Rejection_Reason=reasons_list,
+                )
+
             self.formatted_df = self.formatted_df[
                 ~self.formatted_df.index.isin(excluded_indices)
             ]
