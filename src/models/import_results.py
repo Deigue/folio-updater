@@ -42,3 +42,70 @@ class TransformEvent:
     new_value: Any
     row_count: int
 
+
+@dataclass
+class ImportResults:
+    """Results for a transaction import operation.
+
+    DataFrames are captured at key pipeline stages for atomic tracking of import
+    operations. Summary metrics and events are also recorded.
+    """
+
+    read_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    mapped_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    transformed_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    excluded_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    intra_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    intra_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    db_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    db_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    final_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+    merge_events: list[MergeEvent] = field(default_factory=list)
+    transform_events: list[TransformEvent] = field(default_factory=list)
+    merge_candidates: int = 0
+    merged_into: int = 0
+
+    # Database counts
+    existing_count: int = 0
+    final_db_count: int = 0
+
+    def imported_count(self) -> int:
+        """Return number of transactions imported."""
+        return len(self.final_df)
+
+    def read_count(self) -> int:
+        """Return number of raw transactions read from source file."""
+        return len(self.read_df)
+
+    def excluded_count(self) -> int:
+        """Return number of transactions excluded by formatter validation."""
+        return len(self.excluded_df)
+
+    def intra_rejected_count(self) -> int:
+        """Return number of intra-import duplicates rejected."""
+        return len(self.intra_rejected_df)
+
+    def db_rejected_count(self) -> int:
+        """Return number of database duplicates rejected."""
+        return len(self.db_rejected_df)
+
+    def flow_summary(self) -> dict[str, Any]:
+        """Compute high level summary of import flow.
+
+        Returns:
+            Dictionary summarizing flow counts for each stage.
+        """
+        return {
+            "Read": self.read_count(),
+            "Merge Candidates": self.merge_candidates,
+            "Merged Into": self.merged_into,
+            "Excluded (format)": self.excluded_count(),
+            "Intra Duplicates Rejected": self.intra_rejected_count(),
+            "DB Duplicates Rejected": self.db_rejected_count(),
+            "Imported": self.imported_count(),
+        }
+
+    def __int__(self) -> int:  # backwards compatibility if cast to int
+        """Return imported count when cast to int (for backwards compatibility)."""
+        return self.imported_count()
