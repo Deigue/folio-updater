@@ -21,6 +21,8 @@ from utils.transforms import normalize_canadian_ticker
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from models.import_results import ImportResults
+
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
@@ -29,7 +31,9 @@ def import_transactions(
     folio_path: Path,
     account: str | None = None,
     sheet: str | None = None,
-) -> int:
+    *,
+    with_results: bool = False,
+) -> int | ImportResults:
     """Import transactions from Excel files and map headers to internal fields.
 
     Keeps TXN_ESSENTIALS first, then existing DB columns, then net new columns.
@@ -40,9 +44,11 @@ def import_transactions(
             when Account column is missing from the Excel file.
         sheet (str | None): Optional sheet name to read from the Excel file.
             If None, uses the first sheet in the Excel file.
+        with_results (bool): If True, return ImportResults instead of count.
 
     Returns:
-        int: Number of transactions imported.
+        Depending on with_results, returns ImportResults or count of imported
+        transactions.
     """
     is_csv: bool = folio_path.suffix.lower() == ".csv"
 
@@ -81,7 +87,10 @@ def import_transactions(
     db_path = get_config().db_path
     if existing_count > 0:
         rolling_backup(db_path)
-    prepared_df: pd.DataFrame = preparers.prepare_transactions(txns_df, account)
+
+    import_results = preparers.prepare_transactions(txns_df, account)
+    prepared_df = import_results.final_df
+
     with db.get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
@@ -95,8 +104,9 @@ def import_transactions(
     import_logger.info("TOTAL %d transactions in database", final_count)
     import_logger.info("=" * 80)
     import_logger.info("")
-
-    return txn_count
+    import_results.existing_count = existing_count
+    import_results.final_db_count = final_count
+    return import_results if with_results else txn_count
 
 
 def _analyze_and_insert_rows(

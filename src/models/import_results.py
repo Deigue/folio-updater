@@ -63,8 +63,6 @@ class ImportResults:
 
     merge_events: list[MergeEvent] = field(default_factory=list)
     transform_events: list[TransformEvent] = field(default_factory=list)
-    merge_candidates: int = 0
-    merged_into: int = 0
 
     # Database counts
     existing_count: int = 0
@@ -89,6 +87,14 @@ class ImportResults:
     def db_rejected_count(self) -> int:
         """Return number of database duplicates rejected."""
         return len(self.db_rejected_df)
+
+    def merge_candidates(self) -> int:
+        """Return number of transactions that were merge candidates."""
+        return sum(len(me.source_rows) for me in self.merge_events)
+
+    def merged_into(self) -> int:
+        """Return number of merge operations performed."""
+        return len(self.merge_events)
 
     def flow_summary(self) -> dict[str, Any]:
         """Compute high level summary of import flow.
