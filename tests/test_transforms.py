@@ -127,7 +127,7 @@ def test_transform_scenarios(
     """Test various transformation scenarios with parametrized data."""
     with temp_ctx(config):
         df = pd.DataFrame(test_data)
-        result = TransactionTransformer.transform(df)
+        result, _, _ = TransactionTransformer.transform(df)
         assert validate(result)
 
 

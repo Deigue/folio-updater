@@ -72,7 +72,7 @@ class TestMergeGroups:
                 },
             )
 
-            result = TransactionTransformer.transform(df)
+            result, _, _ = TransactionTransformer.transform(df)
             expected_rows = 2
             assert len(result) == expected_rows
 
@@ -111,7 +111,7 @@ class TestMergeGroups:
                 },
             )
 
-            result = TransactionTransformer.transform(df)
+            result, _, _ = TransactionTransformer.transform(df)
             assert len(result) == 1
             assert result.iloc[0][Column.Txn.ACTION] == "Dividends"
 
@@ -133,5 +133,5 @@ class TestMergeGroups:
                 },
             )
 
-            result = TransactionTransformer.transform(df)
+            result, _, _ = TransactionTransformer.transform(df)
             assert len(result) == len(df)

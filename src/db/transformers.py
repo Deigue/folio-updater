@@ -10,6 +10,7 @@ import pandas as pd
 
 from app.app_context import get_config
 from db.utils import format_transaction_summary
+from models.import_results import MergeEvent, TransformEvent
 from utils.constants import Column
 from utils.logging_setup import get_import_logger
 
@@ -30,25 +31,31 @@ class TransactionTransformer:
             df: DataFrame with mapped transaction data
         """
         self.df: pd.DataFrame = df.copy()
-        self.config = get_config()
-        self.transforms = self.config.transforms
+        self._config = get_config()
+        self.transforms = self._config.transforms
         self._has_groups: bool = False
+        self._merge_events: list[MergeEvent] = []
+        self._transform_events: list[TransformEvent] = []
 
     @staticmethod
-    def transform(df: pd.DataFrame) -> pd.DataFrame:
-        """Transform transaction data based on configured rules.
+    def transform(
+        df: pd.DataFrame,
+    ) -> tuple[pd.DataFrame, list[MergeEvent], list[TransformEvent]]:
+        """Transform data returning detailed merge & transform events.
 
         Args:
             df: DataFrame with mapped transaction data
 
         Returns:
-            DataFrame with transformations applied
+            (transformed_df, merge_events, transform_events)
+            merge_events: list of MergeEvent objects
+            transform_events: list of TransformEvent objects
         """
         if df.empty:  # pragma: no cover
-            return df
-
+            return df, [], []
         transformer = TransactionTransformer(df)
-        return transformer._apply_transforms()
+        transformer._apply_transforms()
+        return transformer.df, transformer._merge_events, transformer._transform_events
 
     def _apply_transforms(self) -> pd.DataFrame:
         """Apply all transformation rules to the DataFrame.
@@ -116,7 +123,7 @@ class TransactionTransformer:
                 continue
 
             # Log transformations
-            old_values = self.df.loc[mask, field_name].unique().tolist()
+            old_values = list(self.df.loc[mask, field_name].unique())
             msg = (
                 f"TRANSFORM '{field_name}' for {matching_rows} row(s): "
                 f"{old_values} -> {new_value}"
@@ -132,6 +139,15 @@ class TransactionTransformer:
                     new_value,
                 )
                 self.df.loc[mask, field_name] = converted_value
+
+            self._transform_events.append(
+                TransformEvent(
+                    field_name=field_name,
+                    old_values=old_values,
+                    new_value=new_value,
+                    row_count=int(matching_rows),
+                ),
+            )
 
     def _create_field_mask(
         self,
@@ -246,9 +262,15 @@ class TransactionTransformer:
                     )
 
                     for row in dropped_rows:
-                        import_logger.info(" - %s", row)
+                        import_logger.info("   - %s", row)
 
-        # Apply changes to DataFrame
+                self._merge_events.append(
+                    MergeEvent(
+                        merged_row=merged_row.to_dict(),
+                        source_rows=group_df.copy(),
+                    ),
+                )
+
         self._apply_merge_changes(group, rows_to_drop, rows_to_add)
 
     def _validate_merge_group_columns(
@@ -259,7 +281,6 @@ class TransactionTransformer:
 
         Args:
             group: MergeGroup configuration
-            action_col: Name of the Action column
 
         Returns:
             True if all columns exist, False otherwise
@@ -291,7 +312,6 @@ class TransactionTransformer:
 
         Args:
             group: MergeGroup configuration
-            action_col: Name of the Action column
 
         Returns:
             DataFrame with matching rows
@@ -325,7 +345,6 @@ class TransactionTransformer:
         Args:
             group: MergeGroup configuration
             group_df: DataFrame with transactions in this group
-            action_col: Name of the Action column
             group_key: Tuple identifying this group
 
         Returns:
@@ -369,7 +388,6 @@ class TransactionTransformer:
         Args:
             group: MergeGroup configuration
             group_df: DataFrame with transactions to merge
-            action_col: Name of the Action column
 
         Returns:
             Merged row as Series
