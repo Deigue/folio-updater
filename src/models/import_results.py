@@ -104,8 +104,8 @@ class ImportResults:
         """
         return {
             "Read": self.read_count(),
-            "Merge Candidates": self.merge_candidates,
-            "Merged Into": self.merged_into,
+            "Merge Candidates": self.merge_candidates(),
+            "Merged Into": self.merged_into(),
             "Excluded (format)": self.excluded_count(),
             "Intra Duplicates Rejected": self.intra_rejected_count(),
             "DB Duplicates Rejected": self.db_rejected_count(),

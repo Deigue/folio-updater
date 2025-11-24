@@ -5,27 +5,49 @@ This module provides custom display functions for the folio CLI.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
+from rich.tree import Tree
+
+from utils.constants import Action, Column
+
+# Cross-platform single character input
+try:
+    import msvcrt  # Windows
+
+    def _getch() -> str:
+        """Get a single character from stdin without pressing Enter."""
+        return msvcrt.getch().decode("utf-8").lower()
+
+except ImportError:
+    # Unix/Linux/Mac - fallback to regular input for now
+    def _getch() -> str:
+        """Get input (fallback for non-Windows systems)."""
+        return input().strip().lower()
+
+
+if TYPE_CHECKING:  # pragma: no cover
+    from models.import_results import ImportResults
+
 
 console = Console()
 
 # Color scheme for transaction types
 TRANSACTION_COLORS = {
-    "BUY": "bright_red",
-    "SELL": "bright_green",
-    "DIVIDEND": "bright_blue",
-    "FCH": "cyan",
-    "FEE": "yellow",
-    "CONTRIBUTION": "green",
-    "WITHDRAWAL": "red",
-    "ROC": "magenta",
-    "SPLIT": "purple",
+    Action.BUY: "bright_red",
+    Action.SELL: "bright_green",
+    Action.DIVIDEND: "bright_blue",
+    Action.FXT: "cyan",
+    Action.FCH: "yellow",
+    Action.CONTRIBUTION: "green",
+    Action.WITHDRAWAL: "red",
+    Action.ROC: "magenta",
+    Action.SPLIT: "purple",
 }
 
 
@@ -81,7 +103,7 @@ def _handle_pagination_input(
 def page_transactions(
     df: pd.DataFrame,
     title: str = "Transactions",
-    page_size: int = 20,
+    page_size: int = 50,
 ) -> None:
     """Display transactions with paging support for large datasets.
 
@@ -133,7 +155,7 @@ def page_transactions(
         console.print(f"\n{prompt}")
 
         try:
-            user_input = input().strip().lower()
+            user_input = _getch()
             current_page, should_exit = _handle_pagination_input(
                 user_input,
                 current_page,
@@ -171,7 +193,6 @@ class TransactionDisplay:
             self.console.print("[yellow]No transactions to display[/yellow]")
             return
 
-        # Limit rows for readability
         display_df = df.head(max_rows)
         truncated = len(df) > max_rows
 
@@ -180,45 +201,51 @@ class TransactionDisplay:
             show_header=True,
             header_style="bold bright_white",
             border_style="bright_blue",
-            show_lines=True,
+            show_lines=False,
         )
 
-        # Add columns with appropriate styling
-        table.add_column("ID", style="dim", width=6)
-        table.add_column("Date", width=12)
-        table.add_column("Action", width=12)
-        table.add_column("Ticker", width=10)
-        table.add_column("Amount", justify="right", width=12)
-        table.add_column("Curr", width=4)
-        table.add_column("Settle Date", width=12)
-        table.add_column("Account", width=10)
+        table.add_column(Column.Txn.TXN_ID, style="dim", width=6)
+        table.add_column(Column.Txn.TXN_DATE, width=11)
+        table.add_column(Column.Txn.ACTION, width=12)
+        table.add_column(Column.Txn.AMOUNT, justify="right", width=12)
+        table.add_column(Column.Txn.CURRENCY, width=4)
+        table.add_column(Column.Txn.PRICE, justify="right", width=12)
+        table.add_column(Column.Txn.UNITS, justify="right", width=12)
+        table.add_column(Column.Txn.TICKER, width=10)
+        table.add_column(Column.Txn.ACCOUNT, width=15)
+        table.add_column(Column.Txn.SETTLE_DATE, width=11)
 
         # Add rows with conditional formatting
         for _, row in display_df.iterrows():
-            action = str(row.get("Action", ""))
+            action = row.get(Column.Txn.ACTION, "")
             action_color = TRANSACTION_COLORS.get(action, "white")
 
             # Format amount with color based on action
-            amount = row.get("Amount", 0)
+            amount = row.get(Column.Txn.AMOUNT, 0)
+            try:
+                amount = float(amount)
+            except (TypeError, ValueError):
+                amount = 0.00
             amount_str = "0.00" if pd.isna(amount) else f"{float(amount):,.2f}"
 
-            # Color coding for amounts
-            if action in ["SELL", "CONTRIBUTION"] or amount > 0:
+            if action in [Action.SELL, Action.CONTRIBUTION] or amount > 0:
                 amount_display = f"[green]{amount_str}[/green]"
-            elif action in ["BUY", "WITHDRAWAL"] or amount < 0:
+            elif action in [Action.BUY, Action.WITHDRAWAL] or amount < 0:
                 amount_display = f"[red]{amount_str}[/red]"
             else:
                 amount_display = f"[white]{amount_str}[/white]"
 
             table.add_row(
-                str(row.get("TxnId", "")),
-                str(row.get("TxnDate", "")),
+                str(row.get(Column.Txn.TXN_ID, "")),
+                str(row.get(Column.Txn.TXN_DATE, "")),
                 f"[{action_color}]{action}[/{action_color}]",
-                str(row.get("Ticker", "") or ""),
                 amount_display,
-                str(row.get("Currency", "")),
-                str(row.get("SettleDate", "")),
-                str(row.get("Account", "")),
+                str(row.get(Column.Txn.CURRENCY, "")),
+                str(row.get(Column.Txn.PRICE, "")),
+                str(row.get(Column.Txn.UNITS, "")),
+                str(row.get(Column.Txn.TICKER, "")),
+                str(row.get(Column.Txn.ACCOUNT, "")),
+                str(row.get(Column.Txn.SETTLE_DATE, "")),
             )
 
         self.console.print(table)
@@ -228,7 +255,7 @@ class TransactionDisplay:
                 f"\n[dim]... showing first {max_rows} of {len(df)} transactions[/dim]",
             )
 
-    def show_statistics_panel(self, stats: dict[str, int | str]) -> None:
+    def show_stats_panel(self, stats: dict[str, int | str]) -> None:
         """Display statistics in a Rich panel.
 
         Args:
@@ -241,36 +268,36 @@ class TransactionDisplay:
 
         panel = Panel(
             stats_text,
-            title="[bold bright_blue]Statistics[/bold bright_blue]",
+            title="[bold bright_blue]Stats[/bold bright_blue]",
             border_style="bright_blue",
             padding=(0, 1),
+            expand=False,
         )
         self.console.print(panel)
 
     def show_import_summary(
         self,
         filename: str,
-        imported_count: int,
-        total_count: int,
-        *,
-        success: bool = True,
+        results: ImportResults,
     ) -> None:
         """Display import summary with success/error styling.
 
         Args:
             filename: Name of the imported file
-            imported_count: Number of transactions imported
-            total_count: Total transactions in database after import
-            success: Whether the import was successful
+            results: ImportResults object containing import metrics
         """
+        imported_count = results.imported_count()
+        total_count = results.final_db_count
+        success = imported_count > 0
+
         if success:
             icon = "✅"
             color = "green"
             status = "SUCCESS"
         else:
-            icon = "❌"
-            color = "red"
-            status = "FAILED"
+            icon = "⚠️"
+            color = "yellow"
+            status = "NO DATA"
 
         self.console.print(
             f"{icon} [{color}]{status}[/{color}]: "
@@ -278,6 +305,116 @@ class TransactionDisplay:
             f"[bright_white]{imported_count}[/bright_white] transactions imported "
             f"([dim]{total_count} total in database[/dim])",
         )
+
+    def show_import_audit(
+        self,
+        results: ImportResults,
+        *,
+        verbose: bool = False,
+    ) -> None:
+        """Display rich audit summary for an import operation."""
+        flow_panel_data = self._build_flow_panel(results)
+        self.show_stats_panel(flow_panel_data)
+        self._show_merge_tree(results, show_all=verbose)
+        self._show_transform_events(results)
+        self._show_exclusions(results)
+        self._show_duplicate_rejections(results)
+        if verbose:
+            self._show_verbose_tables(results)
+
+    def _build_flow_panel(self, results: ImportResults) -> dict[str, int | str]:
+        flow = results.flow_summary()
+        return {
+            "Read": flow["Read"],
+            "Merge Candidates": flow["Merge Candidates"],
+            "Merged Into": flow["Merged Into"],
+            "Excluded": flow["Excluded (format)"],
+            "Intra Dupes Rejected": flow["Intra Duplicates Rejected"],
+            "DB Dupes Rejected": flow["DB Duplicates Rejected"],
+            "Imported": flow["Imported"],
+        }
+
+    def _show_merge_tree(self, results: ImportResults, *, show_all: bool) -> None:
+        if not results.merge_events:
+            return
+        tree = Tree("[bold bright_blue]Merged Transactions[/bold bright_blue]")
+        events = results.merge_events if show_all else results.merge_events[:20]
+        for event in events:
+            merged_summary = (
+                f"[green]+ {event.merged_row.get('TxnDate', '')}|"
+                f"{event.merged_row.get('Action', '')}|"
+                f"{event.merged_row.get('Amount', '')}|"
+                f"{event.merged_row.get('Ticker', '')}"
+            )
+            parent = tree.add(merged_summary)
+            for _, src_row in event.source_rows.iterrows():
+                src_summary = (
+                    f"[red]- {src_row.get('TxnDate', '')}|"
+                    f"{src_row.get('Action', '')}|"
+                    f"{src_row.get('Amount', '')}|"
+                    f"{src_row.get('Ticker', '')}"
+                )
+                parent.add(src_summary)
+        self.console.print(tree)
+
+    def _show_transform_events(self, results: ImportResults) -> None:
+        if not results.transform_events:
+            return
+        transform_rows = [
+            {
+                "Field": e.field_name,
+                "Rows": e.row_count,
+                "Old": ",".join(map(str, e.old_values)),
+                "New": e.new_value,
+            }
+            for e in results.transform_events
+        ]
+        if transform_rows:
+            self.show_data_table(
+                transform_rows,
+                title="Transforms Applied",
+            )
+
+    def _show_exclusions(self, results: ImportResults) -> None:
+        if results.excluded_df.empty:
+            return
+        excluded_list_raw = results.excluded_df.to_dict(orient="records")
+        excluded_rows: list[dict[str, Any]] = [
+            {str(k): v for k, v in row.items()} for row in excluded_list_raw
+        ]
+        self.show_data_table(
+            excluded_rows,
+            title="Excluded (format validation)",
+        )
+
+    def _show_duplicate_rejections(self, results: ImportResults) -> None:
+        if not results.intra_rejected_df.empty:
+            intra_raw = results.intra_rejected_df.to_dict(
+                orient="records",
+            )
+            intra_preview: list[dict[str, Any]] = [
+                {str(k): v for k, v in row.items()} for row in intra_raw
+            ]
+            self.show_data_table(
+                intra_preview,
+                title="Intra Duplicates Rejected",
+            )
+        if not results.db_rejected_df.empty:
+            db_raw = results.db_rejected_df.to_dict(orient="records")
+            db_preview: list[dict[str, Any]] = [
+                {str(k): v for k, v in row.items()} for row in db_raw
+            ]
+            self.show_data_table(
+                db_preview,
+                title="DB Duplicates Rejected",
+            )
+
+    def _show_verbose_tables(self, results: ImportResults) -> None:
+        if not results.final_df.empty:
+            page_transactions(
+                results.final_df,
+                title="Imported Transactions",
+            )
 
     def show_data_table(
         self,

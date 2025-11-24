@@ -20,9 +20,9 @@ from cli import (
     console_success,
     console_warning,
 )
-from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
+from models.import_results import ImportResults
 
 app = typer.Typer()
 
@@ -41,6 +41,13 @@ def import_transaction_files(
         "--dir",
         help="Directory with files to import",
     ),
+    *,
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Display detailed audit information",
+    ),
 ) -> None:
     """Import transactions into the folio.
 
@@ -56,22 +63,21 @@ def import_transaction_files(
 
     if not file and not directory:
         # Default behavior: import from default import directory
-        _import_directory_and_export(config.imports_path)
+        _import_directory_and_export(config.imports_path, verbose=verbose)
     elif file:
         file_path = Path(file)
         if not file_path.exists():
             console_error(f"File not found: {file}")
             raise typer.Exit(1)
 
-        _import_file_and_export(file_path)
-
+        _import_file_and_export(file_path, verbose=verbose)
     elif directory:
         dir_path = Path(directory)
         if not dir_path.exists():
             console_error(f"Directory not found: {directory}")
             raise typer.Exit(1)
 
-        _import_directory_and_export(dir_path)
+        _import_directory_and_export(dir_path, verbose=verbose)
 
 
 def _move_file(file_path: Path) -> None:
@@ -93,11 +99,12 @@ def _move_file(file_path: Path) -> None:
     console_info(f"Moved {file_path.name} to {processed_path.name}/")
 
 
-def _import_single_file_to_db(file_path: Path) -> int:
-    """Import a single file to database.
-
-    Returns number of transactions_imported.
-    """
+def _import_single_file_to_db(
+    file_path: Path,
+    *,
+    verbose: bool = False,
+) -> ImportResults | None:
+    """Import a single file to database."""
     display = TransactionDisplay()
 
     with ProgressDisplay.file_import_progress() as progress:
@@ -106,30 +113,30 @@ def _import_single_file_to_db(file_path: Path) -> int:
         try:
             config = get_config()
             txn_sheet = config.txn_sheet
-            num_txns = import_transactions(file_path, None, txn_sheet)
+            results = import_transactions(
+                file_path,
+                None,
+                txn_sheet,
+                with_results=True,
+            )
+            if not isinstance(results, ImportResults):  # pragma: no cover
+                console_error(f"Invalid result type from import: {type(results)}")
+                return None
             progress.remove_task(task)
-
         except (OSError, ValueError, KeyError) as e:
             progress.remove_task(task)
             console_error(f"Error importing {file_path.name}: {e}")
-            return 0
+            return None
 
-        with get_connection() as conn:
-            total_count = get_row_count(conn, "transactions")
-
-        display.show_import_summary(
-            file_path.name,
-            num_txns,
-            total_count,
-            success=num_txns > 0,
-        )
-        return num_txns
+        display.show_import_summary(file_path.name, results)
+        display.show_import_audit(results, verbose=verbose)
+        return results
 
 
-def _import_file_and_export(file_path: Path) -> None:
+def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
     """Import a single file and export to Parquet."""
-    num_txns = _import_single_file_to_db(file_path)
-
+    import_result = _import_single_file_to_db(file_path, verbose=verbose)
+    num_txns = import_result.imported_count() if import_result else 0
     if num_txns > 0:
         _export_to_parquet()
     else:
@@ -137,7 +144,7 @@ def _import_file_and_export(file_path: Path) -> None:
     _move_file(file_path)
 
 
-def _import_directory_and_export(dir_path: Path) -> None:
+def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> None:
     """Import all files from directory and export to Parquet."""
     supported_extensions = {".xlsx", ".xls", ".csv"}
     import_files = [
@@ -158,7 +165,8 @@ def _import_directory_and_export(dir_path: Path) -> None:
 
     # Import all files to database first
     for file_path in import_files:
-        num_txns = _import_single_file_to_db(file_path)
+        result = _import_single_file_to_db(file_path, verbose=verbose)
+        num_txns = result.imported_count() if result else 0
         import_results.append(
             {
                 "File": file_path.name,

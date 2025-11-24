@@ -187,7 +187,7 @@ def _display_settlement_statistics() -> None:
                 "Calculated settlement dates": calculated_count,
                 "Provided settlement dates": total_count - calculated_count,
             }
-            display.show_statistics_panel(stats)
+            display.show_stats_panel(stats)
 
             if calculated_count > 0:
                 df = db.get_rows(

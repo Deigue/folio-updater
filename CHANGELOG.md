@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Display detailed audit information for transaction imports
+
 ### Changed
 
 - Improved CLI output formatting and colorization

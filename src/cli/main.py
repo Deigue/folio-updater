@@ -9,7 +9,7 @@ import typer
 
 from cli import console_print
 
-__version__ = "0.5.6"
+__version__ = "0.6.0"
 
 app = typer.Typer(
     name="folio",
@@ -33,11 +33,18 @@ def import_transactions_cmd(
         "--dir",
         help=("Directory with files to import."),
     ),
+    *,
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Display detailed audit information",
+    ),
 ) -> None:
     """Import transactions into the folio."""
     from cli.commands.import_cmd import import_transaction_files
 
-    import_transaction_files(file=file, directory=directory)
+    import_transaction_files(file=file, directory=directory, verbose=verbose)
 
 
 @app.command("getfx", help="Update foreign exchange rates")
@@ -74,7 +81,7 @@ def settle_info_cmd(
     ),
     *,
     import_flag: bool = typer.Option(
-        False,  # noqa: FBT003
+        False,
         "-i",
         "--import",
         help="Import statement files to update settlement dates",

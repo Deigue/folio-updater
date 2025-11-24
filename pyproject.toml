@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.5.6"
+version = "0.6.0"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -105,7 +105,10 @@ exclude = [
     "T201",
 ]
 "src/cli/main.py" = ["PLC0415"]
-"src/cli/*" = ["PLR0913"] # Allow function-level imports for lazy loading
+"src/cli/*" = [
+    "PLR0913",
+    "FBT003",
+]
 
 [tool.ruff.lint.flake8-tidy-imports]
 banned-module-level-imports = ["pandas_market_calendars"]
