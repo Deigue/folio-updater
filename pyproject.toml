@@ -108,6 +108,7 @@ exclude = [
 "src/cli/*" = [
     "PLR0913",
     "FBT003",
+    "PLW0603",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

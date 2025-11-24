@@ -14,6 +14,7 @@ import pandas as pd
 import requests
 
 from app.app_context import get_config
+from cli import console_info
 from db import db, schema_manager
 from db.db import get_connection
 from utils.backup import rolling_backup
@@ -310,10 +311,14 @@ class ForexService:
                 start_date = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime(
                     "%Y-%m-%d",
                 )
-            logger.info("No FX data found, getting FX from %s to today", start_date)
+            msg = f"No FX data found in database, using {start_date} as start date"
+            logger.info(msg)
+            console_info(msg)
             return cls.get_fx_rates_from_boc(start_date)
 
         latest_date_obj = pd.to_datetime(latest_fx_date)
         next_date = (latest_date_obj + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        logger.info("Fetching missing FX data from %s to today", next_date)
+        msg = f"Fetching missing FX data from {next_date} to today"
+        logger.info(msg)
+        console_info(msg)
         return cls.get_fx_rates_from_boc(next_date)

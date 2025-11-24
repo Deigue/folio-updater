@@ -9,6 +9,7 @@ import typer
 
 from app import bootstrap
 from cli import ProgressDisplay, console_error, console_success, console_warning
+from cli.console import progress_console_context
 from exporters.parquet_exporter import ParquetExporter
 
 app = typer.Typer()
@@ -24,7 +25,8 @@ def update_fx_rates() -> None:
         with ProgressDisplay.spinner_progress("cyan") as progress:
             task = progress.add_task("Updating FX rates...", start=False)
             progress.start_task(task)
-            result = exporter.export_forex()
+            with progress_console_context(progress.console):
+                result = exporter.export_forex()
 
         if result > 0:
             console_success(f"Successfully updated {result} FX rates")

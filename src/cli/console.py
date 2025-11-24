@@ -11,10 +11,52 @@ Examples:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import TYPE_CHECKING
+
 from rich.console import Console
 from rich.panel import Panel
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 console = Console()
+
+# Thread-local context for progress console during operations
+_progress_console: Console | None = None
+
+
+@contextmanager
+def progress_console_context(progress_console: Console) -> Generator[None]:
+    """Context manager to set the progress console for coordinated output.
+
+    Use this to ensure console messages print through the progress console
+    during long-running operations, preventing visual artifacts.
+
+    Args:
+        progress_console: Console instance from Progress object
+
+    Example:
+        with Progress(...) as progress:
+            with progress_console_context(progress.console):
+                console_info("Processing...")  # Uses progress console
+    """
+    global _progress_console
+    old_console = _progress_console
+    _progress_console = progress_console
+    try:
+        yield
+    finally:
+        _progress_console = old_console
+
+
+def _get_output_console() -> Console:
+    """Get the active console for output (progress or default).
+
+    Returns:
+        Current progress console if active, otherwise default console
+    """
+    return _progress_console if _progress_console is not None else console
 
 
 def console_success(message: str) -> None:
@@ -25,7 +67,7 @@ def console_success(message: str) -> None:
     Args:
         message: Success message to display to user
     """
-    console.print(f"✅ [green]{message}[/green]")
+    _get_output_console().print(f"✅ [green]{message}[/green]")
 
 
 def console_error(message: str) -> None:
@@ -34,7 +76,7 @@ def console_error(message: str) -> None:
     Args:
         message: Error message to display to user
     """
-    console.print(f"❌ [red]{message}[/red]")
+    _get_output_console().print(f"❌ [red]{message}[/red]")
 
 
 def console_warning(message: str) -> None:
@@ -43,7 +85,7 @@ def console_warning(message: str) -> None:
     Args:
         message: Warning message to display to user
     """
-    console.print(f"⚠️  [yellow]{message}[/yellow]")
+    _get_output_console().print(f"⚠️  [yellow]{message}[/yellow]")
 
 
 def console_info(message: str) -> None:
@@ -52,7 +94,7 @@ def console_info(message: str) -> None:
     Args:
         message: Info message to display to user
     """
-    console.print(f"ℹ️  [cyan]{message}[/cyan]")
+    _get_output_console().print(f"ℹ️  [cyan]{message}[/cyan]")
 
 
 def console_plain(message: str) -> None:
@@ -61,7 +103,7 @@ def console_plain(message: str) -> None:
     Args:
         message: Message to display to user
     """
-    console.print(message)
+    _get_output_console().print(message)
 
 
 def console_print(message: str, style: str = "") -> None:
@@ -74,10 +116,11 @@ def console_print(message: str, style: str = "") -> None:
         message: Message to display
         style: Optional Rich markup style (e.g., "[bold]", "[red]", "[dim]")
     """
+    out_console = _get_output_console()
     if style:
-        console.print(f"[{style}]{message}[/{style}]")
+        out_console.print(f"[{style}]{message}[/{style}]")
     else:
-        console.print(message)
+        out_console.print(message)
 
 
 def console_rule(title: str = "", style: str = "bright_blue") -> None:
@@ -89,7 +132,7 @@ def console_rule(title: str = "", style: str = "bright_blue") -> None:
         title: Optional title to display in the rule
         style: Color/style for the rule
     """
-    console.rule(title, style=style)
+    _get_output_console().rule(title, style=style)
 
 
 def console_panel(message: str, title: str = "", style: str = "bright_blue") -> None:
@@ -108,4 +151,4 @@ def console_panel(message: str, title: str = "", style: str = "bright_blue") -> 
         border_style=style,
         padding=(0, 1),
     )
-    console.print(panel)
+    _get_output_console().print(panel)
