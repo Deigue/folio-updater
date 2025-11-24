@@ -219,7 +219,7 @@ def wealthsimple_transactions(
     resolved_to_date: str = _resolve_to_date(to_date)
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
 
-    with ProgressDisplay.api_download_progress() as progress:
+    with ProgressDisplay.spinner_progress("blue") as progress:
         task = progress.add_task("Connecting to Wealthsimple API...", total=None)
 
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(

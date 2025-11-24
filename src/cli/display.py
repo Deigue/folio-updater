@@ -465,29 +465,23 @@ class ProgressDisplay:
     """Rich progress indicators for long-running operations."""
 
     @staticmethod
-    def file_import_progress() -> Progress:
-        """Create a progress bar for file imports.
+    def spinner_progress(
+        color: str = "white",
+        *,
+        transient: bool = True,
+    ) -> Progress:
+        """Create a spinner progress indicator.
+
+        Args:
+            color: Color for the spinner and text (e.g., 'blue', 'green', 'red')
+            transient: Whether to remove the progress when complete
 
         Returns:
-            Progress instance configured for file operations
+            Progress instance configured with a spinner
         """
         return Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
+            SpinnerColumn(style=color),
+            TextColumn(f"[{color}]{{task.description}}[/{color}]"),
             console=console,
-            transient=True,  # Removes when complete
-        )
-
-    @staticmethod
-    def api_download_progress() -> Progress:
-        """Create a spinner for API downloads.
-
-        Returns:
-            Progress instance configured for API operations
-        """
-        return Progress(
-            SpinnerColumn(style="blue"),
-            TextColumn("[blue]{task.description}[/blue]"),
-            console=console,
-            transient=True,
+            transient=transient,
         )
