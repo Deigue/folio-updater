@@ -101,6 +101,9 @@ def import_transactions(
     txn_count = len(prepared_df)
     msg: str = f"DONE: {txn_count} imported"
     import_logger.info(msg)
+    summaries = import_results.final_df.apply(format_transaction_summary, axis=1)
+    for summary in summaries:
+        import_logger.info(" + %s", summary)
     import_logger.info("TOTAL %d transactions in database", final_count)
     import_logger.info("=" * 80)
     import_logger.info("")

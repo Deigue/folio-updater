@@ -107,7 +107,7 @@ def _import_single_file_to_db(
     """Import a single file to database."""
     display = TransactionDisplay()
 
-    with ProgressDisplay.file_import_progress() as progress:
+    with ProgressDisplay.spinner_progress("green") as progress:
         task = progress.add_task(f"Importing {file_path.name}...", total=None)
 
         try:
@@ -196,7 +196,7 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
 def _export_to_parquet() -> None:
     """Export transactions to Parquet."""
     try:
-        with ProgressDisplay.file_import_progress() as progress:
+        with ProgressDisplay.spinner_progress("green") as progress:
             task = progress.add_task("Exporting to Parquet...", total=None)
             exporter = ParquetExporter()
             exported = exporter.export_transactions()

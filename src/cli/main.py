@@ -9,7 +9,7 @@ import typer
 
 from cli import console_print
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 app = typer.Typer(
     name="folio",
