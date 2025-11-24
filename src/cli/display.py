@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 from rich.console import Console
-from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.tree import Tree
 
+from cli.console import console_panel, console_print
 from utils.constants import Action, Column
 
 # Cross-platform single character input
@@ -190,7 +190,7 @@ class TransactionDisplay:
             max_rows: Maximum number of rows to display
         """
         if df.empty:
-            self.console.print("[yellow]No transactions to display[/yellow]")
+            console_print("[yellow]No transactions to display[/yellow]")
             return
 
         display_df = df.head(max_rows)
@@ -248,10 +248,10 @@ class TransactionDisplay:
                 str(row.get(Column.Txn.SETTLE_DATE, "")),
             )
 
-        self.console.print(table)
+        console_print(table)
 
         if truncated:
-            self.console.print(
+            console_print(
                 f"\n[dim]... showing first {max_rows} of {len(df)} transactions[/dim]",
             )
 
@@ -265,15 +265,7 @@ class TransactionDisplay:
             f"[bold]{key}:[/bold] [bright_white]{value}[/bright_white]"
             for key, value in stats.items()
         )
-
-        panel = Panel(
-            stats_text,
-            title="[bold bright_blue]Stats[/bold bright_blue]",
-            border_style="bright_blue",
-            padding=(0, 1),
-            expand=False,
-        )
-        self.console.print(panel)
+        console_panel(stats_text, title="Stats", style="bright_blue", expand=False)
 
     def show_import_summary(
         self,
@@ -299,7 +291,7 @@ class TransactionDisplay:
             color = "yellow"
             status = "NO DATA"
 
-        self.console.print(
+        console_print(
             f"{icon} [{color}]{status}[/{color}]: "
             f"[bold]{filename}[/bold] - "
             f"[bright_white]{imported_count}[/bright_white] transactions imported "
@@ -355,7 +347,7 @@ class TransactionDisplay:
                     f"{src_row.get('Ticker', '')}"
                 )
                 parent.add(src_summary)
-        self.console.print(tree)
+        console_print(tree)
 
     def _show_transform_events(self, results: ImportResults) -> None:
         if not results.transform_events:
@@ -430,7 +422,7 @@ class TransactionDisplay:
             max_rows: Maximum number of rows to display
         """
         if not data:
-            self.console.print("[yellow]No data to display[/yellow]")
+            console_print("[yellow]No data to display[/yellow]")
             return
 
         # Limit rows for readability
@@ -453,10 +445,10 @@ class TransactionDisplay:
             for row in display_data:
                 table.add_row(*[str(value) for value in row.values()])
 
-        self.console.print(table)
+        console_print(table)
 
         if truncated:
-            self.console.print(
+            console_print(
                 f"\n[dim]... showing first {max_rows} of {len(data)} items[/dim]",
             )
 

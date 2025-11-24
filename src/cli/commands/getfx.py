@@ -22,11 +22,13 @@ def update_fx_rates() -> None:
 
     try:
         exporter = ParquetExporter()
-        with ProgressDisplay.spinner_progress("cyan") as progress:
+        with (
+            ProgressDisplay.spinner_progress("cyan") as progress,
+            progress_console_context(progress.console),
+        ):
             task = progress.add_task("Updating FX rates...", start=False)
             progress.start_task(task)
-            with progress_console_context(progress.console):
-                result = exporter.export_forex()
+            result = exporter.export_forex()
 
         if result > 0:
             console_success(f"Successfully updated {result} FX rates")

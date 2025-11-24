@@ -12,7 +12,7 @@ Examples:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 from rich.panel import Panel
@@ -106,7 +106,7 @@ def console_plain(message: str) -> None:
     _get_output_console().print(message)
 
 
-def console_print(message: str, style: str = "") -> None:
+def console_print(message: Any, style: str = "") -> None:
     """Print message with optional Rich markup styling.
 
     Use for: Plain text output, custom styling, or when other console_* methods
@@ -135,7 +135,13 @@ def console_rule(title: str = "", style: str = "bright_blue") -> None:
     _get_output_console().rule(title, style=style)
 
 
-def console_panel(message: str, title: str = "", style: str = "bright_blue") -> None:
+def console_panel(
+    message: str,
+    title: str = "",
+    style: str = "bright_blue",
+    *,
+    expand: bool = False,
+) -> None:
     """Print message in a Rich panel for emphasis.
 
     Use for: Important announcements, summaries, highlighted information.
@@ -144,11 +150,13 @@ def console_panel(message: str, title: str = "", style: str = "bright_blue") -> 
         message: Content to display in panel
         title: Optional panel title
         style: Border style/color for the panel
+        expand: Whether to expand the panel to fill the console
     """
     panel = Panel(
         message,
         title=f"[bold {style}]{title}[/bold {style}]" if title else None,
         border_style=style,
         padding=(0, 1),
+        expand=expand,
     )
     _get_output_console().print(panel)

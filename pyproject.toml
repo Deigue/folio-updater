@@ -109,6 +109,7 @@ exclude = [
     "PLR0913",
     "FBT003",
     "PLW0603",
+    "ANN401",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

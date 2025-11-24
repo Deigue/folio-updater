@@ -20,6 +20,7 @@ from cli import (
     console_success,
     console_warning,
 )
+from cli.console import progress_console_context
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
 from models.import_results import ImportResults
@@ -107,7 +108,10 @@ def _import_single_file_to_db(
     """Import a single file to database."""
     display = TransactionDisplay()
 
-    with ProgressDisplay.spinner_progress("green") as progress:
+    with (
+        ProgressDisplay.spinner_progress("green") as progress,
+        progress_console_context(progress.console),
+    ):
         task = progress.add_task(f"Importing {file_path.name}...", total=None)
 
         try:
