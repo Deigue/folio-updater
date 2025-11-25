@@ -20,7 +20,8 @@ from cli import (
     console_success,
     console_warning,
 )
-from cli.console import progress_console_context
+from cli.console import console_rule, progress_console_context
+from cli.display import THEME_SUCCESS
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_transactions
 from models.import_results import ImportResults
@@ -168,14 +169,22 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
     total_imported = 0
 
     # Import all files to database first
-    for file_path in import_files:
+    for i, file_path in enumerate(import_files):
+        # Add separator between files (after first)
+        if i > 0:
+            console_rule(style="dim")
+
         result = _import_single_file_to_db(file_path, verbose=verbose)
         num_txns = result.imported_count() if result else 0
         import_results.append(
             {
                 "File": file_path.name,
                 "Transactions": num_txns,
-                "Status": "✅ Success" if num_txns > 0 else "⚠️  No data",
+                "Status": (
+                    "[green]Success[/green]"
+                    if num_txns > 0
+                    else "[yellow]No data[/yellow]"
+                ),
             },
         )
         total_imported += num_txns
@@ -183,11 +192,13 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
 
     # Display summary table
     if import_results:
+        console_rule("Import Summary", style=THEME_SUCCESS)
         display = TransactionDisplay()
         display.show_data_table(
             import_results,
             title="Import Summary",
             max_rows=20,
+            theme=THEME_SUCCESS,
         )
 
     if total_imported > 0:
