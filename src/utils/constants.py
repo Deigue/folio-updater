@@ -32,6 +32,14 @@ class Action(StrEnum):
     WITHDRAWAL = "WITHDRAWAL"  # Take out money from the portfolio
 
 
+class TransactionContext(StrEnum):
+    """Context for transaction display to control column visibility."""
+
+    IMPORT = "import"  # Import context: hide TxnId and SettleDate
+    SETTLEMENT = "settlement"  # Settlement context: show all columns including TxnId
+    GENERAL = "general"  # General context: show all columns
+
+
 class Table(StrEnum):
     """Table names."""
 

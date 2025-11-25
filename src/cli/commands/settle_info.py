@@ -24,7 +24,7 @@ from db import db
 from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
 from importers.excel_importer import import_statements
-from utils.constants import Column, Table
+from utils.constants import Column, Table, TransactionContext
 
 
 def settlement_info(
@@ -36,7 +36,7 @@ def settlement_info(
     ),
     *,
     import_flag: bool = typer.Option(
-        False,  # noqa: FBT003
+        False,
         "-i",
         "--import",
         help="Import statement files to update settlement dates",
@@ -72,7 +72,7 @@ def _handle_statement_import(file: str | None) -> None:
 
     # Updates parquets if any settlement dates were updated
     if updates > 0:
-        with ProgressDisplay.file_import_progress() as progress:
+        with ProgressDisplay.spinner_progress(color="cyan") as progress:
             task = progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
@@ -83,7 +83,7 @@ def _handle_statement_import(file: str | None) -> None:
 
 def _import_single_statement(statement_path: Path) -> int:
     """Import a single statement file."""
-    with ProgressDisplay.file_import_progress() as progress:
+    with ProgressDisplay.spinner_progress(color="cyan") as progress:
         task = progress.add_task(f"Importing {statement_path.name}...", total=None)
         updates = import_statements(statement_path)
         progress.remove_task(task)
@@ -127,7 +127,7 @@ def _import_statements_from_directory() -> int:
     import_results = []
 
     for statement_file in statement_files:
-        with ProgressDisplay.file_import_progress() as progress:
+        with ProgressDisplay.spinner_progress(color="cyan") as progress:
             task = progress.add_task(f"Importing {statement_file.name}...", total=None)
             updates = import_statements(statement_file)
             progress.remove_task(task)
@@ -203,6 +203,7 @@ def _display_settlement_statistics() -> None:
                 display.show_transactions_table(
                     df,
                     title="Transactions with Calculated Settlement Dates",
+                    context=TransactionContext.SETTLEMENT,
                 )
             else:
                 console_warning(
