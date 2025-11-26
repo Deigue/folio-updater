@@ -51,6 +51,12 @@ PROMPT_LINES = 2
 # Gap between columns when using horizontal layout (Rich Columns default).
 COLUMN_GAP = 2
 
+# Header row height for tables.
+TABLE_HEADER_HEIGHT = 2
+
+# Page progress display height (e.g., "Showing transactions 1-15 of 100").
+PAGE_PROGRESS_HEIGHT = 1
+
 THEME_MERGED = "bright_blue"  # Merged panels - informational
 THEME_TRANSFORMS = "medium_purple3"  # Transforms - modification
 THEME_EXCLUDED = "dark_red"  # Excluded/rejected - removal
@@ -427,7 +433,7 @@ def page_transactions(
         display.transactions_table(page_df, max_rows=page_size, context=context)
 
         console.print(
-            f"\n[dim]Showing transactions {start_idx + 1}-{end_idx} of"
+            f"[dim]Showing transactions {start_idx + 1}-{end_idx} of"
             f" {total_rows}[/dim]",
         )
 
@@ -466,10 +472,12 @@ def _get_terminal_size() -> tuple[int, int]:
         return term_size.width, term_size.height
 
 
-def _calculate_available_height() -> int:
+def _calculate_available_height(*, table: bool = False, pages: bool = False) -> int:
     """Calculate available height for content after reserved UI elements."""
     _, height = _get_terminal_size()
     reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
+    reserved_lines += TABLE_HEADER_HEIGHT if table else 0
+    reserved_lines += PAGE_PROGRESS_HEIGHT if pages else 0
     return max(height - reserved_lines, 10)  # Minimum 10 lines
 
 
@@ -861,6 +869,8 @@ class TransactionDisplay:
                 ),
             )
 
+        max_rows = _calculate_available_height(table=True)
+
         if results.transform_events:
             total = len(results.transform_events)
             shown = min(total, max_rows)
@@ -1194,9 +1204,11 @@ class TransactionDisplay:
             _getch()
 
         elif block.data_type in ("excluded", "dupes", "dataframe"):
+            rows = _calculate_available_height(table=True, pages=True)
             page_transactions(
                 block.data,
                 title=block.name,
+                page_size=rows,
                 context=TransactionContext.IMPORT,
             )
 
