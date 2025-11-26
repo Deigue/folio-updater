@@ -19,6 +19,7 @@ from db import db, schema_manager
 from db.db import get_connection
 from utils.backup import rolling_backup
 from utils.constants import TORONTO_TZ, Column, Table
+from utils.log_console import info_both
 
 logger = logging.getLogger(__name__)
 
@@ -312,8 +313,7 @@ class ForexService:
                     "%Y-%m-%d",
                 )
             msg = f"No FX data found in database, using {start_date} as start date"
-            logger.info(msg)
-            console_info(msg)
+            info_both(msg)
             return cls.get_fx_rates_from_boc(start_date)
 
         latest_date_obj = pd.to_datetime(latest_fx_date)

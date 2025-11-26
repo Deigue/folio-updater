@@ -450,7 +450,7 @@ wheels = [
 
 [[package]]
 name = "folio-updater"
-version = "0.6.5"
+version = "0.6.10"
 source = { virtual = "." }
 dependencies = [
     { name = "fastparquet" },
