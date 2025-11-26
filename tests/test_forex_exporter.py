@@ -11,7 +11,7 @@ import pytest
 
 from db import db, schema_manager
 from exporters.parquet_exporter import ParquetExporter
-from services.forex_service import ForexService
+from services import ForexService
 from utils.constants import TORONTO_TZ, Column, Table
 
 if TYPE_CHECKING:

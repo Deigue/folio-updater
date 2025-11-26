@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 from app.app_context import get_config
 from db import db
-from services.forex_service import ForexService
 from utils.constants import Column, Table
+from services import ForexService
 
 if TYPE_CHECKING:
     import pandas as pd

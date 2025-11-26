@@ -17,7 +17,7 @@ import yaml
 from app.app_context import AppContext, get_config
 from mock.folio_setup import create_mock_data
 from mock.mock_data import get_mock_data_date_range
-from services.forex_service import ForexService
+from services import ForexService
 from utils.constants import TORONTO_TZ, Column, Currency
 from utils.settlement_calculator import settlement_calculator
 

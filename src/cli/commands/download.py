@@ -26,10 +26,9 @@ from cli import (
 )
 from db import db
 from models.wealthsimple.activity_feed_item import ActivityFeedItem
-from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
-from services.wealthsimple_service import WealthsimpleService
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.logging_setup import get_import_logger
+from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 
 if TYPE_CHECKING:
     from models.wealthsimple.activity_feed_item import ActivityFeedItem
