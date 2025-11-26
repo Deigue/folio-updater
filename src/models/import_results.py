@@ -96,22 +96,6 @@ class ImportResults:
         """Return number of merge operations performed."""
         return len(self.merge_events)
 
-    def flow_summary(self) -> dict[str, Any]:
-        """Compute high level summary of import flow.
-
-        Returns:
-            Dictionary summarizing flow counts for each stage.
-        """
-        return {
-            "Read": self.read_count(),
-            "Merge Candidates": self.merge_candidates(),
-            "Merged Into": self.merged_into(),
-            "Excluded (format)": self.excluded_count(),
-            "Intra Duplicates Rejected": self.intra_rejected_count(),
-            "DB Duplicates Rejected": self.db_rejected_count(),
-            "Imported": self.imported_count(),
-        }
-
     def __int__(self) -> int:  # backwards compatibility if cast to int
         """Return imported count when cast to int (for backwards compatibility)."""
         return self.imported_count()

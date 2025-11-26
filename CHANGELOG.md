@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - Display detailed audit information for transaction imports
 - Import logging will now include the final list of transactions imported
+- Completely revamped CLI display for import and settlement info
+- `--verbose` flag can be used to display final imported transactions for imports
 
 ### Changed
 

@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.6.1"
+version = "0.6.9"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"

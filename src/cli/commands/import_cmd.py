@@ -48,7 +48,7 @@ def import_transaction_files(
         False,
         "-v",
         "--verbose",
-        help="Display detailed audit information",
+        help="Display the final imported transactions",
     ),
 ) -> None:
     """Import transactions into the folio.

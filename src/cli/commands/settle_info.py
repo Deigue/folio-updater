@@ -200,7 +200,7 @@ def _display_settlement_statistics() -> None:
                 )
 
                 # Display with Rich table
-                display.show_transactions_table(
+                display.transactions_table(
                     df,
                     title="Transactions with Calculated Settlement Dates",
                     context=TransactionContext.SETTLEMENT,

@@ -227,7 +227,7 @@ class TransactionFormatter:
                     reasons = self.rejection_reasons.get(idx, ["Unknown"])
                     reasons_list.append("; ".join(reasons))
                 self.excluded_df = self.excluded_df.assign(
-                    Rejection_Reason=reasons_list,
+                    **{str(Column.REJECTION_REASON): reasons_list},
                 )
 
             self.formatted_df = self.formatted_df[

@@ -50,6 +50,8 @@ class Table(StrEnum):
 class Column(StrEnum):
     """Constants for column names."""
 
+    REJECTION_REASON = "Rejection_Reason"
+
     class Txn(StrEnum):
         """Transaction columns."""
 
