@@ -11,6 +11,7 @@ Examples:
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +21,39 @@ from rich.panel import Panel
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-console = Console()
+
+def _supports_unicode() -> bool:  # pragma: no cover
+    """Check if the current console supports Unicode characters.
+
+    Returns:
+        True if Unicode is supported, False if we should use ASCII fallbacks
+    """
+    if sys.platform == "win32":
+        encoding = getattr(sys.stdout, "encoding", "ascii").lower()
+        if encoding in ("cp1252", "cp437", "ascii"):
+            return False
+
+        # Try to encode a test Unicode character
+        try:
+            "✅".encode(encoding)
+        except (UnicodeEncodeError, LookupError):
+            return False
+        else:
+            return True
+
+    return True
+
+
+_UNICODE_SUPPORTED = _supports_unicode()
+
+_SYMBOLS = {
+    "success": "✅" if _UNICODE_SUPPORTED else "[OK]",
+    "error": "❌" if _UNICODE_SUPPORTED else "[ERROR]",
+    "warning": "⚠️" if _UNICODE_SUPPORTED else "[WARN]",
+    "info": "ℹ️" if _UNICODE_SUPPORTED else "[INFO]",
+}
+
+console = Console(legacy_windows=(sys.platform == "win32" and not _UNICODE_SUPPORTED))
 
 # Thread-local context for progress console during operations
 _progress_console: Console | None = None
@@ -67,7 +100,8 @@ def console_success(message: str) -> None:
     Args:
         message: Success message to display to user
     """
-    _get_output_console().print(f"✅ [green]{message}[/green]")
+    symbol = _SYMBOLS["success"]
+    _get_output_console().print(f"{symbol} [green]{message}[/green]")
 
 
 def console_error(message: str) -> None:
@@ -76,7 +110,8 @@ def console_error(message: str) -> None:
     Args:
         message: Error message to display to user
     """
-    _get_output_console().print(f"❌ [red]{message}[/red]")
+    symbol = _SYMBOLS["error"]
+    _get_output_console().print(f"{symbol} [red]{message}[/red]")
 
 
 def console_warning(message: str) -> None:
@@ -85,7 +120,8 @@ def console_warning(message: str) -> None:
     Args:
         message: Warning message to display to user
     """
-    _get_output_console().print(f"⚠️  [yellow]{message}[/yellow]")
+    symbol = _SYMBOLS["warning"]
+    _get_output_console().print(f"{symbol} [yellow]{message}[/yellow]")
 
 
 def console_info(message: str) -> None:
@@ -94,16 +130,20 @@ def console_info(message: str) -> None:
     Args:
         message: Info message to display to user
     """
-    _get_output_console().print(f"ℹ️  [cyan]{message}[/cyan]")
+    symbol = _SYMBOLS["info"]
+    _get_output_console().print(f"{symbol} [cyan]{message}[/cyan]")
 
 
-def console_plain(message: str) -> None:
-    """Print plain message without icon or styling.
+def get_symbol(symbol_type: str) -> str:
+    """Get a Unicode-safe symbol for the given type.
 
     Args:
-        message: Message to display to user
+        symbol_type: One of 'success', 'error', 'warning', 'info'
+
+    Returns:
+        Unicode symbol if supported, ASCII fallback otherwise
     """
-    _get_output_console().print(message)
+    return _SYMBOLS.get(symbol_type, "[?]")
 
 
 def console_print(message: Any, style: str = "") -> None:

@@ -12,6 +12,7 @@ from cli.console import (
     console_rule,
     console_success,
     console_warning,
+    get_symbol,
     progress_console_context,
 )
 from cli.display import (
@@ -29,5 +30,6 @@ __all__ = [
     "console_rule",
     "console_success",
     "console_warning",
+    "get_symbol",
     "progress_console_context",
 ]

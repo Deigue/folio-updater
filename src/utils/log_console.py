@@ -12,7 +12,7 @@ from enum import Enum
 from cli.console import (
     console_error,
     console_info,
-    console_plain,
+    console_print,
     console_success,
     console_warning,
 )
@@ -41,7 +41,7 @@ _LOGGER_METHODS = {
 
 # Mapping of log levels to console functions
 _CONSOLE_FUNCTIONS = {
-    LogLevel.DEBUG: lambda msg: console_plain(f"[dim]{msg}[/dim]"),
+    LogLevel.DEBUG: lambda msg: console_print(msg, "dim"),
     LogLevel.INFO: console_info,
     LogLevel.SUCCESS: console_success,
     LogLevel.WARNING: console_warning,
@@ -71,15 +71,12 @@ def log_and_console(
         log_and_console("Import completed", LogLevel.SUCCESS, "importer")
         log_and_console("Processing file...", LogLevel.INFO)
     """
-    # Get the appropriate logger
     logger = logging.getLogger(logger_name) if logger_name else logging.getLogger()
 
-    # Log to file with correct stack level
     log_method = _LOGGER_METHODS.get(level, "info")
     getattr(logger, log_method)(message, stacklevel=stacklevel)
 
-    # Display on console
-    console_func = _CONSOLE_FUNCTIONS.get(level, console_plain)
+    console_func = _CONSOLE_FUNCTIONS.get(level, console_print)
     console_func(message)
 
 
