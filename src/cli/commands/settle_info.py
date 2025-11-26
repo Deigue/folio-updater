@@ -19,6 +19,7 @@ from cli import (
     console_info,
     console_success,
     console_warning,
+    get_symbol,
 )
 from db import db
 from db.db import get_connection, get_row_count
@@ -133,7 +134,11 @@ def _import_statements_from_directory() -> int:
             progress.remove_task(task)
 
         total_updates += updates
-        status = "✅ Success" if updates > 0 else "⚠️  No updates"
+        status = (
+            f"{get_symbol('success')} Success"
+            if updates > 0
+            else f"{get_symbol('warning')} No updates"
+        )
         import_results.append(
             {
                 "File": statement_file.name,

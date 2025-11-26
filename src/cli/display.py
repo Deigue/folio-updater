@@ -15,7 +15,7 @@ from rich.measure import Measurement
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from cli.console import console_panel, console_print
+from cli.console import console_panel, console_print, get_symbol
 from utils.constants import TXN_ESSENTIALS, Action, Column, TransactionContext
 
 # Minimum columns always shown for exclusions
@@ -733,11 +733,11 @@ class TransactionDisplay:
         success = imported_count > 0
 
         if success:
-            icon = "✅"
+            icon = get_symbol("success")
             color = "green"
             status = "SUCCESS"
         else:
-            icon = "⚠️"
+            icon = get_symbol("warning")
             color = "yellow"
             status = "NO DATA"
 
