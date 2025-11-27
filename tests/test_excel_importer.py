@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from db import schema_manager
-from importers.excel_importer import import_statements, import_transactions
+from importers import import_statements, import_transactions
 from mock.folio_setup import ensure_data_exists
 from utils.constants import TXN_ESSENTIALS, Column
 

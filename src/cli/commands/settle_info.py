@@ -24,8 +24,8 @@ from cli import (
 from db import db
 from db.db import get_connection, get_row_count
 from exporters.parquet_exporter import ParquetExporter
-from importers.excel_importer import import_statements
 from utils.constants import Column, Table, TransactionContext
+from importers import import_statements
 
 
 def settlement_info(

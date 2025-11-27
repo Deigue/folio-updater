@@ -5,7 +5,7 @@ from pathlib import Path
 from tkinter import filedialog
 
 from app import bootstrap
-from importers.excel_importer import import_statements
+from importers import import_statements
 
 bootstrap.reload_config()
 

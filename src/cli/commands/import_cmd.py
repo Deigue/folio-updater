@@ -23,8 +23,8 @@ from cli import (
 from cli.console import console_rule, progress_console_context
 from cli.display import THEME_SUCCESS
 from exporters.parquet_exporter import ParquetExporter
-from importers.excel_importer import import_transactions
 from models.import_results import ImportResults
+from importers import import_transactions
 
 app = typer.Typer()
 
