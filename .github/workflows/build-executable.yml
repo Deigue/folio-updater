@@ -55,6 +55,10 @@ jobs:
           if (!(Test-Path "dist\folio\data\folio.db")) { throw "Demo did not create database" }
           if (!(Test-Path "dist\folio\config.yaml")) { throw "Demo did not create config file" }
 
+      - name: Test settle-info command
+        run: |
+          dist\folio\folio.exe settle-info
+
       - name: Clean up test artifacts
         run: |
           Write-Host "Cleaning up test artifacts before packaging..."

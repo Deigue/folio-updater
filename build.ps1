@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "  Testing demo help command..." -ForegroundColor Cyan
+Write-Host "  Testing demo (subcommand) help command..." -ForegroundColor Cyan
 $testOutput = & .\dist\folio\folio.exe demo --help 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Demo help test failed!" -ForegroundColor Red
@@ -56,6 +56,14 @@ if (!(Test-Path "dist\folio\data\folio.db")) {
 
 if (!(Test-Path "dist\folio\config.yaml")) {
     Write-Host "Demo did not create config file!" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "  Testing settle-info command..." -ForegroundColor Cyan
+$settleInfoOutput = & .\dist\folio\folio.exe settle-info 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Settle-info test failed!" -ForegroundColor Red
+    Write-Host $settleInfoOutput
     exit 1
 }
 
