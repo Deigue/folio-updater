@@ -25,9 +25,9 @@ from cli import (
     console_warning,
 )
 from db import db
-from models.wealthsimple.activity_feed_item import ActivityFeedItem
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.logging_setup import get_import_logger
+from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 
 if TYPE_CHECKING:

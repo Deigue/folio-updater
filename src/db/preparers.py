@@ -11,8 +11,8 @@ from db.filters import TransactionFilter
 from db.formatters import TransactionFormatter
 from db.mappers import TransactionMapper
 from db.transformers import TransactionTransformer
-from models.import_results import ImportResults
 from utils.logging_setup import get_import_logger
+from models import ImportResults
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()

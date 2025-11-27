@@ -22,7 +22,7 @@ from utils.transforms import normalize_canadian_ticker
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from models.import_results import ImportResults
+    from models import ImportResults
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()

@@ -37,7 +37,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from models.import_results import ImportResults
+    from models import ImportResults
 
 
 console = Console()

@@ -28,9 +28,9 @@ from ws_api import (
 )
 
 from app.app_context import get_config
-from models.wealthsimple.account import Account
-from models.wealthsimple.activity_feed_item import ActivityFeedItem
-from models.wealthsimple.monthly_statement_txn import (
+from models.wealthsimple import (
+    Account,
+    ActivityFeedItem,
     BrokerageMonthlyStatementTransaction,
 )
 from utils.constants import TXN_ESSENTIALS, Action
