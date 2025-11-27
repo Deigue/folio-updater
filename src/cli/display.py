@@ -16,7 +16,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from cli.console import console_panel, console_print, get_symbol
-from utils.constants import TXN_ESSENTIALS, Action, Column, TransactionContext
+from utils import TXN_ESSENTIALS, Action, Column, TransactionContext
 
 # Minimum columns always shown for exclusions
 EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]

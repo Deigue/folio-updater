@@ -9,8 +9,8 @@ import typer
 
 from app import bootstrap
 from cli import console_error, console_info, console_success
+from datagen import ensure_data_exists
 from exporters.excel_exporter import ExcelExporter
-from mock.folio_setup import ensure_data_exists
 
 app = typer.Typer()
 

@@ -8,10 +8,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from app.app_context import get_config
-from utils.constants import Column, Table
+from app import get_config
 from db import get_connection, get_distinct_values, get_rows
 from services import ForexService
+from utils.constants import Column, Table
 
 if TYPE_CHECKING:
     import pandas as pd

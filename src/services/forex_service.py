@@ -13,7 +13,7 @@ from io import StringIO
 import pandas as pd
 import requests
 
-from app.app_context import get_config
+from app import get_config
 from cli import console_info
 from db import (
     create_fx_table,
@@ -23,9 +23,8 @@ from db import (
     get_rows,
     get_tables,
 )
+from utils import TORONTO_TZ, Column, Table, info_both
 from utils.backup import rolling_backup
-from utils.constants import TORONTO_TZ, Column, Table
-from utils.log_console import info_both
 
 logger = logging.getLogger(__name__)
 

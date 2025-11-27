@@ -21,7 +21,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from app.app_context import get_config
+from app import get_config
 from utils.constants import TORONTO_TZ
 
 if TYPE_CHECKING:

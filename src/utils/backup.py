@@ -8,7 +8,7 @@ import sqlite3
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from app.app_context import get_config
+from app import get_config
 from db import get_connection, get_row_count
 from utils.constants import TORONTO_TZ, Table
 

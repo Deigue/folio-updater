@@ -14,8 +14,7 @@ import pandas as pd
 import pandas.testing as pd_testing
 import pytest
 
-from mock.folio_setup import ensure_data_exists
-from mock.mock_data import generate_transactions
+from datagen import ensure_data_exists, generate_transactions
 from utils.constants import DEFAULT_TICKERS, Column
 
 if TYPE_CHECKING:
@@ -47,14 +46,11 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         )
 
         txns_df = pd.read_parquet(config.txn_parquet, engine="fastparquet")
-        txns_df = txns_df.where(pd.notna(txns_df), None)
+        txns_df = txns_df.mask(pd.isna(txns_df), None)
         assert not txns_df.empty
         txn_lists = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
         expected_txns_df = pd.concat(txn_lists, ignore_index=True)
-        expected_txns_df = expected_txns_df.where(
-            pd.notna(expected_txns_df),
-            None,
-        )
+        expected_txns_df = expected_txns_df.mask(pd.isna(expected_txns_df), None)
         # Don't compare auto-calculated fields
         txns_df_clean = txns_df.drop(
             columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],

@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap
-from app.app_context import get_config
+from app import bootstrap, get_config
 from cli import (
     ProgressDisplay,
     TransactionDisplay,
@@ -24,15 +23,14 @@ from cli import (
     console_success,
     console_warning,
 )
-from utils.constants import TORONTO_TZ, Column, Table
-from utils.logging_setup import get_import_logger
 from db import get_connection, get_max_value
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from utils import TORONTO_TZ, Column, Table, get_import_logger
 
 if TYPE_CHECKING:
     from models.wealthsimple.activity_feed_item import ActivityFeedItem
-    from utils.config import Config
+    from utils import Config
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)

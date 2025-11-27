@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from utils.constants import Column
+from utils.constants import Column  # import from constants to avoid circular import
 
 
 def normalize_canadian_ticker(ticker: str | None, currency: str | None) -> str | None:

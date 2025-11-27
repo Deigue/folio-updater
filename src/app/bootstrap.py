@@ -11,7 +11,7 @@ from utils.logging_setup import init_logging
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from utils.config import Config
+    from utils import Config
 
 logger: logging.Logger = logging.getLogger(__name__)
 

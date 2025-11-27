@@ -10,8 +10,7 @@ from pathlib import Path
 
 import typer
 
-from app import bootstrap
-from app.app_context import get_config
+from app import bootstrap, get_config
 from cli import (
     ProgressDisplay,
     TransactionDisplay,
@@ -21,10 +20,10 @@ from cli import (
     console_warning,
     get_symbol,
 )
-from utils.constants import Column, Table, TransactionContext
 from db import get_connection, get_row_count, get_rows
 from exporters import ParquetExporter
 from importers import import_statements
+from utils import Column, Table, TransactionContext
 
 
 def settlement_info(

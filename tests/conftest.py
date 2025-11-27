@@ -14,9 +14,8 @@ import pandas as pd
 import pytest
 import yaml
 
-from app.app_context import AppContext, get_config
-from mock.folio_setup import create_mock_data
-from mock.mock_data import get_mock_data_date_range
+from app import AppContext, get_config
+from datagen import create_mock_data, get_mock_data_date_range
 from services import ForexService
 from utils.constants import TORONTO_TZ, Column, Currency
 from utils.settlement_calculator import settlement_calculator
@@ -29,9 +28,9 @@ if TYPE_CHECKING:
     from .test_types import TempContext
 
 # Store the original function before any monkey patching
-import mock.folio_setup
+import datagen.folio_setup
 
-_original_ensure_data_exists = mock.folio_setup.ensure_data_exists
+_original_ensure_data_exists = datagen.folio_setup.ensure_data_exists
 
 # Global state to track the active cached_mock_data path
 _active_cached_mock_data: Path | None = None
@@ -75,7 +74,7 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
 
 
 # Replace the function at module level so all imports get the patched version
-mock.folio_setup.ensure_data_exists = _patched_ensure_data_exists
+datagen.folio_setup.ensure_data_exists = _patched_ensure_data_exists
 
 # Session-scoped caches
 _fx_cache: dict[str, pd.DataFrame] = {}

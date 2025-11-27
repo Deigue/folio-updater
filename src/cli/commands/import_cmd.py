@@ -10,17 +10,17 @@ from pathlib import Path
 
 import typer
 
-from app import bootstrap
-from app.app_context import get_config
+from app import bootstrap, get_config
 from cli import (
     ProgressDisplay,
     TransactionDisplay,
     console_error,
     console_info,
+    console_rule,
     console_success,
     console_warning,
+    progress_console_context,
 )
-from cli.console import console_rule, progress_console_context
 from cli.display import THEME_SUCCESS
 from exporters import ParquetExporter
 from importers import import_transactions

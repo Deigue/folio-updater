@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
+from datagen import ensure_data_exists
 from db import create_txns_table
 from importers import import_statements, import_transactions
-from mock.folio_setup import ensure_data_exists
 from utils.constants import TXN_ESSENTIALS, Column
 
 from .fixtures.dataframe_cache import register_test_dataframe

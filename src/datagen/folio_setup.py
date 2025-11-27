@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.app_context import get_config
+from app import get_config
+from datagen.mock_data import generate_transactions
 from db import create_txns_table, get_connection, get_row_count
 from exporters import ParquetExporter
-from mock.mock_data import generate_transactions
 from services import ForexService
+from utils import DEFAULT_TICKERS, Table
 from utils.backup import rolling_backup
-from utils.constants import DEFAULT_TICKERS, Table
 from utils.settlement_calculator import settlement_calculator
 
 if TYPE_CHECKING:

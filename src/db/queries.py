@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.app_context import get_config
+from app import get_config
 
 if TYPE_CHECKING:
     from collections.abc import Generator

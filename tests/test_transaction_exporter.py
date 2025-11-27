@@ -2,9 +2,8 @@
 
 import pandas as pd
 
+from datagen import DEFAULT_TXN_COUNT, ensure_data_exists
 from exporters import ParquetExporter
-from mock.folio_setup import ensure_data_exists
-from mock.mock_data import DEFAULT_TXN_COUNT
 from utils.constants import DEFAULT_TICKERS
 
 from .test_types import TempContext

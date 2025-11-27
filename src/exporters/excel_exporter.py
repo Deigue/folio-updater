@@ -9,7 +9,7 @@ import logging
 
 import pandas as pd
 
-from app.app_context import get_config
+from app import get_config
 from exporters import ParquetExporter
 from utils.backup import rolling_backup
 from utils.constants import Column

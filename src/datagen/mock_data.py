@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from db import ActionValidationRules
-from utils.constants import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
+from utils import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
 
 logger = logging.getLogger(__name__)
 SEED_DATE: datetime = datetime(2025, 10, 1, tzinfo=TORONTO_TZ)

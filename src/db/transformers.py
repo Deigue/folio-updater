@@ -8,11 +8,10 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.app_context import get_config
+from app import get_config
 from db.helpers import format_transaction_summary
 from models import MergeEvent, TransformEvent
-from utils.constants import Column
-from utils.logging_setup import get_import_logger
+from utils import Column, get_import_logger
 
 if TYPE_CHECKING:
     from utils.transforms import MergeGroup, TransformRule

@@ -27,7 +27,7 @@ from ws_api import (
     WSAPISession,
 )
 
-from app.app_context import get_config
+from app import get_config
 from models.wealthsimple import (
     Account,
     ActivityFeedItem,

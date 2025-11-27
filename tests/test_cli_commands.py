@@ -14,9 +14,8 @@ from typer.testing import CliRunner
 from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
+from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
 from db import drop_table, get_connection, get_row_count
-from mock.folio_setup import ensure_data_exists
-from mock.mock_data import DEFAULT_TXN_COUNT, generate_transactions
 from services.ibkr_service import IBKRAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
