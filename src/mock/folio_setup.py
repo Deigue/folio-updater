@@ -7,7 +7,7 @@ import pandas as pd
 
 from app.app_context import get_config
 from db import db, schema_manager
-from exporters.parquet_exporter import ParquetExporter
+from exporters import ParquetExporter
 from mock.mock_data import generate_transactions
 from services import ForexService
 from utils.backup import rolling_backup

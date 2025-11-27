@@ -10,7 +10,7 @@ import typer
 from app import bootstrap
 from cli import ProgressDisplay, console_error, console_success, console_warning
 from cli.console import progress_console_context
-from exporters.parquet_exporter import ParquetExporter
+from exporters import ParquetExporter
 
 app = typer.Typer()
 

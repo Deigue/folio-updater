@@ -23,8 +23,8 @@ from cli import (
 )
 from db import db
 from db.db import get_connection, get_row_count
-from exporters.parquet_exporter import ParquetExporter
 from utils.constants import Column, Table, TransactionContext
+from exporters import ParquetExporter
 from importers import import_statements
 
 
