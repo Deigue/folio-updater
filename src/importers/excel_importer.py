@@ -11,8 +11,14 @@ import pandas as pd
 
 from app.app_context import get_config
 from cli import get_symbol
-from db import db, preparers
-from db.utils import format_transaction_summary
+from db import (
+    get_connection,
+    get_row_count,
+    get_rows,
+    prepare_transactions,
+    update_rows,
+)
+from db.helpers import format_transaction_summary
 from utils.backup import rolling_backup
 from utils.constants import Column, Table
 from utils.logging_setup import get_import_logger
@@ -53,8 +59,8 @@ def import_transactions(
     """
     is_csv: bool = folio_path.suffix.lower() == ".csv"
 
-    with db.get_connection() as conn:
-        existing_count = db.get_row_count(conn, Table.TXNS)
+    with get_connection() as conn:
+        existing_count = get_row_count(conn, Table.TXNS)
 
     # Log import start with detailed info
     import_logger.info('IMPORT TXNS "%s"', folio_path)
@@ -89,13 +95,13 @@ def import_transactions(
     if existing_count > 0:
         rolling_backup(db_path)
 
-    import_results = preparers.prepare_transactions(txns_df, account)
+    import_results = prepare_transactions(txns_df, account)
     prepared_df = import_results.final_df
 
-    with db.get_connection() as conn:
+    with get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-            final_count = db.get_row_count(conn, Table.TXNS)
+            final_count = get_row_count(conn, Table.TXNS)
         except sqlite3.IntegrityError:
             _analyze_and_insert_rows(conn, prepared_df)
 
@@ -114,7 +120,7 @@ def import_transactions(
 
 
 def _analyze_and_insert_rows(
-    conn: db.sqlite3.Connection,
+    conn: sqlite3.Connection,
     prepared_df: pd.DataFrame,
 ) -> None:  # pragma: no cover
     """Analyze and insert rows one by one to identify problematic transactions.
@@ -208,9 +214,9 @@ def import_statements(statement: Path) -> int:
 
 def _update_settlement_dates(df: pd.DataFrame) -> int:
     """Update settlement dates using the provided DataFrame."""
-    with db.get_connection() as conn:
+    with get_connection() as conn:
         condition = f'"{Column.Txn.SETTLE_CALCULATED}" = 1'
-        existing_txns = db.get_rows(
+        existing_txns = get_rows(
             conn,
             Table.TXNS,
             condition=condition,
@@ -394,7 +400,7 @@ def _apply_settlement_updates_to_db(
         return 0
 
     rolling_backup(get_config().db_path)
-    return db.update_rows(
+    return update_rows(
         conn,
         Table.TXNS,
         updates,

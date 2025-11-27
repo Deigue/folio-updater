@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from db.db import get_connection
+from db.queries import get_connection
 from utils.constants import FX_COLUMN_DEFINITIONS, TXN_COLUMN_DEFINITIONS, Table
 
 logger = logging.getLogger(__name__)

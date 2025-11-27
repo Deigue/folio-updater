@@ -21,9 +21,8 @@ from cli import (
     console_warning,
     get_symbol,
 )
-from db import db
-from db.db import get_connection, get_row_count
 from utils.constants import Column, Table, TransactionContext
+from db import get_connection, get_row_count, get_rows
 from exporters import ParquetExporter
 from importers import import_statements
 
@@ -195,7 +194,7 @@ def _display_settlement_statistics() -> None:
             display.show_stats_panel(stats)
 
             if calculated_count > 0:
-                df = db.get_rows(
+                df = get_rows(
                     conn,
                     Table.TXNS,
                     condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',

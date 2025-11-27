@@ -6,13 +6,13 @@ import logging
 
 import pandas as pd
 
-from db import schema_manager, table_manager
+from db import helpers, schema
 from db.filters import TransactionFilter
 from db.formatters import TransactionFormatter
 from db.mappers import TransactionMapper
 from db.transformers import TransactionTransformer
-from utils.logging_setup import get_import_logger
 from models import ImportResults
+from utils import get_import_logger
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
@@ -37,7 +37,7 @@ def prepare_transactions(
     import_logger.debug(
         "PREPARE transactions: mapping → transforming → formatting → filtering",
     )
-    schema_manager.create_txns_table()
+    schema.create_txns_table()
 
     read_df = df.copy()
     mapped_df = TransactionMapper.map_headers(read_df, account)
@@ -48,7 +48,7 @@ def prepare_transactions(
     intra_approved_df = TransactionFilter.filter_intra_import_duplicates(formatted_df)
     db_approved_df = TransactionFilter.filter_db_duplicates(intra_approved_df)
     cleaned_df = TransactionMapper.remove_approval_column(db_approved_df)
-    final_columns = table_manager.sync_txns_table_columns(cleaned_df)
+    final_columns = helpers.sync_txns_table_columns(cleaned_df)
 
     # Add any missing columns to the DataFrame
     for col in final_columns:

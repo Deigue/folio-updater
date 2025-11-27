@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 from app.app_context import get_config
-from db.utils import format_transaction_summary
+from db.helpers import format_transaction_summary
 from utils.constants import TXN_ESSENTIALS, Column
 from utils.logging_setup import get_import_logger
 

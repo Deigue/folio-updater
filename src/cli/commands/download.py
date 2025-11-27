@@ -24,9 +24,9 @@ from cli import (
     console_success,
     console_warning,
 )
-from db import db
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.logging_setup import get_import_logger
+from db import get_connection, get_max_value
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 
@@ -340,12 +340,12 @@ def _resolve_from_date(
 
     # Fallback handling
     try:
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             if account_override:
                 account_has_broker = f"Account = '{account_override}'"
             else:  # pragma: no cover
                 account_has_broker = f"UPPER(Account) LIKE UPPER('%{broker}%')"
-            latest_date_str: str | None = db.get_max_value(
+            latest_date_str: str | None = get_max_value(
                 conn,
                 Table.TXNS,
                 Column.Txn.TXN_DATE,

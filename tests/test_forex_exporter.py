@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from db import db, schema_manager
+from db import create_fx_table, create_txns_table, drop_table, get_connection
 from exporters import ParquetExporter
 from services import ForexService
 from utils.constants import TORONTO_TZ, Column, Table
@@ -32,7 +32,7 @@ def test_forex_export_parquet(
         parquet_path = config.fx_parquet
 
         # Setup: Create transactions table with a date 60 days ago
-        schema_manager.create_txns_table()
+        create_txns_table()
         start_date = (datetime.now(TORONTO_TZ) - timedelta(days=60)).strftime(
             "%Y-%m-%d",
         )
@@ -49,7 +49,7 @@ def test_forex_export_parquet(
                 Column.Txn.ACCOUNT: ["TEST"],
             },
         )
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             txn_data.to_sql(Table.TXNS, conn, if_exists="append", index=False)
 
         # Test 1: Initial export - should fetch historical data and export to Parquet
@@ -81,7 +81,7 @@ def test_forex_export_parquet(
 
         # Test 2: Simulate 10-day gap and update
         # Remove recent FX data to simulate gap
-        schema_manager.create_fx_table()
+        create_fx_table()
         base_date = datetime.now(TORONTO_TZ) - timedelta(days=40)
         old_fx_dates = [
             (base_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(10)
@@ -93,9 +93,9 @@ def test_forex_export_parquet(
                 Column.FX.FXCADUSD: [1 / (1.25 + 0.01 * i) for i in range(10)],
             },
         )
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             # Clear FX table and insert old data
-            db.drop_table(conn, Table.FX)
+            drop_table(conn, Table.FX)
             old_fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
         # Export with update scenario - should fetch missing dates

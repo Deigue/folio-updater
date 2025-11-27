@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from db.formatters import ActionValidationRules
+from db import ActionValidationRules
 from utils.constants import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
 
 logger = logging.getLogger(__name__)

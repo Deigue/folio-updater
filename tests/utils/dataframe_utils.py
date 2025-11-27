@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 import pandas.testing as pd_testing
 
-from db.db import get_connection
+from db import get_connection
 from utils.constants import TXN_ESSENTIALS, Column, Table
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -19,8 +19,8 @@ def _normalize_dataframes(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Normalize DataFrames for comparison by handling data types and null values."""
     # Normalize null values to None for consistent comparison
-    imported_df = imported_df.where(pd.notna(imported_df), None)
-    table_df = table_df.where(pd.notna(table_df), None)
+    imported_df = imported_df.mask(pd.isna(imported_df))
+    table_df = table_df.mask(pd.isna(table_df))
 
     # Ensure numeric columns have the same dtype for comparison
     numeric_cols = ["Amount", "Price", "Units"]

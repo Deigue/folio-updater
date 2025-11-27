@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from db import schema_manager
+from db import create_txns_table
 from importers import import_statements, import_transactions
 from mock.folio_setup import ensure_data_exists
 from utils.constants import TXN_ESSENTIALS, Column
@@ -548,7 +548,7 @@ def test_import_statements_missing_columns(
 ) -> None:
     """Test statement import with missing required columns."""
     with temp_ctx() as ctx:
-        schema_manager.create_txns_table()
+        create_txns_table()
         incomplete_df = pd.DataFrame(
             [
                 {
@@ -570,7 +570,7 @@ def test_import_statements_empty_file(
 ) -> None:
     """Test statement import with empty file."""
     with temp_ctx() as ctx:
-        schema_manager.create_txns_table()
+        create_txns_table()
         empty_df = pd.DataFrame()
         statement_file = ctx.config.project_root / "empty_statement.xlsx"
         register_test_dataframe(statement_file, empty_df)

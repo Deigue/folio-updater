@@ -15,8 +15,14 @@ import requests
 
 from app.app_context import get_config
 from cli import console_info
-from db import db, schema_manager
-from db.db import get_connection
+from db import (
+    create_fx_table,
+    get_connection,
+    get_max_value,
+    get_min_value,
+    get_rows,
+    get_tables,
+)
 from utils.backup import rolling_backup
 from utils.constants import TORONTO_TZ, Column, Table
 from utils.log_console import info_both
@@ -40,12 +46,12 @@ class ForexService:
         """
         try:
             with get_connection() as conn:
-                tables = db.get_tables(conn)
+                tables = get_tables(conn)
                 if Table.FX not in tables:
                     logger.debug("FX table does not exist")
                     return None
 
-                result = db.get_max_value(conn, Table.FX, Column.FX.DATE)
+                result = get_max_value(conn, Table.FX, Column.FX.DATE)
                 if result:
                     logger.debug("Latest FX date in database: %s", result)
                     return result
@@ -68,7 +74,7 @@ class ForexService:
         """
         try:
             with get_connection() as conn:
-                tables = db.get_tables(conn)
+                tables = get_tables(conn)
                 if Table.FX not in tables:  # pragma: no cover
                     logger.debug("FX table does not exist")
                     return pd.DataFrame()
@@ -77,7 +83,7 @@ class ForexService:
                     condition = f'"{Column.FX.DATE}" >= "{start_date}"'
                 else:
                     condition = None
-                df = db.get_rows(
+                df = get_rows(
                     conn,
                     Table.FX,
                     condition=condition,
@@ -140,8 +146,8 @@ class ForexService:
 
         rolling_backup(get_config().db_path)
         with get_connection() as conn:
-            if db.get_tables(conn).count(Table.FX) == 0:
-                schema_manager.create_fx_table()
+            if get_tables(conn).count(Table.FX) == 0:
+                create_fx_table()
             rows_inserted = fx_df.to_sql(
                 Table.FX,
                 conn,
@@ -255,12 +261,12 @@ class ForexService:
         """
         try:
             with get_connection() as conn:
-                tables = db.get_tables(conn)
+                tables = get_tables(conn)
                 if Table.TXNS not in tables:
                     logger.debug("Txns table does not exist")
                     return None
 
-                result = db.get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
+                result = get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
                 if result:
                     logger.debug("Earliest transaction date: %s", result)
                     return result

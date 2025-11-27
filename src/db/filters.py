@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app.app_context import get_config
-from db import db
-from db.utils import format_transaction_summary
+from db.helpers import format_transaction_summary
+from db.queries import get_connection  # circular import fix
 from utils.constants import TXN_ESSENTIALS, Table
 from utils.logging_setup import get_import_logger
 
@@ -241,7 +241,7 @@ class TransactionFilter:
         Returns:
             Set of synthetic keys for existing transactions.
         """
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             try:
                 # Build the query to select essential columns.
                 essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)

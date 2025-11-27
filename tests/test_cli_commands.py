@@ -14,7 +14,7 @@ from typer.testing import CliRunner
 from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
-from db import db
+from db import drop_table, get_connection, get_row_count
 from mock.folio_setup import ensure_data_exists
 from mock.mock_data import DEFAULT_TXN_COUNT, generate_transactions
 from services.ibkr_service import IBKRAuthenticationError
@@ -35,7 +35,7 @@ from utils.constants import DEFAULT_TICKERS, Column, Table
 from .fixtures.test_data_factory import create_transaction_data
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
     from click.testing import Result
     from typer import Typer
@@ -51,7 +51,7 @@ TYPER_INVALID_COMMAND_EXIT_CODE = 2
 
 
 @pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> db.Generator[None, Any, None]:
+def suppress_logging_conflicts() -> Generator[None, Any]:
     """Suppress logging to avoid stream conflicts during CLI testing."""
     # Temporarily disable all loggers to avoid stream conflicts
     logging.disable(logging.CRITICAL)
@@ -84,8 +84,8 @@ def test_getfx_command(
         ensure_data_exists()
 
         # Drop the FX rates table to force fresh fetch
-        with db.get_connection() as conn:
-            db.drop_table(conn, Table.FX)
+        with get_connection() as conn:
+            drop_table(conn, Table.FX)
 
         # Use cached FX data instead of real API call
         with patch(
@@ -95,8 +95,8 @@ def test_getfx_command(
             result = _run_cli_with_config(config, cli_app, ["getfx"])
             assert_cli_success(result)
             assert "Successfully updated" in result.stdout
-            with db.get_connection() as conn:
-                count = db.get_row_count(conn, Table.FX)
+            with get_connection() as conn:
+                count = get_row_count(conn, Table.FX)
                 assert count > 0
 
 
@@ -109,8 +109,8 @@ def test_import_command(temp_ctx: TempContext) -> None:
         result = _run_cli_with_config(config, cli_app, ["import"])
         assert_cli_success(result)
         assert f"{EXPECTED_TRANSACTION_COUNT} transactions imported" in result.stdout
-        with db.get_connection() as conn:
-            count = db.get_row_count(conn, Table.TXNS)
+        with get_connection() as conn:
+            count = get_row_count(conn, Table.TXNS)
             assert count == EXPECTED_TRANSACTION_COUNT
 
 
@@ -216,10 +216,10 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
     """Test settle info command output."""
     with temp_ctx() as ctx:
         ensure_data_exists()
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             # Count transactions with SETTLE_CALCULATED = 1, this should represent
             # the total transactions that were auto-calculated.
-            calculated_count = db.get_row_count(
+            calculated_count = get_row_count(
                 conn,
                 Table.TXNS,
                 condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',

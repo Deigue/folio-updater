@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app.app_context import get_config
-from db import db, schema_manager
+from db import create_txns_table, get_connection, get_row_count
 from exporters import ParquetExporter
 from mock.mock_data import generate_transactions
 from services import ForexService
@@ -68,9 +68,9 @@ def create_mock_data() -> None:
         transactions_df,
     )
 
-    schema_manager.create_txns_table()
-    with db.get_connection() as conn:
-        if db.get_row_count(conn, Table.TXNS) > 0:
+    create_txns_table()
+    with get_connection() as conn:
+        if get_row_count(conn, Table.TXNS) > 0:
             rolling_backup(configuration.db_path)
         transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
     fx_df = ForexService.get_missing_fx_data()

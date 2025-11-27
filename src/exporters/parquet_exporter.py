@@ -9,8 +9,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from app.app_context import get_config
-from db import db
 from utils.constants import Column, Table
+from db import get_connection, get_distinct_values, get_rows
 from services import ForexService
 
 if TYPE_CHECKING:
@@ -36,8 +36,8 @@ class ParquetExporter:
         Returns:
             int: Number of transactions exported.
         """
-        with db.get_connection() as conn:
-            txn_df = db.get_rows(conn, Table.TXNS)
+        with get_connection() as conn:
+            txn_df = get_rows(conn, Table.TXNS)
 
         if txn_df.empty:  # pragma: no cover
             return 0
@@ -82,11 +82,11 @@ class ParquetExporter:
         Returns:
             int: Number of tickers exported.
         """
-        with db.get_connection() as conn:
+        with get_connection() as conn:
             filter_condition = (
                 f'"{Column.Txn.TICKER}" IS NOT NULL AND "{Column.Txn.TICKER}" != \'\''
             )
-            tickers_df = db.get_distinct_values(
+            tickers_df = get_distinct_values(
                 conn,
                 Table.TXNS,
                 Column.Txn.TICKER,
