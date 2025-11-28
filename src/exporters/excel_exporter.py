@@ -13,6 +13,7 @@ from app import get_config
 from exporters import ParquetExporter
 from utils.backup import rolling_backup
 from utils.constants import Column
+from utils.log_console import info_both
 
 logger = logging.getLogger(__name__)
 
@@ -144,13 +145,13 @@ class ExcelExporter:
             logger.exception("Error writing Excel file")
             return False
         else:
-            logger.info("=" * 80)
+            info_both("=" * 80)
             logger.info("Excel workbook generated successfully:")
-            logger.info("  - %d transactions", len(transactions_df))
-            logger.info("  - %d FX rates", len(forex_df))
-            logger.info("  - %d tickers", len(tickers_df))
-            logger.info("  - Output: %s", self.folio_path)
-            logger.info("=" * 80)
+            info_both(f"  - {len(transactions_df)} transactions")
+            info_both(f"  - {len(forex_df)} FX rates")
+            info_both(f"  - {len(tickers_df)} tickers")
+            info_both(f"  - Output: {self.folio_path}")
+            info_both("=" * 80)
 
             return True
 

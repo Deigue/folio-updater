@@ -9,6 +9,7 @@ import typer
 
 from app import bootstrap
 from cli import console_error, console_success
+from cli.display import ProgressDisplay
 from exporters.excel_exporter import ExcelExporter
 
 app = typer.Typer()
@@ -23,12 +24,14 @@ def generate_excel() -> None:
     """
     bootstrap.reload_config()
     exporter = ExcelExporter()
-    success = exporter.generate_excel()
+    with ProgressDisplay.spinner("yellow") as progress:
+        progress.add_task("Generating Excel workbook...", total=None)
+        success = exporter.generate_excel()
 
     if success:
         console_success("Excel workbook generated successfully!")
     else:
-        console_error("Error: Failed to generate Excel workbook")
+        console_error("Failed to generate Excel workbook")
         raise typer.Exit(1)
 
 
