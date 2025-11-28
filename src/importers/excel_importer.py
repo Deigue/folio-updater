@@ -134,7 +134,7 @@ def _analyze_and_insert_rows(
     info = get_symbol("info")
     success = get_symbol("success")
     error = get_symbol("error")
-    analysis_header = f"{info} BULK INSERT FAILED - Analyzing transactions..."
+    analysis_header = f"{info}BULK INSERT FAILED - Analyzing transactions..."
     import_logger.error(analysis_header)
 
     total_rows = len(prepared_df)
@@ -148,12 +148,12 @@ def _analyze_and_insert_rows(
                 if_exists="append",
                 index=False,
             )
-            success_msg = f"{success} Row {idx}/{total_rows}: SUCCESS"
+            success_msg = f"{success}Row {idx}/{total_rows}: SUCCESS"
             import_logger.info(success_msg)
 
     except sqlite3.IntegrityError as row_error:
         transaction_summary = format_transaction_summary(row)
-        error_msg = f"{error} Row {idx}/{total_rows}: FAILED - {row_error}"
+        error_msg = f"{error}Row {idx}/{total_rows}: FAILED - {row_error}"
         transaction_msg = f"   {transaction_summary}"
         import_logger.info(error_msg)
         import_logger.info(transaction_msg)

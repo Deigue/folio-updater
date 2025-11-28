@@ -46,11 +46,13 @@ def _supports_unicode() -> bool:  # pragma: no cover
 
 _UNICODE_SUPPORTED = _supports_unicode()
 
+# Symbols include trailing space for consistent formatting
+# Note: VS16 emojis (warning, info) need double space for proper terminal rendering
 _SYMBOLS = {
-    "success": "✅" if _UNICODE_SUPPORTED else "[OK]",
-    "error": "❌" if _UNICODE_SUPPORTED else "[ERROR]",
-    "warning": "⚠️" if _UNICODE_SUPPORTED else "[WARN]",
-    "info": "ℹ️" if _UNICODE_SUPPORTED else "[INFO]",
+    "success": "✅ " if _UNICODE_SUPPORTED else "[OK] ",
+    "error": "❌ " if _UNICODE_SUPPORTED else "[ERROR] ",
+    "warning": "⚠️  " if _UNICODE_SUPPORTED else "[WARN] ",
+    "info": "ℹ️  " if _UNICODE_SUPPORTED else "[INFO] ",
 }
 
 console = Console(legacy_windows=(sys.platform == "win32" and not _UNICODE_SUPPORTED))
@@ -101,7 +103,7 @@ def console_success(message: str) -> None:
         message: Success message to display to user
     """
     symbol = _SYMBOLS["success"]
-    _get_output_console().print(f"{symbol} [green]{message}[/green]")
+    _get_output_console().print(f"{symbol}[green]{message}[/green]")
 
 
 def console_error(message: str) -> None:
@@ -111,7 +113,7 @@ def console_error(message: str) -> None:
         message: Error message to display to user
     """
     symbol = _SYMBOLS["error"]
-    _get_output_console().print(f"{symbol} [red]{message}[/red]")
+    _get_output_console().print(f"{symbol}[red]{message}[/red]")
 
 
 def console_warning(message: str) -> None:
@@ -121,7 +123,7 @@ def console_warning(message: str) -> None:
         message: Warning message to display to user
     """
     symbol = _SYMBOLS["warning"]
-    _get_output_console().print(f"{symbol} [yellow]{message}[/yellow]")
+    _get_output_console().print(f"{symbol}[yellow]{message}[/yellow]")
 
 
 def console_info(message: str) -> None:
@@ -131,7 +133,7 @@ def console_info(message: str) -> None:
         message: Info message to display to user
     """
     symbol = _SYMBOLS["info"]
-    _get_output_console().print(f"{symbol} [cyan]{message}[/cyan]")
+    _get_output_console().print(f"{symbol}[cyan]{message}[/cyan]")
 
 
 def get_symbol(symbol_type: str) -> str:

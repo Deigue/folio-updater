@@ -756,7 +756,7 @@ class TransactionDisplay:
             status = "NO DATA"
 
         console_print(
-            f"{icon} [{color}]{status}[/{color}]: "
+            f"{icon}[{color}]{status}[/{color}]: "
             f"[bold]{filename}[/bold] - "
             f"[bright_white]{imported_count}[/bright_white] transactions imported "
             f"([dim]{total_count} total in database[/dim])",

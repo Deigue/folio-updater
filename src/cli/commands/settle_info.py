@@ -130,9 +130,9 @@ def _import_statements_from_directory() -> int:
 
         total_updates += updates
         status = (
-            f"{get_symbol('success')} Success"
+            f"{get_symbol('success')}Success"
             if updates > 0
-            else f"{get_symbol('warning')} No updates"
+            else f"{get_symbol('warning')}No updates"
         )
         import_results.append(
             {
