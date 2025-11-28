@@ -83,11 +83,11 @@ def test_error_scenarios(
     assert not missing_path.exists()
     with temp_ctx({"folio_path": str(missing_path)}):
         conftest_level = logging.getLogger("tests.conftest").getEffectiveLevel()
-        foliosetup_level = logging.getLogger("mock.folio_setup").getEffectiveLevel()
+        foliosetup_level = logging.getLogger("datagen.folio_setup").getEffectiveLevel()
         logging.getLogger("tests.conftest").setLevel(logging.CRITICAL)
-        logging.getLogger("mock.folio_setup").setLevel(logging.CRITICAL)
+        logging.getLogger("datagen.folio_setup").setLevel(logging.CRITICAL)
         with pytest.raises(FileNotFoundError):
             ensure_data_exists(mock=mock)
         assert not missing_path.exists()
         logging.getLogger("tests.conftest").setLevel(conftest_level)
-        logging.getLogger("mock.folio_setup").setLevel(foliosetup_level)
+        logging.getLogger("datagen.folio_setup").setLevel(foliosetup_level)
