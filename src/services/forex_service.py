@@ -14,7 +14,6 @@ import pandas as pd
 import requests
 
 from app import get_config
-from cli import console_info
 from db import (
     create_fx_table,
     get_connection,
@@ -317,13 +316,10 @@ class ForexService:
                 start_date = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime(
                     "%Y-%m-%d",
                 )
-            msg = f"No FX data found in database, using {start_date} as start date"
-            info_both(msg)
+            info_both(f"No FX data found in database, using {start_date} as start date")
             return cls.get_fx_rates_from_boc(start_date)
 
         latest_date_obj = pd.to_datetime(latest_fx_date)
         next_date = (latest_date_obj + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        msg = f"Fetching missing FX data from {next_date} to today"
-        logger.info(msg)
-        console_info(msg)
+        info_both(f"Fetching missing FX data from {next_date} to today")
         return cls.get_fx_rates_from_boc(next_date)
