@@ -414,7 +414,7 @@ def page_transactions(
         context: Transaction context to specify column visibility
     """
     if df.empty:
-        console.print(f"[yellow]No transactions to display for {title}[/yellow]")
+        console_print(f"[yellow]No transactions to display for {title}[/yellow]")
         return
 
     total_rows = len(df)

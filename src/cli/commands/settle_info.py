@@ -16,9 +16,11 @@ from cli import (
     TransactionDisplay,
     console_error,
     console_info,
+    console_rule,
     console_success,
     console_warning,
     get_symbol,
+    page_transactions,
 )
 from db import get_connection, get_row_count, get_rows
 from exporters import ParquetExporter
@@ -49,13 +51,16 @@ def settlement_info(
     """
     bootstrap.reload_config()
     if file and not import_flag:
-        console_error("The --file/-f option only works with --import enabled.")
+        console_error(
+            "The [bold italic]--file[/bold italic] option only works with"
+            " [bold italic]--import[/bold italic] enabled.",
+        )
         raise typer.Exit(1)
 
     if import_flag:
         _handle_statement_import(file)
 
-    _display_settlement_statistics()
+    _display_settlement_statistics(import_flag=import_flag)
 
 
 def _handle_statement_import(file: str | None) -> None:
@@ -63,7 +68,7 @@ def _handle_statement_import(file: str | None) -> None:
     if file:
         statement_path = Path(file)
         if not statement_path.exists():
-            console_error(f"Statement file '{file}' does not exist.")
+            console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
         updates = _import_single_statement(statement_path)
     else:
@@ -71,28 +76,24 @@ def _handle_statement_import(file: str | None) -> None:
 
     # Updates parquets if any settlement dates were updated
     if updates > 0:
-        with ProgressDisplay.spinner(color="cyan") as progress:
+        with ProgressDisplay.spinner(color="dark_violet") as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
-        console_success("Exported updated transactions to Parquet.")
-    console_info("")
 
 
 def _import_single_statement(statement_path: Path) -> int:
     """Import a single statement file."""
-    with ProgressDisplay.spinner(color="cyan") as progress:
+    with ProgressDisplay.spinner(color="dark_violet") as progress:
         progress.add_task(f"Importing {statement_path.name}...", total=None)
         updates = import_statements(statement_path)
 
     if updates > 0:
         console_success(
-            f"Updated {updates} settlement dates from {statement_path.name}",
+            f'Updated {updates} settlement dates from "{statement_path.name}"',
         )
     else:
-        console_warning(
-            f"No settlement dates updated from {statement_path.name}",
-        )
+        console_warning(f'No settlement dates updated from "{statement_path.name}"')
 
     return updates
 
@@ -103,7 +104,7 @@ def _import_statements_from_directory() -> int:
     statements_dir = config.statements_path
 
     if not statements_dir.exists():
-        console_error(f"Statements directory '{statements_dir}' does not exist.")
+        console_error(f'Statements directory "{statements_dir}" does not exist.')
         raise typer.Exit(1)
 
     xlsx_files = list(statements_dir.glob("*.xlsx"))
@@ -112,22 +113,19 @@ def _import_statements_from_directory() -> int:
 
     if not statement_files:
         console_error(
-            f"No statement files (.xlsx or .csv) found in '{statements_dir}'.",
+            f'No statement files (.xlsx or .csv) found in "{statements_dir}".',
         )
         raise typer.Exit(1)
 
     console_info(
-        f"Found {len(statement_files)} statement file(s) in '{statements_dir}'",
+        f'Found {len(statement_files)} statement file(s) in "{statements_dir}"',
     )
 
     total_updates = 0
     import_results = []
 
     for statement_file in statement_files:
-        with ProgressDisplay.spinner(color="cyan") as progress:
-            progress.add_task(f"Importing {statement_file.name}...", total=None)
-            updates = import_statements(statement_file)
-
+        updates = _import_single_statement(statement_file)
         total_updates += updates
         status = (
             f"{get_symbol('success')}Success"
@@ -142,15 +140,9 @@ def _import_statements_from_directory() -> int:
             },
         )
 
-        if updates > 0:
-            console_success(
-                f"Updated {updates} settlement dates from {statement_file.name}",
-            )
-        else:
-            console_warning(f"No settlement dates updated from {statement_file.name}")
-
     # Show summary table
     if import_results:
+        console_rule(style="dark_violet")
         display = TransactionDisplay()
         display.show_data_table(
             import_results,
@@ -158,16 +150,15 @@ def _import_statements_from_directory() -> int:
             max_rows=20,
         )
 
-    console_info(
-        f"TOTAL: Updated {total_updates} settlement dates across "
-        f"{len(statement_files)} files.",
-    )
+    console_info(f"Updated {total_updates} dates across {len(statement_files)} files.")
     return total_updates
 
 
-def _display_settlement_statistics() -> None:
+def _display_settlement_statistics(*, import_flag: bool = False) -> None:
     """Display settlement date statistics for transactions."""
     display = TransactionDisplay()
+    if import_flag:
+        console_rule(style="dark_violet")
 
     try:
         with get_connection() as conn:
@@ -199,11 +190,11 @@ def _display_settlement_statistics() -> None:
                     ),
                 )
 
-                # Display with Rich table
-                display.transactions_table(
+                page_transactions(
                     df,
-                    title="Transactions with Calculated Settlement Dates",
-                    context=TransactionContext.SETTLEMENT,
+                    "Transactions with Calculated Settlement Dates",
+                    30,
+                    TransactionContext.SETTLEMENT,
                 )
             else:
                 console_warning(

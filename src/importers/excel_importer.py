@@ -19,7 +19,7 @@ from db import (
     update_rows,
 )
 from db.helpers import format_transaction_summary
-from utils import Column, Table, get_import_logger
+from utils import Column, Table, get_import_logger, info_both, warning_both
 from utils.backup import rolling_backup
 from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
 from utils.transforms import normalize_canadian_ticker
@@ -189,7 +189,7 @@ def import_statements(statement: Path) -> int:
             stmt_df = pd.read_excel(statement, engine="openpyxl")
 
         if stmt_df.empty:
-            import_logger.warning("EMPTY Statement file")
+            warning_both("Statement file is empty.", "importer")
             return 0
 
         import_logger.info("READ %d rows from statement", len(stmt_df))
@@ -197,7 +197,10 @@ def import_statements(statement: Path) -> int:
         required_cols = ["date", "amount", "currency", "transaction", "description"]
         missing_cols = [col for col in required_cols if col not in stmt_df.columns]
         if missing_cols:
-            import_logger.warning("MISSING COLUMNS: %s", missing_cols)
+            warning_both(
+                f"Statement is missing required columns: {missing_cols}",
+                "importer",
+            )
             return 0
 
         updates = _update_settlement_dates(stmt_df)
@@ -223,7 +226,7 @@ def _update_settlement_dates(df: pd.DataFrame) -> int:
         )
 
         if existing_txns.empty:  # pragma: no cover
-            import_logger.info("No calculated settlement dates found to update")
+            info_both("No calculated settlement dates found to update", "importer")
             return 0
 
         updates = []
@@ -249,22 +252,21 @@ def _update_settlement_dates(df: pd.DataFrame) -> int:
                     txn_summary = format_transaction_summary(transaction_row)
                     import_logger.info("  * %s", txn_summary)
                 elif len(matches) > 1:  # pragma: no cover
-                    import_logger.warning(
-                        "Multiple matches found for %s %s on %s, skipping",
-                        statement_data["action"],
-                        statement_data["ticker"],
-                        statement_data["txn_date"],
+                    msg = (
+                        f"Multiple matches found for {statement_data['action']} "
+                        f"{statement_data['ticker']} on {statement_data['txn_date']}, "
+                        "skipping"
                     )
+                    warning_both(msg, "importer")
 
             except (ValueError, TypeError) as e:
-                import_logger.warning("Skipping invalid statement row: %s", e)
+                warning_both(f"Skipping invalid statement row: {e}", "importer")
                 continue
 
         if candidate_count != 0:
-            import_logger.info(
-                "FOUND %d MATCHES OUT OF %d CANDIDATES",
-                len(updates),
-                candidate_count,
+            info_both(
+                f"Matched {len(updates)} out of {candidate_count} candidates.",
+                "importer",
             )
         if updates:
             return _apply_settlement_updates_to_db(conn, updates)

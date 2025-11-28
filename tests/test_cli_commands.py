@@ -233,12 +233,12 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
     [
         (
             ["--import", "-f", "test_statement.xlsx"],
-            "Updated 1 settlement dates from test_statement.xlsx",
+            'Updated 1 settlement dates from "test_statement.xlsx"',
             "file",
         ),
         (
             ["--import"],
-            "TOTAL: Updated 1 settlement dates across 1 files.",
+            "Matched 1 out of 1 candidates.",
             "directory",
         ),
     ],
