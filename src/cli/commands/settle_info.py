@@ -71,21 +71,19 @@ def _handle_statement_import(file: str | None) -> None:
 
     # Updates parquets if any settlement dates were updated
     if updates > 0:
-        with ProgressDisplay.spinner_progress(color="cyan") as progress:
-            task = progress.add_task("Exporting to Parquet...", total=None)
+        with ProgressDisplay.spinner(color="cyan") as progress:
+            progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
-            progress.remove_task(task)
         console_success("Exported updated transactions to Parquet.")
     console_info("")
 
 
 def _import_single_statement(statement_path: Path) -> int:
     """Import a single statement file."""
-    with ProgressDisplay.spinner_progress(color="cyan") as progress:
-        task = progress.add_task(f"Importing {statement_path.name}...", total=None)
+    with ProgressDisplay.spinner(color="cyan") as progress:
+        progress.add_task(f"Importing {statement_path.name}...", total=None)
         updates = import_statements(statement_path)
-        progress.remove_task(task)
 
     if updates > 0:
         console_success(
@@ -126,10 +124,9 @@ def _import_statements_from_directory() -> int:
     import_results = []
 
     for statement_file in statement_files:
-        with ProgressDisplay.spinner_progress(color="cyan") as progress:
-            task = progress.add_task(f"Importing {statement_file.name}...", total=None)
+        with ProgressDisplay.spinner(color="cyan") as progress:
+            progress.add_task(f"Importing {statement_file.name}...", total=None)
             updates = import_statements(statement_file)
-            progress.remove_task(task)
 
         total_updates += updates
         status = (

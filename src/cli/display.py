@@ -5,6 +5,7 @@ This module provides custom display functions for the folio CLI.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -12,11 +13,28 @@ import pandas as pd
 from rich.columns import Columns
 from rich.console import Console, Group, RenderableType
 from rich.measure import Measurement
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from rich.table import Table
 
-from cli.console import console_panel, console_print, get_symbol
+from cli.console import (
+    console_panel,
+    console_print,
+    get_symbol,
+    progress_console_context,
+)
 from utils import TXN_ESSENTIALS, Action, Column, TransactionContext
+
+if TYPE_CHECKING:  # pragma: no cover
+    from collections.abc import Generator
+
+    from models import ImportResults
 
 # Minimum columns always shown for exclusions
 EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
@@ -34,10 +52,6 @@ except ImportError:
     def _getch() -> str:
         """Get input (fallback for non-Windows systems)."""
         return input().strip().lower()
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from models import ImportResults
 
 
 console = Console()
@@ -1265,11 +1279,12 @@ class ProgressDisplay:
     """Rich progress indicators for long-running operations."""
 
     @staticmethod
-    def spinner_progress(
+    @contextmanager
+    def spinner(
         color: str = "white",
         *,
         transient: bool = True,
-    ) -> Progress:
+    ) -> Generator[Progress]:
         """Create a spinner progress indicator.
 
         Args:
@@ -1279,9 +1294,40 @@ class ProgressDisplay:
         Returns:
             Progress instance configured with a spinner
         """
-        return Progress(
+        progress = Progress(
             SpinnerColumn(style=color),
             TextColumn(f"[{color}]{{task.description}}[/{color}]"),
             console=console,
             transient=transient,
         )
+
+        with progress, progress_console_context(progress.console):
+            yield progress
+
+    @staticmethod
+    @contextmanager
+    def bar(
+        color: str = "white",
+        *,
+        transient: bool = False,
+    ) -> Generator[Progress]:
+        """Create a bar progress display.
+
+        Args:
+            color: Color for the progress bar.
+            transient: Whether to remove the progress when complete.
+
+        Yields:
+            Progress instance configured with a progress bar.
+        """
+        progress = Progress(
+            TextColumn(f"[{color}]{{task.description}}[/{color}]"),
+            BarColumn(complete_style=color),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            transient=transient,
+        )
+
+        with progress, progress_console_context(progress.console):
+            yield progress

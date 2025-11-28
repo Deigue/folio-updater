@@ -19,7 +19,6 @@ from cli import (
     console_rule,
     console_success,
     console_warning,
-    progress_console_context,
 )
 from cli.display import THEME_SUCCESS
 from exporters import ParquetExporter
@@ -109,11 +108,8 @@ def _import_single_file_to_db(
     """Import a single file to database."""
     display = TransactionDisplay()
 
-    with (
-        ProgressDisplay.spinner_progress("green") as progress,
-        progress_console_context(progress.console),
-    ):
-        task = progress.add_task(f"Importing {file_path.name}...", total=None)
+    with ProgressDisplay.spinner("green") as progress:
+        progress.add_task(f"Importing {file_path.name}...", total=None)
 
         try:
             config = get_config()
@@ -127,9 +123,7 @@ def _import_single_file_to_db(
             if not isinstance(results, ImportResults):  # pragma: no cover
                 console_error(f"Invalid result type from import: {type(results)}")
                 return None
-            progress.remove_task(task)
         except (OSError, ValueError, KeyError) as e:
-            progress.remove_task(task)
             console_error(f"Error importing {file_path.name}: {e}")
             return None
 
@@ -211,11 +205,10 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
 def _export_to_parquet() -> None:
     """Export transactions to Parquet."""
     try:
-        with ProgressDisplay.spinner_progress("green") as progress:
-            task = progress.add_task("Exporting to Parquet...", total=None)
+        with ProgressDisplay.spinner("green") as progress:
+            progress.add_task("Exporting to Parquet...", total=None)
             exporter = ParquetExporter()
             exported = exporter.export_transactions()
-            progress.remove_task(task)
         console_success(f"Exported {exported} transactions to Parquet")
     except (OSError, ValueError, KeyError) as e:
         console_warning(f"Failed to export to Parquet: {e}")

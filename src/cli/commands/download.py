@@ -216,7 +216,7 @@ def wealthsimple_transactions(
     resolved_to_date: str = _resolve_to_date(to_date)
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
 
-    with ProgressDisplay.spinner_progress("blue") as progress:
+    with ProgressDisplay.spinner("blue") as progress:
         task = progress.add_task("Connecting to Wealthsimple API...", total=None)
 
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
@@ -234,7 +234,6 @@ def wealthsimple_transactions(
             to_dt,
             load_all=True,
         )
-        progress.remove_task(task)
 
     console_info(f"Retrieved {len(activities)} transactions")
 
