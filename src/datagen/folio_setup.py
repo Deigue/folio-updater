@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
+from cli.console import console_warning
 from datagen.mock_data import generate_transactions
 from db import create_txns_table, get_connection, get_row_count
 from exporters import ParquetExporter
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def ensure_data_exists(*, mock: bool = True) -> None:
+def ensure_data_exists(*, mock: bool = True) -> bool:
     """Ensure that the folio exists.
 
     Checks if the folio exists. If mock is True (default), creates a folio with
@@ -29,6 +30,9 @@ def ensure_data_exists(*, mock: bool = True) -> None:
     Args:
         mock (bool, optional): Whether to create mock data in the folio.
 
+    Returns:
+        bool: True if mock data was created, False if data already existed.
+
     Raises:
         FileNotFoundError: If the parent directory does not exist.
 
@@ -36,8 +40,10 @@ def ensure_data_exists(*, mock: bool = True) -> None:
     configuration = get_config()
     transaction_data = configuration.txn_parquet
     if transaction_data.exists():
-        logger.debug("Transaction data file already exists at %s", transaction_data)
-        return
+        msg = f'Transaction data already exists: "{transaction_data}"'
+        logger.debug(msg)
+        console_warning(msg)
+        return False
     if not mock:
         msg: str = f'MISSING transaction data: "{transaction_data}"'
         logger.error(msg)
@@ -55,6 +61,7 @@ def ensure_data_exists(*, mock: bool = True) -> None:
         raise FileNotFoundError(msg)
 
     create_mock_data()
+    return True
 
 
 def create_mock_data() -> None:

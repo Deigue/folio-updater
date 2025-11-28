@@ -9,6 +9,7 @@ import typer
 
 from app import bootstrap
 from cli import console_error, console_info, console_success
+from cli.display import ProgressDisplay
 from datagen import ensure_data_exists
 from exporters.excel_exporter import ExcelExporter
 
@@ -25,9 +26,17 @@ def create_folio() -> None:
     bootstrap.reload_config()
 
     try:
-        ensure_data_exists(mock=True)
-        exporter = ExcelExporter()
-        success = exporter.generate_excel()
+        with ProgressDisplay.spinner("sea_green3") as progress:
+            task = progress.add_task("Generating mock data...", total=None)
+            created = ensure_data_exists(mock=True)
+
+            if not created:
+                console_info("Demo folio not created due to existing data.")
+                return
+
+            progress.update(task, description="Creating demo portfolio...")
+            exporter = ExcelExporter()
+            success = exporter.generate_excel()
 
         if success:
             console_success("Demo portfolio created successfully!")

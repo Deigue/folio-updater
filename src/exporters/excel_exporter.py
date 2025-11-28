@@ -62,7 +62,7 @@ class ExcelExporter:
             if not transactions_path.exists():
                 return None
 
-        logger.info("Reading Parquet files from %s...", self.data_path)
+        logger.info('READ Parquet files from "%s"', self.data_path)
 
         try:
             transactions_df = pd.read_parquet(transactions_path, engine="fastparquet")
@@ -116,7 +116,7 @@ class ExcelExporter:
         tickers_df: pd.DataFrame,
     ) -> bool:
         """Write DataFrames to Excel workbook."""
-        logger.info("Generating Excel workbook at %s...", self.folio_path)
+        logger.info('CREATING Excel workbook at "%s"', self.folio_path)
         try:
             with pd.ExcelWriter(
                 self.folio_path,

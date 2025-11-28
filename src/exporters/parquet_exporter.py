@@ -113,7 +113,7 @@ class ParquetExporter:
         ticker_count = self.export_tickers()
 
         logger.info(
-            "Parquet export completed: %d transactions, %d FX rates, %d tickers",
+            "EXPORTED Parquet files: %d transactions, %d FX rates, %d tickers",
             txn_count,
             fx_count,
             ticker_count,
