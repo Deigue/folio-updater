@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 import yaml
 
+import datagen as _datagen_package
 from app import AppContext, get_config
 from datagen import create_mock_data, get_mock_data_date_range
 from services import ForexService
@@ -36,17 +37,16 @@ _original_ensure_data_exists = datagen.folio_setup.ensure_data_exists
 _active_cached_mock_data: Path | None = None
 
 
-def _patched_ensure_data_exists(*, mock: bool = True) -> None:
+def _patched_ensure_data_exists(*, mock: bool = True) -> bool:
     """Global patched version of ensure_data_exists that uses cached data."""
     logger = logging.getLogger(__name__)
 
     if not mock:  # pragma: no cover
-        _original_ensure_data_exists(mock=False)
-        return
+        return _original_ensure_data_exists(mock=False)
 
     config = get_config()
     if config.txn_parquet.exists():
-        return
+        return False
 
     # Include the original validation logic from ensure_data_exists
     folio_path_parent: Path = config.folio_path.parent
@@ -61,8 +61,7 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
         raise FileNotFoundError(msg)
 
     if _active_cached_mock_data is None:  # pragma: no cover
-        _original_ensure_data_exists(mock=True)
-        return
+        return _original_ensure_data_exists(mock=True)
 
     config.data_path.mkdir(parents=True, exist_ok=True)
     shutil.copy2(_active_cached_mock_data / "folio.db", config.db_path)
@@ -71,10 +70,14 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> None:
     fx_src = _active_cached_mock_data / "fx.parquet"
     if fx_src.exists():  # pragma: no cover
         shutil.copy2(fx_src, config.fx_parquet)
+    return True
 
 
 # Replace the function at module level so all imports get the patched version
 datagen.folio_setup.ensure_data_exists = _patched_ensure_data_exists
+# Also patch the package-level export so `from datagen import ensure_data_exists`
+# receives the patched function (the package __init__ does a from-import).
+_datagen_package.ensure_data_exists = _patched_ensure_data_exists
 
 # Session-scoped caches
 _fx_cache: dict[str, pd.DataFrame] = {}
