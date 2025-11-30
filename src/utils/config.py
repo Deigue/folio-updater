@@ -490,14 +490,21 @@ class Config:
         config_str += f"  Database Path: {self.db_path}\n"
         config_str += f"  Log Level: {self.log_level}\n"
         config_str += f"  Sheets: {self.sheets}\n"
-        config_str += f"  Header Keywords: {self.header_keywords}\n"
+        config_str += (
+            f"  Header Keywords: {len(self.header_keywords)} column(s) mapped\n"
+        )
         config_str += f"  Header Ignore: {self.header_ignore}\n"
         config_str += f"  Duplicate Approval Column: {self.duplicate_approval_column}\n"
         config_str += f"  Duplicate Approval Value: {self.duplicate_approval_value}\n"
         config_str += f"  Backup Enabled: {self.backup_enabled}\n"
         config_str += f"  Backup Path: {self.backup_path}\n"
         config_str += f"  Max Backups: {self.max_backups}\n"
-        config_str += f"  Transforms: {self.transforms}\n"
+        num_rules = len(self.transforms.rules)
+        num_merge_groups = len(self.transforms.merge_groups)
+        config_str += (
+            f"  Transforms: {num_rules} rule(s) and "
+            f"{num_merge_groups} merge group(s) configured\n"
+        )
         return config_str
 
     def __repr__(self) -> str:

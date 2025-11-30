@@ -161,6 +161,7 @@ def show_version() -> None:
     console_info(f"config path: {config.config_path}")
     console_info(f"folio path: {config.folio_path}")
     console_info(f"data path: {config.data_path}")
+    console_info(f"backup path: {config.backup_path}")
 
 
 def main() -> None:
