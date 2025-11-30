@@ -177,7 +177,6 @@ class IBKRService:
             token: The flex token to store
         """
         keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, token)
-        logger.info("Flex token stored in keyring successfully")
 
     def send_request(
         self,

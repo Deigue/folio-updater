@@ -27,6 +27,7 @@ from db import get_connection, get_max_value
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 from utils import TORONTO_TZ, Column, Table, get_import_logger
+from utils.log_console import success_both
 
 if TYPE_CHECKING:
     from models.wealthsimple.activity_feed_item import ActivityFeedItem
@@ -89,9 +90,9 @@ def download_statements(
 
     if broker == "wealthsimple":
         if statement and from_date:
-            wealthsimple_statement(from_date)
+            _wealthsimple_statement(from_date)
         else:
-            wealthsimple_transactions(from_date, to_date)
+            _wealthsimple_transactions(from_date, to_date)
 
     if broker == "ibkr":
         _handle_ibkr_download(
@@ -192,7 +193,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
                 confirmation_prompt=True,
             )
             ibkr.set_token(new_token)
-            console_success("Flex token stored securely")
+            success_both("Flex token stored securely")
     elif broker == "wealthsimple":
         ws = WealthsimpleService()
         ws.reset_credentials()
@@ -202,7 +203,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
         raise typer.Exit(1)
 
 
-def wealthsimple_transactions(
+def _wealthsimple_transactions(
     from_date: str | None,
     to_date: str | None,
 ) -> None:
@@ -216,20 +217,20 @@ def wealthsimple_transactions(
     resolved_to_date: str = _resolve_to_date(to_date)
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
 
-    with ProgressDisplay.spinner("blue") as progress:
-        task = progress.add_task("Connecting to Wealthsimple API...", total=None)
-
+    with ProgressDisplay.spinner("dark_goldenrod") as progress:
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
             tzinfo=TORONTO_TZ,
         )
         to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
             tzinfo=TORONTO_TZ,
         )
-        accounts = [a.id for a in ws.get_accounts()]
+        task = progress.add_task("Retrieving accounts...", total=None)
+        accounts = ws.get_accounts()
+        account_ids = [a.id for a in accounts]
 
         progress.update(task, description="Downloading transactions...")
         activities: list[ActivityFeedItem] = ws.get_activities(
-            accounts,
+            account_ids,
             from_dt,
             to_dt,
             load_all=True,
@@ -249,7 +250,14 @@ def wealthsimple_transactions(
                 "Ticker": act.asset_symbol or "",
                 "Amount": float(act.amount) if act.amount else 0,
                 "Currency": act.currency,
-                "Account": (act.account_id[:8] + "..." if act.account_id else ""),
+                "Account": next(
+                    (
+                        a.nickname or a.account_type or a.id
+                        for a in accounts
+                        if a.id == act.account_id
+                    ),
+                    act.account_id[:8] + "..." if act.account_id else "",
+                ),
                 "Description": (
                     (act.description[:description_max_length] + "...")
                     if (
@@ -271,37 +279,42 @@ def wealthsimple_transactions(
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
         ws.export_activities_to_csv(activities, csv_name)
 
-        console_success(f'File saved: "{get_config().imports_path}/{csv_name}"')
+        console_success(f'File saved: "{get_config().imports_path}\\{csv_name}"')
         console_info("To import these files, run:")
         console_info("  folio import")
     else:
         console_warning("No transactions downloaded")
 
 
-def wealthsimple_statement(from_date: str) -> None:
+def _wealthsimple_statement(from_date: str) -> None:
     """Retrieve wealthsimple monthly statement.
 
     Args:
         from_date (str | None): From date string in YYYY-MM-DD format.
             Example: '2024-05-01' for May 2024 statement.
     """
-    ws = WealthsimpleService()
-    accounts = ws.get_accounts()
+    with ProgressDisplay.spinner("dark_goldenrod") as progress:
+        ws = WealthsimpleService()
+        task = progress.add_task("Retrieving accounts...", total=None)
+        accounts = ws.get_accounts()
 
-    total_transactions = 0
-    exported_files = []
+        total_transactions = 0
+        exported_files = []
 
-    for account in accounts:
-        statement = ws.get_monthly_statement(account.id, from_date)
-        account_id = account.nickname or account.id
-        if statement:
-            date_for_filename = from_date.replace("-", "")[:6]  # YYYY-MM-DD -> YYYYMM
-            csv_name = f"ws_statement_{account_id}_{date_for_filename}.csv"
-            ws.export_statement_to_csv(statement, csv_name)
-            total_transactions += len(statement)
-            exported_files.append(csv_name)
-        else:
-            console_warning(f"No statement transactions found for account {account_id}")
+        progress.update(task, description="Downloading monthly statements...")
+        for account in accounts:
+            statement_txns = ws.get_monthly_statement(account.id, from_date)
+            account_id = account.nickname or account.id
+            if statement_txns:
+                # YYYY-MM-DD -> YYYYMM
+                date_for_filename = from_date.replace("-", "")[:6]
+                csv_name = f"ws_statement_{account_id}_{date_for_filename}.csv"
+                ws.export_statement_to_csv(statement_txns, csv_name)
+                total_transactions += len(statement_txns)
+                exported_files.append(csv_name)
+            else:
+                msg = f"No statement transactions found for account {account_id}"
+                console_warning(msg)
 
     if exported_files:
         config = get_config()
