@@ -22,7 +22,9 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app import get_config
+from cli.display import ProgressDisplay
 from utils.constants import TORONTO_TZ
+from utils.log_console import error_both, info_both
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -40,7 +42,7 @@ KEYRING_USERNAME = "flex_token"
 MAX_RETRIES = 3
 RETRY_BACKOFF_FACTOR = 1
 RETRY_STATUS_FORCELIST = [429, 500, 502, 503, 504]
-INITIAL_WAIT_SECONDS = 10
+INITIAL_WAIT_SECONDS = 5
 POLL_INTERVAL_SECONDS = 30
 MAX_POLL_ATTEMPTS = 10
 
@@ -229,12 +231,8 @@ class IBKRService:
         url: str = f"{IBKR_SENDREQUEST_URL}?{urlencode(params)}"
 
         try:
-            logger.info(
-                "REQUEST IBKR for %s from %s to %s",
-                request.query_name,
-                from_date,
-                to_date,
-            )
+            msg = f"REQUEST IBKR for {request.query_name} from {from_date} to {to_date}"
+            info_both(msg)
             response = self._session.get(url, timeout=30)
             response.raise_for_status()
 
@@ -251,7 +249,7 @@ class IBKRService:
             reference_code_elem = root.find("ReferenceCode")
             if reference_code_elem is None or not reference_code_elem.text:
                 msg = f"No reference code found in response: {response.text}"
-                logger.error(msg)
+                error_both(msg)
                 raise IBKRAPIError(msg)
 
         except ET.ParseError as e:
@@ -326,35 +324,45 @@ class IBKRService:
         Raises:
             IBKRTimeoutError: If statement is not ready after max attempts
         """
-        if isinstance(request, str):
-            reference_code = request
-        else:
-            reference_code = self.send_request(request)
-            logger.info(
-                "WAIT %d seconds to allow statement to process...",
-                INITIAL_WAIT_SECONDS,
-            )
-            time.sleep(INITIAL_WAIT_SECONDS)
-
-        for attempt in range(1, MAX_POLL_ATTEMPTS + 1):
-            statement_data = self.get_statement(reference_code)
-            if statement_data:
-                return statement_data
-
-            if attempt < MAX_POLL_ATTEMPTS:  # pragma: no cover
-                logger.info(
-                    "POLL (%d/%d): Statement not ready, waiting %d seconds...",
-                    attempt,
-                    MAX_POLL_ATTEMPTS,
-                    POLL_INTERVAL_SECONDS,
+        with ProgressDisplay.spinner("dark_orange3") as progress:
+            task = progress.add_task("Requesting statement...", total=None)
+            if isinstance(request, str):
+                reference_code = request
+            else:
+                reference_code = self.send_request(request)
+                msg = (
+                    f"Waiting {INITIAL_WAIT_SECONDS} seconds to allow "
+                    "statement to process..."
                 )
-                time.sleep(POLL_INTERVAL_SECONDS)
+                progress.update(task, description=msg)
+                logger.info(msg)
+                time.sleep(INITIAL_WAIT_SECONDS)
+
+            for attempt in range(1, MAX_POLL_ATTEMPTS + 1):
+                progress.update(task, description="Downloading statement...")
+                statement_data = self.get_statement(reference_code)
+                if statement_data:
+                    return statement_data
+
+                if attempt < MAX_POLL_ATTEMPTS:  # pragma: no cover
+                    msg = (
+                        f"POLL ({attempt}/{MAX_POLL_ATTEMPTS}): Statement not "
+                        f"ready, waiting {POLL_INTERVAL_SECONDS} seconds..."
+                    )
+                    progress.update(task, description=msg)
+                    logger.info(
+                        "POLL (%d/%d): Statement not ready, waiting %d seconds...",
+                        attempt,
+                        MAX_POLL_ATTEMPTS,
+                        POLL_INTERVAL_SECONDS,
+                    )
+                    time.sleep(POLL_INTERVAL_SECONDS)
 
         msg = (
             f"Statement not ready after {MAX_POLL_ATTEMPTS} attempts. "
             f"You can retry later with reference code: {reference_code}"
         )
-        logger.error(msg)
+        error_both(msg)
         raise IBKRTimeoutError(msg)
 
     def save_statement_as_csv(

@@ -110,10 +110,12 @@ def _handle_ibkr_download(
     reference_code: str | None,
 ) -> None:
     files_downloaded: bool = False
-    with IBKRService() as ibkr:
+    with IBKRService() as ibkr, ProgressDisplay.spinner("red") as progress:
+        task = progress.add_task("Checking IBKR token...", total=None)
         _ensure_ibkr_token(ibkr)
 
         if reference_code:
+            progress.update(task, description="Downloading by reference code...")
             _handle_ibkr_reference_code(ibkr, reference_code)
             return
 
@@ -123,6 +125,7 @@ def _handle_ibkr_download(
         placeholder_ids = {"111111", "999999"}
 
         for query_name, query_id in broker_config.items():
+            progress.update(task, description=f"Downloading {query_name}...")
             if not query_id or query_id in placeholder_ids:
                 console_warning(f"Skipping {query_name}: No valid query ID configured")
                 continue
