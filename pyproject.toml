@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.6.17"
+version = "0.6.18"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -38,7 +38,7 @@ omit = [
     '*/__init__.py',
     'tests/fixtures/dataframe_cache.py',
     'src/utils/backup.py',
-    'src/mock/folio_setup.py',
+    'src/datagen/folio_setup.py',
     'src/models/*',
     'src/cli/display.py',
     'src/cli/console.py'

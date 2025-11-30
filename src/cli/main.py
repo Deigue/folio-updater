@@ -5,11 +5,16 @@ This module provides the main CLI interface using Typer.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import typer
 
-from cli import console_print
+from app.bootstrap import reload_config
+from cli import console_info, console_print
+from utils.config import Config
 
-__version__ = "0.6.17"
+__version__ = "0.6.18"
 
 app = typer.Typer(
     name="folio",
@@ -145,7 +150,17 @@ def download_cmd(
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""
+    config = reload_config()
+    if getattr(sys, "frozen", False):
+        app_path = Path(sys.executable).resolve()
+    else:
+        app_path = Config.get_default_root_directory()
+
     console_print(f"folio-updater version: {__version__}")
+    console_info(f"application path: {app_path}")
+    console_info(f"config path: {config.config_path}")
+    console_info(f"folio path: {config.folio_path}")
+    console_info(f"data path: {config.data_path}")
 
 
 def main() -> None:
