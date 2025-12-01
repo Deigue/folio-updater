@@ -15,7 +15,6 @@ import typer
 from app import bootstrap, get_config
 from cli import (
     ProgressDisplay,
-    TransactionDisplay,
     console_error,
     console_info,
     console_print,
@@ -243,8 +242,6 @@ def _wealthsimple_transactions(
     console_info(f"Retrieved {len(activities)} transactions")
 
     if len(activities) > 0:
-        display = TransactionDisplay()
-
         # Display sample of retrieved activities
         description_max_length = 30
         sample_data = [
