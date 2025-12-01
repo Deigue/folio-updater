@@ -14,7 +14,7 @@ from app.bootstrap import reload_config
 from cli import console_info, console_print
 from utils.config import Config
 
-__version__ = "0.6.18"
+__version__ = "0.6.19"
 
 app = typer.Typer(
     name="folio",

@@ -80,6 +80,21 @@ class IBKRService:
         """Initialize the IBKR service with retry configuration."""
         self._session: requests.Session
 
+    @staticmethod
+    def _get_last_business_day(date: datetime) -> datetime:
+        """Get the last business day (Mon-Fri) before the given date.
+
+        Args:
+            date: Reference date to start from
+
+        Returns:
+            datetime: The last business day (Monday-Friday) before the given date
+        """
+        current = date - timedelta(days=1)
+        while current.weekday() > 4:  # 5=Saturday, 6=Sunday  # noqa: PLR2004
+            current -= timedelta(days=1)
+        return current
+
     def __enter__(self) -> Self:
         """Enter context manager - initialize session."""
         self._session = requests.Session()
@@ -205,11 +220,11 @@ class IBKRService:
                 to_date_obj = datetime.strptime(to_date, "%Y%m%d").replace(
                     tzinfo=TORONTO_TZ,
                 )
-                today = datetime.now(TORONTO_TZ).date()
+                today = datetime.now(TORONTO_TZ)
 
-                if to_date_obj.date() >= today:
-                    yesterday = today - timedelta(days=1)
-                    to_date = yesterday.strftime("%Y%m%d")
+                if to_date_obj.date() >= today.date():
+                    last_business_day = self._get_last_business_day(today)
+                    to_date = last_business_day.strftime("%Y%m%d")
                     msg = (
                         f"ADJUSTED: to_date {request.to_date} -> {to_date} for "
                         f"{request.query_name}"

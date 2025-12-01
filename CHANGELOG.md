@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Default `import` now imports from the `imports` folder in the `data` directory
 - Mock data generation properly uses negative amounts based on transaction type
 - Fixed excessive rows being displayed during import CLI causing pagination issues
+- IBKR download will correctly fallback to last business day for Activity statements
 
 ### Security
 
