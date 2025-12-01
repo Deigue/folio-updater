@@ -19,6 +19,7 @@ from cli import (
     console_rule,
     console_success,
     console_warning,
+    show_data_table,
 )
 from cli.display import THEME_SUCCESS
 from exporters import ParquetExporter
@@ -187,8 +188,7 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
     # Display summary table
     if import_results:
         console_rule("Import Summary", style=THEME_SUCCESS)
-        display = TransactionDisplay()
-        display.show_data_table(
+        show_data_table(
             import_results,
             title="Import Summary",
             max_rows=20,

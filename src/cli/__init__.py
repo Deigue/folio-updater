@@ -18,6 +18,7 @@ from cli.display import (
     ProgressDisplay,
     TransactionDisplay,
     page_transactions,
+    show_data_table,
 )
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "console_warning",
     "get_symbol",
     "page_transactions",
+    "show_data_table",
 ]

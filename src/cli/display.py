@@ -24,6 +24,7 @@ from rich.progress import (
 from rich.table import Table
 
 from cli.console import (
+    console,
     console_panel,
     console_print,
     get_symbol,
@@ -53,8 +54,6 @@ except ImportError:
         """Get input (fallback for non-Windows systems)."""
         return input().strip().lower()
 
-
-console = Console()
 
 # Lines used by the stats summary panel at the top.
 STATS_PANEL_LINES = 3
@@ -88,6 +87,54 @@ TRANSACTION_COLORS = {
     Action.ROC: "magenta",
     Action.SPLIT: "purple",
 }
+
+
+def show_data_table(
+    data: list[dict[str, Any]],
+    title: str | None = None,
+    max_rows: int = 50,
+    *,
+    theme: str = "bright_blue",
+) -> None:
+    """Display generic data in a Rich table.
+
+    Args:
+        data: List of dictionaries containing data to display
+        title: Optional title for the table
+        max_rows: Maximum number of rows to display
+        theme: Border color theme for the table
+    """
+    if not data:
+        console_print("[yellow]No data to display[/yellow]")
+        return
+
+    # Limit rows for readability
+    display_data = data[:max_rows]
+    truncated = len(data) > max_rows
+
+    table = Table(
+        title=title,
+        show_header=True,
+        header_style="bold bright_white",
+        border_style=theme,
+        expand=False,
+    )
+
+    # Add columns based on first row keys
+    if display_data:
+        for key in display_data[0]:
+            table.add_column(str(key), no_wrap=True)
+
+        # Add rows
+        for row in display_data:
+            table.add_row(*[_safe_str(value) for value in row.values()])
+
+    console_print(table)
+
+    if truncated:
+        console_print(
+            f"\n[dim]... showing first {max_rows} of {len(data)} items[/dim]",
+        )
 
 
 @dataclass
@@ -1224,54 +1271,6 @@ class TransactionDisplay:
                 title=block.name,
                 page_size=rows,
                 context=TransactionContext.IMPORT,
-            )
-
-    def show_data_table(
-        self,
-        data: list[dict[str, Any]],
-        title: str | None = None,
-        max_rows: int = 50,
-        *,
-        theme: str = "bright_blue",
-    ) -> None:
-        """Display generic data in a Rich table.
-
-        Args:
-            data: List of dictionaries containing data to display
-            title: Optional title for the table
-            max_rows: Maximum number of rows to display
-            theme: Border color theme for the table
-        """
-        if not data:
-            console_print("[yellow]No data to display[/yellow]")
-            return
-
-        # Limit rows for readability
-        display_data = data[:max_rows]
-        truncated = len(data) > max_rows
-
-        table = Table(
-            title=title,
-            show_header=True,
-            header_style="bold bright_white",
-            border_style=theme,
-            expand=False,
-        )
-
-        # Add columns based on first row keys
-        if display_data:
-            for key in display_data[0]:
-                table.add_column(str(key), no_wrap=True)
-
-            # Add rows
-            for row in display_data:
-                table.add_row(*[_safe_str(value) for value in row.values()])
-
-        console_print(table)
-
-        if truncated:
-            console_print(
-                f"\n[dim]... showing first {max_rows} of {len(data)} items[/dim]",
             )
 
 

@@ -22,6 +22,7 @@ from cli import (
     console_rule,
     console_success,
     console_warning,
+    show_data_table,
 )
 from db import get_connection, get_max_value
 from models.wealthsimple import ActivityFeedItem
@@ -273,7 +274,7 @@ def _wealthsimple_transactions(
             for act in activities[:10]
         ]
 
-        display.show_data_table(
+        show_data_table(
             sample_data,
             title=f"Downloaded Transactions Preview ({len(activities)} total)",
             max_rows=10,

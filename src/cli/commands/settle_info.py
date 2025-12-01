@@ -21,6 +21,7 @@ from cli import (
     console_warning,
     get_symbol,
     page_transactions,
+    show_data_table,
 )
 from db import get_connection, get_row_count, get_rows
 from exporters import ParquetExporter
@@ -142,9 +143,8 @@ def _import_statements_from_directory() -> int:
 
     # Show summary table
     if import_results:
-        console_rule(style="dark_violet")
-        display = TransactionDisplay()
-        display.show_data_table(
+        console_rule(style="medium_purple3")
+        show_data_table(
             import_results,
             title="Statement Import Summary",
             max_rows=20,
@@ -158,7 +158,7 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
     """Display settlement date statistics for transactions."""
     display = TransactionDisplay()
     if import_flag:
-        console_rule(style="dark_violet")
+        console_rule(style="medium_purple3")
 
     try:
         with get_connection() as conn:

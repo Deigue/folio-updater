@@ -15,9 +15,19 @@
             "label": "coverage",
             "type": "process",
             "command": "uv",
-            "args": ["run", "python", "-m", "pytest", "--cov=.", "--cov-report=term-missing", "--log-cli-level=ERROR"],
+            "args": [
+                "run",
+                "python",
+                "-m",
+                "pytest",
+                "--cov=.",
+                "--cov-report=term-missing",
+                "--log-cli-level=ERROR"
+            ],
             "group": "test",
-            "presentation": {"reveal": "always"},
+            "presentation": {
+                "reveal": "always"
+            },
             "problemMatcher": []
         }
     ]
