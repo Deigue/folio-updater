@@ -15,7 +15,7 @@ from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
-from db import drop_table, get_connection, get_row_count
+from db import drop_table, get_connection, get_row_count, get_rows
 from services.ibkr_service import IBKRAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
@@ -512,6 +512,48 @@ def _test_wealthsimple_scenario(
             ws_mock.assert_csv_written(expected_csv)
         else:
             ws_mock.assert_no_csv_written()
+
+
+def test_tickers_command(temp_ctx: TempContext) -> None:
+    """Test management of ticker aliases with tickers command."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        # 1. ADD
+        result = _run_cli_with_config(
+            config,
+            cli_app,
+            ["tickers", "--add", "OLD", "NEW", "2025-01-01"],
+        )
+        assert_cli_success(result)
+        assert "Successfully added alias." in result.stdout
+        with get_connection() as conn:
+            count = get_row_count(conn, Table.TICKER_ALIASES)
+            assert count == 1
+
+        # 2. ADD another alias
+        result = _run_cli_with_config(
+            config,
+            cli_app,
+            ["tickers", "--add", "NEW", "NEWEST", "2025-02-01"],
+        )
+        assert_cli_success(result)
+
+        # 3. LIST aliases
+        result = _run_cli_with_config(config, cli_app, ["tickers", "--list"])
+        assert_cli_success(result)
+        assert "OLD" in result.stdout
+        assert "NEW" in result.stdout
+        assert "NEWEST" in result.stdout
+
+        # 4. DELETE an alias
+        result = _run_cli_with_config(config, cli_app, ["tickers", "--delete", "OLD"])
+        assert_cli_success(result)
+        assert "Successfully deleted alias" in result.stdout
+        with get_connection() as conn:
+            count = get_row_count(conn, Table.TICKER_ALIASES)
+            assert count == 1
+            remaining = get_rows(conn, Table.TICKER_ALIASES)
+            assert remaining.iloc[0][Column.Aliases.OLD_TICKER] == "NEW"
 
 
 def test_version_command() -> None:

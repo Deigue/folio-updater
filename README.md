@@ -12,9 +12,10 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio getfx`**: Update foreign exchange rates automatically
 - **`folio generate`**: Generate the latest portfolio
 - **`folio demo`**: Create a demo portfolio with mock data for testing
-- **`folio version`**: Show the version of the folio-updater
 - **`folio settle-info`**: Retrieve and update settlement date information
 - **`folio download`**: Download statements from brokers (e.g., Interactive Brokers)
+- **`folio tickers`**: Manage ticker symbol aliases
+- **`folio version`**: Show the version of the folio-updater
 
 ### Import and Processing Features
 
@@ -131,6 +132,17 @@ folio download --broker wealthsimple --statement --from 2024-04-01
 ```
 
 *Refer to [IBKR Integration Usage](docs/download/ibkr-integration.md#usage) and [Wealthsimple Integration Usage](docs/download/wealthsimple-integration.md#usage) for detailed information.*
+
+### Ticker Alias Management
+
+Ticker symbols could be renamed, or represented differently across brokers. This command allows you to alias tickers
+so they are treated as the same security internally.
+
+```bash
+folio tickers --add SPLG SPYM 2025-10-31
+folio tickers --list
+folio tickers --delete SPLG
+```
 
 ## Configuration
 
