@@ -14,7 +14,7 @@ from app.bootstrap import reload_config
 from cli import console_info, console_print
 from utils.config import Config
 
-__version__ = "0.6.19"
+__version__ = "0.6.20"
 
 app = typer.Typer(
     name="folio",
@@ -146,6 +146,33 @@ def download_cmd(
         reference_code=reference_code,
     )
 
+
+@app.command("tickers", help="Manage ticker aliases")
+def tickers_cmd(
+    add: tuple[str, str, str] | None = typer.Option(
+        None,
+        "-a",
+        "--add",
+        help="Add an alias. Usage: --add <OLD_TICKER> <NEW_TICKER> <YYYY-MM-DD>",
+    ),
+    delete: str = typer.Option(
+        None,
+        "-d",
+        "--delete",
+        help="Delete an alias by specifying the OLD_TICKER.",
+    ),
+    *,
+    list_all: bool = typer.Option(
+        False,
+        "-l",
+        "--list",
+        help="List all aliases.",
+    ),
+) -> None:
+    """Manage ticker aliases for tracking symbol changes over time."""
+    from cli.commands.tickers import manage_ticker_aliases
+
+    manage_ticker_aliases(add, delete, list_all=list_all)
 
 @app.command("version")
 def show_version() -> None:

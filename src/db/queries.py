@@ -238,3 +238,68 @@ def update_rows(
         return 0
     else:
         return cursor.rowcount
+
+
+def insert_or_replace(
+    connection: sqlite3.Connection,
+    table_name: str,
+    data: dict,
+) -> bool:
+    """Insert or replace a row in a table.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to insert/replace into
+        data: Dictionary mapping column names to values
+
+    Returns:
+        True if successful, False if there was an error
+    """
+    if not data:
+        return False
+
+    columns = ", ".join(f'"{col}"' for col in data)
+    placeholders = ", ".join("?" for _ in data)
+    query = f'INSERT OR REPLACE INTO "{table_name}" ({columns}) VALUES ({placeholders})'
+
+    try:
+        connection.execute(query, tuple(data.values()))
+        connection.commit()
+    except sqlite3.OperationalError:
+        logger.exception(
+            "Error inserting/replacing row in table '%s'",
+            table_name,
+        )
+        return False
+    else:
+        return True
+
+
+def delete_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    condition: str | None = None,
+) -> int:
+    """Delete rows from a table based on WHERE conditions.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to delete from
+        condition: Optional SQL WHERE clause condition string
+
+    Returns:
+        Number of rows deleted
+    """
+    query = f'DELETE FROM "{table_name}"'
+    if condition:
+        query += f" WHERE {condition}"
+
+    try:
+        cursor = connection.execute(query)
+        connection.commit()
+    except sqlite3.OperationalError:
+        logger.exception("Error deleting rows from table '%s'", table_name)
+        return 0
+    else:
+        return cursor.rowcount
+
