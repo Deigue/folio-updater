@@ -6,6 +6,7 @@ import logging
 
 import pandas as pd
 
+# Local imports, don;t get from db package
 from db import helpers, schema
 from db.filters import TransactionFilter
 from db.formatters import TransactionFormatter
@@ -38,6 +39,7 @@ def prepare_transactions(
         "PREPARE transactions: mapping → transforming → formatting → filtering",
     )
     schema.create_txns_table()
+    schema.create_ticker_aliases_table()
 
     read_df = df.copy()
     mapped_df = TransactionMapper.map_headers(read_df, account)

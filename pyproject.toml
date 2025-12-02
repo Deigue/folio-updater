@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.6.19"
+version = "0.6.20"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -110,6 +110,7 @@ exclude = [
     "FBT003",
     "PLW0603",
     "ANN401",
+    "B008",
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
