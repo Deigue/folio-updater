@@ -10,7 +10,12 @@ import logging
 import sqlite3
 
 from db.queries import get_connection
-from utils.constants import FX_COLUMN_DEFINITIONS, TXN_COLUMN_DEFINITIONS, Table
+from utils.constants import (
+    ALIASES_COLUMN_DEFINITIONS,
+    FX_COLUMN_DEFINITIONS,
+    TXN_COLUMN_DEFINITIONS,
+    Table,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +50,22 @@ def create_fx_table() -> None:
     """
     columns_def = [col_def.to_sql() for col_def in FX_COLUMN_DEFINITIONS]
     _create_table(Table.FX, columns_def)
+
+
+def create_ticker_aliases_table() -> None:
+    """Create the ticker aliases table in the database if it doesn't already exist.
+
+    The table uses OldTicker as the PRIMARY KEY to ensure a ticker can only be
+    renamed once.
+
+    Returns:
+        None
+
+    Raises:
+        DatabaseError: If there's an issue with database connection or SQL execution
+    """
+    columns_def = [col_def.to_sql() for col_def in ALIASES_COLUMN_DEFINITIONS]
+    _create_table(Table.TICKER_ALIASES, columns_def)
 
 
 def _create_table(table_name: str, columns_def: list[str]) -> None:

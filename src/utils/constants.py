@@ -45,6 +45,7 @@ class Table(StrEnum):
 
     TXNS = "Txns"
     FX = "FX"
+    TICKER_ALIASES = "TickerAliases"
 
 
 class Column(StrEnum):
@@ -79,6 +80,13 @@ class Column(StrEnum):
         DATE = "Date"
         FXUSDCAD = "FXUSDCAD"
         FXCADUSD = "FXCADUSD"
+
+    class Aliases(StrEnum):
+        """Ticker Aliases columns."""
+
+        OLD_TICKER = "OldTicker"
+        NEW_TICKER = "NewTicker"
+        EFFECTIVE_DATE = "EffectiveDate"
 
 
 class ColumnDefinition:
@@ -184,6 +192,27 @@ FX_COLUMN_DEFINITIONS = [
     ),
     ColumnDefinition(Column.FX.FXUSDCAD, NUMERIC_PRECISION, "NOT NULL"),
     ColumnDefinition(Column.FX.FXCADUSD, NUMERIC_PRECISION, "NOT NULL"),
+]
+
+ALIASES_COLUMN_DEFINITIONS = [
+    ColumnDefinition(
+        Column.Aliases.OLD_TICKER,
+        "TEXT",
+        "PRIMARY KEY",
+    ),
+    ColumnDefinition(
+        Column.Aliases.NEW_TICKER,
+        "TEXT",
+        "NOT NULL",
+    ),
+    ColumnDefinition(
+        Column.Aliases.EFFECTIVE_DATE,
+        "TEXT",
+        (
+            f'NOT NULL CHECK(length("{Column.Aliases.EFFECTIVE_DATE}") = 10 AND '
+            f'"{Column.Aliases.EFFECTIVE_DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
+        ),
+    ),
 ]
 
 
