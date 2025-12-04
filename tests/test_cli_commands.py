@@ -598,10 +598,14 @@ def test_tickers_command(temp_ctx: TempContext) -> None:
 
 def test_version_command() -> None:
     """Test version command output."""
-    result = runner.invoke(cli_app, ["version"])
-
-    assert_cli_success(result)
-    assert "folio-updater version:" in result.stdout
+    cli_result = runner.invoke(cli_app, ["version"])
+    assert cli_result.exit_code == 0
+    assert "folio-updater version:" in cli_result.stdout
+    assert "application path:" in cli_result.stdout
+    assert "config path:" in cli_result.stdout
+    assert "folio path:" in cli_result.stdout
+    assert "data path:" in cli_result.stdout
+    assert "backup path:" in cli_result.stdout
 
 
 def _run_cli_with_config(
