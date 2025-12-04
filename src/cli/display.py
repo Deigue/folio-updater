@@ -664,6 +664,7 @@ class TransactionDisplay:
             table: Rich Table to add columns to
             context: Context to determine which columns to show
         """
+        # Define the set of columns that have special handling
         added_columns = {
             Column.Txn.TXN_DATE,
             Column.Txn.ACTION,
@@ -673,33 +674,38 @@ class TransactionDisplay:
             Column.Txn.UNITS,
             Column.Txn.TICKER,
             Column.Txn.ACCOUNT,
+            Column.Txn.FEE,
+            Column.Txn.SETTLE_CALCULATED,  # Hide this column
         }
 
+        # Add columns with specific order and formatting
         if context != TransactionContext.IMPORT:
-            table.add_column(Column.Txn.TXN_ID, style="dim", max_width=6)
+            table.add_column(Column.Txn.TXN_ID, style="dim", no_wrap=True, max_width=6)
             added_columns.add(Column.Txn.TXN_ID)
-        if context == TransactionContext.SETTLEMENT:
-            table.add_column(Column.Txn.SETTLE_DATE, max_width=10)
+            table.add_column(Column.Txn.SETTLE_DATE, no_wrap=True, max_width=10)
             added_columns.add(Column.Txn.SETTLE_DATE)
-        table.add_column(Column.Txn.TXN_DATE, max_width=10)
-        table.add_column(Column.Txn.ACTION, max_width=12)
-        table.add_column(Column.Txn.AMOUNT, justify="right", max_width=10)
-        table.add_column(Column.Txn.CURRENCY, max_width=4)
-        table.add_column(Column.Txn.PRICE, justify="right", max_width=10)
-        table.add_column(Column.Txn.UNITS, justify="right", max_width=10)
-        table.add_column(Column.Txn.TICKER, max_width=12)
-        table.add_column(Column.Txn.ACCOUNT, max_width=15)
+
+        table.add_column(Column.Txn.TXN_DATE, no_wrap=True, max_width=10)
+        table.add_column(Column.Txn.ACTION, no_wrap=True, max_width=12)
+        table.add_column(Column.Txn.AMOUNT, justify="right", no_wrap=True, max_width=12)
+        table.add_column(Column.Txn.CURRENCY, no_wrap=True, max_width=4)
+        table.add_column(Column.Txn.PRICE, justify="right", no_wrap=True, max_width=10)
+        table.add_column(Column.Txn.UNITS, justify="right", no_wrap=True, max_width=10)
+        table.add_column(Column.Txn.TICKER, no_wrap=True, max_width=12)
+        table.add_column(Column.Txn.ACCOUNT, no_wrap=True, max_width=15)
+        table.add_column(Column.Txn.FEE, justify="right", no_wrap=True, max_width=8)
 
         if context != TransactionContext.GENERAL:
             return
 
-        # Add any additional columns present in display_df that aren't already added
+        # Add any additional (non-standard) columns present in the DataFrame
         for col in display_df.columns:
             if col not in added_columns:
                 table.add_column(
                     str(col),
-                    width=15,
-                    overflow="fold",
+                    no_wrap=True,
+                    max_width=15,
+                    overflow="ellipsis",
                 )
 
     def _add_table_rows(
@@ -715,7 +721,6 @@ class TransactionDisplay:
             table: Rich Table to add rows to
             context: Context to determine which columns to show
         """
-        # Track which columns we handle specially
         standard_columns = {
             Column.Txn.TXN_ID,
             Column.Txn.TXN_DATE,
@@ -726,7 +731,9 @@ class TransactionDisplay:
             Column.Txn.UNITS,
             Column.Txn.TICKER,
             Column.Txn.ACCOUNT,
+            Column.Txn.FEE,
             Column.Txn.SETTLE_DATE,
+            Column.Txn.SETTLE_CALCULATED,
         }
 
         for _, row in display_df.iterrows():
@@ -736,11 +743,23 @@ class TransactionDisplay:
             amount = self._parse_amount(row.get(Column.Txn.AMOUNT, 0))
             amount_display = self._format_amount_display(amount, action)
 
+            # Color-code SettleDate based on whether it was calculated
+            settle_date_str = _safe_str(row.get(Column.Txn.SETTLE_DATE, ""))
+            if row.get(Column.Txn.SETTLE_CALCULATED):
+                settle_date_display = f"[orange3]{settle_date_str}[/orange3]"
+            else:
+                settle_date_display = f"[green]{settle_date_str}[/green]"
+
+            # Format Fee to 2 decimal places
+            fee_val = self._parse_amount(row.get(Column.Txn.FEE, 0))
+            fee_display = f"{fee_val:.2f}"
+
+            # Build the row data in the correct order
             row_data = []
             if context != TransactionContext.IMPORT:
                 row_data.append(_safe_str(row.get(Column.Txn.TXN_ID, "")))
-            if context == TransactionContext.SETTLEMENT:
-                row_data.append(_safe_str(row.get(Column.Txn.SETTLE_DATE, "")))
+                row_data.append(settle_date_display)
+
             row_data.extend(
                 [
                     _safe_str(row.get(Column.Txn.TXN_DATE, "")),
@@ -751,14 +770,15 @@ class TransactionDisplay:
                     _safe_str(row.get(Column.Txn.UNITS, "")),
                     _safe_str(row.get(Column.Txn.TICKER, "")),
                     _safe_str(row.get(Column.Txn.ACCOUNT, "")),
+                    fee_display,
                 ],
             )
 
+            # Add any non-standard columns at the end
             if context == TransactionContext.GENERAL:
-                # Add any additional columns not in the standard set
                 row_data.extend(
                     [
-                        _safe_str(row.get(col, ""))
+                        _safe_str(row.get(col, "")).replace("\n", " ")
                         for col in display_df.columns
                         if col not in standard_columns
                     ],
