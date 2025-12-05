@@ -10,7 +10,7 @@ from pathlib import Path
 
 import typer
 
-from app.bootstrap import reload_config
+from app import bootstrap
 from cli import console_info, console_print
 from utils.config import Config
 
@@ -177,7 +177,7 @@ def tickers_cmd(
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""
-    config = reload_config()
+    config = bootstrap.reload_config()
     if getattr(sys, "frozen", False):
         app_path = Path(sys.executable).resolve()
     else:

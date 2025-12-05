@@ -15,6 +15,7 @@ dependencies = [
     "keyring>=25.5.0",
     "ws-api>=0.22.0",
     "rich>=13.0.0",
+    "dateparser>=1.1.8",
 ]
 
 [project.scripts]
