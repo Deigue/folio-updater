@@ -14,7 +14,7 @@ from importers import import_statements, import_transactions
 from utils.constants import TXN_ESSENTIALS, Column
 
 from .fixtures.dataframe_cache import register_test_dataframe
-from .utils.dataframe_utils import verify_db_contents
+from .helpers.dataframe import verify_db_contents
 
 if TYPE_CHECKING:
     from utils.config import Config

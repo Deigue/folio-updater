@@ -6,8 +6,8 @@ from datagen import DEFAULT_TXN_COUNT, ensure_data_exists
 from exporters import ParquetExporter
 from utils.constants import DEFAULT_TICKERS
 
+from .helpers.dataframe import verify_db_contents
 from .test_types import TempContext
-from .utils.dataframe_utils import verify_db_contents
 
 
 def test_export_transactions_parquet(temp_ctx: TempContext) -> None:

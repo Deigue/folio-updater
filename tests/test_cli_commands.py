@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -17,7 +16,6 @@ from cli import console as console_module
 from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
-from cli.test_console import capture_output
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
 from db import drop_table, get_connection, get_row_count, get_rows
 from services.ibkr_service import IBKRAuthenticationError
@@ -36,13 +34,15 @@ from tests.fixtures.wealthsimple_mocking import (
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
+from .helpers.cli import (
+    assert_cli_success,
+    assert_in_output,
+    assert_not_in_output,
+    run_cli_with_config,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
-
-    from typer import Typer
-
-    from utils.config import Config
 
     from .test_types import TempContext
 
@@ -50,17 +50,6 @@ runner = CliRunner()
 
 EXPECTED_TRANSACTION_COUNT = 2
 TYPER_INVALID_COMMAND_EXIT_CODE = 2
-
-
-@dataclass
-class CliTestResult:
-    """Dataclass to hold flattened CLI test results for cleaner access."""
-
-    exit_code: int
-    stdout: str
-    stderr: str | None
-    exception: BaseException | None
-    plain_output: str
 
 
 @pytest.fixture(autouse=True)
@@ -92,7 +81,7 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         assert not config.txn_parquet.exists()
         assert not config.tkr_parquet.exists()
         # * forex tested separately
-        cli_result = _run_cli_with_config(config, cli_app, ["demo"])
+        cli_result = run_cli_with_config(config, cli_app, ["demo"])
         assert_cli_success(cli_result)
         assert_in_output("Demo portfolio created successfully!", cli_result)
         assert config.txn_parquet.exists()
@@ -118,7 +107,7 @@ def test_getfx_command(
             "services.forex_service.ForexService.get_fx_rates_from_boc",
         ) as mock_fx:
             mock_fx.return_value = cached_fx_data(None)
-            cli_result = _run_cli_with_config(config, cli_app, ["getfx"])
+            cli_result = run_cli_with_config(config, cli_app, ["getfx"])
             assert_cli_success(cli_result)
             assert_in_output("Successfully updated", cli_result)
             with get_connection() as conn:
@@ -132,7 +121,7 @@ def test_import_command(temp_ctx: TempContext) -> None:
         config = ctx.config
         txn_file = config.imports_path / "transactions.xlsx"
         create_transaction_data(txn_file, config.txn_sheet)
-        cli_result = _run_cli_with_config(config, cli_app, ["import"])
+        cli_result = run_cli_with_config(config, cli_app, ["import"])
         assert_cli_success(cli_result)
         assert_in_output(
             f"{EXPECTED_TRANSACTION_COUNT} transactions imported",
@@ -148,7 +137,7 @@ def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
-        cli_result = _run_cli_with_config(config, import_cmd.app)
+        cli_result = run_cli_with_config(config, import_cmd.app)
         assert cli_result.exit_code == 1
         assert_in_output("No supported files found", cli_result)
 
@@ -159,7 +148,7 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         config = ctx.config
         test_file = config.project_root / "test_import.xlsx"
         create_transaction_data(test_file)
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             config,
             import_cmd.app,
             ["--file", str(test_file)],
@@ -192,7 +181,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         create_transaction_data(file1)
         create_transaction_data(file2)
         ensure_data_exists()
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             config,
             import_cmd.app,
             ["--dir", str(import_dir)],
@@ -220,7 +209,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert config.txn_parquet.exists()
         assert config.tkr_parquet.exists()
         assert not config.folio_path.exists()
-        cli_result = _run_cli_with_config(config, cli_app, ["generate"])
+        cli_result = run_cli_with_config(config, cli_app, ["generate"])
         assert_cli_success(cli_result)
         assert_in_output("Excel workbook generated successfully", cli_result)
         assert config.folio_path.exists()
@@ -256,7 +245,7 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
                 Table.TXNS,
                 condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
             )
-        cli_result = _run_cli_with_config(ctx.config, cli_app, ["settle-info"])
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["settle-info"])
         assert_in_output(
             f"Calculated settlement dates: {calculated_count}",
             cli_result,
@@ -316,7 +305,7 @@ def test_settle_info_scenarios(
 
         register_test_dataframe(statement_file, statement_df)
 
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             ctx.config,
             cli_app,
             ["settle-info", *new_cli_args],
@@ -502,7 +491,7 @@ def _test_ibkr_scenario(
         IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
     ):
         _setup_ibkr_test_scenario(setup_action, monkeypatch)
-        cli_result = _run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
@@ -539,7 +528,7 @@ def _test_wealthsimple_scenario(
             mock_activities=mock_activities,
         ) as ws_mock,
     ):
-        cli_result = _run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
@@ -555,7 +544,7 @@ def test_tickers_command(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         # 1. ADD
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             config,
             cli_app,
             ["tickers", "--add", "OLD", "NEW", "2025-01-01"],
@@ -567,7 +556,7 @@ def test_tickers_command(temp_ctx: TempContext) -> None:
             assert count == 1
 
         # 2. ADD another alias
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             config,
             cli_app,
             ["tickers", "--add", "NEW", "NEWEST", "2025-02-01"],
@@ -575,14 +564,14 @@ def test_tickers_command(temp_ctx: TempContext) -> None:
         assert_cli_success(cli_result)
 
         # 3. LIST aliases
-        cli_result = _run_cli_with_config(config, cli_app, ["tickers", "--list"])
+        cli_result = run_cli_with_config(config, cli_app, ["tickers", "--list"])
         assert_cli_success(cli_result)
         assert_in_output("OLD", cli_result)
         assert_in_output("NEW", cli_result)
         assert_in_output("NEWEST", cli_result)
 
         # 4. DELETE an alias
-        cli_result = _run_cli_with_config(
+        cli_result = run_cli_with_config(
             config,
             cli_app,
             ["tickers", "--delete", "OLD"],
@@ -606,76 +595,3 @@ def test_version_command() -> None:
     assert "folio path:" in cli_result.stdout
     assert "data path:" in cli_result.stdout
     assert "backup path:" in cli_result.stdout
-
-
-def _run_cli_with_config(
-    config: Config,
-    command_app: Typer,
-    args: list[str] | None = None,
-) -> Result:
-    """Run CLI commands with proper config mocking."""
-) -> CliTestResult:
-    """Run CLI commands with proper config mocking and capture plain output."""
-    if args is None:
-        args = []
-
-    # Mock bootstrap.reload_config to return our test config
-    with patch("app.bootstrap.reload_config") as mock_reload, capture_output() as bio:
-        mock_reload.return_value = config
-        click_result = runner.invoke(command_app, args)
-        return CliTestResult(
-            exit_code=click_result.exit_code,
-            stdout=click_result.stdout,
-            stderr=click_result.stderr,
-            exception=click_result.exception,
-            plain_output=bio.get_text(),
-        )
-
-
-def assert_cli_success(result: Result) -> None:  # pragma: no cover
-def assert_cli_success(result: CliTestResult) -> None:  # pragma: no cover
-    if result.exit_code != 0:
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        print("PLAIN_OUTPUT:\n", result.plain_output)
-        if result.exception:
-            print("EXCEPTION:", str(result.exception))
-    assert result.exit_code == 0, (
-        f"CLI failed: {result.exit_code}\n"
-        f"STDOUT:\n{result.stdout}\n"
-        f"STDERR:\n{result.stderr}\n"
-        f"PLAIN_OUTPUT:\n{result.plain_output}\n"
-        f"EXCEPTION:\n{str(result.exception) if result.exception else 'None'}"
-    )
-
-
-def assert_in_output(expected_substring: str, cli_result: CliTestResult) -> None:
-    """Assert that a substring exists in the CLI's plain text output."""
-    if expected_substring not in cli_result.plain_output:
-        print("\n---EXPECTED SUBSTRING---")
-        print(expected_substring)
-        print("\n---ACTUAL PLAIN_OUTPUT---")
-        print(cli_result.plain_output)
-        print("---END PLAIN_OUTPUT---\n")
-        pytest.fail(
-            "Expected substring was not found in the command's plain text output.",
-        )
-
-
-def assert_not_in_output(unexpected_substring: str, cli_result: CliTestResult) -> None:
-    """Assert that a substring does NOT exist in the CLI's plain text output."""
-    if unexpected_substring in cli_result.plain_output:
-        print("\n---UNEXPECTED SUBSTRING---")
-        print(unexpected_substring)
-        print("\n---ACTUAL PLAIN_OUTPUT (highlighted)---")
-        highlighted_output = cli_result.plain_output.replace(
-            unexpected_substring,
-            f">>>{unexpected_substring}<<<",
-        )
-        print(highlighted_output)
-        print("---END PLAIN_OUTPUT---\n")
-        pytest.fail(
-            "Unexpected substring was found in the command's plain text output.",
-        )
-
-
