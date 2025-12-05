@@ -14,5 +14,5 @@
     "python.terminal.activateEnvInCurrentTerminal": true,
     "python.terminal.activateEnvironment": true,
     "python.analysis.autoImportCompletions": true,
-    "python.defaultInterpreterPath": ".venv/Scripts/python.exe"
+    "python.defaultInterpreterPath": ".venv/Scripts/python.exe",
 }

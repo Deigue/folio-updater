@@ -9,6 +9,7 @@ import logging
 
 import typer
 
+from app import bootstrap
 from cli import (
     console_error,
     console_info,
@@ -123,6 +124,7 @@ def manage_ticker_aliases(
         raise typer.Exit(1)
 
     add_alias_arg_count = 3
+    bootstrap.reload_config()
     if add:
         if len(add) != add_alias_arg_count:
             console_error(
