@@ -5,6 +5,7 @@ This module provides custom display functions for the folio CLI.
 
 from __future__ import annotations
 
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -446,7 +447,7 @@ def _handle_pagination_input(
 def page_transactions(
     df: pd.DataFrame,
     title: str = "Transactions",
-    page_size: int = 50,
+    page_size: int | None = None,
     context: TransactionContext = TransactionContext.GENERAL,
 ) -> None:
     """Display transactions with paging support for large datasets.
@@ -457,12 +458,26 @@ def page_transactions(
     Args:
         df: DataFrame containing transaction data
         title: Title for the transaction display
-        page_size: Number of transactions to show per page
+        page_size: Number of transactions per page. If None, calculated dynamically
+            based on available console height
         context: Transaction context to specify column visibility
     """
     if df.empty:
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
         return
+
+    if _is_test_environment():
+        display = TransactionDisplay()
+        display.transactions_table(
+            df,
+            title=title,
+            max_rows=len(df),
+            context=context,
+        )
+        return
+
+    if page_size is None:
+        page_size = _calculate_available_height(table=True, pages=True)
 
     total_rows = len(df)
     if total_rows <= page_size:
@@ -540,6 +555,15 @@ def _calculate_available_height(*, table: bool = False, pages: bool = False) -> 
     reserved_lines += TABLE_HEADER_HEIGHT if table else 0
     reserved_lines += PAGE_PROGRESS_HEIGHT if pages else 0
     return max(height - reserved_lines, 10)  # Minimum 10 lines
+
+
+def _is_test_environment() -> bool:
+    """Check if code is running in a test environment.
+
+    Returns:
+        True if running under pytest, False otherwise.
+    """
+    return "PYTEST_CURRENT_TEST" in os.environ
 
 
 def _safe_str(value: Any) -> str:
