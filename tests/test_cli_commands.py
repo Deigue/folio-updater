@@ -37,7 +37,6 @@ from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
-    assert_not_in_output,
     run_cli_with_config,
 )
 
