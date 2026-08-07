@@ -14,18 +14,22 @@ Use common phrases to filter by date.
 # Ranges from a point in the past:
 folio query last 7 months
 folio query 3 weeks ago
-folio query 3 months, 1 week and 3 days ago
 folio query since 2022
+folio query previous 2 weeks
 folio query last year
 folio query this year
 folio query after November
+folio query before 2022
 folio query between 2021 and 2023
 folio query between april and september
 folio query between october 13 and now
+folio query from january to june
 # Specific single days:
 folio query yesterday
 folio query august 10 2024
 folio query 2025-11-01
+# Between specific dates:
+folio query 2025-05-01:2025-07-26
 ```
 
 ### 2. General Text Search
@@ -35,7 +39,8 @@ Terms not related to dates are treated as text searches across key columns
 - All searches are case insensitive
 - Check match exactly with Ticker, Action, Currency, Account
 - Partial matches for Account names
-- Apply search to other optional text columns like Description
+- Apply search to other optional text columns like Description, if configured for your folio
+  (see `optional_columns` in your config)
 
 ```sh
 folio query MSFT
@@ -44,7 +49,8 @@ folio query AAPL BUY TFSA
 # find all dividends for VOO in accounts containing "PERSON"
 folio query DIVIDEND VOO PERSON
 folio query USD
-folio query CASH RECEIPTS
+# search for "cash receipts" in other text columns
+folio query "CASH RECEIPTS"
 ```
 
 ### 3. Combining Smart Filters
@@ -91,7 +97,7 @@ The format is `column_name` + `operator` + `value`.
 | `~`      | **Contains** (for text)        | `Account~RRSP`           |
 | `>`      | **Greater than**               | `Amount>1000`            |
 | `<`      | **Less than**                  | `Price<50`               |
-| `>=`     | **Greater than or equal to**   | `TxnDate>=2024-01-01`     |
+| `>=`     | **Greater than or equal to**   | `TxnDate>=2024-01-01`    |
 | `<=`     | **Less than or equal to**      | `SettleDate<=2024-06-30` |
 
 *(Note: Column names are case-insensitive, so `txndate` works the same as `TxnDate`)*
@@ -117,10 +123,15 @@ You can use explicit filters with partial dates for years or months.
 ## Retrieve n transactions
 
 We can limit the number of transactions returned using the `first n` or `last n` notation.
+A bare number after `first`/`last` (with no time unit following) is treated as a limit;
+if a time unit follows (e.g. `last 5 days`), it's parsed as a date range instead.
+
+For unambiguous scripting, use the explicit `limit:n` filter instead.
 
 ```bash
-folio query last 5 
+folio query last 5
 folio query QQQM PERSON from 2025-01 first 4
+folio query QQQM PERSON from 2025-01 limit:4
 ```
 
 ---
