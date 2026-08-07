@@ -14,6 +14,7 @@ from app import get_config
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+
 logger: logging.Logger = logging.getLogger(__name__)
 
 
@@ -47,51 +48,63 @@ def get_tables(connection: sqlite3.Connection) -> list[str]:
 def get_rows(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,
-    which: str | None = None,
-    n: int | None = None,
-    condition: str | None = None,
+    where: str | None = None,
+    params: list | tuple | None = None,
     order_by: str | None = None,
-) -> pd.DataFrame:  # pragma: no cover
-    """Return rows from a table as a DataFrame.
+    limit: int | None = None,
+) -> pd.DataFrame:
+    """Return rows from a table as a DataFrame with optional clauses.
 
-    Optionally specify 'which' ('head' or 'tail'), 'n' (number of rows),
-    'condition' (SQL WHERE clause), and 'order_by' (SQL ORDER BY clause).
+    Args:
+        connection: The database connection.
+        table_name: The name of the table to query.
+        where: An optional SQL WHERE clause (e.g., "id = ? AND name LIKE ?").
+        params: An optional list or tuple of parameters to substitute into the
+            `where` clause.
+        order_by: An optional SQL ORDER BY clause (e.g., "name ASC").
+        limit: An optional integer to limit the number of rows returned.
+
+    Returns:
+        A pandas DataFrame containing the query results.
     """
-    if n is not None and n <= 0:
-        n = None
     query = f'SELECT * FROM "{table_name}"'
-    if condition:
-        query += f" WHERE {condition}"
+    if where:
+        query += f" WHERE {where}"
     if order_by:
         query += f" ORDER BY {order_by}"
-    elif which == "tail" and n is not None:
-        query += " ORDER BY rowid DESC"
-    elif which == "head" and n is not None:
-        pass  # no additional order
-    if n is not None:
-        query += f" LIMIT {n}"
+    if limit is not None:
+        query += f" LIMIT {limit}"
     try:
-        df = pd.read_sql_query(query, connection)
-    except pd.errors.DatabaseError:
+        df = pd.read_sql_query(query, connection, params=params)
+    except (pd.errors.DatabaseError, sqlite3.OperationalError):
         return pd.DataFrame()
-
-    # For tail, reverse to preserve original order
-    if which == "tail" and n is not None:
-        return df.iloc[::-1].reset_index(drop=True)
     return df
 
 
 def get_row_count(
     connection: sqlite3.Connection,
     table_name: str,
-    condition: str | None = None,
+    where: str | None = None,
+    params: list | tuple | None = None,
 ) -> int:
-    """Return the number of rows in a table, optionally filtered by a condition."""
+    """Return the number of rows in a table, optionally filtered.
+
+    Args:
+        connection: The database connection.
+        table_name: The name of the table to query.
+        where: An optional SQL WHERE clause.
+        params: An optional list or tuple of parameters for the `where` clause.
+
+    Returns:
+        The number of rows matching the criteria.
+    """
     query = f'SELECT COUNT(*) FROM "{table_name}"'
-    if condition:
-        query += f" WHERE {condition}"
+    if where:
+        query += f" WHERE {where}"
     try:
-        return connection.execute(query).fetchone()[0]
+        cursor = connection.execute(query, params or ())
+        result = cursor.fetchone()
+        return result[0] if result else 0
     except sqlite3.OperationalError:
         return 0
 
@@ -278,24 +291,26 @@ def insert_or_replace(
 def delete_rows(
     connection: sqlite3.Connection,
     table_name: str,
-    condition: str | None = None,
+    where: str | None = None,
+    params: list | tuple | None = None,
 ) -> int:
     """Delete rows from a table based on WHERE conditions.
 
     Args:
         connection: Database connection
         table_name: Name of the table to delete from
-        condition: Optional SQL WHERE clause condition string
+        where: Optional SQL WHERE clause condition string
+        params: An optional list or tuple of parameters for the `where` clause.
 
     Returns:
         Number of rows deleted
     """
     query = f'DELETE FROM "{table_name}"'
-    if condition:
-        query += f" WHERE {condition}"
+    if where:
+        query += f" WHERE {where}"
 
     try:
-        cursor = connection.execute(query)
+        cursor = connection.execute(query, params or ())
         connection.commit()
     except sqlite3.OperationalError:
         logger.exception("Error deleting rows from table '%s'", table_name)

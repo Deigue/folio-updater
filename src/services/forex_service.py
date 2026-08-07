@@ -77,14 +77,16 @@ class ForexService:
                     logger.debug("FX table does not exist")
                     return pd.DataFrame()
 
+                where = None
+                params = None
                 if start_date:  # pragma: no cover
-                    condition = f'"{Column.FX.DATE}" >= "{start_date}"'
-                else:
-                    condition = None
+                    where = f'"{Column.FX.DATE}" >= ?'
+                    params = [start_date]
                 df = get_rows(
                     conn,
                     Table.FX,
-                    condition=condition,
+                    where=where,
+                    params=params,
                     order_by=Column.FX.DATE,
                 )
 

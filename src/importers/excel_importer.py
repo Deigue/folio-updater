@@ -217,11 +217,13 @@ def import_statements(statement: Path) -> int:
 def _update_settlement_dates(df: pd.DataFrame) -> int:
     """Update settlement dates using the provided DataFrame."""
     with get_connection() as conn:
-        condition = f'"{Column.Txn.SETTLE_CALCULATED}" = 1'
+        where = f'"{Column.Txn.SETTLE_CALCULATED}" = ?'
+        params = [1]
         existing_txns = get_rows(
             conn,
             Table.TXNS,
-            condition=condition,
+            where=where,
+            params=params,
             order_by=f'"{Column.Txn.TXN_DATE}", "{Column.Txn.TXN_ID}"',
         )
 

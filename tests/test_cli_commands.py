@@ -239,10 +239,13 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
         with get_connection() as conn:
             # Count transactions with SETTLE_CALCULATED = 1, this should represent
             # the total transactions that were auto-calculated.
+            where = f'"{Column.Txn.SETTLE_CALCULATED}" = ?'
+            params = [1]
             calculated_count = get_row_count(
                 conn,
                 Table.TXNS,
-                condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
+                where,
+                params,
             )
         cli_result = run_cli_with_config(ctx.config, cli_app, ["settle-info"])
         assert_in_output(

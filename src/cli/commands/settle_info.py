@@ -166,7 +166,8 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
             calculated_count = get_row_count(
                 conn,
                 Table.TXNS,
-                condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
+                where=f'"{Column.Txn.SETTLE_CALCULATED}" = ?',
+                params=[1],
             )
 
             # Get total number of transactions
@@ -184,7 +185,8 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
                 df = get_rows(
                     conn,
                     Table.TXNS,
-                    condition=f'"{Column.Txn.SETTLE_CALCULATED}" = 1',
+                    where=f'"{Column.Txn.SETTLE_CALCULATED}" = ?',
+                    params=[1],
                     order_by=(
                         f'"{Column.Txn.TXN_DATE}" DESC, "{Column.Txn.TXN_ID}" DESC'
                     ),

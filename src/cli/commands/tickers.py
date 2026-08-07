@@ -97,8 +97,11 @@ def delete_alias(old_ticker: str) -> None:
                 console_warning(msg)
                 return
 
-            condition = f'"{Column.Aliases.OLD_TICKER}" = "{old_ticker.upper()}"'
-            deleted = delete_rows(conn, Table.TICKER_ALIASES, condition)
+            where = f'"{Column.Aliases.OLD_TICKER}" = ?'
+            params = [old_ticker.upper()]
+            deleted = delete_rows(
+                conn, Table.TICKER_ALIASES, where=where, params=params,
+            )
 
             if deleted == 0:
                 console_warning(msg)
