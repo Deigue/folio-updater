@@ -9,6 +9,7 @@ A portfolio management system that imports and processes financial transaction d
 **Folio** is now available as a command-line tool for managing your portfolio:
 
 - **`folio import`**: Import transactions from files
+- **`folio add`**: Manually add a single transaction
 - **`folio getfx`**: Update foreign exchange rates automatically
 - **`folio generate`**: Generate the latest portfolio
 - **`folio demo`**: Create a demo portfolio with mock data for testing
@@ -20,13 +21,13 @@ A portfolio management system that imports and processes financial transaction d
 
 ### Import and Processing Features
 
-- **[Account Management](docs/transactions/account-management.md)**: Support for multiple account aliases/identifiers
+- **[Account Management](docs/import/account-management.md)**: Support for multiple account aliases/identifiers
 - **Data Validation**: Comprehensive data formatting and constraint checking
 - **Duplicate Detection**: Duplicate filtering both within imports and against existing data
-- **[Duplicate Approval](docs/transactions/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
-- **[Transaction Transformation](docs/transactions/transformations.md)**:  Apply custom rules to transform transactions
-- **[Merge Transforms](docs/transactions/merge-transforms.md)**: Automatically combine transactions based on custom defined rules
-- **[Settlement Date Calculation](docs/transactions/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
+- **[Duplicate Approval](docs/import/duplicate-approval.md)**: Manual approval mechanism for legitimate duplicate transactions
+- **[Transaction Transformation](docs/import/transformations.md)**:  Apply custom rules to transform transactions
+- **[Merge Transforms](docs/import/merge-transforms.md)**: Automatically combine transactions based on custom defined rules
+- **[Settlement Date Calculation](docs/import/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
 - **Logging**: Comprehensive audit trail of import operations
 - **Automatic Backup**: All updates are automatically backed up (configurable)
@@ -62,6 +63,22 @@ folio import --file path/to/your/transactions.xlsx
 # Import all files from a custom directory
 folio import --dir C:\path\to\import\folder
 ```
+
+### Add Transactions Manually
+
+Insert a single transaction directly into your folio.
+
+```bash
+# Fully specified
+folio add --action BUY --ticker AAPL --date 2025-08-15 \
+          --account TFSA --currency USD \
+          --amount -1502.50 --price 150.25 --units 10
+
+# Supply only the action and get prompted for what that action requires
+folio add --action ROC
+```
+
+Refer to [Adding Transactions Manually](docs/adding-transactions.md) for detailed information.
 
 ### Update FX Rates
 
