@@ -9,10 +9,11 @@ from decimal import Decimal, InvalidOperation
 from typing import ClassVar
 
 import pandas as pd
+from pandas import Series
 
 from app import get_config
 from db.helpers import format_transaction_summary
-from utils import TORONTO_TZ, Action, Column, Currency, get_import_logger
+from utils import TORONTO_TZ, Action, Column, Currency, Sign, get_import_logger
 from utils.optional_fields import FieldType
 from utils.settlement_calculator import settlement_calculator
 
@@ -112,6 +113,23 @@ class ActionValidationRules:
         "optional_fields": [Column.Txn.FEE],
     }
 
+    # Required signs for each action
+    SIGN_RULES: ClassVar[dict[Action, dict[str, Sign]]] = {
+        Action.BUY: {
+            Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
+            Column.Txn.UNITS: Sign.POSITIVE,  # shares acquired
+        },
+        Action.SELL: {
+            Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
+            Column.Txn.UNITS: Sign.NEGATIVE,  # shares disposed
+        },
+        Action.WITHDRAWAL: {Column.Txn.AMOUNT: Sign.NEGATIVE},
+        Action.CONTRIBUTION: {Column.Txn.AMOUNT: Sign.POSITIVE},
+        Action.DIVIDEND: {Column.Txn.AMOUNT: Sign.POSITIVE},
+        Action.ROC: {Column.Txn.AMOUNT: Sign.POSITIVE},
+        Action.SPLIT: {Column.Txn.UNITS: Sign.POSITIVE},  # ratio, never negative
+    }
+
     @classmethod
     def get_rules_for_action(cls, action: str) -> dict[str, list[str]]:
         """Get validation rules for a specific action.
@@ -129,6 +147,23 @@ class ActionValidationRules:
             # If action is not a valid enum, use default rules
             return cls.DEFAULT
 
+    @classmethod
+    def get_sign_rules_for_action(cls, action: str) -> dict[str, Sign]:
+        """Get the required Amount/Units signs for a specific action.
+
+        Args:
+            action: The action type as a string
+
+        Returns:
+            Mapping of column name to required sign. Empty when the action
+            places no constraint on either field.
+        """
+        try:
+            action_enum = Action(action)
+        except ValueError:
+            return {}
+        return cls.SIGN_RULES.get(action_enum, {})
+
 
 def _to_decimal_format(value: str) -> str | None:
     """Try convert verified string to a plain decimal string."""
@@ -137,6 +172,14 @@ def _to_decimal_format(value: str) -> str | None:
         return format(decimal_value, "f")
     except (ValueError, TypeError, InvalidOperation):
         return None
+
+
+def _negate_decimal(value: str) -> str:
+    """Flip the sign of a numeric value, preserving its decimal precision."""
+    try:
+        return format(-Decimal(value), "f")
+    except (ValueError, TypeError, InvalidOperation):  # pragma: no cover
+        return value
 
 
 class TransactionFormatter:
@@ -211,6 +254,7 @@ class TransactionFormatter:
         self._format_actions()
         self._format_currencies()
         self._format_rule_columns()
+        self._normalize_signs()
         self._finalize_exclusions()
         self._log_formatting_changes(original_df)
         self._calculate_settlement_dates()
@@ -350,12 +394,12 @@ class TransactionFormatter:
                             value,
                         )
 
-        valid_parsed_mask = parsed_dates.notna()
-        if valid_parsed_mask.any():
-            valid_indices = non_missing_series[valid_parsed_mask].index
-            self.formatted_df.loc[valid_indices, column] = parsed_dates[
-                valid_parsed_mask
-            ]
+            valid_parsed_mask = parsed_dates.notna()
+            if valid_parsed_mask.any():
+                valid_indices = non_missing_series[valid_parsed_mask].index
+                self.formatted_df.loc[valid_indices, column] = parsed_dates[
+                    valid_parsed_mask
+                ]
 
     def _format_actions(self) -> None:
         """Format action columns."""
@@ -411,11 +455,11 @@ class TransactionFormatter:
                             value,
                         )
 
-        if valid_actions_mask.any():
-            valid_indices = non_missing_series[valid_actions_mask].index
-            self.formatted_df.loc[valid_indices, column] = normalized_series[
-                valid_actions_mask
-            ]
+            if valid_actions_mask.any():
+                valid_indices = non_missing_series[valid_actions_mask].index
+                self.formatted_df.loc[valid_indices, column] = normalized_series[
+                    valid_actions_mask
+                ]
 
     def _format_currencies(self) -> None:
         """Format currency columns."""
@@ -469,11 +513,11 @@ class TransactionFormatter:
                             value,
                         )
 
-        if valid_currencies_mask.any():
-            valid_indices = non_missing_series[valid_currencies_mask].index
-            self.formatted_df.loc[valid_indices, column] = normalized_series[
-                valid_currencies_mask
-            ]
+            if valid_currencies_mask.any():
+                valid_indices = non_missing_series[valid_currencies_mask].index
+                self.formatted_df.loc[valid_indices, column] = normalized_series[
+                    valid_currencies_mask
+                ]
 
     def _format_rule_columns(self) -> None:
         """Format rule based columns."""
@@ -502,6 +546,49 @@ class TransactionFormatter:
         if invalid_action_mask.any():
             invalid_indices = self.formatted_df[invalid_action_mask].index
             self._format_rows_with_rules(invalid_indices, ActionValidationRules.DEFAULT)
+
+    def _normalize_signs(self) -> None:
+        """Correct Amount/Units signs to match each action's cash-flow direction."""
+        action_series: Series = self.formatted_df[Column.Txn.ACTION]
+        for action_value in action_series.dropna().unique():
+            sign_rules = ActionValidationRules.get_sign_rules_for_action(
+                str(action_value),
+            )
+            if not sign_rules:
+                continue
+
+            action_indices = self.formatted_df[action_series == action_value].index
+            for column, sign in sign_rules.items():
+                if column in self.formatted_df.columns:
+                    self._apply_sign_for_rows(
+                        column,
+                        action_indices,
+                        sign,
+                    )
+
+    def _apply_sign_for_rows(
+        self,
+        column: str,
+        indices: pd.Index,
+        sign: Sign,
+    ) -> None:
+        """Flip values in a column that contradict the required sign.
+
+        Zero and non-numeric values are left alone: zero has no direction, and
+        anything unparseable has already been handled by numeric formatting.
+        """
+        col_series = self.formatted_df.loc[indices, column]
+        numeric = pd.to_numeric(col_series, errors="coerce")
+        wrong_mask = numeric > 0 if sign is Sign.NEGATIVE else numeric < 0
+
+        if not wrong_mask.any():
+            return
+
+        # Detection is vectorized on floats, but the correction goes back
+        # through Decimal so NUMERIC(20,10) precision survives the flip.
+        wrong_series = col_series[wrong_mask]
+        corrected = wrong_series.apply(_negate_decimal)
+        self.formatted_df.loc[wrong_series.index, column] = corrected
 
     def _format_rows_with_rules(
         self,

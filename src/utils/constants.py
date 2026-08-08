@@ -32,6 +32,13 @@ class Action(StrEnum):
     WITHDRAWAL = "WITHDRAWAL"  # Take out money from the portfolio
 
 
+class Sign(StrEnum):
+    """Required sign for a numeric transaction field."""
+
+    POSITIVE = "positive"  # Value must be > 0 (cash in, units acquired)
+    NEGATIVE = "negative"  # Value must be < 0 (cash out, units disposed)
+
+
 class TransactionContext(StrEnum):
     """Context for transaction display to control column visibility."""
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from datetime import datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any
 
@@ -692,6 +693,20 @@ class TestQueryCommand:
                 ctx.config,
                 cli_app,
                 ["query", "NONEXISTENT_TICKER"],
+            )
+            assert_cli_success(cli_result)
+            assert_in_output("No transactions found", cli_result)
+
+    def test_query_against_empty_database(self, temp_ctx: TempContext) -> None:
+        """Test query fails gracefully when the Txns table doesn't exist yet."""
+        with temp_ctx() as ctx:
+            # Deliberately skip ensure_data_exists() so no tables are created.
+            ctx.config.db_path.parent.mkdir(parents=True, exist_ok=True)
+            sqlite3.connect(ctx.config.db_path).close()
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", "AAPL"],
             )
             assert_cli_success(cli_result)
             assert_in_output("No transactions found", cli_result)
