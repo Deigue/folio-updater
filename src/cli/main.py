@@ -174,6 +174,24 @@ def tickers_cmd(
 
     manage_ticker_aliases(add, delete, list_all=list_all)
 
+
+@app.command(
+    "query",
+    help="Query transactions from the database",
+    no_args_is_help=True,
+)
+def query_cmd(
+    terms: list[str] = typer.Argument(
+        ...,
+        help="Query terms to filter transactions.",
+    ),
+) -> None:
+    """Query transactions from the database."""
+    from cli.commands.query import query_transactions
+
+    query_transactions(terms)
+
+
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""
