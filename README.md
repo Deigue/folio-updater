@@ -218,6 +218,20 @@ It controls things like file paths, logging, how Excel columns are matched to in
 - **ripgrep (`rg`)** – A fast, recursive search tool for code and text
 - **Linting and formatting** – Configured via project settings using `ruff`
 
+### Testing
+
+Run the test suite after making changes:
+
+```bash
+uv run pytest
+```
+
+Before submitting new features or fixes, check coverage to make sure the new code is exercised by tests:
+
+```bash
+uv run pytest --cov
+```
+
 ### Setting up nbstripout for Contribution
 
 ```bash
