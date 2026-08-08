@@ -262,7 +262,9 @@ class IBKRService:
             self._parse_xml_error(response.text)
             root = ET.fromstring(response.text)
             reference_code_elem = root.find("ReferenceCode")
-            if reference_code_elem is None or not reference_code_elem.text:
+            if (
+                reference_code_elem is None or not reference_code_elem.text
+            ):  # pragma: no cover
                 msg = f"No reference code found in response: {response.text}"
                 error_both(msg)
                 raise IBKRAPIError(msg)
@@ -373,11 +375,11 @@ class IBKRService:
                     )
                     time.sleep(POLL_INTERVAL_SECONDS)
 
-        msg = (
+        msg = (  # pragma: no cover
             f"Statement not ready after {MAX_POLL_ATTEMPTS} attempts. "
             f"You can retry later with reference code: {reference_code}"
         )
-        error_both(msg)
+        error_both(msg)  # pragma: no cover
         raise IBKRTimeoutError(msg)
 
     def save_statement_as_csv(

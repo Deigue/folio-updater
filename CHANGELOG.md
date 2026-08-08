@@ -8,11 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.6.21] - 2026-08-07
+
+### Added
+
+- `folio query` command: search transactions with natural-language filters, date
+  phrases (e.g. "last month", "since july 2023"), sorting, and result limits
+- Added support for renaming tickers by managing ticker aliases with `folio tickers`
 - Display detailed audit information for transaction imports
 - Import logging will now include the final list of transactions imported
 - Completely revamped CLI display for import and settlement info
 - `--verbose` flag can be used to display final imported transactions for imports
-- Added support for renaming tickers by managing ticker aliases with `folio tickers`
 
 ### Changed
 

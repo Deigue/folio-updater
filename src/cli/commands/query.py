@@ -115,25 +115,17 @@ def _build_query_where_clause(
         optional_clauses = [f'"{col}" LIKE ?' for col in optional_text_columns]
         optional_params = [f"%{search}%" for _ in optional_text_columns]
 
+        # _get_ticker_family always includes the search term itself, so this
+        # is never empty.
         ticker_family = _get_ticker_family(conn, search)
-        if ticker_family:
-            placeholders = ",".join("?" * len(ticker_family))
-            ticker_clause = f'"{Column.Txn.TICKER}" IN ({placeholders})'
-            account_clause = f'"{Column.Txn.ACCOUNT}" LIKE ?'
-            clauses = [ticker_clause, account_clause, *optional_clauses]
-            where_clauses.append(f"({' OR '.join(clauses)})")
-            params.extend(ticker_family)
-            params.append(f"%{search}%")
-            params.extend(optional_params)
-        else:
-            clauses = [
-                f'"{Column.Txn.TICKER}" LIKE ?',
-                f'"{Column.Txn.ACCOUNT}" LIKE ?',
-                *optional_clauses,
-            ]
-            where_clauses.append(f"({' OR '.join(clauses)})")
-            params.extend([f"%{search}%", f"%{search}%"])
-            params.extend(optional_params)
+        placeholders = ",".join("?" * len(ticker_family))
+        ticker_clause = f'"{Column.Txn.TICKER}" IN ({placeholders})'
+        account_clause = f'"{Column.Txn.ACCOUNT}" LIKE ?'
+        clauses = [ticker_clause, account_clause, *optional_clauses]
+        where_clauses.append(f"({' OR '.join(clauses)})")
+        params.extend(ticker_family)
+        params.append(f"%{search}%")
+        params.extend(optional_params)
 
     where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
     return where_clause, params

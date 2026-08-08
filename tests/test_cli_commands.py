@@ -541,6 +541,44 @@ def _test_wealthsimple_scenario(
             ws_mock.assert_no_csv_written()
 
 
+def test_tickers_list_before_any_alias(temp_ctx: TempContext) -> None:
+    """Test --list when the alias table has never been created."""
+    with temp_ctx() as ctx:
+        ensure_data_exists()
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["tickers", "--list"])
+        assert_cli_success(cli_result)
+        assert_in_output("No ticker aliases found.", cli_result)
+
+
+def test_tickers_delete_before_any_alias(temp_ctx: TempContext) -> None:
+    """Test --delete when the alias table has never been created."""
+    with temp_ctx() as ctx:
+        ensure_data_exists()
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["tickers", "--delete", "OLD"],
+        )
+        assert_cli_success(cli_result)
+        assert_in_output("Alias for 'OLD' not found.", cli_result)
+
+
+def test_tickers_list_empty_after_deleting_only_alias(temp_ctx: TempContext) -> None:
+    """Test --list when the alias table exists but has no remaining rows."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        run_cli_with_config(
+            config,
+            cli_app,
+            ["tickers", "--add", "OLD", "NEW", "2025-01-01"],
+        )
+        run_cli_with_config(config, cli_app, ["tickers", "--delete", "OLD"])
+
+        cli_result = run_cli_with_config(config, cli_app, ["tickers", "--list"])
+        assert_cli_success(cli_result)
+        assert_in_output("No ticker aliases found.", cli_result)
+
+
 def test_tickers_command(temp_ctx: TempContext) -> None:
     """Test management of ticker aliases with tickers command."""
     with temp_ctx() as ctx:

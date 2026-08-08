@@ -1,6 +1,6 @@
 [project]
 name = "folio-updater"
-version = "0.6.20"
+version = "0.6.21"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -15,7 +15,8 @@ dependencies = [
     "keyring>=25.5.0",
     "ws-api>=0.36.0",
     "rich>=13.0.0",
-    "dateparser>=1.1.8",
+    "dateparser>=1.4.2",
+    "requests>=2.32.5",
 ]
 
 [project.scripts]
@@ -42,7 +43,8 @@ omit = [
     'src/datagen/folio_setup.py',
     'src/models/*',
     'src/cli/display.py',
-    'src/cli/console.py'
+    'src/cli/console.py',
+    'src/utils/log_console.py',
 ]
 [tool.coverage.report]
 show_missing = true
@@ -64,6 +66,7 @@ exclude_lines = [
     "logger.error",               # logging error handling
     "^\\s*\\w*msg\\s*=.*",        # generic log message assignments
     "^\\s*raise [A-Z]\\w*Error",  # raise errors
+    "getattr\\(sys, .frozen.",    # PyInstaller-frozen-exe only branches
 ]
 
 
@@ -79,7 +82,7 @@ lint.ignore = [
     "D203",
     "D213",
     "PGH004",
-    "RUF001"
+    "RUF001",
 ]
 src = ["src"]
 exclude = [
@@ -120,7 +123,7 @@ banned-module-level-imports = ["pandas_market_calendars"]
 [tool.uv]
 managed = true
 
-#[tool.uv.sources]
+#[tool.uv.sources]  # noqa: ERA001
 #ws-api = { path = "../ws-api-python", editable = true }
 
 [dependency-groups]

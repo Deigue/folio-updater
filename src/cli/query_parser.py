@@ -531,10 +531,6 @@ def _get_loose_date_data(
     Returns:
         A (date, period) tuple, or None if the phrase isn't a recognizable date.
     """
-    phrase = phrase.strip()
-    if not phrase:
-        return None
-
     now = datetime.now(TORONTO_TZ).replace(tzinfo=None)
     parser = DateDataParser(
         languages=["en"],
@@ -620,10 +616,6 @@ def _parse_relative_date_range(phrase: str) -> tuple[str | None, str | None]:
     if result != (None, None):
         return result
 
-    result = _parse_ago_pattern(phrase_lower)
-    if result != (None, None):
-        return result
-
     result = _parse_last_period_pattern(phrase_lower)
     if result != (None, None):
         return result
@@ -662,7 +654,7 @@ def _parse_exact_date_phrase(phrase_lower: str) -> tuple[str | None, str | None]
     return None, None
 
 
-def _offset_from_today(count: int, unit: str) -> tuple[str, str] | tuple[None, None]:
+def _offset_from_today(count: int, unit: str) -> tuple[str, str]:
     """Resolve 'N units back from today' into a (start_date, today) string pair."""
     unit = unit.rstrip("s")  # Remove plural
     unit_map = {
@@ -671,9 +663,6 @@ def _offset_from_today(count: int, unit: str) -> tuple[str, str] | tuple[None, N
         "month": timedelta(days=count * 30),
         "year": timedelta(days=count * 365),
     }
-    if unit not in unit_map:
-        return None, None
-
     today = datetime.now(TORONTO_TZ).date()
     start_date = today - unit_map[unit]
     return start_date.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")

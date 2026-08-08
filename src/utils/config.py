@@ -308,7 +308,7 @@ class Config:
     @staticmethod
     def get_default_root_directory() -> Path:
         """Get the project root directory by searching upwards for markers."""
-        if getattr(sys, "frozen", False):  # pragma: no cover
+        if getattr(sys, "frozen", False):
             # Running as PyInstaller executable - files in executable directory
             return Path(sys.executable).parent
         current = Path(__file__).resolve().parent

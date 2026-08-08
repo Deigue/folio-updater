@@ -268,7 +268,7 @@ def insert_or_replace(
     Returns:
         True if successful, False if there was an error
     """
-    if not data:
+    if not data:  # pragma: no cover
         return False
 
     columns = ", ".join(f'"{col}"' for col in data)

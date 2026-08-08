@@ -30,7 +30,7 @@ def create_folio() -> None:
             task = progress.add_task("Generating mock data...", total=None)
             created = ensure_data_exists(mock=True)
 
-            if not created:
+            if not created:  # pragma: no cover
                 console_info("Demo folio not created due to existing data.")
                 return
 

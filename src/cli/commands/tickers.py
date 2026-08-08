@@ -13,7 +13,6 @@ from app import bootstrap
 from cli import (
     console_error,
     console_info,
-    console_print,
     console_success,
     console_warning,
     show_data_table,
@@ -100,7 +99,10 @@ def delete_alias(old_ticker: str) -> None:
             where = f'"{Column.Aliases.OLD_TICKER}" = ?'
             params = [old_ticker.upper()]
             deleted = delete_rows(
-                conn, Table.TICKER_ALIASES, where=where, params=params,
+                conn,
+                Table.TICKER_ALIASES,
+                where=where,
+                params=params,
             )
 
             if deleted == 0:
@@ -140,6 +142,3 @@ def manage_ticker_aliases(
         list_aliases()
     elif delete:
         delete_alias(old_ticker=delete)
-    else:
-        console_print("Usage: folio tickers [--add | --list | --delete]")
-        console_info("Use 'folio tickers --help' for more information.")

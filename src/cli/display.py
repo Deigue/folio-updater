@@ -46,7 +46,7 @@ try:
     import msvcrt  # Windows
 
     def _getch() -> str:
-        """Get a single character from stdin without pressing Enter.
+        r"""Get a single character from stdin without pressing Enter.
 
         Special keys (arrows, function keys, etc.) are reported by msvcrt as
         a two-byte sequence: a prefix byte (b"\\x00" or b"\\xe0") followed by

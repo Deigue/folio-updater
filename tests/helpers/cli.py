@@ -70,7 +70,7 @@ def assert_cli_success(result: CliTestResult) -> None:
     Raises:
         AssertionError: If the command did not succeed.
     """
-    if result.exit_code != 0:
+    if result.exit_code != 0:  # pragma: no cover
         print("STDOUT:", result.stdout)
         print("STDERR:", result.stderr)
         print("PLAIN_OUTPUT:\n", result.plain_output)
@@ -95,7 +95,7 @@ def assert_in_output(expected_substring: str, cli_result: CliTestResult) -> None
     Raises:
         AssertionError: If the substring is not found.
     """
-    if expected_substring not in cli_result.plain_output:
+    if expected_substring not in cli_result.plain_output:  # pragma: no cover
         print("\n---EXPECTED SUBSTRING---")
         print(expected_substring)
         print("\n---ACTUAL PLAIN_OUTPUT---")
@@ -119,7 +119,7 @@ def assert_not_in_output(
     Raises:
         AssertionError: If the substring is found.
     """
-    if unexpected_substring in cli_result.plain_output:
+    if unexpected_substring in cli_result.plain_output:  # pragma: no cover
         print("\n---UNEXPECTED SUBSTRING---")
         print(unexpected_substring)
         print("\n---ACTUAL PLAIN_OUTPUT---")
