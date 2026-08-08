@@ -15,6 +15,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio settle-info`**: Retrieve and update settlement date information
 - **`folio download`**: Download statements from brokers (e.g., Interactive Brokers)
 - **`folio tickers`**: Manage ticker symbol aliases
+- **`folio query`**: Search and filter transactions using natural language or explicit filters
 - **`folio version`**: Show the version of the folio-updater
 
 ### Import and Processing Features
@@ -144,131 +145,25 @@ folio tickers --list
 folio tickers --delete SPLG
 ```
 
-## Configuration
+### Query Transactions
 
-The folio-updater uses a `config.yaml` file to manage configurations.  
-It is **auto-generated** with default values the first time you run the application.
+Search and filter transactions directly from the command line, using natural language terms, explicit column filters, or a mix of both.
 
-### Example structure
-
-```yaml
-folio_path: data/folio.xlsx
-data_path: data
-log_level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
-sheets:
-  tickers: Tickers
-  txns: Txns
-  fx: FX
-header_keywords:
-  TxnDate: ["Txn Date", "Date", "Transaction Date", "TradeDate", "ReportDate"]
-  Action: ["Action", "Type", "Activity", "Buy/Sell"]
-  Amount: ["Amount", "Value", "Total", "Proceeds"]
-  $: [ "$", "currency", "curr", "CurrencyPrimary"]
-  Price: [ "price", "unit price", "share price", "Put/Call"]
-  Units: [ "units", "shares", "qty", "quantity", "Multiplier"]
-  Ticker: [ "ticker", "symbol", "stock", "security"]
-  Account: ["account", "alias", "account id", "accountalias", "account name"]
-  Fee: ["Fee", "Fees", "Commission"]
-  SettleDate: ["SettleDate", "Settlement Date", "Settle"]
-header_ignore: ["ID", "ClientAccountID", "OtherCommission", "Account Number", "Expiry"]
-duplicate_approval:
-  column: Duplicate
-  value: OK
-backup:
-  enabled: true
-  path: backups
-  max_backups: 50
-optional_columns:
-  Description:
-    keywords: ["Description"]
-    type: string
-transforms:
-  rules:
-  - conditions:
-      Action: ["BUY", "SELL"]
-      Ticker: ["USD.CAD"]
-    actions:
-      Action: "FXT"
-      Ticker: ""
-  - conditions:
-      Action: ["DIVIDEND"]
-    actions:
-      Fee: 0
-  - conditions:
-      Action: "Deposits/Withdrawals"
-      Description: "CASH RECEIPTS / ELECTRONIC FUND TRANSFERS"
-    actions:
-      Action: "CONTRIBUTION"
-  - conditions:
-      Action: "Broker Interest Received"
-    actions:
-        Action: "FCH"
-  merge_groups:
-    - name: "Dividend Withholding Tax Merge"
-      match_fields: ["TxnDate", "Account", "Ticker"]
-      source_actions: ["Dividends", "Withholding Tax"]
-      target_action: "DIVIDEND"
-      amount_field: "Amount"
-      operations:
-        Fee: 0
-        Units: 0
-brokers:
-  ibkr:
-    FlexReport: "FLEX_QUERY_ID_FOR_TRADES"
-    CashActivity: "FLEX_QUERY_ID_FOR_CASH_ACTIVITIES"
-  wealthsimple:
-    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0"
-    exclude_accounts: ["Cash"]
+```bash
+folio query AAPL BUY last year
+folio query Account~RRSP TxnDate>=2024-01-01 sort:-Amount first 10
 ```
 
-| Key                      | Description                                                                                                                                                                                                                                                                                                             |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`folio_path`**         | Path to your portfolio Excel file. If this is **relative**, it will be based on the path of the executable. If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. Generate this with `folio generate`.                                         |
-| **`data_path`**          | Folder path where data files are stored (automatically created if it does not exist). Relative paths will behave similar to the `folio_path`. Default: `data`                                                                                                                                                           |
-| **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                                                                        |
-| **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                                                                               |
-| **`header_keywords`**    | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                                                                     |
-| **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                                                                  |
-| **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](docs/transactions/duplicate-approval.md/#configuration) for more details.                                                                                                                                                               |
-| **`backup`**             | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50).                                           |
-| **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
-| **`transforms`**         | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](docs/transactions/transformations.md) and [Merge Transforms](docs/transactions/merge-transforms.md) for more details.                                                                                         |
-| **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](docs/transactions/ibkr-integration.md#configuration) and [Wealthsimple Configuration](docs/transactions/wealthsimple-integration.md#configuration) for more details.                                                                                       |
+*Refer to [Smart Transaction Querying](docs/querying.md) for the full syntax, including natural language dates, sorting, and advanced filters.*
 
-### Essential Fields
+## Configuration
 
-Essential fields (internal names) that must be present in your Excel data:
+The folio-updater uses a `config.yaml` file to manage configurations.
+It is **auto-generated** with default values the first time you run the application, so you don't need to write one by hand to get started.
 
-- `TxnDate` - transaction date (YYYY-MM-DD)
-- `Action` - transaction type (BUY, SELL, DIVIDEND, CONTRIBUTION, etc.)
-- `Amount` - Total amount (Price * Units)
-- `$` - currency code (e.g., USD, CAD)
-- `Price` - price per unit
-- `Units` - number of units
-- `Ticker` - security symbol
-- `Account` - account identifier/alias
+It controls things like file paths, logging, how Excel columns are matched to internal fields, duplicate approval, backups, transaction transforms, and broker settings.
 
-### Internal Fields
-
-The system automatically manages additional internal fields:
-
-- `Fee` - Fees that may be associated with the transaction. Recognized internally as a numeric value.
-- `SettleDate` - settlement date (auto-calculated based on transaction type and market rules)
-- `SettleCalculated` - flag (0/1) indicating if settlement date was auto-calculated
-
-> [!NOTE]
-> See [Settlement Dates](docs/transactions/settlement-dates.md) for detailed information about automatic settlement date calculation.
-
-### Flexibility
-
-- These columns may be named differently and appear in any order in your Excel `Txns` sheet
-- `config.yaml` contains `header_keywords` to map Excel header labels to the internal fields
-- The app will attempt to map headers; if any essential field cannot be matched, import will fail with a clear error
-- If the `Account` column is missing but an account parameter is provided to the import function, it will be used as a fallback
-
-### Default Behavior
-
-- If `data/folio.xlsx` does not exist, the app will create a default file with sample data
+*See [Configuration Reference](docs/configuration.md) for the full example file, a key-by-key breakdown, and details on essential/internal fields.*
 
 ## Development
 
