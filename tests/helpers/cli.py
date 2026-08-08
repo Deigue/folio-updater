@@ -34,6 +34,7 @@ def run_cli_with_config(
     config: Config,
     command_app: Typer,
     args: list[str] | None = None,
+    user_input: str | None = None,
 ) -> CliTestResult:
     """Run CLI commands with proper config mocking and capture plain output.
 
@@ -41,6 +42,8 @@ def run_cli_with_config(
         config: The Config object to use for the test.
         command_app: The Typer app to run.
         args: Optional list of command arguments.
+        user_input: Optional stdin text to answer interactive prompts, with each
+            response terminated by a newline.
 
     Returns:
         A CliTestResult object with execution details.
@@ -51,7 +54,7 @@ def run_cli_with_config(
     # Mock bootstrap.reload_config to return our test config
     with patch("app.bootstrap.reload_config") as mock_reload, capture_output() as bio:
         mock_reload.return_value = config
-        click_result = runner.invoke(command_app, args)
+        click_result = runner.invoke(command_app, args, input=user_input)
         return CliTestResult(
             exit_code=click_result.exit_code,
             stdout=click_result.stdout,

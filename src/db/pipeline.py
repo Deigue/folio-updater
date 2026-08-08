@@ -22,12 +22,17 @@ import_logger = get_import_logger()
 def prepare_transactions(
     df: pd.DataFrame,
     account: str | None = None,
+    *,
+    map_headers: bool = True,
 ) -> ImportResults:
     """Prepare DataFrame for database insertion by applying filters and mappings.
 
     Args:
         df: Raw transaction DataFrame
         account: Optional fallback account name
+        map_headers: If True, map external headers to internal field names. Set
+            False when the DataFrame is already keyed by internal names (e.g.
+            transactions built by the `add` command).
 
     Returns:
         Returns ImportResults with all stages of the preparation process.
@@ -42,7 +47,10 @@ def prepare_transactions(
     schema.create_ticker_aliases_table()
 
     read_df = df.copy()
-    mapped_df = TransactionMapper.map_headers(read_df, account)
+    if map_headers:
+        mapped_df = TransactionMapper.map_headers(read_df, account)
+    else:
+        mapped_df = read_df.copy()
     transformed_df, merge_events, transform_events = TransactionTransformer.transform(
         mapped_df,
     )

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from dateparser.date import DateDataParser
 
-from db import get_columns, get_connection, get_distinct_values
+from db import get_columns, get_connection, get_distinct_set
 from utils import TORONTO_TZ
 from utils.constants import Action, Column, Currency, Table
 
@@ -87,16 +87,9 @@ class ParsedQuery:
 
 def _get_db_lookup_values() -> tuple[set[str], set[str], list[str]]:
     """Fetch distinct tickers, accounts, and live Txns columns from the database."""
-    db_tickers: set[str] = set()
-    db_accounts: set[str] = set()
-
     with get_connection() as conn:
-        db_tickers_df = get_distinct_values(conn, Table.TXNS, Column.Txn.TICKER)
-        db_tickers = {t for t in db_tickers_df[Column.Txn.TICKER] if t is not None}
-
-        db_accounts_df = get_distinct_values(conn, Table.TXNS, Column.Txn.ACCOUNT)
-        db_accounts = {a for a in db_accounts_df[Column.Txn.ACCOUNT] if a is not None}
-
+        db_tickers = get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER)
+        db_accounts = get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT)
         live_columns = get_columns(conn, Table.TXNS)
     return db_tickers, db_accounts, live_columns
 

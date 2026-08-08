@@ -6,6 +6,7 @@ table management and transaction formatting.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 import pandas as pd
@@ -58,3 +59,45 @@ def format_transaction_summary(row: pd.Series) -> str:
         essential_parts.append(f"{col}={value}")
 
     return "|".join(essential_parts)
+
+
+def generate_keys(txn_df: pd.DataFrame) -> pd.Series:
+    """Generate synthetic primary keys based on TXN_ESSENTIALS.
+
+    This function processes the entire DataFrame columnwise and generates synthetic
+    key representations for all rows.
+
+    Args:
+        txn_df: DataFrame with transaction data
+
+    Returns:
+        Series of hash strings representing synthetic primary keys
+    """
+    if txn_df.empty:  # pragma: no cover
+        return pd.Series([], dtype=str)
+
+    normalized_cols = []
+    for col in TXN_ESSENTIALS:
+        col_series = txn_df[col].fillna("")
+        numeric_series = pd.to_numeric(col_series, errors="coerce")
+        numeric_mask = ~numeric_series.isna()
+        normalized = col_series.astype(str)
+
+        # For numeric values, format to 8 decimals and strip trailing zeros
+        if numeric_mask.any():
+            formatted_numeric = numeric_series[numeric_mask].apply(
+                lambda x: f"{x:.8f}".rstrip("0").rstrip("."),
+            )
+            normalized.loc[numeric_mask] = formatted_numeric
+
+        normalized = normalized.str.strip()
+        normalized_cols.append(normalized)
+
+    # Concatenate all columns with separator
+    key_string = normalized_cols[0].astype(str)
+    for col_series in normalized_cols[1:]:
+        key_string = key_string + "|" + col_series.astype(str)
+
+    return key_string.apply(
+        lambda x: hashlib.sha256(x.encode("utf-8")).hexdigest(),
+    )

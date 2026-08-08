@@ -21,8 +21,8 @@ from cli import (
     console_warning,
     show_data_table,
 )
+from cli.commands.common import export_to_parquet
 from cli.display import THEME_SUCCESS
-from exporters import ParquetExporter
 from importers import import_transactions
 from models import ImportResults
 
@@ -138,7 +138,7 @@ def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
     import_result = _import_single_file_to_db(file_path, verbose=verbose)
     num_txns = import_result.imported_count() if import_result else 0
     if num_txns > 0:
-        _export_to_parquet()
+        export_to_parquet()
     else:
         console_warning(f"No transactions imported from {file_path.name}")
     _move_file(file_path)
@@ -197,21 +197,9 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
 
     if total_imported > 0:
         console_success(f"Total transactions imported: {total_imported}")
-        _export_to_parquet()
+        export_to_parquet()
     else:
         console_warning("No transactions imported")
-
-
-def _export_to_parquet() -> None:
-    """Export transactions to Parquet."""
-    try:
-        with ProgressDisplay.spinner("green") as progress:
-            progress.add_task("Exporting to Parquet...", total=None)
-            exporter = ParquetExporter()
-            exported = exporter.export_transactions()
-        console_success(f"Exported {exported} transactions to Parquet")
-    except (OSError, ValueError, KeyError) as e:
-        console_warning(f"Failed to export to Parquet: {e}")
 
 
 if __name__ == "__main__":

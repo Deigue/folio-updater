@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import sqlite3
 from typing import TYPE_CHECKING
@@ -10,7 +9,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from db.helpers import format_transaction_summary
+from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection  # circular import fix
 from utils import TXN_ESSENTIALS, Table, get_import_logger
 
@@ -40,9 +39,7 @@ class TransactionFilter:
         if not existing_keys:
             return txn_df
 
-        new_keys_series: pd.Series[str] = TransactionFilter._generate_keys(
-            txn_df,
-        )
+        new_keys_series: pd.Series[str] = generate_keys(txn_df)
         new_keys: set[str] = set(new_keys_series)
         import_logger.debug(
             "CHECK duplicates: %d existing keys, %d new keys",
@@ -84,7 +81,7 @@ class TransactionFilter:
             return txn_df
 
         # Use vectorized key generation
-        keys = TransactionFilter._generate_keys(txn_df)
+        keys = generate_keys(txn_df)
         duplicate_mask = keys.duplicated(keep=False)
         num_dupes = duplicate_mask.sum()
 
@@ -189,48 +186,6 @@ class TransactionFilter:
                     import_logger.warning(" - %s", summary)
 
     @staticmethod
-    def _generate_keys(txn_df: pd.DataFrame) -> pd.Series:
-        """Generate synthetic primary keys based on TXN_ESSENTIALS.
-
-        This method processes the entire DataFrame columnwise and generates synthetic
-        key representations for all rows.
-
-        Args:
-            txn_df: DataFrame with transaction data
-
-        Returns:
-            Series of hash strings representing synthetic primary keys
-        """
-        if txn_df.empty:  # pragma: no cover
-            return pd.Series([], dtype=str)
-
-        normalized_cols = []
-        for col in TXN_ESSENTIALS:
-            col_series = txn_df[col].fillna("")
-            numeric_series = pd.to_numeric(col_series, errors="coerce")
-            numeric_mask = ~numeric_series.isna()
-            normalized = col_series.astype(str)
-
-            # For numeric values, format to 8 decimals and strip trailing zeros
-            if numeric_mask.any():
-                formatted_numeric = numeric_series[numeric_mask].apply(
-                    lambda x: f"{x:.8f}".rstrip("0").rstrip("."),
-                )
-                normalized.loc[numeric_mask] = formatted_numeric
-
-            normalized = normalized.str.strip()
-            normalized_cols.append(normalized)
-
-        # Concatenate all columns with separator
-        key_string = normalized_cols[0].astype(str)
-        for col_series in normalized_cols[1:]:
-            key_string = key_string + "|" + col_series.astype(str)
-
-        return key_string.apply(
-            lambda x: hashlib.sha256(x.encode("utf-8")).hexdigest(),
-        )
-
-    @staticmethod
     def _get_db_transaction_keys() -> set[str]:
         """Get synthetic keys for all existing transactions in the database.
 
@@ -249,9 +204,7 @@ class TransactionFilter:
                 if existing_df.empty:  # pragma: no cover
                     return set()
 
-                existing_keys_series = TransactionFilter._generate_keys(
-                    existing_df,
-                )
+                existing_keys_series = generate_keys(existing_df)
                 existing_keys: set[str] = set(existing_keys_series)
             except (sqlite3.Error, pd.errors.DatabaseError):
                 import_logger.debug(

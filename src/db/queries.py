@@ -162,6 +162,17 @@ def get_distinct_values(
         return pd.DataFrame()
 
 
+def get_distinct_set(
+    connection: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+    filter_condition: str | None = None,
+) -> set[str]:
+    """Return distinct non-null values from a column as a set."""
+    df = get_distinct_values(connection, table_name, column_name, filter_condition)
+    return set(df[column_name].dropna()) if column_name in df else set()
+
+
 def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
     """Drop a table if it exists."""
     query = f'DROP TABLE IF EXISTS "{table_name}"'
