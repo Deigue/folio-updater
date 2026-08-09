@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
+import numpy as np
 import pandas as pd
 
 from utils.constants import TORONTO_TZ, Action, Column, Currency
@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 import_logger = get_import_logger()
 
 WEEKDAYS_IN_WEEK: int = 5
+DATE_FORMAT: str = "%Y-%m-%d"
+DATE_PATTERN: str = r"^\d{4}-\d{2}-\d{2}$"
+_EMPTY_SCHEDULE: pd.DatetimeIndex = pd.DatetimeIndex([])
 T_PLUS_1_EFFECTIVE_DATES: dict[Currency, date] = {
     Currency.USD: datetime(2024, 5, 28, tzinfo=TORONTO_TZ).date(),  # US markets
     Currency.CAD: datetime(2024, 5, 27, tzinfo=TORONTO_TZ).date(),  # Canadian markets
@@ -77,7 +80,7 @@ class SettlementCalculator:
 
         needs_calculation = df_copy[Column.Txn.SETTLE_DATE].isna() | ~df_copy[
             Column.Txn.SETTLE_DATE
-        ].astype(str).str.match(r"^\d{4}-\d{2}-\d{2}$")
+        ].astype(str).str.match(DATE_PATTERN)
         has_valid_txn_date = ~df_copy[Column.Txn.TXN_DATE].isna()
         needs_calculation = needs_calculation & has_valid_txn_date
 
@@ -92,22 +95,89 @@ class SettlementCalculator:
             end_ts = pd.Timestamp(max_date).tz_localize(TORONTO_TZ)
             self._ensure_schedules_loaded(start_ts, end_ts)
 
-        for currency in df_copy[needs_calculation][Column.Txn.CURRENCY].unique():
-            currency_mask = needs_calculation & (
-                df_copy[Column.Txn.CURRENCY] == currency
-            )
-            if currency_mask.any():
-                schedule = self.calendar_schedules.get(currency, pd.DatetimeIndex([]))
-                currency_indices = df_copy[currency_mask].index
-                for idx in currency_indices:
-                    self._process_settlement_for_row_optimized(
-                        df_copy,
-                        idx,
-                        currency,
-                        schedule,
-                    )
-
+        self._write_settlement_columns(df_copy, needs_calculation)
         return df_copy
+
+    def _write_settlement_columns(
+        self,
+        df: pd.DataFrame,
+        needs_calculation: pd.Series,
+    ) -> None:
+        """Settle every flagged row, then write both columns in one assignment.
+
+        Each column is read out to an array once and written back once.
+
+        Args:
+            df: Frame to update in place. Already carries both settlement
+                columns.
+            needs_calculation: Rows whose settlement date has to be derived.
+        """
+        txn_dates = df[Column.Txn.TXN_DATE].to_numpy()
+        actions: list[str] = df[Column.Txn.ACTION].tolist()
+        currencies: list[str] = df[Column.Txn.CURRENCY].tolist()
+        settle_dates = df[Column.Txn.SETTLE_DATE].astype(object).to_numpy(copy=True)
+        calculated = df[Column.Txn.SETTLE_CALCULATED].to_numpy(copy=True)
+
+        rows: list[int] = np.flatnonzero(needs_calculation.to_numpy()).tolist()
+        # One parse for the whole batch: pandas' date parser has a high fixed
+        # cost but a very low per-value one.
+        timestamps = pd.to_datetime(txn_dates[rows], format=DATE_FORMAT)
+
+        for offset, row in enumerate(rows):
+            timestamp = timestamps[offset]
+            # Currency is a StrEnum, so the plain string held in the frame
+            # hashes and compares equal to the enum keying the schedules.
+            currency = cast("Currency", currencies[row])
+            settlement_days, is_calculated = self._get_settlement_days(
+                Action(actions[row]),
+                currency,
+                timestamp.date(),
+            )
+            if settlement_days == 0:
+                settle_dates[row] = txn_dates[row]
+            else:
+                settle_dates[row] = self._nth_trading_day_after(
+                    timestamp,
+                    settlement_days,
+                    currency,
+                )
+            calculated[row] = is_calculated
+
+        df[Column.Txn.SETTLE_DATE] = settle_dates
+        df[Column.Txn.SETTLE_CALCULATED] = calculated
+
+    def _nth_trading_day_after(
+        self,
+        timestamp: pd.Timestamp,
+        settlement_days: int,
+        currency: Currency,
+    ) -> str:
+        """Return the Nth trading day strictly after a transaction date.
+
+        Args:
+            timestamp: Transaction date.
+            settlement_days: Trading days until settlement.
+            currency: Currency whose market calendar applies.
+
+        Returns:
+            Settlement date in YYYY-MM-DD format.
+        """
+        schedule = self.calendar_schedules.get(currency, _EMPTY_SCHEDULE)
+        if len(schedule) == 0:  # pragma: no cover
+            return self.calculate_simple_business_days(
+                timestamp.date(),
+                settlement_days,
+            )
+
+        position = int(schedule.searchsorted(timestamp, side="right"))
+        target = position + settlement_days - 1
+        if target >= len(schedule):  # pragma: no cover
+            # Calendar ran out before settlement; fall back to plain weekdays.
+            return self.calculate_simple_business_days(
+                timestamp.date(),
+                settlement_days,
+            )
+        return schedule[target].strftime(DATE_FORMAT)
 
     def _ensure_schedules_loaded(
         self,
@@ -202,86 +272,6 @@ class SettlementCalculator:
         self.calendar_schedules[currency] = valid_days
         return valid_days
 
-    def _process_settlement_for_row_optimized(
-        self,
-        df: pd.DataFrame,
-        idx: int,
-        currency: Currency,
-        schedule: pd.DatetimeIndex,
-    ) -> None:
-        """Process settlement date for a single row using pre-loaded calendar.
-
-        Args:
-            df: DataFrame being processed
-            idx: Row index to process
-            currency: Currency for the transaction
-            schedule: Pre-loaded calendar schedule
-        """
-        existing_settle_date = df.loc[idx, Column.Txn.SETTLE_DATE]
-        if pd.notna(existing_settle_date) and self._is_valid_date(
-            str(existing_settle_date),
-        ):  # pragma: no cover
-            df.loc[idx, Column.Txn.SETTLE_CALCULATED] = 0
-            return
-
-        # Get transaction data (already validated by formatter)
-        txn_date_str = df.loc[idx, Column.Txn.TXN_DATE]
-        action_str = df.loc[idx, Column.Txn.ACTION]
-
-        # Convert to objects we need (no try/except needed - data is pre-validated)
-        txn_date = self._get_date_from_string(str(txn_date_str))
-        action = Action(action_str)
-        settlement_days, is_calculated = self._get_settlement_days(
-            action,
-            currency,
-            txn_date,
-        )
-
-        if settlement_days == 0:
-            settle_date = txn_date_str
-        else:
-            # Use pre-loaded schedule for business day calculation
-            settle_date = self._calculate_with_preloaded_schedule(
-                txn_date,
-                settlement_days,
-                schedule,
-            )
-
-        df.loc[idx, Column.Txn.SETTLE_DATE] = settle_date
-        df.loc[idx, Column.Txn.SETTLE_CALCULATED] = is_calculated
-
-    def _calculate_with_preloaded_schedule(
-        self,
-        txn_date: date,
-        settlement_days: int,
-        schedule: pd.DatetimeIndex,
-    ) -> str:
-        """Calculate settlement using pre-loaded calendar schedule.
-
-        Args:
-            txn_date: Transaction date
-            settlement_days: Number of business days to add
-            schedule: Pre-loaded calendar schedule
-
-        Returns:
-            Settlement date in YYYY-MM-DD format
-        """
-        if len(schedule) == 0:  # pragma: no cover
-            return self.calculate_simple_business_days(txn_date, settlement_days)
-
-        start_ts = pd.Timestamp(txn_date)
-        valid_days_after_txn = schedule[schedule > start_ts]
-
-        if len(valid_days_after_txn) >= settlement_days:
-            settle_date = valid_days_after_txn[settlement_days - 1].date()
-            return settle_date.strftime("%Y-%m-%d")
-
-        # Fallback if not enough valid days found
-        return self.calculate_simple_business_days(
-            txn_date,
-            settlement_days,
-        )  # pragma: no cover
-
     def _get_settlement_days(
         self,
         action: Action,
@@ -309,28 +299,6 @@ class SettlementCalculator:
             return 2, 1  # T+2 settlement
 
         return 0, 0  # pragma: no cover
-
-    def _is_valid_date(self, date_str: str) -> bool:
-        """Check if a string represents a valid date in YYYY-MM-DD format.
-
-        Args:
-            date_str: Date string to validate
-
-        Returns:
-            True if valid, False otherwise
-        """
-        return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", date_str))
-
-    def _get_date_from_string(self, date_str: str) -> date:
-        """Convert a date string in YYYY-MM-DD format to a date object."""
-        return (
-            datetime.strptime(
-                str(date_str),
-                "%Y-%m-%d",
-            )
-            .replace(tzinfo=TORONTO_TZ)
-            .date()
-        )
 
 
 # Global instance for use throughout the application
