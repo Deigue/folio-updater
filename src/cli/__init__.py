@@ -17,6 +17,7 @@ from cli.console import (
 from cli.display import (
     ProgressDisplay,
     TransactionDisplay,
+    page_changes,
     page_transactions,
     show_data_table,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "console_success",
     "console_warning",
     "get_symbol",
+    "page_changes",
     "page_transactions",
     "show_data_table",
 ]

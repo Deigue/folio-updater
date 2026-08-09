@@ -34,12 +34,74 @@ from cli.console import (
 from utils import TXN_ESSENTIALS, Action, Column, TransactionContext
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Generator
+    from collections.abc import Callable, Container, Generator, Sequence
+
+    from rich.console import JustifyMethod
 
     from models import ImportResults
 
 # Minimum columns always shown for exclusions
 EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
+
+
+@dataclass(frozen=True)
+class _ColumnSpec:
+    """How a standard transaction column is rendered in a table."""
+
+    max_width: int
+    justify: JustifyMethod = "left"
+    style: str | None = None
+
+
+# Standard transaction columns, in display order. Column definitions and row
+# cells are both derived from this, so the two can never drift apart.
+_TXN_COLUMN_SPECS: dict[str, _ColumnSpec] = {
+    Column.Txn.TXN_ID: _ColumnSpec(max_width=6, style="dim"),
+    Column.Txn.SETTLE_DATE: _ColumnSpec(max_width=10),
+    Column.Txn.TXN_DATE: _ColumnSpec(max_width=10),
+    Column.Txn.ACTION: _ColumnSpec(max_width=12),
+    Column.Txn.AMOUNT: _ColumnSpec(max_width=12, justify="right"),
+    Column.Txn.CURRENCY: _ColumnSpec(max_width=4),
+    Column.Txn.PRICE: _ColumnSpec(max_width=10, justify="right"),
+    Column.Txn.UNITS: _ColumnSpec(max_width=10, justify="right"),
+    Column.Txn.TICKER: _ColumnSpec(max_width=12),
+    Column.Txn.ACCOUNT: _ColumnSpec(max_width=15),
+    Column.Txn.FEE: _ColumnSpec(max_width=8, justify="right"),
+}
+
+# Shown only outside the import context, where TxnIds do not exist yet.
+_ID_COLUMNS = (Column.Txn.TXN_ID, Column.Txn.SETTLE_DATE)
+
+# Room an inline "old -> new" diff needs beyond the column's normal width.
+_DIFF_EXTRA_WIDTH = 6
+
+
+def _ordered_columns(
+    display_df: pd.DataFrame,
+    context: TransactionContext,
+) -> list[str]:
+    """List the columns a transaction table shows, in display order.
+
+    Args:
+        display_df: DataFrame being displayed
+        context: Context to determine which columns to show
+
+    Returns:
+        Standard columns for the context, followed by any non-standard
+        columns present in the DataFrame (GENERAL context only).
+    """
+    columns = [
+        column
+        for column in _TXN_COLUMN_SPECS
+        if context != TransactionContext.IMPORT or column not in _ID_COLUMNS
+    ]
+    if context != TransactionContext.GENERAL:
+        return columns
+
+    known = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED}
+    columns.extend(str(col) for col in display_df.columns if col not in known)
+    return columns
+
 
 # Cross-platform single character input
 try:
@@ -78,11 +140,21 @@ PROMPT_LINES = 2
 # Gap between columns when using horizontal layout (Rich Columns default).
 COLUMN_GAP = 2
 
-# Header row height for tables.
-TABLE_HEADER_HEIGHT = 2
+# Chrome for a bordered, headered table: top border, header text, header
+# separator, and bottom border (verified against Rich's actual output).
+TABLE_HEADER_HEIGHT = 4
 
 # Page progress display height (e.g., "Showing transactions 1-15 of 100").
 PAGE_PROGRESS_HEIGHT = 1
+
+# The console.rule() line printed above each page (title + page counter).
+PAGE_RULE_HEIGHT = 1
+
+# Slack kept below the terminal's last row. Without it, a page's last line
+# lands exactly on the final row; many terminals (incl. VS Code's) then
+# scroll by one on the next newline, clipping the top of the page - header
+# included - out of view.
+SAFETY_MARGIN = 1
 
 THEME_MERGED = "bright_blue"  # Merged panels - informational
 THEME_TRANSFORMS = "medium_purple3"  # Transforms - modification
@@ -185,7 +257,7 @@ class Block:
     full_width: bool = False
 
     @classmethod
-    def create(
+    def create(  # noqa: PLR0917
         cls,
         name: str,
         key: str,
@@ -457,6 +529,80 @@ def _handle_pagination_input(
     return current_page, False
 
 
+def _page_frame(
+    total_rows: int,
+    title: str,
+    page_size: int | None,
+    render: Callable[[int, int], None],
+) -> None:
+    """Drive the n/p/q pager over a row range, delegating pages to `render`.
+
+    Args:
+        total_rows: Number of rows to page through
+        title: Title for the display
+        page_size: Rows per page. If None, calculated from console height
+        render: Called with (start, end) to draw one page of rows
+    """
+    if total_rows == 0:
+        console_print(f"[yellow]No transactions to display for {title}[/yellow]")
+        return
+
+    if _is_test_environment():
+        render(0, total_rows)
+        return
+
+    if page_size is None:
+        page_size = _calculate_available_height(table=True, pages=True)
+
+    if total_rows <= page_size:
+        render(0, total_rows)
+        return
+
+    total_pages = (total_rows + page_size - 1) // page_size
+    current_page = 0
+
+    # Alternate screen: each page redraws in a scratch buffer the terminal
+    # discards on exit.
+    with console.screen():
+        while True:
+            # Calculate slice for current page
+            start_idx = current_page * page_size
+            end_idx = min(start_idx + page_size, total_rows)
+
+            console.clear()
+            console.rule(
+                f"{title} - Page {current_page + 1}/{total_pages}",
+                style="bright_blue",
+            )
+
+            render(start_idx, end_idx)
+
+            console.print(
+                f"[dim]Showing transactions {start_idx + 1}-{end_idx} of"
+                f" {total_rows}[/dim]",
+            )
+
+            if current_page == 0 and total_pages == 1:
+                break  # Only one page, no navigation needed
+
+            prompt = _get_pagination_prompt(current_page, total_pages)
+            console.print(f"\n{prompt}")
+
+            try:
+                user_input = _getch()
+                current_page, should_exit = _handle_pagination_input(
+                    user_input,
+                    current_page,
+                    total_pages,
+                )
+                if should_exit:
+                    break
+            except (KeyboardInterrupt, EOFError):
+                break
+
+    console.rule("End of Transactions", style="dim")
+
+
 def page_transactions(
     df: pd.DataFrame,
     title: str = "Transactions",
@@ -475,76 +621,48 @@ def page_transactions(
             based on available console height
         context: Transaction context to specify column visibility
     """
-    if df.empty:
-        console_print(f"[yellow]No transactions to display for {title}[/yellow]")
-        return
 
-    if _is_test_environment():
-        display = TransactionDisplay()
-        display.transactions_table(
-            df,
-            title=title,
-            max_rows=len(df),
+    def render(start: int, end: int) -> None:
+        page_df = df.iloc[start:end]
+        # Only the first page carries the title; later pages get the rule.
+        page_title = title if start == 0 and end == len(df) else None
+        TransactionDisplay().transactions_table(
+            page_df,
+            title=page_title,
+            max_rows=len(page_df),
             context=context,
         )
-        return
 
-    if page_size is None:
-        page_size = _calculate_available_height(table=True, pages=True)
+    _page_frame(len(df), title, page_size, render)
 
-    total_rows = len(df)
-    if total_rows <= page_size:
-        display = TransactionDisplay()
-        display.transactions_table(
-            df,
-            title=title,
-            max_rows=total_rows,
-            context=context,
-        )
-        return
 
-    total_pages = (total_rows + page_size - 1) // page_size
-    current_page = 0
+def page_changes(
+    before: pd.DataFrame,
+    after: pd.DataFrame,
+    changed_columns: Sequence[str],
+    title: str = "Pending Changes",
+    page_size: int | None = None,
+) -> None:
+    """Display a pending edit as a paged before/after view.
 
-    while True:
-        # Calculate slice for current page
-        start_idx = current_page * page_size
-        end_idx = min(start_idx + page_size, total_rows)
-        page_df = df.iloc[start_idx:end_idx]
+    Args:
+        before: Transactions as they are now
+        after: The same transactions, positionally aligned, once edited
+        changed_columns: Columns the edit touches
+        title: Title for the display
+        page_size: Rows per page. If None, calculated from console height
+    """
 
-        console.clear()
-        console.rule(
-            f"{title} - Page {current_page + 1}/{total_pages}",
-            style="bright_blue",
-        )
-
-        display = TransactionDisplay()
-        display.transactions_table(page_df, max_rows=page_size, context=context)
-
-        console.print(
-            f"[dim]Showing transactions {start_idx + 1}-{end_idx} of"
-            f" {total_rows}[/dim]",
+    def render(start: int, end: int) -> None:
+        page_title = title if start == 0 and end == len(before) else None
+        TransactionDisplay().changes_table(
+            before.iloc[start:end],
+            after.iloc[start:end],
+            changed_columns,
+            title=page_title,
         )
 
-        if current_page == 0 and total_pages == 1:
-            break  # Only one page, no navigation needed
-
-        prompt = _get_pagination_prompt(current_page, total_pages)
-        console.print(f"\n{prompt}")
-
-        try:
-            user_input = _getch()
-            current_page, should_exit = _handle_pagination_input(
-                user_input,
-                current_page,
-                total_pages,
-            )
-            if should_exit:
-                break
-        except (KeyboardInterrupt, EOFError):
-            break
-
-    console.rule("End of Transactions", style="dim")
+    _page_frame(len(before), title, page_size, render)
 
 
 def _get_terminal_size() -> tuple[int, int]:
@@ -564,9 +682,15 @@ def _get_terminal_size() -> tuple[int, int]:
 def _calculate_available_height(*, table: bool = False, pages: bool = False) -> int:
     """Calculate available height for content after reserved UI elements."""
     _, height = _get_terminal_size()
-    reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
+    if pages:
+        # Paged full-screen table: console.rule + progress line + prompt.
+        # No stats panel is shown in this flow.
+        reserved_lines = PAGE_RULE_HEIGHT + PAGE_PROGRESS_HEIGHT + PROMPT_LINES
+    else:
+        # Tiled audit-block view: stats panel + expansion prompt.
+        reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
     reserved_lines += TABLE_HEADER_HEIGHT if table else 0
-    reserved_lines += PAGE_PROGRESS_HEIGHT if pages else 0
+    reserved_lines += SAFETY_MARGIN
     return max(height - reserved_lines, 10)  # Minimum 10 lines
 
 
@@ -688,11 +812,72 @@ class TransactionDisplay:
 
         return None
 
+    def changes_table(
+        self,
+        before: pd.DataFrame,
+        after: pd.DataFrame,
+        changed_columns: Sequence[str],
+        title: str | None = "Pending Changes",
+        *,
+        show: bool = True,
+    ) -> Table | None:
+        """Show a pending edit as full transactions with inline before/after.
+
+        Args:
+            before: Transactions as they are now.
+            after: The same transactions, positionally aligned, as they would
+                be once the edit is applied.
+            changed_columns: Columns the edit touches.
+            title: Optional title for the table.
+            show: If True, prints the table to console; else returns the Table.
+
+        Returns:
+            The Table when `show` is False, otherwise None.
+        """
+        if before.empty:
+            console_print("[yellow]No transactions to display[/yellow]")
+            return None
+
+        context = TransactionContext.GENERAL
+        columns = _ordered_columns(before, context)
+        changed = [column for column in changed_columns if column in columns]
+
+        table = Table(
+            title=title,
+            show_header=True,
+            header_style="bold bright_white",
+            border_style=THEME_TRANSFORMS,
+            show_lines=False,
+        )
+        self._add_table_columns(before, table, context, widen=set(changed))
+
+        for position in range(len(before)):
+            old_cells = self._row_cells(before.iloc[position], columns)
+            new_cells = self._row_cells(after.iloc[position], columns)
+            row_data = []
+            for column in columns:
+                old = old_cells[column]
+                new = new_cells[column]
+                if column in changed and old != new:
+                    row_data.append(
+                        f"[red]{old}[/red] [dim]->[/dim] [green]{new}[/green]",
+                    )
+                else:
+                    row_data.append(old)
+            table.add_row(*row_data)
+
+        if not show:
+            return table
+
+        console_print(table)
+        return None
+
     def _add_table_columns(
         self,
         display_df: pd.DataFrame,
         table: Table,
         context: TransactionContext,
+        widen: Container[str] = (),
     ) -> None:
         """Add columns to transaction table based on context.
 
@@ -700,37 +885,35 @@ class TransactionDisplay:
             display_df: DataFrame containing transaction data
             table: Rich Table to add columns to
             context: Context to determine which columns to show
+            widen: Columns needing extra width to hold an inline before/after
+                diff, and which therefore wrap instead of truncating
         """
         # Define the set of columns that have special handling
-        added_columns = {
-            Column.Txn.TXN_DATE,
-            Column.Txn.ACTION,
-            Column.Txn.AMOUNT,
-            Column.Txn.CURRENCY,
-            Column.Txn.PRICE,
-            Column.Txn.UNITS,
-            Column.Txn.TICKER,
-            Column.Txn.ACCOUNT,
-            Column.Txn.FEE,
-            Column.Txn.SETTLE_CALCULATED,  # Hide this column
-        }
+        added_columns = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED}
 
-        # Add columns with specific order and formatting
-        if context != TransactionContext.IMPORT:
-            table.add_column(Column.Txn.TXN_ID, style="dim", no_wrap=True, max_width=6)
-            added_columns.add(Column.Txn.TXN_ID)
-            table.add_column(Column.Txn.SETTLE_DATE, no_wrap=True, max_width=10)
-            added_columns.add(Column.Txn.SETTLE_DATE)
-
-        table.add_column(Column.Txn.TXN_DATE, no_wrap=True, max_width=10)
-        table.add_column(Column.Txn.ACTION, no_wrap=True, max_width=12)
-        table.add_column(Column.Txn.AMOUNT, justify="right", no_wrap=True, max_width=12)
-        table.add_column(Column.Txn.CURRENCY, no_wrap=True, max_width=4)
-        table.add_column(Column.Txn.PRICE, justify="right", no_wrap=True, max_width=10)
-        table.add_column(Column.Txn.UNITS, justify="right", no_wrap=True, max_width=10)
-        table.add_column(Column.Txn.TICKER, no_wrap=True, max_width=12)
-        table.add_column(Column.Txn.ACCOUNT, no_wrap=True, max_width=15)
-        table.add_column(Column.Txn.FEE, justify="right", no_wrap=True, max_width=8)
+        for column in _ordered_columns(display_df, context):
+            spec = _TXN_COLUMN_SPECS.get(column)
+            if spec is None:  # non-standard column, handled below
+                continue
+            width = spec.max_width
+            if column in widen:
+                # Make room for an inline "old -> new" diff.
+                table.add_column(
+                    column,
+                    style=spec.style,
+                    justify=spec.justify,
+                    no_wrap=False,
+                    min_width=width + _DIFF_EXTRA_WIDTH,
+                    max_width=width * 2 + _DIFF_EXTRA_WIDTH,
+                )
+            else:
+                table.add_column(
+                    column,
+                    style=spec.style,
+                    justify=spec.justify,
+                    no_wrap=True,
+                    max_width=width,
+                )
 
         if context != TransactionContext.GENERAL:
             return
@@ -740,10 +923,46 @@ class TransactionDisplay:
             if col not in added_columns:
                 table.add_column(
                     str(col),
-                    no_wrap=True,
-                    max_width=15,
-                    overflow="ellipsis",
+                    no_wrap=col not in widen,
+                    max_width=15 if col not in widen else 33,
+                    overflow="ellipsis" if col not in widen else "fold",
                 )
+
+    def _row_cells(self, row: pd.Series, columns: Sequence[str]) -> dict[str, str]:
+        """Render one transaction into display strings, keyed by column.
+
+        Args:
+            row: A single transaction.
+            columns: Columns to render, as given by `_ordered_columns`.
+
+        Returns:
+            Mapping of column name to its formatted, markup-bearing cell text.
+        """
+        action = row.get(Column.Txn.ACTION, "")
+        action_color = TRANSACTION_COLORS.get(action, "white")
+
+        # Color-code SettleDate based on whether it was calculated
+        settle_date_str = _safe_str(row.get(Column.Txn.SETTLE_DATE, ""))
+        settle_color = "orange3" if row.get(Column.Txn.SETTLE_CALCULATED) else "green"
+
+        amount = self._parse_amount(row.get(Column.Txn.AMOUNT, 0))
+        fee_val = self._parse_amount(row.get(Column.Txn.FEE, 0))
+
+        settle_display = f"[{settle_color}]{settle_date_str}[/{settle_color}]"
+        special: dict[str, str] = {
+            Column.Txn.SETTLE_DATE: settle_display,
+            Column.Txn.ACTION: f"[{action_color}]{action}[/{action_color}]",
+            Column.Txn.AMOUNT: self._format_amount_display(amount, action),
+            Column.Txn.FEE: f"{fee_val:.2f}",
+        }
+
+        return {
+            column: special.get(
+                column,
+                _safe_str(row.get(column, "")).replace("\n", " "),
+            )
+            for column in columns
+        }
 
     def _add_table_rows(
         self,
@@ -758,70 +977,10 @@ class TransactionDisplay:
             table: Rich Table to add rows to
             context: Context to determine which columns to show
         """
-        standard_columns = {
-            Column.Txn.TXN_ID,
-            Column.Txn.TXN_DATE,
-            Column.Txn.ACTION,
-            Column.Txn.AMOUNT,
-            Column.Txn.CURRENCY,
-            Column.Txn.PRICE,
-            Column.Txn.UNITS,
-            Column.Txn.TICKER,
-            Column.Txn.ACCOUNT,
-            Column.Txn.FEE,
-            Column.Txn.SETTLE_DATE,
-            Column.Txn.SETTLE_CALCULATED,
-        }
-
+        columns = _ordered_columns(display_df, context)
         for _, row in display_df.iterrows():
-            action = row.get(Column.Txn.ACTION, "")
-            action_color = TRANSACTION_COLORS.get(action, "white")
-
-            amount = self._parse_amount(row.get(Column.Txn.AMOUNT, 0))
-            amount_display = self._format_amount_display(amount, action)
-
-            # Color-code SettleDate based on whether it was calculated
-            settle_date_str = _safe_str(row.get(Column.Txn.SETTLE_DATE, ""))
-            if row.get(Column.Txn.SETTLE_CALCULATED):
-                settle_date_display = f"[orange3]{settle_date_str}[/orange3]"
-            else:
-                settle_date_display = f"[green]{settle_date_str}[/green]"
-
-            # Format Fee to 2 decimal places
-            fee_val = self._parse_amount(row.get(Column.Txn.FEE, 0))
-            fee_display = f"{fee_val:.2f}"
-
-            # Build the row data in the correct order
-            row_data = []
-            if context != TransactionContext.IMPORT:
-                row_data.append(_safe_str(row.get(Column.Txn.TXN_ID, "")))
-                row_data.append(settle_date_display)
-
-            row_data.extend(
-                [
-                    _safe_str(row.get(Column.Txn.TXN_DATE, "")),
-                    f"[{action_color}]{action}[/{action_color}]",
-                    amount_display,
-                    _safe_str(row.get(Column.Txn.CURRENCY, "")),
-                    _safe_str(row.get(Column.Txn.PRICE, "")),
-                    _safe_str(row.get(Column.Txn.UNITS, "")),
-                    _safe_str(row.get(Column.Txn.TICKER, "")),
-                    _safe_str(row.get(Column.Txn.ACCOUNT, "")),
-                    fee_display,
-                ],
-            )
-
-            # Add any non-standard columns at the end
-            if context == TransactionContext.GENERAL:
-                row_data.extend(
-                    [
-                        _safe_str(row.get(col, "")).replace("\n", " ")
-                        for col in display_df.columns
-                        if col not in standard_columns
-                    ],
-                )
-
-            table.add_row(*row_data)
+            cells = self._row_cells(row, columns)
+            table.add_row(*(cells[column] for column in columns))
 
     def show_stats_panel(self, stats: dict[str, int | str]) -> None:
         """Display statistics in a Rich panel.
