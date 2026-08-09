@@ -125,7 +125,7 @@ def to_enum[T](c: type[T], x: object) -> str:
             f"Call stack:\n{get_last_3_frames()}"
         )
         raise TypeError(msg)
-    return x.value  # type: ignore[union-attr]
+    return x.value  # ty: ignore[unresolved-attribute]
 
 
 def to_class[T](c: type[T], x: object) -> dict:
@@ -136,7 +136,7 @@ def to_class[T](c: type[T], x: object) -> dict:
             f"Call stack:\n{get_last_3_frames()}"
         )
         raise TypeError(msg)
-    return x.to_dict()  # type: ignore[attr-defined]
+    return x.to_dict()  # ty: ignore[unresolved-attribute]
 
 
 def from_datetime(x: str) -> datetime:
@@ -227,9 +227,7 @@ class SerializableModel(ABC):
         Returns:
             Model instance.
         """
-        if not isinstance(obj, dict):
-            msg = f"Expected dict, got {type(obj).__name__}"
-            raise TypeError(msg)
+        ...
 
     def to_dict(self) -> dict:
         """Auto-generate dict from dataclass fields.

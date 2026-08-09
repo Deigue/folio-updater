@@ -49,6 +49,7 @@ class MergeGroup:
 
     def __init__(  # noqa: PLR0913
         self,
+        *,
         name: str,
         match_fields: list[str],
         source_actions: list[str],

@@ -44,8 +44,8 @@ A portfolio management system that imports and processes financial transaction d
 
 ## Usage
 
-  1. Download and extract `folio-windows-x64.zip`
-  2. Run `folio.exe --help` to see available commands
+1. Download and extract `folio-windows-x64.zip`
+2. Run `folio.exe --help` to see available commands
 
 Once installed, you can use the `folio` command-line tool:
 
@@ -217,20 +217,29 @@ It controls things like file paths, logging, how Excel columns are matched to in
 
 - **ripgrep (`rg`)** – A fast, recursive search tool for code and text
 - **Linting and formatting** – Configured via project settings using `ruff`
+- **Type checking** – Configured via project settings using **[ty](https://github.com/astral-sh/ty)**.
+
+Before submitting changes, run both checks and make sure they're clean:
+
+```bash
+uv run ruff check
+uv run ty check
+```
+
+> [!TIP]
+> In VS Code, you can run the **`lint (ruff + ty)`** task instead.
 
 ### Testing
 
-Run the test suite after making changes:
-
-```bash
-uv run pytest
-```
-
-Before submitting new features or fixes, check coverage to make sure the new code is exercised by tests:
+Run the test suite after making changes for testing and coverage.
 
 ```bash
 uv run pytest --cov
 ```
+
+> [!TIP]
+> In VS Code, the **`coverage`** task is available for the same `--cov`
+> check with a `term-missing` report.
 
 ### Setting up nbstripout for Contribution
 

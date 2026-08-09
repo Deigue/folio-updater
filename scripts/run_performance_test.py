@@ -334,7 +334,7 @@ def profile_hot_functions() -> None:
     tests_dir = (REPO_ROOT / "tests").resolve()
 
     rows: list[tuple[float, float, int, str]] = []
-    for func, entry in stats.stats.items():  # type: ignore[attr-defined]
+    for func, entry in stats.stats.items():  # ty: ignore[unresolved-attribute]
         filename = func[0] or ""
         try:
             resolved = Path(filename).resolve()

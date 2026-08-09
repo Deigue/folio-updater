@@ -48,6 +48,7 @@ def get_tables(connection: sqlite3.Connection) -> list[str]:
 def get_rows(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,
+    *,
     where: str | None = None,
     params: list | tuple | None = None,
     order_by: str | None = None,

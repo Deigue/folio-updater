@@ -74,10 +74,10 @@ def _patched_ensure_data_exists(*, mock: bool = True) -> bool:
 
 
 # Replace the function at module level so all imports get the patched version
-datagen.folio_setup.ensure_data_exists = _patched_ensure_data_exists
+datagen.folio_setup.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[invalid-assignment]
 # Also patch the package-level export so `from datagen import ensure_data_exists`
 # receives the patched function (the package __init__ does a from-import).
-_datagen_package.ensure_data_exists = _patched_ensure_data_exists
+_datagen_package.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[invalid-assignment]
 
 # Session-scoped caches
 _fx_cache: dict[str, pd.DataFrame] = {}

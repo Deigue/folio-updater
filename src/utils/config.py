@@ -395,7 +395,7 @@ class Config:
                     k: v
                     for k, v in settings["header_keywords"].items()
                     # Add internal fields that are not in the default mapping here.
-                    if k in validated["header_keywords"] or k in {str(Column.Txn.FEE)}
+                    if k in validated["header_keywords"] or k == str(Column.Txn.FEE)
                 },
             )
 

@@ -147,7 +147,9 @@ class IBKRMockContext:
                         tofile="expected",
                     ),
                 )
-                pytest.fail(f"CSV content mismatch for {filepath}:\n{diff}")
+                pytest.fail(
+                    f"CSV content mismatch for {filepath}:\n{diff}",  # ty: ignore[invalid-argument-type]
+                )
 
     def assert_no_csv_written(self) -> None:
         """Assert that no CSV files were written."""

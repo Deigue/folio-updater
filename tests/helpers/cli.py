@@ -105,7 +105,7 @@ def assert_in_output(expected_substring: str, cli_result: CliTestResult) -> None
         print(cli_result.plain_output)
         print("---END PLAIN_OUTPUT---\n")
         pytest.fail(
-            "Expected substring was not found in the command's plain text output.",
+            "Expected substring was not found in the command's plain text output.",  # ty: ignore[invalid-argument-type]
         )
 
 
@@ -129,5 +129,5 @@ def assert_not_in_output(
         print(cli_result.plain_output)
         print("---END PLAIN_OUTPUT---\n")
         pytest.fail(
-            "Unexpected substring was found in the command's plain text output.",
+            "Unexpected substring was found in the command's plain text output.",  # ty: ignore[invalid-argument-type]
         )

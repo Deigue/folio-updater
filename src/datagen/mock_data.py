@@ -64,7 +64,7 @@ def generate_transactions(
 
         if action in [Action.BUY, Action.WITHDRAWAL]:
             amount = -amount
-        elif action in [Action.SELL]:
+        elif action == Action.SELL:
             units = -units
         elif action in [Action.FXT, Action.FCH]:
             amount = random.choice([-1, 1]) * amount  # noqa: S311
