@@ -14,7 +14,7 @@ from app import bootstrap
 from cli import console_info, console_print
 from utils.config import Config
 
-__version__ = "0.6.22"
+__version__ = "0.6.23"
 
 app = typer.Typer(
     name="folio",
@@ -50,6 +50,88 @@ def import_transactions_cmd(
     from cli.commands.import_cmd import import_transaction_files
 
     import_transaction_files(file=file, directory=directory, verbose=verbose)
+
+
+@app.command("add", help="Add a single transaction to the folio")
+def add_cmd(
+    action: str | None = typer.Option(
+        None,
+        "-a",
+        "--action",
+        help="Transaction action (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
+    ),
+    date: str | None = typer.Option(
+        None,
+        "-d",
+        "--date",
+        help="Transaction date in YYYY-MM-DD format (default: today)",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-n",
+        "--account",
+        help="Account alias the transaction belongs to",
+    ),
+    currency: str | None = typer.Option(
+        None,
+        "-c",
+        "--currency",
+        help="Transaction currency (USD, CAD, EUR)",
+    ),
+    ticker: str | None = typer.Option(None, "-t", "--ticker", help="Security ticker"),
+    amount: str | None = typer.Option(
+        None,
+        "-m",
+        "--amount",
+        help="Total transaction amount",
+    ),
+    price: str | None = typer.Option(
+        None,
+        "-p",
+        "--price",
+        help="Price per unit (shares BEFORE the split for SPLIT)",
+    ),
+    units: str | None = typer.Option(
+        None,
+        "-u",
+        "--units",
+        help="Number of units (shares AFTER the split for SPLIT)",
+    ),
+    fee: str | None = typer.Option(None, "--fee", help="Transaction fee"),
+    set_values: list[str] | None = typer.Option(
+        None,
+        "--set",
+        help="KEY=VALUE for optional columns, repeatable (e.g. --set Description=RSU)",
+    ),
+    *,
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Add even if it duplicates an existing transaction",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and preview the transaction without writing it",
+    ),
+) -> None:
+    """Add a single transaction to the folio."""
+    from cli.commands.add import add_transaction
+
+    add_transaction(
+        action=action,
+        date=date,
+        account=account,
+        currency=currency,
+        ticker=ticker,
+        amount=amount,
+        price=price,
+        units=units,
+        fee=fee,
+        set_values=set_values,
+        force=force,
+        dry_run=dry_run,
+    )
 
 
 @app.command("getfx", help="Update foreign exchange rates")

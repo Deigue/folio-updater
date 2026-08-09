@@ -8,9 +8,47 @@ import pandas as pd
 import pandas.testing as pd_testing
 
 from db import get_connection
-from utils.constants import TXN_ESSENTIALS, Column, Table
+from utils.constants import TXN_ESSENTIALS, Action, Column, Table
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+# Amount/Units signs the importer is expected to enforce, per action. Duplicated
+# here rather than read from ActionValidationRules.SIGN_RULES, so a
+# regression in the production table is caught instead of mirrored.
+# BRW, FCH and FXT are absent: both directions are valid for them.
+EXPECTED_SIGNS: dict[str, dict[str, int]] = {
+    Action.BUY: {Column.Txn.AMOUNT: -1, Column.Txn.UNITS: 1},
+    Action.SELL: {Column.Txn.AMOUNT: 1, Column.Txn.UNITS: -1},
+    Action.WITHDRAWAL: {Column.Txn.AMOUNT: -1},
+    Action.CONTRIBUTION: {Column.Txn.AMOUNT: 1},
+    Action.DIVIDEND: {Column.Txn.AMOUNT: 1},
+    Action.ROC: {Column.Txn.AMOUNT: 1},
+    Action.SPLIT: {Column.Txn.UNITS: 1},
+}
+
+
+def _apply_expected_signs(imported_df: pd.DataFrame) -> pd.DataFrame:
+    """Apply the expected per-action sign convention to expected test data."""
+    if Column.Txn.ACTION not in imported_df.columns:  # pragma: no cover
+        return imported_df
+
+    for action, columns in EXPECTED_SIGNS.items():
+        action_mask = imported_df[Column.Txn.ACTION] == action
+        if not action_mask.any():
+            continue
+
+        for column, sign in columns.items():
+            if column not in imported_df.columns:  # pragma: no cover
+                continue
+            values = imported_df.loc[action_mask, column]
+            numeric = pd.to_numeric(values, errors="coerce")
+            valid = numeric.notna() & (numeric != 0)
+            if valid.any():
+                imported_df.loc[values.index[valid], column] = (
+                    numeric[valid].abs() * sign
+                )
+
+    return imported_df
 
 
 def _normalize_dataframes(
@@ -35,6 +73,7 @@ def _normalize_dataframes(
     # Expected Data Formatters
     if Column.Txn.TICKER in imported_df.columns:
         imported_df[Column.Txn.TICKER] = imported_df[Column.Txn.TICKER].str.upper()
+    imported_df = _apply_expected_signs(imported_df)
 
     return imported_df, table_df
 

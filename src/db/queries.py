@@ -81,6 +81,12 @@ def get_rows(  # noqa: PLR0913
     return df
 
 
+def get_last_insert_rowid(connection: sqlite3.Connection) -> int:
+    """Return the rowid of the most recent successful INSERT on this connection."""
+    result = connection.execute("SELECT last_insert_rowid()").fetchone()
+    return int(result[0])
+
+
 def get_row_count(
     connection: sqlite3.Connection,
     table_name: str,
