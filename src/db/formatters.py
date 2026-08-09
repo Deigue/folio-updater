@@ -6,10 +6,13 @@ import logging
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pandas as pd
 from pandas import Series
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 from app import get_config
 from db.helpers import format_transaction_summary
@@ -172,6 +175,26 @@ def _to_decimal_format(value: str) -> str | None:
         return format(decimal_value, "f")
     except (ValueError, TypeError, InvalidOperation):
         return None
+
+
+_TICKER_PATTERN = re.compile(r"^[A-Z0-9.-]+$")
+
+
+def _normalize_numeric(value: object) -> str | None:
+    """Strip currency dressing off a numeric cell, or None if it isn't one."""
+    cleaned = str(value).strip().replace("$", "").replace(",", "")
+    return _to_decimal_format(cleaned)
+
+
+def _normalize_ticker(value: object) -> str | None:
+    """Upper-case a ticker, or None if it holds characters a symbol cannot."""
+    ticker = str(value).strip().upper()
+    return ticker if _TICKER_PATTERN.match(ticker) else None
+
+
+def _normalize_string(value: object) -> str:
+    """Trim a free-text cell. Any text is acceptable, so this never rejects."""
+    return str(value).strip()
 
 
 def _negate_decimal(value: str) -> str:
@@ -344,6 +367,88 @@ class TransactionFormatter:
                 exc,
             )
 
+    def _apply_column_rules(  # noqa: PLR0913
+        self,
+        column: str,
+        indices: pd.Index,
+        normalize: Callable[[object], str | None],
+        *,
+        required: bool,
+        blank_is_missing: bool = True,
+        invalid_debug: str | None = None,
+    ) -> None:
+        """Normalise one column's rows in a single pass, recording rejects.
+
+        Args:
+            column: Column being formatted.
+            indices: Rows to touch. Rule-based callers pass one action's rows.
+            normalize: Maps raw value -> stored form, or None to reject.
+            required: Whether a missing or invalid value disqualifies the row.
+            blank_is_missing: Whether whitespace-only counts as missing.
+            invalid_debug: Log template for optional values that fail to normalise.
+        """
+        col_series = self.formatted_df.loc[indices, column]
+        labels: list[int] = []
+        values: list[Any] = []
+        missing: list[int] = []
+        invalid: list[tuple[int, object]] = []
+
+        for label, raw, is_na in zip(
+            col_series.index.to_numpy(),
+            col_series.to_numpy(),
+            col_series.isna().to_numpy(),
+            strict=True,
+        ):
+            if is_na or (blank_is_missing and not str(raw).strip()):
+                missing.append(label)
+                if not required:
+                    labels.append(label)
+                    values.append(pd.NA)
+                continue
+
+            normalized = normalize(raw)
+            if normalized is None:
+                invalid.append((label, raw))
+                continue
+
+            labels.append(label)
+            values.append(normalized)
+
+        self._record_rejects(
+            column,
+            missing,
+            invalid,
+            required=required,
+            invalid_debug=invalid_debug,
+        )
+
+        if labels:
+            self.formatted_df.loc[labels, column] = values
+
+    def _record_rejects(
+        self,
+        column: str,
+        missing: Sequence[int],
+        invalid: Sequence[tuple[int, object]],
+        *,
+        required: bool,
+        invalid_debug: str | None,
+    ) -> None:
+        """Book missing and invalid rows against the audit trail."""
+        if not required:
+            if invalid_debug:
+                for label, raw in invalid:
+                    import_logger.debug(invalid_debug, label, column, raw)
+            return
+
+        self.exclusions.extend(missing)
+        for label in missing:
+            self.rejection_reasons.setdefault(label, []).append(f"MISSING {column}")
+
+        self.exclusions.extend(label for label, _ in invalid)
+        for label, _ in invalid:
+            self.rejection_reasons.setdefault(label, []).append(f"INVALID {column}")
+
     def _format_dates(self) -> None:
         """Format date columns."""
         if Column.Txn.TXN_DATE in self.formatted_df.columns:
@@ -358,48 +463,17 @@ class TransactionFormatter:
                     self._format_date_column(column, required=False)
 
     def _format_date_column(self, column: str, *, required: bool) -> None:
-        """Format all dates for the specified column."""
-        col_series = self.formatted_df[column]
-        if required:
-            missing_mask = col_series.isna()
-            if missing_mask.any():
-                missing_indices = col_series[missing_mask].index
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-        else:
-            self.formatted_df.loc[col_series.isna(), column] = pd.NA
-
-        non_missing_mask = col_series.notna()
-        if non_missing_mask.any():
-            non_missing_series = col_series[non_missing_mask]
-            parsed_dates = non_missing_series.apply(parse_date)
-            invalid_mask = parsed_dates.isna()
-
-            if invalid_mask.any():
-                invalid_indices = non_missing_series[invalid_mask].index
-                if required:
-                    self.exclusions.extend(invalid_indices)
-                    for idx in invalid_indices:
-                        reason = f"INVALID {column}"
-                        self.rejection_reasons.setdefault(idx, []).append(reason)
-                else:
-                    for idx in invalid_indices:
-                        value = non_missing_series.loc[idx]
-                        import_logger.debug(
-                            "%d - Invalid optional date field '%s': '%s'",
-                            idx,
-                            column,
-                            value,
-                        )
-
-            valid_parsed_mask = parsed_dates.notna()
-            if valid_parsed_mask.any():
-                valid_indices = non_missing_series[valid_parsed_mask].index
-                self.formatted_df.loc[valid_indices, column] = parsed_dates[
-                    valid_parsed_mask
-                ]
+        """Format the date column."""
+        self._apply_column_rules(
+            column,
+            self.formatted_df.index,
+            parse_date,
+            required=required,
+            # An empty date cell is a value that failed to parse, not an
+            # absent one, so it is reported as INVALID rather than MISSING.
+            blank_is_missing=False,
+            invalid_debug="%d - Invalid optional date field '%s': '%s'",
+        )
 
     def _format_actions(self) -> None:
         """Format action columns."""
@@ -412,54 +486,21 @@ class TransactionFormatter:
                 if optional_field and optional_field.field_type == FieldType.ACTION:
                     self._format_action_column(column, required=False)
 
+    def _normalize_action(self, value: object) -> str | None:
+        """Resolve an action alias (`bought`, `DIV`) to its canonical name."""
+        action = str(value).strip().upper()
+        mapped = self.ACTION_MAP.get(action, action)
+        return mapped if mapped in actions else None
+
     def _format_action_column(self, column: str, *, required: bool) -> None:
-        """Format all actions for the specified column."""
-        col_series = self.formatted_df[column]
-
-        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
-        if missing_mask.any():
-            missing_indices = col_series[missing_mask].index
-            if required:
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[missing_indices, column] = pd.NA
-
-        non_missing_mask = ~missing_mask
-        if non_missing_mask.any():
-            non_missing_series = col_series[~missing_mask]
-            action_str_series = non_missing_series.astype(str).str.strip().str.upper()
-            normalized_series = action_str_series.map(self.ACTION_MAP).fillna(
-                action_str_series,
-            )
-
-            valid_actions_mask = normalized_series.isin(actions)
-            invalid_mask = ~valid_actions_mask
-
-            if invalid_mask.any():
-                invalid_indices = non_missing_series[invalid_mask].index
-                if required:
-                    self.exclusions.extend(invalid_indices)
-                    for idx in invalid_indices:
-                        reason = f"INVALID {column}"
-                        self.rejection_reasons.setdefault(idx, []).append(reason)
-                else:
-                    for idx in invalid_indices:
-                        value = non_missing_series.loc[idx]
-                        import_logger.debug(
-                            "%d - Invalid optional action field '%s': '%s'",
-                            idx,
-                            column,
-                            value,
-                        )
-
-            if valid_actions_mask.any():
-                valid_indices = non_missing_series[valid_actions_mask].index
-                self.formatted_df.loc[valid_indices, column] = normalized_series[
-                    valid_actions_mask
-                ]
+        """Format the action column."""
+        self._apply_column_rules(
+            column,
+            self.formatted_df.index,
+            self._normalize_action,
+            required=required,
+            invalid_debug="%d - Invalid optional action field '%s': '%s'",
+        )
 
     def _format_currencies(self) -> None:
         """Format currency columns."""
@@ -472,52 +513,23 @@ class TransactionFormatter:
                 if optional_field and optional_field.field_type == FieldType.CURRENCY:
                     self._format_currency_column(column, required=False)
 
+    def _normalize_currency(self, value: object) -> str | None:
+        """Resolve a currency alias (`US$`, `canadian`) to its ISO code."""
+        currency = str(value).strip().upper()
+        mapped = self.CURRENCY_MAP.get(currency, currency)
+        return mapped if mapped in currencies else None
+
     def _format_currency_column(self, column: str, *, required: bool) -> None:
-        """Format all."""
-        col_series = self.formatted_df[column]
-        missing_mask = col_series.isna()
-        if missing_mask.any():
-            missing_indices = col_series[missing_mask].index
-            if required:
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[missing_indices, column] = pd.NA
-
-        non_missing_mask = ~missing_mask
-        if non_missing_mask.any():
-            non_missing_series = col_series[~missing_mask]
-            currency_str_series = non_missing_series.astype(str).str.strip().str.upper()
-            normalized_series = currency_str_series.map(self.CURRENCY_MAP).fillna(
-                currency_str_series,
-            )
-            valid_currencies_mask = normalized_series.isin(currencies)
-            invalid_mask = ~valid_currencies_mask
-
-            if invalid_mask.any():
-                invalid_indices = non_missing_series[invalid_mask].index
-                if required:
-                    self.exclusions.extend(invalid_indices)
-                    for idx in invalid_indices:
-                        reason = f"INVALID {column}"
-                        self.rejection_reasons.setdefault(idx, []).append(reason)
-                else:
-                    for idx in invalid_indices:
-                        value = non_missing_series.loc[idx]
-                        import_logger.debug(
-                            "%d - Invalid optional currency field '%s': '%s'",
-                            idx,
-                            column,
-                            value,
-                        )
-
-            if valid_currencies_mask.any():
-                valid_indices = non_missing_series[valid_currencies_mask].index
-                self.formatted_df.loc[valid_indices, column] = normalized_series[
-                    valid_currencies_mask
-                ]
+        """Format the currency column."""
+        self._apply_column_rules(
+            column,
+            self.formatted_df.index,
+            self._normalize_currency,
+            required=required,
+            # As with dates, a blank currency is reported as INVALID.
+            blank_is_missing=False,
+            invalid_debug="%d - Invalid optional currency field '%s': '%s'",
+        )
 
     def _format_rule_columns(self) -> None:
         """Format rule based columns."""
@@ -640,43 +652,15 @@ class TransactionFormatter:
         *,
         required: bool,
     ) -> None:
-        """Vectorized formatting of ticker column for specific row indices."""
-        col_series = self.formatted_df.loc[indices, column]
-        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
-        if missing_mask.any():
-            missing_indices = col_series[missing_mask].index
-            if required:
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[missing_indices, column] = pd.NA
-
-        non_missing_mask = ~missing_mask
-        if non_missing_mask.any():
-            non_missing_series = col_series[non_missing_mask]
-            ticker_str_series = non_missing_series.astype(str).str.strip().str.upper()
-
-            ticker_pattern = r"^[A-Z0-9.-]+$"
-            valid_mask = ticker_str_series.str.match(ticker_pattern) & (
-                ticker_str_series.str.len() > 0
-            )
-            invalid_mask = ~valid_mask
-
-            if invalid_mask.any():
-                invalid_indices = non_missing_series[invalid_mask].index
-                if required:
-                    self.exclusions.extend(invalid_indices)
-                    for idx in invalid_indices:
-                        reason = f"INVALID {column}"
-                        self.rejection_reasons.setdefault(idx, []).append(reason)
-
-            if valid_mask.any():
-                valid_indices = non_missing_series[valid_mask].index
-                self.formatted_df.loc[valid_indices, column] = ticker_str_series[
-                    valid_mask
-                ]
+        """Format the ticker column for specific row indices."""
+        # No invalid_debug: an unusable optional ticker is left as it was found,
+        # without a log line, which is what this column has always done.
+        self._apply_column_rules(
+            column,
+            indices,
+            _normalize_ticker,
+            required=required,
+        )
 
     def _format_string_for_rows(
         self,
@@ -686,23 +670,12 @@ class TransactionFormatter:
         required: bool,
     ) -> None:
         """Format string column for the given row indices."""
-        col_series = self.formatted_df.loc[rows, column]
-        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
-        if missing_mask.any():
-            missing_indices = col_series[missing_mask].index
-            if required:  # pragma: no cover
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[missing_indices, column] = pd.NA
-
-        non_missing_mask = ~missing_mask
-        if non_missing_mask.any():
-            non_missing_series = col_series[non_missing_mask]
-            trimmed_series = non_missing_series.astype(str).str.strip()
-            self.formatted_df.loc[non_missing_series.index, column] = trimmed_series
+        self._apply_column_rules(
+            column,
+            rows,
+            _normalize_string,
+            required=required,
+        )
 
     def _format_numeric_for_rows(
         self,
@@ -712,53 +685,13 @@ class TransactionFormatter:
         required: bool,
     ) -> None:
         """Format numeric column for the given row indices."""
-        col_series = self.formatted_df.loc[indices, column]
-        missing_mask = col_series.isna() | (col_series.astype(str).str.strip() == "")
-        if missing_mask.any():
-            missing_indices = col_series[missing_mask].index
-            if required:
-                self.exclusions.extend(missing_indices)
-                for idx in missing_indices:
-                    reason = f"MISSING {column}"
-                    self.rejection_reasons.setdefault(idx, []).append(reason)
-            else:
-                self.formatted_df.loc[missing_indices, column] = pd.NA
-
-        non_missing_mask = ~missing_mask
-        if non_missing_mask.any():
-            non_missing_series = col_series[non_missing_mask]
-            cleaned_series = (
-                non_missing_series.astype(str)
-                .str.strip()
-                .str.replace("$", "", regex=False)
-                .str.replace(",", "", regex=False)
-            )
-
-            formatted_series = cleaned_series.apply(_to_decimal_format)
-            invalid_mask = formatted_series.isna()
-            if invalid_mask.any():
-                invalid_indices = non_missing_series[invalid_mask].index
-                if required:
-                    self.exclusions.extend(invalid_indices)
-                    for idx in invalid_indices:
-                        reason = f"INVALID {column}"
-                        self.rejection_reasons.setdefault(idx, []).append(reason)
-                else:
-                    for idx in invalid_indices:
-                        value = non_missing_series.loc[idx]
-                        import_logger.debug(
-                            "%d - Invalid optional numeric field '%s': '%s'",
-                            idx,
-                            column,
-                            value,
-                        )
-
-            valid_formatted_mask = formatted_series.notna()
-            if valid_formatted_mask.any():
-                valid_indices = non_missing_series[valid_formatted_mask].index
-                self.formatted_df.loc[valid_indices, column] = formatted_series[
-                    valid_formatted_mask
-                ]
+        self._apply_column_rules(
+            column,
+            indices,
+            _normalize_numeric,
+            required=required,
+            invalid_debug="%d - Invalid optional numeric field '%s': '%s'",
+        )
 
     def _calculate_settlement_dates(self) -> None:
         """Calculate settlement dates for transactions."""
@@ -767,11 +700,12 @@ class TransactionFormatter:
         )
 
 
-def parse_date(date_str: str) -> str | None:
+def parse_date(date_str: object) -> str | None:
     """Parse various date formats to YYYY-MM-DD.
 
     Args:
-        date_str: Date string in various formats
+        date_str: Date value in various formats. Anything str() can render is
+            accepted; raw cells arrive here straight from an imported frame.
 
     Returns:
         Date in YYYY-MM-DD format or None if invalid
