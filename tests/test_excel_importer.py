@@ -16,6 +16,9 @@ from utils.constants import TXN_ESSENTIALS, Column
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
 
+# Import assertions read the exported parquet back, so these need the real one.
+pytestmark = pytest.mark.real_parquet_export
+
 if TYPE_CHECKING:
     from utils.config import Config
 

@@ -147,6 +147,7 @@ class TestAddSuccess:
             assert float(row[Column.Txn.FEE]) == pytest.approx(4.95)
             assert row["Notes"] == "manual entry"
 
+    @pytest.mark.real_parquet_export
     def test_add_exports_to_parquet(self, temp_ctx: TempContext) -> None:
         """A successful add refreshes the transactions parquet file."""
         with temp_ctx() as ctx:

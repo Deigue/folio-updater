@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -96,6 +96,37 @@ def activate_dataframe_cache(
 ) -> None:
     """Globally activate DataFrame cache patching for all tests."""
     # The fixture is only needed for activation
+
+
+# Command modules that re-export Parquet after mutating the folio. They bind
+# the helper by value (`from cli.commands.common import export_to_parquet`), so
+# the stub has to be installed in each importing namespace.
+_PARQUET_EXPORT_CALLERS = (
+    "cli.commands.add",
+    "cli.commands.delete",
+    "cli.commands.edit",
+    "cli.commands.import_cmd",
+)
+
+
+@pytest.fixture(autouse=True)
+def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
+    """Stub out the Parquet re-export that follows every folio mutation.
+
+    Rewriting the whole transactions table through fastparquet costs ~14ms and
+    runs after every add, edit, delete and import -- the single most expensive
+    step in each. The export itself is covered directly by
+    test_transaction_exporter.py, and the tests that assert a mutation refreshes
+    the file carry the `real_parquet_export` marker to opt back in.
+    """
+    if request.node.get_closest_marker("real_parquet_export"):
+        yield
+        return
+
+    with ExitStack() as stack:
+        for module in _PARQUET_EXPORT_CALLERS:
+            stack.enter_context(patch(f"{module}.export_to_parquet"))
+        yield
 
 
 @pytest.fixture

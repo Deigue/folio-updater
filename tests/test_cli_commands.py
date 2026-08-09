@@ -141,6 +141,7 @@ def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
         assert_in_output("No supported files found", cli_result)
 
 
+@pytest.mark.real_parquet_export
 def test_import_command_file(temp_ctx: TempContext) -> None:
     """Test import command with specific file option."""
     with temp_ctx() as ctx:
@@ -169,6 +170,7 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         assert not test_file.exists()
 
 
+@pytest.mark.real_parquet_export
 def test_import_command_directory(temp_ctx: TempContext) -> None:
     """Test import command with directory option."""
     with temp_ctx() as ctx:
