@@ -132,10 +132,9 @@ class TransactionFilter:
         # Check which duplicates are approved
         duplicate_indices = txn_df[duplicate_mask].index
         for idx in duplicate_indices:
-            approval_cell_value = txn_df.loc[idx, approval_column]
-            is_approved: bool = (
-                pd.notna(approval_cell_value)
-                and str(approval_cell_value).strip().upper() == approval_value.upper()
+            approval_cell_value = txn_df.at[idx, approval_column]  # noqa: PD008
+            is_approved: bool = bool(pd.notna(approval_cell_value)) and (
+                str(approval_cell_value).strip().upper() == approval_value.upper()
             )
 
             (approved_mask if is_approved else rejected_mask).loc[idx] = True

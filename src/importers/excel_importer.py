@@ -100,9 +100,9 @@ def import_transactions(
     with get_connection() as conn:
         try:
             prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-            final_count = get_row_count(conn, Table.TXNS)
         except sqlite3.IntegrityError:
             _analyze_and_insert_rows(conn, prepared_df)
+        final_count = get_row_count(conn, Table.TXNS)
 
     txn_count = len(prepared_df)
     msg: str = f"DONE: {txn_count} imported"

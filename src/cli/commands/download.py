@@ -110,37 +110,41 @@ def _handle_ibkr_download(
     reference_code: str | None,
 ) -> None:
     files_downloaded: bool = False
-    with IBKRService() as ibkr, ProgressDisplay.spinner("red") as progress:
-        task = progress.add_task("Checking IBKR token...", total=None)
+    with IBKRService() as ibkr:
         _ensure_ibkr_token(ibkr)
 
-        if reference_code:
-            progress.update(task, description="Downloading by reference code...")
-            _handle_ibkr_reference_code(ibkr, reference_code)
-            return
+        with ProgressDisplay.spinner("red") as progress:
+            task = progress.add_task("Downloading...", total=None)
 
-        broker_config: dict[str, str] = _get_broker_config(config, "ibkr")
-        resolved_to_date: str = _resolve_to_date(to_date)
-        resolved_from_date: str = _resolve_from_date(from_date, "ibkr")
-        placeholder_ids = {"111111", "999999"}
+            if reference_code:
+                progress.update(task, description="Downloading by reference code...")
+                _handle_ibkr_reference_code(ibkr, reference_code)
+                return
 
-        for query_name, query_id in broker_config.items():
-            progress.update(task, description=f"Downloading {query_name}...")
-            if not query_id or query_id in placeholder_ids:
-                console_warning(f"Skipping {query_name}: No valid query ID configured")
-                continue
-            try:
-                request = DownloadRequest(
-                    query_name=query_name,
-                    query_id=query_id,
-                    from_date=resolved_from_date,
-                    to_date=resolved_to_date,
-                )
-                lines: int = ibkr.download_and_save_statement(request)
-                files_downloaded = True
-                console_success(f"{query_name}: {lines} lines received")
-            except IBKRServiceError as e:
-                console_error(f"{query_name}: {e}")
+            broker_config: dict[str, str] = _get_broker_config(config, "ibkr")
+            resolved_to_date: str = _resolve_to_date(to_date)
+            resolved_from_date: str = _resolve_from_date(from_date, "ibkr")
+            placeholder_ids = {"111111", "999999"}
+
+            for query_name, query_id in broker_config.items():
+                progress.update(task, description=f"Downloading {query_name}...")
+                if not query_id or query_id in placeholder_ids:
+                    console_warning(
+                        f"Skipping {query_name}: No valid query ID configured",
+                    )
+                    continue
+                try:
+                    request = DownloadRequest(
+                        query_name=query_name,
+                        query_id=query_id,
+                        from_date=resolved_from_date,
+                        to_date=resolved_to_date,
+                    )
+                    lines: int = ibkr.download_and_save_statement(request)
+                    files_downloaded = True
+                    console_success(f"{query_name}: {lines} lines received")
+                except IBKRServiceError as e:
+                    console_error(f"{query_name}: {e}")
 
     if files_downloaded:
         console_success(f'Files saved to: "{config.imports_path}"')
@@ -219,6 +223,7 @@ def _wealthsimple_transactions(
     ws = WealthsimpleService()
     resolved_to_date: str = _resolve_to_date(to_date)
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
+    ws.ensure_authenticated()
 
     with ProgressDisplay.spinner("dark_goldenrod") as progress:
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
@@ -294,8 +299,10 @@ def _wealthsimple_statement(from_date: str) -> None:
         from_date (str | None): From date string in YYYY-MM-DD format.
             Example: '2024-05-01' for May 2024 statement.
     """
+    ws = WealthsimpleService()
+    ws.ensure_authenticated()
+
     with ProgressDisplay.spinner("dark_goldenrod") as progress:
-        ws = WealthsimpleService()
         task = progress.add_task("Retrieving accounts...", total=None)
         accounts = ws.get_accounts()
 

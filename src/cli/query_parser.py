@@ -113,7 +113,7 @@ def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
     action_values = {action.value for action in Action}
     currency_values = {currency.value for currency in Currency}
     db_tickers, db_accounts, live_columns = _get_db_lookup_values()
-    valid_columns = _get_valid_column_names(live_columns)
+    valid_columns = get_valid_column_names(live_columns)
 
     # Stage 1: Try to parse natural language dates from all terms
     terms_list = list(terms)
@@ -874,7 +874,7 @@ def _try_parse_date_filter(term: str, query: ParsedQuery) -> bool:
         return True
 
 
-def _get_valid_column_names(
+def get_valid_column_names(
     live_columns: Sequence[str] | None = None,
 ) -> dict[str, str]:
     """Get mapping of column aliases (lowercase) to actual column names.

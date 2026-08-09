@@ -70,9 +70,6 @@ def rolling_backup(
         except sqlite3.Error:
             logger.exception("SQLite backup failed: %s", file_path)
             raise
-        finally:
-            source.close()
-            backup.close()
     else:
         backup_path = subdir / f"{file_stem}_{timestamp}{file_path.suffix}"
         shutil.copy2(file_path, backup_path)

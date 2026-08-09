@@ -265,7 +265,7 @@ class TransactionTransformer:
 
                 self._merge_events.append(
                     MergeEvent(
-                        merged_row=merged_row.to_dict(),
+                        merged_row={str(k): v for k, v in merged_row.items()},
                         source_rows=group_df.copy(),
                     ),
                 )
