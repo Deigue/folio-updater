@@ -53,7 +53,7 @@ def import_transactions_cmd(
 
 
 @app.command("add", help="Add a single transaction to the folio")
-def add_cmd(
+def add_cmd(  # noqa: PLR0917
     action: str | None = typer.Option(
         None,
         "-a",

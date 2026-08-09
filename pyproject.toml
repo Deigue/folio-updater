@@ -86,6 +86,7 @@ lint.ignore = [
     "D213",
     "PGH004",
     "RUF001",
+    "CPY001",
 ]
 src = ["src"]
 exclude = [
@@ -135,7 +136,7 @@ dev = [
     "nbstripout>=0.8.1",
     "pandas-stubs>=2.0.3",
     "pyinstaller>=6.16.0",
-    "ruff>=0.12.10",
+    "ruff>=0.16.2",
 ]
 experiments = ["yfinance>=0.2.66"]
 test = ["pytest>=8.3.5", "pytest-cov>=5.0.0", "pytest-xdist>=3.8.0"]

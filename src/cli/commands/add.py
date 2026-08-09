@@ -294,7 +294,7 @@ def _prepare(fields: dict[str, str], *, approve_duplicate: bool) -> ImportResult
     return prepare_transactions(df, map_headers=False)
 
 
-def add_transaction(
+def add_transaction(  # noqa: PLR0917
     action: str | None = None,
     date: str | None = None,
     account: str | None = None,

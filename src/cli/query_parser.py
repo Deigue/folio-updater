@@ -154,7 +154,7 @@ def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
     return query
 
 
-def _process_term_for_filters(
+def _process_term_for_filters(  # noqa: PLR0917
     term: str,
     query: ParsedQuery,
     valid_columns: dict[str, str],
