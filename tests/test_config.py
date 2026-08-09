@@ -36,6 +36,18 @@ def test_default_config(tmp_path: Path, temp_ctx: TempContext) -> None:
             assert config_yaml == Config.DEFAULT_CONFIG
 
 
+def test_backup_settings_are_read_from_config(temp_ctx: TempContext) -> None:
+    # An explicit backup section is honoured as given.
+    with temp_ctx({"backup": {"enabled": True, "max_backups": 3}}) as ctx:
+        assert ctx.config.backup_enabled
+        assert ctx.config.max_backups == 3
+
+    # Default: conftest disables backups for all, max_backups=50
+    with temp_ctx() as ctx:
+        assert not ctx.config.backup_enabled
+        assert ctx.config.max_backups == 50
+
+
 def test_relative_path_resolves(temp_ctx: TempContext) -> None:
     with temp_ctx({"folio_path": "data/testfolio.xlsx"}) as ctx:
         config = ctx.config

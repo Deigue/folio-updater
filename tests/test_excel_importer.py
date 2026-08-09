@@ -426,8 +426,15 @@ def test_import_scenarios(  # noqa: PLR0915
         verify_db_contents(expected_df, last_n=expected_count)
 
 
-def test_import_duplicate_handling(temp_ctx: TempContext) -> None:
+def test_import_duplicate_handling(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Test duplicate detection for both DB and intra-file duplicates."""
+    # The importer logger summarises approved/rejected duplicates only when it is
+    # enabled for INFO. Nothing in this file configures that.
+    # Setting the level here makes that path deterministic rather than incidental.
+    caplog.set_level(logging.INFO, logger="importer")
     with temp_ctx() as ctx:
         config = ctx.config
         ensure_data_exists()

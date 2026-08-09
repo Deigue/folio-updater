@@ -20,6 +20,8 @@
                 "python",
                 "-m",
                 "pytest",
+                "-n",
+                "4",
                 "--cov=.",
                 "--cov-report=term-missing",
                 "--log-cli-level=ERROR"

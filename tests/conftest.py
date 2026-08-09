@@ -123,6 +123,10 @@ def temp_ctx(tmp_path: Path) -> TempContext:
         overrides = dict(overrides)
         overrides.update(kwargs)
 
+        # Rolling backups are pure disk churn under test: every write command
+        # copies the db and rotates old files, and no test asserts on them.
+        overrides.setdefault("backup", {"enabled": False})
+
         config_path: Path = tmp_path / "config.yaml"
         if overrides:
             with Path.open(config_path, "w") as f:

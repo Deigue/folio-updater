@@ -24,6 +24,7 @@ folio = "cli.main:main"
 
 [tool.pytest.ini_options]
 # sync addopts with .vscode/settings.json
+# Parallelism is NOT set here on purpose. Covered by conftest.py conditonally.
 addopts = "--color=yes -vv"
 log_cli = true
 log_cli_level = "ERROR"
@@ -38,6 +39,8 @@ markers = [
 branch = false
 omit = [
     '*/__init__.py',
+    # Harness wiring, not product code: picks the xdist worker count.
+    'conftest.py',
     'tests/fixtures/dataframe_cache.py',
     'src/utils/backup.py',
     'src/datagen/folio_setup.py',
@@ -134,4 +137,4 @@ dev = [
     "ruff>=0.12.10",
 ]
 experiments = ["yfinance>=0.2.66"]
-test = ["pytest>=8.3.5", "pytest-cov>=5.0.0"]
+test = ["pytest>=8.3.5", "pytest-cov>=5.0.0", "pytest-xdist>=3.8.0"]

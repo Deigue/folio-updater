@@ -14,6 +14,24 @@ from utils.settlement_calculator import SettlementCalculator
 calculator = SettlementCalculator()
 
 
+@pytest.fixture(scope="module", autouse=True)
+def prime_calendar_schedules() -> None:
+    """Load market calendars once, covering every date this module uses.
+
+    `calculator` is module-level shared state, and its schedule cache is filled
+    by whichever test runs first. When under xdist these tests are
+    spread across workers, so "first" varies and settlement results became
+    order-dependent. Priming a range that spans the whole
+    module removes the ordering assumption entirely.
+    """
+    for currency in (Currency.USD, Currency.CAD):
+        calculator.calendar_schedules[currency] = calculator.get_calendar_schedule(
+            currency,
+            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
+            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
+        )
+
+
 @pytest.mark.parametrize(
     (
         "scenario",
