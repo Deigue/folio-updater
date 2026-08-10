@@ -101,7 +101,7 @@ The prompts spell this out when you do not pass the values on the command line.
 
 ## Optional and Custom Columns
 
-`--set` populates any other column, including [optional columns](configuration.md) configured for
+`--set` populates any other column, including [optional columns](../configuration.md) configured for
 your folio. A column that does not exist yet is added to the transactions table automatically.
 
 ```bash
@@ -131,7 +131,7 @@ Answering `n` leaves the folio untouched. Use `--force` to add without being ask
 scripts, and for genuinely repeated transactions like two identical contributions on the same day.
 
 This is the same approval mechanism as
-[duplicate approval](import/duplicate-approval.md) for imports.
+[duplicate approval](../import/duplicate-approval.md) for imports.
 
 ## Validation Failures
 
@@ -155,10 +155,10 @@ folio add -a BUY -t AAPL -d 2025-08-15 -n TFSA -c USD \
 
 - **Transform rules apply.** Any `transforms` rules in your config run against manually added
   transactions too, exactly as they do for imports. See
-  [Transaction Transformation](import/transformations.md).
+  [Transaction Transformation](../import/transformations.md).
 - **Settlement dates are calculated.** Actions that settle on a business-day delay (`BUY`, `SELL`,
   `FXT`, `SPLIT`) get a calculated settlement date; the rest settle same day. See
-  [Settlement Date Calculation](import/settlement-dates.md).
+  [Settlement Date Calculation](../import/settlement-dates.md).
 - **A backup is taken** before database changes as *always*, subject to your `backup` config.
 - **It is logged** to the same importer audit log as imports.
 
@@ -167,4 +167,4 @@ folio add -a BUY -t AAPL -d 2025-08-15 -n TFSA -c USD \
 - [Smart Transaction Querying](querying.md) — find transactions, including the one you just added
 - [Editing Transactions](editing-transactions.md) — correct a transaction after the fact
 - [Deleting Transactions](deleting-transactions.md) — remove one that should not be there
-- [Configuration Reference](configuration.md) — optional columns, duplicate approval, backups
+- [Configuration Reference](../configuration.md) — optional columns, duplicate approval, backups

@@ -54,7 +54,7 @@ before writing. Nothing is truncated - you can always see every row that is abou
 ## Notes
 
 - The folio database is backed up before the delete, subject to your
-  [backup configuration](configuration.md).
+  [backup configuration](../configuration.md).
 - Every deletion is written to the importer audit log with the full pre-delete state of each row,
   so a mistaken delete can be reconstructed from the log.
 

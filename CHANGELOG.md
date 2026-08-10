@@ -8,18 +8,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
-- `folio add` command: manually add transactions to the folio.
-
 ### Changed
-
-- Optimized test suite performance by conditional parallelization, splitting non-DB query
-  tests and disabling backups.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+### Security
+
+## [0.6.25] - 2026-08-10
+
+### Added
+
+- `folio add` command: manually add transactions to the folio.
+- `folio delete` command: delete transactions from the folio by TxnId or query.
+- `folio edit` command: edit transactions in the folio by TxnId or query.
+
+### Changed
+
+- Optimized test suite performance by conditional parallelization, splitting non-DB query
+  tests and disabling backups.
+- Rearranged docuementation pages for better organization and clarity.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+- Paginated tables in CLI get their own pager terminal.
+- Height calculation for paginated tables is now more accurate.
 
 ### Security
 

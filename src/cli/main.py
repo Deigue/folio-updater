@@ -14,7 +14,7 @@ from app import bootstrap
 from cli import console_info, console_print
 from utils.config import Config
 
-__version__ = "0.6.23"
+__version__ = "0.6.25"
 
 app = typer.Typer(
     name="folio",
@@ -272,6 +272,38 @@ def query_cmd(
     from cli.commands.query import query_transactions
 
     query_transactions(terms)
+
+
+@app.command("edit", help="Edit transactions in the folio", no_args_is_help=True)
+def edit_cmd(
+    selection: list[str] = typer.Argument(
+        ...,
+        help="TxnIds, or query terms using the `folio query` syntax.",
+    ),
+    set_values: list[str] = typer.Option(
+        ...,
+        "--set",
+        help=(
+            "Field=VALUE, or Field*=N / Field/=N / Field+=N / Field-=N to "
+            "compute from the current value. Repeatable."
+        ),
+    ),
+    *,
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Apply without confirming, and allow duplicates",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview the before/after without writing",
+    ),
+) -> None:
+    """Edit transactions in the folio."""
+    from cli.commands.edit import edit_transactions
+
+    edit_transactions(selection, set_values, force=force, dry_run=dry_run)
 
 
 @app.command(

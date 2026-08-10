@@ -8,18 +8,18 @@ A portfolio management system that imports and processes financial transaction d
 
 **Folio** is now available as a command-line tool for managing your portfolio:
 
-- **`folio import`**: Import transactions from files
-- **[`folio add`](docs/adding-transactions.md)**: Manually add a single transaction
-- **[`folio edit`](docs/editing-transactions.md)**: Edit transactions, one at a time or in batch
-- **[`folio delete`](docs/deleting-transactions.md)**: Delete transactions, one at a time or in batch
-- **[`folio getfx`](docs/forex-rates.md)**: Update foreign exchange rates automatically
+- **`folio import`**: Import transactions from files (Broker statements, Excel sheets, CSVs, etc.)
+- **[`folio add`](docs/commands/adding-transactions.md)**: Manually add a single transaction
+- **[`folio edit`](docs/commands/editing-transactions.md)**: Edit transactions, one at a time or in batch
+- **[`folio delete`](docs/commands/deleting-transactions.md)**: Delete transactions, one at a time or in batch
+- **[`folio getfx`](docs/commands/forex-rates.md)**: Update foreign exchange rates automatically
 - **`folio generate`**: Generate the latest portfolio from the database
 - **`folio demo`**: Create a demo portfolio with mock data for testing
-- **[`folio settle-info`](docs/settlement-info.md)**: Retrieve and update settlement date information
-- **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/download/ibkr-integration.md), [Wealthsimple](docs/download/wealthsimple-integration.md))
-- **`folio tickers`**: Alias ticker symbols that are renamed or represented differently across brokers, so they're treated as the same security
-- **[`folio query`](docs/querying.md)**: Search and filter transactions using natural language or explicit filters
-- **`folio version`**: Show the version of the folio-updater
+- **[`folio settle-info`](docs/commands/settlement-info.md)**: Retrieve and update settlement date information
+- **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/commands/download/ibkr-integration.md), [Wealthsimple](docs/commands/download/wealthsimple-integration.md))
+- **`folio tickers`**: Alias ticker symbols that are renamed or different to be treated the same
+- **[`folio query`](docs/commands/querying.md)**: Search and filter transactions using natural language or explicit filters
+- **`folio version`**: Show the version of the folio-updater and file paths.
 
 ### Import and Processing Features
 
@@ -37,7 +37,7 @@ A portfolio management system that imports and processes financial transaction d
 ### Export Functionality
 
 - **Transaction Export**: Export transactions from database to Excel sheets
-- **[Forex Rate Export](docs/forex-rates.md)**: Automatic FX Rate management
+- **[Forex Rate Export](docs/commands/forex-rates.md)**: Automatic FX Rate management
 
 ## Usage
 

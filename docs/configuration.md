@@ -83,11 +83,11 @@ brokers:
 | **`sheets`** | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code. |
 | **`header_keywords`** | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema. |
 | **`header_ignore`** | List of column names to ignore during import. Essential columns cannot be ignored even if listed here. |
-| **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](transactions/duplicate-approval.md/#configuration) for more details. |
+| **`duplicate_approval`** | Configuration for the duplicate approval feature. See [Duplicate Configuration](import/duplicate-approval.md#configuration) for more details. |
 | **`backup`** | Backup configuration settings. `enabled` (boolean): Enable/disable backups (default: true). `path` (string): Backup directory path, relative to project root or absolute (default: "backups"). `max_backups` (integer): Maximum number of backup files to keep (default: 50). |
 | **`optional_columns`** | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
-| **`transforms`** | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](transactions/transformations.md) and [Merge Transforms](transactions/merge-transforms.md) for more details. |
-| **`brokers`** | Configure broker-specific information. See [IBKR Configuration](transactions/ibkr-integration.md#configuration) and [Wealthsimple Configuration](transactions/wealthsimple-integration.md#configuration) for more details. |
+| **`transforms`** | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](import/transformations.md) and [Merge Transforms](import/merge-transforms.md) for more details. |
+| **`brokers`** | Configure broker-specific information. See [IBKR Configuration](commands/download/ibkr-integration.md#configuration) and [Wealthsimple Configuration](commands/download/wealthsimple-integration.md#configuration) for more details. |
 
 ## Essential Fields
 
@@ -111,7 +111,7 @@ The system automatically manages additional internal fields:
 - `SettleCalculated` - flag (0/1) indicating if settlement date was auto-calculated
 
 > [!NOTE]
-> See [Settlement Dates](transactions/settlement-dates.md) for detailed information about automatic settlement date calculation.
+> See [Settlement Dates](import/settlement-dates.md) for detailed information about automatic settlement date calculation.
 
 ## Flexibility
 
