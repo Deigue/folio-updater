@@ -9,15 +9,16 @@ A portfolio management system that imports and processes financial transaction d
 **Folio** is now available as a command-line tool for managing your portfolio:
 
 - **`folio import`**: Import transactions from files
-- **`folio add`**: Manually add a single transaction
-- **`folio delete`**: Delete transactions, one at a time or in batch
-- **`folio getfx`**: Update foreign exchange rates automatically
-- **`folio generate`**: Generate the latest portfolio
+- **[`folio add`](docs/adding-transactions.md)**: Manually add a single transaction
+- **[`folio edit`](docs/editing-transactions.md)**: Edit transactions, one at a time or in batch
+- **[`folio delete`](docs/deleting-transactions.md)**: Delete transactions, one at a time or in batch
+- **[`folio getfx`](docs/forex-rates.md)**: Update foreign exchange rates automatically
+- **`folio generate`**: Generate the latest portfolio from the database
 - **`folio demo`**: Create a demo portfolio with mock data for testing
-- **`folio settle-info`**: Retrieve and update settlement date information
-- **`folio download`**: Download statements from brokers (e.g., Interactive Brokers)
-- **`folio tickers`**: Manage ticker symbol aliases
-- **`folio query`**: Search and filter transactions using natural language or explicit filters
+- **[`folio settle-info`](docs/settlement-info.md)**: Retrieve and update settlement date information
+- **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/download/ibkr-integration.md), [Wealthsimple](docs/download/wealthsimple-integration.md))
+- **`folio tickers`**: Alias ticker symbols that are renamed or represented differently across brokers, so they're treated as the same security
+- **[`folio query`](docs/querying.md)**: Search and filter transactions using natural language or explicit filters
 - **`folio version`**: Show the version of the folio-updater
 
 ### Import and Processing Features
@@ -38,141 +39,12 @@ A portfolio management system that imports and processes financial transaction d
 - **Transaction Export**: Export transactions from database to Excel sheets
 - **[Forex Rate Export](docs/forex-rates.md)**: Automatic FX Rate management
 
-### Download Statements
-
-- **[Interactive Brokers Integration](docs/download/ibkr-integration.md)**: Download Flex query statements directly using IBKR Flex API
-- **[Wealthsimple Integration](docs/download/wealthsimple-integration.md)**: Download transactions from Wealthsimple accounts
-
 ## Usage
 
 1. Download and extract `folio-windows-x64.zip`
 2. Run `folio.exe --help` to see available commands
 
-Once installed, you can use the `folio` command-line tool:
-
-### Import Transactions
-
-Import transaction files into your portfolio:
-
-```bash
-# Default: Import all files from the default import directory
-folio import
-
-# Import specific file
-folio import --file path/to/your/transactions.xlsx
-
-# Import all files from a custom directory
-folio import --dir C:\path\to\import\folder
-```
-
-### Add Transactions Manually
-
-Insert a single transaction directly into your folio.
-
-```bash
-# Fully specified
-folio add --action BUY --ticker AAPL --date 2025-08-15 \
-          --account TFSA --currency USD \
-          --amount -1502.50 --price 150.25 --units 10
-
-# Supply only the action and get prompted for what that action requires
-folio add --action ROC
-```
-
-Refer to [Adding Transactions Manually](docs/adding-transactions.md) for detailed information.
-
-### Update FX Rates
-
-Keep your foreign exchange rates current:
-
-```bash
-folio getfx
-```
-
-This command automatically fetches latest FX rates and updates your portfolio. If no FX data exists, it performs a full historical export.
-
-### Generate Portfolio
-
-Creates portfolio Excel file
-
-```bash
-folio generate
-```
-
-This retrieves the latest data from the Parquet data files in the configured `data_path` and combines them into a Excel workbook at `folio_path`. Use this whenever you want to view or analyze your data in Excel.
-
-### Create Demo Portfolio
-
-Set up a demo portfolio with sample data:
-
-```bash
-folio demo
-```
-
-Perfect for testing and getting familiar with the system. Creates folio with sample transactions and FX rates.
-
-### Settlement Date Info
-
-Retrieve settlement date information:
-
-```bash
-# Check current settlement date info
-folio settle-info
-
-# Import settlement date info from downloaded statements
-folio settle-info --import
-
-# Import specified monthly statement
-folio settle-info --import -f path/to/statement.xlsx
-```
-
-Calculated settlement dates can be updated with actual values by importing broker monthly statements.
-
-**Expected Statement Format:**
-
-- `date`: Settlement date from the statement
-- `amount`: Transaction amount (used for matching)
-- `currency`: Transaction currency
-- `transaction`: Action type (BUY, SELL, etc.)
-- `description`: Contains ticker symbol, units, and original transaction date
-
-**Statement Description Format Examples:**
-
-- `"AAPL - BUY 100 SHARES ON 2024-01-15"`
-- `"DOL - Dollarama Inc: Bought 1.0000 shares (executed at 2029-02-05)"`
-
-### Download Transactions
-
-Download transaction information directly from brokers.
-
-```bash
-folio download --broker ibkr --from 2024-01-01 --to 2024-12-31
-folio download --broker wealthsimple --statement --from 2024-04-01
-```
-
-*Refer to [IBKR Integration Usage](docs/download/ibkr-integration.md#usage) and [Wealthsimple Integration Usage](docs/download/wealthsimple-integration.md#usage) for detailed information.*
-
-### Ticker Alias Management
-
-Ticker symbols could be renamed, or represented differently across brokers. This command allows you to alias tickers
-so they are treated as the same security internally.
-
-```bash
-folio tickers --add SPLG SPYM 2025-10-31
-folio tickers --list
-folio tickers --delete SPLG
-```
-
-### Query Transactions
-
-Search and filter transactions directly from the command line, using natural language terms, explicit column filters, or a mix of both.
-
-```bash
-folio query AAPL BUY last year
-folio query Account~RRSP TxnDate>=2024-01-01 sort:-Amount first 10
-```
-
-*Refer to [Smart Transaction Querying](docs/querying.md) for the full syntax, including natural language dates, sorting, and advanced filters.*
+Once installed, you can use the `folio` command-line tool. See the command list above (with linked docs) or run `folio <command> --help` for usage details.
 
 ## Configuration
 

@@ -43,6 +43,7 @@ omit = [
     # Harness wiring, not product code: picks the xdist worker count.
     'conftest.py',
     'tests/fixtures/dataframe_cache.py',
+    'tests/helpers/seed.py',
     'src/utils/backup.py',
     'src/datagen/folio_setup.py',
     'src/models/*',

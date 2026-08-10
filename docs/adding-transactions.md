@@ -96,7 +96,8 @@ The prompts spell this out when you do not pass the values on the command line.
 > [!NOTE]
 > Adding a `SPLIT` row records that the split happened. It does **not** rewrite your existing
 > transactions for that ticker. If your history was previously adjusted by hand to account for the
-> split, those rows stay as they are and might need to be fixed via `folio edit`
+> split, those rows stay as they are and might need to be fixed via
+> [`folio edit`](editing-transactions.md).
 
 ## Optional and Custom Columns
 
@@ -164,4 +165,6 @@ folio add -a BUY -t AAPL -d 2025-08-15 -n TFSA -c USD \
 ## Related
 
 - [Smart Transaction Querying](querying.md) — find transactions, including the one you just added
+- [Editing Transactions](editing-transactions.md) — correct a transaction after the fact
+- [Deleting Transactions](deleting-transactions.md) — remove one that should not be there
 - [Configuration Reference](configuration.md) — optional columns, duplicate approval, backups
