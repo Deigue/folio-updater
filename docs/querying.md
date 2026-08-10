@@ -91,14 +91,14 @@ For maximum precision, use explicit filters for specific columns and values.
 
 The format is `column_name` + `operator` + `value`.
 
-| Operator | Description                    | Example                  |
-| :------- | :----------------------------- | :----------------------- |
-| `:`      | **Exact match**                | `Action:BUY`             |
-| `~`      | **Contains** (for text)        | `Account~RRSP`           |
-| `>`      | **Greater than**               | `Amount>1000`            |
-| `<`      | **Less than**                  | `Price<50`               |
-| `>=`     | **Greater than or equal to**   | `TxnDate>=2024-01-01`    |
-| `<=`     | **Less than or equal to**      | `SettleDate<=2024-06-30` |
+| Operator | Description                  | Example                  |
+| :------- | :--------------------------- | :----------------------- |
+| `:`      | **Exact match**              | `Action:BUY`             |
+| `~`      | **Contains** (for text)      | `Account~RRSP`           |
+| `>`      | **Greater than**             | `Amount>1000`            |
+| `<`      | **Less than**                | `Price<50`               |
+| `>=`     | **Greater than or equal to** | `TxnDate>=2024-01-01`    |
+| `<=`     | **Less than or equal to**    | `SettleDate<=2024-06-30` |
 
 *(Note: Column names are case-insensitive, so `txndate` works the same as `TxnDate`)*
 
@@ -108,15 +108,15 @@ You can use explicit filters with partial dates for years or months.
 
 - **Find all transactions in 2023:**
 
-    ```bash
-    folio query TxnDate>=2023 TxnDate<2024
-    ```
+  ```bash
+  folio query TxnDate>=2023 TxnDate<2024
+  ```
 
 - **Find all transactions in May 2024:**
 
-    ```bash
-    folio query TxnDate>=2024-05 TxnDate<2024-06
-    ```
+  ```bash
+  folio query TxnDate>=2024-05 TxnDate<2024-06
+  ```
 
 ---
 

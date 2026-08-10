@@ -10,6 +10,7 @@ A portfolio management system that imports and processes financial transaction d
 
 - **`folio import`**: Import transactions from files
 - **`folio add`**: Manually add a single transaction
+- **`folio delete`**: Delete transactions, one at a time or in batch
 - **`folio getfx`**: Update foreign exchange rates automatically
 - **`folio generate`**: Generate the latest portfolio
 - **`folio demo`**: Create a demo portfolio with mock data for testing
@@ -204,11 +205,11 @@ It controls things like file paths, logging, how Excel columns are matched to in
 - **[uv](https://github.com/astral-sh/uv)** – Manage project dependencies and virtual environments.
 
   Recommended usage:
-  
+
   ```bash
   # Sync all dependencies into your local .venv
   uv sync --all-groups
-  
+
   # Add new dependencies to the project
   uv add <package-name>
   ```

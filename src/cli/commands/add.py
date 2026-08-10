@@ -25,11 +25,11 @@ from cli import (
     console_success,
     console_warning,
 )
-from cli.commands.common import export_to_parquet
+from cli.commands.common import audit_footer, backup_folio, export_to_parquet
 from db import ActionValidationRules, prepare_transactions
 from db.formatters import TransactionFormatter
 from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_connection, get_last_insert_rowid, get_row_count, get_rows
+from db.queries import get_connection, get_last_insert_rowid, get_rows
 from utils import (
     TORONTO_TZ,
     TXN_ESSENTIALS,
@@ -39,7 +39,6 @@ from utils import (
     Table,
     get_import_logger,
 )
-from utils.backup import rolling_backup
 
 if TYPE_CHECKING:
     from models import ImportResults
@@ -263,11 +262,8 @@ def _insert_transaction(final_df: pd.DataFrame) -> int:
     Returns:
         The TxnId assigned by SQLite.
     """
-    config = get_config()
+    backup_folio()
     with get_connection() as conn:
-        if get_row_count(conn, Table.TXNS) > 0:
-            rolling_backup(config.db_path)
-
         try:
             final_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
         except sqlite3.IntegrityError as e:
@@ -284,8 +280,7 @@ def _log_add(final_df: pd.DataFrame, txn_id: int) -> None:
     for _, row in final_df.iterrows():
         import_logger.info(" + %s", format_transaction_summary(row))
     import_logger.info("DONE: TxnId %d added", txn_id)
-    import_logger.info("=" * 80)
-    import_logger.info("")
+    audit_footer()
 
 
 def _prepare(fields: dict[str, str], *, approve_duplicate: bool) -> ImportResults:

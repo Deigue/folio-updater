@@ -274,6 +274,34 @@ def query_cmd(
     query_transactions(terms)
 
 
+@app.command(
+    "delete",
+    help="Delete transactions from the folio",
+    no_args_is_help=True,
+)
+def delete_cmd(
+    selection: list[str] = typer.Argument(
+        ...,
+        help="TxnIds, or query terms using the `folio query` syntax.",
+    ),
+    *,
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Delete without asking for confirmation",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview the matched transactions without deleting them",
+    ),
+) -> None:
+    """Delete transactions from the folio."""
+    from cli.commands.delete import delete_transactions
+
+    delete_transactions(selection, force=force, dry_run=dry_run)
+
+
 @app.command("version")
 def show_version() -> None:
     """Show the version and exit."""
