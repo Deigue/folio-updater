@@ -61,6 +61,12 @@ def format_transaction_summary(row: pd.Series) -> str:
     return "|".join(essential_parts)
 
 
+# Amounts from source files don't always reproduce bit-for-bit between exports
+# -- observed drift is ~1e-6/1e-7. 4
+# 4 decimals (a hundredth of a cent) is well above that noise floor
+_KEY_DECIMALS = 4
+
+
 def generate_keys(txn_df: pd.DataFrame) -> pd.Series:
     """Generate synthetic primary keys based on TXN_ESSENTIALS.
 
@@ -85,8 +91,8 @@ def generate_keys(txn_df: pd.DataFrame) -> pd.Series:
         numeric_series = pd.to_numeric(col_series, errors="coerce")
         normalized_cols.append(
             [
-                # Numeric are formatted to 8 decimals with trailing zeros stripped
-                f"{number:.8f}".rstrip("0").rstrip(".")
+                # Numeric are rounded to _KEY_DECIMALS, trailing zeros stripped
+                f"{number:.{_KEY_DECIMALS}f}".rstrip("0").rstrip(".")
                 # NaN != NaN coercion.
                 if number == number  # noqa: PLR0124
                 else str(value).strip()
