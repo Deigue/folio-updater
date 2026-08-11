@@ -229,22 +229,23 @@ pd.set_option("display.max_colwidth", None)
                     "2023-02-03",
                     "2023-02-04",
                     "2023-02-05",
+                    "2023-02-06",
                 ],
-                Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL"],
-                Column.Txn.AMOUNT: [1000.0, 2000.0, 150.0, 1500.0, 800.0],
-                Column.Txn.CURRENCY: ["USD", "USD", "USD", "USD", "USD"],
-                Column.Txn.PRICE: [100.0, 200.0, 15.0, 150.0, 80.0],
-                Column.Txn.UNITS: [10.0, 10.0, 10.0, 10.0, 10.0],
-                Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA"],
-                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 5,
-                # Optional fields with all 5 types
-                "Fees": ["$5.95", "INVALID", "", "10.50", pd.NA],  # numeric
+                Column.Txn.ACTION: ["BUY", "SELL", "DIVIDEND", "BUY", "SELL", "BUY"],
+                Column.Txn.AMOUNT: [1000.0, 2000.0, 150.0, 1500.0, 800.0, 900.0],
+                Column.Txn.CURRENCY: ["USD"] * 6,
+                Column.Txn.PRICE: [100.0, 200.0, 15.0, 150.0, 80.0, 90.0],
+                Column.Txn.UNITS: [10.0, 10.0, 10.0, 10.0, 10.0, 10.0],
+                Column.Txn.TICKER: ["AAPL", "MSFT", "AAPL", "GOOGL", "TSLA", "NVDA"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 6,
+                "Fees": ["$5.95", "6.95", "", "10.50", pd.NA, "INVALID"],  # numeric
                 "Custom Date": [
                     "01/03/2023",
                     "INVALID_DATE",
                     pd.NA,
                     "",
                     "2023-02-07T10:30:00Z",
+                    pd.NA,
                 ],  # date
                 "Trade Currency": [
                     "US$",
@@ -252,18 +253,20 @@ pd.set_option("display.max_colwidth", None)
                     "CAD",
                     "",
                     pd.NA,
+                    pd.NA,
                 ],  # currency
-                "Side": ["B", "INVALID_ACTION", "SELL", "", "DIV"],  # action
+                "Side": ["B", "INVALID_ACTION", "SELL", "", "DIV", pd.NA],  # action
                 "Notes": [
                     "  Some note  ",
                     "Regular note",
                     "",
                     "Another note",
                     pd.NA,
+                    pd.NA,
                 ],  # string
             },
-            5,  # All rows valid (optional fields don't cause rejection)
-            [0, 1, 2, 3, 4],
+            5,
+            [0, 1, 2, 3, 4],  # Row 5 rejected due to invalid numeric.
             {
                 "optional_columns": {
                     "Fees": {"keywords": ["Fees"], "type": "numeric"},

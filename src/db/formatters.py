@@ -25,6 +25,7 @@ import_logger = get_import_logger()
 actions: list[str] = [action.value for action in Action]
 currencies: set[str] = {currency.value for currency in Currency}
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
+NON_NUMERIC: str = "NON-NUMERIC"
 
 
 class ActionValidationRules:
@@ -375,6 +376,7 @@ class TransactionFormatter:
         *,
         required: bool,
         blank_is_missing: bool = True,
+        reject_invalid: bool = False,
         invalid_debug: str | None = None,
     ) -> None:
         """Normalise one column's rows in a single pass, recording rejects.
@@ -385,6 +387,7 @@ class TransactionFormatter:
             normalize: Maps raw value -> stored form, or None to reject.
             required: Whether a missing or invalid value disqualifies the row.
             blank_is_missing: Whether whitespace-only counts as missing.
+            reject_invalid: Whether an unusable value disqualifies the row.
             invalid_debug: Log template for optional values that fail to normalise.
         """
         col_series = self.formatted_df.loc[indices, column]
@@ -419,35 +422,41 @@ class TransactionFormatter:
             missing,
             invalid,
             required=required,
+            reject_invalid=reject_invalid,
             invalid_debug=invalid_debug,
         )
 
         if labels:
             self.formatted_df.loc[labels, column] = values
 
-    def _record_rejects(
+    def _record_rejects(  # noqa: PLR0913
         self,
         column: str,
         missing: Sequence[int],
         invalid: Sequence[tuple[int, object]],
         *,
         required: bool,
+        reject_invalid: bool,
         invalid_debug: str | None,
     ) -> None:
         """Book missing and invalid rows against the audit trail."""
-        if not required:
+        if required:
+            self.exclusions.extend(missing)
+            for label in missing:
+                self.rejection_reasons.setdefault(label, []).append(
+                    f"MISSING {column}",
+                )
+
+        if not (required or reject_invalid):
             if invalid_debug:
                 for label, raw in invalid:
                     import_logger.debug(invalid_debug, label, column, raw)
             return
 
-        self.exclusions.extend(missing)
-        for label in missing:
-            self.rejection_reasons.setdefault(label, []).append(f"MISSING {column}")
-
+        reason = f"INVALID {column}" if required else f"{NON_NUMERIC} {column}"
         self.exclusions.extend(label for label, _ in invalid)
         for label, _ in invalid:
-            self.rejection_reasons.setdefault(label, []).append(f"INVALID {column}")
+            self.rejection_reasons.setdefault(label, []).append(reason)
 
     def _format_dates(self) -> None:
         """Format date columns."""
@@ -690,7 +699,7 @@ class TransactionFormatter:
             indices,
             _normalize_numeric,
             required=required,
-            invalid_debug="%d - Invalid optional numeric field '%s': '%s'",
+            reject_invalid=True,
         )
 
     def _calculate_settlement_dates(self) -> None:
