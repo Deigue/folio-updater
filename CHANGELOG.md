@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 
 - Wealthsimple institutional transfers are now properly captured via monthly statements.
+- Dividend amounts are no longer forced positive on import.
 
 ### Security
 

@@ -6,6 +6,7 @@ This module provides the main CLI interface using Typer.
 from __future__ import annotations
 
 import sys
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 import typer
@@ -14,7 +15,7 @@ from app import bootstrap
 from cli import console_info, console_print
 from utils.config import Config
 
-__version__ = "0.6.28"
+__version__ = _pkg_version("folio-updater")
 
 app = typer.Typer(
     name="folio",

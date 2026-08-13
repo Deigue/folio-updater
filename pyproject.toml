@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "folio-updater"
-version = "0.6.28"
+version = "0.6.30"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"

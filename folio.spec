@@ -2,6 +2,8 @@
 
 import os
 
+from PyInstaller.utils.hooks import copy_metadata
+
 # PyInstaller spec for folio CLI
 # This excludes all unnecessary modules to minimize distribution size
 
@@ -15,7 +17,9 @@ a = Analysis(
     ['src/cli/main.py'],
     pathex=pathex,
     binaries=[],
-    datas=[],
+    # Bundle folio-updater's dist-info so importlib.metadata.version() works
+    # at runtime, keeping the version defined solely in pyproject.toml.
+    datas=copy_metadata('folio-updater'),
     hiddenimports=[
         # Essential hidden imports only
         'openpyxl.styles.stylesheet',

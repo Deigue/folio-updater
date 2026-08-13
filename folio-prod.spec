@@ -1,5 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import copy_metadata
+
 # PyInstaller spec for folio CLI - Production Build
 # This uses PyPI packages only and does NOT include local path references
 # Use this for production builds (GitHub workflows)
@@ -8,7 +10,9 @@ a = Analysis(
     ['src/cli/main.py'],
     pathex=['src'],
     binaries=[],
-    datas=[],
+    # Bundle folio-updater's dist-info so importlib.metadata.version() works
+    # at runtime, keeping the version defined solely in pyproject.toml.
+    datas=copy_metadata('folio-updater'),
     hiddenimports=[
         # Essential hidden imports only
         'openpyxl.styles.stylesheet',
