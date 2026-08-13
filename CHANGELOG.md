@@ -8,7 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- `TFR_IN` and `TFR_OUT` actions for moving cash or units between accounts you own.
 ### Changed
+
+- Updated example configuration in `configuration.md`
 
 ### Deprecated
 

@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
+CONTAINS_PREFIX = "contains:"
+
 
 class TransactionTransformer:
     """Transforms transaction data based on user-defined rules."""
@@ -165,8 +167,20 @@ class TransactionTransformer:
         series = self.df[field_name]
         masks = []
 
+        # contains:PHRASE" matches on substring instead of equality.
+        literals: list[str] = []
+        for match_value in match_values:
+            text = str(match_value)
+            if text.startswith(CONTAINS_PREFIX):
+                phrase = text[len(CONTAINS_PREFIX) :]
+                masks.append(
+                    series.astype(str).str.contains(phrase, case=False, regex=False),
+                )
+            else:
+                literals.append(match_value)
+
         # Direct comparison (handles string matches and exact numeric matches)
-        string_mask = series.astype(str).isin(match_values)
+        string_mask = series.astype(str).isin(literals)
         masks.append(string_mask)
 
         numeric_values = []

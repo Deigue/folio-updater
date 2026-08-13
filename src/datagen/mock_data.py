@@ -82,10 +82,14 @@ def generate_transactions(
         }
 
         # For some transactions, purposely omit optionals to simulate real data and
-        # test validation.
-        if rules["optional_fields"]:
-            for field in rules["optional_fields"]:
-                transaction[getattr(Column.Txn, field.upper())] = None
+        # test validation. Transfers require no money column at all, so keep their
+        # Amount - stripping every optional would leave a row carrying nothing.
+        optional_fields = list(rules["optional_fields"])
+        money_fields = {Column.Txn.AMOUNT, Column.Txn.PRICE, Column.Txn.UNITS}
+        if not money_fields & set(rules["required_fields"]):
+            optional_fields = [f for f in optional_fields if f != Column.Txn.AMOUNT]
+        for field in optional_fields:
+            transaction[getattr(Column.Txn, field.upper())] = None
 
         transactions.append(transaction)
 

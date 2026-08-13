@@ -37,20 +37,35 @@ Amount: 42.15
 
 ## Options
 
-| Option | Short | Meaning |
-| --- | --- | --- |
-| `--action` | `-a` | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `BRW`, `CONTRIBUTION`, `FCH`, `FXT`, `WITHDRAWAL` |
-| `--date` | `-d` | Transaction date, `YYYY-MM-DD` (prompt defaults to today) |
-| `--account` | `-n` | Account alias |
-| `--currency` | `-c` | `USD`, `CAD` or `EUR` |
-| `--ticker` | `-t` | Security ticker |
-| `--amount` | `-m` | Total transaction amount |
-| `--price` | `-p` | Price per unit |
-| `--units` | `-u` | Number of units |
-| `--fee` | | Transaction fee |
-| `--set` | | `KEY=VALUE` for optional columns, repeatable |
-| `--force` | | Add even when it duplicates an existing transaction |
-| `--dry-run` | | Validate and preview without writing |
+| Option       | Short | Meaning                                                                                                                            |
+| ------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `--action`   | `-a`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` (and `BRW`, deprecated) |
+| `--date`     | `-d`  | Transaction date, `YYYY-MM-DD` (prompt defaults to today)                                                                          |
+| `--account`  | `-n`  | Account alias                                                                                                                      |
+| `--currency` | `-c`  | `USD`, `CAD` or `EUR`                                                                                                              |
+| `--ticker`   | `-t`  | Security ticker                                                                                                                    |
+| `--amount`   | `-m`  | Total transaction amount                                                                                                           |
+| `--price`    | `-p`  | Price per unit                                                                                                                     |
+| `--units`    | `-u`  | Number of units                                                                                                                    |
+| `--fee`      |       | Transaction fee                                                                                                                    |
+| `--set`      |       | `KEY=VALUE` for optional columns, repeatable                                                                                       |
+| `--force`    |       | Add even when it duplicates an existing transaction                                                                                |
+| `--dry-run`  |       | Validate and preview without writing                                                                                               |
+
+## What Each Action Means
+
+| Action               | Meaning                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `BUY` / `SELL`       | Acquiring or disposing of a security.                                                                    |
+| `DIVIDEND`           | Cash distribution received.                                                                              |
+| `ROC`                | Return of capital. Reduces cost base without moving any cash. Only `Amount` matters.                     |
+| `SPLIT`              | Stock split, stored as a ratio (`Price` = shares before, `Units` = shares after).                        |
+| `CONTRIBUTION`       | New money entering the portfolio from outside it.                                                        |
+| `WITHDRAWAL`         | Money leaving the portfolio.                                                                             |
+| `TFR_IN` / `TFR_OUT` | Cash or units moving between accounts **you already own**                                                |
+| `FCH`                | Financial charge. A catch-all for cash adjustments: fees, interest, rebates, income such as an RSU vest. |
+| `FXT`                | Currency conversion.                                                                                     |
+| `BRW`                | **Deprecated.** Questrade's code for a position transfer.                                                |
 
 ## Amount and Units Signs
 
@@ -58,19 +73,37 @@ Each action has a real cash and share direction, and Amount/Units are corrected 
 spends cash and gains shares; a SELL is the reverse. You do not have to get the sign right — enter
 `--amount 1502.50` on a BUY and it is stored as `-1502.50`.
 
-| Action | Amount | Units |
-| --- | --- | --- |
-| `BUY` | negative (cash out) | positive (shares in) |
-| `SELL` | positive (cash in) | negative (shares out) |
-| `WITHDRAWAL` | negative | — |
-| `CONTRIBUTION` | positive | — |
-| `DIVIDEND` | positive | — |
-| `ROC` | positive | — |
-| `SPLIT` | — | positive (ratio) |
-| `FCH`, `FXT`, `BRW` | either | either |
+| Action              | Amount              | Units                 |
+| ------------------- | ------------------- | --------------------- |
+| `BUY`               | negative (cash out) | positive (shares in)  |
+| `SELL`              | positive (cash in)  | negative (shares out) |
+| `WITHDRAWAL`        | negative            | —                     |
+| `CONTRIBUTION`      | positive            | —                     |
+| `DIVIDEND`          | positive            | —                     |
+| `ROC`               | positive            | —                     |
+| `SPLIT`             | —                   | positive (ratio)      |
+| `TFR_IN`            | positive (cash in)  | positive (shares in)  |
+| `TFR_OUT`           | negative (cash out) | negative (shares out) |
+| `FCH`, `FXT`, `BRW` | either              | either                |
 
 `FCH`, `FXT` and `BRW` are left alone deliberately: both directions are legitimate for them — a fee
 versus interest earned, or the two opposing legs of an FX trade or a Norbert's Gambit journal.
+
+## Recording a Transfer
+
+A transfer has two legs, one in each account, and they must balance:
+
+```bash
+# Cash moving from one broker to another - no ticker, just an amount
+folio add -a TFR_OUT -n WS-RRSP   -c CAD -m 1000 -d 2023-09-18
+folio add -a TFR_IN  -n IBKR-RRSP -c CAD -m 1000 -d 2023-09-18
+
+# A position moving - ticker and units, no amount
+folio add -a TFR_OUT -t SCHD -u 100 -n WS-RRSP   -c USD -d 2023-09-18
+folio add -a TFR_IN  -t SCHD -u 100 -n IBKR-RRSP -c USD -d 2023-09-18
+```
+
+Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
 
 These rules apply to every ingest path, not just `folio add` — imports from brokers and
 spreadsheets are corrected the same way, and the correction is recorded in the importer audit log.

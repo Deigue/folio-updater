@@ -103,6 +103,29 @@ class ActionValidationRules:
                 Column.Txn.FEE,
             ],
         },
+        # A transfer carries either cash or units, so neither is required on its
+        # own: a cash transfer has Amount and no Ticker, a position transfer has
+        # Ticker and Units and no Amount.
+        Action.TFR_IN: {
+            "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],
+            "optional_fields": [
+                Column.Txn.AMOUNT,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
+                Column.Txn.FEE,
+            ],
+        },
+        Action.TFR_OUT: {
+            "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],
+            "optional_fields": [
+                Column.Txn.AMOUNT,
+                Column.Txn.PRICE,
+                Column.Txn.UNITS,
+                Column.Txn.TICKER,
+                Column.Txn.FEE,
+            ],
+        },
     }
 
     # Default rule for actions that require all fields (BUY, SELL, etc.)
@@ -132,6 +155,14 @@ class ActionValidationRules:
         Action.DIVIDEND: {Column.Txn.AMOUNT: Sign.POSITIVE},
         Action.ROC: {Column.Txn.AMOUNT: Sign.POSITIVE},
         Action.SPLIT: {Column.Txn.UNITS: Sign.POSITIVE},  # ratio, never negative
+        Action.TFR_IN: {
+            Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
+            Column.Txn.UNITS: Sign.POSITIVE,  # shares in
+        },
+        Action.TFR_OUT: {
+            Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
+            Column.Txn.UNITS: Sign.NEGATIVE,  # shares out
+        },
     }
 
     @classmethod
@@ -227,6 +258,12 @@ class TransactionFormatter:
         "DIVIDENDS": "DIVIDEND",
         "BORROW": "BRW",
         "BORROWING": "BRW",
+        "TRANSFER_IN": "TFR_IN",
+        "TRANSFER IN": "TFR_IN",
+        "TFRIN": "TFR_IN",
+        "TRANSFER_OUT": "TFR_OUT",
+        "TRANSFER OUT": "TFR_OUT",
+        "TFROUT": "TFR_OUT",
         "CONTRIB": "CONTRIBUTION",
         "DEPOSIT": "CONTRIBUTION",
         "FEE": "FCH",

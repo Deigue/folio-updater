@@ -33,6 +33,8 @@ SAME_DAY_SETTLE_ACTIONS: set[Action] = {
     Action.CONTRIBUTION,
     Action.FCH,
     Action.ROC,
+    Action.TFR_IN,
+    Action.TFR_OUT,
     Action.WITHDRAWAL,
 }
 

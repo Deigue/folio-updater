@@ -38,6 +38,20 @@ Each rule has two main parts:
 - **Values**: List of values that match (e.g., `["BUY", "SELL"]`)
 - **Logic**: ALL conditions must be met for the rule to apply (AND logic)
 
+By default a value must match the whole field. Prefix it with `contains:` to match a
+substring instead, which is what you need when the meaningful phrase is buried inside a
+long broker description:
+
+```yaml
+- conditions:
+    Description: ["contains:JOURNAL POSITION TO"]
+  actions:
+    Action: "TFR_OUT"
+```
+
+Substring matching ignores case and treats the phrase literally, so punctuation and
+regular-expression characters need no escaping. A single condition can mix both forms.
+
 #### Actions
 
 - **Field Name**: The transaction field to modify

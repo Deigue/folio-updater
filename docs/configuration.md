@@ -57,6 +57,16 @@ transforms:
       Action: "Broker Interest Received"
     actions:
         Action: "FCH"
+  - conditions:
+      Action: ["BRW"]
+      Description: ["contains:JOURNAL POSITION TO"]
+    actions:
+      Action: "TFR_OUT"
+  - conditions:
+      Action: ["BRW"]
+      Description: ["contains:JOURNAL POSITION FROM"]
+    actions:
+      Action: "TFR_IN"
   merge_groups:
     - name: "Dividend Withholding Tax Merge"
       match_fields: ["TxnDate", "Account", "Ticker"]
@@ -65,7 +75,6 @@ transforms:
       amount_field: "Amount"
       operations:
         Fee: 0
-        Units: 0
 brokers:
   ibkr:
     FlexReport: "FLEX_QUERY_ID_FOR_TRADES"

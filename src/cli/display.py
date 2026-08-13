@@ -172,6 +172,8 @@ TRANSACTION_COLORS = {
     Action.WITHDRAWAL: "red",
     Action.ROC: "magenta",
     Action.SPLIT: "purple",
+    Action.TFR_IN: "green",
+    Action.TFR_OUT: "red",
 }
 
 

@@ -23,13 +23,15 @@ class Action(StrEnum):
     BUY = "BUY"  # This represents buying a stock
     SELL = "SELL"  # This represents selling a stock
     DIVIDEND = "DIVIDEND"  # Acquired dividends from stocks
-    BRW = "BRW"  # Borrowing activity, reflecting Norbert's Gambit journaling
-    CONTRIBUTION = "CONTRIBUTION"  # Contribute money into the portfolio
-    FCH = "FCH"  # Fee Charges, Interest earned, RSU vestments, Non-contribution income
+    BRW = "BRW"  # Deprecated: Questrade's transfer code. Use TFR_IN/TFR_OUT instead.
+    CONTRIBUTION = "CONTRIBUTION"  # New money into the portfolio, from outside it
+    FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
     FXT = "FXT"  # Foreign Exchange Trades
-    ROC = "ROC"  # Return of Capital transactions (reduces cost basis)
+    ROC = "ROC"  # Return of Capital: reduces cost basis, a reclassification not cash
     SPLIT = "SPLIT"  # Designates stock splits (Price->FROM, Units->TO)
-    WITHDRAWAL = "WITHDRAWAL"  # Take out money from the portfolio
+    TFR_IN = "TFR_IN"  # Cash or units arriving from another account you own
+    TFR_OUT = "TFR_OUT"  # Cash or units leaving for another account you own
+    WITHDRAWAL = "WITHDRAWAL"  # Money leaving the portfolio, to outside it
 
 
 class Sign(StrEnum):

@@ -474,7 +474,7 @@ wheels = [
 
 [[package]]
 name = "folio-updater"
-version = "0.6.25"
+version = "0.6.26"
 source = { virtual = "." }
 dependencies = [
     { name = "dateparser" },
@@ -520,7 +520,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.32.5" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "typer", specifier = ">=0.9.0" },
-    { name = "ws-api", specifier = ">=0.36.0" },
+    { name = "ws-api", specifier = ">=0.37.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -1755,14 +1755,14 @@ wheels = [
 
 [[package]]
 name = "ws-api"
-version = "0.36.0"
+version = "0.37.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "curl-cffi" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/29/ef8032d54c8fdd9e7a8f4e669afdc0770bca97a9819d9349f925a0500b41/ws_api-0.36.0.tar.gz", hash = "sha256:35b661e0d244ef0d337e141b41c12a357e553581fc6099dbbc8f42a0f1b24fd5", size = 54119, upload-time = "2026-08-06T12:10:58.455Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/fe/6f259ef82b8e26502d0c406d4bb4264bd6460a9c6007d902d6e5d7ced64a/ws_api-0.37.0.tar.gz", hash = "sha256:46771e62684033f33e80854b40857306adf9f21ce8e8582f3ab2a3bf3d987a50", size = 54380, upload-time = "2026-08-12T00:59:25.052Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/20/800829d5c6c4102822c5c557b4b82e2d4355d69b098897652d990f2ac09d/ws_api-0.36.0-py3-none-any.whl", hash = "sha256:22e7f231085f6ca6c94ba95b9a5b173f5089604781e080c39eb2a1b5ba7ab762", size = 45263, upload-time = "2026-08-06T12:10:57.193Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/cf/1392f64cc82124165f7d186e1a3e23d43362a1b179013741e707a0fae6de/ws_api-0.37.0-py3-none-any.whl", hash = "sha256:37d41933016a7aa06d1aa0bd6c361cb4299aa67e6a313e4365eb152261903834", size = 45426, upload-time = "2026-08-12T00:59:23.563Z" },
 ]
 
 [[package]]
