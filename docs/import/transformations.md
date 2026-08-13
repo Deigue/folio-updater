@@ -143,6 +143,25 @@ transforms:
 
 **Use case**: Apply special handling for transactions with specific numeric values, such as zero-commission trades or round-number quantities.
 
+### 6. Account Transfers
+
+Broker like Questrade might report transfers under `BRW` which is ambiguous.
+
+```yaml
+transforms:
+  rules:
+    - conditions:
+        Action: ["BRW"]
+        Description: ["contains:JOURNAL POSITION TO"]
+      actions:
+        Action: "TFR_OUT"
+    - conditions:
+        Action: ["BRW"]
+        Description: ["contains:JOURNAL POSITION FROM"]
+      actions:
+        Action: "TFR_IN"
+```
+
 ## Processing Order
 
 Transformations are applied in this order within the transaction preparation pipeline:

@@ -161,3 +161,10 @@ def get_import_logger() -> logging.Logger:
         Logger instance for import operations
     """
     return logging.getLogger("importer")
+
+
+def audit_footer() -> None:
+    """Close an audit log entry with a separator line."""
+    import_logger = get_import_logger()
+    import_logger.info("=" * 80)
+    import_logger.info("")

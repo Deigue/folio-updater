@@ -11,10 +11,27 @@ import logging
 
 import pandas as pd
 
-from db.queries import add_column_to_table, get_columns, get_connection
+from app import get_config
+from db.queries import add_column_to_table, get_columns, get_connection, get_row_count
 from utils.constants import TXN_ESSENTIALS, Table
 
 logger = logging.getLogger(__name__)
+
+
+def txn_count() -> int:
+    """Count the transactions currently in the folio."""
+    with get_connection() as conn:
+        return get_row_count(conn, Table.TXNS)
+
+
+def backup_folio() -> None:
+    """Take a rolling backup of the folio database, if it holds anything."""
+    # ! Deferred Import: utils.backup imports from db, so importing rolling_backup at
+    # ! module level here would create a circular import.
+    from utils.backup import rolling_backup  # noqa: PLC0415
+
+    if txn_count() > 0:
+        rolling_backup(get_config().db_path)
 
 
 def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:

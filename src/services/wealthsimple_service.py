@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 KEYRING_SERVICE = "folio-updater.wealthsimple"
 KEYRING_USERNAME_KEY = "default_username"
+INSTITUTIONAL_TRANSFER_TYPE = "INSTITUTIONAL_TRANSFER_INTENT"
 
 
 class WealthsimpleServiceError(Exception):
@@ -450,14 +451,27 @@ class WealthsimpleService:
         """
         config = get_config()
         output_path: Path = config.imports_path / csv_name
-        rows = [self._convert_activity_to_csv_row(activity) for activity in activities]
+        importable = [
+            activity
+            for activity in activities
+            if activity.type != INSTITUTIONAL_TRANSFER_TYPE
+        ]
+        skipped = len(activities) - len(importable)
+        if skipped:
+            logger.info(
+                "SKIPPED %d institutional transfer activit%s (no amount until"
+                " settled; import from the monthly statement instead)",
+                skipped,
+                "y" if skipped == 1 else "ies",
+            )
+        rows = [self._convert_activity_to_csv_row(activity) for activity in importable]
 
         with output_path.open("w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(TXN_ESSENTIALS)
             writer.writerows(rows)
 
-        logger.info('EXPORTED %d activities to CSV: "%s"', len(activities), output_path)
+        logger.info('EXPORTED %d activities to CSV: "%s"', len(rows), output_path)
 
     def export_statement_to_csv(
         self,
@@ -495,11 +509,7 @@ class WealthsimpleService:
         Returns:
             List of string values for CSV row
         """
-        action = self._normalize_action(
-            activity.type,
-            activity.sub_type,
-            activity.amount,
-        )
+        action = self._normalize_action(activity.type, activity.sub_type)
         ticker = normalize_canadian_ticker(activity.asset_symbol, activity.currency)
         account = self._map_account_id(activity.account_id)
         amount = self._normalize_amount(activity.amount, action, activity.amount_sign)
@@ -560,14 +570,12 @@ class WealthsimpleService:
     def _normalize_action(
         action_type: str | None,
         sub_type: str | None,
-        amount: str | None,
     ) -> str:
         """Normalize action type to standard actions.
 
         Args:
             action_type: The action type from activity
             sub_type: The sub-type from activity
-            amount: The transaction amount
 
         Returns:
             Normalized action string
@@ -579,14 +587,9 @@ class WealthsimpleService:
             return Action.SELL
         if action == "CORPORATE_ACTION" and sub_type == "SUBDIVISION":
             return Action.SPLIT
-        if action in {"INTERNAL_TRANSFER", "INSTITUTIONAL_TRANSFER_INTENT"}:
-            if sub_type in {"SOURCE", "TRANSFER_OUT"}:
-                # Institutional transfers may have null amounts. This will needs to be
-                # entered manually by the user later.
-                if amount is None:
-                    amount = "0"
-                return Action.WITHDRAWAL
-            return Action.CONTRIBUTION
+        if action == "INTERNAL_TRANSFER":
+            return Action.WITHDRAWAL if sub_type == "SOURCE" else Action.CONTRIBUTION
+        # * Institutional transfers are handled by import_statements()
         return action  # pragma: no cover
 
     @staticmethod

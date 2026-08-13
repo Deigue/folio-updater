@@ -99,3 +99,16 @@ class ImportResults:
     def __int__(self) -> int:  # backwards compatibility if cast to int
         """Return imported count when cast to int (for backwards compatibility)."""
         return self.imported_count()
+
+
+@dataclass
+class StatementImportResult:
+    """Result for a statement import operation."""
+
+    settlement_updates: int = 0
+    transfer_results: ImportResults | None = None
+    transfers_rejected: int = 0
+
+    def transfers_created(self) -> int:
+        """Return number of transfer transactions created from this statement."""
+        return self.transfer_results.imported_count() if self.transfer_results else 0

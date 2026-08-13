@@ -9,25 +9,33 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app import get_config
 from cli import get_symbol
 from db import (
+    backup_folio,
     get_connection,
     get_row_count,
     get_rows,
     prepare_transactions,
+    txn_count,
     update_rows,
 )
 from db.helpers import format_transaction_summary
-from utils import Column, Table, get_import_logger, info_both, warning_both
-from utils.backup import rolling_backup
+from models import ImportResults, StatementImportResult
+from utils import (
+    TXN_ESSENTIALS,
+    Action,
+    Column,
+    Table,
+    audit_footer,
+    get_import_logger,
+    info_both,
+    warning_both,
+)
 from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
 from utils.transforms import normalize_canadian_ticker
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from models import ImportResults
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
@@ -58,8 +66,7 @@ def import_transactions(
     """
     is_csv: bool = folio_path.suffix.lower() == ".csv"
 
-    with get_connection() as conn:
-        existing_count = get_row_count(conn, Table.TXNS)
+    existing_count = txn_count()
 
     # Log import start with detailed info
     import_logger.info('IMPORT TXNS "%s"', folio_path)
@@ -86,13 +93,10 @@ def import_transactions(
         error_msg = f"No '{sheet}' sheet found in {folio_path}."
         import_logger.warning(error_msg)
         import_logger.info("DONE: 0 imported")
-        import_logger.info("=" * 80)
-        import_logger.info("")
+        audit_footer()
         return 0
 
-    db_path = get_config().db_path
-    if existing_count > 0:
-        rolling_backup(db_path)
+    backup_folio()
 
     import_results = prepare_transactions(txns_df, account)
     prepared_df = import_results.final_df
@@ -104,18 +108,17 @@ def import_transactions(
             _analyze_and_insert_rows(conn, prepared_df)
         final_count = get_row_count(conn, Table.TXNS)
 
-    txn_count = len(prepared_df)
-    msg: str = f"DONE: {txn_count} imported"
+    imported_count = len(prepared_df)
+    msg: str = f"DONE: {imported_count} imported"
     import_logger.info(msg)
     summaries = import_results.final_df.apply(format_transaction_summary, axis=1)
     for summary in summaries:
         import_logger.info(" + %s", summary)
     import_logger.info("TOTAL %d transactions in database", final_count)
-    import_logger.info("=" * 80)
-    import_logger.info("")
+    audit_footer()
     import_results.existing_count = existing_count
     import_results.final_db_count = final_count
-    return import_results if with_results else txn_count
+    return import_results if with_results else imported_count
 
 
 def _analyze_and_insert_rows(
@@ -160,17 +163,19 @@ def _analyze_and_insert_rows(
         raise
 
 
-def import_statements(statement: Path) -> int:
-    """Import monthly statements from Excel files to update settlement dates.
+def import_statements(statement: Path) -> StatementImportResult:
+    """Import monthly statement data: settle dates and institutional transfers.
 
-    This function processes statement data to find matching transactions in the
-    database and updates their settlement dates with actual values from the statement.
+    A statement serves two purposes. For trades already in the folio, finds
+    matching transactions and backfills its settlement date. It is also the only source
+    with a real amount and date for institutional transfers, so TFR_IN/TFR_OUT
+    transactions are created here.
 
     Expected statement columns:
     - date: Settlement date from the statement
     - amount: Transaction amount (should match existing transaction)
     - currency: Transaction currency
-    - transaction: Action type (BUY/SELL/etc.)
+    - transaction: Action types (BUY/SELL/TRFOUT/TRFIN etc.)
     - description: Contains ticker and units info for BUY/SELL transactions
                    Also contains transaction date for matching
 
@@ -178,7 +183,7 @@ def import_statements(statement: Path) -> int:
         statement (Path): Path to the statement file (Excel or CSV).
 
     Returns:
-        int: Number of transactions updated.
+        StatementImportResult: Settlement dates updated and transfers created.
     """
     import_logger.info('IMPORT STATEMENT "%s"', statement)
 
@@ -190,7 +195,7 @@ def import_statements(statement: Path) -> int:
 
         if stmt_df.empty:
             warning_both("Statement file is empty.", "importer")
-            return 0
+            return StatementImportResult()
 
         import_logger.info("READ %d rows from statement", len(stmt_df))
         stmt_df.columns = stmt_df.columns.str.lower().str.strip()
@@ -201,17 +206,33 @@ def import_statements(statement: Path) -> int:
                 f"Statement is missing required columns: {missing_cols}",
                 "importer",
             )
-            return 0
+            return StatementImportResult()
 
-        updates = _update_settlement_dates(stmt_df)
+        settlement_updates = _update_settlement_dates(stmt_df)
+        transfer_df, transfers_rejected = _build_transfer_transactions(
+            stmt_df,
+            statement,
+        )
+        transfer_results = (
+            _create_transfer_transactions(transfer_df)
+            if not transfer_df.empty
+            else None
+        )
     except (OSError, ValueError, KeyError):
         import_logger.exception("Error processing statement")
-        return 0
+        return StatementImportResult()
     else:
-        import_logger.info("DONE: Updated %d settlement dates", updates)
-        import_logger.info("=" * 80)
-        import_logger.info("")
-        return updates
+        import_logger.info(
+            "DONE: Updated %d settlement date(s), created %d transfer(s)",
+            settlement_updates,
+            transfer_results.imported_count() if transfer_results else 0,
+        )
+        audit_footer()
+        return StatementImportResult(
+            settlement_updates=settlement_updates,
+            transfer_results=transfer_results,
+            transfers_rejected=transfers_rejected,
+        )
 
 
 def _update_settlement_dates(df: pd.DataFrame) -> int:
@@ -402,7 +423,7 @@ def _apply_settlement_updates_to_db(
     if not updates:  # pragma: no cover
         return 0
 
-    rolling_backup(get_config().db_path)
+    backup_folio()
     return update_rows(
         conn,
         Table.TXNS,
@@ -410,3 +431,100 @@ def _apply_settlement_updates_to_db(
         where_columns=[Column.Txn.TXN_ID],
         set_columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],
     )
+
+
+_TRANSFER_OUT_PREFIX = "TRFOUT"
+_TRANSFER_IN_PREFIX = "TRFIN"
+# Wealthsimple statement files "ws_statement_{account}_{yyyymm}.{ext}"
+_STATEMENT_FILENAME_PATTERN = re.compile(
+    r"^ws_statement_(?P<account>.+)_\d{6}$",
+    re.IGNORECASE,
+)
+
+
+def _transfer_action_for_code(transaction_type: str) -> str | None:
+    """Map a statement transfer code to a TFR action, or None if it isn't one."""
+    code = transaction_type.strip().upper()
+    if code.startswith(_TRANSFER_OUT_PREFIX):
+        return Action.TFR_OUT
+    if code.startswith(_TRANSFER_IN_PREFIX):
+        return Action.TFR_IN
+    return None
+
+
+def _extract_account_from_statement_filename(path: Path) -> str | None:
+    """Recover the account alias from a Wealthsimple statement filename."""
+    match = _STATEMENT_FILENAME_PATTERN.match(path.stem)
+    return match.group("account") if match else None
+
+
+def _build_transfer_transactions(
+    df: pd.DataFrame,
+    statement_path: Path,
+) -> tuple[pd.DataFrame, int]:
+    """Build TFR_IN/TFR_OUT transactions from transfer rows in a statement.
+
+    Returns:
+        Candidate transactions (possibly empty) and a count of transfer rows
+        found that could not be turned into a transaction.
+    """
+    account = _extract_account_from_statement_filename(statement_path)
+    rows: list[dict[str, object]] = []
+    rejected = 0
+
+    for _, row in df.iterrows():
+        action = _transfer_action_for_code(str(row["transaction"]))
+        if action is None:
+            continue
+
+        settle_date = _normalize_date(row["date"])
+        if not account or not settle_date:
+            rejected += 1
+            reason = "no account in filename" if not account else "unparseable date"
+            warning_both(
+                f'Skipping transfer in "{statement_path.name}": {reason} '
+                f"({row['transaction']}, {row['date']})",
+                "importer",
+            )
+            continue
+
+        # Build baseline transaction layout with essential columns.
+        txn: dict[str, object] = dict.fromkeys(TXN_ESSENTIALS, pd.NA)
+        txn.update(
+            {
+                Column.Txn.TXN_DATE: settle_date,
+                Column.Txn.ACTION: action,
+                Column.Txn.AMOUNT: row["amount"],
+                Column.Txn.CURRENCY: row["currency"],
+                Column.Txn.ACCOUNT: account,
+            },
+        )
+        rows.append(txn)
+
+    return pd.DataFrame(rows), rejected
+
+
+def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:
+    """Pass transfer transactions to the standard import pipeline."""
+    import_results = prepare_transactions(transfer_df, map_headers=False)
+    prepared_df = import_results.final_df
+    existing_count = txn_count()
+
+    if not prepared_df.empty:
+        backup_folio()
+        with get_connection() as conn:
+            try:
+                prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+            except sqlite3.IntegrityError:
+                _analyze_and_insert_rows(conn, prepared_df)
+
+    import_logger.info(
+        "IMPORT %d transfer transaction(s) from statement",
+        len(prepared_df),
+    )
+    for summary in prepared_df.apply(format_transaction_summary, axis=1):
+        import_logger.info(" + %s", summary)
+
+    import_results.existing_count = existing_count
+    import_results.final_db_count = txn_count()
+    return import_results

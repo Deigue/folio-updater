@@ -448,7 +448,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
                 "asset_quantity": "",
                 "currency": "CAD",
                 "type": "INSTITUTIONAL_TRANSFER_INTENT",
-                "sub_type": "SOURCE",
+                "sub_type": "TRANSFER_OUT",
                 "status": "posted",
                 "description": "Transfer to external account",
                 "amount_sign": "negative",
@@ -479,7 +479,6 @@ def get_expected_wealthsimple_csv() -> str:
         "2025-10-03,SELL,150.50,USD,301.00,0.5,VTI,WS-PERSONAL\r\n"
         "2025-10-04,SPLIT,,USD,1,4,AAPL,WS-TFSA\r\n"
         "2025-10-05,CONTRIBUTION,1000.00,CAD,,,,WS-TFSA\r\n"
-        "2025-10-06,WITHDRAWAL,,CAD,,,,WS-TFSA\r\n"
         "2025-10-07,BUY,-123.45,CAD,30.11,4.1,XIC.TO,WS-TFSA\r\n"
     )
 

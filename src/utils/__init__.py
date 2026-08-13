@@ -25,7 +25,7 @@ from utils.log_console import (
     success_both,
     warning_both,
 )
-from utils.logging_setup import get_import_logger
+from utils.logging_setup import audit_footer, get_import_logger
 
 __all__ = [
     "DEFAULT_TICKERS",
@@ -39,6 +39,7 @@ __all__ = [
     "Sign",
     "Table",
     "TransactionContext",
+    "audit_footer",
     "critical_both",
     "debug_both",
     "error_both",

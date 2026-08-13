@@ -37,10 +37,10 @@ brokers:
     exclude_accounts: ["Cash"]  # Optional: exclude specific accounts
 ```
 
-| Key | Description |
-| --- | --- |
-| **`user_agent`** | HTTP User-Agent header for API requests. Default is a Firefox user agent. |
-| **`exclude_accounts`** | *(Optional)* List of account descriptions to exclude from downloads |
+| Key                    | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| **`user_agent`**       | HTTP User-Agent header for API requests. Default is a Firefox user agent. |
+| **`exclude_accounts`** | *(Optional)* List of account descriptions to exclude from downloads       |
 
 ## Usage
 
@@ -85,14 +85,23 @@ Monthly statements can be downloaded which contain settlement date information
 folio download --broker wealthsimple --statement --from 2024-04-01
 ```
 
-### Import Settlement Dates from Statements
+Statement files are saved as `ws_statement_{account}_{yyyymm}.csv`
+`folio settle-info --import` recovers Account from the filename.
 
-After downloading monthly statements, they can be imported back to the folio.
-This updates settlement dates to their real values based on the statements.
+### Import Settlement Dates and Transfers from Statements
+
+After downloading monthly statements, import them back into the folio:
 
 ```bash
 folio settle-info --import
 ```
+
+This does two things:
+
+- **Settlement dates**: Trades already in the folio get their calculated settlement
+  date replaced with the real one from the statement.
+- **Institutional transfers**: The statement is the only source with a real amount and date, so this
+  command creates the `TFR_IN` / `TFR_OUT` transaction directly from it.
 
 ### Resetting Credentials
 

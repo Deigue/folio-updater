@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app.app_context import get_config
 from cli import (
     ProgressDisplay,
     console_error,
@@ -14,16 +13,15 @@ from cli import (
     console_warning,
 )
 from cli.selection import Selection, select_transactions
-from db.queries import get_connection, get_row_count
+from db import backup_folio, txn_count
 from exporters import ParquetExporter
-from utils import get_import_logger
-from utils.backup import rolling_backup
-from utils.constants import Table
+from utils import audit_footer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-import_logger = get_import_logger()
+# Re-exported for existing CLI callers
+__all__ = ["audit_footer", "backup_folio", "txn_count"]
 
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
@@ -39,18 +37,6 @@ def export_to_parquet() -> None:
         console_success(f"Exported {exported} transactions to Parquet")
     except (OSError, ValueError, KeyError) as e:
         console_warning(f"Failed to export to Parquet: {e}")
-
-
-def txn_count() -> int:
-    """Count the transactions currently in the folio."""
-    with get_connection() as conn:
-        return get_row_count(conn, Table.TXNS)
-
-
-def backup_folio() -> None:
-    """Take a rolling backup of the folio database, if it holds anything."""
-    if txn_count() > 0:
-        rolling_backup(get_config().db_path)
 
 
 def resolve_selection(terms: Sequence[str], *, verb: str) -> Selection:
@@ -114,9 +100,3 @@ def confirm_selection(count: int, *, verb: str, force: bool) -> bool:
         f"{verb.capitalize()} {count} transaction(s)?",
         default=False,
     )
-
-
-def audit_footer() -> None:
-    """Close an audit log entry the way the add command does."""
-    import_logger.info("=" * 80)
-    import_logger.info("")

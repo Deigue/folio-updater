@@ -9,8 +9,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app import get_config
-from db import get_connection, get_row_count
-from utils.constants import TORONTO_TZ, Table
+from db.helpers import txn_count as get_txn_count
+from utils.constants import TORONTO_TZ
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -51,9 +51,7 @@ def rolling_backup(
     timestamp = datetime.now(TORONTO_TZ).strftime("%Y%m%d_%H%M%S")
 
     if file_path == config.db_path:
-        txn_count = 0
-        with get_connection() as conn:
-            txn_count = get_row_count(conn, Table.TXNS)
+        txn_count = get_txn_count()
         backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
         try:

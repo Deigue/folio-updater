@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
@@ -27,6 +28,9 @@ from db import get_connection, get_row_count, get_rows
 from exporters import ParquetExporter
 from importers import import_statements
 from utils import Column, Table, TransactionContext
+
+if TYPE_CHECKING:
+    from models import StatementImportResult
 
 
 def settlement_info(
@@ -71,35 +75,51 @@ def _handle_statement_import(file: str | None) -> None:
         if not statement_path.exists():
             console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
-        updates = _import_single_statement(statement_path)
+        results = [_import_single_statement(statement_path)]
     else:
-        updates = _import_statements_from_directory()
+        results = _import_statements_from_directory()
 
-    # Updates parquets if any settlement dates were updated
-    if updates > 0:
+    # Updates parquets if any changes were made.
+    changed = any(
+        r.settlement_updates > 0 or r.transfers_created() > 0 for r in results
+    )
+    if changed:
         with ProgressDisplay.spinner(color="dark_violet") as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
 
 
-def _import_single_statement(statement_path: Path) -> int:
+def _import_single_statement(statement_path: Path) -> StatementImportResult:
     """Import a single statement file."""
     with ProgressDisplay.spinner(color="dark_violet") as progress:
         progress.add_task(f"Importing {statement_path.name}...", total=None)
-        updates = import_statements(statement_path)
+        result = import_statements(statement_path)
 
-    if updates > 0:
+    if result.settlement_updates > 0:
         console_success(
-            f'Updated {updates} settlement dates from "{statement_path.name}"',
+            f"Updated {result.settlement_updates} settlement dates from "
+            f'"{statement_path.name}"',
         )
     else:
         console_warning(f'No settlement dates updated from "{statement_path.name}"')
 
-    return updates
+    if result.transfer_results and result.transfers_created() > 0:
+        display = TransactionDisplay()
+        display.show_import_summary(statement_path.name, result.transfer_results)
+        display.show_import_audit(result.transfer_results, verbose=True)
+
+    if result.transfers_rejected > 0:
+        console_warning(
+            f"{result.transfers_rejected} transfer(s) in "
+            f'"{statement_path.name}" could not be created - see import log '
+            "for details",
+        )
+
+    return result
 
 
-def _import_statements_from_directory() -> int:
+def _import_statements_from_directory() -> list[StatementImportResult]:
     """Import all statement files from the statements directory."""
     config = get_config()
     statements_dir = config.statements_path
@@ -122,36 +142,44 @@ def _import_statements_from_directory() -> int:
         f'Found {len(statement_files)} statement file(s) in "{statements_dir}"',
     )
 
-    total_updates = 0
-    import_results = []
+    results: list[StatementImportResult] = []
+    summary_rows = []
 
     for statement_file in statement_files:
-        updates = _import_single_statement(statement_file)
-        total_updates += updates
+        result = _import_single_statement(statement_file)
+        results.append(result)
+        changed = result.settlement_updates > 0 or result.transfers_created() > 0
         status = (
             f"{get_symbol('success')}Success"
-            if updates > 0
+            if changed
             else f"{get_symbol('warning')}No updates"
         )
-        import_results.append(
+        summary_rows.append(
             {
                 "File": statement_file.name,
-                "Updates": updates,
+                "Settle Updates": result.settlement_updates,
+                "Transfers": result.transfers_created(),
+                "Rejected": result.transfers_rejected,
                 "Status": status,
             },
         )
 
     # Show summary table
-    if import_results:
+    if summary_rows:
         console_rule(style="medium_purple3")
         show_data_table(
-            import_results,
+            summary_rows,
             title="Statement Import Summary",
             max_rows=20,
         )
 
-    console_info(f"Updated {total_updates} dates across {len(statement_files)} files.")
-    return total_updates
+    total_updates = sum(r.settlement_updates for r in results)
+    total_transfers = sum(r.transfers_created() for r in results)
+    console_info(
+        f"Updated {total_updates} date(s) and created {total_transfers} transfer(s) "
+        f"across {len(statement_files)} file(s).",
+    )
+    return results
 
 
 def _display_settlement_statistics(*, import_flag: bool = False) -> None:
