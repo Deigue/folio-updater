@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - Updated example configuration in `configuration.md`
+- `folio query` now accepts explicit TxnIds (like `folio edit`/`folio delete`)
 
 ### Deprecated
 

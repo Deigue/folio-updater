@@ -36,7 +36,6 @@ dist/
 /logs
 /backups
 config.yaml
-AGENTS.md
 
 # Experimental or sample files
 notebooks/playground.ipynb

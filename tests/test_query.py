@@ -21,6 +21,7 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
+from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -592,3 +593,92 @@ class TestQueryCommand:
             assert_cli_success(cli_result)
             assert_in_output("TxnDate>=2023-07-01", cli_result)
             assert_in_output("limit:3", cli_result)
+
+
+class TestQueryByTxnId:
+    """Query terms that are plain integers select explicit TxnIds.
+
+    This mirrors the TxnId selection `folio edit` and `folio delete` accept,
+    so all three commands share the same selection syntax.
+    """
+
+    def test_query_single_txn_id(self, temp_ctx: TempContext) -> None:
+        """A single TxnId returns exactly that transaction."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            txn_id = seed_transaction()
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", str(txn_id)],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("Found 1 matching transaction(s).", cli_result)
+
+    def test_query_multiple_txn_ids(self, temp_ctx: TempContext) -> None:
+        """Several TxnIds are all returned by one query call."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            first = seed_transaction(amount="-1502.50")
+            second = seed_transaction(amount="-1602.50")
+            third = seed_transaction(amount="-1702.50")
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", str(first), str(second), str(third)],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("Found 3 matching transaction(s).", cli_result)
+
+    def test_query_repeated_txn_id_counted_once(self, temp_ctx: TempContext) -> None:
+        """A TxnId given twice is deduplicated rather than counted twice."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            txn_id = seed_transaction()
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", str(txn_id), str(txn_id)],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("Found 1 matching transaction(s).", cli_result)
+
+    def test_query_unknown_txn_id_reports_missing(self, temp_ctx: TempContext) -> None:
+        """An unmatched TxnId is reported rather than silently dropped."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", "999999"],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("No transaction with TxnId 999999.", cli_result)
+            assert_in_output("No transactions found", cli_result)
+
+    def test_query_mixed_ids_reports_missing_and_found(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """A mix of valid and unknown TxnIds still returns the ones that exist."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            txn_id = seed_transaction()
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", str(txn_id), "999999"],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("No transaction with TxnId 999999.", cli_result)
+            assert_in_output("Found 1 matching transaction(s).", cli_result)
