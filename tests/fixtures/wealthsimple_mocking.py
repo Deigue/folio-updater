@@ -439,7 +439,8 @@ def get_mock_activities() -> list[dict[str, Any]]:
                 "description": "Transfer from bank account",
                 "amount_sign": "positive",
             },
-            # WITHDRAWAL activity to test TRANSFER_OUT
+            # Institutional transfer: carries no amount and is skipped entirely
+            # from activities - it's only ever created from the statement.
             {
                 "account_id": "test-tfsa-1",
                 "occurred_at": "2025-10-06T11:00:00-04:00",

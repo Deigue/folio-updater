@@ -17,7 +17,7 @@ from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
-from db import drop_table, get_connection, get_row_count, get_rows
+from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
 from services.ibkr_service import IBKRAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
@@ -316,6 +316,48 @@ def test_settle_info_scenarios(
         )
         assert_in_output(expected_output, cli_result)
         assert_cli_success(cli_result)
+
+
+def test_settle_info_import_creates_and_displays_transfer(
+    temp_ctx: TempContext,
+) -> None:
+    """A TRFOUT statement row creates a transfer and shows the import summary."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        transfer_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-01-22",
+                    "amount": -1000.0,
+                    "currency": "CAD",
+                    "transaction": "TRFOUTTF",
+                    "description": (
+                        "Tax-free money transfer out of the account "
+                        "(executed at 2025-01-22)"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202501.xlsx"
+        register_test_dataframe(statement_file, transfer_df)
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--import", "-f", str(statement_file)],
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output(
+            f"SUCCESS: {statement_file.name} - 1 transactions imported",
+            cli_result,
+        )
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+        assert len(txns) == 1
+        assert txns.iloc[0][Column.Txn.ACTION] == "TFR_OUT"
+        assert txns.iloc[0][Column.Txn.ACCOUNT] == "WS-TFSA"
 
 
 @pytest.mark.parametrize(

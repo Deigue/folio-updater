@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 
 from datagen import ensure_data_exists
-from db import create_txns_table
+from db import create_txns_table, get_connection, get_rows
 from importers import import_statements, import_transactions
-from utils.constants import TXN_ESSENTIALS, Column
+from utils.constants import TXN_ESSENTIALS, Column, Table
 
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
@@ -575,7 +575,8 @@ def test_import_statements_missing_columns(
         statement_file = ctx.config.project_root / "incomplete_statement.xlsx"
         register_test_dataframe(statement_file, incomplete_df)
         result = import_statements(statement_file)
-        assert result == 0
+        assert result.settlement_updates == 0
+        assert result.transfers_created() == 0
 
 
 def test_import_statements_empty_file(
@@ -588,7 +589,92 @@ def test_import_statements_empty_file(
         statement_file = ctx.config.project_root / "empty_statement.xlsx"
         register_test_dataframe(statement_file, empty_df)
         result = import_statements(statement_file)
-        assert result == 0
+        assert result.settlement_updates == 0
+        assert result.transfers_created() == 0
+
+
+def test_import_statements_creates_transfer_from_filename(
+    temp_ctx: TempContext,
+) -> None:
+    """TRFOUT*/TRFIN* rows create TFR_OUT/TFR_IN, with account from the filename."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        transfer_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-01-22",
+                    "amount": -1000.0,
+                    "currency": "CAD",
+                    "transaction": "TRFOUTTF",
+                    "description": (
+                        "Tax-free money transfer out of the account "
+                        "(executed at 2025-01-22)"
+                    ),
+                },
+                {
+                    "date": "2025-01-22",
+                    "amount": 1000.0,
+                    "currency": "CAD",
+                    "transaction": "TRFINRSP",
+                    "description": "RSP account transfer in (executed at 2025-01-22)",
+                },
+            ],
+        )
+
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202501.xlsx"
+        register_test_dataframe(statement_file, transfer_df)
+        result = import_statements(statement_file)
+
+        assert result.settlement_updates == 0
+        assert result.transfers_created() == 2
+        assert result.transfers_rejected == 0
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+
+        assert len(txns) == 2
+
+        out_txn = txns[txns[Column.Txn.ACTION] == "TFR_OUT"].iloc[0]
+        assert out_txn[Column.Txn.ACCOUNT] == "WS-TFSA"
+        assert out_txn[Column.Txn.TXN_DATE] == "2025-01-22"
+        assert out_txn[Column.Txn.SETTLE_DATE] == "2025-01-22"
+        assert float(out_txn[Column.Txn.AMOUNT]) == -1000.0
+
+        in_txn = txns[txns[Column.Txn.ACTION] == "TFR_IN"].iloc[0]
+        assert in_txn[Column.Txn.ACCOUNT] == "WS-TFSA"
+        assert in_txn[Column.Txn.TXN_DATE] == "2025-01-22"
+        assert in_txn[Column.Txn.SETTLE_DATE] == "2025-01-22"
+        assert float(in_txn[Column.Txn.AMOUNT]) == 1000.0
+
+
+def test_import_statements_rejects_transfer_without_account_in_filename(
+    temp_ctx: TempContext,
+) -> None:
+    """A transfer row is rejected, not silently dropped, without a parseable account."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        transfer_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-07-22",
+                    "amount": -4420.0,
+                    "currency": "CAD",
+                    "transaction": "TRFOUTTF",
+                    "description": "Tax-free money transfer out of the account",
+                },
+            ],
+        )
+
+        statement_file = ctx.config.project_root / "unnamed_statement.xlsx"
+        register_test_dataframe(statement_file, transfer_df)
+        result = import_statements(statement_file)
+
+        assert result.transfers_created() == 0
+        assert result.transfers_rejected == 1
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+        assert txns.empty
 
 
 # Helper functions

@@ -115,6 +115,43 @@ FEE_AMOUNT = 9.95
             },
             lambda r: r.iloc[0][Column.Txn.ACTION] == "BUY",
         ),
+        # "contains:" condition matches a substring, case-insensitively
+        (
+            "contains_prefix",
+            {
+                Column.Txn.ACTION: ["BRW", "BRW", "BRW"],
+                "Description": [
+                    "JOURNAL   -   journal position to account 123",
+                    "JOURNAL   -   Journal Position From account 123",
+                    "JOURNAL   -   unrelated activity",
+                ],
+            },
+            {
+                "transforms": {
+                    "rules": [
+                        {
+                            "conditions": {
+                                "Action": ["BRW"],
+                                "Description": ["contains:JOURNAL POSITION TO"],
+                            },
+                            "actions": {"Action": "TFR_OUT"},
+                        },
+                        {
+                            "conditions": {
+                                "Action": ["BRW"],
+                                "Description": ["contains:JOURNAL POSITION FROM"],
+                            },
+                            "actions": {"Action": "TFR_IN"},
+                        },
+                    ],
+                },
+            },
+            lambda r: (
+                r.iloc[0][Column.Txn.ACTION] == "TFR_OUT"
+                and r.iloc[1][Column.Txn.ACTION] == "TFR_IN"
+                and r.iloc[2][Column.Txn.ACTION] == "BRW"
+            ),
+        ),
     ],
 )
 def test_transform_scenarios(

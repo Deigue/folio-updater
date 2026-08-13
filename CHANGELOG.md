@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - `TFR_IN` and `TFR_OUT` actions for moving cash or units between accounts you own.
+- Transform conditions accept a `contains:` prefix to match a substring.
+- `folio settle-info --import` now also creates `TFR_IN` / `TFR_OUT` transactions
+  for Wealthsimple institutional transfers reported in a monthly statement.
+
 ### Changed
 
 - Updated example configuration in `configuration.md`
@@ -18,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 
 ### Fixed
+
+- Wealthsimple institutional transfers are now properly captured via monthly statements.
 
 ### Security
 
