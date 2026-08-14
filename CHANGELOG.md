@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.6.31] - 2026-08-14
+
+### Added
+
 - `TFR_IN` and `TFR_OUT` actions for moving cash or units between accounts you own.
 - Transform conditions accept a `contains:` prefix to match a substring.
 - `folio settle-info --import` now also creates `TFR_IN` / `TFR_OUT` transactions
