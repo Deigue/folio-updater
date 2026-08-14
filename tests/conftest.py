@@ -6,7 +6,7 @@ import logging
 import shutil
 import sqlite3
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -84,6 +84,8 @@ _datagen_package.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[
 _fx_cache: dict[str, pd.DataFrame] = {}
 _mock_data_cache: dict[str, Path] = {}
 
+FX_WINDOW_DAYS = 60
+
 
 @pytest.fixture(scope="session", autouse=True)
 def nondurable_sqlite() -> Generator[None, Any]:
@@ -145,6 +147,24 @@ def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
     with ExitStack() as stack:
         for module in _PARQUET_EXPORT_CALLERS:
             stack.enter_context(patch(f"{module}.export_to_parquet"))
+        yield
+
+
+@pytest.fixture(autouse=True)
+def mock_forex_data(
+    request: pytest.FixtureRequest,
+    cached_fx_data: Callable[[str | None], pd.DataFrame],
+) -> Generator[None, Any]:
+    """Keep the test suite off the Bank of Canada API endpoint."""
+    if request.node.get_closest_marker("no_mock_forex"):
+        yield
+        return
+
+    with patch.object(
+        ForexService,
+        "get_fx_rates_from_boc",
+        side_effect=cached_fx_data,
+    ):
         yield
 
 
@@ -232,14 +252,30 @@ def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
 
 @pytest.fixture(scope="session")
 def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
-    """Fixture returning a function to fetch and slice cached FX data."""
+    """Fixture returning a function to slice a synthetic Bank of Canada FX frame.
+
+    Generated forex dataframe for full offline testing.
+
+    Returns:
+        A callable taking an optional inclusive start date (YYYY-MM-DD) and
+        returning the matching slice of the cached frame.
+    """
     cache_key = "fx_data_60days"
     if cache_key not in _fx_cache:
-        default_start = (datetime.now(TORONTO_TZ) - timedelta(days=60)).strftime(
-            "%Y-%m-%d",
+        end = pd.Timestamp(datetime.now(TORONTO_TZ).date())
+        dates = pd.bdate_range(end - pd.Timedelta(days=FX_WINDOW_DAYS), end)
+        # Generate mock forex dataframe
+        fx_df = pd.DataFrame(
+            {
+                Column.FX.DATE: dates.strftime("%Y-%m-%d"),
+                # A deterministic ripple through a plausible USD/CAD band.
+                Column.FX.FXUSDCAD: [
+                    round(1.35 + 0.005 * (i % 7), 10) for i in range(len(dates))
+                ],
+            },
         )
-        forex_service = ForexService()
-        _fx_cache[cache_key] = forex_service.get_fx_rates_from_boc(default_start)
+        fx_df[Column.FX.FXCADUSD] = (1.0 / fx_df[Column.FX.FXUSDCAD]).round(10)
+        _fx_cache[cache_key] = fx_df
 
     def get_fx_data(start_date: str | None = None) -> pd.DataFrame:
         df = _fx_cache[cache_key].copy()
