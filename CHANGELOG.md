@@ -26,6 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - Wealthsimple institutional transfers are now properly captured via monthly statements.
 - Dividend amounts are no longer forced positive on import.
+- `folio query` now parses month/year date phrases in any word order or
+  format (e.g. `sep 2023`, `2023 september`, `2023-09`, `10 sept 2024`).
+- `folio query ... last N` now returns the actual last N results in the
+  requested sort order, instead of the first N.
 
 ### Security
 

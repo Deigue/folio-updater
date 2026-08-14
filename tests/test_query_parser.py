@@ -92,6 +92,76 @@ class TestQueryParser:
         assert not query.filters
         assert query.text_searches == ["MAY"]
 
+    def test_parse_day_month_year_phrase(self) -> None:
+        """Test parsing 'DAY MONTH YEAR' (day first, e.g. '10 sept 2024')."""
+        query = parse_query_terms(["10", "sept", "2024"])
+        assert len(query.filters) == 1
+        assert query.filters[0].operator == ":"
+        assert query.filters[0].value == "2024-09-10"
+
+    def test_parse_day_month_with_trailing_garbage_falls_back_to_shorter_phrase(
+        self,
+    ) -> None:
+        """Test a day+month anchor still resolves when a trailing word doesn't parse."""
+        query = parse_query_terms(["10", "sept", "zzzqux"])
+        assert len(query.filters) == 1
+        assert query.filters[0].operator == ":"
+        assert query.filters[0].value.endswith("-09-10")
+        assert query.text_searches == ["zzzqux"]
+
+    @pytest.mark.parametrize(
+        "terms",
+        [
+            pytest.param(["sep", "2023"], id="month_abbr_then_year"),
+            pytest.param(["sept", "2023"], id="month_alt_abbr_then_year"),
+            pytest.param(["2023", "september"], id="year_then_month"),
+        ],
+    )
+    def test_parse_month_year_phrase_either_order(self, terms: list[str]) -> None:
+        """Test 'MONTH YEAR' or 'YEAR MONTH' with no day resolves to a month range."""
+        query = parse_query_terms(terms)
+        assert len(query.filters) == 2
+        assert query.filters[0].operator == ">="
+        assert query.filters[0].value == "2023-09-01"
+        assert query.filters[1].operator == "<="
+        assert query.filters[1].value == "2023-09-30"
+
+    def test_parse_month_year_phrase_with_leading_keyword(self) -> None:
+        """Test a leading keyword before a month/year phrase still resolves it."""
+        query = parse_query_terms(["contribution", "september", "2023"])
+        assert len(query.filters) == 3
+        date_filters = [f for f in query.filters if f.column == Column.Txn.TXN_DATE]
+        assert len(date_filters) == 2
+        assert date_filters[0].value == "2023-09-01"
+        assert date_filters[1].value == "2023-09-30"
+
+    def test_parse_in_filler_word_before_date_phrase(self) -> None:
+        """Test 'in' is swallowed as filler only when a date phrase follows it."""
+        query = parse_query_terms(["contribution", "in", "sept", "2023"])
+        date_filters = [f for f in query.filters if f.column == Column.Txn.TXN_DATE]
+        assert len(date_filters) == 2
+        assert date_filters[0].value == "2023-09-01"
+        assert date_filters[1].value == "2023-09-30"
+        assert not query.text_searches
+
+    def test_parse_bare_iso_year_month(self) -> None:
+        """Test a bare 'YYYY-MM' term resolves to a full-month date range."""
+        query = parse_query_terms(["contribution", "2023-09"])
+        date_filters = [f for f in query.filters if f.column == Column.Txn.TXN_DATE]
+        assert len(date_filters) == 2
+        assert date_filters[0].operator == ">="
+        assert date_filters[0].value == "2023-09-01"
+        assert date_filters[1].operator == "<="
+        assert date_filters[1].value == "2023-09-30"
+
+    def test_parse_bare_iso_year_month_invalid_month_falls_back_to_text_search(
+        self,
+    ) -> None:
+        """Test 'YYYY-MM' with an out-of-range month stays a text search."""
+        query = parse_query_terms(["2023-13"])
+        assert not query.filters
+        assert query.text_searches == ["2023-13"]
+
     def test_parse_date_range(self) -> None:
         """Test parsing a date range (from:to)."""
         query = parse_query_terms(["2025-01-01:2025-12-31"])
@@ -208,31 +278,36 @@ class TestQueryParser:
         assert query.filters[0].value == "USD"
 
     def test_parse_limit_bare_last(self) -> None:
-        """Test 'last N' (no time unit) is parsed as a result limit."""
+        """Test 'last N' (no time unit) is parsed as a tail result limit."""
         query = parse_query_terms(["last", "5"])
-        assert query.limit == 5
+        assert query.end_limit == 5
+        assert query.start_limit is None
         assert not query.filters
 
     def test_parse_limit_bare_first(self) -> None:
-        """Test 'first N' is always parsed as a result limit (unambiguous)."""
+        """Test 'first N' is always parsed as a head result limit (unambiguous)."""
         query = parse_query_terms(["first", "3"])
-        assert query.limit == 3
+        assert query.start_limit == 3
+        assert query.end_limit is None
         assert not query.filters
 
     def test_parse_limit_explicit(self) -> None:
         """Test explicit 'limit:N' filter syntax."""
         query = parse_query_terms(["limit:7"])
-        assert query.limit == 7
+        assert query.start_limit == 7
+        assert query.end_limit is None
 
     def test_parse_limit_explicit_overrides_natural_language(self) -> None:
         """Test that explicit limit:N takes precedence over natural language."""
         query = parse_query_terms(["last", "5", "limit:10"])
-        assert query.limit == 10
+        assert query.start_limit == 10
+        assert query.end_limit is None
 
     def test_parse_last_n_unit_is_still_date_range(self) -> None:
         """Test 'last N <unit>' remains a date range, not a limit."""
         query = parse_query_terms(["last", "5", "days"])
-        assert query.limit is None
+        assert query.start_limit is None
+        assert query.end_limit is None
         assert len(query.filters) == 2
 
     def test_parse_n_units_ago(self) -> None:
@@ -430,12 +505,14 @@ class TestQueryParser:
         """Test malformed/unrecognized date phrases fall back to text search."""
         query = parse_query_terms(terms)
         assert not query.filters
-        assert query.limit is None
+        assert query.start_limit is None
+        assert query.end_limit is None
         assert set(query.text_searches) == set(terms)
 
     def test_parse_limit_and_sort_invalid_falls_back_to_text_search(self) -> None:
         """Test bad limit:/sort: filters (bad value, unknown column) are ignored."""
         query = parse_query_terms(["limit:abc", "sort:Bogus"])
-        assert query.limit is None
+        assert query.start_limit is None
+        assert query.end_limit is None
         assert not query.sorts
         assert set(query.text_searches) == {"limit:abc", "sort:Bogus"}

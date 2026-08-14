@@ -20,20 +20,21 @@ if TYPE_CHECKING:
 _DECEMBER_MONTH = 12
 _TIME_UNITS = {"day", "week", "month", "year"}
 _MAX_LOOSE_DATE_WORDS = 3
-_MONTH_NAMES = {
-    "january", "jan",
-    "february", "feb",
-    "march", "mar",
-    "april", "apr",
-    "may",
-    "june", "jun",
-    "july", "jul",
-    "august", "aug",
-    "september", "sep", "sept",
-    "october", "oct",
-    "november", "nov",
-    "december", "dec",
+_MONTH_NUMBERS = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
 }  # fmt: skip
+_MONTH_NAMES = set(_MONTH_NUMBERS)
 
 
 @dataclass
@@ -71,15 +72,18 @@ class ParsedQuery:
     filters: list[QueryFilter] = field(default_factory=list)
     text_searches: list[str] = field(default_factory=list)  # General text search terms
     sorts: list[QuerySort] = field(default_factory=list)
-    limit: int | None = None
+    start_limit: int | None = None
+    end_limit: int | None = None
 
     def __repr__(self) -> str:
         """Return string representation of the parsed query."""
         query: list[str] = [repr(f) for f in self.filters]
         query.extend(f'text~"{search}"' for search in self.text_searches)
         query.extend(repr(s) for s in self.sorts)
-        if self.limit is not None:
-            query.append(f"limit:{self.limit}")
+        if self.start_limit is not None:
+            query.append(f"limit:{self.start_limit}")
+        if self.end_limit is not None:
+            query.append(f"limit:-{self.end_limit}")
         if not query:
             return "Querying all transactions (no filters applied)."
         return "Filters: " + ", ".join(query)
@@ -208,6 +212,22 @@ def _try_parse_natural_language_date(
     Returns:
         Number of terms consumed if successful, None otherwise.
     """
+    term_upper = terms[start_index].upper()
+
+    # "in <date phrase>" -> filler word, only consumed when a date actually follows
+    if term_upper == "IN" and start_index + 1 < len(terms):
+        consumed = _try_parse_date_phrase(terms, start_index + 1, query)
+        return None if consumed is None else consumed + 1
+
+    return _try_parse_date_phrase(terms, start_index, query)
+
+
+def _try_parse_date_phrase(
+    terms: list[str],
+    start_index: int,
+    query: ParsedQuery,
+) -> int | None:
+    """Try the actual date-phrase grammars, without the leading 'in' filler."""
     term = terms[start_index]
     term_upper = term.upper()
 
@@ -230,7 +250,9 @@ def _try_parse_natural_language_date(
     # "N days/weeks/months/years ago" -> anchored on the leading number, since
     # "ago" itself is a trailing word and can't trigger a forward scan.
     if term.isdigit():
-        return _try_parse_ago_phrase(terms, start_index, query)
+        consumed = _try_parse_ago_phrase(terms, start_index, query)
+        if consumed is not None:
+            return consumed
 
     # Fast-path phrase grammars with their own explicit trigger words.
     for fast_path in (
@@ -238,7 +260,7 @@ def _try_parse_natural_language_date(
         _try_parse_range_phrase,
         _try_parse_bound_phrase,
         _try_parse_since_phrase,
-        _try_parse_month_day_phrase,
+        _try_parse_calendar_phrase,
     ):
         consumed = fast_path(terms, start_index, query)
         if consumed is not None:
@@ -249,7 +271,6 @@ def _try_parse_natural_language_date(
     if term_upper not in relative_keywords:
         # Single word that's not a relative keyword - don't try to parse as date
         return None
-
     return _try_parse_relative_phrase(terms, start_index, query)
 
 
@@ -323,7 +344,10 @@ def _try_parse_limit_phrase(
     if term_upper == "LAST" and unit_follows:
         return None
 
-    query.limit = int(next_term)
+    if term_upper == "LAST":
+        query.end_limit = int(next_term)
+    else:
+        query.start_limit = int(next_term)
     return 2
 
 
@@ -468,29 +492,63 @@ def _try_parse_bound_phrase(
     return None
 
 
-def _try_parse_month_day_phrase(
+def _has_calendar_anchor(terms: list[str], start_index: int) -> bool:
+    """Check whether a calendar phrase could plausibly start at this index.
+
+    Anchors on: a month name ("august ..."), a 1-2 digit day immediately
+    followed by a month name ("10 sept ..."), or a 4-digit year immediately
+    followed by a month name ("2023 september").
+    """
+    first = terms[start_index].lower()
+    if first in _MONTH_NAMES:
+        return True
+
+    if start_index + 1 >= len(terms) or not first.isdigit():
+        return False
+    next_term = terms[start_index + 1].lower()
+    is_day_like = len(first) <= 2  # noqa: PLR2004
+    is_year_like = len(first) == 4  # noqa: PLR2004
+    return (is_day_like or is_year_like) and next_term in _MONTH_NAMES
+
+
+def _try_parse_calendar_phrase(
     terms: list[str],
     start_index: int,
     query: ParsedQuery,
 ) -> int | None:
-    """Try to parse an exact day given as 'MONTH DAY [YEAR]' (e.g. 'august 10 2024').
+    """Try to parse a calendar phrase.
 
-    Only matches when a specific day is actually present in the phrase (i.e.
-    dateparser resolves it at "day" granularity) - a bare month name like
-    "august" alone stays a possible ticker/text-search term.
+     e.g. 'august 10 2024', '10 august 2024', 'august 2024', '2024 august'.
+
+    A specific day becomes an exact-date filter
+    Month/year patterns becomes a full-month range.
+    A bare month word is left unmatched.
+    A "year" granularity cant occur here: anchor requries month tokens.
     """
-    if terms[start_index].lower() not in _MONTH_NAMES:
+    if not _has_calendar_anchor(terms, start_index):
         return None
 
     max_words = min(_MAX_LOOSE_DATE_WORDS, len(terms) - start_index)
     for num_words in range(max_words, 0, -1):
         phrase = " ".join(terms[start_index : start_index + num_words])
         result = _get_loose_date_data(phrase)
-        if result is not None and result[1] == "day":
-            resolved_date, _period = result
+        if result is None:
+            continue
+        resolved_date, period = result
+
+        if period == "day":
             resolved_str = resolved_date.strftime("%Y-%m-%d")
+            query.filters.append(QueryFilter(Column.Txn.TXN_DATE, ":", resolved_str))
+            return num_words
+
+        if period == "month" and num_words >= 2:  # noqa: PLR2004
+            start_date = date(resolved_date.year, resolved_date.month, 1)
+            end_date = _last_day_of_month(resolved_date.year, resolved_date.month)
             query.filters.append(
-                QueryFilter(Column.Txn.TXN_DATE, ":", resolved_str),
+                QueryFilter(Column.Txn.TXN_DATE, ">=", start_date.strftime("%Y-%m-%d")),
+            )
+            query.filters.append(
+                QueryFilter(Column.Txn.TXN_DATE, "<=", end_date.strftime("%Y-%m-%d")),
             )
             return num_words
 
@@ -766,7 +824,8 @@ def _try_parse_limit(term: str, query: ParsedQuery) -> bool:
     if not value.isdigit():
         return False
 
-    query.limit = int(value)
+    query.start_limit = int(value)
+    query.end_limit = None
     return True
 
 
@@ -862,6 +921,22 @@ def _try_parse_date_filter(term: str, query: ParsedQuery) -> bool:
     if comparison_match:
         operator, date_str = comparison_match.groups()
         query.filters.append(QueryFilter(Column.Txn.TXN_DATE, operator, date_str))
+        return True
+
+    # Pattern for bare YYYY-MM (no operator) -> full-month range
+    month_match = re.match(r"^(\d{4})-(\d{2})$", term)
+    if month_match:
+        year, month = int(month_match.group(1)), int(month_match.group(2))
+        if not 1 <= month <= _DECEMBER_MONTH:
+            return False
+        start_date = date(year, month, 1)
+        end_date = _last_day_of_month(year, month)
+        query.filters.append(
+            QueryFilter(Column.Txn.TXN_DATE, ">=", start_date.strftime("%Y-%m-%d")),
+        )
+        query.filters.append(
+            QueryFilter(Column.Txn.TXN_DATE, "<=", end_date.strftime("%Y-%m-%d")),
+        )
         return True
 
     # Pattern for exact YYYY-MM-DD

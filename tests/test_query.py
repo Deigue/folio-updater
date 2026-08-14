@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from cli.main import app as cli_app
 from cli.query_parser import parse_query_terms
-from datagen import DEFAULT_TXN_COUNT, ensure_data_exists
+from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, get_mock_data_date_range
 from db import add_column_to_table, get_connection, get_row_count, get_rows
 from db.formatters import ActionValidationRules
 from utils.constants import DEFAULT_TICKERS, Action, Column, Table
@@ -248,6 +249,51 @@ class TestQueryCommand:
                 ["query", ">=2025"],
             )
             assert_cli_success(cli_result)
+
+    def test_query_month_year_phrase_matches_exact_date_range(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """Test 'MONTH YEAR' (either word order) returns exactly that month's rows."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            mock_start, _mock_end = get_mock_data_date_range()
+            target_month_start = mock_start.replace(day=1)
+            target_year = target_month_start.year
+            target_month = target_month_start.month
+            month_prefix = f"{target_year}-{target_month:02d}"
+
+            with get_connection() as conn:
+                expected_count = get_row_count(
+                    conn,
+                    Table.TXNS,
+                    f'"{Column.Txn.TXN_DATE}" LIKE ?',
+                    [f"{month_prefix}-%"],
+                )
+            # Sanity check: the fixture actually has data in this month
+            assert expected_count > 0
+
+            month_name = target_month_start.strftime("%B").lower()
+            found_message = f"Found {expected_count} matching transaction(s)."
+
+            for terms in (
+                [month_name, str(target_year)],
+                [str(target_year), month_name],
+            ):
+                cli_result = run_cli_with_config(ctx.config, cli_app, ["query", *terms])
+                assert_cli_success(cli_result)
+                assert_in_output(found_message, cli_result)
+
+            # Search for month outside of fixture bounds.
+            prior_month_end = target_month_start - timedelta(days=1)
+            prior_month_name = prior_month_end.strftime("%B").lower()
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["query", prior_month_name, str(prior_month_end.year)],
+            )
+            assert_cli_success(cli_result)
+            assert_in_output("No transactions found", cli_result)
 
     def test_query_case_insensitive_action(self, temp_ctx: TempContext) -> None:
         """Test that action keywords are case-insensitive."""
@@ -510,7 +556,7 @@ class TestQueryCommand:
                 ["query", "last", "5"],
             )
             assert_cli_success(cli_result)
-            assert_in_output("limit:5", cli_result)
+            assert_in_output("limit:-5", cli_result)
             assert_in_output("Found 5 matching transaction(s).", cli_result)
 
     def test_query_limit_explicit(self, temp_ctx: TempContext) -> None:
@@ -592,7 +638,7 @@ class TestQueryCommand:
             )
             assert_cli_success(cli_result)
             assert_in_output("TxnDate>=2023-07-01", cli_result)
-            assert_in_output("limit:3", cli_result)
+            assert_in_output("limit:-3", cli_result)
 
 
 class TestQueryByTxnId:

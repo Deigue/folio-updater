@@ -24,9 +24,12 @@ folio query between 2021 and 2023
 folio query between april and september
 folio query between october 13 and now
 folio query from january to june
-# Specific single days:
+folio query sept 2023
+folio query 2023 september
+folio query 2023-09
 folio query yesterday
 folio query august 10 2024
+folio query 10 august 2024
 folio query 2025-11-01
 # Between specific dates:
 folio query 2025-05-01:2025-07-26
@@ -62,6 +65,7 @@ folio query AAPL PERSO last year
 folio query BUY last 3 days
 folio query DIVIDEND since 2023
 folio query QQQM last 4 months BUY
+folio query CONTRIBUTION in sept 2023
 ```
 
 ---
@@ -132,6 +136,7 @@ For unambiguous scripting, use the explicit `limit:n` filter instead.
 folio query last 5
 folio query QQQM PERSON from 2025-01 first 4
 folio query QQQM PERSON from 2025-01 limit:4
+folio query sort:txnid last 5
 ```
 
 ---

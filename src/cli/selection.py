@@ -72,7 +72,12 @@ class Selection:
         """Whether the selection would sweep the entire transactions table."""
         if self.mode is SelectionMode.IDS or self.query is None:
             return False
-        return not (self.query.filters or self.query.text_searches or self.query.limit)
+        return not (
+            self.query.filters
+            or self.query.text_searches
+            or self.query.start_limit
+            or self.query.end_limit
+        )
 
     def describe(self) -> str:
         """Describe the selection for an audit log header."""
@@ -205,6 +210,23 @@ def build_order_by_clause(query: ParsedQuery) -> str:
     return ", ".join(order_parts)
 
 
+def _invert_order_by(order_by_clause: str) -> str:
+    """Flip ASC/DESC on every term of an ORDER BY clause.
+
+    Used to fetch the tail of a sort order via `LIMIT`: querying with the
+    inverted order and reverse result is equivalent to (but far cheaper
+    than) fetching everything and slicing off the last N rows.
+    """
+    inverted_parts = []
+    for raw_part in order_by_clause.split(","):
+        part = raw_part.strip()
+        if part.endswith(" DESC"):
+            inverted_parts.append(part.removesuffix(" DESC") + " ASC")
+        else:
+            inverted_parts.append(part.removesuffix(" ASC") + " DESC")
+    return ", ".join(inverted_parts)
+
+
 def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
     """Get transactions from the database based on a ParsedQuery.
 
@@ -218,13 +240,26 @@ def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
         with get_connection() as conn:
             where_clause, params = build_where_clause(query, conn)
             order_by_clause = build_order_by_clause(query)
+
+            if query.end_limit is not None:
+                # fetch with the order inverted, then reverse back to restore sort.
+                rows = get_rows(
+                    conn,
+                    Table.TXNS,
+                    where=where_clause,
+                    params=params,
+                    order_by=_invert_order_by(order_by_clause),
+                    limit=query.end_limit,
+                )
+                return rows.iloc[::-1].reset_index(drop=True)
+
             return get_rows(
                 conn,
                 Table.TXNS,
                 where=where_clause,
                 params=params,
                 order_by=order_by_clause,
-                limit=query.limit,
+                limit=query.start_limit,
             )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         logger.exception("Error querying transactions")

@@ -98,6 +98,46 @@ class TestSelectionMode:
             assert selection.txn_ids == []
 
 
+class TestTailLimit:
+    """'last N' takes the tail of the requested sort order, not its head."""
+
+    def test_ascending_sort_last_n_returns_the_highest_ids(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """'sort:txnid last N' returns the N highest TxnIds, sorted ascending."""
+        with temp_ctx():
+            ensure_data_exists()
+            expected = _all_txn_ids()[-5:]
+
+            selection = select_transactions(["sort:txnid", "last", "5"])
+
+            assert selection.txn_ids == expected
+
+    def test_descending_sort_last_n_returns_the_lowest_ids(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """'sort:-txnid last N' returns the N lowest TxnIds, sorted descending."""
+        with temp_ctx():
+            ensure_data_exists()
+            expected = list(reversed(_all_txn_ids()[:5]))
+
+            selection = select_transactions(["sort:-txnid", "last", "5"])
+
+            assert selection.txn_ids == expected
+
+    def test_first_n_still_returns_the_head(self, temp_ctx: TempContext) -> None:
+        """'sort:txnid first N' is unaffected: it still takes the head."""
+        with temp_ctx():
+            ensure_data_exists()
+            expected = _all_txn_ids()[:5]
+
+            selection = select_transactions(["sort:txnid", "first", "5"])
+
+            assert selection.txn_ids == expected
+
+
 class TestSelectionBounds:
     """The guard that keeps a selection from sweeping the whole folio."""
 
