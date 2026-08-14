@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Removed
 
+- The `BRW` action. Use `TFR_IN` / `TFR_OUT` instead. Broker files that still report
+  `BRW` should be handled by transform rules, which run before validation.
+
 ### Fixed
 
 ### Security

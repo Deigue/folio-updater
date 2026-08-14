@@ -145,7 +145,10 @@ transforms:
 
 ### 6. Account Transfers
 
-Broker like Questrade might report transfers under `BRW` which is ambiguous.
+Brokers like Questrade report transfers under their own ambiguous code, `BRW`, which says
+nothing about the direction. `BRW` is not a valid action, so a rule has to rewrite it into
+`TFR_IN` or `TFR_OUT` before validation runs. The direction lives in the description, so
+match it with `contains:`.
 
 ```yaml
 transforms:

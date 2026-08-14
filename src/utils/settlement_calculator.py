@@ -29,7 +29,6 @@ T_PLUS_1_EFFECTIVE_DATES: dict[Currency, date] = {
 
 SAME_DAY_SETTLE_ACTIONS: set[Action] = {
     Action.DIVIDEND,
-    Action.BRW,
     Action.CONTRIBUTION,
     Action.FCH,
     Action.ROC,

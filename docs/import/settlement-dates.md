@@ -30,10 +30,10 @@ The system adds two internal fields to track settlement dates:
 These transaction types settle on the same day as the transaction date:
 
 - **DIVIDEND**: Dividend payments
-- **BRW**: Borrowing transactions
 - **CONTRIBUTION**: Account contributions
-- **FCH**: Fee charges
+- **FCH**: Financial charges - fees, interest, other cash adjustments
 - **ROC**: Return of capital
+- **TFR_IN** / **TFR_OUT**: Transfers of cash or units between your own accounts
 - **WITHDRAWAL**: Account withdrawals
 
 ### T+1/T+2 Settlement

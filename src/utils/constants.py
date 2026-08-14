@@ -23,7 +23,6 @@ class Action(StrEnum):
     BUY = "BUY"  # This represents buying a stock
     SELL = "SELL"  # This represents selling a stock
     DIVIDEND = "DIVIDEND"  # Acquired dividends from stocks
-    BRW = "BRW"  # Deprecated: Questrade's transfer code. Use TFR_IN/TFR_OUT instead.
     CONTRIBUTION = "CONTRIBUTION"  # New money into the portfolio, from outside it
     FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
     FXT = "FXT"  # Foreign Exchange Trades

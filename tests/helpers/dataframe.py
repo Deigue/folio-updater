@@ -15,7 +15,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 # Amount/Units signs the importer is expected to enforce, per action. Duplicated
 # here rather than read from ActionValidationRules.SIGN_RULES, so a
 # regression in the production table is caught instead of mirrored.
-# BRW, FCH and FXT are absent: both directions are valid for them.
+# FCH and FXT are absent: both directions are valid for them.
 EXPECTED_SIGNS: dict[str, dict[str, int]] = {
     Action.BUY: {Column.Txn.AMOUNT: -1, Column.Txn.UNITS: 1},
     Action.SELL: {Column.Txn.AMOUNT: 1, Column.Txn.UNITS: -1},

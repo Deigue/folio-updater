@@ -255,8 +255,6 @@ class TransactionFormatter:
         "SALE": "SELL",
         "DIV": "DIVIDEND",
         "DIVIDENDS": "DIVIDEND",
-        "BORROW": "BRW",
-        "BORROWING": "BRW",
         "TRANSFER_IN": "TFR_IN",
         "TRANSFER IN": "TFR_IN",
         "TFRIN": "TFR_IN",
