@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sqlite3
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -82,6 +83,24 @@ _datagen_package.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[
 # Session-scoped caches
 _fx_cache: dict[str, pd.DataFrame] = {}
 _mock_data_cache: dict[str, Path] = {}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def nondurable_sqlite() -> Generator[None, Any]:
+    """Drop SQLite's crash-durability for testing scope.
+
+    Test databases live under tmp_path and are deleted the moment the test ends
+    """
+    real_connect = sqlite3.connect
+
+    def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:  # noqa: ANN401
+        conn = real_connect(*args, **kwargs)
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA journal_mode=MEMORY")
+        return conn
+
+    with patch.object(sqlite3, "connect", connect):
+        yield
 
 
 @pytest.fixture(autouse=True)
