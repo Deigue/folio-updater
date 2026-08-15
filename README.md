@@ -17,7 +17,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio demo`**: Create a demo portfolio with mock data for testing
 - **[`folio settle-info`](docs/commands/settlement-info.md)**: Retrieve and update settlement date information
 - **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/commands/download/ibkr-integration.md), [Wealthsimple](docs/commands/download/wealthsimple-integration.md))
-- **`folio tickers`**: Alias ticker symbols that are renamed or different to be treated the same
+- **`folio symbol`**: Alias ticker symbols that are renamed or different to be treated the same
 - **[`folio query`](docs/commands/querying.md)**: Search and filter transactions using natural language or explicit filters
 - **`folio version`**: Show the version of the folio-updater and file paths.
 

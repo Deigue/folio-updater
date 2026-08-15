@@ -230,8 +230,8 @@ def download_cmd(
     )
 
 
-@app.command("tickers", help="Manage ticker aliases")
-def tickers_cmd(
+@app.command("symbol", help="Manage ticker aliases")
+def symbol_cmd(
     add: tuple[str, str, str] | None = typer.Option(
         None,
         "-a",

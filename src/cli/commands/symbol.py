@@ -1,6 +1,7 @@
-"""Tickers command for the folio CLI.
+"""Symbol command for the folio CLI.
 
-Handles managing ticker aliases.
+Handles managing ticker aliases -- the `OldTicker -> NewTicker` renames the
+cost-base engine resolves through.
 """
 
 from __future__ import annotations
@@ -113,7 +114,7 @@ def delete_alias(old_ticker: str) -> None:
         console_error(f"Error deleting alias: {e}")
 
 
-def manage_ticker_aliases(
+def manage_symbols(
     add: tuple[str, str, str] | None,
     delete: str | None,
     *,

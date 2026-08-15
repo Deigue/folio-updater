@@ -319,7 +319,7 @@ class TestQueryCommand:
             run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["tickers", "--add", old_ticker, new_ticker, "2025-01-01"],
+                ["symbol", "--add", old_ticker, new_ticker, "2025-01-01"],
             )
 
             # Query for the old ticker
@@ -360,7 +360,7 @@ class TestQueryCommand:
                 config,
                 cli_app,
                 [
-                    "tickers",
+                    "symbol",
                     "--add",
                     ticker_alias_old,
                     ticker_alias_new,

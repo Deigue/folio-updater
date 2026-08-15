@@ -153,7 +153,10 @@ class ActionValidationRules:
         Action.WITHDRAWAL: {Column.Txn.AMOUNT: Sign.NEGATIVE},
         Action.CONTRIBUTION: {Column.Txn.AMOUNT: Sign.POSITIVE},
         Action.ROC: {Column.Txn.AMOUNT: Sign.POSITIVE},
-        Action.SPLIT: {Column.Txn.UNITS: Sign.POSITIVE},  # ratio, never negative
+        Action.SPLIT: {
+            Column.Txn.PRICE: Sign.POSITIVE,
+            Column.Txn.UNITS: Sign.POSITIVE,
+        },
         Action.TFR_IN: {
             Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
             Column.Txn.UNITS: Sign.POSITIVE,  # shares in
