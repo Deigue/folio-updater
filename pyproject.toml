@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.6.33"
+version = "0.6.34"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"

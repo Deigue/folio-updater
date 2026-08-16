@@ -253,7 +253,7 @@ class ForexService:
         return fx_df
 
     @staticmethod
-    def get_earliest_transaction_date() -> str | None:  # pragma: no cover
+    def get_earliest_transaction_date() -> str | None:
         """Get the earliest transaction date from the database.
 
         Returns:
@@ -277,51 +277,95 @@ class ForexService:
             return None
 
     @staticmethod
-    def is_fx_data_current() -> bool:
-        """Check if FX data in database is current.
+    def effective_today() -> str:
+        """Give the latest date the Bank of Canada could already have published.
+
+        Rates land at 4:30 PM Toronto time, so before that the newest date worth
+        asking for is yesterday's.
 
         Returns:
-            True if FX data is current, False otherwise.
+            Date in YYYY-MM-DD format.
         """
-        latest_fx_date = ForexService.get_latest_fx_date_from_db()
-        if latest_fx_date is None:
-            return False
-
         current = datetime.now(TORONTO_TZ)
         if (
             current.time()
             < current.replace(hour=16, minute=30, second=0, microsecond=0).time()
         ):  # pragma: no cover
-            # Before 4:30 PM Toronto time, use previous day as "today"
-            current = current - pd.Timedelta(days=1)
+            current = current - timedelta(days=1)
+        return current.strftime("%Y-%m-%d")
 
-        current_str = current.strftime("%Y-%m-%d")
-        return latest_fx_date >= current_str
-
-    @classmethod
-    def get_missing_fx_data(cls, start_date: str | None = None) -> pd.DataFrame:
-        """Get missing FX data that needs to be fetched from API.
-
-        Args:
-            start_date: Optional start date. If None, uses earliest transaction date
-                   or defaults to approximately 30 days ago.
+    @staticmethod
+    def get_earliest_fx_date_from_db() -> str | None:
+        """Get the earliest FX rate date held in the database.
 
         Returns:
-            DataFrame with missing FX rates.
+            Earliest FX rate date in YYYY-MM-DD format, or None if none exist.
         """
-        latest_fx_date = cls.get_latest_fx_date_from_db()
+        try:
+            with get_connection() as conn:
+                if Table.FX not in get_tables(conn):
+                    return None
+                return get_min_value(conn, Table.FX, Column.FX.DATE)
+        except sqlite3.Error as e:
+            logger.debug("Could not get earliest FX date from database: %s", e)
+            return None
 
-        if latest_fx_date is None:  # pragma: no cover
-            if start_date is None:
-                start_date = cls.get_earliest_transaction_date()
-            if start_date is None:
-                start_date = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime(
-                    "%Y-%m-%d",
-                )
-            info_both(f"No FX data found in database, using {start_date} as start date")
-            return cls.get_fx_rates_from_boc(start_date)
+    @classmethod
+    def _default_start(cls) -> str:
+        """Work out how far back coverage has to reach for this folio.
 
-        latest_date_obj = pd.to_datetime(latest_fx_date)
-        next_date = (latest_date_obj + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        info_both(f"Fetching missing FX data from {next_date} to today")
-        return cls.get_fx_rates_from_boc(next_date)
+        Returns:
+            The earliest transaction date, or 30 days ago for an empty folio.
+        """
+        earliest = cls.get_earliest_transaction_date()
+        if earliest is not None:
+            return earliest
+        fallback = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime("%Y-%m-%d")
+        info_both(f"No transactions found, using {fallback} as FX start date")
+        return fallback
+
+    @classmethod
+    def ensure_coverage(cls, start: str | None = None, end: str | None = None) -> int:
+        """Ensure there is forex coverage for all transactions in the folio.
+
+        This refetches from `start` whenever `start` predates what is on hand,
+        and otherwise tops up the forward end.
+
+        Args:
+            start: Earliest date that needs a rate, YYYY-MM-DD. Defaults to the
+                folio's own earliest transaction date
+            end: Latest date that needs a rate, YYYY-MM-DD. Defaults to the latest date
+                Bank of Canada could have published; the query runs to the
+                present regardless, so this only decides whether a forward
+                top-up is needed at all.
+
+        Returns:
+            Number of new rate rows inserted.
+        """
+        first_needed = start or cls._default_start()
+        existing_min = cls.get_earliest_fx_date_from_db()
+        existing_max = cls.get_latest_fx_date_from_db()
+        target_end = end or cls.effective_today()
+
+        if existing_min is None or existing_max is None or first_needed < existing_min:
+            fetch_from = first_needed
+        elif existing_max < target_end:
+            fetch_from = (pd.to_datetime(existing_max) + pd.Timedelta(days=1)).strftime(
+                "%Y-%m-%d",
+            )
+        else:
+            logger.debug("FX coverage already spans %s to %s", first_needed, target_end)
+            return 0
+
+        fetched = cls.get_fx_rates_from_boc(fetch_from)
+        if fetched.empty:
+            return 0
+
+        # Drop dates that we already have, so we only insert new ones.
+        held: set[str] = set()
+        if existing_min is not None:
+            held = set(cls.get_fx_rates_from_db()[Column.FX.DATE])
+        fresh = fetched[~fetched[Column.FX.DATE].isin(held)]
+        if fresh.empty:
+            return 0
+        return cls.insert_fx_data(fresh)

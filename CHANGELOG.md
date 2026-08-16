@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `folio tickers` is now `folio symbol`.
 - `SPLIT` requires a positive `Price` as well as positive `Units`, so both halves of the
   ratio are sign-corrected on import.
+- `folio getfx` now can backfill rates older than the earliest one stored.
+
 ### Deprecated
 
 ### Removed

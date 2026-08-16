@@ -9,7 +9,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -169,6 +169,26 @@ def mock_forex_data(
 
 
 @pytest.fixture
+def boc_fetch(
+    cached_fx_data: Callable[[str | None], pd.DataFrame],
+) -> Generator[MagicMock, Any]:
+    """Stub the BoC fetch the usual way, but hand back the spy.
+
+    Test that needs to assert *which* date was requested -- or that
+    nothing was requested at all -- can do so without patching by hand.
+
+    Yields:
+        The mock standing in for `ForexService.get_fx_rates_from_boc`.
+    """
+    with patch.object(
+        ForexService,
+        "get_fx_rates_from_boc",
+        side_effect=cached_fx_data,
+    ) as fetch:
+        yield fetch
+
+
+@pytest.fixture
 def temp_ctx(tmp_path: Path) -> TempContext:
     """Create a temporary project structure with an isolated config.yaml.
 
@@ -325,7 +345,7 @@ def cached_mock_data(tmp_path_factory: pytest.TempPathFactory) -> Path:
     app_ctx.initialize(cache_dir)
 
     with (
-        patch.object(ForexService, "get_missing_fx_data", return_value=mock_fx_data),
+        patch.object(ForexService, "get_fx_rates_from_boc", return_value=mock_fx_data),
         patch.object(ForexService, "insert_fx_data", return_value=None),
     ):
         create_mock_data()

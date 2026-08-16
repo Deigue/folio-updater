@@ -52,11 +52,8 @@ class ParquetExporter:
     def export_forex(self, start_date: str | None = None) -> int:
         """Export all FX rates to Parquet file.
 
-        This method:
-        1. Checks database for existing FX rates
-        2. Fetches missing rates from API if needed
-        3. Stores new rates in database
-        4. Exports all rates from database to Parquet
+        FX Coverage is extended at both ends, so rates are fetched covering all
+        transactions in the folio. Then retrieved from the database and exported.
 
         Args:
             start_date: Start date in YYYY-MM-DD format. If None, uses earliest
@@ -65,7 +62,7 @@ class ParquetExporter:
         Returns:
             int: Number of FX rate records exported.
         """
-        self._ensure_fx_data_current(start_date)
+        ForexService.ensure_coverage(start_date)
         fx_df = ForexService.get_fx_rates_from_db()
         if fx_df.empty:  # pragma: no cover
             logger.debug("No FX rates available for export")
@@ -120,17 +117,6 @@ class ParquetExporter:
         )
 
         return txn_count, fx_count, ticker_count
-
-    def _ensure_fx_data_current(self, start_date: str | None = None) -> None:
-        """Ensure FX data in database is current.
-
-        Args:
-            start_date: Optional start date for initial data fetch.
-        """
-        if ForexService.is_fx_data_current():  # pragma: no cover
-            return
-        fx_df = ForexService.get_missing_fx_data(start_date)
-        ForexService.insert_fx_data(fx_df)
 
     def _remove_internal_columns(self, txn_df: pd.DataFrame) -> pd.DataFrame:
         """Remove internal-use-only columns from the DataFrame."""

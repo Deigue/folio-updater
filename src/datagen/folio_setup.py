@@ -80,8 +80,7 @@ def create_mock_data() -> None:
         if get_row_count(conn, Table.TXNS) > 0:
             rolling_backup(configuration.db_path)
         transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-    fx_df = ForexService.get_missing_fx_data()
-    ForexService.insert_fx_data(fx_df)
+    ForexService.ensure_coverage()
     exporter = ParquetExporter()
     exporter.export_all()
 
