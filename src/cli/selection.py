@@ -22,7 +22,8 @@ import pandas as pd
 
 from app.app_context import get_config
 from cli.query_parser import ParsedQuery, parse_query_terms
-from db.queries import get_columns, get_connection, get_rows, get_tables
+from db.queries import get_alias_edges, get_columns, get_connection, get_rows
+from services.symbols import SymbolResolver
 from utils.constants import Column, Table
 from utils.optional_fields import FieldType
 
@@ -87,51 +88,16 @@ class Selection:
 
 
 def get_ticker_family(connection: sqlite3.Connection, ticker: str) -> list[str]:
-    """Find all related tickers (aliases) for a given ticker."""
-    all_aliases = {ticker.upper()}
-    new_found = True
+    """Find all related tickers (aliases) for a given ticker.
 
-    # Check if alias table exists
-    tables = get_tables(connection)
-    if Table.TICKER_ALIASES not in tables:
-        return list(all_aliases)
+    Args:
+        connection: The database connection.
+        ticker: Any symbol in the rename chain.
 
-    while new_found:
-        new_found = False
-        current_aliases = list(all_aliases)
-        placeholders = ",".join("?" for _ in current_aliases)
-
-        # Find new tickers from old
-        query_new = (
-            f"SELECT NewTicker FROM {Table.TICKER_ALIASES} "
-            f"WHERE OldTicker IN ({placeholders})"
-        )
-        new_tickers = pd.read_sql_query(
-            query_new,
-            connection,
-            params=tuple(current_aliases),
-        )
-        for new in new_tickers["NewTicker"]:
-            if new not in all_aliases:
-                all_aliases.add(new)
-                new_found = True
-
-        # Find old tickers from new
-        query_old = (
-            f"SELECT OldTicker FROM {Table.TICKER_ALIASES} "
-            f"WHERE NewTicker IN ({placeholders})"
-        )
-        old_tickers = pd.read_sql_query(
-            query_old,
-            connection,
-            params=tuple(current_aliases),
-        )
-        for old in old_tickers["OldTicker"]:
-            if old not in all_aliases:
-                all_aliases.add(old)
-                new_found = True
-
-    return list(all_aliases)
+    Returns:
+        Every symbol the security has been known by, including the input.
+    """
+    return SymbolResolver(get_alias_edges(connection)).family(ticker)
 
 
 def _get_optional_text_columns(conn: sqlite3.Connection) -> list[str]:

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
+from utils.constants import Column, Table
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -178,6 +179,35 @@ def get_distinct_set(
     """Return distinct non-null values from a column as a set."""
     df = get_distinct_values(connection, table_name, column_name, filter_condition)
     return set(df[column_name].dropna()) if column_name in df else set()
+
+
+def get_alias_edges(
+    connection: sqlite3.Connection,
+) -> list[tuple[str, str, str]]:
+    """Return every ticker rename as an (old, new, effective date) triple.
+
+    Args:
+        connection: The database connection.
+
+    Returns:
+        One triple per row of `TickerAliases`, ordered by effective date so
+        multi-hop chains resolve deterministically. Empty when the table has
+        not been created yet.
+    """
+    query = (
+        f'SELECT "{Column.Aliases.OLD_TICKER}", "{Column.Aliases.NEW_TICKER}", '
+        f'"{Column.Aliases.EFFECTIVE_DATE}" FROM "{Table.TICKER_ALIASES}" '
+        f'ORDER BY "{Column.Aliases.EFFECTIVE_DATE}" ASC'
+    )
+    try:
+        rows = connection.execute(query).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [
+        (str(old).upper(), str(new).upper(), str(effective))
+        for old, new, effective in rows
+        if old and new
+    ]
 
 
 def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
