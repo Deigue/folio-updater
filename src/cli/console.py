@@ -136,6 +136,16 @@ def console_info(message: str) -> None:
     _get_output_console().print(f"{symbol}[cyan]{message}[/cyan]")
 
 
+def supports_unicode() -> bool:
+    """Whether the console can render non-ASCII symbols.
+
+    Returns:
+        True when the terminal's encoding handles Unicode, so callers can pick
+        a glyph rather than an ASCII stand-in.
+    """
+    return _UNICODE_SUPPORTED
+
+
 def get_symbol(symbol_type: str) -> str:
     """Get a Unicode-safe symbol for the given type.
 

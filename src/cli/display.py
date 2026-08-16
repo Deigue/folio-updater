@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -30,6 +31,7 @@ from cli.console import (
     console_print,
     get_symbol,
     progress_console_context,
+    supports_unicode,
 )
 from utils import TXN_ESSENTIALS, Action, Column, TransactionContext
 
@@ -531,11 +533,68 @@ def _handle_pagination_input(
     return current_page, False
 
 
-def _page_frame(
+# Cache Freshness thresholds, in seconds, for `format_freshness`.
+_JUST_NOW = 60
+_ONE_HOUR = 3600
+_ONE_DAY = 86400
+
+
+def format_freshness(computed_at: datetime | None) -> str:
+    """Describe how current a cached figure is, in human terms.
+
+    Every surface that can serve cached data has to say so, in its header or
+    panel subtitle.
+
+    Args:
+        computed_at: When the data was computed, or None if it was computed by
+            this invocation.
+
+    Returns:
+        A short phrase such as `computed just now` or `cached 4d ago`.
+    """
+    if computed_at is None:
+        return "computed just now"
+
+    now = datetime.now(computed_at.tzinfo)
+    elapsed = max((now - computed_at).total_seconds(), 0)
+    if elapsed < _JUST_NOW:
+        return "cached just now"
+    if elapsed < _ONE_HOUR:
+        return f"cached {int(elapsed // 60)}m ago"
+    if elapsed < _ONE_DAY:
+        return f"cached {int(elapsed // _ONE_HOUR)}h ago"
+    return f"cached {int(elapsed // _ONE_DAY)}d ago"
+
+
+# Freshness icons
+_FRESH_ICON, _CACHED_ICON = ("●", "⏱") if supports_unicode() else ("*", "~")
+
+
+def freshness_badge(computed_at: datetime | None) -> str:
+    """Render the freshness indicator as a coloured, iconed one-liner.
+
+    Meant to be printed above table, since footer is invisible while paging.
+    (Pager redraws in alternate screen, footer only prints after exited)
+
+    Args:
+        computed_at: When the data was computed, or None if it was computed
+            by this invocation.
+
+    Returns:
+        A Rich-markup string such as `[green]●[/green] computed just now`.
+    """
+    text = format_freshness(computed_at)
+    if computed_at is None:
+        return f"[green]{_FRESH_ICON}[/green] [dim]{text}[/dim]"
+    return f"[yellow]{_CACHED_ICON}[/yellow] [dim]{text}[/dim]"
+
+
+def page_frame(
     total_rows: int,
     title: str,
     page_size: int | None,
     render: Callable[[int, int], None],
+    badge: str | None = None,
 ) -> None:
     """Drive the n/p/q pager over a row range, delegating pages to `render`.
 
@@ -544,10 +603,16 @@ def _page_frame(
         title: Title for the display
         page_size: Rows per page. If None, calculated from console height
         render: Called with (start, end) to draw one page of rows
+        badge: Optional status line (e.g. from `freshness_badge`) printed
+            above every page
     """
     if total_rows == 0:
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
         return
+
+    # Printed once here for the single-page and test-environment paths below.
+    if badge:
+        console_print(badge)
 
     if _is_test_environment():
         render(0, total_rows)
@@ -567,42 +632,63 @@ def _page_frame(
     # discards on exit.
     with console.screen():
         while True:
-            # Calculate slice for current page
-            start_idx = current_page * page_size
-            end_idx = min(start_idx + page_size, total_rows)
-
-            console.clear()
-            console.rule(
-                f"{title} - Page {current_page + 1}/{total_pages}",
-                style="bright_blue",
+            current_page, should_exit = _render_one_page(
+                current_page,
+                total_pages,
+                total_rows,
+                page_size,
+                title,
+                badge,
+                render,
             )
-
-            render(start_idx, end_idx)
-
-            console.print(
-                f"[dim]Showing transactions {start_idx + 1}-{end_idx} of"
-                f" {total_rows}[/dim]",
-            )
-
-            if current_page == 0 and total_pages == 1:
-                break  # Only one page, no navigation needed
-
-            prompt = _get_pagination_prompt(current_page, total_pages)
-            console.print(f"\n{prompt}")
-
-            try:
-                user_input = _getch()
-                current_page, should_exit = _handle_pagination_input(
-                    user_input,
-                    current_page,
-                    total_pages,
-                )
-                if should_exit:
-                    break
-            except (KeyboardInterrupt, EOFError):
+            if should_exit:
                 break
 
     console.rule("End of Transactions", style="dim")
+
+
+def _render_one_page(  # noqa: PLR0917
+    current_page: int,
+    total_pages: int,
+    total_rows: int,
+    page_size: int,
+    title: str,
+    badge: str | None,
+    render: Callable[[int, int], None],
+) -> tuple[int, bool]:
+    """Draw one page inside the pager loop and read the next navigation input.
+
+    Returns:
+        The page to draw next, and whether the pager should exit.
+    """
+    start_idx = current_page * page_size
+    end_idx = min(start_idx + page_size, total_rows)
+
+    console.clear()
+    console.rule(
+        f"{title} - Page {current_page + 1}/{total_pages}",
+        style="bright_blue",
+    )
+    if badge:
+        console_print(badge)
+
+    render(start_idx, end_idx)
+
+    console.print(
+        f"[dim]Showing transactions {start_idx + 1}-{end_idx} of {total_rows}[/dim]",
+    )
+
+    if current_page == 0 and total_pages == 1:
+        return current_page, True  # Only one page, no navigation needed
+
+    prompt = _get_pagination_prompt(current_page, total_pages)
+    console.print(f"\n{prompt}")
+
+    try:
+        user_input = _getch()
+        return _handle_pagination_input(user_input, current_page, total_pages)
+    except (KeyboardInterrupt, EOFError):
+        return current_page, True
 
 
 def page_transactions(
@@ -635,7 +721,7 @@ def page_transactions(
             context=context,
         )
 
-    _page_frame(len(df), title, page_size, render)
+    page_frame(len(df), title, page_size, render)
 
 
 def page_changes(
@@ -664,7 +750,7 @@ def page_changes(
             title=page_title,
         )
 
-    _page_frame(len(before), title, page_size, render)
+    page_frame(len(before), title, page_size, render)
 
 
 def _get_terminal_size() -> tuple[int, int]:
