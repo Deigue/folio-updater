@@ -6,11 +6,16 @@ from typing import TYPE_CHECKING
 
 from cli.selection import SelectionMode, select_transactions
 from datagen import ensure_data_exists
-from db import get_connection, get_rows
+from db import add_column_to_table, get_connection, get_rows, update_rows
 from utils.constants import Column, Table
+
+from .helpers.seed import ACCOUNT, seed_transaction
 
 if TYPE_CHECKING:
     from tests.test_types import TempContext
+
+# Restricts a selection to the seeded rows, leaving the mock folio out of it.
+_SEEDED = f"account:{ACCOUNT}"
 
 
 def _all_txn_ids() -> list[int]:
@@ -85,7 +90,6 @@ class TestSelectionMode:
             )
 
             assert selection.txn_ids == [first, second, third]
-
 
     def test_empty_query_result_has_no_txn_ids(self, temp_ctx: TempContext) -> None:
         """A selection that matched nothing reports no ids rather than raising."""
@@ -172,6 +176,101 @@ class TestSelectionBounds:
             txn_id = _all_txn_ids()[0]
 
             assert not select_transactions([str(txn_id)]).is_unbounded
+
+
+class TestTextNumericColumns:
+    """Test querying non-default numeric columns stored as text."""
+
+    def test_fee_comparison_is_numeric(self, temp_ctx: TempContext) -> None:
+        """`fee<-1` finds the large negative fee, not the one that sorts low."""
+        with temp_ctx():
+            ensure_data_exists()
+            large = seed_transaction(fee="-4.97")
+            # Lexicographically '-0.04' < '-1' while '-4.97' is not.
+            seed_transaction(fee="-0.04")
+            seed_transaction(fee="0.0038")
+
+            selection = select_transactions([_SEEDED, "fee<-1"])
+
+            assert selection.txn_ids == [large]
+
+    def test_fee_sort_is_numeric(self, temp_ctx: TempContext) -> None:
+        """Ascending fee order runs -4.97, -0.04, 0.0038, not '-0.04' first."""
+        with temp_ctx():
+            ensure_data_exists()
+            negative = seed_transaction(fee="-4.97")
+            small_negative = seed_transaction(fee="-0.04")
+            positive = seed_transaction(fee="0.0038")
+
+            selection = select_transactions([_SEEDED, "sort:fee"])
+
+            assert selection.txn_ids == [negative, small_negative, positive]
+
+    def test_fee_equality_ignores_stored_precision(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """`fee:10.0` matches a fee stored as the text '10'."""
+        with temp_ctx():
+            ensure_data_exists()
+            txn_id = seed_transaction(fee="10")
+
+            selection = select_transactions([_SEEDED, "fee:10.0"])
+
+            assert selection.txn_ids == [txn_id]
+
+    def test_non_numeric_fee_value_falls_back_to_text(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """A value that is not a number is compared as text rather than raising."""
+        with temp_ctx():
+            ensure_data_exists()
+            seed_transaction(fee="-4.97")
+
+            selection = select_transactions([_SEEDED, "fee:notanumber"])
+
+            assert selection.transactions.empty
+
+    def test_optional_numeric_column_compares_numerically(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """An optional field declared `numeric` gets the same treatment as Fee."""
+        overrides = {
+            "optional_columns": {
+                "Commission": {"keywords": ["Commission"], "type": "numeric"},
+            },
+        }
+        with temp_ctx(overrides):
+            ensure_data_exists()
+            large = seed_transaction()
+            small = seed_transaction()
+            _seed_commissions({large: "-4.97", small: "-0.04"})
+
+            selection = select_transactions([_SEEDED, "commission<-1"])
+
+            assert selection.txn_ids == [large]
+
+
+def _seed_commissions(values: dict[int, str]) -> None:
+    """Add a Commission column the way an import would, and fill it in.
+
+    Args:
+        values: TxnId to the commission text stored against it.
+    """
+    with get_connection() as conn:
+        add_column_to_table(conn, Table.TXNS, "Commission", "TEXT")
+        update_rows(
+            conn,
+            Table.TXNS,
+            [
+                {Column.Txn.TXN_ID: txn_id, "Commission": value}
+                for txn_id, value in values.items()
+            ],
+            where_columns=[Column.Txn.TXN_ID],
+            set_columns=["Commission"],
+        )
 
 
 class TestSelectionDescribe:

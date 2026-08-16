@@ -22,7 +22,14 @@ import pandas as pd
 
 from app.app_context import get_config
 from cli.query_parser import ParsedQuery, parse_query_terms
-from db.queries import get_alias_edges, get_columns, get_connection, get_rows
+from db.queries import (
+    build_comparison_clause,
+    build_sort_clause,
+    get_alias_edges,
+    get_columns,
+    get_connection,
+    get_rows,
+)
 from services.symbols import SymbolResolver
 from utils.constants import Column, Table
 from utils.optional_fields import FieldType
@@ -100,15 +107,36 @@ def get_ticker_family(connection: sqlite3.Connection, ticker: str) -> list[str]:
     return SymbolResolver(get_alias_edges(connection)).family(ticker)
 
 
-def _get_optional_text_columns(conn: sqlite3.Connection) -> list[str]:
-    """Get configured optional string columns that are live on the Txns table."""
+def _get_optional_columns(
+    conn: sqlite3.Connection,
+    field_type: FieldType,
+) -> list[str]:
+    """Get configured optional columns of one type that are live on Txns."""
     live_columns = set(get_columns(conn, Table.TXNS))
     optional_fields = get_config().optional_fields
     return [
         name
         for name, field_def in optional_fields.get_all_fields().items()
-        if field_def.field_type == FieldType.STRING and name in live_columns
+        if field_def.field_type == field_type and name in live_columns
     ]
+
+
+def _get_text_numeric_columns(conn: sqlite3.Connection) -> set[str]:
+    """Get the numeric columns that SQLite holds as TEXT.
+
+    Set of table columns that are configured as numeric and will require an
+    explicit CAST.
+
+    Args:
+        conn: The database connection.
+
+    Returns:
+        Names of the live Txns columns that hold numbers as text.
+    """
+    columns = set(_get_optional_columns(conn, FieldType.NUMERIC))
+    if str(Column.Txn.FEE) in set(get_columns(conn, Table.TXNS)):
+        columns.add(str(Column.Txn.FEE))
+    return columns
 
 
 def build_where_clause(
@@ -118,7 +146,8 @@ def build_where_clause(
     """Build the WHERE clause and parameters for the transaction query."""
     where_clauses: list[str] = []
     params: list[str | int | float] = []
-    optional_text_columns = _get_optional_text_columns(conn)
+    optional_text_columns = _get_optional_columns(conn, FieldType.STRING)
+    numeric_columns = _get_text_numeric_columns(conn)
 
     # Process each filter
     for f in query.filters:
@@ -130,14 +159,26 @@ def build_where_clause(
                     where_clauses.append(f'"{f.column}" IN ({placeholders})')
                     params.extend(ticker_family)
             else:
-                where_clauses.append(f'"{f.column}" = ?')
-                params.append(f.value)
+                clause, param = build_comparison_clause(
+                    f.column,
+                    "=",
+                    f.value,
+                    text_numeric=f.column in numeric_columns,
+                )
+                where_clauses.append(clause)
+                params.append(param)
         elif f.operator == "~":
             where_clauses.append(f'"{f.column}" LIKE ?')
             params.append(f"%{f.value}%")
         elif f.operator in (">", "<", ">=", "<="):
-            where_clauses.append(f'"{f.column}" {f.operator} ?')
-            params.append(f.value)
+            clause, param = build_comparison_clause(
+                f.column,
+                f.operator,
+                f.value,
+                text_numeric=f.column in numeric_columns,
+            )
+            where_clauses.append(clause)
+            params.append(param)
 
     # Process text searches
     for search in query.text_searches:
@@ -160,15 +201,30 @@ def build_where_clause(
     return where_clause, params
 
 
-def build_order_by_clause(query: ParsedQuery) -> str:
-    """Build the ORDER BY clause for the transaction query."""
+def build_order_by_clause(query: ParsedQuery, conn: sqlite3.Connection) -> str:
+    """Build the ORDER BY clause for the transaction query.
+
+    Args:
+        query: The parsed query whose sorts drive the ordering.
+        conn: The database connection, used to find TEXT-stored numeric columns.
+
+    Returns:
+        The ORDER BY clause, always ending in a TxnDate tiebreak.
+    """
     if not query.sorts:
         return f'"{Column.Txn.TXN_DATE}" DESC'
 
+    numeric_columns = _get_text_numeric_columns(conn)
     order_parts = []
     for s in query.sorts:
         direction = "DESC" if s.direction == "desc" else "ASC"
-        order_parts.append(f'"{s.column}" {direction}')
+        order_parts.append(
+            build_sort_clause(
+                s.column,
+                direction,
+                text_numeric=s.column in numeric_columns,
+            ),
+        )
 
     if not any(s.column == Column.Txn.TXN_DATE for s in query.sorts):
         order_parts.append(f'"{Column.Txn.TXN_DATE}" DESC')
@@ -205,7 +261,7 @@ def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
     try:
         with get_connection() as conn:
             where_clause, params = build_where_clause(query, conn)
-            order_by_clause = build_order_by_clause(query)
+            order_by_clause = build_order_by_clause(query, conn)
 
             if query.end_limit is not None:
                 # fetch with the order inverted, then reverse back to restore sort.

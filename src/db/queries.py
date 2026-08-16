@@ -46,6 +46,54 @@ def get_tables(connection: sqlite3.Connection) -> list[str]:
     return [row[0] for row in cursor.fetchall()]
 
 
+def _as_float(value: str) -> float | None:
+    """Parse a filter value as a number, or None when it is not one."""
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def build_comparison_clause(
+    column: str,
+    operator: str,
+    value: str,
+    *,
+    text_numeric: bool,
+) -> tuple[str, str | float]:
+    """Build one comparison clause and the parameter to bind to it.
+
+    Args:
+        column: The column being compared.
+        operator: A SQL comparison operator, such as `=` or `<=`.
+        value: The raw filter value.
+        text_numeric: Whether the column holds numbers as text.
+
+    Returns:
+        The clause, and the parameter to bind to its placeholder.
+    """
+    if text_numeric:
+        number = _as_float(value)
+        if number is not None:
+            return f'CAST("{column}" AS REAL) {operator} ?', number
+    return f'"{column}" {operator} ?', value
+
+
+def build_sort_clause(column: str, direction: str, *, text_numeric: bool) -> str:
+    """Build one ORDER BY term.
+
+    Args:
+        column: The column to sort on.
+        direction: `ASC` or `DESC`.
+        text_numeric: Whether the column holds numbers as text.
+
+    Returns:
+        The ORDER BY term.
+    """
+    operand = f'CAST("{column}" AS REAL)' if text_numeric else f'"{column}"'
+    return f"{operand} {direction}"
+
+
 def get_rows(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,

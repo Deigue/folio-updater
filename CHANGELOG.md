@@ -24,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Query filters and sorts on Fee, and on any optional column configured as numeric,
+  now properly compare as numbers.
+  
 ### Security
 
 ## [0.6.31] - 2026-08-14
