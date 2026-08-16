@@ -40,6 +40,93 @@ class Sign(StrEnum):
     NEGATIVE = "negative"  # Value must be < 0 (cash out, units disposed)
 
 
+class AccountType(StrEnum):
+    """Tax treatment of an account, inferred from its name."""
+
+    NON_REGISTERED = "NON_REGISTERED"
+    MARGIN = "MARGIN"
+    CORPORATE = "CORPORATE"
+    TFSA = "TFSA"
+    RRSP = "RRSP"
+    RRIF = "RRIF"
+    RESP = "RESP"
+    FHSA = "FHSA"
+    LIRA = "LIRA"
+    UNKNOWN = "UNKNOWN"
+
+
+# Account types whose dispositions are taxable, and therefore the only ones
+# where realized gains and superficial losses matter.
+TAXABLE_ACCOUNT_TYPES = frozenset(
+    {AccountType.NON_REGISTERED, AccountType.MARGIN, AccountType.CORPORATE},
+)
+
+# Names a broker or a user might give an account that mean an AccountType
+ACCOUNT_TYPE_ALIASES: dict[str, AccountType] = {
+    "NONREG": AccountType.NON_REGISTERED,
+    "NREG": AccountType.NON_REGISTERED,
+    "NON-REG": AccountType.NON_REGISTERED,
+    "NONREGISTERED": AccountType.NON_REGISTERED,
+    "NON-REGISTERED": AccountType.NON_REGISTERED,
+    "PERSONAL": AccountType.NON_REGISTERED,
+    "CASH": AccountType.NON_REGISTERED,
+    "TAXABLE": AccountType.NON_REGISTERED,
+}
+
+
+class FeeConvention(StrEnum):
+    """Whether a txn `Amount` on a trade already contains the commission.
+
+    QuestTrade reports `Amount` net of the fee (INCLUDED);
+    IBKR and Wealthsimple report it gross, with the fee charged separately (EXCLUDED).
+    AUTO reconciles each account's rows against `Price * Units` to decide.
+    """
+
+    AUTO = "auto"
+    INCLUDED = "included"
+    EXCLUDED = "excluded"
+
+
+class Scope(StrEnum):
+    """The pool a cost base is accumulated over."""
+
+    ACCOUNT = "acct"
+    TYPE = "type"
+    FOLIO = "folio"
+
+
+class Impact(StrEnum):
+    """What a transaction does to the cost base."""
+
+    ACB = "ACB"  # Moves units or cost base (BUY, SELL, ROC, SPLIT, transfers)
+    INCOME = "INCOME"  # Reported as income, never touches ACB (DIVIDEND, FCH)
+    NONE = "NONE"  # Cash-only (CONTRIBUTION, WITHDRAWAL, FXT)
+
+
+class WarningCode(StrEnum):
+    """Diagnostics a replay can raise against a row, an account or a pool."""
+
+    OVERSELL = "OVERSELL"
+    NEGATIVE_FINAL_POSITION = "NEGATIVE_FINAL_POSITION"
+    CASH_NEGATIVE = "CASH_NEGATIVE"
+    UNRECORDED_CASH_TRANSFER = "UNRECORDED_CASH_TRANSFER"
+    DUPLICATE_SPLIT = "DUPLICATE_SPLIT"
+    SPLIT_SCOPE_MISMATCH = "SPLIT_SCOPE_MISMATCH"
+    SPLIT_WITHOUT_POSITION = "SPLIT_WITHOUT_POSITION"
+    SPLIT_RATIO_IMPLAUSIBLE = "SPLIT_RATIO_IMPLAUSIBLE"
+    ROC_EXCEEDS_ACB = "ROC_EXCEEDS_ACB"
+    INCOME_WITHOUT_POSITION = "INCOME_WITHOUT_POSITION"
+    SETTLE_BEFORE_TRADE = "SETTLE_BEFORE_TRADE"
+    SETTLE_LAG_OUTLIER = "SETTLE_LAG_OUTLIER"
+    AMBIGUOUS_FEE_CONVENTION = "AMBIGUOUS_FEE_CONVENTION"
+    FXT_AMOUNT_INCONSISTENT = "FXT_AMOUNT_INCONSISTENT"
+    UNKNOWN_ACCOUNT_TYPE = "UNKNOWN_ACCOUNT_TYPE"
+    TRANSFER_UNPAIRED = "TRANSFER_UNPAIRED"
+    REVERSAL_PAIR = "REVERSAL_PAIR"
+    SIGN_RULE_DISAGREEMENT = "SIGN_RULE_DISAGREEMENT"
+    SUPERFICIAL_LOSS_SUSPECT = "SUPERFICIAL_LOSS_SUSPECT"
+
+
 class TransactionContext(StrEnum):
     """Context for transaction display to control column visibility."""
 

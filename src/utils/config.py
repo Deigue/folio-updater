@@ -10,13 +10,27 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
-from utils.constants import Column
+from utils.constants import AccountType, Column, FeeConvention
 from utils.optional_fields import OptionalFieldsConfig
 from utils.transforms import TransformsConfig
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+# How `amount_includes_fees` is spelled in YAML.
+_FEE_CONVENTIONS: dict[str, FeeConvention] = {
+    "auto": FeeConvention.AUTO,
+    "true": FeeConvention.INCLUDED,
+    "yes": FeeConvention.INCLUDED,
+    "included": FeeConvention.INCLUDED,
+    "false": FeeConvention.EXCLUDED,
+    "no": FeeConvention.EXCLUDED,
+    "excluded": FeeConvention.EXCLUDED,
+}
 
 
 class Config:
@@ -74,8 +88,30 @@ class Config:
             },
             "optional_columns": {},
             "transforms": {"rules": []},
+            "accounts": {
+                "naming_convention": True,
+                "map": {},
+                "defaults": {"amount_includes_fees": "auto"},
+            },
+            "cost_basis": {
+                "auto_getfx": True,
+            },
+            "display": {"currency": "CAD"},
         },
     )
+
+    # Keys copied straight from YAML once they type-check, mapped to the type
+    # they must have and the coercion applied before storing. `object` accepts
+    # any non-null value. Blocks needing per-field rules get their own
+    # `_validate_*` helper instead.
+    _PASSTHROUGH_KEYS: ClassVar[dict[str, tuple[type, Callable[[Any], Any]]]] = {
+        "folio_path": (object, str),
+        "data_path": (object, str),
+        "header_ignore": (list, list),
+        "brokers": (dict, dict),
+        "optional_columns": (dict, dict),
+        "transforms": (dict, dict),
+    }
 
     def __init__(
         self,
@@ -103,10 +139,8 @@ class Config:
         self._imports_path: Path = data_path / "imports"
         self._processed_path: Path = data_path / "processed"
         self._statements_path: Path = data_path / "statements"
-        optional_columns = settings.get("optional_columns", {})
-        self._optional_fields = OptionalFieldsConfig(optional_columns)
-        transforms_config = settings.get("transforms", {})
-        self._transforms = TransformsConfig(transforms_config)
+        self._optional_fields = OptionalFieldsConfig(settings["optional_columns"])
+        self._transforms = TransformsConfig(settings["transforms"])
 
     @property
     def config_path(self) -> Path:
@@ -151,19 +185,17 @@ class Config:
     @property
     def header_ignore(self) -> list[str]:
         """Get the list of column names to ignore during import."""
-        return self._settings.get("header_ignore", [])
+        return self._settings["header_ignore"]
 
     @property
     def duplicate_approval_column(self) -> str:
         """Get the name of the column used to approve duplicate transactions."""
-        duplicate_config = self._settings.get("duplicate_approval", {})
-        return duplicate_config.get("column_name", "Duplicate")
+        return self._settings["duplicate_approval"]["column_name"]
 
     @property
     def duplicate_approval_value(self) -> str:
         """Get the value that indicates duplicate transaction approval."""
-        duplicate_config = self._settings.get("duplicate_approval", {})
-        return duplicate_config.get("approval_value", "OK")
+        return self._settings["duplicate_approval"]["approval_value"]
 
     @property
     def optional_fields(self) -> OptionalFieldsConfig:
@@ -178,8 +210,7 @@ class Config:
     @property
     def backup_enabled(self) -> bool:
         """Whether backups are enabled."""
-        backup_config = self._settings.get("backup", {})
-        return backup_config.get("enabled", True)
+        return self._settings["backup"]["enabled"]
 
     @property
     def backup_path(self) -> Path:
@@ -225,13 +256,12 @@ class Config:
     @property
     def max_backups(self) -> int:
         """Maximum number of backups to keep."""
-        backup_config = self._settings.get("backup", {})
-        return backup_config.get("max_backups", 50)
+        return self._settings["backup"]["max_backups"]
 
     @property
     def brokers(self) -> dict[str, dict[str, str]]:
         """Get broker configuration."""
-        return self._settings.get("brokers", {})
+        return self._settings["brokers"]
 
     @property
     def tkr_sheet(self) -> str:
@@ -256,6 +286,69 @@ class Config:
         Renamed from forex_sheet().
         """
         return self._settings["sheets"]["fx"]
+
+    @property
+    def account_map(self) -> dict[str, dict[str, Any]]:
+        """Per-account overrides.
+
+        The shorthand `WS-PERSONAL: NON_REGISTERED` is expanded during
+        validation, so every entry here carries a `type` key and may carry an
+        `amount_includes_fees` key.
+        """
+        return self._settings["accounts"]["map"]
+
+    @property
+    def account_types(self) -> dict[str, str]:
+        """Explicit account name to `AccountType` overrides.
+
+        Only accounts the `<BROKER>-<TYPE>` naming convention cannot resolve
+        need an entry here.
+        """
+        return {
+            name: str(entry["type"])
+            for name, entry in self.account_map.items()
+            if entry.get("type")
+        }
+
+    @property
+    def account_naming_convention(self) -> bool:
+        """Whether an account's type may be inferred from its name."""
+        return self._settings["accounts"]["naming_convention"]
+
+    @property
+    def account_fee_default(self) -> str:
+        """Default fee convention for accounts with no explicit override."""
+        return self._settings["accounts"]["defaults"]["amount_includes_fees"]
+
+    def fee_convention_for(self, account: str) -> FeeConvention:
+        """Resolve whether an account's `Amount` already contains the fee.
+
+        Args:
+            account: The account name as stored on the transaction.
+
+        Returns:
+            The account's explicit override where one is configured, otherwise
+            the configured default. `auto` means detect it from the rows.
+        """
+        mapping = self.account_map
+        entry = mapping.get(account) or mapping.get(account.upper()) or {}
+        value = entry.get("amount_includes_fees", self.account_fee_default)
+        return _FEE_CONVENTIONS.get(str(value).lower(), FeeConvention.AUTO)
+
+    @property
+    def auto_getfx(self) -> bool:
+        """Whether cost-base commands may fetch missing FX rates."""
+        return self._settings["cost_basis"]["auto_getfx"]
+
+    @property
+    def display_currency(self) -> str:
+        """Default currency cost-base outputs to."""
+        return self._settings["display"]["currency"]
+
+    @property
+    def acb_parquet(self) -> Path:
+        """Path to the cached cost-base master frame."""
+        return self._data_path / "acb.parquet"
 
     @property
     def txn_parquet(self) -> Path:
@@ -336,176 +429,231 @@ class Config:
         """
         validated: dict[str, Any] = deepcopy(dict(Config.DEFAULT_CONFIG))
 
+        Config._validate_passthrough_keys(settings, validated)
         Config._validate_log_level(settings, validated)
-        Config._validate_folio_path(settings, validated)
-        Config._validate_data_path(settings, validated)
         Config._validate_sheets(settings, validated)
         Config._validate_header_keywords(settings, validated)
-        Config._validate_header_ignore(settings, validated)
         Config._validate_duplicate_approval(settings, validated)
         Config._validate_backup(settings, validated)
-        Config._validate_brokers(settings, validated)
-        Config._validate_optional_columns(settings, validated)
-        Config._validate_transforms(settings, validated)
+        Config._validate_accounts(settings, validated)
+        Config._validate_cost_basis(settings, validated)
+        Config._validate_display(settings, validated)
 
         return validated
+
+    @staticmethod
+    def _validate_passthrough_keys(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Copy every `_PASSTHROUGH_KEYS` entry that type-checks.
+
+        Values of the wrong type, and explicit nulls, leave the default in
+        place.
+        """
+        for key, (expected, coerce) in Config._PASSTHROUGH_KEYS.items():
+            value = settings.get(key)
+            if value is not None and isinstance(value, expected):
+                validated[key] = coerce(value)
+
+    @staticmethod
+    def _validate_accounts(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate the `accounts` block, normalising both `map` forms."""
+        accounts = settings.get("accounts")
+        if not isinstance(accounts, dict):
+            return
+
+        current = validated["accounts"]
+        if isinstance(accounts.get("naming_convention"), bool):
+            current["naming_convention"] = accounts["naming_convention"]
+
+        defaults = accounts.get("defaults")
+        if isinstance(defaults, dict) and "amount_includes_fees" in defaults:
+            # `false` is a meaningful value here, so test for the key.
+            fees = str(defaults["amount_includes_fees"]).lower()
+            if fees in _FEE_CONVENTIONS:
+                current["defaults"] = {"amount_includes_fees": fees}
+
+        raw_map = accounts.get("map")
+        if isinstance(raw_map, dict):
+            current["map"] = {
+                name: entry
+                for name, entry in (
+                    (str(name), Config._account_entry(value))
+                    for name, value in raw_map.items()
+                )
+                if entry is not None
+            }
+
+    @staticmethod
+    def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
+        """Normalise one `accounts.map` entry, or None when it is unusable."""
+        entry = value if isinstance(value, dict) else {"type": value}
+        account_type = entry.get("type")
+        normalized: dict[str, Any] = {}
+
+        if account_type is not None:
+            try:
+                normalized["type"] = str(AccountType(str(account_type).upper()))
+            except ValueError:
+                return None
+
+        if "amount_includes_fees" in entry:
+            fees = str(entry["amount_includes_fees"]).lower()
+            if fees in _FEE_CONVENTIONS:
+                normalized["amount_includes_fees"] = fees
+
+        return normalized or None
+
+    @staticmethod
+    def _validate_cost_basis(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate the `cost_basis` block."""
+        cost_basis = settings.get("cost_basis")
+        if not isinstance(cost_basis, dict):
+            return
+        if isinstance(cost_basis.get("auto_getfx"), bool):
+            validated["cost_basis"]["auto_getfx"] = cost_basis["auto_getfx"]
+
+    @staticmethod
+    def _validate_display(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate the `display` block."""
+        display = settings.get("display")
+        if not isinstance(display, dict):
+            return
+        currency = str(display.get("currency", "")).upper()
+        if currency in {"CAD", "USD"}:
+            validated["display"] = {"currency": currency}
 
     @staticmethod
     def _validate_log_level(
         settings: dict[str, Any],
         validated: dict[str, Any],
     ) -> None:
-        log_level = settings.get("log_level", validated["log_level"]).upper()
+        """Validate `log_level`, falling back to the default on any bad value."""
+        log_level = str(settings.get("log_level", validated["log_level"])).upper()
         if log_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
             log_level = validated["log_level"]
         validated["log_level"] = log_level
 
     @staticmethod
-    def _validate_folio_path(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "folio_path" in settings:
-            validated["folio_path"] = str(settings["folio_path"])
-
-    @staticmethod
-    def _validate_data_path(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "data_path" in settings:
-            validated["data_path"] = str(settings["data_path"])
-
-    @staticmethod
     def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:
-        if "sheets" in settings and isinstance(settings["sheets"], dict):
-            validated["sheets"].update(settings["sheets"])
+        """Validate `sheets`, keeping only the known sheet names."""
+        sheets = settings.get("sheets")
+        if not isinstance(sheets, dict):
+            return
+        validated["sheets"].update(
+            {
+                name: str(value)
+                for name, value in sheets.items()
+                if name in validated["sheets"] and value is not None
+            },
+        )
 
     @staticmethod
     def _validate_header_keywords(
         settings: dict[str, Any],
         validated: dict[str, Any],
     ) -> None:
-        if "header_keywords" in settings and isinstance(
-            settings["header_keywords"],
-            dict,
-        ):
-            validated["header_keywords"].update(
-                {
-                    k: v
-                    for k, v in settings["header_keywords"].items()
-                    # Add internal fields that are not in the default mapping here.
-                    if k in validated["header_keywords"] or k == str(Column.Txn.FEE)
-                },
-            )
-
-    @staticmethod
-    def _validate_header_ignore(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "header_ignore" in settings and isinstance(settings["header_ignore"], list):
-            validated["header_ignore"] = settings["header_ignore"]
+        """Validate `header_keywords`, dropping mappings for unknown columns."""
+        header_keywords = settings.get("header_keywords")
+        if not isinstance(header_keywords, dict):
+            return
+        validated["header_keywords"].update(
+            {
+                column: list(keywords)
+                for column, keywords in header_keywords.items()
+                # Add internal fields that are not in the default mapping here.
+                if isinstance(keywords, list)
+                and (
+                    column in validated["header_keywords"]
+                    or column == str(Column.Txn.FEE)
+                )
+            },
+        )
 
     @staticmethod
     def _validate_duplicate_approval(
         settings: dict[str, Any],
         validated: dict[str, Any],
     ) -> None:
-        if "duplicate_approval" in settings and isinstance(
-            settings["duplicate_approval"],
-            dict,
-        ):
-            duplicate_approval = settings["duplicate_approval"]
-            validated_duplicate_approval = validated["duplicate_approval"].copy()
-
-            if "column_name" in duplicate_approval:
-                validated_duplicate_approval["column_name"] = str(
-                    duplicate_approval["column_name"],
-                )
-
-            if "approval_value" in duplicate_approval:
-                validated_duplicate_approval["approval_value"] = str(
-                    duplicate_approval["approval_value"],
-                )
-
-            validated["duplicate_approval"] = validated_duplicate_approval
+        """Validate the `duplicate_approval` block."""
+        duplicate_approval = settings.get("duplicate_approval")
+        if not isinstance(duplicate_approval, dict):
+            return
+        current = validated["duplicate_approval"]
+        for key in ("column_name", "approval_value"):
+            if duplicate_approval.get(key) is not None:
+                current[key] = str(duplicate_approval[key])
 
     @staticmethod
     def _validate_backup(
         settings: dict[str, Any],
         validated: dict[str, Any],
     ) -> None:
-        if "backup" in settings and isinstance(settings["backup"], dict):
-            backup_config = settings["backup"]
-            validated_backup = validated["backup"].copy()
+        """Validate the `backup` block."""
+        backup = settings.get("backup")
+        if not isinstance(backup, dict):
+            return
+        current = validated["backup"]
 
-            if "enabled" in backup_config:
-                enabled = backup_config["enabled"]
-                if isinstance(enabled, bool):
-                    validated_backup["enabled"] = enabled
+        if isinstance(backup.get("enabled"), bool):
+            current["enabled"] = backup["enabled"]
 
-            if "path" in backup_config:
-                validated_backup["path"] = str(backup_config["path"])
+        if backup.get("path") is not None:
+            current["path"] = str(backup["path"])
 
-            if "max_backups" in backup_config:
-                max_backups = backup_config["max_backups"]
-                if isinstance(max_backups, int) and max_backups > 0:
-                    validated_backup["max_backups"] = max_backups
-
-            validated["backup"] = validated_backup
-
-    @staticmethod
-    def _validate_brokers(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "brokers" in settings and isinstance(settings["brokers"], dict):
-            validated["brokers"] = settings["brokers"]
-
-    @staticmethod
-    def _validate_optional_columns(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "optional_columns" in settings and isinstance(
-            settings["optional_columns"],
-            dict,
+        max_backups = backup.get("max_backups")
+        # bool is a subclass of int, so `max_backups: true` must not read as 1.
+        if (
+            isinstance(max_backups, int)
+            and not isinstance(max_backups, bool)
+            and max_backups > 0
         ):
-            validated["optional_columns"] = settings["optional_columns"]
-
-    @staticmethod
-    def _validate_transforms(
-        settings: dict[str, Any],
-        validated: dict[str, Any],
-    ) -> None:
-        if "transforms" in settings and isinstance(settings["transforms"], dict):
-            validated["transforms"] = settings["transforms"]
+            current["max_backups"] = max_backups
 
     def __str__(self) -> str:
-        """Return a string representation of the Config object."""
-        config_str = " Config Details:\n"
-        config_str += f"  Config Path: {self.config_path}\n"
-        config_str += f"  Folio Path: {self.folio_path}\n"
-        config_str += f"  Database Path: {self.db_path}\n"
-        config_str += f"  Log Level: {self.log_level}\n"
-        config_str += f"  Sheets: {self.sheets}\n"
-        config_str += (
-            f"  Header Keywords: {len(self.header_keywords)} column(s) mapped\n"
+        """Return a human-readable dump of every configured setting."""
+        transforms = (
+            f"{len(self.transforms.rules)} rule(s) and "
+            f"{len(self.transforms.merge_groups)} merge group(s)"
         )
-        config_str += f"  Header Ignore: {self.header_ignore}\n"
-        config_str += f"  Duplicate Approval Column: {self.duplicate_approval_column}\n"
-        config_str += f"  Duplicate Approval Value: {self.duplicate_approval_value}\n"
-        config_str += f"  Backup Enabled: {self.backup_enabled}\n"
-        config_str += f"  Backup Path: {self.backup_path}\n"
-        config_str += f"  Max Backups: {self.max_backups}\n"
-        num_rules = len(self.transforms.rules)
-        num_merge_groups = len(self.transforms.merge_groups)
-        config_str += (
-            f"  Transforms: {num_rules} rule(s) and "
-            f"{num_merge_groups} merge group(s) configured\n"
-        )
-        return config_str
+        details: dict[str, Any] = {
+            "Config Path": self.config_path,
+            "Project Root": self.project_root,
+            "Folio Path": self.folio_path,
+            "Data Path": self.data_path,
+            "Database Path": self.db_path,
+            "Log Level": self.log_level,
+            "Sheets": self.sheets,
+            "Header Keywords": f"{len(self.header_keywords)} column(s) mapped",
+            "Header Ignore": self.header_ignore,
+            "Duplicate Approval": (
+                f"{self.duplicate_approval_column}={self.duplicate_approval_value}"
+            ),
+            "Backups": (
+                f"{'enabled' if self.backup_enabled else 'disabled'}, "
+                f"max {self.max_backups}, at {self.backup_path}"
+            ),
+            "Brokers": sorted(self.brokers) or "none configured",
+            "Optional Columns": f"{len(self.optional_fields)} field(s) configured",
+            "Transforms": transforms,
+            "Account Naming Convention": self.account_naming_convention,
+            "Account Overrides": self.account_map or "none configured",
+            "Account Fee Default": self.account_fee_default,
+            "Auto GetFX": self.auto_getfx,
+            "Display Currency": self.display_currency,
+        }
+        lines = "".join(f"  {label}: {value}\n" for label, value in details.items())
+        return f" Config Details:\n{lines}"
 
     def __repr__(self) -> str:
         """Return a concise representation of the Config object."""
