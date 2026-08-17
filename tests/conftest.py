@@ -233,7 +233,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
             config_path.unlink(missing_ok=True)
 
             # Clean artifacts created by folio_setup/mock_data
-            for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv"):
+            for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv", "*.meta.json"):
                 for file_path in tmp_path.rglob(pattern):
                     file_path.unlink(missing_ok=True)
 

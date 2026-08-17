@@ -253,9 +253,93 @@ def symbol_cmd(
     ),
 ) -> None:
     """Manage ticker aliases for tracking symbol changes over time."""
-    from cli.commands.tickers import manage_ticker_aliases
+    from cli.commands.symbol import manage_symbols
 
-    manage_ticker_aliases(add, delete, list_all=list_all)
+    manage_symbols(add, delete, list_all=list_all)
+
+
+@app.command("acb", help="Show the adjusted cost base buildup for a symbol")
+def acb_cmd(  # noqa: PLR0917
+    symbol: str | None = typer.Argument(
+        None,
+        help="Security to report on. Required unless --summary or --export.",
+    ),
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Pool by account type: nreg (default), tfsa, rrsp, ...",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Report a single broker account instead of a pooled type",
+    ),
+    currency: str = typer.Option(
+        "both",
+        "--currency",
+        help="CAD, USD, or both (default: both for USD holdings)",
+    ),
+    date_from: str | None = typer.Option(
+        None,
+        "--from",
+        help="Only transactions on or after this date (YYYY-MM-DD)",
+    ),
+    date_to: str | None = typer.Option(
+        None,
+        "--to",
+        help="Only transactions on or before this date (YYYY-MM-DD)",
+    ),
+    year: int | None = typer.Option(
+        None,
+        "--year",
+        help="Shorthand for --from YYYY-01-01 --to YYYY-12-31",
+    ),
+    export: str | None = typer.Option(
+        None,
+        "--export",
+        help="Write the reported rows to a .csv or .parquet file",
+    ),
+    *,
+    folio: bool = typer.Option(
+        False,
+        "--folio",
+        help="Report the portfolio-wide pool",
+    ),
+    show_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Include DIVIDEND and FCH rows",
+    ),
+    summary: bool = typer.Option(
+        False,
+        "--summary",
+        help="One row per symbol instead of a per-transaction buildup",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Rebuild the cached cost-base frame",
+    ),
+) -> None:
+    """Show the adjusted cost base buildup for a symbol."""
+    from cli.commands.acb import show_acb
+
+    show_acb(
+        symbol=symbol,
+        account_type=account_type,
+        account=account,
+        currency=currency,
+        date_from=date_from,
+        date_to=date_to,
+        year=year,
+        export=export,
+        folio=folio,
+        show_all=show_all,
+        summary=summary,
+        refresh=refresh,
+    )
 
 
 @app.command(

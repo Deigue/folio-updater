@@ -25,6 +25,7 @@ from db.queries import (
     get_row_count,
     get_rows,
     get_tables,
+    get_txns_fingerprint,
     insert_or_replace,
     update_rows,
 )
@@ -50,6 +51,7 @@ __all__ = [
     "get_row_count",
     "get_rows",
     "get_tables",
+    "get_txns_fingerprint",
     "helpers",
     "insert_or_replace",
     "prepare_transactions",

@@ -10,6 +10,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.7.0] - 2026-08-16
+
+### Added
+
+- `folio acb SYMBOL` shows the adjusted cost base buildup for a security, pooled by
+  account, account type or the whole portfolio.
+- Diagnostics on the cost-base replay: oversells, negative cash, duplicate and orphaned
+  splits, return of capital exceeding cost base, inconsistent currency conversions,
+  unpaired transfers and superficial-loss candidates. Flagged per row and rolled up in
+  the footer.
+- Configurable options for: `accounts`, `cost_basis` and `display`. Account tax types are
+  inferred from the `<BROKER>-<TYPE>` naming convention, `accounts.map` lets you override
+  these.
+
+### Changed
+
 - `folio tickers` is now `folio symbol`.
 - `SPLIT` requires a positive `Price` as well as positive `Units`, so both halves of the
   ratio are sign-corrected on import.

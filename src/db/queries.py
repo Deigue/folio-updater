@@ -258,6 +258,32 @@ def get_alias_edges(
     ]
 
 
+def get_txns_fingerprint(connection: sqlite3.Connection) -> str:
+    """Summarise the transactions table cheaply enough to run on every command.
+
+    Any add, edit, delete or import moves at least one of these aggregates, so
+    comparing the result against a cached one is a sound staleness check without
+    reading the rows themselves.
+
+    Args:
+        connection: The database connection.
+
+    Returns:
+        A pipe-joined digest of row count, max TxnId, summed Amount and Units,
+        and max TxnDate. `"empty"` when the table does not exist.
+    """
+    query = (
+        f'SELECT COUNT(*), MAX("{Column.Txn.TXN_ID}"), '
+        f'TOTAL("{Column.Txn.AMOUNT}"), TOTAL("{Column.Txn.UNITS}"), '
+        f'MAX("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}"'
+    )
+    try:
+        result = connection.execute(query).fetchone()
+    except sqlite3.OperationalError:
+        return "empty"
+    return "|".join("" if value is None else str(value) for value in result)
+
+
 def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
     """Drop a table if it exists."""
     query = f'DROP TABLE IF EXISTS "{table_name}"'
@@ -413,4 +439,3 @@ def delete_rows(
         return 0
     else:
         return cursor.rowcount
-
