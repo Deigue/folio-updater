@@ -38,10 +38,11 @@ from utils.constants import (
     Currency,
     Scope,
     Table,
+    WarningCode,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable
+    from collections.abc import Container, Hashable
     from typing import Any
 
     from engine.cache import CachedFrame
@@ -64,8 +65,9 @@ _MEASURE_COLUMNS: list[tuple[str, str]] = [
 # the chronologically preceding row.
 _MOVING_MEASURES = ("Units", "Avg", "Avg_USD")
 
-# Average-cost direction glyphs.
 _RISE, _FALL = ("▲", "▼") if supports_unicode() else ("^", "v")
+_SUPERFICIAL_LOSS_BG = "#4a1414"
+_SUPERFICIAL_LOSS_GLYPH = " ⚠" if supports_unicode() else " !"
 
 _MONEY_PRECISION = 2
 _AVG_PRECISION = 4
@@ -327,6 +329,8 @@ def _measure_cell(
     column: str,
     measure: str,
     moves: dict[tuple[str, int], int],
+    *,
+    superficial_loss: bool = False,
 ) -> str:
     """Render one per-scope measure, coloured or annotated as that measure wants."""
     precision = _AVG_PRECISION if measure.startswith("Avg") else _MONEY_PRECISION
@@ -335,7 +339,11 @@ def _measure_cell(
     # A zero ACB or average is a real, closed position.
     text = _format(value, precision, blank_zero=measure.startswith(("Delta", "Gain")))
     if measure.startswith(("Delta", "Gain")):
-        return _signed(text, value)
+        cell = _signed(text, value)
+        if measure.startswith("Gain") and superficial_loss and cell:
+            cell += _SUPERFICIAL_LOSS_GLYPH
+            return f"[on {_SUPERFICIAL_LOSS_BG}]{cell}[/on {_SUPERFICIAL_LOSS_BG}]"
+        return cell
     if measure.startswith("Avg") and text:
         direction = moves.get((measure, int(row[str(Column.Txn.TXN_ID)])))
         return f"{_arrow(direction)}{text}"
@@ -363,6 +371,9 @@ def _render_row(
     action = str(row[str(Column.Txn.ACTION)])
     colour = TRANSACTION_COLORS.get(Action(action), "white") if action else "white"
     units = row[str(Column.Txn.UNITS)]
+    superficial_loss = str(WarningCode.SUPERFICIAL_LOSS_SUSPECT) in str(
+        row["Flags"] or "",
+    ).split(",")
     cells = [
         str(row[str(Column.Txn.SETTLE_DATE)]),
         str(row[str(Column.Txn.TXN_ID)]),
@@ -379,12 +390,24 @@ def _render_row(
     for _header, measure in _MEASURE_COLUMNS:
         if show_cad:
             cells.append(
-                _measure_cell(row, scope_column(view.scope, measure), measure, moves),
+                _measure_cell(
+                    row,
+                    scope_column(view.scope, measure),
+                    measure,
+                    moves,
+                    superficial_loss=superficial_loss,
+                ),
             )
         if show_usd:
             usd = f"{measure}_USD"
             cells.append(
-                _measure_cell(row, scope_column(view.scope, usd), usd, moves),
+                _measure_cell(
+                    row,
+                    scope_column(view.scope, usd),
+                    usd,
+                    moves,
+                    superficial_loss=superficial_loss,
+                ),
             )
     if show_cad:
         cells.append(_format(row["Proceeds"], _MONEY_PRECISION))
@@ -394,15 +417,24 @@ def _render_row(
     return cells
 
 
-def _print_footer(rows: pd.DataFrame) -> None:
+def _print_footer(
+    rows: pd.DataFrame,
+    exclude: Container[str] = (),
+) -> None:
     """Print the flag roll-up and conversion note.
 
     Footer line printed once after `page_frame` returns.
+
+    Args:
+        rows: The rows whose `Flags` column is rolled up.
+        exclude: Flag codes to leave out of the roll-up, e.g. a code that is
+            only meaningful per-lot and would just be noise once pooled across
+            symbols.
     """
     flags: dict[str, int] = {}
     for value in rows["Flags"]:
         for code in str(value or "").split(","):
-            if code:
+            if code and code not in exclude:
                 flags[code] = flags.get(code, 0) + 1
 
     if flags:
@@ -610,7 +642,7 @@ def _show_summary(
     ]
     console_print(freshness_badge(cached.computed_at))
     show_data_table(records, title=f"ACB summary - {view.label}", max_rows=len(records))
-    _print_footer(rows)
+    _print_footer(rows, exclude={str(WarningCode.SUPERFICIAL_LOSS_SUSPECT)})
 
 
 def _show_buildup(

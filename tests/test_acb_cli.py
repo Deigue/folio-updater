@@ -15,6 +15,7 @@ from cli.commands.acb import (
     _units,
     movements,
 )
+from cli.console import supports_unicode
 from cli.main import app
 from engine.cache import fingerprint, load_or_build
 from engine.frames import scope_column
@@ -80,6 +81,47 @@ def seed_usd_holding(account: str = "IBKR-PERSONAL", ticker: str = "MSFT") -> No
         amount="-1000",
         price="100",
         units="10",
+    )
+
+
+def seed_superficial_loss(
+    account: str = "IBKR-PERSONAL",
+    ticker: str = "RY.TO",
+) -> None:
+    """Seed a loss sale followed by a repurchase inside the CRA window."""
+    seed_fx(FX)
+    seed_transaction(
+        action="BUY",
+        date="2025-08-14",
+        settle_date="2025-08-14",
+        account=account,
+        currency="CAD",
+        ticker=ticker,
+        amount="-1000",
+        price="10",
+        units="100",
+    )
+    seed_transaction(
+        action="SELL",
+        date="2025-08-15",
+        settle_date="2025-08-15",
+        account=account,
+        currency="CAD",
+        ticker=ticker,
+        amount="400",
+        price="8",
+        units="-50",
+    )
+    seed_transaction(
+        action="BUY",
+        date="2025-08-18",
+        settle_date="2025-08-18",
+        account=account,
+        currency="CAD",
+        ticker=ticker,
+        amount="-400",
+        price="8",
+        units="50",
     )
 
 
@@ -379,6 +421,30 @@ def test_acb_flags_a_seeded_oversell(temp_ctx: TempContext) -> None:
         result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
     assert_cli_success(result)
     assert_in_output("OVERSELL", result)
+
+
+def test_acb_flags_a_superficial_loss_suspect(temp_ctx: TempContext) -> None:
+    """A loss sale followed by a repurchase in the CRA window is highlighted."""
+    with temp_ctx() as ctx:
+        seed_superficial_loss()
+        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+    assert_cli_success(result)
+    assert_in_output("SUPERFICIAL_LOSS_SUSPECT", result)
+    assert_in_output("⚠" if supports_unicode() else "!", result)
+
+
+def test_acb_summary_omits_superficial_loss_suspect(temp_ctx: TempContext) -> None:
+    """The pooled summary can't act on a per-lot flag, so it stays out of it.
+
+    Left in, `SUPERFICIAL_LOSS_SUSPECT` would attach to a whole symbol with no
+    way to say which sale it was on -- the per-transaction buildup is where it
+    belongs.
+    """
+    with temp_ctx() as ctx:
+        seed_superficial_loss()
+        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
+    assert_cli_success(result)
+    assert_not_in_output("SUPERFICIAL_LOSS_SUSPECT", result)
 
 
 def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
