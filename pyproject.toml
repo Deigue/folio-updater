@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.7.0"
+version = "0.7.2"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -76,6 +76,7 @@ exclude_lines = [
     "^\\s*\\w*msg\\s*=.*",        # generic log message assignments
     "^\\s*raise [A-Z]\\w*Error",  # raise errors
     "getattr\\(sys, .frozen.",    # PyInstaller-frozen-exe only branches
+    "class .*\\(Protocol\\):",    # Protocol bodies are stubs, never executed
 ]
 
 

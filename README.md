@@ -20,6 +20,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio symbol`**: Alias ticker symbols that are renamed or different to be treated the same
 - **[`folio acb`](docs/commands/cost-base.md)**: Adjusted cost base buildup for a symbol, pooled by account, account type or portfolio
 - **[`folio query`](docs/commands/querying.md)**: Search and filter transactions using natural language or explicit filters
+- **[`folio check`](docs/commands/checking.md)**: Check the folio for missing or inconsistent transactions
 - **`folio version`**: Show the version of the folio-updater and file paths.
 
 ### Import and Processing Features
@@ -75,7 +76,7 @@ It controls things like file paths, logging, how Excel columns are matched to in
 
 ### Python Dependency Management
 
-- **[uv](https://github.com/astral-sh/uv)** – Manage project dependencies and virtual environments.
+- **[uv](https://github.com/astral-sh/uv)**: Manage project dependencies and virtual environments.
 
   Recommended usage:
 
@@ -89,9 +90,9 @@ It controls things like file paths, logging, how Excel columns are matched to in
 
 ### Code Quality Tools
 
-- **ripgrep (`rg`)** – A fast, recursive search tool for code and text
-- **Linting and formatting** – Configured via project settings using `ruff`
-- **Type checking** – Configured via project settings using **[ty](https://github.com/astral-sh/ty)**.
+- **ripgrep (`rg`)**: A fast, recursive search tool for code and text
+- **Linting and formatting**: Configured via project settings using `ruff`
+- **Type checking**: Configured via project settings using **[ty](https://github.com/astral-sh/ty)**.
 
 Before submitting changes, run both checks and make sure they're clean:
 

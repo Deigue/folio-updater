@@ -22,6 +22,8 @@ from engine.events import load_txn_rows
 from engine.frames import index_by_txn_id, master_frame
 from engine.fx_rates import load_fx_rates
 from engine.replay import ReplayConfig, replay
+from engine.snapshot import decode as decode_replay
+from engine.snapshot import encode as encode_replay
 from services.symbols import load_symbol_resolver
 from utils.constants import TORONTO_TZ
 
@@ -41,8 +43,9 @@ class CachedFrame:
         frame: The master frame. (cached or computed)
         computed_at: When the frame was built. `None` means it was built by this
             invocation.
-        result: The replay behind the frame, present only on a fresh build.
-            Warnings live here, so a cache hit deliberately has none to show.
+        result: The replay behind the frame. A fresh build carries it whole; a
+            cache hit rebuilds it using the snapshot stored beside the frame,
+            containing the information to rebuild diagnostics.
     """
 
     frame: pd.DataFrame
@@ -121,23 +124,32 @@ def _read_cache(parquet: Path, expected: str) -> CachedFrame | None:
         logger.debug("Unreadable cost-base cache; rebuilding")
         return None
     computed_at = datetime.fromisoformat(meta["computed_at"])
+    snapshot = meta.get("replay")
     # Parquet stores no index, so restore the one the frame was built with.
-    return CachedFrame(frame=index_by_txn_id(frame), computed_at=computed_at)
+    return CachedFrame(
+        frame=index_by_txn_id(frame),
+        computed_at=computed_at,
+        result=decode_replay(snapshot) if snapshot else None,
+    )
 
 
-def _write_cache(parquet: Path, frame: pd.DataFrame, expected: str) -> None:
+def _write_cache(
+    parquet: Path,
+    frame: pd.DataFrame,
+    expected: str,
+    result: ReplayResult | None = None,
+) -> None:
     """Persist a freshly built frame alongside its fingerprint."""
     try:
         frame.to_parquet(parquet, engine="fastparquet", index=False)
-        _meta_path(parquet).write_text(
-            json.dumps(
-                {
-                    "fingerprint": expected,
-                    "computed_at": datetime.now(TORONTO_TZ).isoformat(),
-                },
-            ),
-            encoding="utf-8",
-        )
+        meta: dict[str, object] = {
+            "fingerprint": expected,
+            "computed_at": datetime.now(TORONTO_TZ).isoformat(),
+        }
+        snapshot = encode_replay(result) if result is not None else None
+        if snapshot is not None:
+            meta["replay"] = snapshot
+        _meta_path(parquet).write_text(json.dumps(meta), encoding="utf-8")
     except (OSError, ValueError):
         # A cache that cannot be written is a performance problem, never a
         # correctness one: the caller already holds the computed frame.
@@ -163,5 +175,5 @@ def load_or_build(*, refresh: bool = False) -> CachedFrame:
             return cached
 
     built: CachedFrame = build()
-    _write_cache(parquet, built.frame, expected)
+    _write_cache(parquet, built.frame, expected, built.result)
     return built

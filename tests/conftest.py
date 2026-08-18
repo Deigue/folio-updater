@@ -135,7 +135,7 @@ def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
     """Stub out the Parquet re-export that follows every folio mutation.
 
     Rewriting the whole transactions table through fastparquet costs ~14ms and
-    runs after every add, edit, delete and import -- the single most expensive
+    runs after every add, edit, delete and import: the single most expensive
     step in each. The export itself is covered directly by
     test_transaction_exporter.py, and the tests that assert a mutation refreshes
     the file carry the `real_parquet_export` marker to opt back in.
@@ -174,8 +174,8 @@ def boc_fetch(
 ) -> Generator[MagicMock, Any]:
     """Stub the BoC fetch the usual way, but hand back the spy.
 
-    Test that needs to assert *which* date was requested -- or that
-    nothing was requested at all -- can do so without patching by hand.
+    Test that needs to assert *which* date was requested, or that
+    nothing was requested at all, can do so without patching by hand.
 
     Yields:
         The mock standing in for `ForexService.get_fx_rates_from_boc`.

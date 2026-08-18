@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import typer
 
+from app import get_config
 from cli import (
     ProgressDisplay,
     console_error,
@@ -13,18 +15,42 @@ from cli import (
     console_warning,
 )
 from cli.selection import Selection, select_transactions
-from db import backup_folio, txn_count
+from db import backup_folio, get_connection, get_max_value, txn_count
 from exporters import ParquetExporter
+from services import ForexService
 from utils import audit_footer
+from utils.constants import Column, Table
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+logger = logging.getLogger(__name__)
+
 # Re-exported for existing CLI callers
-__all__ = ["audit_footer", "backup_folio", "txn_count"]
+__all__ = ["audit_footer", "backup_folio", "ensure_fx_coverage", "txn_count"]
 
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
+
+
+def ensure_fx_coverage() -> None:
+    """Top up FX rates before a replay, when config allows it.
+
+    Bounded by the folio's own settle dates rather than by today: a folio that
+    already has a rate for every date it needs must not reach for the network
+    on every invocation just because the calendar has moved on.
+    """
+    if not get_config().auto_getfx:
+        return
+    earliest = ForexService.get_earliest_transaction_date()
+    if earliest is None:
+        return
+    with get_connection() as conn:
+        latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
+    try:
+        ForexService.ensure_coverage(earliest, latest)
+    except (OSError, ValueError, KeyError):
+        logger.warning("Could not refresh FX rates; using what is stored")
 
 
 def export_to_parquet() -> None:

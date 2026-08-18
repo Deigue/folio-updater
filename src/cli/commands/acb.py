@@ -7,7 +7,6 @@ between them costs nothing beyond re-rendering.
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -15,7 +14,7 @@ import pandas as pd
 import typer
 from rich.table import Table as RichTable
 
-from app import bootstrap, get_config
+from app import bootstrap
 from cli import (
     console_error,
     console_info,
@@ -23,12 +22,11 @@ from cli import (
     console_warning,
     show_data_table,
 )
+from cli.commands.common import ensure_fx_coverage
 from cli.console import supports_unicode
 from cli.display import TRANSACTION_COLORS, freshness_badge, page_frame
-from db import get_connection, get_max_value
 from engine.cache import load_or_build
 from engine.frames import acb_summary_frame, scope_column
-from services import ForexService
 from services.symbols import load_symbol_resolver
 from utils.constants import (
     ACCOUNT_TYPE_ALIASES,
@@ -37,7 +35,6 @@ from utils.constants import (
     Column,
     Currency,
     Scope,
-    Table,
     WarningCode,
 )
 
@@ -46,8 +43,6 @@ if TYPE_CHECKING:
     from typing import Any
 
     from engine.cache import CachedFrame
-
-logger = logging.getLogger(__name__)
 
 # Income rows are hidden unless `--all` asks for them: a dividend never touches
 # the cost base, so it is noise in a buildup.
@@ -447,26 +442,6 @@ def _print_footer(
     )
 
 
-def _ensure_fx_coverage() -> None:
-    """Top up FX rates before a replay, when config allows it.
-
-    Bounded by the folio's own settle dates rather than by today: a folio that
-    already has a rate for every date it needs must not reach for the network
-    on every invocation just because the calendar has moved on.
-    """
-    if not get_config().auto_getfx:
-        return
-    earliest = ForexService.get_earliest_transaction_date()
-    if earliest is None:
-        return
-    with get_connection() as conn:
-        latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
-    try:
-        ForexService.ensure_coverage(earliest, latest)
-    except (OSError, ValueError, KeyError):
-        logger.warning("Could not refresh FX rates; using what is stored")
-
-
 def _export(frame: pd.DataFrame, path: str) -> None:
     """Write the rendered rows out, choosing the format from the suffix."""
     target = Path(path)
@@ -520,7 +495,7 @@ def show_acb(  # noqa: PLR0917
         )
         raise typer.Exit(1)
 
-    _ensure_fx_coverage()
+    ensure_fx_coverage()
     cached = load_or_build(refresh=refresh)
     if cached.frame.empty:
         console_warning("No transactions to compute a cost base from.")
@@ -654,8 +629,8 @@ def _show_buildup(
 ) -> None:
     """Print the per-transaction buildup for one symbol.
 
-    Rows are dated and ordered by *settle* date -- the date the cash and the FX
-    rate belong to -- and shown newest first, the way adjustedcostbase.ca lists
+    Rows are dated and ordered by *settle* date (the date the cash and the FX
+    rate belong to) and shown newest first, the way adjustedcostbase.ca lists
     them. The cost base itself is still replayed in trade-date order; this is
     presentation only, and the two orders disagree on a handful of rows where a
     same-day action settles before a trade made earlier.

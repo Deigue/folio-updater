@@ -5,7 +5,7 @@ is **time-bounded**: a symbol used *after* its rename date is a different
 security, not an error, because ticker symbols get reused. So an edge is
 followed only for rows dated before its effective date.
 
-`family()` is deliberately not time-bounded -- it backs query selection, where
+`family()` is deliberately not time-bounded: it backs query selection, where
 the user asking for a ticker wants every row that ever wore either name.
 """
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Exchange suffixes Yahoo already spells with a dot. Anything else after a dot
-# is a share class, which Yahoo spells with a dash -- so this has to be an
+# is a share class, which Yahoo spells with a dash, so this has to be an
 # explicit list rather than a pattern: `BRK.B` and `PMN.V` look identical.
 _EXCHANGE_SUFFIXES = frozenset({"TO", "V", "NE", "CN", "AQ", "L", "AX", "HK"})
 
@@ -49,7 +49,7 @@ class SymbolResolver:
         Args:
             ticker: Symbol as written on the transaction.
             on: The transaction's date, `YYYY-MM-DD`. When given, an edge is
-                followed only if the row predates the rename -- a symbol used
+                followed only if the row predates the rename: a symbol used
                 after its rename date is a different security. When None,
                 every edge is followed.
 

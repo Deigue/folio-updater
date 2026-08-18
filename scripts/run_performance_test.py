@@ -172,7 +172,7 @@ def measure_fixed_overhead() -> tuple[float, int]:
 
 
 def _render_files(run: SuiteRun) -> None:
-    """Print the per-file cost table -- the primary bird's-eye view."""
+    """Print the per-file cost table, the primary bird's-eye view."""
     table = Table(
         title="WHERE THE TIME GOES (serial run, per file)",
         box=SIMPLE_HEAVY,
@@ -257,7 +257,7 @@ def analyze_suite() -> SuiteRun:
     run = _parse_run(output, wall)
 
     if not run.files:
-        console.print("[red]No timing data parsed -- did the suite fail?[/red]")
+        console.print("[red]No timing data parsed: did the suite fail?[/red]")
         console.print(output[-2000:])
         return run
 
@@ -410,7 +410,7 @@ def _discover_test_imports() -> set[str]:
 def profile_imports() -> None:
     """Report import cost for every src module the tests pull in.
 
-    Import time is paid once per process -- which means once per xdist worker,
+    Import time is paid once per process, which means once per xdist worker,
     so it is the tax that limits useful parallelism.
     """
     console.print("\n[bold]Measuring module import times...[/bold]")

@@ -437,7 +437,7 @@ def test_acb_summary_omits_superficial_loss_suspect(temp_ctx: TempContext) -> No
     """The pooled summary can't act on a per-lot flag, so it stays out of it.
 
     Left in, `SUPERFICIAL_LOSS_SUSPECT` would attach to a whole symbol with no
-    way to say which sale it was on -- the per-transaction buildup is where it
+    way to say which sale it was on: the per-transaction buildup is where it
     belongs.
     """
     with temp_ctx() as ctx:

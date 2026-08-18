@@ -8,11 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- `folio check` reports what looks wrong with the folio in plain language.
+- `checks` can be configured - You can handle select checks to ignore, accounts to
+  ignore from checks, or tickers to be excluded from checks.
+
 ### Changed
+
+- The cost-base cache now stores the diagnostics, cash totals and row counts beside the
+  computed figures, so `folio check` can reuse an unchanged folio's replay. The stored
+  snapshot only holds the transactions needed by diagnostics, so the cache remains lean.
 
 ### Deprecated
 
 ### Removed
+
+- Four unused diagnostic codes were removed and are not planned:
+  `SIGN_RULE_DISAGREEMENT`, `REVERSAL_PAIR`, `UNRECORDED_CASH_TRANSFER` and
+  `SPLIT_RATIO_IMPLAUSIBLE`.
 
 ### Fixed
 

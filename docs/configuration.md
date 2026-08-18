@@ -91,6 +91,10 @@ cost_basis:
   auto_getfx: true
 display:
   currency: CAD
+checks:
+  disabled: []
+  ignore_tickers: []
+  ignore_accounts: []
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
@@ -109,6 +113,7 @@ display:
 | **`accounts`**           | Overrides for the cost-base engine's account handling. See [Account resolution](#account-resolution) below.                                                                                                                                                                                                             |
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
 | **`display`**            | `currency` (`CAD` or `USD`): the currency cost-base output defaults to.                                                                                                                                                                                                                                                 |
+| **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
 
 ## Account resolution
 

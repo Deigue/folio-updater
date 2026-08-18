@@ -97,6 +97,11 @@ class Config:
                 "auto_getfx": True,
             },
             "display": {"currency": "CAD"},
+            "checks": {
+                "disabled": [],
+                "ignore_tickers": [],
+                "ignore_accounts": [],
+            },
         },
     )
 
@@ -346,6 +351,21 @@ class Config:
         return self._settings["display"]["currency"]
 
     @property
+    def checks_disabled(self) -> list[str]:
+        """Slugs of the `folio check` checks that should not run."""
+        return self._settings["checks"]["disabled"]
+
+    @property
+    def checks_ignore_tickers(self) -> list[str]:
+        """Securities that `folio check` will ignore."""
+        return [ticker.upper() for ticker in self._settings["checks"]["ignore_tickers"]]
+
+    @property
+    def checks_ignore_accounts(self) -> list[str]:
+        """Accounts that `folio check` will ignore."""
+        return [name.upper() for name in self._settings["checks"]["ignore_accounts"]]
+
+    @property
     def acb_parquet(self) -> Path:
         """Path to the cached cost-base master frame."""
         return self._data_path / "acb.parquet"
@@ -438,6 +458,7 @@ class Config:
         Config._validate_accounts(settings, validated)
         Config._validate_cost_basis(settings, validated)
         Config._validate_display(settings, validated)
+        Config._validate_checks(settings, validated)
 
         return validated
 
@@ -519,6 +540,21 @@ class Config:
             return
         if isinstance(cost_basis.get("auto_getfx"), bool):
             validated["cost_basis"]["auto_getfx"] = cost_basis["auto_getfx"]
+
+    @staticmethod
+    def _validate_checks(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate the `checks` block."""
+        checks = settings.get("checks")
+        if not isinstance(checks, dict):
+            return
+        current = validated["checks"]
+        for key in ("disabled", "ignore_tickers", "ignore_accounts"):
+            value = checks.get(key)
+            if isinstance(value, list):
+                current[key] = [str(entry).strip() for entry in value if entry]
 
     @staticmethod
     def _validate_display(
@@ -651,6 +687,10 @@ class Config:
             "Account Fee Default": self.account_fee_default,
             "Auto GetFX": self.auto_getfx,
             "Display Currency": self.display_currency,
+            "Checks Disabled": self.checks_disabled or "none",
+            "Checks Ignoring": (
+                (self.checks_ignore_tickers + self.checks_ignore_accounts) or "nothing"
+            ),
         }
         lines = "".join(f"  {label}: {value}\n" for label, value in details.items())
         return f" Config Details:\n{lines}"

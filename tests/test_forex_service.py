@@ -17,7 +17,7 @@ from utils.constants import Column
 pytestmark = pytest.mark.no_mock_forex
 
 # ---------------------------------------------------------------------------
-# CANNED BANK OF CANADA RESPONSE -- Update if changed.
+# CANNED BANK OF CANADA RESPONSE. Update if changed.
 #
 # Capture a fresh copy with:
 #

@@ -78,8 +78,8 @@ def format_transaction_summary(row: pd.Series) -> str:
     return "|".join(essential_parts)
 
 
-# Amounts from source files don't always reproduce bit-for-bit between exports
-# -- observed drift is ~1e-6/1e-7. 4
+# Amounts from source files don't always reproduce bit-for-bit between exports:
+# observed drift is ~1e-6/1e-7.
 # 4 decimals (a hundredth of a cent) is well above that noise floor
 _KEY_DECIMALS = 4
 
@@ -90,7 +90,7 @@ def generate_keys(txn_df: pd.DataFrame) -> pd.Series:
     Normalisation happens columnwise so the numeric coercion stays vectorised;
     the join and hash then run in plain Python. Folios are hashed a row at a
     time on every add/edit, where the frames are one to a few dozen rows and
-    pandas' per-operation overhead dwarfs the actual work -- staying in Python
+    pandas' per-operation overhead dwarfs the actual work: staying in Python
     past the coercion is ~13x faster on those sizes for identical output.
 
     Args:

@@ -9,7 +9,7 @@ Conventions for the per-scope columns:
 - **CAD is unsuffixed.** It is always populated, and it is the tax currency.
 - **`_USD` marks the original-currency variant**, populated only for
   USD-denominated holdings and blank otherwise. The suffix applies to *every*
-  USD column, not only where acronyms would collide -- one rule, no exceptions.
+  USD column.
 - **`Delta` means change in cost base.** The ACB context is implied by the family.
 
 There are deliberately no per-type columns (`TfsaACB`, `NregACB`): a transaction

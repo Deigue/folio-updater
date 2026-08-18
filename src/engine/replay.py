@@ -22,6 +22,7 @@ Six core rules followed:
 from __future__ import annotations
 
 import logging
+from bisect import bisect_left
 from collections import Counter
 from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
@@ -105,9 +106,18 @@ _INTRADAY_ORDER: dict[Action, int] = {
 }
 _INTRADAY_DEFAULT = 6
 
-# What counts as a trade: the actions that exchange cash for units and so carry
-# a real settlement lag.
+# What counts as a trade: the actions that exchange cash for units.
 _TRADE_ACTIONS = (Action.BUY, Action.SELL)
+# Actions whose `$` is a real denomination of money that moved, attributed to symbol.
+DENOMINATED_ACTIONS = (Action.BUY, Action.SELL, Action.DIVIDEND, Action.ROC)
+
+# Business day lag for settlement dates
+SETTLE_LAG_TOLERANCE = 2
+
+# min trades below which no habit can be established for settle day lag.
+SETTLE_LAG_MIN_TRADES = 5
+
+_WEEKDAYS = 5
 
 # How long after a position closes a distribution on it is still expected. A
 # dividend is earned on the ex-date and paid weeks later, so a sale can leave income
@@ -419,6 +429,11 @@ class _Replay:
         self.carried: dict[tuple[int, Scope], tuple[Decimal, Decimal]] = {}
         # Track accounts already reported negative, so only the first crossing shows.
         self.reported_negative: set[tuple[str, Currency]] = set()
+        # * Split coverage trackers
+        # (symbol, trade date) -> set[account] , accomts that recorded the split.
+        self.split_rows: dict[tuple[str, str], set[str]] = {}
+        # (symbol, trade date) -> set[account] , accounts that have holding.
+        self.split_holders: dict[tuple[str, str], set[str]] = {}
 
     def run(self) -> ReplayResult:
         """Walk the ledger and return everything it produced."""
@@ -426,19 +441,28 @@ class _Replay:
         self._acb_walk()
         self._cash_walk()
         self._final_position_check()
+        self._split_coverage_check()
+        self._mixed_currency_check()
+        self._settle_lag_check()
         self._superficial_loss_check()
         self._attach_flags()
         return self.result
 
     # -- DIAGNOSTICS ------------------------------------------------------
 
-    def warn(
+    def warn(  # noqa: PLR0913 - every argument names one facet of the finding
         self,
         code: WarningCode,
         row: TxnRow | None = None,
         scope: Scope | None = None,
         pool: str | None = None,
         detail: str = "",
+        *,
+        account: str | None = None,
+        symbol: str | None = None,
+        currency: Currency | None = None,
+        as_of: str | None = None,
+        value: Decimal | None = None,
     ) -> None:
         """Record a diagnostic once per (code, row, pool)."""
         txn_id = row.txn_id if row is not None else None
@@ -453,6 +477,11 @@ class _Replay:
                 scope=scope,
                 pool=pool,
                 detail=detail,
+                account=account or (row.account if row is not None else None),
+                symbol=symbol,
+                currency=currency,
+                as_of=as_of,
+                value=value,
             ),
         )
 
@@ -462,8 +491,11 @@ class _Replay:
         Runs last, because the cash walk and the end-of-replay checks raise
         codes long after the row that carries them was emitted.
         """
+        by_txn = self.result.codes_by_txn()
         self.result.rows = [
-            replace(computed, flags=self.result.codes_for(computed.row.txn_id))
+            replace(computed, flags=by_txn[computed.row.txn_id])
+            if computed.row.txn_id in by_txn
+            else computed
             for computed in self.result.rows
         ]
 
@@ -476,6 +508,7 @@ class _Replay:
                     scope=Scope.ACCOUNT,
                     pool=account,
                     detail=f"Could not infer a tax type for account '{account}'",
+                    account=account,
                 )
 
     # -- CURRENCY SHORTCUTS -----------------------------------------------
@@ -514,6 +547,9 @@ class _Replay:
         )
         rate, rate_date = self.rate_for(row)
         self._row_checks(row)
+        if row.action is Action.SPLIT and symbol is not None:
+            # Record the split against the holding pool.
+            self._record_split_coverage(row, symbol)
 
         measures: dict[Scope, ScopeMeasures] = {}
         for scope in Scope:
@@ -528,6 +564,7 @@ class _Replay:
 
         proceeds_cad, proceeds_usd = self._proceeds(row)
         dividend_cad, dividend_usd = self._dividend(row)
+        self.result.totals.add((row.action, row.account, symbol or "", row.currency))
 
         return ComputedRow(
             row=row,
@@ -600,9 +637,9 @@ class _Replay:
         if row.action is Action.BUY:
             self._apply_buy(row, state)
         elif row.action is Action.SELL:
-            self._apply_sell(row, scope, pool, state)
+            self._apply_sell(row, scope, pool, symbol, state)
         elif row.action is Action.ROC:
-            self._apply_roc(row, scope, pool, state)
+            self._apply_roc(row, scope, pool, symbol, state)
         elif row.action is Action.SPLIT:
             self._apply_split(row, scope, pool, symbol, state)
         elif row.action in (Action.TFR_OUT, Action.TFR_IN):
@@ -620,6 +657,7 @@ class _Replay:
                 scope=scope,
                 pool=pool,
                 detail=f"Dividend on {symbol} with no position in {pool}",
+                symbol=symbol,
             )
 
         # Recorded after the checks above, so a distribution is judged against
@@ -649,6 +687,7 @@ class _Replay:
         row: TxnRow,
         scope: Scope,
         pool: str,
+        symbol: str,
         state: PositionState,
     ) -> None:
         """Remove a proportional slice of the cost base and realize the gain.
@@ -669,6 +708,8 @@ class _Replay:
                 scope=scope,
                 pool=pool,
                 detail=f"Sold {sold} against {held} held in {pool}",
+                symbol=symbol,
+                value=held,
             )
             # Take whatever cost base is left; units are allowed to go negative
             # so the arithmetic stays recoverable once the missing row appears.
@@ -693,6 +734,7 @@ class _Replay:
         row: TxnRow,
         scope: Scope,
         pool: str,
+        symbol: str,
         state: PositionState,
     ) -> None:
         """Reduce the cost base by a return of capital. No cash moves."""
@@ -717,6 +759,8 @@ class _Replay:
                 scope=scope,
                 pool=pool,
                 detail=f"{excess_cad} of return of capital exceeds cost base in {pool}",
+                symbol=symbol,
+                value=excess_cad,
             )
         if self._income_is_orphaned(row, state) and scope is Scope.ACCOUNT:
             self.warn(
@@ -725,6 +769,7 @@ class _Replay:
                 scope=scope,
                 pool=pool,
                 detail=f"Return of capital with no position in {pool}",
+                symbol=symbol,
             )
 
     def _apply_split(
@@ -757,6 +802,8 @@ class _Replay:
                     detail=(
                         f"{symbol} already split {ratio} on {row.txn_date} in {pool}"
                     ),
+                    symbol=symbol,
+                    as_of=row.txn_date,
                 )
             return
 
@@ -768,6 +815,8 @@ class _Replay:
                     scope=scope,
                     pool=pool,
                     detail=f"Split of {symbol} with no position in {pool}",
+                    symbol=symbol,
+                    as_of=row.txn_date,
                 )
             return
 
@@ -1061,6 +1110,10 @@ class _Replay:
                     scope=Scope.ACCOUNT,
                     pool=f"{account}:{currency}",
                     detail=f"{account} {currency} cash is {state.cash} as of {on}",
+                    account=account,
+                    currency=currency,
+                    as_of=on,
+                    value=state.cash,
                 )
 
     # -- FINAL CHECKS -----------------------------------------------------
@@ -1075,6 +1128,108 @@ class _Replay:
                         scope=scope,
                         pool=f"{pool}:{symbol}",
                         detail=f"{symbol} ends at {state.units} units in {pool}",
+                        account=pool if scope is Scope.ACCOUNT else None,
+                        symbol=symbol,
+                        value=state.units,
+                    )
+
+    def _record_split_coverage(self, row: TxnRow, symbol: str) -> None:
+        """Note who recorded one split, and who was holding when it happened."""
+        key = (symbol, row.txn_date)
+        self.split_rows.setdefault(key, set()).add(row.account)
+        if key not in self.split_holders:
+            self.split_holders[key] = {
+                pool
+                for (pool, held), state in self.pools.all_states(Scope.ACCOUNT)
+                if held == symbol and state.units > ZERO
+            }
+
+    def _split_coverage_check(self) -> None:
+        """Report accounts that held a security through a split it never got.
+
+        A split was recorded on an account, but there exists other accounts
+        that hold the security after the split, without having a split row.
+        """
+        for (symbol, on), holders in sorted(self.split_holders.items()):
+            recorded = self.split_rows.get((symbol, on), set())
+            for account in sorted(holders - recorded):
+                self.warn(
+                    WarningCode.SPLIT_SCOPE_MISMATCH,
+                    scope=Scope.ACCOUNT,
+                    pool=f"{symbol}:{on}:{account}",
+                    detail=f"Split on {symbol} missing on account {account}",
+                    account=account,
+                    symbol=symbol,
+                    as_of=on,
+                )
+
+    def _mixed_currency_check(self) -> None:
+        """Report a security whose rows are not all in one currency.
+
+        A dual listing has its own symbol on each exchange, so one security
+        booked in two currencies is a data error nearly every time.
+        """
+        seen: dict[str, dict[Currency, list[TxnRow]]] = {}
+        for computed in self.result.rows:
+            if computed.symbol is None or computed.row.action not in (
+                DENOMINATED_ACTIONS
+            ):
+                continue
+            by_currency = seen.setdefault(computed.symbol, {})
+            by_currency.setdefault(computed.row.currency, []).append(computed.row)
+
+        for symbol, by_currency in sorted(seen.items()):
+            if len(by_currency) < 2:  # noqa: PLR2004 - two currencies is the finding
+                continue
+            ranked = sorted(
+                by_currency.items(),
+                key=lambda pair: (-len(pair[1]), str(pair[0])),
+            )
+            main = ranked[0][0]
+            for currency, rows in ranked[1:]:
+                for row in rows:
+                    self.warn(
+                        WarningCode.MIXED_CURRENCY,
+                        row,
+                        pool=symbol,
+                        detail=(
+                            f"{symbol} is booked in {currency} here and in "
+                            f"{main} on {len(ranked[0][1])} other row(s)"
+                        ),
+                        symbol=symbol,
+                        currency=currency,
+                    )
+
+    def _settle_lag_check(self) -> None:
+        """Report a trade settling far outside its account's usual lag.
+
+        The typical settlement lag is calculated for the account, txns offending
+        this patttern are reported.
+        """
+        lags: dict[str, list[tuple[TxnRow, int]]] = {}
+        for row in self.rows:
+            if row.action not in _TRADE_ACTIONS or not row.settle_date:
+                continue
+            if row.settle_date < row.txn_date:
+                # Already reported under different code
+                continue
+            lag = _business_days(row.txn_date, row.settle_date)
+            lags.setdefault(row.account, []).append((row, lag))
+
+        for account, entries in sorted(lags.items()):
+            if len(entries) < SETTLE_LAG_MIN_TRADES:
+                continue
+            usual = Counter(lag for _row, lag in entries).most_common(1)[0][0]
+            for row, lag in entries:
+                if abs(lag - usual) > SETTLE_LAG_TOLERANCE:
+                    self.warn(
+                        WarningCode.SETTLE_LAG_OUTLIER,
+                        row,
+                        detail=(
+                            f"Settles {lag} business days after the trade; "
+                            f"{account} usually takes {usual}"
+                        ),
+                        value=Decimal(lag),
                     )
 
     def _superficial_loss_check(self) -> None:
@@ -1095,6 +1250,9 @@ class _Replay:
                 buys.setdefault(computed.symbol, []).append(
                     date.fromisoformat(computed.row.txn_date),
                 )
+        # Sort the dates per symbol so they can be binary-searched.
+        for dates in buys.values():
+            dates.sort()
 
         for computed in self.result.rows:
             row = computed.row
@@ -1106,8 +1264,11 @@ class _Replay:
             sold_on = date.fromisoformat(row.txn_date)
             window_start = sold_on - timedelta(days=SUPERFICIAL_LOSS_DAYS)
             window_end = sold_on + timedelta(days=SUPERFICIAL_LOSS_DAYS)
-            repurchased = buys.get(computed.symbol, [])
-            if any(window_start <= when <= window_end for when in repurchased):
+            repurchased = buys.get(computed.symbol, ())
+            # The first purchase not before the window; inside it iff not past
+            # the window's end.
+            index = bisect_left(repurchased, window_start)
+            if index < len(repurchased) and repurchased[index] <= window_end:
                 self.warn(
                     WarningCode.SUPERFICIAL_LOSS_SUSPECT,
                     row,
@@ -1116,6 +1277,27 @@ class _Replay:
                         f"{SUPERFICIAL_LOSS_DAYS} days"
                     ),
                 )
+
+
+def _business_days(start: str, end: str) -> int:
+    """Count weekdays between two `YYYY-MM-DD` dates, excluding the first.
+
+    Args:
+        start: The earlier date.
+        end: The later date.
+
+    Returns:
+        How many weekdays fall in `(start, end]`. Any seven consecutive days
+        hold exactly five, so only the leftover tail needs walking.
+    """
+    begin = date.fromisoformat(start)
+    weeks, remainder = divmod((date.fromisoformat(end) - begin).days, 7)
+    tail = sum(
+        1
+        for offset in range(1, remainder + 1)
+        if (begin + timedelta(days=offset)).weekday() < _WEEKDAYS
+    )
+    return weeks * _WEEKDAYS + tail
 
 
 def _sale_gain(computed: ComputedRow) -> Decimal:

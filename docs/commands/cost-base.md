@@ -173,7 +173,7 @@ is recorded.
 printed a table.
 
 > [!IMPORTANT]
-> **`SUPERFICIAL_LOSS_SUSPECT` is a warning only -- the cost base and gain figures are
+> **`SUPERFICIAL_LOSS_SUSPECT` is a warning only: the cost base and gain figures are
 > *not* adjusted for it.** By CRA rule, a superficial loss should be denied and added
 > back to the cost base of the shares that caused it. This engine deliberately does not
 > do that: it tracks cost base the same way your broker does, matching Units, ACB and

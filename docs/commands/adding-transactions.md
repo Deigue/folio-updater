@@ -5,8 +5,8 @@ spreadsheet or a broker download.
 
 It exists for the transactions your brokers may not report cleanly:
 
-- **`SPLIT`** — stock splits.
-- **`ROC`** — return of capital, which reduces your cost basis and often only shows up on a year-end
+- **`SPLIT`**: stock splits.
+- **`ROC`**: return of capital, which reduces your cost basis and often only shows up on a year-end
   tax slip.
 - Corrections and one-off entries you know about but no broker file records.
 
@@ -69,23 +69,23 @@ Amount: 42.15
 ## Amount and Units Signs
 
 Each action has a real cash and share direction, and Amount/Units are corrected to match it. A BUY
-spends cash and gains shares; a SELL is the reverse. You do not have to get the sign right — enter
+spends cash and gains shares; a SELL is the reverse. You do not have to get the sign right, enter
 `--amount 1502.50` on a BUY and it is stored as `-1502.50`.
 
 | Action         | Amount              | Units                 |
 | -------------- | ------------------- | --------------------- |
 | `BUY`          | negative (cash out) | positive (shares in)  |
 | `SELL`         | positive (cash in)  | negative (shares out) |
-| `WITHDRAWAL`   | negative            | —                     |
-| `CONTRIBUTION` | positive            | —                     |
-| `DIVIDEND`     | positive            | —                     |
-| `ROC`          | positive            | —                     |
-| `SPLIT`        | —                   | positive (ratio)      |
+| `WITHDRAWAL`   | negative            | n/a                   |
+| `CONTRIBUTION` | positive            | n/a                   |
+| `DIVIDEND`     | positive            | n/a                   |
+| `ROC`          | positive            | n/a                   |
+| `SPLIT`        | n/a                 | positive (ratio)      |
 | `TFR_IN`       | positive (cash in)  | positive (shares in)  |
 | `TFR_OUT`      | negative (cash out) | negative (shares out) |
 | `FCH`, `FXT`   | either              | either                |
 
-`FCH` and `FXT` are left alone deliberately: both directions are legitimate for them — a fee versus
+`FCH` and `FXT` are left alone deliberately: both directions are legitimate for them, a fee versus
 interest earned, or the two opposing legs of an FX trade.
 
 ## Currency Conversions and the FX Fee
@@ -93,7 +93,7 @@ interest earned, or the two opposing legs of an FX trade.
 An `FXT` row spans two currencies, so `Fee` is the one column whose currency the row cannot state.
 
 > [!IMPORTANT]
-> **An Interactive Brokers FX commission is always treated as USD.** 
+> **An Interactive Brokers FX commission is always treated as USD.**
 
 IBKR charges a flat 2.00 USD minimum on a manual conversion and debits it from the USD leg, on top of the converted amount. `Units` is the *gross* USD received, so the fee applies over it. This holds regardless of what the row's `$` column says.
 
@@ -123,7 +123,7 @@ folio add -a TFR_IN  -t SCHD -u 100 -n IBKR-RRSP -c USD -d 2023-09-18
 
 Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
 
-These rules apply to every ingest path, not just `folio add` — imports from brokers and
+These rules apply to every ingest path, not just `folio add`: imports from brokers and
 spreadsheets are corrected the same way, and the correction is recorded in the importer audit log.
 
 ## Recording a Stock Split
@@ -178,7 +178,7 @@ matched and asks before writing:
 Add it anyway as an intentional duplicate? [y/N]:
 ```
 
-Answering `n` leaves the folio untouched. Use `--force` to add without being asked — useful in
+Answering `n` leaves the folio untouched. Use `--force` to add without being asked, useful in
 scripts, and for genuinely repeated transactions like two identical contributions on the same day.
 
 This is the same approval mechanism as
@@ -215,7 +215,7 @@ folio add -a BUY -t AAPL -d 2025-08-15 -n TFSA -c USD \
 
 ## Related
 
-- [Smart Transaction Querying](querying.md) — find transactions, including the one you just added
-- [Editing Transactions](editing-transactions.md) — correct a transaction after the fact
-- [Deleting Transactions](deleting-transactions.md) — remove one that should not be there
-- [Configuration Reference](../configuration.md) — optional columns, duplicate approval, backups
+- [Smart Transaction Querying](querying.md): find transactions, including the one you just added
+- [Editing Transactions](editing-transactions.md): correct a transaction after the fact
+- [Deleting Transactions](deleting-transactions.md): remove one that should not be there
+- [Configuration Reference](../configuration.md): optional columns, duplicate approval, backups

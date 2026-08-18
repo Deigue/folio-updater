@@ -342,6 +342,26 @@ def acb_cmd(  # noqa: PLR0917
     )
 
 
+@app.command("check", help="Check the folio for missing or inconsistent transactions")
+def check_cmd(
+    only: str | None = typer.Option(
+        None,
+        "--only",
+        help="Report only one check, e.g. --only unit-balances",
+    ),
+    *,
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine-readable results instead of the report",
+    ),
+) -> None:
+    """Check the folio for missing or inconsistent transactions."""
+    from cli.commands.check import run_folio_checks
+
+    run_folio_checks(only=only, as_json=as_json)
+
+
 @app.command(
     "query",
     help="Query transactions from the database",

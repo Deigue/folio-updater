@@ -22,6 +22,7 @@ from utils.constants import (
 from utils.numeric import ZERO, dec
 
 if TYPE_CHECKING:
+    from collections.abc import Collection, Container
     from decimal import Decimal
 
     import pandas as pd
@@ -208,15 +209,22 @@ class ComputedRow:
 class ReplayWarning:
     """A diagnostic raised during a replay.
 
-    Most codes tag a row, but `UNKNOWN_ACCOUNT_TYPE` and
-    `UNRECORDED_CASH_TRANSFER` are account-level and carry no `txn_id`.
+    Most codes tag a row, but few describe a pool rather than a transaction and
+    so carry no `txn_id`.
 
     Attributes:
         code: Which diagnostic fired.
-        txn_id: The row it tags, or None for an account-level finding.
+        txn_id: The row it tags, or None for a pool-level finding.
         scope: The pool grain it was detected at, where that matters.
         pool: The account, type or portfolio key it was detected on.
         detail: Human-readable specifics.
+        account: The account the finding is about, where it is about one.
+        symbol: The canonical security the finding is about, where there is one.
+        currency: The currency the finding is about, for the cash diagnostics.
+        as_of: The date the finding is about, `YYYY-MM-DD`, where a row's own
+            date is not the answer.
+        value: The value the finding turns on: a cash balance for
+            `CASH_NEGATIVE`, a share count for `NEGATIVE_FINAL_POSITION`.
     """
 
     code: WarningCode
@@ -224,11 +232,84 @@ class ReplayWarning:
     scope: Scope | None = None
     pool: str | None = None
     detail: str = ""
+    account: str | None = None
+    symbol: str | None = None
+    currency: Currency | None = None
+    as_of: str | None = None
+    value: Decimal | None = None
 
 
 # Cash is tracked per pool grain, per pool, per currency. The scope is part of
 # the key because an account may legitimately be named after a type.
 CashKey = tuple[Scope, str, Currency]
+
+# Rows with shape: action, account, security and currency.
+TallyKey = tuple[Action, str, str, Currency]
+
+
+@dataclass
+class ReplayTotals:
+    """Row counts by shape. Easy to cache for diagnostics.
+
+    Attributes:
+        rows: How many rows carry each `(action, account, symbol, currency)`.
+    """
+
+    rows: dict[TallyKey, int] = field(default_factory=dict)
+
+    def add(self, key: TallyKey) -> None:
+        """Count one row against its shape."""
+        self.rows[key] = self.rows.get(key, 0) + 1
+
+    # * Shortcut for all accounts.
+    def accounts(self) -> set[str]:
+        """Every account named by any transaction."""
+        return {account for _action, account, _symbol, _currency in self.rows}
+
+    def counting(
+        self,
+        actions: Collection[Action],
+        ignored_accounts: Container[str] = (),
+        ignored_symbols: Container[str] = (),
+    ) -> int:
+        """Count rows carrying one of these actions.
+
+        Args:
+            actions: The actions to count.
+            ignored_accounts: Upper-cased account names to leave out.
+            ignored_symbols: Upper-cased symbols to leave out.
+
+        Returns:
+            How many rows matched.
+        """
+        return sum(
+            count
+            for (action, account, symbol, _currency), count in self.rows.items()
+            if action in actions
+            and account.upper() not in ignored_accounts
+            and symbol.upper() not in ignored_symbols
+        )
+
+    def currencies_for(
+        self,
+        symbol: str,
+        actions: Collection[Action],
+    ) -> dict[Currency, int]:
+        """Count how one security's rows divide across currencies.
+
+        Args:
+            symbol: The canonical security.
+            actions: Which actions count, only those whose `$` denominates
+                money that actually moved.
+
+        Returns:
+            Each currency mapped to how many of that security's rows use it.
+        """
+        tally: dict[Currency, int] = {}
+        for (action, _account, held, currency), count in self.rows.items():
+            if held == symbol and action in actions:
+                tally[currency] = tally.get(currency, 0) + count
+        return tally
 
 
 @dataclass
@@ -239,26 +320,26 @@ class ReplayResult:
         rows: One `ComputedRow` per transaction, in trade-date order.
         warnings: Diagnostics raised, deduplicated.
         cash: Running cash and income totals per pool grain, pool and currency.
+        totals: Row counts by shape, so aggregates need no further scan.
     """
 
     rows: list[ComputedRow] = field(default_factory=list)
     warnings: list[ReplayWarning] = field(default_factory=list)
     cash: dict[CashKey, CashState] = field(default_factory=dict)
+    totals: ReplayTotals = field(default_factory=ReplayTotals)
 
-    def codes_for(self, txn_id: int) -> tuple[WarningCode, ...]:
-        """Return the distinct codes raised against one row.
-
-        Args:
-            txn_id: The row to look up.
+    def codes_by_txn(self) -> dict[int, tuple[WarningCode, ...]]:
+        """Group the distinct codes raised against each row.
 
         Returns:
-            The codes tagging that row, in the order they were raised.
+            Each tagged `TxnId` mapped to its codes, in the order they were
+            raised. Rows with no diagnostics are absent.
         """
-        seen: dict[WarningCode, None] = {}
+        grouped: dict[int, dict[WarningCode, None]] = {}
         for warning in self.warnings:
-            if warning.txn_id == txn_id:
-                seen.setdefault(warning.code, None)
-        return tuple(seen)
+            if warning.txn_id is not None:
+                grouped.setdefault(warning.txn_id, {}).setdefault(warning.code, None)
+        return {txn_id: tuple(codes) for txn_id, codes in grouped.items()}
 
 
 def _currency(value: object) -> Currency:

@@ -1,6 +1,6 @@
 """Symbol command for the folio CLI.
 
-Handles managing ticker aliases -- the `OldTicker -> NewTicker` renames the
+Handles managing ticker aliases: the `OldTicker -> NewTicker` renames the
 cost-base engine resolves through.
 """
 
