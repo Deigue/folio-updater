@@ -15,6 +15,7 @@ import pandas as pd
 from rich.columns import Columns
 from rich.console import Console, Group, RenderableType
 from rich.measure import Measurement
+from rich.padding import Padding
 from rich.progress import (
     BarColumn,
     Progress,
@@ -25,6 +26,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from cli import console as console_module
 from cli.console import (
     console,
     console_panel,
@@ -76,6 +78,9 @@ _ID_COLUMNS = (Column.Txn.TXN_ID, Column.Txn.SETTLE_DATE)
 
 # Room an inline "old -> new" diff needs beyond the column's normal width.
 _DIFF_EXTRA_WIDTH = 6
+
+# A width no table will reach, used to ask Rich how wide one wants to be.
+_UNBOUNDED_WIDTH = 10_000
 
 
 def _ordered_columns(
@@ -158,6 +163,29 @@ PAGE_RULE_HEIGHT = 1
 # included - out of view.
 SAFETY_MARGIN = 1
 
+# Cell padding a table falls back to when it will not fit
+# (top, right, bottom, left).
+SNUG_PADDING = (0, 1, 0, 0)
+TIGHT_PADDING = (0, 0)
+SHORT_HEADERS = {
+    "TxnId": "Id",
+    "Action": "Act",
+    "Amount": "Amt",
+    "Units": "Qt.",
+    "Ticker": "Tkr",
+    "Account": "Acct",
+    "Description": "Desc.",
+    "Currency": "$",
+    "Transactions": "Txns",
+    "Settle Updates": "Settles",
+    "Transfers": "Txfs",
+    "Rejected": "Rej.",
+    "Rejection_Reason": "Reason",
+    "OldTicker": "Old",
+    "NewTicker": "New",
+    "EffectiveDate": "Date",
+}
+
 THEME_MERGED = "bright_blue"  # Merged panels - informational
 THEME_TRANSFORMS = "medium_purple3"  # Transforms - modification
 THEME_EXCLUDED = "dark_red"  # Excluded/rejected - removal
@@ -219,7 +247,7 @@ def show_data_table(
         for row in display_data:
             table.add_row(*[_safe_str(value) for value in row.values()])
 
-    console_print(table)
+    console_print(fit_padding(table))
 
     if truncated:
         console_print(
@@ -760,11 +788,63 @@ def _get_terminal_size() -> tuple[int, int]:
         Tuple of (width, height) in characters
     """
     try:
-        term_size = console.size
+        # Read through the module rather than the imported binding
+        term_size = console_module.console.size
     except (AttributeError, OSError):  # pragma: no cover
         return 80, 24  # Sensible fallback defaults
     else:
         return term_size.width, term_size.height
+
+
+def overflow(table: Table) -> int:
+    """If terminal is overflowing, report by how many characters.
+
+    Args:
+        table: The table about to be printed.
+
+    Returns:
+        Characters by which the table overruns the terminal, or zero if it
+        fits.
+    """
+    active = console_module.console
+    # Measured unbounded max vs actual terminal width.
+    roomy = active.options.update(max_width=_UNBOUNDED_WIDTH)
+    wanted = Measurement.get(active, roomy, table).maximum
+    return max(wanted - active.width, 0)
+
+
+def _snug(table: Table) -> None:
+    """Leave a cell a space on its right only, rather than either side."""
+    table.padding = Padding.unpack(SNUG_PADDING)
+
+
+def _tight(table: Table) -> None:
+    """Run the columns flush against their borders."""
+    table.padding = Padding.unpack(TIGHT_PADDING)
+
+
+def _shorten_headers(table: Table) -> None:
+    """Swap in the short form of every header that has one."""
+    for column in table.columns:
+        short = SHORT_HEADERS.get(str(column.header))
+        if short is not None:
+            column.header = short
+
+
+def fit_padding(table: Table) -> Table:
+    """Fit a table to the terminal, giving up the least that it can.
+
+    Args:
+        table: The table about to be printed. Adjusted in place.
+
+    Returns:
+        The same table, for printing inline.
+    """
+    for concede in (_snug, _tight, _shorten_headers):
+        if not overflow(table):
+            break
+        concede(table)
+    return table
 
 
 def _calculate_available_height(*, table: bool = False, pages: bool = False) -> int:
@@ -887,6 +967,7 @@ class TransactionDisplay:
             table,
             context,
         )
+        fit_padding(table)
 
         if not show:
             return table
@@ -953,6 +1034,7 @@ class TransactionDisplay:
                 else:
                     row_data.append(old)
             table.add_row(*row_data)
+        fit_padding(table)
 
         if not show:
             return table
@@ -1354,6 +1436,7 @@ class TransactionDisplay:
             border_style=THEME_MERGED,
             expand=False,
             box=None,
+            padding=SNUG_PADDING,
         )
         table.add_column("tree")
         tree_content: list[str] = []
@@ -1394,6 +1477,7 @@ class TransactionDisplay:
             header_style="bold",
             border_style=THEME_TRANSFORMS,
             expand=False,
+            padding=SNUG_PADDING,
         )
         table.add_column("Field")
         table.add_column("Rows", justify="right", width=4)
@@ -1430,6 +1514,7 @@ class TransactionDisplay:
             header_style="bold",
             border_style=THEME_EXCLUDED,
             expand=False,
+            padding=SNUG_PADDING,
         )
 
         cols_to_show: list[str] = [str(c) for c in EXCLUSION_BASE_COLUMNS]
@@ -1472,6 +1557,7 @@ class TransactionDisplay:
             header_style="bold",
             border_style=THEME_DUPES,
             expand=False,
+            padding=SNUG_PADDING,
         )
 
         available_cols = [c for c in TXN_ESSENTIALS if c in df.columns]

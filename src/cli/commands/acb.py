@@ -24,7 +24,7 @@ from cli import (
 )
 from cli.commands.common import ensure_fx_coverage
 from cli.console import supports_unicode
-from cli.display import TRANSACTION_COLORS, freshness_badge, page_frame
+from cli.display import TRANSACTION_COLORS, fit_padding, freshness_badge, page_frame
 from engine.cache import load_or_build
 from engine.frames import acb_summary_frame, scope_column
 from services.symbols import load_symbol_resolver
@@ -289,13 +289,12 @@ def _build_table(
     show_cad: bool,
     show_usd: bool,
 ) -> RichTable:
-    """Render the buildup as a Rich table."""
+    """Render the buildup as a Rich table, fitted to the terminal."""
     table = RichTable(
         title=title,
         show_header=True,
         header_style="bold bright_white",
         border_style="bright_blue",
-        padding=(0, 0) if show_cad and show_usd else (0, 1),
     )
     for name in ("Settle", "TxnId", "Action"):
         table.add_column(name, no_wrap=True)
@@ -309,14 +308,14 @@ def _build_table(
     if show_cad:
         table.add_column("Proceeds", justify="right")
     if show_usd:
-        table.add_column("FX\nRate", justify="right")
+        table.add_column("Rate", justify="right")
     table.add_column("Flags")
 
     for _, row in rows.iterrows():
         table.add_row(
             *_render_row(row, view, moves, show_cad=show_cad, show_usd=show_usd),
         )
-    return table
+    return fit_padding(table)
 
 
 def _measure_cell(

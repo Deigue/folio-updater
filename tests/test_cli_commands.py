@@ -360,6 +360,40 @@ def test_settle_info_import_creates_and_displays_transfer(
         assert txns.iloc[0][Column.Txn.ACCOUNT] == "WS-TFSA"
 
 
+def test_settle_info_import_reports_skipped_cash_transfers(
+    temp_ctx: TempContext,
+) -> None:
+    """A "Money transfer" row is skipped and reported, not imported as a transfer."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        transfer_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-07-11",
+                    "amount": 500.0,
+                    "currency": "CAD",
+                    "transaction": "TRFIN",
+                    "description": "Money transfer received (executed at 2025-07-11)",
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202507.xlsx"
+        register_test_dataframe(statement_file, transfer_df)
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--import", "-f", str(statement_file)],
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output("Skipped 1 cash transfer(s)", cli_result)
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+        assert txns.empty
+
+
 @pytest.mark.parametrize(
     ("scenario", "cli_args", "query_ids", "expected_output", "setup_action"),
     [

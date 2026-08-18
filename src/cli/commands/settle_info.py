@@ -109,6 +109,13 @@ def _import_single_statement(statement_path: Path) -> StatementImportResult:
         display.show_import_summary(statement_path.name, result.transfer_results)
         display.show_import_audit(result.transfer_results, verbose=True)
 
+    if result.transfers_skipped > 0:
+        console_info(
+            f"Skipped {result.transfers_skipped} cash transfer(s) in "
+            f'"{statement_path.name}" already imported as contributions or '
+            "withdrawals",
+        )
+
     if result.transfers_rejected > 0:
         console_warning(
             f"{result.transfers_rejected} transfer(s) in "

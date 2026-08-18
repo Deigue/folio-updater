@@ -103,6 +103,11 @@ This does two things:
 - **Institutional transfers**: The statement is the only source with a real amount and date, so this
   command creates the `TFR_IN` / `TFR_OUT` transaction directly from it.
 
+Cash moved between your bank and Wealthsimple also appears on the statement as a
+`TRFIN` / `TRFOUT` row, described as "Money transfer ...". Those rows are skipped,
+since the activities download already brings them in as `CONTRIBUTION` /
+`WITHDRAWAL` transactions.
+
 ### Resetting Credentials
 
 If you need to reset your Wealthsimple credentials (e.g., to switch accounts or fix authentication issues):

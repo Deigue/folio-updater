@@ -209,9 +209,8 @@ def import_statements(statement: Path) -> StatementImportResult:
             return StatementImportResult()
 
         settlement_updates = _update_settlement_dates(stmt_df)
-        transfer_df, transfers_rejected = _build_transfer_transactions(
-            stmt_df,
-            statement,
+        transfer_df, transfers_rejected, transfers_skipped = (
+            _build_transfer_transactions(stmt_df, statement)
         )
         transfer_results = (
             _create_transfer_transactions(transfer_df)
@@ -223,15 +222,18 @@ def import_statements(statement: Path) -> StatementImportResult:
         return StatementImportResult()
     else:
         import_logger.info(
-            "DONE: Updated %d settlement date(s), created %d transfer(s)",
+            "DONE: Updated %d settlement date(s), created %d transfer(s), "
+            "skipped %d cash transfer(s)",
             settlement_updates,
             transfer_results.imported_count() if transfer_results else 0,
+            transfers_skipped,
         )
         audit_footer()
         return StatementImportResult(
             settlement_updates=settlement_updates,
             transfer_results=transfer_results,
             transfers_rejected=transfers_rejected,
+            transfers_skipped=transfers_skipped,
         )
 
 
@@ -435,6 +437,7 @@ def _apply_settlement_updates_to_db(
 
 _TRANSFER_OUT_PREFIX = "TRFOUT"
 _TRANSFER_IN_PREFIX = "TRFIN"
+_CASH_TRANSFER_DESCRIPTION_PREFIX = "money transfer"
 # Wealthsimple statement files "ws_statement_{account}_{yyyymm}.{ext}"
 _STATEMENT_FILENAME_PATTERN = re.compile(
     r"^ws_statement_(?P<account>.+)_\d{6}$",
@@ -452,6 +455,11 @@ def _transfer_action_for_code(transaction_type: str) -> str | None:
     return None
 
 
+def _is_cash_transfer(description: str) -> bool:
+    """Report whether a transfer row is a bank cash transfer."""
+    return description.strip().lower().startswith(_CASH_TRANSFER_DESCRIPTION_PREFIX)
+
+
 def _extract_account_from_statement_filename(path: Path) -> str | None:
     """Recover the account alias from a Wealthsimple statement filename."""
     match = _STATEMENT_FILENAME_PATTERN.match(path.stem)
@@ -461,20 +469,33 @@ def _extract_account_from_statement_filename(path: Path) -> str | None:
 def _build_transfer_transactions(
     df: pd.DataFrame,
     statement_path: Path,
-) -> tuple[pd.DataFrame, int]:
+) -> tuple[pd.DataFrame, int, int]:
     """Build TFR_IN/TFR_OUT transactions from transfer rows in a statement.
 
     Returns:
-        Candidate transactions (possibly empty) and a count of transfer rows
-        found that could not be turned into a transaction.
+        Candidate transactions (possibly empty), a count of transfer rows found
+        that could not be turned into a transaction, and a count of cash
+        transfers skipped because the activities import already covers them.
     """
     account = _extract_account_from_statement_filename(statement_path)
     rows: list[dict[str, object]] = []
     rejected = 0
+    skipped = 0
 
     for _, row in df.iterrows():
         action = _transfer_action_for_code(str(row["transaction"]))
         if action is None:
+            continue
+
+        if _is_cash_transfer(str(row["description"])):
+            skipped += 1
+            import_logger.info(
+                " - Skipping cash transfer (imported as a contribution or "
+                "withdrawal): %s, %s, %s",
+                row["transaction"],
+                row["date"],
+                row["amount"],
+            )
             continue
 
         settle_date = _normalize_date(row["date"])
@@ -501,7 +522,7 @@ def _build_transfer_transactions(
         )
         rows.append(txn)
 
-    return pd.DataFrame(rows), rejected
+    return pd.DataFrame(rows), rejected, skipped
 
 
 def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:

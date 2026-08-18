@@ -108,6 +108,7 @@ class StatementImportResult:
     settlement_updates: int = 0
     transfer_results: ImportResults | None = None
     transfers_rejected: int = 0
+    transfers_skipped: int = 0
 
     def transfers_created(self) -> int:
         """Return number of transfer transactions created from this statement."""

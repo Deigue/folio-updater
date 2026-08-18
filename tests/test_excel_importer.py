@@ -647,6 +647,52 @@ def test_import_statements_creates_transfer_from_filename(
         assert float(in_txn[Column.Txn.AMOUNT]) == 1000.0
 
 
+def test_import_statements_skips_cash_transfers(temp_ctx: TempContext) -> None:
+    """Cash "Money transfer" rows are skipped; institutional transfers still import."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        transfer_df = pd.DataFrame(
+            [
+                {
+                    "date": "2025-07-11",
+                    "amount": 500.0,
+                    "currency": "CAD",
+                    "transaction": "TRFIN",
+                    "description": "Money transfer received (executed at 2025-07-11)",
+                },
+                {
+                    "date": "2025-07-14",
+                    "amount": -200.0,
+                    "currency": "CAD",
+                    "transaction": "TRFOUT",
+                    "description": "Money transfer sent (executed at 2025-07-14)",
+                },
+                {
+                    "date": "2025-07-22",
+                    "amount": 1000.0,
+                    "currency": "CAD",
+                    "transaction": "TRFINRSP",
+                    "description": "RSP account transfer in (executed at 2025-07-22)",
+                },
+            ],
+        )
+
+        statement_file = ctx.config.project_root / "ws_statement_WS-RRSP_202507.xlsx"
+        register_test_dataframe(statement_file, transfer_df)
+        result = import_statements(statement_file)
+
+        assert result.transfers_created() == 1
+        assert result.transfers_skipped == 2
+        assert result.transfers_rejected == 0
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+
+        assert len(txns) == 1
+        assert txns.iloc[0][Column.Txn.ACTION] == "TFR_IN"
+        assert float(txns.iloc[0][Column.Txn.AMOUNT]) == 1000.0
+
+
 def test_import_statements_rejects_transfer_without_account_in_filename(
     temp_ctx: TempContext,
 ) -> None:
