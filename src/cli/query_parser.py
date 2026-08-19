@@ -74,6 +74,7 @@ class ParsedQuery:
     sorts: list[QuerySort] = field(default_factory=list)
     start_limit: int | None = None
     end_limit: int | None = None
+    named_limiter: bool = False
 
     def __repr__(self) -> str:
         """Return string representation of the parsed query."""
@@ -348,6 +349,7 @@ def _try_parse_limit_phrase(
         query.end_limit = int(next_term)
     else:
         query.start_limit = int(next_term)
+    query.named_limiter = True
     return 2
 
 
@@ -826,6 +828,7 @@ def _try_parse_limit(term: str, query: ParsedQuery) -> bool:
 
     query.start_limit = int(value)
     query.end_limit = None
+    query.named_limiter = False
     return True
 
 

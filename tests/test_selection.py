@@ -142,6 +142,49 @@ class TestTailLimit:
             assert selection.txn_ids == expected
 
 
+class TestBareLimitOrder:
+    """Bare `first N`/`last N` (no explicit sort:) mean earliest/most-recent N."""
+
+    def test_bare_last_n_returns_the_most_recent(self, temp_ctx: TempContext) -> None:
+        """'last N' with no sort returns the N newest transactions by date."""
+        with temp_ctx():
+            ensure_data_exists()
+            seed_transaction(date="2025-01-01")
+            middle = seed_transaction(date="2025-06-01")
+            newest = seed_transaction(date="2025-12-01")
+
+            selection = select_transactions([_SEEDED, "last", "2"])
+
+            assert selection.txn_ids == [middle, newest]
+
+    def test_bare_first_n_returns_the_earliest(self, temp_ctx: TempContext) -> None:
+        """'first N' with no sort returns the N oldest transactions by date."""
+        with temp_ctx():
+            ensure_data_exists()
+            oldest = seed_transaction(date="2025-01-01")
+            middle = seed_transaction(date="2025-06-01")
+            seed_transaction(date="2025-12-01")
+
+            selection = select_transactions([_SEEDED, "first", "2"])
+
+            assert selection.txn_ids == [oldest, middle]
+
+    def test_explicit_limit_keeps_the_newest_first_display(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """'limit:N' (not `first`/`last`) still caps the plain newest-first order."""
+        with temp_ctx():
+            ensure_data_exists()
+            seed_transaction(date="2025-01-01")
+            newest = seed_transaction(date="2025-12-01")
+            middle = seed_transaction(date="2025-06-01")
+
+            selection = select_transactions([_SEEDED, "limit:2"])
+
+            assert selection.txn_ids == [newest, middle]
+
+
 class TestSelectionBounds:
     """The guard that keeps a selection from sweeping the whole folio."""
 
