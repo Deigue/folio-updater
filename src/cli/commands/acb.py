@@ -24,7 +24,7 @@ from cli import (
 )
 from cli.commands.common import ensure_fx_coverage
 from cli.console import supports_unicode
-from cli.display import TRANSACTION_COLORS, fit_padding, freshness_badge, page_frame
+from cli.display import TRANSACTION_COLORS, fit_table, freshness_badge, page_frame
 from engine.cache import load_or_build
 from engine.frames import acb_summary_frame, scope_column
 from services.symbols import load_symbol_resolver
@@ -55,6 +55,22 @@ _MEASURE_COLUMNS: list[tuple[str, str]] = [
     ("Avg", "Avg"),
     ("Gain", "Gain"),
 ]
+
+_BUILDUP_DROP_ORDER = (
+    "TxnId",
+    "Delta",
+    "Delta\nUSD",
+    "Rate",
+    "Gain\nUSD",
+    "ACB\nUSD",
+    "Avg\nUSD",
+    "Gain",
+    "Proceeds",
+    "Flags",
+    "Fee",
+)
+
+_SUMMARY_DROP_ORDER = ("Gain\nUSD", "ACB\nUSD", "Avg\nUSD")
 
 # Running measures whose direction of travel is worth marking, compared against
 # the chronologically preceding row.
@@ -315,7 +331,7 @@ def _build_table(
         table.add_row(
             *_render_row(row, view, moves, show_cad=show_cad, show_usd=show_usd),
         )
-    return fit_padding(table)
+    return fit_table(table, _BUILDUP_DROP_ORDER)
 
 
 def _measure_cell(
@@ -615,7 +631,12 @@ def _show_summary(
         for record in _open_positions_first(summary, view).to_dict("records")
     ]
     console_print(freshness_badge(cached.computed_at))
-    show_data_table(records, title=f"ACB summary - {view.label}", max_rows=len(records))
+    show_data_table(
+        records,
+        title=f"ACB summary - {view.label}",
+        max_rows=len(records),
+        drop_order=_SUMMARY_DROP_ORDER,
+    )
     _print_footer(rows, exclude={str(WarningCode.SUPERFICIAL_LOSS_SUSPECT)})
 
 
@@ -659,5 +680,13 @@ def _show_buildup(
         )
 
     badge = freshness_badge(cached.computed_at)
-    page_frame(len(ordered), title, None, render, badge=badge)
+    page_frame(
+        len(ordered),
+        title,
+        None,
+        render,
+        badge=badge,
+        # Showing both currencies stacks each measure's header onto a second line
+        reserved=1 if show_usd else 0,
+    )
     _print_footer(ordered)

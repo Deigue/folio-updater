@@ -23,6 +23,7 @@ from cli import (
     console_warning,
     show_data_table,
 )
+from cli.display import DOWNLOAD_DROP_ORDER
 from db import get_connection, get_max_value
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
@@ -280,6 +281,7 @@ def _wealthsimple_transactions(
             sample_data,
             title=f"Downloaded Transactions Preview ({len(activities)} total)",
             max_rows=10,
+            drop_order=DOWNLOAD_DROP_ORDER,
         )
 
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"

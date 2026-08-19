@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - The cost-base cache now stores the diagnostics, cash totals and row counts beside the
   computed figures, so `folio check` can reuse an unchanged folio's replay. The stored
   snapshot only holds the transactions needed by diagnostics, so the cache remains lean.
+- Tables now smart-fit themselves to the terminal, giving up the least that they can.
 
 ### Deprecated
 
@@ -27,6 +28,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   `SPLIT_RATIO_IMPLAUSIBLE`.
 
 ### Fixed
+
+- `Price` and `Units` are now rounded properly, and units drop trailing zeros.
+- The cache freshness indicator no longer scrolls off the top of a short terminal.
 
 ### Security
 

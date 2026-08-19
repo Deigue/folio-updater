@@ -6,6 +6,7 @@ This module provides custom display functions for the folio CLI.
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -82,6 +83,9 @@ _DIFF_EXTRA_WIDTH = 6
 # A width no table will reach, used to ask Rich how wide one wants to be.
 _UNBOUNDED_WIDTH = 10_000
 
+# Optional Description Column
+_DESCRIPTION = "Description"
+
 
 def _ordered_columns(
     display_df: pd.DataFrame,
@@ -108,6 +112,27 @@ def _ordered_columns(
     known = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED}
     columns.extend(str(col) for col in display_df.columns if col not in known)
     return columns
+
+
+def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> list[str]:
+    """List what columns a txn table may drop in order.
+
+    Args:
+        display_df: DataFrame being displayed.
+        context: Context deciding which columns show.
+
+    Returns:
+        Headers in the order they may be dropped.
+    """
+    optional = [
+        column
+        for column in _ordered_columns(display_df, context)
+        if column not in _TXN_COLUMN_SPECS
+    ]
+    ordered = [column for column in optional if column != _DESCRIPTION]
+    ordered.extend(column for column in optional if column == _DESCRIPTION)
+    ordered.append(str(Column.Txn.FEE))
+    return ordered
 
 
 # Cross-platform single character input
@@ -186,6 +211,40 @@ SHORT_HEADERS = {
     "EffectiveDate": "Date",
 }
 
+DOWNLOAD_DROP_ORDER = ("Currency",)
+
+SHORT_ACTIONS = {
+    str(Action.DIVIDEND): "DIV",
+    str(Action.SPLIT): "SPL",
+    str(Action.CONTRIBUTION): "CON",
+    str(Action.WITHDRAWAL): "WDL",
+    str(Action.TFR_IN): "TFI",
+    str(Action.TFR_OUT): "TFO",
+}
+_ACTION_HEADERS = (str(Column.Txn.ACTION), SHORT_HEADERS[str(Column.Txn.ACTION)])
+
+MONEY_PRECISION = 2
+PRICE_PRECISION = 4
+UNIT_PRECISION = 6
+
+_ROUNDABLE_HEADERS = frozenset({"Price", "Avg", "Avg\nUSD"})
+_DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+")
+
+_CURRENCY_HEADERS = frozenset({str(Column.Txn.CURRENCY), "Currency", "$"})
+_CURRENCY_HOSTS = frozenset(
+    {
+        str(Column.Txn.AMOUNT),
+        SHORT_HEADERS[str(Column.Txn.AMOUNT)],
+        str(Column.Txn.PRICE),
+    },
+)
+
+# Account shortening
+_ACCOUNT_WIDTH = 9
+_ACCOUNT_MIN_WORD = 2
+_ACCOUNT_HEADERS = (str(Column.Txn.ACCOUNT), SHORT_HEADERS[str(Column.Txn.ACCOUNT)])
+_ACCOUNT_SEPARATORS = re.compile(r"([-_ /.])")
+
 THEME_MERGED = "bright_blue"  # Merged panels - informational
 THEME_TRANSFORMS = "medium_purple3"  # Transforms - modification
 THEME_EXCLUDED = "dark_red"  # Excluded/rejected - removal
@@ -213,6 +272,7 @@ def show_data_table(
     max_rows: int = 50,
     *,
     theme: str = "bright_blue",
+    drop_order: Sequence[str] = (),
 ) -> None:
     """Display generic data in a Rich table.
 
@@ -221,6 +281,7 @@ def show_data_table(
         title: Optional title for the table
         max_rows: Maximum number of rows to display
         theme: Border color theme for the table
+        drop_order: Headers to drop as last resort by least->most important
     """
     if not data:
         console_print("[yellow]No data to display[/yellow]")
@@ -247,7 +308,7 @@ def show_data_table(
         for row in display_data:
             table.add_row(*[_safe_str(value) for value in row.values()])
 
-    console_print(fit_padding(table))
+    console_print(fit_table(table, drop_order))
 
     if truncated:
         console_print(
@@ -622,7 +683,9 @@ def page_frame(
     title: str,
     page_size: int | None,
     render: Callable[[int, int], None],
+    *,
     badge: str | None = None,
+    reserved: int = 0,
 ) -> None:
     """Drive the n/p/q pager over a row range, delegating pages to `render`.
 
@@ -633,6 +696,7 @@ def page_frame(
         render: Called with (start, end) to draw one page of rows
         badge: Optional status line (e.g. from `freshness_badge`) printed
             above every page
+        reserved: Further lines each page draws that the height budget cannot see
     """
     if total_rows == 0:
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
@@ -647,7 +711,12 @@ def page_frame(
         return
 
     if page_size is None:
-        page_size = _calculate_available_height(table=True, pages=True)
+        page_size = _calculate_available_height(
+            table=True,
+            pages=True,
+            # The badge is redrawn above every page, so it costs the table a row.
+            reserved=reserved + (1 if badge else 0),
+        )
 
     if total_rows <= page_size:
         render(0, total_rows)
@@ -823,6 +892,124 @@ def _tight(table: Table) -> None:
     table.padding = Padding.unpack(TIGHT_PADDING)
 
 
+def _drop_blank(table: Table) -> None:
+    """Drop columns that no row on this page fills in.
+
+    Judged against the rows being rendered, which is all a paged table ever
+    shows at once, so the scan cost is negligible.
+    """
+    for index in reversed(range(len(table.columns))):
+        cells = table.columns[index].cells
+        if not any(str(cell).strip() for cell in cells):
+            del table.columns[index]
+
+
+def _drop_columns(table: Table, drop_order: Sequence[str]) -> None:
+    """Drop columns, least valuable first, until the table fits.
+
+    The last resort, which sacrifices information to fit useful content.
+
+    Args:
+        table: The table about to be printed.
+        drop_order: Column headers ordered by least to most important
+    """
+    for header in drop_order:
+        if not overflow(table):
+            return
+        wanted = {header, SHORT_HEADERS.get(header, header)}
+        for index in reversed(range(len(table.columns))):
+            if str(table.columns[index].header) in wanted:
+                del table.columns[index]
+
+
+def _shorten_actions(table: Table) -> None:
+    """Swap each action for its code."""
+    for column in table.columns:
+        if str(column.header) not in _ACTION_HEADERS:
+            continue
+
+        cells = column._cells  # noqa: SLF001
+        for index, cell in enumerate(cells):
+            text = str(cell)
+            for action, code in SHORT_ACTIONS.items():
+                text = text.replace(action, code)
+            cells[index] = text
+
+
+def _shrink_account(name: str) -> str:
+    """Wear an account name down to a shorter width.
+
+    Args:
+        name: The account name as stored.
+
+    Returns:
+        The name at no more than `_ACCOUNT_WIDTH` characters.
+    """
+    if len(name) <= _ACCOUNT_WIDTH:  # already short
+        return name
+
+    tokens = _ACCOUNT_SEPARATORS.split(name)
+    words = list(range(0, len(tokens), 2))
+    if len(words) == 1:
+        return name[:_ACCOUNT_WIDTH]
+
+    while len("".join(tokens)) > _ACCOUNT_WIDTH:
+        longest = max(words, key=lambda index: len(tokens[index]))
+        if len(tokens[longest]) <= _ACCOUNT_MIN_WORD:
+            break
+        tokens[longest] = tokens[longest][:-1]
+    return "".join(tokens)
+
+
+def _shrink_accounts(table: Table) -> None:
+    """Shorten every account name in the table, where one is on show."""
+    for column in table.columns:
+        if str(column.header) not in _ACCOUNT_HEADERS:
+            continue
+        # Rich offers no public way to rewrite a built column's cells.
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [_shrink_account(str(cell)) for cell in cells]
+
+
+def _reduce_precision(table: Table) -> None:
+    """Round the columns that carry more decimals than they must down to cents."""
+    for column in table.columns:
+        if str(column.header) not in _ROUNDABLE_HEADERS:
+            continue
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [_DECIMAL_RUN.sub(_to_cents, str(cell)) for cell in cells]
+
+
+def _to_cents(match: re.Match[str]) -> str:
+    """Re-render one number found inside a cell at cent precision."""
+    return f"{float(match.group().replace(',', '')):,.{MONEY_PRECISION}f}"
+
+
+def _fold_currency(table: Table) -> None:
+    """Move a currency every row shares out of its column and into a header."""
+    found = [
+        index
+        for index, column in enumerate(table.columns)
+        if str(column.header) in _CURRENCY_HEADERS
+    ]
+    if not found:
+        return
+
+    shared = {str(cell).strip() for cell in table.columns[found[0]].cells}
+    host = next(
+        (column for column in table.columns if str(column.header) in _CURRENCY_HOSTS),
+        None,
+    )
+    if len(shared) != 1 or host is None:
+        return
+    currency = shared.pop()
+    if not currency:
+        return
+
+    host.header = f"{host.header} {currency}"
+    del table.columns[found[0]]
+
+
 def _shorten_headers(table: Table) -> None:
     """Swap in the short form of every header that has one."""
     for column in table.columns:
@@ -831,24 +1018,53 @@ def _shorten_headers(table: Table) -> None:
             column.header = short
 
 
-def fit_padding(table: Table) -> Table:
+def fit_table(table: Table, drop_order: Sequence[str] = ()) -> Table:
     """Fit a table to the terminal, giving up the least that it can.
+
+    Empty columns are dropped first. Then we squeeze padding, shorten headers
+    and cells. Then fold currencies into headers and round figures to cents.
+    Lastly, we drop columns based on smart prioritization.
 
     Args:
         table: The table about to be printed. Adjusted in place.
+        drop_order: Headers this table can give up as last resort, least->most important
 
     Returns:
         The same table, for printing inline.
     """
-    for concede in (_snug, _tight, _shorten_headers):
+    _drop_blank(table)
+    for concede in (
+        _snug,
+        _tight,
+        _shorten_headers,
+        _shorten_actions,
+        _shrink_accounts,
+        _fold_currency,
+        _reduce_precision,
+    ):
         if not overflow(table):
-            break
+            return table
         concede(table)
+    _drop_columns(table, drop_order)
     return table
 
 
-def _calculate_available_height(*, table: bool = False, pages: bool = False) -> int:
-    """Calculate available height for content after reserved UI elements."""
+def _calculate_available_height(
+    *,
+    table: bool = False,
+    pages: bool = False,
+    reserved: int = 0,
+) -> int:
+    """Calculate available height for content after reserved UI elements.
+
+    Args:
+        table: Whether a bordered, headered table is being drawn.
+        pages: Whether this is the paged full-screen flow.
+        reserved: Additional lines to reserve, cache badge or header stacking
+
+    Returns:
+        The number of content lines that fit.
+    """
     _, height = _get_terminal_size()
     if pages:
         # Paged full-screen table: console.rule + progress line + prompt.
@@ -858,7 +1074,7 @@ def _calculate_available_height(*, table: bool = False, pages: bool = False) -> 
         # Tiled audit-block view: stats panel + expansion prompt.
         reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
     reserved_lines += TABLE_HEADER_HEIGHT if table else 0
-    reserved_lines += SAFETY_MARGIN
+    reserved_lines += SAFETY_MARGIN + reserved
     return max(height - reserved_lines, 10)  # Minimum 10 lines
 
 
@@ -883,6 +1099,38 @@ def _safe_str(value: Any) -> str:
     if pd.isna(value):
         return ""
     return str(value)
+
+
+def _decimals(value: Any, precision: int, minimum: int = 0) -> str:
+    """Render a number at a capped precision, dropping the zeros it does not need.
+
+    Transaction figures come out of a NUMERIC(20,10) column, so an unformatted
+    cell can be anything from `1` to `1.12423836`. Capping the decimals keeps a
+    column's width predictable from one page to the next.
+
+    Args:
+        value: Raw cell value, which need not be numeric.
+        precision: Most decimal places to show.
+        minimum: Fewest decimal places to keep, so a money-role column never
+            strips below its cents.
+
+    Returns:
+        The formatted cell, the original text if it is not a number, or an
+        empty string for a blank.
+    """
+    text = _safe_str(value)
+    if not text:
+        return ""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return text
+    rendered = f"{number:,.{precision}f}"
+    if precision == minimum:
+        return rendered
+    whole, _, fraction = rendered.partition(".")
+    fraction = fraction.rstrip("0").ljust(minimum, "0")
+    return f"{whole}.{fraction}" if fraction else whole
 
 
 class TransactionDisplay:
@@ -967,7 +1215,7 @@ class TransactionDisplay:
             table,
             context,
         )
-        fit_padding(table)
+        fit_table(table, _txn_drop_order(display_df, context))
 
         if not show:
             return table
@@ -1034,7 +1282,7 @@ class TransactionDisplay:
                 else:
                     row_data.append(old)
             table.add_row(*row_data)
-        fit_padding(table)
+        fit_table(table, _txn_drop_order(before, context))
 
         if not show:
             return table
@@ -1123,7 +1371,14 @@ class TransactionDisplay:
             Column.Txn.SETTLE_DATE: settle_display,
             Column.Txn.ACTION: f"[{action_color}]{action}[/{action_color}]",
             Column.Txn.AMOUNT: self._format_amount_display(amount, action),
-            Column.Txn.FEE: f"{fee_val:.2f}",
+            # Blank the fee if its zero/nothing
+            Column.Txn.FEE: f"{fee_val:,.2f}" if fee_val else "",
+            Column.Txn.PRICE: _decimals(
+                row.get(Column.Txn.PRICE, ""),
+                PRICE_PRECISION,
+                MONEY_PRECISION,
+            ),
+            Column.Txn.UNITS: _decimals(row.get(Column.Txn.UNITS, ""), UNIT_PRECISION),
         }
 
         return {
