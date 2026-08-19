@@ -26,9 +26,9 @@ from cli.commands.common import (
     resolve_selection,
 )
 from cli.query_parser import get_valid_column_names
-from db.formatters import TransactionFormatter, parse_date
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_columns, get_connection, get_rows, update_rows
+from ingest.validation import TransactionFormatter, parse_date
 from ui import (
     console_error,
     console_info,

@@ -1,4 +1,4 @@
-"""Transaction transformation module for applying user-defined rules."""
+"""Applying the user's merge and transform rules."""
 
 from __future__ import annotations
 

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .test_types import TempContext
-from db.transformers import TransactionTransformer
+from ingest.rules import TransactionTransformer
 from utils.constants import Column
 from utils.transforms import normalize_canadian_ticker
 

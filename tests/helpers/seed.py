@@ -12,7 +12,6 @@ from __future__ import annotations
 import pandas as pd
 
 from db import (
-    ActionValidationRules,
     create_fx_table,
     create_txns_table,
     get_connection,
@@ -20,6 +19,7 @@ from db import (
     helpers,
     insert_or_replace,
 )
+from ingest import ActionValidationRules
 from utils.constants import Column, Currency, Sign, Table
 from utils.settlement_calculator import settlement_calculator
 

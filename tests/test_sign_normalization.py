@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from db.formatters import ActionValidationRules, TransactionFormatter
+from ingest.validation import ActionValidationRules, TransactionFormatter
 from utils.constants import Action, Column, Currency, Sign
 
 if TYPE_CHECKING:

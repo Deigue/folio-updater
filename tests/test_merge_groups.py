@@ -10,7 +10,7 @@ import pandas as pd
 if TYPE_CHECKING:
     from .test_types import TempContext
 
-from db.transformers import TransactionTransformer
+from ingest.rules import TransactionTransformer
 from utils.constants import Column
 
 MERGE_CONFIG = {

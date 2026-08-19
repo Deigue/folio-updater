@@ -19,10 +19,10 @@ import typer
 
 from app import bootstrap, get_config
 from cli.commands.common import audit_footer, backup_folio, export_to_parquet
-from db import ActionValidationRules, prepare_transactions
-from db.formatters import TransactionFormatter
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_last_insert_rowid, get_rows
+from ingest import ActionValidationRules, prepare_transactions
+from ingest.validation import TransactionFormatter
 from ui import (
     console_error,
     console_info,

@@ -13,7 +13,7 @@ from cli.main import app as cli_app
 from cli.query_parser import parse_query_terms
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, get_mock_data_date_range
 from db import add_column_to_table, get_connection, get_row_count, get_rows
-from db.formatters import ActionValidationRules
+from ingest.validation import ActionValidationRules
 from utils.constants import DEFAULT_TICKERS, Action, Column, Table
 
 from .helpers.cli import (

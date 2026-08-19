@@ -1,4 +1,8 @@
-"""Module to handle mapping related operations."""
+"""Mapping a source file's headers onto the folio's canonical columns.
+
+The first pipeline stage. Every broker names its columns differently, so this
+is where an exports headers are mapped.
+"""
 
 from __future__ import annotations
 

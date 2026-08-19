@@ -1,4 +1,9 @@
-"""Filter related operations on the database."""
+"""Dropping rows the folio already holds.
+
+The last pipeline stage, and the only one that reads the database. Rows are
+keyed on TXN_ESSENTIALS and checked both against each other (intra) and against what
+is already stored.
+"""
 
 from __future__ import annotations
 

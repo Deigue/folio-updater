@@ -14,11 +14,11 @@ from db import (
     get_connection,
     get_row_count,
     get_rows,
-    prepare_transactions,
     txn_count,
     update_rows,
 )
 from db.helpers import format_transaction_summary
+from ingest import prepare_transactions
 from models import ImportResults, StatementImportResult
 from ui import get_symbol
 from utils import (

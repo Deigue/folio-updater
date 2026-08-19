@@ -1,4 +1,10 @@
-"""Data formatting and validation utilities for database operations."""
+"""Validating and coercing transaction fields.
+
+The second pipeline stage: numbers into a common decimal format, tickers and
+strings normalised, signs forced to match the action, and settlement dates
+filled where the source left them out. A row that cannot be made valid is
+rejected here with a reason.
+"""
 
 from __future__ import annotations
 

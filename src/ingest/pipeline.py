@@ -1,4 +1,4 @@
-"""Prepares data for database insertion."""
+"""The prepare-transactions pipeline, start to finish."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ import pandas as pd
 
 # Local imports, don;t get from db package
 from db import helpers, schema
-from db.filters import TransactionFilter
-from db.formatters import TransactionFormatter
-from db.mappers import TransactionMapper
-from db.transformers import TransactionTransformer
+from ingest.dedupe import TransactionFilter
+from ingest.mappers import TransactionMapper
+from ingest.rules import TransactionTransformer
+from ingest.validation import TransactionFormatter
 from models import ImportResults
 from utils import get_import_logger
 
