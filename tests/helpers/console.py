@@ -8,17 +8,17 @@ from typing import TYPE_CHECKING
 
 from rich.console import Console
 
-from cli import console as console_module
+from ui import console as console_module
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class TestConsole:
+class CapturingConsole:
     """A Rich Console that records plain text output to a string buffer."""
 
     def __init__(self) -> None:
-        """Initialize the test console."""
+        """Initialize the capturing console."""
         self.file = StringIO()
         self.console = Console(
             file=self.file,
@@ -33,11 +33,11 @@ class TestConsole:
 
 
 @contextmanager
-def capture_output() -> Generator[TestConsole]:
+def capture_output() -> Generator[CapturingConsole]:
     """Context manager to capture console output in plain text.
 
     Yields:
-        TestConsole: The test console instance with the captured output.
+        CapturingConsole: The console instance holding the captured output.
 
     Example:
         with capture_output() as bio:
@@ -46,9 +46,9 @@ def capture_output() -> Generator[TestConsole]:
             assert "This is a test." in output
     """
     original_console = console_module.console
-    test_console_wrapper = TestConsole()
-    console_module.console = test_console_wrapper.console
+    capturing = CapturingConsole()
+    console_module.console = capturing.console
     try:
-        yield test_console_wrapper
+        yield capturing
     finally:
         console_module.console = original_console

@@ -8,13 +8,13 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from cli import (
-    ProgressDisplay,
+from exporters import ParquetExporter
+from ui import (
     console_error,
     console_success,
     console_warning,
 )
-from exporters import ParquetExporter
+from ui.layout.progress import ProgressDisplay
 
 app = typer.Typer()
 

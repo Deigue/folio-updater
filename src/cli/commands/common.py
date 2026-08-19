@@ -8,16 +8,16 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import get_config
-from cli import (
-    ProgressDisplay,
-    console_error,
-    console_success,
-    console_warning,
-)
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
 from exporters import ParquetExporter
 from services import ForexService
+from ui import (
+    console_error,
+    console_success,
+    console_warning,
+)
+from ui.layout.progress import ProgressDisplay
 from utils import audit_footer
 from utils.constants import Column, Table
 

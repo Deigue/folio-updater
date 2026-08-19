@@ -12,7 +12,6 @@ import logging
 from typing import TYPE_CHECKING
 
 from app import bootstrap
-from cli import console_info, console_success
 from cli.commands.common import (
     audit_footer,
     backup_folio,
@@ -20,9 +19,10 @@ from cli.commands.common import (
     export_to_parquet,
     resolve_selection,
 )
-from cli.display import page_transactions
 from db.helpers import format_transaction_summary
 from db.queries import delete_rows, get_connection
+from ui import console_info, console_success
+from ui.views.transactions import page_transactions
 from utils import Column, Table, get_import_logger
 
 if TYPE_CHECKING:

@@ -12,7 +12,7 @@ from pathlib import Path
 import typer
 
 from app import bootstrap
-from cli import console_info, console_print
+from ui import console_info, console_print
 from utils.config import Config
 
 __version__ = _pkg_version("folio-updater")

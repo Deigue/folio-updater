@@ -13,20 +13,20 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli import (
-    ProgressDisplay,
+from db import get_connection, get_max_value
+from models.wealthsimple import ActivityFeedItem
+from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from ui import (
     console_error,
     console_info,
     console_print,
     console_rule,
     console_success,
     console_warning,
-    show_data_table,
 )
-from cli.display import DOWNLOAD_DROP_ORDER
-from db import get_connection, get_max_value
-from models.wealthsimple import ActivityFeedItem
-from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from ui.layout.progress import ProgressDisplay
+from ui.theme import DOWNLOAD_DROP_ORDER
+from ui.widgets import show_data_table
 from utils import TORONTO_TZ, Column, Table, get_import_logger
 from utils.log_console import success_both
 

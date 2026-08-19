@@ -67,7 +67,7 @@ If you maintain separate Excel files per account:
 
 ```python
 # Import multiple account files
-import_transactions("broker_a_txns.xlsx", account="BROKER-A") 
+import_transactions("broker_a_txns.xlsx", account="BROKER-A")
 import_transactions("broker_b_txns.xlsx", account="BROKER-B")
 ```
 

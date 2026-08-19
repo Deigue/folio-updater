@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from cli.test_console import capture_output
+from .console import capture_output
 
 if TYPE_CHECKING:
     from typer import Typer

@@ -18,18 +18,18 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from cli import (
-    TransactionDisplay,
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-)
 from cli.commands.common import audit_footer, backup_folio, export_to_parquet
 from db import ActionValidationRules, prepare_transactions
 from db.formatters import TransactionFormatter
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_last_insert_rowid, get_rows
+from ui import (
+    console_error,
+    console_info,
+    console_success,
+    console_warning,
+)
+from ui.views.transactions import TransactionDisplay
 from utils import (
     TORONTO_TZ,
     TXN_ESSENTIALS,

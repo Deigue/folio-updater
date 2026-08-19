@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.7.3"
+version = "0.7.4"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -51,8 +51,7 @@ omit = [
     'src/utils/backup.py',
     'src/datagen/folio_setup.py',
     'src/models/*',
-    'src/cli/display.py',
-    'src/cli/console.py',
+    'src/ui/*',
     'src/utils/log_console.py',
 ]
 [tool.coverage.report]
@@ -121,7 +120,7 @@ exclude = [
     "T201",
 ]
 "src/cli/main.py" = ["PLC0415"]
-"src/cli/*" = [
+"src/{cli,ui}/*" = [
     "PLR0913",
     "FBT003",
     "PLW0603",

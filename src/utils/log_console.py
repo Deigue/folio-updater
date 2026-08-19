@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-from cli.console import (
+from ui.console import (
     console_error,
     console_info,
     console_print,

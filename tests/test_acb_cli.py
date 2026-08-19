@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from cli.commands.acb import (
+from cli.main import app
+from engine.cache import fingerprint, load_or_build
+from engine.frames import scope_column
+from ui import supports_unicode
+from ui.views.acb import (
     _FALL,
     _RISE,
     AcbView,
@@ -15,10 +19,6 @@ from cli.commands.acb import (
     _units,
     movements,
 )
-from cli.console import supports_unicode
-from cli.main import app
-from engine.cache import fingerprint, load_or_build
-from engine.frames import scope_column
 from utils.constants import Column, Scope
 
 from .helpers.cli import (

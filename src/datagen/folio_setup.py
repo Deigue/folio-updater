@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from cli.console import console_warning
 from datagen.mock_data import generate_transactions
 from db import create_txns_table, get_connection, get_row_count
 from exporters import ParquetExporter
 from services import ForexService
+from ui import console_warning
 from utils import DEFAULT_TICKERS, Table
 from utils.backup import rolling_backup
 from utils.settlement_calculator import settlement_calculator

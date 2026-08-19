@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from cli import get_symbol
 from db import (
     backup_folio,
     get_connection,
@@ -21,6 +20,7 @@ from db import (
 )
 from db.helpers import format_transaction_summary
 from models import ImportResults, StatementImportResult
+from ui import get_symbol
 from utils import (
     TXN_ESSENTIALS,
     Action,

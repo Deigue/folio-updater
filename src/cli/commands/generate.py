@@ -8,9 +8,9 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from cli import console_error, console_success
-from cli.display import ProgressDisplay
 from exporters.excel_exporter import ExcelExporter
+from ui import console_error, console_success
+from ui.layout.progress import ProgressDisplay
 
 app = typer.Typer()
 

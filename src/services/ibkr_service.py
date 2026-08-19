@@ -22,7 +22,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app import get_config
-from cli.display import ProgressDisplay
+from ui.layout.progress import ProgressDisplay
 from utils.constants import TORONTO_TZ
 from utils.log_console import error_both, info_both
 

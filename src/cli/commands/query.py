@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 
 from app import bootstrap
-from cli.display import page_transactions
 from cli.selection import select_transactions
+from ui.views.transactions import page_transactions
 from utils.log_console import info_both
 
 logger = logging.getLogger(__name__)

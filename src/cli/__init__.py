@@ -1,39 +1,5 @@
-"""CLI module for folio-updater.
+"""CLI shell for folio-updater.
 
-This module exports the public API for CLI utilities including console output
-functions and display classes.
+Command modules parse arguments, call the engine, and hand results to a view
+under `ui`.
 """
-
-from cli.console import (
-    console_error,
-    console_info,
-    console_panel,
-    console_print,
-    console_rule,
-    console_success,
-    console_warning,
-    get_symbol,
-)
-from cli.display import (
-    ProgressDisplay,
-    TransactionDisplay,
-    page_changes,
-    page_transactions,
-    show_data_table,
-)
-
-__all__ = [
-    "ProgressDisplay",
-    "TransactionDisplay",
-    "console_error",
-    "console_info",
-    "console_panel",
-    "console_print",
-    "console_rule",
-    "console_success",
-    "console_warning",
-    "get_symbol",
-    "page_changes",
-    "page_transactions",
-    "show_data_table",
-]

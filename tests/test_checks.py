@@ -13,9 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cli.commands.check import _print_findings
 from cli.main import app
-from cli.test_console import capture_output
 from engine.cache import load_or_build
 from engine.checks import (
     CHECK_SLUGS,
@@ -30,6 +28,7 @@ from engine.events import TxnRow
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, detect_fee_signs, replay
 from services.symbols import SymbolResolver
+from ui.views.checks import _print_findings
 from utils.constants import (
     AccountType,
     Action,
@@ -40,6 +39,7 @@ from utils.constants import (
 )
 
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
+from .helpers.console import capture_output
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:

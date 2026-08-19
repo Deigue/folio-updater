@@ -11,20 +11,20 @@ from pathlib import Path
 import typer
 
 from app import bootstrap, get_config
-from cli import (
-    ProgressDisplay,
-    TransactionDisplay,
+from cli.commands.common import export_to_parquet
+from importers import import_transactions
+from models import ImportResults
+from ui import (
     console_error,
     console_info,
     console_rule,
     console_success,
     console_warning,
-    show_data_table,
 )
-from cli.commands.common import export_to_parquet
-from cli.display import THEME_SUCCESS
-from importers import import_transactions
-from models import ImportResults
+from ui.layout.progress import ProgressDisplay
+from ui.theme import THEME_SUCCESS
+from ui.views.imports import ImportDisplay
+from ui.widgets import show_data_table
 
 app = typer.Typer()
 
@@ -107,7 +107,7 @@ def _import_single_file_to_db(
     verbose: bool = False,
 ) -> ImportResults | None:
     """Import a single file to database."""
-    display = TransactionDisplay()
+    display = ImportDisplay()
 
     with ProgressDisplay.spinner("green") as progress:
         progress.add_task(f"Importing {file_path.name}...", total=None)

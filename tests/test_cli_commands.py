@@ -12,7 +12,6 @@ from pandas.testing import assert_frame_equal
 from rich.progress import Progress
 from typer.testing import CliRunner
 
-from cli import console as console_module
 from cli.commands import import_cmd
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
@@ -31,6 +30,7 @@ from tests.fixtures.wealthsimple_mocking import (
     get_mock_activities,
     get_mock_statement_transactions,
 )
+from ui import console as console_module
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data

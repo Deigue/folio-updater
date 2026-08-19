@@ -11,13 +11,6 @@ import logging
 import typer
 
 from app import bootstrap
-from cli import (
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-    show_data_table,
-)
 from db import (
     create_ticker_aliases_table,
     delete_rows,
@@ -26,6 +19,13 @@ from db import (
     get_tables,
     insert_or_replace,
 )
+from ui import (
+    console_error,
+    console_info,
+    console_success,
+    console_warning,
+)
+from ui.widgets import show_data_table
 from utils.constants import Column, Table
 
 logger = logging.getLogger(__name__)

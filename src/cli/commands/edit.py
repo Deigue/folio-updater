@@ -18,14 +18,6 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from cli import (
-    TransactionDisplay,
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-    page_changes,
-)
 from cli.commands.common import (
     audit_footer,
     backup_folio,
@@ -37,6 +29,13 @@ from cli.query_parser import get_valid_column_names
 from db.formatters import TransactionFormatter, parse_date
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_columns, get_connection, get_rows, update_rows
+from ui import (
+    console_error,
+    console_info,
+    console_success,
+    console_warning,
+)
+from ui.views.transactions import TransactionDisplay, page_changes
 from utils import Column, Table, get_import_logger
 from utils.optional_fields import FieldType
 

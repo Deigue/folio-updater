@@ -12,21 +12,21 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli import (
-    ProgressDisplay,
-    TransactionDisplay,
+from db import get_connection, get_row_count, get_rows
+from exporters import ParquetExporter
+from importers import import_statements
+from ui import (
     console_error,
     console_info,
     console_rule,
     console_success,
     console_warning,
     get_symbol,
-    page_transactions,
-    show_data_table,
 )
-from db import get_connection, get_row_count, get_rows
-from exporters import ParquetExporter
-from importers import import_statements
+from ui.layout.progress import ProgressDisplay
+from ui.views.imports import ImportDisplay
+from ui.views.transactions import page_transactions
+from ui.widgets import show_data_table, show_stats_panel
 from utils import Column, Table, TransactionContext
 
 if TYPE_CHECKING:
@@ -105,7 +105,7 @@ def _import_single_statement(statement_path: Path) -> StatementImportResult:
         console_warning(f'No settlement dates updated from "{statement_path.name}"')
 
     if result.transfer_results and result.transfers_created() > 0:
-        display = TransactionDisplay()
+        display = ImportDisplay()
         display.show_import_summary(statement_path.name, result.transfer_results)
         display.show_import_audit(result.transfer_results, verbose=True)
 
@@ -191,7 +191,6 @@ def _import_statements_from_directory() -> list[StatementImportResult]:
 
 def _display_settlement_statistics(*, import_flag: bool = False) -> None:
     """Display settlement date statistics for transactions."""
-    display = TransactionDisplay()
     if import_flag:
         console_rule(style="medium_purple3")
 
@@ -214,7 +213,7 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
                 "Calculated settlement dates": calculated_count,
                 "Provided settlement dates": total_count - calculated_count,
             }
-            display.show_stats_panel(stats)
+            show_stats_panel(stats)
 
             if calculated_count > 0:
                 df = get_rows(
