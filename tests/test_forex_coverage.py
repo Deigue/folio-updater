@@ -123,6 +123,21 @@ def test_ensure_coverage_is_a_no_op_when_the_span_is_already_held(
         boc_fetch.assert_not_called()
 
 
+def test_ensure_coverage_never_chases_a_future_end(
+    temp_ctx: TempContext,
+    rate_dates: list[str],
+    boc_fetch: MagicMock,
+) -> None:
+    """Dont invoke API if end date is in the future."""
+    with temp_ctx():
+        today = ForexService.effective_today()
+        _seed_rates([*rate_dates[-5:], today])
+        future = (pd.to_datetime(today) + pd.Timedelta(days=2)).strftime("%Y-%m-%d")
+
+        assert ForexService.ensure_coverage(rate_dates[-5], future) == 0
+        boc_fetch.assert_not_called()
+
+
 def test_ensure_coverage_tops_up_the_forward_end(
     temp_ctx: TempContext,
     rate_dates: list[str],

@@ -334,10 +334,7 @@ class ForexService:
         Args:
             start: Earliest date that needs a rate, YYYY-MM-DD. Defaults to the
                 folio's own earliest transaction date
-            end: Latest date that needs a rate, YYYY-MM-DD. Defaults to the latest date
-                Bank of Canada could have published; the query runs to the
-                present regardless, so this only decides whether a forward
-                top-up is needed at all.
+            end: Latest date that needs a rate, YYYY-MM-DD. (capped to latest available)
 
         Returns:
             Number of new rate rows inserted.
@@ -345,7 +342,8 @@ class ForexService:
         first_needed = start or cls._default_start()
         existing_min = cls.get_earliest_fx_date_from_db()
         existing_max = cls.get_latest_fx_date_from_db()
-        target_end = end or cls.effective_today()
+        today = cls.effective_today()  # latest available boc date
+        target_end = min(end, today) if end else today
 
         if existing_min is None or existing_max is None or first_needed < existing_min:
             fetch_from = first_needed
