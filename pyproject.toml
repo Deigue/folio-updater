@@ -44,6 +44,10 @@ markers = [
 
 [tool.coverage.run]
 branch = false
+# Trace through CPython's sys.monitoring (3.12+) instead of the settrace hook.
+# Same numbers, roughly a third off the wall clock of a full coverage run. Only
+# valid while `branch` stays false: sysmon does not support branch coverage.
+core = "sysmon"
 omit = [
     '*/__init__.py',
     # Harness wiring, not product code: picks the xdist worker count.

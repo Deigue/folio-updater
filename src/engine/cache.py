@@ -26,6 +26,7 @@ from engine.snapshot import decode as decode_replay
 from engine.snapshot import encode as encode_replay
 from engine.types import load_txn_rows
 from services.symbols import load_symbol_resolver
+from term import announce
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -151,9 +152,7 @@ def _write_cache(
             meta["replay"] = snapshot
         _meta_path(parquet).write_text(json.dumps(meta), encoding="utf-8")
     except (OSError, ValueError):
-        # A cache that cannot be written is a performance problem, never a
-        # correctness one: the caller already holds the computed frame.
-        logger.warning("Could not write the cost-base cache to %s", parquet)
+        announce.warning(f"Could not write the cost-base cache to {parquet}")
 
 
 def load_or_build(*, refresh: bool = False) -> CachedFrame:

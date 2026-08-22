@@ -499,17 +499,26 @@ def _update(formatted: pd.DataFrame, set_columns: list[str]) -> int:
             raise typer.Exit(1) from e
 
 
-def _log_edit(
+def _log_edit(  # noqa: PLR0917
     selection: Selection,
     before: pd.DataFrame,
     after: pd.DataFrame,
     changed: list[str],
     operations: list[SetOperation],
+    updated: int,
 ) -> None:
     """Record the edit in the shared import audit log.
 
     Writes both a compact per-field diff and the complete pre- and post-edit
     state, so the folio can be reconstructed from the log alone.
+
+    Args:
+        selection: What the user asked to edit.
+        before: The matched rows as they stood.
+        after: The matched rows as they were meant to end up.
+        changed: Columns the edit touches.
+        operations: The `SET` operations the user gave.
+        updated: Rows the database actually wrote.
     """
     sets = ", ".join(operation.describe() for operation in operations)
     import_logger.info("EDIT TXN (manual, %s) SET %s", selection.describe(), sets)
@@ -529,9 +538,15 @@ def _log_edit(
     txn_ids = ", ".join(str(txn_id) for txn_id in selection.txn_ids)
     import_logger.info(
         "DONE: %d transaction(s) updated (TxnIds %s)",
-        len(after),
+        updated,
         txn_ids,
     )
+    if updated != len(after):
+        import_logger.error(
+            "MISMATCH: %d transaction(s) matched but %d updated",
+            len(after),
+            updated,
+        )
     audit_footer()
 
 
@@ -602,7 +617,14 @@ def edit_transactions(
 
     backup_folio()
     updated = _update(after, changed)
-    _log_edit(selection, before, after, changed, operations)
+    _log_edit(selection, before, after, changed, operations, updated)
+
+    if updated != len(after):
+        console_error(
+            f"Updated {updated} of {len(after)} transaction(s); "
+            "the folio is unchanged for the rest. See the log for details.",
+        )
+        raise typer.Exit(1)
 
     console_success(f"Updated {updated} transaction(s)")
     export_to_parquet()

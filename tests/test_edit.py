@@ -346,23 +346,62 @@ class TestEditSettlement:
             assert _row(txn_id).equals(before)
 
 
+_REFUSED_SETS = [
+    pytest.param(
+        ["Ticker*=2"],
+        "not a numeric field",
+        id="arithmetic-on-a-text-field",
+    ),
+    pytest.param(["justakey"], "Expected Field=VALUE", id="set-without-an-equals"),
+    pytest.param(["Prcie=1"], "Unknown field 'Prcie'", id="a-typo-invents-nothing"),
+    pytest.param(
+        ["Fee=1.50"],
+        "is not a column in this folio",
+        id="known-field-this-folio-lacks",
+    ),
+    pytest.param(
+        ["Price=1", "Price=2"],
+        "was given more than once",
+        id="a-repeat-is-not-last-wins",
+    ),
+    pytest.param(["TxnId=5"], "cannot be edited directly", id="protected-column"),
+    pytest.param(["Price/=0"], "Cannot divide", id="division-by-zero"),
+    pytest.param(["Price*=abc"], "is not a number", id="non-numeric-operand"),
+    pytest.param(["TxnDate=notadate"], "is not a valid date", id="unparseable-date"),
+    pytest.param(
+        ["Amount="],
+        "would produce invalid transaction(s)",
+        id="clearing-a-required-field",
+    ),
+]
+
+
 class TestEditValidation:
     """Failures that abort the edit before anything is written."""
 
-    def test_arithmetic_on_non_numeric_field(self, temp_ctx: TempContext) -> None:
-        """Arithmetic is refused on a field that does not hold numbers."""
+    @pytest.mark.parametrize(("spec", "message"), _REFUSED_SETS)
+    def test_an_invalid_set_is_refused_and_writes_nothing(
+        self,
+        temp_ctx: TempContext,
+        spec: list[str],
+        message: str,
+    ) -> None:
+        """Refuse invalid edits. Must leave the row untouched."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
+            before = _row(txn_id)
+            flags = [flag for value in spec for flag in ("--set", value)]
 
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["edit", str(txn_id), "--set", "Ticker*=2", "--force"],
+                ["edit", str(txn_id), *flags, "--force"],
             )
 
             assert cli_result.exit_code == 1
-            assert_in_output("not a numeric field", cli_result)
+            assert_in_output(message, cli_result)
+            assert _row(txn_id).equals(before)
 
     def test_arithmetic_on_empty_value_aborts_the_batch(
         self,
@@ -390,154 +429,6 @@ class TestEditValidation:
             assert_in_output("current value is empty", cli_result)
             assert _row(priced).equals(before)
             assert pd.isna(_row(unpriced)[Column.Txn.PRICE])
-
-    def test_malformed_set_value(self, temp_ctx: TempContext) -> None:
-        """A --set without an '=' is rejected."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "justakey", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("Expected Field=VALUE", cli_result)
-
-    def test_unknown_field(self, temp_ctx: TempContext) -> None:
-        """Editing never invents a column - a typo is an error."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "Prcie=1", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("Unknown field 'Prcie'", cli_result)
-
-    def test_field_absent_from_the_folio(self, temp_ctx: TempContext) -> None:
-        """A known field the folio does not have is an error, not a new column."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "Fee=1.50", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("is not a column in this folio", cli_result)
-
-    def test_repeated_field(self, temp_ctx: TempContext) -> None:
-        """The same field twice is an error, not a silent last-wins."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                [
-                    "edit",
-                    str(txn_id),
-                    "--set",
-                    "Price=1",
-                    "--set",
-                    "Price=2",
-                    "--force",
-                ],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("was given more than once", cli_result)
-
-    def test_protected_columns_are_refused(self, temp_ctx: TempContext) -> None:
-        """TxnId cannot be reassigned."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "TxnId=5", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("cannot be edited directly", cli_result)
-
-    def test_division_by_zero(self, temp_ctx: TempContext) -> None:
-        """Dividing by zero is caught up front."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "Price/=0", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("Cannot divide", cli_result)
-
-    def test_non_numeric_operand(self, temp_ctx: TempContext) -> None:
-        """An operand that is not a number is rejected."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "Price*=abc", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("is not a number", cli_result)
-
-    def test_invalid_txn_date(self, temp_ctx: TempContext) -> None:
-        """A bad transaction date is rejected."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "TxnDate=notadate", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("is not a valid date", cli_result)
-
-    def test_clearing_a_required_field_is_rejected(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """An edit cannot write a row that `folio add` would reject."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-            before = _row(txn_id)
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["edit", str(txn_id), "--set", "Amount=", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("would produce invalid transaction(s)", cli_result)
-            assert _row(txn_id).equals(before)
 
 
 class TestEditDuplicates:

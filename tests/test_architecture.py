@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+from functools import cache
 from pathlib import Path
 
 import pytest
@@ -34,17 +35,24 @@ LAYERS: dict[str, int] = {
 }
 
 
-def _packages() -> set[str]:
-    return {
+@cache
+def _packages() -> frozenset[str]:
+    return frozenset(
         p.name for p in SRC.iterdir() if p.is_dir() and (p / "__init__.py").exists()
-    }
+    )
+
+
+@cache
+def _tree(path: Path) -> ast.Module:
+    """Parse `path` once, however many tests walk it."""
+    return ast.parse(path.read_text(encoding="utf-8"))
 
 
 def _imports(path: Path) -> set[str]:
     """Every first-party top-level package `path` imports."""
     packages = _packages()
     found: set[str] = set()
-    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+    for node in ast.walk(_tree(path)):
         if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
             found.add(node.module.split(".")[0])
         elif isinstance(node, ast.Import):
@@ -59,7 +67,7 @@ def _module_graph() -> dict[str, set[str]]:
     for path in SRC.rglob("*.py"):
         name = ".".join(path.relative_to(SRC).with_suffix("").parts)
         name = name.removesuffix(".__init__")
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        for node in ast.walk(_tree(path)):
             targets: list[str] = []
             if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
                 targets = [node.module]
@@ -100,7 +108,7 @@ def test_no_module_imports_form_a_cycle() -> None:
 
     def walk(node: str, stack: list[str], seen: set[str]) -> None:
         for nxt in sorted(graph.get(node, ())):
-            if nxt in stack:
+            if nxt in stack:  # pragma: no cover
                 cycles.append(" -> ".join([*stack[stack.index(nxt) :], nxt]))
             elif nxt not in seen:
                 seen.add(nxt)

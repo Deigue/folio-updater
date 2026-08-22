@@ -33,6 +33,7 @@ from db.queries import (
 )
 from domain import Column, Table
 from services.symbols import SymbolResolver
+from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -287,6 +288,7 @@ def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
             )
     except (sqlite3.OperationalError, pd.errors.DatabaseError):
         logger.exception("Error querying transactions")
+        announce.error("Could not run the query; see the log for details.")
         return pd.DataFrame()
 
 

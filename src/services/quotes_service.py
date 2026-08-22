@@ -25,6 +25,7 @@ from db.queries import (
 from db.schema import create_quotes_table
 from domain import Column, Currency, QuoteStatus, Table
 from domain.numeric import dec
+from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
@@ -674,4 +675,4 @@ def _write(rows: list[dict[str, Any]]) -> None:
         with get_connection() as conn:
             insert_or_replace_many(conn, Table.QUOTES, rows)
     except sqlite3.Error as error:
-        logger.warning("Could not write the quotes cache: %s", error)
+        announce.warning(f"Could not write the quotes cache: {error}")
