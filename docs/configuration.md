@@ -67,6 +67,10 @@ transforms:
       Description: ["contains:JOURNAL POSITION FROM"]
     actions:
       Action: "TFR_IN"
+  - conditions:
+      Ticker: ["TOI.TO"]
+    actions:
+      Ticker: "TOI.V"
   merge_groups:
     - name: "Dividend Withholding Tax Merge"
       match_fields: ["TxnDate", "Account", "Ticker"]
@@ -95,6 +99,15 @@ checks:
   disabled: []
   ignore_tickers: []
   ignore_accounts: []
+quotes:
+  ttl_minutes: 15
+  metadata_ttl_days: 30
+  timeout_seconds: 20
+  symbol_overrides: {}
+contribution_room:
+  TFSA:
+      2025: 7000
+      2026: 7000
 ```
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
@@ -114,6 +127,45 @@ checks:
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
 | **`display`**            | `currency` (`CAD` or `USD`): the currency cost-base output defaults to.                                                                                                                                                                                                                                                 |
 | **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
+| **`quotes`**             | Market-price cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                           |
+| **`contribution_room`**  | CRA contribution limits by account type and year. See [Contribution room](#contribution-room) below.                                                                                                                                                                                                                    |
+
+## Quotes
+
+```yaml
+quotes:
+  ttl_minutes: 15        # how long a cached price stays fresh
+  metadata_ttl_days: 30  # name / sector / market cap refresh interval
+  timeout_seconds: 20    # how long to wait on the provider
+  symbol_overrides: {}   # e.g. TOI.TO: TOI.V
+```
+
+Prices come from Yahoo Finance and are cached in the folio database, one row per
+symbol. `folio dash` refetches only what is past `ttl_minutes`, so switching between
+scopes costs nothing. The name, sector and market cap come from a separate, much
+slower request and are refreshed only every `metadata_ttl_days`.
+
+**`symbol_overrides` allows to override mapping a symbol to what Yahoo finance names it,
+only required when automatic symbol resolution fails. An exchange suffix stays
+dotted while a share class becomes a dash, so `REI.UN.TO` is looked up as
+`REI-UN.TO` and `BRK.B` as `BRK-B`.
+
+## Contribution room
+
+```yaml
+contribution_room:
+  TFSA:
+    2025: 7000
+    2026: 7000
+  RRSP:
+    2026: 12000
+```
+
+Entirely optional: without it, `folio dash` still reports what was contributed each
+year, just with no limit to compare against.
+
+Only `CONTRIBUTION` and `WITHDRAWAL` rows count toward it. `TFR_IN` and `TFR_OUT`
+move cash between accounts you already own and consume no room.
 
 ## Account resolution
 
