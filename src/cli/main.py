@@ -342,6 +342,37 @@ def acb_cmd(  # noqa: PLR0917
     )
 
 
+
+@app.command("quotes", help="Inspect or refresh the market quote cache")
+def quotes_cmd(
+    ticker: str | None = typer.Option(
+        None,
+        "-t",
+        "--ticker",
+        help="Limit the action to one security",
+    ),
+    *,
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Refetch prices from the provider",
+    ),
+    clear: bool = typer.Option(
+        False,
+        "--clear",
+        help="Drop cached quotes",
+    ),
+) -> None:
+    """Inspect or refresh the market quote cache."""
+    from cli.commands.quotes import manage_quotes
+
+    manage_quotes(
+        ticker=ticker,
+        refresh=refresh,
+        clear=clear,
+    )
+
+
 @app.command("check", help="Check the folio for missing or inconsistent transactions")
 def check_cmd(
     only: str | None = typer.Option(

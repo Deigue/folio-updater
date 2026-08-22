@@ -8,6 +8,7 @@ fits after squeezing padding never loses a column.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from rich.measure import Measurement
@@ -20,10 +21,16 @@ from ui.theme import (
     ACCOUNT_SEPARATORS,
     ACCOUNT_WIDTH,
     ACTION_HEADERS,
+    CENTLESS_EXEMPT_HEADERS,
+    COARSE_PERCENT_HEADERS,
     CURRENCY_HEADERS,
     CURRENCY_HOSTS,
     DECIMAL_RUN,
+    INTEGER_RUN,
+    MAGNITUDES,
+    MONEY_DECIMAL_RUN,
     MONEY_PRECISION,
+    PERCENT_RUN,
     ROUNDABLE_HEADERS,
     SHORT_ACTIONS,
     SHORT_HEADERS,
@@ -80,7 +87,7 @@ def _drop_blank(table: Table) -> None:
             del table.columns[index]
 
 
-def _drop_columns(table: Table, drop_order: Sequence[str]) -> None:
+def _drop_columns(table: Table, drop_order: Sequence[str]) -> list[str]:
     """Drop columns, least valuable first, until the table fits.
 
     The last resort, which sacrifices information to fit useful content.
@@ -88,14 +95,21 @@ def _drop_columns(table: Table, drop_order: Sequence[str]) -> None:
     Args:
         table: The table about to be printed.
         drop_order: Column headers ordered by least to most important
+
+    Returns:
+        The headers actually dropped, in the order they went, so the caller can
+        tell the reader what is missing.
     """
+    dropped: list[str] = []
     for header in drop_order:
         if not overflow(table):
-            return
+            return dropped
         wanted = {header, SHORT_HEADERS.get(header, header)}
         for index in reversed(range(len(table.columns))):
             if str(table.columns[index].header) in wanted:
                 del table.columns[index]
+                dropped.append(header)
+    return dropped
 
 
 def _shorten_actions(table: Table) -> None:
@@ -161,6 +175,65 @@ def _to_cents(match: re.Match[str]) -> str:
     return f"{float(match.group().replace(',', '')):,.{MONEY_PRECISION}f}"
 
 
+def _coarsen_percents(table: Table) -> None:
+    """Drop the second decimal from the percentages that could spare it."""
+    for column in table.columns:
+        if str(column.header) not in COARSE_PERCENT_HEADERS:
+            continue
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [PERCENT_RUN.sub(_to_one_decimal, str(cell)) for cell in cells]
+
+
+def _to_one_decimal(match: re.Match[str]) -> str:
+    """Re-render one percentage found inside a cell at a single decimal."""
+    number = float(match.group().rstrip("%").replace(",", ""))
+    return f"{number:,.1f}%"
+
+
+def _drop_cents(table: Table) -> None:
+    """Round money columns to whole units.
+
+    The cheapest information a wide table can give up: on a five-figure market
+    value the cents are noise. Exact figures still in `--export` and
+    in `folio acb`. Percentages and per-unit prices are exempt.
+    """
+    for column in table.columns:
+        if str(column.header) in CENTLESS_EXEMPT_HEADERS:
+            continue
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [MONEY_DECIMAL_RUN.sub(_to_whole, str(cell)) for cell in cells]
+
+
+def _to_whole(match: re.Match[str]) -> str:
+    """Re-render one number found inside a cell at whole-unit precision."""
+    return f"{float(match.group().replace(',', '')):,.0f}"
+
+
+def _use_magnitudes(table: Table) -> None:
+    """Abbreviate large money figures to K, M or B.
+
+    The last thing tried before whole columns start disappearing: losing the
+    scale of a number is worse than losing its cents, but better than losing
+    the column entirely.
+    """
+    for column in table.columns:
+        if str(column.header) in CENTLESS_EXEMPT_HEADERS:
+            continue
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [MONEY_DECIMAL_RUN.sub(_to_magnitude, str(cell)) for cell in cells]
+        cells[:] = [INTEGER_RUN.sub(_to_magnitude, str(cell)) for cell in cells]
+
+
+def _to_magnitude(match: re.Match[str]) -> str:
+    """Re-render one number found inside a cell as K, M or B."""
+    text = match.group()
+    value = float(text.replace(",", ""))
+    for limit, suffix in MAGNITUDES:
+        if abs(value) >= limit:
+            return f"{value / limit:,.1f}{suffix}"
+    return text
+
+
 def _fold_currency(table: Table) -> None:
     """Move a currency every row shares out of its column and into a header."""
     found = [
@@ -194,19 +267,45 @@ def _shorten_headers(table: Table) -> None:
             column.header = short
 
 
-def fit_table(table: Table, drop_order: Sequence[str] = ()) -> Table:
-    """Fit a table to the terminal, giving up the least that it can.
+@dataclass(frozen=True)
+class FitResult:
+    """A fitted table and what fitting it cost.
+
+    Attributes:
+        table: The table, adjusted in place and ready to print.
+        dropped: Headers given up entirely, least valuable first.
+    """
+
+    table: Table
+    dropped: tuple[str, ...] = ()
+
+    @property
+    def note(self) -> str:
+        """A one-line disclosure of what is missing, or empty when nothing is."""
+        if not self.dropped:
+            return ""
+        missing = ", ".join(self.dropped)
+        return (
+            f"[dim]{missing} hidden - widen the window to see "
+            f"{'them' if len(self.dropped) > 1 else 'it'}.[/dim]"
+        )
+
+
+def fit(table: Table, drop_order: Sequence[str] = ()) -> FitResult:
+    """Fit a table smartly to the terminal, reporting at what cost.
 
     Empty columns are dropped first. Then we squeeze padding, shorten headers
     and cells. Then fold currencies into headers and round figures to cents.
-    Lastly, we drop columns based on smart prioritization.
+    Then coarse percentages lose a decimal, money loses its cents and finally
+    its scale. Only then do we drop columns, on the caller's own priority
+    order.
 
     Args:
         table: The table about to be printed. Adjusted in place.
         drop_order: Headers this table can give up as last resort, least->most important
 
     Returns:
-        The same table, for printing inline.
+        The fitted table alongside the headers it had to give up.
     """
     _drop_blank(table)
     for concede in (
@@ -217,9 +316,27 @@ def fit_table(table: Table, drop_order: Sequence[str] = ()) -> Table:
         _shrink_accounts,
         _fold_currency,
         _reduce_precision,
+        _coarsen_percents,
+        _drop_cents,
+        _use_magnitudes,
     ):
         if not overflow(table):
-            return table
+            return FitResult(table)
         concede(table)
-    _drop_columns(table, drop_order)
-    return table
+    return FitResult(table, tuple(_drop_columns(table, drop_order)))
+
+
+def fit_table(table: Table, drop_order: Sequence[str] = ()) -> Table:
+    """Fit a table to the terminal, giving up the least that it can.
+
+    The plain form, for callers with nowhere to put a disclosure. Use `fit`
+    where the reader can be told what went missing.
+
+    Args:
+        table: The table about to be printed. Adjusted in place.
+        drop_order: Headers this table can give up as last resort, least->most important
+
+    Returns:
+        The same table, for printing inline.
+    """
+    return fit(table, drop_order).table

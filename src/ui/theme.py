@@ -49,6 +49,7 @@ SHORT_HEADERS = {
     "Amount": "Amt",
     "Units": "Qt.",
     "Ticker": "Tkr",
+    "Symbol": "Tkr",
     "Account": "Acct",
     "Description": "Desc.",
     "Currency": "$",
@@ -60,7 +61,27 @@ SHORT_HEADERS = {
     "OldTicker": "Old",
     "NewTicker": "New",
     "EffectiveDate": "Date",
+    "Change": "Chg",
+    "Change%": "Chg%",
+    "Realized": "Rlzd",
+    "Unreal": "Unrl",
+    "Unreal%": "Unrl%",
+    "Market": "Mkt",
+    "Dividends": "Divs",
 }
+
+# Percentages that are candidates to drop decimals.
+COARSE_PERCENT_HEADERS = frozenset(
+    {
+        "Unreal%",
+        "Unrl%",
+        "Total%",
+        "Wt%",
+        "Folio%",
+    },
+)
+# `Change%` and `PnL%` are excluded as their precision is important.
+PERCENT_RUN = re.compile(r"-?[\d,]*\d\.\d+%")
 
 SHORT_ACTIONS = {
     str(Action.DIVIDEND): "DIV",
@@ -73,8 +94,46 @@ SHORT_ACTIONS = {
 
 ACTION_HEADERS = (str(Column.Txn.ACTION), SHORT_HEADERS[str(Column.Txn.ACTION)])
 
-ROUNDABLE_HEADERS = frozenset({"Price", "Avg", "Avg\nUSD"})
+
+def with_short_forms(headers: frozenset[str]) -> frozenset[str]:
+    """Headers with their respective short forms, if any."""
+    short = {SHORT_HEADERS[name] for name in headers if name in SHORT_HEADERS}
+    return frozenset(headers | short)
+
+
+ROUNDABLE_HEADERS = with_short_forms(
+    frozenset({"Price", "Avg", "Avg\nUSD", "Last", "Change"}),
+)
 DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+")
+
+# As above, detects decimals but excludes percentages.
+MONEY_DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+(?!\d*%)")
+
+# A whole number, used only by the magnitude rung, which runs after cents have
+# already gone. Anything touching a `%` or a `.` is left alone.
+INTEGER_RUN = re.compile(r"(?<![\d.,])-?\d[\d,]*(?![\d.,%])")
+
+# Columns the cent-dropping and magnitude rungs leave alone...
+CENTLESS_EXEMPT_HEADERS = with_short_forms(
+    frozenset(
+        {
+            "Change",
+            "Avg",
+            "Last",
+            "Price",
+            "Units",
+            "Symbol",
+            "Name",
+        },
+    ),
+)
+
+# Thresholds the magnitude rung abbreviates at, largest first.
+MAGNITUDES: tuple[tuple[float, str], ...] = (
+    (1_000_000_000, "B"),
+    (1_000_000, "M"),
+    (1_000, "K"),
+)
 
 CURRENCY_HEADERS = frozenset({str(Column.Txn.CURRENCY), "Currency", "$"})
 CURRENCY_HOSTS = frozenset(

@@ -6,7 +6,7 @@ import logging
 import shutil
 import sqlite3
 from contextlib import ExitStack, contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
@@ -19,6 +19,7 @@ import datagen as _datagen_package
 from app import AppContext, get_config
 from datagen import create_mock_data, get_mock_data_date_range
 from services import ForexService
+from services.quotes_service import QuotesService
 from utils.constants import TORONTO_TZ, Column, Currency
 from utils.settlement_calculator import settlement_calculator
 
@@ -166,6 +167,124 @@ def mock_forex_data(
         side_effect=cached_fx_data,
     ):
         yield
+
+
+@pytest.fixture(scope="session")
+def cached_quote_data() -> dict[str, dict[str, Any]]:
+    """Build a deterministic stand-in for the quote provider.
+
+    Keyed by the **Yahoo** spelling, since that is what the fetch seams are
+    handed. Prices are round numbers so a test can assert an exact market value
+    rather than a tolerance, and each symbol's previous close differs from its
+    price so the day-move columns have something to show.
+
+    Returns:
+        Provider symbol mapped to its raw price and metadata fields.
+    """
+    return {
+        "TESTTKR": {
+            "price": 200.0,
+            "prev_close": 190.0,
+            "currency": "USD",
+            "name": "Test Ticker Inc",
+            "sector": "Technology",
+            "exchange": "NMS",
+            "market_cap": 1_000_000_000.0,
+        },
+        "OTHER": {
+            "price": 50.0,
+            "prev_close": 55.0,
+            "currency": "USD",
+            "name": "Other Corp",
+            "sector": "Industrials",
+            "exchange": "NMS",
+            "market_cap": 500_000_000.0,
+        },
+        "CADCO.TO": {
+            "price": 20.0,
+            "prev_close": 20.0,
+            "currency": "CAD",
+            "name": "Canadian Co",
+            "sector": "Financials",
+            "exchange": "TOR",
+            "market_cap": 250_000_000.0,
+        },
+    }
+
+
+@pytest.fixture(autouse=True)
+def mock_quotes(
+    request: pytest.FixtureRequest,
+    cached_quote_data: dict[str, dict[str, Any]],
+) -> Generator[None, Any]:
+    """Keep the test suite off Yahoo Finance.
+
+    Patches the two network seams rather than `yfinance` itself, so a test can
+    still assert that the module was never imported.
+    """
+    if request.node.get_closest_marker("no_mock_quotes"):
+        yield
+        return
+
+    def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
+        return {
+            ysymbol: {
+                "price": cached_quote_data[ysymbol]["price"],
+                "prev_close": cached_quote_data[ysymbol]["prev_close"],
+                "currency": cached_quote_data[ysymbol]["currency"],
+                "quote_time": datetime.now(UTC).isoformat(),
+            }
+            for ysymbol in ysymbols
+            if ysymbol in cached_quote_data
+        }
+
+    def metadata(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
+        return {
+            ysymbol: {
+                key: cached_quote_data[ysymbol][key]
+                for key in ("name", "sector", "exchange", "market_cap", "currency")
+            }
+            for ysymbol in ysymbols
+            if ysymbol in cached_quote_data
+        }
+
+    with (
+        patch.object(QuotesService, "_fetch_prices", side_effect=prices),
+        patch.object(QuotesService, "_fetch_metadata", side_effect=metadata),
+    ):
+        yield
+
+
+@pytest.fixture
+def quotes_fetch(
+    cached_quote_data: dict[str, dict[str, Any]],
+) -> Generator[MagicMock, Any]:
+    """Stub the quote fetch the usual way, but hand back the spy.
+
+    For a test that needs to assert *which* symbols were requested, or that
+    nothing was requested at all.
+
+    Yields:
+        The mock standing in for `QuotesService._fetch_prices`.
+    """
+
+    def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
+        return {
+            ysymbol: {
+                "price": cached_quote_data[ysymbol]["price"],
+                "prev_close": cached_quote_data[ysymbol]["prev_close"],
+                "currency": cached_quote_data[ysymbol]["currency"],
+                "quote_time": datetime.now(UTC).isoformat(),
+            }
+            for ysymbol in ysymbols
+            if ysymbol in cached_quote_data
+        }
+
+    with (
+        patch.object(QuotesService, "_fetch_metadata", return_value={}),
+        patch.object(QuotesService, "_fetch_prices", side_effect=prices) as fetch,
+    ):
+        yield fetch
 
 
 @pytest.fixture

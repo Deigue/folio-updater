@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from app import get_config
 from db.queries import get_alias_edges, get_connection
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +31,28 @@ _EXCHANGE_SUFFIXES = frozenset({"TO", "V", "NE", "CN", "AQ", "L", "AX", "HK"})
 class SymbolResolver:
     """Resolve tickers across renames, from one load of the alias table."""
 
-    def __init__(self, edges: Sequence[tuple[str, str, str]]) -> None:
+    def __init__(
+        self,
+        edges: Sequence[tuple[str, str, str]],
+        overrides: Mapping[str, str] | None = None,
+    ) -> None:
         """Build the resolver from raw alias rows.
 
         Args:
             edges: `(old_ticker, new_ticker, effective_date)` triples, ordered
                 by effective date so multi-hop chains resolve deterministically.
+            overrides: Canonical symbol to provider symbol, for the handful the
+                spelling rule cannot derive. Keys are matched case-insensitively.
         """
         self._forward: dict[str, tuple[str, str]] = {}
         self._backward: dict[str, list[str]] = {}
         for old, new, effective in edges:
             self._forward[old] = (new, effective)
             self._backward.setdefault(new, []).append(old)
+        self._overrides: dict[str, str] = {
+            str(key).strip().upper(): str(value)
+            for key, value in (overrides or {}).items()
+        }
 
     def canonical(self, ticker: str, on: str | None = None) -> str:
         """Follow renames to the name a security carries today.
@@ -99,18 +110,25 @@ class SymbolResolver:
     def yahoo_symbol(self, ticker: str) -> str:
         """Render a canonical symbol the way Yahoo Finance spells it.
 
+        Yahoo separates an *exchange* with a dot and a *share class* with a
+        dash. Both can appear at once, so the exchange suffix is split off first
+        and only what remains is dashed: `REI.UN.TO` is the `UN` class of `REI`
+        on Toronto, and Yahoo spells that `REI-UN.TO`.
+
         Args:
             ticker: Symbol to translate.
 
         Returns:
-            The Yahoo form. Listings already carrying an exchange suffix
-            (`RY.TO`) pass through; a US share class written with a dot
-            (`BRK.B`) becomes `BRK-B`.
+            The Yahoo form, or the configured override when one is set for this
+            symbol.
         """
         symbol = self.canonical(ticker)
+        override = self._overrides.get(symbol)
+        if override:
+            return override
         base, _, suffix = symbol.rpartition(".")
         if base and suffix in _EXCHANGE_SUFFIXES:
-            return symbol
+            return f"{base.replace('.', '-')}.{suffix}"
         return symbol.replace(".", "-")
 
 
@@ -118,7 +136,9 @@ def load_symbol_resolver() -> SymbolResolver:
     """Read the whole alias table once and build a resolver from it.
 
     Returns:
-        A `SymbolResolver` over every rename recorded in the folio.
+        A `SymbolResolver` over every rename recorded in the folio, carrying the
+        configured provider-symbol overrides.
     """
     with get_connection() as conn:
-        return SymbolResolver(get_alias_edges(conn))
+        edges = get_alias_edges(conn)
+    return SymbolResolver(edges, get_config().quotes_symbol_overrides)

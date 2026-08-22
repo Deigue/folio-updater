@@ -83,12 +83,37 @@ def test_family_of_an_unknown_symbol_is_itself() -> None:
     [
         ("MSFT", "MSFT"),
         ("RY.TO", "RY.TO"),  # already a Yahoo exchange suffix
+        ("BN.TO", "BN.TO"),
+        ("TOI.V", "TOI.V"),  # TSX Venture, also a dotted exchange suffix
         ("REI-UN.TO", "REI-UN.TO"),
         ("BRK.B", "BRK-B"),  # a US share class Yahoo spells with a dash
+        ("REI.UN.TO", "REI-UN.TO"),
+        ("DLR.U.TO", "DLR-U.TO"),
+        ("CAR.UN.TO", "CAR-UN.TO"),
     ],
 )
 def test_yahoo_symbol(ticker: str, expected: str) -> None:
     assert SymbolResolver([]).yahoo_symbol(ticker) == expected
+
+
+def test_a_configured_override_beats_the_spelling_rule() -> None:
+    resolver = SymbolResolver([], {"TOI.TO": "TOI.V"})
+
+    assert resolver.yahoo_symbol("TOI.TO") == "TOI.V"
+    # Everything else still follows the rule.
+    assert resolver.yahoo_symbol("REI.UN.TO") == "REI-UN.TO"
+
+
+def test_an_override_is_matched_regardless_of_case() -> None:
+    resolver = SymbolResolver([], {"toi.to": "TOI.V"})
+
+    assert resolver.yahoo_symbol("TOI.TO") == "TOI.V"
+
+
+def test_an_override_applies_after_a_rename() -> None:
+    resolver = SymbolResolver(SIMPLE, {"SPYM": "SPYM.OVERRIDE"})
+
+    assert resolver.yahoo_symbol("SPLG") == "SPYM.OVERRIDE"
 
 
 def test_load_symbol_resolver_without_an_alias_table(temp_ctx: TempContext) -> None:
