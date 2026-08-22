@@ -12,7 +12,7 @@ from engine.cache import load_or_build
 from engine.positions import held_symbols
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
-from ui import console_error, console_info, console_print, console_success
+from term import console_error, console_info, console_print, console_success
 from ui.views.dash import quotes_table
 
 

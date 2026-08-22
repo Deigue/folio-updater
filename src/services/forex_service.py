@@ -22,8 +22,9 @@ from db import (
     get_rows,
     get_tables,
 )
-from utils import TORONTO_TZ, Column, Table, info_both
-from utils.backup import rolling_backup
+from db.backup import rolling_backup
+from domain import TORONTO_TZ, Column, Table
+from term import announce
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +322,7 @@ class ForexService:
         if earliest is not None:
             return earliest
         fallback = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime("%Y-%m-%d")
-        info_both(f"No transactions found, using {fallback} as FX start date")
+        announce.info(f"No transactions found, using {fallback} as FX start date")
         return fallback
 
     @classmethod

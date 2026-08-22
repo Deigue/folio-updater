@@ -13,10 +13,13 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
+from app.logging_setup import get_import_logger
 from db import get_connection, get_max_value
+from domain import TORONTO_TZ, Column, Table
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
-from ui import (
+from term import (
+    announce,
     console_error,
     console_info,
     console_print,
@@ -24,15 +27,13 @@ from ui import (
     console_success,
     console_warning,
 )
-from ui.layout.progress import ProgressDisplay
-from ui.theme import DOWNLOAD_DROP_ORDER
+from term.progress import ProgressDisplay
+from ui.vocabulary import DOWNLOAD_DROP_ORDER
 from ui.widgets import show_data_table
-from utils import TORONTO_TZ, Column, Table, get_import_logger
-from utils.log_console import success_both
 
 if TYPE_CHECKING:
+    from config import Config
     from models.wealthsimple.activity_feed_item import ActivityFeedItem
-    from utils import Config
 
 app = typer.Typer()
 logger = logging.getLogger(__name__)
@@ -201,7 +202,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
                 confirmation_prompt=True,
             )
             ibkr.set_token(new_token)
-            success_both("Flex token stored securely")
+            announce.success("Flex token stored securely")
     elif broker == "wealthsimple":
         ws = WealthsimpleService()
         ws.reset_credentials()

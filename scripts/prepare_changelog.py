@@ -11,7 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from utils.constants import TORONTO_TZ
+from domain import TORONTO_TZ
 
 CHANGELOG_PATH = Path("CHANGELOG.md")
 EXPECTED_ARGS = 2

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from domain import Currency
 from engine.fx_rates import FxRates, FxRateUnavailableError, FxWarning, load_fx_rates
-from utils.constants import Currency
 
 from .helpers.seed import seed_fx
 

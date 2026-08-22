@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from ui.console import console_panel, console_print
+from term.console import console_panel, console_print
 from ui.format import safe_str
 from ui.layout.fit import fit_table
 

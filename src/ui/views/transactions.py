@@ -9,18 +9,18 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from ui.console import console_print
+from domain import Action, Column, TransactionContext
+from term.console import console_print
 from ui.format import decimals, safe_str
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame
-from ui.theme import (
+from ui.vocabulary import (
     MONEY_PRECISION,
     PRICE_PRECISION,
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
     UNIT_PRECISION,
 )
-from utils import Action, Column, TransactionContext
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Container, Sequence

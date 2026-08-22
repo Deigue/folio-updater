@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from utils.constants import TORONTO_TZ, Column
+from domain import TORONTO_TZ, Column
 
 from .dataframe_cache import register_test_dataframe
 

@@ -6,6 +6,8 @@ import logging
 
 import pandas as pd
 
+from app.logging_setup import get_import_logger
+
 # Local imports, don;t get from db package
 from db import helpers, schema
 from ingest.dedupe import TransactionFilter
@@ -13,7 +15,6 @@ from ingest.mappers import TransactionMapper
 from ingest.rules import TransactionTransformer
 from ingest.validation import TransactionFormatter
 from models import ImportResults
-from utils import get_import_logger
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()

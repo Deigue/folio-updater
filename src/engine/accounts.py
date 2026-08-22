@@ -10,7 +10,7 @@ import re
 from functools import cache
 
 from app import get_config
-from utils.constants import (
+from domain import (
     ACCOUNT_TYPE_ALIASES,
     TAXABLE_ACCOUNT_TYPES,
     AccountType,

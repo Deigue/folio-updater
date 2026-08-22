@@ -22,9 +22,9 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app import get_config
-from ui.layout.progress import ProgressDisplay
-from utils.constants import TORONTO_TZ
-from utils.log_console import error_both, info_both
+from domain import TORONTO_TZ
+from term import announce
+from term.progress import ProgressDisplay
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -247,7 +247,7 @@ class IBKRService:
 
         try:
             msg = f"REQUEST IBKR for {request.query_name} from {from_date} to {to_date}"
-            info_both(msg)
+            announce.info(msg)
             response = self._session.get(url, timeout=30)
             response.raise_for_status()
 
@@ -266,7 +266,7 @@ class IBKRService:
                 reference_code_elem is None or not reference_code_elem.text
             ):  # pragma: no cover
                 msg = f"No reference code found in response: {response.text}"
-                error_both(msg)
+                announce.error(msg)
                 raise IBKRAPIError(msg)
 
         except ET.ParseError as e:
@@ -379,7 +379,7 @@ class IBKRService:
             f"Statement not ready after {MAX_POLL_ATTEMPTS} attempts. "
             f"You can retry later with reference code: {reference_code}"
         )
-        error_both(msg)  # pragma: no cover
+        announce.error(msg)  # pragma: no cover
         raise IBKRTimeoutError(msg)
 
     def save_statement_as_csv(

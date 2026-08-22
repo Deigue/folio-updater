@@ -142,3 +142,23 @@ def load_symbol_resolver() -> SymbolResolver:
     with get_connection() as conn:
         edges = get_alias_edges(conn)
     return SymbolResolver(edges, get_config().quotes_symbol_overrides)
+
+
+def normalize_canadian_ticker(ticker: str | None, currency: str | None) -> str | None:
+    """Add the `.TO` exchange suffix a CAD-denominated ticker is missing.
+
+    Brokers report Toronto-listed holdings with a bare ticker, but the folio
+    stores the exchange-qualified form so `SHOP` (NYSE) and `SHOP.TO` stay
+    distinct securities.
+
+    Args:
+        ticker: The ticker symbol to normalize.
+        currency: The currency code the holding is denominated in.
+
+    Returns:
+        The ticker with a `.TO` suffix when it is CAD and lacks one, unchanged
+        otherwise.
+    """
+    if currency == "CAD" and ticker and not ticker.endswith(".TO"):
+        return f"{ticker}.TO"
+    return ticker

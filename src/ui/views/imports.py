@@ -10,12 +10,14 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from ui.console import active_console, console_panel, console_print, get_symbol
+from domain import TXN_ESSENTIALS, Action, Column, TransactionContext
+from term.console import active_console, console_panel, console_print, get_symbol
+from term.keys import getch
+from term.size import available_height
 from ui.format import safe_str
-from ui.keys import getch
-from ui.layout.terminal import available_height
 from ui.layout.tiles import Block, TilingLayout
-from ui.theme import (
+from ui.views.transactions import TransactionDisplay, page_transactions
+from ui.vocabulary import (
     SNUG_PADDING,
     THEME_DUPES,
     THEME_EXCLUDED,
@@ -23,8 +25,6 @@ from ui.theme import (
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
 )
-from ui.views.transactions import TransactionDisplay, page_transactions
-from utils import TXN_ESSENTIALS, Action, Column, TransactionContext
 
 if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd

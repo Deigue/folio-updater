@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from app import bootstrap
+from app.logging_setup import get_import_logger
 from cli.commands.common import (
     audit_footer,
     backup_folio,
@@ -21,9 +22,9 @@ from cli.commands.common import (
 )
 from db.helpers import format_transaction_summary
 from db.queries import delete_rows, get_connection
-from ui import console_info, console_success
+from domain import Column, Table
+from term import console_info, console_success
 from ui.views.transactions import page_transactions
-from utils import Column, Table, get_import_logger
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

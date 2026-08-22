@@ -12,8 +12,8 @@ from pathlib import Path
 import typer
 
 from app import bootstrap
-from ui import console_info, console_print
-from utils.config import Config
+from config import Config
+from term import console_info, console_print
 
 __version__ = _pkg_version("folio-updater")
 
@@ -48,7 +48,7 @@ def import_transactions_cmd(
     ),
 ) -> None:
     """Import transactions into the folio."""
-    from cli.commands.import_cmd import import_transaction_files
+    from cli.commands.import_data import import_transaction_files
 
     import_transaction_files(file=file, directory=directory, verbose=verbose)
 

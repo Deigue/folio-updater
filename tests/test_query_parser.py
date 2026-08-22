@@ -19,8 +19,7 @@ import pytest
 
 from cli import query_parser
 from cli.query_parser import parse_query_terms
-from utils import TORONTO_TZ
-from utils.constants import DEFAULT_TICKERS, Column
+from domain import DEFAULT_TICKERS, TORONTO_TZ, Column
 
 if TYPE_CHECKING:
     from collections.abc import Generator

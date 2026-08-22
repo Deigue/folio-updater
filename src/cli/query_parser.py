@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING
 from dateparser.date import DateDataParser
 
 from db import get_columns, get_connection, get_distinct_set
-from utils import TORONTO_TZ
-from utils.constants import Action, Column, Currency, Table
+from domain import TORONTO_TZ, Action, Column, Currency, Table
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

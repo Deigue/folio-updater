@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ui.console import active_console, console_print
-from ui.keys import getch
-from ui.layout.terminal import available_height, is_test_environment
+from term.console import active_console, console_print
+from term.keys import getch
+from term.size import available_height, is_test_environment
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Callable

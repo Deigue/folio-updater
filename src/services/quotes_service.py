@@ -23,8 +23,8 @@ from db.queries import (
     insert_or_replace_many,
 )
 from db.schema import create_quotes_table
-from utils.constants import Column, Currency, QuoteStatus, Table
-from utils.numeric import dec
+from domain import Column, Currency, QuoteStatus, Table
+from domain.numeric import dec
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence

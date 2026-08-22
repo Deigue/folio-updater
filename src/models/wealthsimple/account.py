@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from domain import Currency
 from models.base import (
     SerializableModel,
     from_bool_optional,
@@ -17,7 +18,6 @@ from models.base import (
     get_last_3_frames,
     parse_obj,
 )
-from utils.constants import Currency
 
 
 @dataclass

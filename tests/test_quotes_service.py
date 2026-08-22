@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 from db import get_connection, get_rows, insert_or_replace_many
+from domain import Column, Currency, QuoteStatus, Table
 from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
     Quote,
@@ -26,7 +27,6 @@ from services.quotes_service import (
     _write,
 )
 from services.symbols import SymbolResolver
-from utils.constants import Column, Currency, QuoteStatus, Table
 
 from .helpers.seed import seed_transaction
 

@@ -21,10 +21,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
 from app import get_config
+from app.logging_setup import get_import_logger
+from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
-from utils import TORONTO_TZ, Action, Column, Currency, Sign, get_import_logger
-from utils.optional_fields import FieldType
-from utils.settlement_calculator import settlement_calculator
+from domain import TORONTO_TZ, Action, Column, Currency, Sign
+from engine.settlement import settlement_calculator
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()

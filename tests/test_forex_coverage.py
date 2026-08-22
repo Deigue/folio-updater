@@ -10,8 +10,8 @@ import pytest
 
 from cli.main import app
 from db import create_txns_table
+from domain import TORONTO_TZ, Column
 from services import ForexService
-from utils.constants import TORONTO_TZ, Column
 
 from .helpers.cli import assert_cli_success, run_cli_with_config
 from .helpers.seed import seed_fx, seed_transaction

@@ -18,11 +18,11 @@ import typer
 
 from app import bootstrap, get_config
 from cli.commands.common import ensure_fx_coverage
+from domain import CheckStatus
 from engine.cache import build, load_or_build
 from engine.checks import CHECK_SLUGS, UnknownCheckError, run_checks, validate_slugs
-from ui import console_error
+from term import console_error
 from ui.views.checks import emit_json, print_report
-from utils.constants import CheckStatus
 
 if TYPE_CHECKING:
     from engine.checks import CheckResult

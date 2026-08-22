@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from rich.console import Console
 
-from ui.console import override_console
+from term.console import override_console
 
 if TYPE_CHECKING:
     from collections.abc import Generator

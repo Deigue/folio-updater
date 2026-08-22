@@ -7,15 +7,15 @@ import textwrap
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from ui import (
+from domain import CheckStatus
+from term import (
     console_error,
     console_print,
     console_success,
     console_warning,
     get_symbol,
 )
-from ui.console import active_console
-from utils.constants import CheckStatus
+from term.console import active_console
 
 if TYPE_CHECKING:  # pragma: no cover
     from engine.checks import CheckResult

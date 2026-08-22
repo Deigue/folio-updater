@@ -10,15 +10,16 @@ from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table as RichTable
 
-from ui import console_print, supports_unicode
+from domain import Currency, WarningCode
+from domain.numeric import ZERO, q2
+from engine.positions import summarize_closed
+from term import console_print, supports_unicode
 from ui.layout.fit import fit, fit_table
 from ui.layout.tiles import Block
-from ui.theme import MONEY_PRECISION, PRICE_PRECISION, UNIT_PRECISION
-from utils.constants import Currency, WarningCode
-from utils.numeric import ZERO, q2
+from ui.vocabulary import MONEY_PRECISION, PRICE_PRECISION, UNIT_PRECISION
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Callable, Sequence
 
     from rich.console import RenderableType
     from rich.table import JustifyMethod

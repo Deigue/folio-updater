@@ -9,12 +9,12 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from engine.events import ReplayResult, TxnRow
+from domain import AccountType, Action, Currency, FeeConvention, Scope
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, detect_fee_signs, replay
 from engine.snapshot import MAX_SNAPSHOT_ROWS, SCHEMA_VERSION, decode, encode
+from engine.types import ReplayResult, TxnRow
 from services.symbols import SymbolResolver
-from utils.constants import AccountType, Action, Currency, FeeConvention, Scope
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

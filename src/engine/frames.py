@@ -24,11 +24,11 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from utils.constants import Column, Scope
-from utils.numeric import safe_div
+from domain import Column, Scope
+from domain.numeric import safe_div
 
 if TYPE_CHECKING:
-    from engine.events import ComputedRow, ReplayResult, ScopeMeasures
+    from engine.types import ComputedRow, ReplayResult, ScopeMeasures
 
 # Source columns carried straight through from Txns.
 SOURCE_COLUMNS = [

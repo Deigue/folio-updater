@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from app.logging_setup import audit_footer, get_import_logger
 from db import (
     backup_folio,
     get_connection,
@@ -18,21 +19,12 @@ from db import (
     update_rows,
 )
 from db.helpers import format_transaction_summary
+from domain import TXN_ESSENTIALS, Action, Column, Table
+from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import prepare_transactions
 from models import ImportResults, StatementImportResult
-from ui import get_symbol
-from utils import (
-    TXN_ESSENTIALS,
-    Action,
-    Column,
-    Table,
-    audit_footer,
-    get_import_logger,
-    info_both,
-    warning_both,
-)
-from utils.settlement_calculator import BUSINESS_DAY_SETTLE_ACTIONS
-from utils.transforms import normalize_canadian_ticker
+from services.symbols import normalize_canadian_ticker
+from term import announce, get_symbol
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -194,7 +186,7 @@ def import_statements(statement: Path) -> StatementImportResult:
             stmt_df = pd.read_excel(statement, engine="openpyxl")
 
         if stmt_df.empty:
-            warning_both("Statement file is empty.", "importer")
+            announce.warning("Statement file is empty.", "importer")
             return StatementImportResult()
 
         import_logger.info("READ %d rows from statement", len(stmt_df))
@@ -202,7 +194,7 @@ def import_statements(statement: Path) -> StatementImportResult:
         required_cols = ["date", "amount", "currency", "transaction", "description"]
         missing_cols = [col for col in required_cols if col not in stmt_df.columns]
         if missing_cols:
-            warning_both(
+            announce.warning(
                 f"Statement is missing required columns: {missing_cols}",
                 "importer",
             )
@@ -251,7 +243,7 @@ def _update_settlement_dates(df: pd.DataFrame) -> int:
         )
 
         if existing_txns.empty:  # pragma: no cover
-            info_both("No calculated settlement dates found to update", "importer")
+            announce.info("No calculated settlement dates found to update", "importer")
             return 0
 
         updates = []
@@ -282,14 +274,14 @@ def _update_settlement_dates(df: pd.DataFrame) -> int:
                         f"{statement_data['ticker']} on {statement_data['txn_date']}, "
                         "skipping"
                     )
-                    warning_both(msg, "importer")
+                    announce.warning(msg, "importer")
 
             except (ValueError, TypeError) as e:
-                warning_both(f"Skipping invalid statement row: {e}", "importer")
+                announce.warning(f"Skipping invalid statement row: {e}", "importer")
                 continue
 
         if candidate_count != 0:
-            info_both(
+            announce.info(
                 f"Matched {len(updates)} out of {candidate_count} candidates.",
                 "importer",
             )
@@ -502,7 +494,7 @@ def _build_transfer_transactions(
         if not account or not settle_date:
             rejected += 1
             reason = "no account in filename" if not account else "unparseable date"
-            warning_both(
+            announce.warning(
                 f'Skipping transfer in "{statement_path.name}": {reason} '
                 f"({row['transaction']}, {row['date']})",
                 "importer",

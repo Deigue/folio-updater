@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 
 from db import create_fx_table, create_txns_table, drop_table, get_connection
+from domain import TORONTO_TZ, Column, Table
 from exporters import ParquetExporter
 from services import ForexService
-from utils.constants import TORONTO_TZ, Column, Table
 
 if TYPE_CHECKING:
     from collections.abc import Callable

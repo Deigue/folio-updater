@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from cli.selection import SelectionMode, select_transactions
 from datagen import ensure_data_exists
 from db import add_column_to_table, get_connection, get_rows, update_rows
-from utils.constants import Column, Table
+from domain import Column, Table
 
 from .helpers.seed import ACCOUNT, seed_transaction
 

@@ -8,18 +8,14 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import get_config
+from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
+from domain import Column, Table
 from exporters import ParquetExporter
 from services import ForexService
-from ui import (
-    console_error,
-    console_success,
-    console_warning,
-)
-from ui.layout.progress import ProgressDisplay
-from utils import audit_footer
-from utils.constants import Column, Table
+from term import console_error, console_success, console_warning
+from term.progress import ProgressDisplay
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

@@ -6,12 +6,12 @@ import logging
 from typing import TYPE_CHECKING
 
 from app.app_context import get_config, initialize_app
-from utils.logging_setup import init_logging
+from app.logging_setup import init_logging
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from utils import Config
+    from config import Config
 
 logger: logging.Logger = logging.getLogger(__name__)
 

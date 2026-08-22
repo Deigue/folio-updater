@@ -11,8 +11,9 @@ import re
 from typing import TYPE_CHECKING
 
 from app import get_config
+from app.logging_setup import get_import_logger
 from db.helpers import format_transaction_summary
-from utils import TXN_ESSENTIALS, Column, get_import_logger
+from domain import TXN_ESSENTIALS, Column
 
 if TYPE_CHECKING:
     from logging import Logger

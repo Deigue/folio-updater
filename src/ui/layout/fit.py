@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING
 from rich.measure import Measurement
 from rich.padding import Padding
 
-from ui.console import active_console
-from ui.theme import (
+from term.console import active_console
+from ui.vocabulary import (
     ACCOUNT_HEADERS,
     ACCOUNT_MIN_WORD,
     ACCOUNT_SEPARATORS,

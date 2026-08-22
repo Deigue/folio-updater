@@ -10,8 +10,8 @@ import typer
 from app import bootstrap
 from datagen import ensure_data_exists
 from exporters.excel_exporter import ExcelExporter
-from ui import console_error, console_info, console_success
-from ui.layout.progress import ProgressDisplay
+from term import console_error, console_info, console_success
+from term.progress import ProgressDisplay
 
 app = typer.Typer()
 

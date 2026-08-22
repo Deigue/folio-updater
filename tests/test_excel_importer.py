@@ -10,8 +10,8 @@ import pytest
 
 from datagen import ensure_data_exists
 from db import create_txns_table, get_connection, get_rows
+from domain import TXN_ESSENTIALS, Column, Table
 from importers import import_statements, import_transactions
-from utils.constants import TXN_ESSENTIALS, Column, Table
 
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
@@ -20,7 +20,7 @@ from .helpers.dataframe import verify_db_contents
 pytestmark = pytest.mark.real_parquet_export
 
 if TYPE_CHECKING:
-    from utils.config import Config
+    from config import Config
 
     from .test_types import TempContext
 

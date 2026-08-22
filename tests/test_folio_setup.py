@@ -15,7 +15,7 @@ import pandas.testing as pd_testing
 import pytest
 
 from datagen import ensure_data_exists, generate_transactions
-from utils.constants import DEFAULT_TICKERS, Column
+from domain import DEFAULT_TICKERS, Column
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -8,7 +8,15 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from engine.events import ReplayResult, TxnRow, to_txn_rows
+from domain import (
+    AccountType,
+    Action,
+    Column,
+    Currency,
+    FeeConvention,
+    Scope,
+    WarningCode,
+)
 from engine.frames import acb_summary_frame, master_frame, scope_column
 from engine.fx_rates import FxRates
 from engine.replay import (
@@ -19,16 +27,8 @@ from engine.replay import (
     resolve_trade_cash,
 )
 from engine.transfers import pair_transfers
+from engine.types import ReplayResult, TxnRow, to_txn_rows
 from services.symbols import SymbolResolver
-from utils.constants import (
-    AccountType,
-    Action,
-    Column,
-    Currency,
-    FeeConvention,
-    Scope,
-    WarningCode,
-)
 
 if TYPE_CHECKING:
     from .test_types import TempContext

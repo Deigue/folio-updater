@@ -14,16 +14,16 @@ from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet
 from importers import import_transactions
 from models import ImportResults
-from ui import (
+from term import (
     console_error,
     console_info,
     console_rule,
     console_success,
     console_warning,
 )
-from ui.layout.progress import ProgressDisplay
-from ui.theme import THEME_SUCCESS
+from term.progress import ProgressDisplay
 from ui.views.imports import ImportDisplay
+from ui.vocabulary import THEME_SUCCESS
 from ui.widgets import show_data_table
 
 app = typer.Typer()

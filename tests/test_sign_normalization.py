@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
+from domain import Action, Column, Currency, Sign
 from ingest.validation import ActionValidationRules, TransactionFormatter
-from utils.constants import Action, Column, Currency, Sign
 
 if TYPE_CHECKING:
     from tests.test_types import TempContext

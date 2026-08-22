@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ui.console import active_console
+from term.console import active_console
 
 # Lines used by the stats summary panel at the top.
 STATS_PANEL_LINES = 3

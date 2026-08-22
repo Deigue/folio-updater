@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from utils.constants import Column, Table
+from domain import Column, Table
 
 if TYPE_CHECKING:
     from collections.abc import Generator

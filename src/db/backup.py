@@ -1,4 +1,4 @@
-"""Backup utilities for folio application."""
+"""Rolling backups of the folio database and its exported workbooks."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from db.helpers import txn_count as get_txn_count
-from utils.constants import TORONTO_TZ
+from domain import TORONTO_TZ
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -83,3 +83,9 @@ def rolling_backup(
     for old_backup in backups[max_backups:]:
         logger.debug("Removing old backup: %s", old_backup)
         old_backup.unlink()
+
+
+def backup_folio() -> None:
+    """Take a rolling backup of the folio database, if it holds anything."""
+    if get_txn_count() > 0:
+        rolling_backup(get_config().db_path)

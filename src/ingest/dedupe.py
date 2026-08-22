@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
+from app.logging_setup import get_import_logger
 from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_connection  # circular import fix
-from utils import TXN_ESSENTIALS, Table, get_import_logger
+from db.queries import get_connection
+from domain import TXN_ESSENTIALS, Table
 
 if TYPE_CHECKING:
     from logging import Logger

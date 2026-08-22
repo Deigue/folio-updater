@@ -9,8 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from domain import Column
 from services import ForexService
-from utils.constants import Column
 
 # * The rest of the suite runs with `get_fx_rates_from_boc` stubbed out; this
 # * module is testing that very method, so it opts out and mocks `requests`.

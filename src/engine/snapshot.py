@@ -15,7 +15,8 @@ from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from engine.events import (
+from domain import AccountType, Action, Currency, Impact, Scope, WarningCode
+from engine.types import (
     CashState,
     ComputedRow,
     ReplayResult,
@@ -23,14 +24,6 @@ from engine.events import (
     ReplayWarning,
     ScopeMeasures,
     TxnRow,
-)
-from utils.constants import (
-    AccountType,
-    Action,
-    Currency,
-    Impact,
-    Scope,
-    WarningCode,
 )
 
 if TYPE_CHECKING:

@@ -14,8 +14,8 @@ from rich.columns import Columns
 from rich.console import Group
 from rich.measure import Measurement
 
-from ui.console import active_console
-from ui.layout.terminal import terminal_size
+from term.console import active_console
+from term.size import terminal_size
 
 if TYPE_CHECKING:  # pragma: no cover
     from rich.console import RenderableType

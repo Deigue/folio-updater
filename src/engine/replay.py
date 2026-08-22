@@ -29,18 +29,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from engine.accounts import fee_convention_for, resolve_account_type
-from engine.events import (
-    CashKey,
-    CashState,
-    ComputedRow,
-    PositionState,
-    ReplayResult,
-    ReplayWarning,
-    ScopeMeasures,
-)
-from engine.transfers import DUST_UNITS, pair_transfers
-from utils.constants import (
+from domain import (
     TAXABLE_ACCOUNT_TYPES,
     AccountType,
     Action,
@@ -49,13 +38,24 @@ from utils.constants import (
     Scope,
     WarningCode,
 )
-from utils.numeric import ZERO, q2, safe_div
+from domain.numeric import ZERO, q2, safe_div
+from engine.accounts import fee_convention_for, resolve_account_type
+from engine.transfers import DUST_UNITS, pair_transfers
+from engine.types import (
+    CashKey,
+    CashState,
+    ComputedRow,
+    PositionState,
+    ReplayResult,
+    ReplayWarning,
+    ScopeMeasures,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    from engine.events import TxnRow
     from engine.fx_rates import FxRates
+    from engine.types import TxnRow
     from services.symbols import SymbolResolver
 
 logger = logging.getLogger(__name__)

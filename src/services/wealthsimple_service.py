@@ -28,19 +28,19 @@ from ws_api import (
 )
 
 from app import get_config
+from domain import TXN_ESSENTIALS, Action
 from models.wealthsimple import (
     Account,
     ActivityFeedItem,
     BrokerageMonthlyStatementTransaction,
 )
-from utils.constants import TXN_ESSENTIALS, Action
-from utils.transforms import normalize_canadian_ticker
+from services.symbols import normalize_canadian_ticker
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from datetime import datetime
 
-    from utils.config import Config
+    from config import Config
 
 
 logger = logging.getLogger(__name__)

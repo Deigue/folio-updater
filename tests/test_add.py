@@ -11,7 +11,7 @@ import pytest
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import get_columns, get_connection, get_row_count, get_rows
-from utils.constants import Action, Column, Currency, Table
+from domain import Action, Column, Currency, Table
 
 from .helpers.cli import (
     assert_cli_success,

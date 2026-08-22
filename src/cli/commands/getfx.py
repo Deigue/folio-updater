@@ -9,12 +9,8 @@ import typer
 
 from app import bootstrap
 from exporters import ParquetExporter
-from ui import (
-    console_error,
-    console_success,
-    console_warning,
-)
-from ui.layout.progress import ProgressDisplay
+from term import console_error, console_success, console_warning
+from term.progress import ProgressDisplay
 
 app = typer.Typer()
 

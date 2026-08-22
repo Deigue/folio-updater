@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from ui.console import supports_unicode
+from term.console import supports_unicode
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Container, Sequence

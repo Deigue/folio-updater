@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from domain import AccountType, FeeConvention
 from engine.accounts import fee_convention_for, is_taxable, resolve_account_type
-from utils.constants import AccountType, FeeConvention
 
 if TYPE_CHECKING:
     from .test_types import TempContext

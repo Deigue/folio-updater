@@ -8,7 +8,11 @@ import pytest
 
 from cli.selection import get_ticker_family
 from db import get_connection
-from services.symbols import SymbolResolver, load_symbol_resolver
+from services.symbols import (
+    SymbolResolver,
+    load_symbol_resolver,
+    normalize_canadian_ticker,
+)
 
 from .helpers.seed import seed_transaction
 
@@ -127,3 +131,21 @@ def test_selection_delegates_to_the_resolver(temp_ctx: TempContext) -> None:
         seed_transaction(ticker="SPLG")
         with get_connection() as conn:
             assert get_ticker_family(conn, "SPLG") == ["SPLG"]
+
+
+def test_normalize_canadian_ticker() -> None:
+    """Test the normalize_canadian_ticker function.
+
+    This function should add .TO suffix for CAD tickers if not present.
+    """
+    # CAD ticker without .TO suffix
+    assert normalize_canadian_ticker("SHOP", "CAD") == "SHOP.TO"
+    assert normalize_canadian_ticker("TDB902", "CAD") == "TDB902.TO"
+
+    # Test CAD ticker with .TO suffix - no change
+    assert normalize_canadian_ticker("SHOP.TO", "CAD") == "SHOP.TO"
+    assert normalize_canadian_ticker("TDB902.TO", "CAD") == "TDB902.TO"
+
+    # Test non-CAD currency - no change
+    assert normalize_canadian_ticker("AAPL", "USD") == "AAPL"
+    assert normalize_canadian_ticker("GOOGL", "USD") == "GOOGL"

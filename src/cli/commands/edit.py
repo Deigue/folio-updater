@@ -18,6 +18,7 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
+from app.logging_setup import get_import_logger
 from cli.commands.common import (
     audit_footer,
     backup_folio,
@@ -26,18 +27,13 @@ from cli.commands.common import (
     resolve_selection,
 )
 from cli.query_parser import get_valid_column_names
+from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_columns, get_connection, get_rows, update_rows
+from domain import Column, Table
 from ingest.validation import TransactionFormatter, parse_date
-from ui import (
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-)
+from term import console_error, console_info, console_success, console_warning
 from ui.views.transactions import TransactionDisplay, page_changes
-from utils import Column, Table, get_import_logger
-from utils.optional_fields import FieldType
 
 if TYPE_CHECKING:
     from cli.selection import Selection

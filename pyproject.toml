@@ -38,6 +38,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "no_mock_forex: Disable the mock_forex_data fixture for this test or module.",
+    "no_mock_quotes: Disable the mock_quotes fixture for this test or module.",
     "real_parquet_export: Let mutating commands re-export Parquet for real.",
 ]
 
@@ -49,11 +50,11 @@ omit = [
     'conftest.py',
     'tests/fixtures/dataframe_cache.py',
     'tests/helpers/seed.py',
-    'src/utils/backup.py',
+    'src/db/backup.py',
     'src/datagen/folio_setup.py',
     'src/models/*',
     'src/ui/*',
-    'src/utils/log_console.py',
+    'src/term/*',
 ]
 [tool.coverage.report]
 show_missing = true
@@ -121,7 +122,7 @@ exclude = [
     "T201",
 ]
 "src/cli/main.py" = ["PLC0415"]
-"src/{cli,ui}/*" = [
+"src/{cli,ui,term}/*" = [
     "PLR0913",
     "FBT003",
     "PLW0603",

@@ -9,12 +9,13 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
+from app.logging_setup import get_import_logger
 from db.helpers import format_transaction_summary
+from domain import Column
 from models import MergeEvent, TransformEvent
-from utils import Column, get_import_logger
 
 if TYPE_CHECKING:
-    from utils.transforms import MergeGroup, TransformRule
+    from config.transforms import MergeGroup, TransformRule
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()

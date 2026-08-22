@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from utils.numeric import ZERO, dec, q2, q4, q6, safe_div
+from domain.numeric import ZERO, dec, q2, q4, q6, safe_div
 
 if TYPE_CHECKING:
     from collections.abc import Callable

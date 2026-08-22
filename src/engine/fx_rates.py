@@ -15,8 +15,8 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from db.queries import get_connection, get_rows
-from utils.constants import Column, Currency, Table
-from utils.numeric import ZERO, dec, safe_div
+from domain import Column, Currency, Table
+from domain.numeric import ZERO, dec, safe_div
 
 if TYPE_CHECKING:
     from decimal import Decimal

@@ -18,10 +18,10 @@ import yaml
 import datagen as _datagen_package
 from app import AppContext, get_config
 from datagen import create_mock_data, get_mock_data_date_range
+from domain import TORONTO_TZ, Column, Currency
+from engine.settlement import settlement_calculator
 from services import ForexService
 from services.quotes_service import QuotesService
-from utils.constants import TORONTO_TZ, Column, Currency
-from utils.settlement_calculator import settlement_calculator
 
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
 
@@ -127,7 +127,7 @@ _PARQUET_EXPORT_CALLERS = (
     "cli.commands.add",
     "cli.commands.delete",
     "cli.commands.edit",
-    "cli.commands.import_cmd",
+    "cli.commands.import_data",
 )
 
 

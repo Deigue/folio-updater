@@ -14,7 +14,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from ui.console import active_console, override_console
+from term.console import active_console, override_console
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Generator

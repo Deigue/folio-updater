@@ -1,4 +1,4 @@
-"""Settlement date calculation utilities."""
+"""Settlement date calculation logic."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pandas as pd
 
-from utils.constants import TORONTO_TZ, Action, Column, Currency
-from utils.logging_setup import get_import_logger
+from app.logging_setup import get_import_logger
+from domain import TORONTO_TZ, Action, Column, Currency
 
 if TYPE_CHECKING:
     from datetime import date

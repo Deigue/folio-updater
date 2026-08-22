@@ -13,9 +13,10 @@ import typer
 
 from app import bootstrap, get_config
 from db import get_connection, get_row_count, get_rows
+from domain import Column, Table, TransactionContext
 from exporters import ParquetExporter
 from importers import import_statements
-from ui import (
+from term import (
     console_error,
     console_info,
     console_rule,
@@ -23,11 +24,10 @@ from ui import (
     console_warning,
     get_symbol,
 )
-from ui.layout.progress import ProgressDisplay
+from term.progress import ProgressDisplay
 from ui.views.imports import ImportDisplay
 from ui.views.transactions import page_transactions
 from ui.widgets import show_data_table, show_stats_panel
-from utils import Column, Table, TransactionContext
 
 if TYPE_CHECKING:
     from models import StatementImportResult

@@ -9,12 +9,21 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
-from .console import capture_output
+from .console import DEFAULT_WIDTH, UNCONSTRAINED_WIDTH, capture_output
+
+__all__ = [
+    "UNCONSTRAINED_WIDTH",
+    "CliTestResult",
+    "assert_cli_success",
+    "assert_in_output",
+    "assert_not_in_output",
+    "run_cli_with_config",
+]
 
 if TYPE_CHECKING:
     from typer import Typer
 
-    from utils.config import Config
+    from config import Config
 
 runner = CliRunner()
 
@@ -35,6 +44,7 @@ def run_cli_with_config(
     command_app: Typer,
     args: list[str] | None = None,
     user_input: str | None = None,
+    width: int = DEFAULT_WIDTH,
 ) -> CliTestResult:
     """Run CLI commands with proper config mocking and capture plain output.
 
@@ -44,6 +54,8 @@ def run_cli_with_config(
         args: Optional list of command arguments.
         user_input: Optional stdin text to answer interactive prompts, with each
             response terminated by a newline.
+        width: Terminal width to render at. Pass `UNCONSTRAINED_WIDTH` for a
+            test about the figures rather than how the terminal squeezed them.
 
     Returns:
         A CliTestResult object with execution details.
@@ -52,7 +64,10 @@ def run_cli_with_config(
         args = []
 
     # Mock bootstrap.reload_config to return our test config
-    with patch("app.bootstrap.reload_config") as mock_reload, capture_output() as bio:
+    with (
+        patch("app.bootstrap.reload_config") as mock_reload,
+        capture_output(width) as bio,
+    ):
         mock_reload.return_value = config
         click_result = runner.invoke(command_app, args, input=user_input)
         return CliTestResult(

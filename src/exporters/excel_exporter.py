@@ -10,10 +10,10 @@ import logging
 import pandas as pd
 
 from app import get_config
+from db.backup import rolling_backup
+from domain import Column
 from exporters import ParquetExporter
-from utils.backup import rolling_backup
-from utils.constants import Column
-from utils.log_console import info_both
+from term import announce
 
 logger = logging.getLogger(__name__)
 
@@ -145,13 +145,13 @@ class ExcelExporter:
             logger.exception("Error writing Excel file")
             return False
         else:
-            info_both("=" * 80)
+            announce.info("=" * 80)
             logger.info("Excel workbook generated successfully:")
-            info_both(f"  - {len(transactions_df)} transactions")
-            info_both(f"  - {len(forex_df)} FX rates")
-            info_both(f"  - {len(tickers_df)} tickers")
-            info_both(f"  - Output: {self.folio_path}")
-            info_both("=" * 80)
+            announce.info(f"  - {len(transactions_df)} transactions")
+            announce.info(f"  - {len(forex_df)} FX rates")
+            announce.info(f"  - {len(tickers_df)} tickers")
+            announce.info(f"  - Output: {self.folio_path}")
+            announce.info("=" * 80)
 
             return True
 

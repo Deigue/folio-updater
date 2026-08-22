@@ -16,15 +16,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from domain import Action, CheckStatus, Currency, Scope, WarningCode
+from domain.numeric import ZERO, q2
 from engine.replay import DENOMINATED_ACTIONS
-from utils.constants import Action, CheckStatus, Currency, Scope, WarningCode
-from utils.numeric import ZERO, q2
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
     from decimal import Decimal
 
-    from engine.events import ComputedRow, ReplayResult, ReplayWarning
+    from engine.types import ComputedRow, ReplayResult, ReplayWarning
 
 
 class ChecksConfig(Protocol):

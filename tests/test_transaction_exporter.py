@@ -3,8 +3,8 @@
 import pandas as pd
 
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists
+from domain import DEFAULT_TICKERS
 from exporters import ParquetExporter
-from utils.constants import DEFAULT_TICKERS
 
 from .helpers.dataframe import verify_db_contents
 from .test_types import TempContext

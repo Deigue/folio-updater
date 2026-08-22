@@ -1,10 +1,10 @@
-"""Terminal theme/formatting constants and functions."""
+"""Terminal rendering vocabulary: colours, short forms, precisions, rounding."""
 
 from __future__ import annotations
 
 import re
 
-from utils import Action, Column
+from domain import Action, Column
 
 # --- Panel border themes -----------------------------------------------------
 

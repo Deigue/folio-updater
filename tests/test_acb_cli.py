@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from cli.main import app
+from domain import Column, Scope
 from engine.cache import fingerprint, load_or_build
 from engine.frames import scope_column
-from ui import supports_unicode
+from term import supports_unicode
 from ui.views.acb import (
     _FALL,
     _RISE,
@@ -19,7 +20,6 @@ from ui.views.acb import (
     _units,
     movements,
 )
-from utils.constants import Column, Scope
 
 from .helpers.cli import (
     assert_cli_success,

@@ -12,12 +12,14 @@ from pandas.testing import assert_frame_equal
 from rich.progress import Progress
 from typer.testing import CliRunner
 
-from cli.commands import import_cmd
+from cli.commands import import_data
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
 from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
+from domain import DEFAULT_TICKERS, Column, Table
 from services.ibkr_service import IBKRAuthenticationError
+from term.console import active_console
 from tests.fixtures.dataframe_cache import register_test_dataframe
 from tests.fixtures.ibkr_mocking import (
     IBKRMockContext,
@@ -30,8 +32,6 @@ from tests.fixtures.wealthsimple_mocking import (
     get_mock_activities,
     get_mock_statement_transactions,
 )
-from ui.console import active_console
-from utils.constants import DEFAULT_TICKERS, Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import (
@@ -136,7 +136,7 @@ def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
-        cli_result = run_cli_with_config(config, import_cmd.app)
+        cli_result = run_cli_with_config(config, import_data.app)
         assert cli_result.exit_code == 1
         assert_in_output("No supported files found", cli_result)
 
@@ -150,7 +150,7 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         create_transaction_data(test_file)
         cli_result = run_cli_with_config(
             config,
-            import_cmd.app,
+            import_data.app,
             ["--file", str(test_file)],
         )
         assert_cli_success(cli_result)
@@ -184,7 +184,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         ensure_data_exists()
         cli_result = run_cli_with_config(
             config,
-            import_cmd.app,
+            import_data.app,
             ["--dir", str(import_dir)],
         )
         assert_cli_success(cli_result)

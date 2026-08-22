@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
-from utils.constants import AccountType, Column, FeeConvention
-from utils.numeric import dec
-from utils.optional_fields import OptionalFieldsConfig
-from utils.transforms import TransformsConfig
+from config.optional_fields import OptionalFieldsConfig
+from config.transforms import TransformsConfig
+from domain import AccountType, Column, FeeConvention
+from domain.numeric import dec
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -21,12 +21,12 @@ from decimal import Decimal
 from itertools import count
 from typing import TYPE_CHECKING
 
-from utils.constants import Action
+from domain import Action
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.events import TxnRow
+    from engine.types import TxnRow
 
 DUST_UNITS = Decimal("1e-9")
 CASH_TOLERANCE = Decimal("0.01")

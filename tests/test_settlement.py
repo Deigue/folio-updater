@@ -7,8 +7,8 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
-from utils.constants import TORONTO_TZ, Action, Column, Currency
-from utils.settlement_calculator import SettlementCalculator
+from domain import TORONTO_TZ, Action, Column, Currency
+from engine.settlement import SettlementCalculator
 
 # Shared calculator instance
 calculator = SettlementCalculator()

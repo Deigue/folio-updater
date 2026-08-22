@@ -12,14 +12,14 @@ from typing import TYPE_CHECKING, NamedTuple
 import pandas as pd
 from rich.table import Table as RichTable
 
+from domain import Action, Column, Currency, Scope, WarningCode
 from engine.frames import acb_summary_frame, scope_column
-from ui import console_print, console_warning, supports_unicode
+from term import console_print, console_warning, supports_unicode
 from ui.format import freshness_badge
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame
-from ui.theme import TRANSACTION_COLORS
+from ui.vocabulary import TRANSACTION_COLORS
 from ui.widgets import show_data_table
-from utils.constants import Action, Column, Currency, Scope, WarningCode
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Container, Hashable

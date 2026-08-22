@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from db.queries import get_connection, get_rows
-from utils.constants import (
+from domain import (
     AccountType,
     Action,
     Column,
@@ -19,7 +19,7 @@ from utils.constants import (
     Table,
     WarningCode,
 )
-from utils.numeric import ZERO, dec
+from domain.numeric import ZERO, dec
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Container

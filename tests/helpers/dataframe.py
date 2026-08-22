@@ -8,7 +8,7 @@ import pandas as pd
 import pandas.testing as pd_testing
 
 from db import get_connection
-from utils.constants import TXN_ESSENTIALS, Action, Column, Table
+from domain import TXN_ESSENTIALS, Action, Column, Table
 
 logger: logging.Logger = logging.getLogger(__name__)
 

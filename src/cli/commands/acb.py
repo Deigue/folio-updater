@@ -14,11 +14,11 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import ensure_fx_coverage
+from domain import Column, Scope
 from engine.cache import load_or_build
 from services.symbols import load_symbol_resolver
-from ui import console_error, console_info, console_warning
+from term import console_error, console_info, console_warning
 from ui.views.acb import AcbView, NoUsdFiguresError, show_buildup, show_summary
-from utils.constants import ACCOUNT_TYPE_ALIASES, AccountType, Column, Scope
 
 if TYPE_CHECKING:
     import pandas as pd

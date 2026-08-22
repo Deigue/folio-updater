@@ -9,7 +9,7 @@ import sys
 from logging.handlers import TimedRotatingFileHandler
 from typing import TYPE_CHECKING
 
-from utils.config import Config
+from config import Config
 
 if TYPE_CHECKING:
     from pathlib import Path

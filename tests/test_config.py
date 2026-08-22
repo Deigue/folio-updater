@@ -8,8 +8,8 @@ import pytest
 import yaml
 
 from app import bootstrap
-from utils.config import Config
-from utils.constants import AccountType, FeeConvention
+from config import Config
+from domain import AccountType, FeeConvention
 
 from .test_types import TempContext
 

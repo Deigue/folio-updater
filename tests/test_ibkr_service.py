@@ -6,8 +6,8 @@ from datetime import datetime
 
 import pytest
 
+from domain import TORONTO_TZ
 from services.ibkr_service import IBKRService
-from utils.constants import TORONTO_TZ
 
 
 @pytest.mark.parametrize(

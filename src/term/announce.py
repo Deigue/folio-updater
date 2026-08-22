@@ -1,7 +1,7 @@
-"""Unified logging and console output utilities.
+"""Say something to the user and write it to the log in one call.
 
-This module provides helper functions that log messages to both the file logger
-and the Rich console simultaneously, reducing boilerplate in CLI commands.
+Import the module, not its functions: `announce.success(...)` reads as what it
+does, and stays distinct from `console_success(...)`, which only prints.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
-from ui.console import (
+from term.console import (
     console_error,
     console_info,
     console_print,
@@ -50,16 +50,13 @@ _CONSOLE_FUNCTIONS = {
 }
 
 
-def log_and_console(
+def at_level(
     message: str,
     level: LogLevel = LogLevel.INFO,
     logger_name: str | None = None,
     stacklevel: int = 2,
 ) -> None:
-    """Log message to file and display on console simultaneously.
-
-    This helper reduces boilerplate by combining logger.{level}() and
-    console_{level}() calls into a single function.
+    """Log a message to file and display it on the console.
 
     Args:
         message: Message to log and display
@@ -68,8 +65,8 @@ def log_and_console(
         stacklevel: How many frames up the stack to look for the caller (default 2)
 
     Example:
-        log_and_console("Import completed", LogLevel.SUCCESS, "importer")
-        log_and_console("Processing file...", LogLevel.INFO)
+        announce.at_level("Import completed", LogLevel.SUCCESS, "importer")
+        announce.at_level("Processing file...", LogLevel.INFO)
     """
     logger = logging.getLogger(logger_name) if logger_name else logging.getLogger()
 
@@ -80,61 +77,61 @@ def log_and_console(
     console_func(message)
 
 
-def debug_both(message: str, logger_name: str | None = None) -> None:
+def debug(message: str, logger_name: str | None = None) -> None:
     """Log debug message to both file and console.
 
     Args:
         message: Debug message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.DEBUG, logger_name, stacklevel=3)
+    at_level(message, LogLevel.DEBUG, logger_name, stacklevel=3)
 
 
-def info_both(message: str, logger_name: str | None = None) -> None:
+def info(message: str, logger_name: str | None = None) -> None:
     """Log info message to both file and console.
 
     Args:
         message: Info message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.INFO, logger_name, stacklevel=3)
+    at_level(message, LogLevel.INFO, logger_name, stacklevel=3)
 
 
-def warning_both(message: str, logger_name: str | None = None) -> None:
+def warning(message: str, logger_name: str | None = None) -> None:
     """Log warning message to both file and console.
 
     Args:
         message: Warning message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.WARNING, logger_name, stacklevel=3)
+    at_level(message, LogLevel.WARNING, logger_name, stacklevel=3)
 
 
-def error_both(message: str, logger_name: str | None = None) -> None:
+def error(message: str, logger_name: str | None = None) -> None:
     """Log error message to both file and console.
 
     Args:
         message: Error message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.ERROR, logger_name, stacklevel=3)
+    at_level(message, LogLevel.ERROR, logger_name, stacklevel=3)
 
 
-def critical_both(message: str, logger_name: str | None = None) -> None:
+def critical(message: str, logger_name: str | None = None) -> None:
     """Log critical message to both file and console.
 
     Args:
         message: Critical message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.CRITICAL, logger_name, stacklevel=3)
+    at_level(message, LogLevel.CRITICAL, logger_name, stacklevel=3)
 
 
-def success_both(message: str, logger_name: str | None = None) -> None:
+def success(message: str, logger_name: str | None = None) -> None:
     """Log success message to both file and console.
 
     Args:
         message: Success message
         logger_name: Logger name (None for root logger)
     """
-    log_and_console(message, LogLevel.SUCCESS, logger_name, stacklevel=3)
+    at_level(message, LogLevel.SUCCESS, logger_name, stacklevel=3)

@@ -22,6 +22,7 @@ import pandas as pd
 
 from app.app_context import get_config
 from cli.query_parser import ParsedQuery, parse_query_terms
+from config.optional_fields import FieldType
 from db.queries import (
     build_comparison_clause,
     build_sort_clause,
@@ -30,9 +31,8 @@ from db.queries import (
     get_connection,
     get_rows,
 )
+from domain import Column, Table
 from services.symbols import SymbolResolver
-from utils.constants import Column, Table
-from utils.optional_fields import FieldType
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

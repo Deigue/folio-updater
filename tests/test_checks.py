@@ -14,6 +14,14 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cli.main import app
+from domain import (
+    AccountType,
+    Action,
+    CheckStatus,
+    Currency,
+    FeeConvention,
+    WarningCode,
+)
 from engine.cache import load_or_build
 from engine.checks import (
     CHECK_SLUGS,
@@ -24,26 +32,18 @@ from engine.checks import (
     run_checks,
     validate_slugs,
 )
-from engine.events import TxnRow
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, detect_fee_signs, replay
+from engine.types import TxnRow
 from services.symbols import SymbolResolver
 from ui.views.checks import _print_findings
-from utils.constants import (
-    AccountType,
-    Action,
-    CheckStatus,
-    Currency,
-    FeeConvention,
-    WarningCode,
-)
 
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
 from .helpers.console import capture_output
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from engine.events import ReplayResult
+    from engine.types import ReplayResult
 
     from .test_types import TempContext
 

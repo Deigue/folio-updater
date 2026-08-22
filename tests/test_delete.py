@@ -13,7 +13,7 @@ from cli.commands import delete as delete_module
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import get_connection, get_row_count, get_rows
-from utils.constants import Column, Table
+from domain import Column, Table
 
 from .helpers.cli import (
     assert_cli_success,

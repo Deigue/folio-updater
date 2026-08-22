@@ -18,27 +18,15 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
+from app.logging_setup import get_import_logger
 from cli.commands.common import audit_footer, backup_folio, export_to_parquet
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_last_insert_rowid, get_rows
+from domain import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency, Table
 from ingest import ActionValidationRules, prepare_transactions
 from ingest.validation import TransactionFormatter
-from ui import (
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-)
+from term import console_error, console_info, console_success, console_warning
 from ui.views.transactions import TransactionDisplay
-from utils import (
-    TORONTO_TZ,
-    TXN_ESSENTIALS,
-    Action,
-    Column,
-    Currency,
-    Table,
-    get_import_logger,
-)
 
 if TYPE_CHECKING:
     from models import ImportResults

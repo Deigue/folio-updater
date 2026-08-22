@@ -19,14 +19,9 @@ from db import (
     get_tables,
     insert_or_replace,
 )
-from ui import (
-    console_error,
-    console_info,
-    console_success,
-    console_warning,
-)
+from domain import Column, Table
+from term import console_error, console_info, console_success, console_warning
 from ui.widgets import show_data_table
-from utils.constants import Column, Table
 
 logger = logging.getLogger(__name__)
 
