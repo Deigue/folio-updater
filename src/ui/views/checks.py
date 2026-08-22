@@ -7,7 +7,6 @@ import textwrap
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
-from ui import console as console_module
 from ui import (
     console_error,
     console_print,
@@ -15,6 +14,7 @@ from ui import (
     console_warning,
     get_symbol,
 )
+from ui.console import active_console
 from utils.constants import CheckStatus
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -42,7 +42,7 @@ def _heading(result: CheckResult) -> str:
 def _print_findings(result: CheckResult) -> None:
     """Print a check's details, indented under its heading."""
     width = max((len(finding.subject) for finding in result.findings), default=0)
-    available = console_module.console.width
+    available = active_console().width
     stacked = _HEADING_WIDTH + width + 2 + _MIN_WRAP > available
     indent = " " * (_HEADING_WIDTH + (2 if stacked else width + 2))
     room = max(available - len(indent), _MIN_WRAP)
@@ -116,4 +116,4 @@ def emit_json(results: list[CheckResult]) -> None:
         },
         indent=2,
     )
-    console_module.console.print(payload, markup=False, soft_wrap=True)
+    active_console().print(payload, markup=False, soft_wrap=True)

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from rich.measure import Measurement
 from rich.padding import Padding
 
-from ui import console as console_module
+from ui.console import active_console
 from ui.theme import (
     ACCOUNT_HEADERS,
     ACCOUNT_MIN_WORD,
@@ -51,7 +51,7 @@ def overflow(table: Table) -> int:
         Characters by which the table overruns the terminal, or zero if it
         fits.
     """
-    active = console_module.console
+    active = active_console()
     # Measured unbounded max vs actual terminal width.
     roomy = active.options.update(max_width=_UNBOUNDED_WIDTH)
     wanted = Measurement.get(active, roomy, table).maximum

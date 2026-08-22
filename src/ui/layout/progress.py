@@ -14,7 +14,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from ui.console import console, progress_console_context
+from ui.console import active_console, override_console
 
 if TYPE_CHECKING:  # pragma: no cover
     from collections.abc import Generator
@@ -42,11 +42,11 @@ class ProgressDisplay:
         progress = Progress(
             SpinnerColumn(style=color),
             TextColumn(f"[{color}]{{task.description}}[/{color}]"),
-            console=console,
+            console=active_console(),
             transient=transient,
         )
 
-        with progress, progress_console_context(progress.console):
+        with progress, override_console(progress.console):
             yield progress
 
     @staticmethod
@@ -70,9 +70,9 @@ class ProgressDisplay:
             BarColumn(complete_style=color),
             TaskProgressColumn(),
             TimeRemainingColumn(),
-            console=console,
+            console=active_console(),
             transient=transient,
         )
 
-        with progress, progress_console_context(progress.console):
+        with progress, override_console(progress.console):
             yield progress

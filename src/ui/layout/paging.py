@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ui.console import console, console_print
+from ui.console import active_console, console_print
 from ui.keys import getch
 from ui.layout.terminal import available_height, is_test_environment
 
@@ -110,7 +110,7 @@ def page_frame(
 
     # Alternate screen: each page redraws in a scratch buffer the terminal
     # discards on exit.
-    with console.screen():
+    with active_console().screen():
         while True:
             current_page, should_exit = _render_one_page(
                 current_page,
@@ -124,7 +124,7 @@ def page_frame(
             if should_exit:
                 break
 
-    console.rule("End of Transactions", style="dim")
+    active_console().rule("End of Transactions", style="dim")
 
 
 def _render_one_page(  # noqa: PLR0917
@@ -144,8 +144,8 @@ def _render_one_page(  # noqa: PLR0917
     start_idx = current_page * page_size
     end_idx = min(start_idx + page_size, total_rows)
 
-    console.clear()
-    console.rule(
+    active_console().clear()
+    active_console().rule(
         f"{title} - Page {current_page + 1}/{total_pages}",
         style="bright_blue",
     )
@@ -154,7 +154,7 @@ def _render_one_page(  # noqa: PLR0917
 
     render(start_idx, end_idx)
 
-    console.print(
+    active_console().print(
         f"[dim]Showing transactions {start_idx + 1}-{end_idx} of {total_rows}[/dim]",
     )
 
@@ -162,7 +162,7 @@ def _render_one_page(  # noqa: PLR0917
         return current_page, True  # Only one page, no navigation needed
 
     prompt = _get_pagination_prompt(current_page, total_pages)
-    console.print(f"\n{prompt}")
+    active_console().print(f"\n{prompt}")
 
     try:
         user_input = getch()

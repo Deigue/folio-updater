@@ -88,7 +88,10 @@ brokers:
     exclude_accounts: ["Cash"]
 accounts:
   naming_convention: true
-  map: {}
+  map:
+    TEST-ACCOUNT:
+      type: NON_REGISTERED
+      amount_include_fees: excluded
   defaults:
     amount_includes_fees: auto
 cost_basis:

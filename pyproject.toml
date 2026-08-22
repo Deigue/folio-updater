@@ -21,6 +21,7 @@ dependencies = [
     "rich>=13.0.0",
     "dateparser>=1.4.2",
     "requests>=2.32.5",
+    "yfinance>=0.2.66",
 ]
 
 [project.scripts]
@@ -152,5 +153,5 @@ dev = [
     "ruff>=0.16.2",
     "ty>=0.0.69",
 ]
-experiments = ["yfinance>=0.2.66"]
+experiments = []
 test = ["pytest>=8.3.5", "pytest-cov>=5.0.0", "pytest-xdist>=3.8.0"]

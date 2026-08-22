@@ -13,6 +13,7 @@ from db.queries import get_connection
 from utils.constants import (
     ALIASES_COLUMN_DEFINITIONS,
     FX_COLUMN_DEFINITIONS,
+    QUOTES_COLUMN_DEFINITIONS,
     TXN_COLUMN_DEFINITIONS,
     Table,
 )
@@ -66,6 +67,22 @@ def create_ticker_aliases_table() -> None:
     """
     columns_def = [col_def.to_sql() for col_def in ALIASES_COLUMN_DEFINITIONS]
     _create_table(Table.TICKER_ALIASES, columns_def)
+
+
+def create_quotes_table() -> None:
+    """Create the market quotes cache table if it doesn't already exist.
+
+    The table uses the folio's own canonical Symbol as the PRIMARY KEY and holds
+    one latest snapshot per symbol, so a refresh replaces rather than appends.
+
+    Returns:
+        None
+
+    Raises:
+        DatabaseError: If there's an issue with database connection or SQL execution
+    """
+    columns_def = [col_def.to_sql() for col_def in QUOTES_COLUMN_DEFINITIONS]
+    _create_table(Table.QUOTES, columns_def)
 
 
 def _create_table(table_name: str, columns_def: list[str]) -> None:

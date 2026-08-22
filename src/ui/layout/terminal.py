@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-from ui import console as console_module
+from ui.console import active_console
 
 # Lines used by the stats summary panel at the top.
 STATS_PANEL_LINES = 3
@@ -39,8 +39,7 @@ def terminal_size() -> tuple[int, int]:
         Tuple of (width, height) in characters
     """
     try:
-        # Read through the module rather than the imported binding
-        term_size = console_module.console.size
+        term_size = active_console().size
     except (AttributeError, OSError):  # pragma: no cover
         return 80, 24  # Sensible fallback defaults
     else:

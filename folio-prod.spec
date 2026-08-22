@@ -19,6 +19,13 @@ a = Analysis(
         'secrets',  # Required by numpy.random
         # ws_api package - installed from PyPI
         'ws_api',
+        # yfinance backs `folio dash` / `folio quotes`. It is imported lazily so
+        # startup stays fast, which is exactly why PyInstaller cannot see it.
+        'yfinance',
+        'curl_cffi',
+        'peewee',
+        'platformdirs',
+        'websockets',
     ],
     hookspath=[],
     hooksconfig={},

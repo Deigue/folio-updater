@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from ui.console import console, console_panel, console_print, get_symbol
+from ui.console import active_console, console_panel, console_print, get_symbol
 from ui.format import safe_str
 from ui.keys import getch
 from ui.layout.terminal import available_height
@@ -502,7 +502,7 @@ class ImportDisplay:
             results: ImportResults with audit data.
             blocks: List of Blocks to display.
         """
-        console.clear()
+        active_console().clear()
         self._show_stats_panel(results)
         if blocks:
             layout = TilingLayout(blocks)
@@ -518,7 +518,7 @@ class ImportDisplay:
         Args:
             block: The Block to expand.
         """
-        console.clear()
+        active_console().clear()
 
         if block.data_type == "merge":
             panel = self._build_merge_panel(block.data, block.total)

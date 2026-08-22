@@ -14,7 +14,7 @@ from rich.columns import Columns
 from rich.console import Group
 from rich.measure import Measurement
 
-from ui.console import console
+from ui.console import active_console
 from ui.layout.terminal import terminal_size
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -85,6 +85,7 @@ class Block:
         Returns:
             A new Block instance with measured width and height.
         """
+        console = active_console()
         measurement = Measurement.get(console, console.options, panel)
         width = measurement.maximum
 
@@ -254,7 +255,7 @@ class TilingLayout:
                     column_renderables.append(Group(*panels))
 
             if len(column_renderables) == 1:
-                console.print(column_renderables[0])
+                active_console().print(column_renderables[0])
             else:
                 cols = Columns(
                     column_renderables,
@@ -262,11 +263,11 @@ class TilingLayout:
                     expand=False,
                     align="left",
                 )
-                console.print(cols)
+                active_console().print(cols)
 
         # Render full-width blocks below the tiled layout
         for block in self.full_width_blocks:
-            console.print(block.panel)
+            active_console().print(block.panel)
 
     @property
     def all_blocks(self) -> list[Block]:

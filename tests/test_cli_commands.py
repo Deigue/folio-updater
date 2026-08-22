@@ -30,7 +30,7 @@ from tests.fixtures.wealthsimple_mocking import (
     get_mock_activities,
     get_mock_statement_transactions,
 )
-from ui import console as console_module
+from ui.console import active_console
 from utils.constants import DEFAULT_TICKERS, Column, Table
 
 from .fixtures.test_data_factory import create_transaction_data
@@ -66,7 +66,7 @@ def patch_progress(monkeypatch: pytest.MonkeyPatch) -> None:
     original_init = Progress.__init__
 
     def new_init(self: Progress, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
-        kwargs["console"] = console_module.console
+        kwargs["console"] = active_console()
         kwargs["transient"] = False  # Ensure progress bars are not cleared
         original_init(self, *args, **kwargs)
 

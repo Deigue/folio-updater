@@ -1,13 +1,15 @@
 """Tests for the config module."""
 
 import logging
+from decimal import Decimal
 from pathlib import Path
 
+import pytest
 import yaml
 
 from app import bootstrap
 from utils.config import Config
-from utils.constants import FeeConvention
+from utils.constants import AccountType, FeeConvention
 
 from .test_types import TempContext
 
@@ -143,6 +145,74 @@ def test_cost_base_defaults(temp_ctx: TempContext) -> None:
         assert config.auto_getfx is True
         assert config.display_currency == "CAD"
         assert config.acb_parquet.name == "acb.parquet"
+
+
+def test_quotes_defaults(temp_ctx: TempContext) -> None:
+    """Nothing is required: the defaults are what a normal user wants."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        assert config.quotes_ttl_minutes == 15
+        assert config.quotes_metadata_ttl_days == 30
+        assert config.quotes_timeout_seconds == 20
+        assert config.quotes_symbol_overrides == {}
+
+
+def test_quotes_settings_are_read_from_config(temp_ctx: TempContext) -> None:
+    overrides = {
+        "ttl_minutes": 5,
+        "metadata_ttl_days": 90,
+        "timeout_seconds": 45,
+        "symbol_overrides": {"TOI.TO": "TOI.V"},
+    }
+    with temp_ctx(quotes=overrides) as ctx:
+        config = ctx.config
+        assert config.quotes_ttl_minutes == 5
+        assert config.quotes_metadata_ttl_days == 90
+        assert config.quotes_timeout_seconds == 45
+        # Keyed upper-case so a lookup never depends on YAML casing.
+        assert config.quotes_symbol_overrides == {"TOI.TO": "TOI.V"}
+
+
+@pytest.mark.parametrize("bad", [0, -5, "fifteen", None, True])
+def test_a_nonsense_quote_ttl_keeps_the_default(
+    temp_ctx: TempContext,
+    bad: object,
+) -> None:
+    """A zero TTL would mean 'always stale' and a bool is not a count."""
+    with temp_ctx(quotes={"ttl_minutes": bad}) as ctx:
+        assert ctx.config.quotes_ttl_minutes == 15
+
+
+def test_contribution_room_is_read_by_type_and_year(temp_ctx: TempContext) -> None:
+    room = {"TFSA": {2025: 7000, 2026: 7000}, "RRSP": {2026: 14880}}
+    with temp_ctx(contribution_room=room) as ctx:
+        configured = ctx.config.contribution_room
+        assert configured[AccountType.TFSA][2026] == Decimal(7000)
+        assert configured[AccountType.RRSP][2026] == Decimal(14880)
+
+
+def test_contribution_room_drops_what_it_cannot_resolve(
+    temp_ctx: TempContext,
+) -> None:
+    room = {
+        "TFSA": {2026: 7000},
+        "NOTATYPE": {2026: 1000},  # not an account type
+        "RRSP": "not a mapping",  # not a year mapping
+        "RESP": {"nineteen": 500},  # not a year
+    }
+    with temp_ctx(contribution_room=room) as ctx:
+        configured = ctx.config.contribution_room
+
+        # A typo costs the room row, never the whole command.
+        assert set(configured) == {AccountType.TFSA}
+        assert configured[AccountType.TFSA] == {2026: Decimal(7000)}
+
+
+def test_contribution_room_defaults_to_nothing_configured(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        assert ctx.config.contribution_room == {}
 
 
 def test_accounts_map_accepts_both_forms(temp_ctx: TempContext) -> None:

@@ -23,14 +23,21 @@ from db.queries import (
     get_tables,
     get_txns_fingerprint,
     insert_or_replace,
+    insert_or_replace_many,
     update_rows,
 )
-from db.schema import create_fx_table, create_ticker_aliases_table, create_txns_table
+from db.schema import (
+    create_fx_table,
+    create_quotes_table,
+    create_ticker_aliases_table,
+    create_txns_table,
+)
 
 __all__ = [
     "add_column_to_table",
     "backup_folio",
     "create_fx_table",
+    "create_quotes_table",
     "create_ticker_aliases_table",
     "create_txns_table",
     "delete_rows",
@@ -49,6 +56,7 @@ __all__ = [
     "get_txns_fingerprint",
     "helpers",
     "insert_or_replace",
+    "insert_or_replace_many",
     "queries",
     "schema",
     "txn_count",

@@ -15,11 +15,13 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import yaml
 
 from utils.constants import AccountType, Column, FeeConvention
+from utils.numeric import dec
 from utils.optional_fields import OptionalFieldsConfig
 from utils.transforms import TransformsConfig
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from decimal import Decimal
 
 # How `amount_includes_fees` is spelled in YAML.
 _FEE_CONVENTIONS: dict[str, FeeConvention] = {
@@ -102,6 +104,13 @@ class Config:
                 "ignore_tickers": [],
                 "ignore_accounts": [],
             },
+            "quotes": {
+                "ttl_minutes": 15,
+                "metadata_ttl_days": 30,
+                "timeout_seconds": 20,
+                "symbol_overrides": {},
+            },
+            "contribution_room": {},
         },
     )
 
@@ -366,6 +375,43 @@ class Config:
         return [name.upper() for name in self._settings["checks"]["ignore_accounts"]]
 
     @property
+    def quotes_ttl_minutes(self) -> int:
+        """How long a cached price stays fresh before a refetch is due."""
+        return self._settings["quotes"]["ttl_minutes"]
+
+    @property
+    def quotes_metadata_ttl_days(self) -> int:
+        """How long cached name, sector and market cap stay fresh."""
+        return self._settings["quotes"]["metadata_ttl_days"]
+
+    @property
+    def quotes_timeout_seconds(self) -> int:
+        """How long to wait on the quote provider before giving up."""
+        return self._settings["quotes"]["timeout_seconds"]
+
+    @property
+    def quotes_symbol_overrides(self) -> dict[str, str]:
+        """Folio symbol to provider symbol, for the ones the rule cannot derive.
+
+        Keyed upper-case so a lookup never depends on how it was written in YAML.
+        """
+        overrides = self._settings["quotes"]["symbol_overrides"]
+        return {str(key).upper(): str(value) for key, value in overrides.items()}
+
+    @property
+    def contribution_room(self) -> dict[AccountType, dict[int, Decimal]]:
+        """Contribution room by account type and year.
+
+        A CRA limit is a person-level number covering every account of that type,
+        so it is keyed by type rather than by account. An absent type simply
+        means the room row is not shown for it.
+        """
+        return {
+            AccountType(name): {int(year): dec(limit) for year, limit in years.items()}
+            for name, years in self._settings["contribution_room"].items()
+        }
+
+    @property
     def acb_parquet(self) -> Path:
         """Path to the cached cost-base master frame."""
         return self._data_path / "acb.parquet"
@@ -459,6 +505,8 @@ class Config:
         Config._validate_cost_basis(settings, validated)
         Config._validate_display(settings, validated)
         Config._validate_checks(settings, validated)
+        Config._validate_quotes(settings, validated)
+        Config._validate_contribution_room(settings, validated)
 
         return validated
 
@@ -555,6 +603,69 @@ class Config:
             value = checks.get(key)
             if isinstance(value, list):
                 current[key] = [str(entry).strip() for entry in value if entry]
+
+    @staticmethod
+    def _validate_quotes(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate the `quotes` block, keeping the default on any bad value."""
+        quotes = settings.get("quotes")
+        if not isinstance(quotes, dict):
+            return
+
+        current = validated["quotes"]
+        for key in ("ttl_minutes", "metadata_ttl_days", "timeout_seconds"):
+            value = quotes.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                current[key] = value
+
+        overrides = quotes.get("symbol_overrides")
+        if isinstance(overrides, dict):
+            current["symbol_overrides"] = {
+                str(key): str(value)
+                for key, value in overrides.items()
+                if key and value
+            }
+
+    @staticmethod
+    def _validate_contribution_room(
+        settings: dict[str, Any],
+        validated: dict[str, Any],
+    ) -> None:
+        """Validate `contribution_room`, dropping anything unresolvable.
+
+        Keys are account types, then calendar years. A type the engine does not
+        know, or a year that is not a number, is skipped.
+        """
+        room = settings.get("contribution_room")
+        if not isinstance(room, dict):
+            return
+
+        resolved: dict[str, dict[str, float]] = {}
+        for name, years in room.items():
+            if not isinstance(years, dict):
+                continue
+            try:
+                account_type = AccountType(str(name).strip().upper())
+            except ValueError:
+                continue
+            limits = Config._room_years(years)
+            if limits:
+                resolved[str(account_type)] = limits
+
+        validated["contribution_room"] = resolved
+
+    @staticmethod
+    def _room_years(years: dict[Any, Any]) -> dict[str, float]:
+        """Read one account type's year-to-limit mapping."""
+        limits: dict[str, float] = {}
+        for year, limit in years.items():
+            try:
+                limits[str(int(str(year).strip()))] = float(limit)
+            except (TypeError, ValueError):
+                continue
+        return limits
 
     @staticmethod
     def _validate_display(
@@ -690,6 +801,15 @@ class Config:
             "Checks Disabled": self.checks_disabled or "none",
             "Checks Ignoring": (
                 (self.checks_ignore_tickers + self.checks_ignore_accounts) or "nothing"
+            ),
+            "Quotes TTL": (
+                f"{self.quotes_ttl_minutes}m prices, "
+                f"{self.quotes_metadata_ttl_days}d metadata"
+            ),
+            "Quote Symbol Overrides": self.quotes_symbol_overrides or "none configured",
+            "Contribution Room": (
+                sorted(str(name) for name in self.contribution_room)
+                or "none configured"
             ),
         }
         lines = "".join(f"  {label}: {value}\n" for label, value in details.items())

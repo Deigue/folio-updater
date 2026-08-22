@@ -124,6 +124,14 @@ class WarningCode(StrEnum):
     SUPERFICIAL_LOSS_SUSPECT = "SUPERFICIAL_LOSS_SUSPECT"
 
 
+class QuoteStatus(StrEnum):
+    """How the last attempt to price a symbol came out."""
+
+    OK = "OK"  # A price was returned and stored.
+    NOT_FOUND = "NOT_FOUND"  # The provider does not know this symbol.
+    ERROR = "ERROR"  # The fetch failed; any price on the row is the previous one.
+
+
 class CheckStatus(StrEnum):
     """How a `folio check` check came out."""
 
@@ -146,6 +154,7 @@ class Table(StrEnum):
     TXNS = "Txns"
     FX = "FX"
     TICKER_ALIASES = "TickerAliases"
+    QUOTES = "Quotes"
 
 
 class Column(StrEnum):
@@ -187,6 +196,24 @@ class Column(StrEnum):
         OLD_TICKER = "OldTicker"
         NEW_TICKER = "NewTicker"
         EFFECTIVE_DATE = "EffectiveDate"
+
+    class Quote(StrEnum):
+        """Cached market quote columns."""
+
+        SYMBOL = "Symbol"  # The folio's own canonical symbol, e.g. REI.UN.TO
+        YSYMBOL = "YSymbol"  # How the provider spells it, e.g. REI-UN.TO
+        PRICE = "Price"
+        PREV_CLOSE = "PrevClose"
+        CURRENCY = "Currency"
+        NAME = "Name"
+        SECTOR = "Sector"
+        EXCHANGE = "Exchange"
+        MARKET_CAP = "MarketCap"
+        QUOTE_TIME = "QuoteTime"  # The provider's own market timestamp
+        FETCHED_AT = "FetchedAt"  # Drives the price TTL
+        META_FETCHED_AT = "MetaFetchedAt"  # Drives the slower metadata TTL
+        SOURCE = "Source"
+        STATUS = "Status"
 
 
 class ColumnDefinition:
@@ -311,6 +338,45 @@ ALIASES_COLUMN_DEFINITIONS = [
         (
             f'NOT NULL CHECK(length("{Column.Aliases.EFFECTIVE_DATE}") = 10 AND '
             f'"{Column.Aliases.EFFECTIVE_DATE}" GLOB "{DATE_PATTERN_YYYY_MM_DD}")'
+        ),
+    ),
+]
+
+QUOTES_COLUMN_DEFINITIONS = [
+    ColumnDefinition(
+        Column.Quote.SYMBOL,
+        "TEXT",
+        (
+            f'PRIMARY KEY CHECK("{Column.Quote.SYMBOL}" = '
+            f'UPPER("{Column.Quote.SYMBOL}") AND length("{Column.Quote.SYMBOL}") > 0)'
+        ),
+    ),
+    ColumnDefinition(Column.Quote.YSYMBOL, "TEXT", "NOT NULL"),
+    ColumnDefinition(Column.Quote.PRICE, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Quote.PREV_CLOSE, NUMERIC_PRECISION),
+    ColumnDefinition(
+        Column.Quote.CURRENCY,
+        "TEXT",
+        (
+            f'CHECK("{Column.Quote.CURRENCY}" IS NULL OR '
+            f'"{Column.Quote.CURRENCY}" IN '
+            f"({', '.join(repr(str(c)) for c in Currency)}))"
+        ),
+    ),
+    ColumnDefinition(Column.Quote.NAME, "TEXT"),
+    ColumnDefinition(Column.Quote.SECTOR, "TEXT"),
+    ColumnDefinition(Column.Quote.EXCHANGE, "TEXT"),
+    ColumnDefinition(Column.Quote.MARKET_CAP, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Quote.QUOTE_TIME, "TEXT"),
+    ColumnDefinition(Column.Quote.FETCHED_AT, "TEXT"),
+    ColumnDefinition(Column.Quote.META_FETCHED_AT, "TEXT"),
+    ColumnDefinition(Column.Quote.SOURCE, "TEXT"),
+    ColumnDefinition(
+        Column.Quote.STATUS,
+        "TEXT",
+        (
+            f'CHECK("{Column.Quote.STATUS}" IN '
+            f"({', '.join(repr(str(s)) for s in QuoteStatus)}))"
         ),
     ),
 ]

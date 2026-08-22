@@ -55,43 +55,47 @@ _SYMBOLS = {
     "info": "ℹ️  " if _UNICODE_SUPPORTED else "[INFO] ",
 }
 
-console = Console(legacy_windows=(sys.platform == "win32" and not _UNICODE_SUPPORTED))
+# The default console. Callers reach it through `active_console()`
+_console = Console(legacy_windows=(sys.platform == "win32" and not _UNICODE_SUPPORTED))
 
-# Thread-local context for progress console during operations
-_progress_console: Console | None = None
+_override: Console | None = None
 
 
 @contextmanager
-def progress_console_context(progress_console: Console) -> Generator[None]:
-    """Context manager to set the progress console for coordinated output.
+def override_console(replacement: Console) -> Generator[None]:
+    """Redirect all console output through `replacement` for the duration.
 
-    Use this to ensure console messages print through the progress console
-    during long-running operations, preventing visual artifacts.
+    Use this to coordinate output with a live display (so messages print
+    through a Progress object's console rather than fighting it for the
+    terminal), or to capture output in tests.
 
     Args:
-        progress_console: Console instance from Progress object
+        replacement: Console to route output through
+
+    Yields:
+        None, with `replacement` installed as the active console.
 
     Example:
         with Progress(...) as progress:
-            with progress_console_context(progress.console):
+            with override_console(progress.console):
                 console_info("Processing...")  # Uses progress console
     """
-    global _progress_console
-    old_console = _progress_console
-    _progress_console = progress_console
+    global _override
+    previous = _override
+    _override = replacement
     try:
         yield
     finally:
-        _progress_console = old_console
+        _override = previous
 
 
-def _get_output_console() -> Console:
-    """Get the active console for output (progress or default).
+def active_console() -> Console:
+    """Get the console that output should go to right now.
 
     Returns:
-        Current progress console if active, otherwise default console
+        The overriding console if one is installed, otherwise the default.
     """
-    return _progress_console if _progress_console is not None else console
+    return _override if _override is not None else _console
 
 
 def console_success(message: str) -> None:
@@ -103,7 +107,7 @@ def console_success(message: str) -> None:
         message: Success message to display to user
     """
     symbol = _SYMBOLS["success"]
-    _get_output_console().print(f"{symbol}[green]{message}[/green]")
+    active_console().print(f"{symbol}[green]{message}[/green]")
 
 
 def console_error(message: str) -> None:
@@ -113,7 +117,7 @@ def console_error(message: str) -> None:
         message: Error message to display to user
     """
     symbol = _SYMBOLS["error"]
-    _get_output_console().print(f"{symbol}[red]{message}[/red]")
+    active_console().print(f"{symbol}[red]{message}[/red]")
 
 
 def console_warning(message: str) -> None:
@@ -123,7 +127,7 @@ def console_warning(message: str) -> None:
         message: Warning message to display to user
     """
     symbol = _SYMBOLS["warning"]
-    _get_output_console().print(f"{symbol}[yellow]{message}[/yellow]")
+    active_console().print(f"{symbol}[yellow]{message}[/yellow]")
 
 
 def console_info(message: str) -> None:
@@ -133,7 +137,7 @@ def console_info(message: str) -> None:
         message: Info message to display to user
     """
     symbol = _SYMBOLS["info"]
-    _get_output_console().print(f"{symbol}[cyan]{message}[/cyan]")
+    active_console().print(f"{symbol}[cyan]{message}[/cyan]")
 
 
 def supports_unicode() -> bool:
@@ -168,7 +172,7 @@ def console_print(message: Any, style: str = "") -> None:
         message: Message to display
         style: Optional Rich markup style (e.g., "[bold]", "[red]", "[dim]")
     """
-    out_console = _get_output_console()
+    out_console = active_console()
     if style:
         out_console.print(f"[{style}]{message}[/{style}]")
     else:
@@ -184,7 +188,7 @@ def console_rule(title: str = "", style: str = "bright_blue") -> None:
         title: Optional title to display in the rule
         style: Color/style for the rule
     """
-    _get_output_console().rule(title, style=style)
+    active_console().rule(title, style=style)
 
 
 def console_panel(
@@ -211,4 +215,4 @@ def console_panel(
         padding=(0, 1),
         expand=expand,
     )
-    _get_output_console().print(panel)
+    active_console().print(panel)

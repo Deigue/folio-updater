@@ -212,6 +212,8 @@ def build_order_by_clause(query: ParsedQuery, conn: sqlite3.Connection) -> str:
         The ORDER BY clause, always ending in a TxnDate tiebreak.
     """
     if not query.sorts:
+        if query.named_limiter:
+            return f'"{Column.Txn.TXN_DATE}" ASC'
         return f'"{Column.Txn.TXN_DATE}" DESC'
 
     numeric_columns = _get_text_numeric_columns(conn)

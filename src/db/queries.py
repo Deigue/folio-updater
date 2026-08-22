@@ -410,6 +410,47 @@ def insert_or_replace(
         return True
 
 
+def insert_or_replace_many(
+    connection: sqlite3.Connection,
+    table_name: str,
+    rows: list[dict],
+) -> int:
+    """Insert or replace many rows in one statement.
+
+    The batched form of `insert_or_replace`. Every row must carry the same
+    columns.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to insert/replace into
+        rows: Rows as dictionaries mapping column names to values. First row
+            will determine column names.
+
+    Returns:
+        Number of rows written, or 0 if there was an error.
+    """
+    if not rows:
+        return 0
+
+    keys = list(rows[0])
+    columns = ", ".join(f'"{col}"' for col in keys)
+    placeholders = ", ".join("?" for _ in keys)
+    query = f'INSERT OR REPLACE INTO "{table_name}" ({columns}) VALUES ({placeholders})'
+
+    try:
+        params_list = [tuple(row.get(col) for col in keys) for row in rows]
+        cursor = connection.executemany(query, params_list)
+        connection.commit()
+    except sqlite3.OperationalError:
+        logger.exception(
+            "Error inserting/replacing rows in table '%s'",
+            table_name,
+        )
+        return 0
+    else:
+        return cursor.rowcount
+
+
 def delete_rows(
     connection: sqlite3.Connection,
     table_name: str,
