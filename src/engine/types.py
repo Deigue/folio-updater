@@ -122,6 +122,17 @@ class CashState:
     contribution room is reported from them, and only `CONTRIBUTION` and
     `WITHDRAWAL` count. `TFR_IN` moves cash without consuming room.
 
+    `transfers` is tracked similarly: a `TFR_IN`/`TFR_OUT` leg moves the holder's own
+    money between accounts they already own without touching room, so it needs its own
+    bucket rather than being folded into `contributions`/`withdrawals` It holds the
+    **deposits** a transfer carried, not the value it moved. Those
+    differ whenever a pool has grown, and we need this for net deposit tracking.
+
+    `transfers_value` is the same movement measured the other way: what actually
+    left or arrived, cash at its face amount and securities at the cost base they
+    carried. It exists only to inform reader what exactly got transferred as they
+    might see from the broker's perspective.
+
     `realized_gain` is denominated in this state's own currency, matching every
     other field here. The CAD-converted figure lives on the master frame.
     """
@@ -129,6 +140,8 @@ class CashState:
     cash: Decimal = ZERO
     contributions: Decimal = ZERO
     withdrawals: Decimal = ZERO
+    transfers: Decimal = ZERO
+    transfers_value: Decimal = ZERO
     dividends: Decimal = ZERO
     fees: Decimal = ZERO
     realized_gain: Decimal = ZERO

@@ -40,6 +40,7 @@ from domain import (
 )
 from domain.numeric import ZERO, q2, safe_div
 from engine.accounts import fee_convention_for, resolve_account_type
+from engine.deposits import DepositLedger, PoolId
 from engine.transfers import DUST_UNITS, pair_transfers
 from engine.types import (
     CashKey,
@@ -54,7 +55,9 @@ from engine.types import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
+    from engine.deposits import Deposits
     from engine.fx_rates import FxRates
+    from engine.transfers import TransferPair
     from engine.types import TxnRow
     from services.symbols import SymbolResolver
 
@@ -421,19 +424,58 @@ class _Replay:
         self._seen: set[tuple[WarningCode, int | None, str | None]] = set()
         pairs, unpaired = pair_transfers(rows)
         self.pair_of: dict[int, int] = {}
+        self.pair_by_id: dict[int, TransferPair] = {}
         for pair in pairs:
             self.pair_of[pair.out_leg.txn_id] = pair.pair_id
             self.pair_of[pair.in_leg.txn_id] = pair.pair_id
+            self.pair_by_id[pair.pair_id] = pair
         self.unpaired = {row.txn_id for row in unpaired}
         # Cost base carried by an out leg, waiting for its in leg to claim it.
         self.carried: dict[tuple[int, Scope], tuple[Decimal, Decimal]] = {}
+        # Net deposits, tracked only for the pools dealing with transfers.
+        self.deposits = DepositLedger(self._tracked_pools(pairs))
+        # Cost-base change per grain then row, kept only for those same pools.
+        # Nested rather than keyed by a `(txn_id, grain)` tuple so the settle
+        # walk allocates no key to look one up on every row of the ledger.
+        self.acb_delta: dict[Scope, dict[int, Decimal]] = {
+            scope: {} for scope in self.deposits.scopes
+        }
         # Track accounts already reported negative, so only the first crossing shows.
         self.reported_negative: set[tuple[str, Currency]] = set()
         # * Split coverage trackers
-        # (symbol, trade date) -> set[account] , accomts that recorded the split.
+        # (symbol, trade date) -> set[account] , accounts that recorded the split.
         self.split_rows: dict[tuple[str, str], set[str]] = {}
         # (symbol, trade date) -> set[account] , accounts that have holding.
         self.split_holders: dict[tuple[str, str], set[str]] = {}
+
+    def _tracked_pools(self, pairs: Sequence[TransferPair]) -> frozenset[PoolId]:
+        """Name the pools whose book value the deposit rule will need.
+
+        A pair whose two legs land in the *same* pool at a grain moves nothing
+        there, so that grain needs no book value at all. That is what keeps
+        portfolio grain identical to plain contributions less withdrawals (both
+        legs are always `FOLIO`), and does the same for account-type grain on a
+        transfer between two brokers holding the same type. Only the pools a
+        transfer genuinely crosses are tracked, so a ledger with no transfers
+        costs one empty-set check.
+        """
+        tracked: set[PoolId] = set()
+        for pair in pairs:
+            out_type = self.cfg.account_types.get(
+                pair.out_leg.account,
+                AccountType.UNKNOWN,
+            )
+            in_type = self.cfg.account_types.get(
+                pair.in_leg.account,
+                AccountType.UNKNOWN,
+            )
+            for scope in Scope:
+                out_pool = _pool_key(scope, pair.out_leg, out_type)
+                in_pool = _pool_key(scope, pair.in_leg, in_type)
+                if out_pool != in_pool:
+                    tracked.add((scope, out_pool))
+                    tracked.add((scope, in_pool))
+        return frozenset(tracked)
 
     def run(self) -> ReplayResult:
         """Walk the ledger and return everything it produced."""
@@ -536,8 +578,30 @@ class _Replay:
                 row.txn_id,
             ),
         )
+        tracked = bool(self.deposits.scopes)
         for row in ordered:
-            self.result.rows.append(self._apply(row))
+            computed = self._apply(row)
+            self.result.rows.append(computed)
+            if tracked:
+                self._stash_acb_delta(row, computed)
+
+    def _stash_acb_delta(self, row: TxnRow, computed: ComputedRow) -> None:
+        """Keep the cost-base change the deposit rule will divide by.
+
+        Recorded during this walk rather than looked up afterwards so the
+        settle-date cash walk needs no `txn_id` index over every row: only rows
+        sitting in a pool that some transfer crosses are kept, which on a real
+        ledger is a small fraction of the whole.
+        """
+        for scope in self.deposits.scopes:
+            # Cheap test first: most rows move no cost base at all, and this
+            # runs on every row of the ledger.
+            delta = computed.measures(scope).delta_cad
+            if delta == ZERO:
+                continue
+            name = _pool_key(scope, row, computed.acct_type)
+            if self.deposits.resolve(scope, name) is not None:
+                self.acb_delta[scope][row.txn_id] = delta
 
     def _apply(self, row: TxnRow) -> ComputedRow:
         """Apply one row to all three pools and emit a master row."""
@@ -958,17 +1022,177 @@ class _Replay:
         ordered = sorted(self.rows, key=lambda row: (row.settle_date, row.txn_id))
         pending: list[TxnRow] = []
         current_date = ""
+
+        deposits_needed = self.deposits.active or bool(self.unpaired)
+        book_needed = any(self.acb_delta.values())
         for row in ordered:
             if row.settle_date != current_date and pending:
                 self._check_negative_cash(pending, current_date)
                 pending = []
             current_date = row.settle_date
+            if deposits_needed:
+                self._apply_deposits(row)
             self._apply_cash(row)
+            if book_needed:
+                self._advance_book_acb(row)
             pending.append(row)
         if pending:
             self._check_negative_cash(pending, current_date)
 
         self._roll_up_realized_gain()
+        self._reconcile_transfers()
+
+    # -- NET DEPOSITS -----------------------------------------------------
+
+    def _advance_book_acb(self, row: TxnRow) -> None:
+        """Move book value by the cost base one row changed.
+
+        Applied at the row's **settle date**, alongside its cash, even though
+        `_acb_walk` computed it in trade-date order. A buy on T settling T+2
+        raises the cost base on T and drops cash on T+2; booking both here keeps
+        `book = cost base + cash` self-consistent, so a purchase leaves book
+        value untouched and only genuine growth moves it. Splitting the two
+        dates would inflate the denominator for any transfer landing inside a
+        settlement window.
+        """
+        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        txn_id = row.txn_id
+        for scope, deltas in self.acb_delta.items():
+            delta = deltas.get(txn_id)
+            if delta is None:
+                continue
+            state = self.deposits.resolve(scope, _pool_key(scope, row, acct_type))
+            if state is not None:
+                state.book_cad += delta
+
+    def _apply_deposits(self, row: TxnRow) -> None:
+        """Book one row's effect on net deposits.
+
+        Runs **before** `_apply_cash` deliberately: a transfer's share of its
+        pool is measured against the pool as the leg found it, not against what
+        is left after the leg has already taken its cash out.
+        """
+        if row.action in (Action.TFR_IN, Action.TFR_OUT):
+            self._transfer_deposits(row)
+            return
+        if not self.deposits.active:
+            return
+        if row.action is Action.CONTRIBUTION:
+            self._move_deposits(row, abs(row.amount))
+        elif row.action is Action.WITHDRAWAL:
+            self._move_deposits(row, -abs(row.amount))
+
+    def _move_deposits(self, row: TxnRow, amount: Decimal) -> None:
+        """Apply a contribution or withdrawal to every grain that tracks it."""
+        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        for scope in self.deposits.scopes:
+            name = _pool_key(scope, row, acct_type)
+            self.deposits.deposit(scope, name, row.currency, amount)
+
+    def _transfer_deposits(self, row: TxnRow) -> None:
+        """Move one transfer leg's share of its pool's deposits.
+
+        Only grains where the two legs sit in *different* pools do anything: a
+        pair inside one pool moves nothing there, which is exactly why portfolio
+        grain and same-type account-type grain stay at plain contributions less
+        withdrawals. Skipping outright rather than adding and subtracting also
+        means no rounding residue can accumulate on them.
+        """
+        pair_id = self.pair_of.get(row.txn_id)
+        if pair_id is None:
+            self._unpaired_deposits(row)
+            return
+
+        pair = self.pair_by_id[pair_id]
+        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        for scope in self.deposits.scopes:
+            if self._within_one_pool(pair, scope):
+                continue
+            name = _pool_key(scope, row, acct_type)
+            self._record_moved_value(row, scope, name)
+            # Whichever leg is reached first settles the sending side, once.
+            # Pairing allows a settle-date window and a broker can credit the
+            # receiving account before the sender releases.
+            if not self.deposits.pending(pair_id, scope):
+                self._take_deposits(pair_id, scope)
+            if row.action is Action.TFR_IN:
+                self.deposits.give(scope, name, pair_id)
+
+    def _within_one_pool(self, pair: TransferPair, scope: Scope) -> bool:
+        """Whether both legs of a pair land in the same pool at one grain."""
+        out_type = self.cfg.account_types.get(
+            pair.out_leg.account,
+            AccountType.UNKNOWN,
+        )
+        in_type = self.cfg.account_types.get(pair.in_leg.account, AccountType.UNKNOWN)
+        return _pool_key(scope, pair.out_leg, out_type) == _pool_key(
+            scope,
+            pair.in_leg,
+            in_type,
+        )
+
+    def _record_moved_value(self, row: TxnRow, scope: Scope, pool: str) -> None:
+        """Note what a leg actually moved, for reconciliation against a statement."""
+        if row.is_position_transfer:
+            moved = self.acb_delta[scope].get(row.txn_id, ZERO)
+            currency = Currency.CAD
+        else:
+            moved, currency = row.amount, row.currency
+        if moved != ZERO:
+            self._cash(scope, pool, currency).transfers_value += moved
+
+    def _take_deposits(self, pair_id: int, scope: Scope) -> Deposits:
+        """Remove the sending pool's share of its deposits for one pair."""
+        out_leg = self.pair_by_id[pair_id].out_leg
+        acct_type = self.cfg.account_types.get(out_leg.account, AccountType.UNKNOWN)
+        return self.deposits.take(
+            scope,
+            _pool_key(scope, out_leg, acct_type),
+            pair_id,
+            self._leg_value_cad(out_leg, scope),
+        )
+
+    def _leg_value_cad(self, row: TxnRow, scope: Scope) -> Decimal:
+        """Return what one leg removes from its pool, in CAD and non-negative.
+
+        A cash leg is worth its amount. An in-kind leg is worth the cost base it
+        carried, read off `_acb_walk` rather than recomputed so the two can never
+        disagree, and because that is what the pool's book value is measured in.
+        """
+        if row.is_position_transfer:
+            return abs(self.acb_delta[scope].get(row.txn_id, ZERO))
+        return abs(self.to_cad(row.amount, row))
+
+    def _reconcile_transfers(self) -> None:
+        """Restate `transfers` as the exact complement of the deposits held.
+
+        The accumulated figure is replaced by the one that closes the
+        identity `net_deposited = contributions - withdrawals + transfers`
+        against the deposits actually held. Only pools the ledger tracks are
+        touched; a pool whose transfers all went unpaired keeps its face-value
+        total, since nothing measured its deposits.
+        """
+        for (scope, pool), state in self.deposits.pools():
+            for currency, deposited in state.deposits.items():
+                cash = self._cash(scope, pool, currency)
+                cash.transfers = deposited - cash.contributions + cash.withdrawals
+
+    def _unpaired_deposits(self, row: TxnRow) -> None:
+        """Fall back to face value for a leg with no counterpart.
+
+        Without an out leg there is no pool to measure a share against, so the
+        proportional rule has nothing to work with. Face value is what this
+        booked before the rule existed.
+        """
+        if row.is_position_transfer:
+            return
+        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        for scope in Scope:
+            name = _pool_key(scope, row, acct_type)
+            state = self._cash(scope, name, row.currency)
+            state.transfers += row.amount
+            state.transfers_value += row.amount
+            self.deposits.deposit(scope, name, row.currency, row.amount)
 
     def _cash(self, scope: Scope, pool: str, currency: Currency) -> CashState:
         """Return the cash state for one pool and currency, creating it if new."""
@@ -988,6 +1212,17 @@ class _Replay:
     ) -> None:
         """Apply one cash movement to all three pool grains at once."""
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        # Book value follows cash in CAD. Converted at the row's own settle-date
+        # rate, the same one the cost base used
+        book = ZERO
+        if cash != ZERO and self.deposits.active:
+            # Converted on `currency`, not `row.currency`: an FXT books its two
+            # legs against one row, and each leg is denominated in its own side.
+            book = (
+                cash
+                if currency is Currency.CAD
+                else self.fx.to_cad(cash, row.fx_date, currency).value
+            )
         for scope in Scope:
             state = self._cash(scope, _pool_key(scope, row, acct_type), currency)
             state.cash += cash
@@ -995,6 +1230,14 @@ class _Replay:
             state.withdrawals += withdrawals
             state.dividends += dividends
             state.fees += fees
+        # Kept separate: book value is needed at the grains dealing with
+        # transfers, usually just one, and paying for three on every row
+        # of the ledger is the whole cost of this feature.
+        if book != ZERO:
+            for scope in self.deposits.scopes:
+                state = self.deposits.resolve(scope, _pool_key(scope, row, acct_type))
+                if state is not None:
+                    state.book_cad += book
 
     def _apply_cash(self, row: TxnRow) -> None:
         """Book one row's effect on cash.
@@ -1034,7 +1277,9 @@ class _Replay:
         elif row.action in (Action.TFR_IN, Action.TFR_OUT) and not (
             row.is_position_transfer
         ):
-            # Transfers are not contributions: they consume no contribution room.
+            # Real cash moves, but how much of it counts as the holder's own
+            # money is not its face value -> left to `_apply_deposits` and its
+            # proportional rule.
             self._credit(row, row.currency, cash=row.amount)
 
     def _apply_fxt_cash(self, row: TxnRow) -> None:

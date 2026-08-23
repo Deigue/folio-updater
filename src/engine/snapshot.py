@@ -29,8 +29,9 @@ from engine.types import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-# Bump when shape/schema changes below to invalidate the fingerprints.
-SCHEMA_VERSION = 1
+# Bump when shape/schema changes below to invalidate the fingerprints. Also bump
+# when the coded *meaning* of a stored field changes.
+SCHEMA_VERSION = 4
 
 # Above this many diagnosed rows the snapshot stops being small.
 MAX_SNAPSHOT_ROWS = 5_000
