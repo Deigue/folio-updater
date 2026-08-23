@@ -342,6 +342,98 @@ def acb_cmd(  # noqa: PLR0917
     )
 
 
+@app.command("dash", help="Show holdings, cash and flows at current market prices")
+def dash_cmd(
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Pool by account type: tfsa, rrsp, nreg, ...",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Show a single broker account instead of a pooled type",
+    ),
+    currency: str | None = typer.Option(
+        None,
+        "-c",
+        "--currency",
+        help="native (default), CAD or USD",
+    ),
+    sort: str | None = typer.Option(
+        None,
+        "-s",
+        "--sort",
+        help="Order by a column, e.g. -s total. Numbers sort largest first.",
+    ),
+    export: str | None = typer.Option(
+        None,
+        "-e",
+        "--export",
+        help="Write the valued holdings to a .csv or .xlsx file",
+    ),
+    *,
+    by_type: bool = typer.Option(
+        False,
+        "-b",
+        "--by-type",
+        help="Tile one panel per account type",
+    ),
+    folio: bool = typer.Option(
+        False,
+        "--folio",
+        help="Show the portfolio-wide pool (the default)",
+    ),
+    wide: bool = typer.Option(
+        False,
+        "-w",
+        "--wide",
+        help="Show the extra columns a narrow terminal cannot fit",
+    ),
+    show_closed: bool = typer.Option(
+        False,
+        "--show-closed",
+        help="Break the aggregate Closed row open into one row per closed position",
+    ),
+    reverse: bool = typer.Option(
+        False,
+        "-r",
+        "--reverse",
+        help="Flip the sort direction",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "--refresh",
+        help="Refetch quotes and rebuild the cost-base cache",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "-o",
+        "--offline",
+        "--no-quotes",
+        help="Use cached quotes only, never touching the network",
+    ),
+) -> None:
+    """Show holdings, cash and flows at current market prices."""
+    from cli.commands.dash import show_dash
+
+    show_dash(
+        account_type=account_type,
+        account=account,
+        currency=currency,
+        export=export,
+        sort=sort,
+        by_type=by_type,
+        folio=folio,
+        wide=wide,
+        show_closed=show_closed,
+        reverse=reverse,
+        refresh=refresh,
+        offline=offline,
+    )
+
 
 @app.command("quotes", help="Inspect or refresh the market quote cache")
 def quotes_cmd(

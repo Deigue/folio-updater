@@ -7,9 +7,14 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
-from domain import Column, Currency, Scope, WarningCode
+from domain import Currency, Scope, WarningCode
 from domain.numeric import ZERO, dec, safe_div
-from engine.frames import acb_summary_frame, scope_column
+from engine.frames import (
+    POOL_COLUMN,
+    acb_summary_frame,
+    acb_summary_frames_by_pool,
+    scope_column,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -299,11 +304,10 @@ def scope_rows(frame: pd.DataFrame, scope: Scope, pool: str | None) -> pd.DataFr
     Returns:
         The rows belonging to that pool. Portfolio grain filters nothing.
     """
-    if scope is Scope.ACCOUNT and pool:
-        return frame[frame[str(Column.Txn.ACCOUNT)] == pool]
-    if scope is Scope.TYPE and pool:
-        return frame[frame["AcctType"] == pool]
-    return frame
+    column = POOL_COLUMN.get(scope)
+    if column is None or not pool:
+        return frame
+    return frame[frame[column] == pool]
 
 
 def held_symbols(frame: pd.DataFrame) -> list[str]:
@@ -315,9 +319,11 @@ def held_symbols(frame: pd.DataFrame) -> list[str]:
     Returns:
         Canonical symbols with a non-zero portfolio-wide position, sorted.
     """
-    if frame.empty or "Symbol" not in frame.columns:
-        return []
-    summary = acb_summary_frame(frame)
+    return _open_symbols(acb_summary_frame(frame))
+
+
+def _open_symbols(summary: pd.DataFrame) -> list[str]:
+    """Read the still-held symbols off a portfolio-grain summary frame."""
     if summary.empty:
         return []
     column = scope_column(Scope.FOLIO, "Units")
@@ -325,103 +331,218 @@ def held_symbols(frame: pd.DataFrame) -> list[str]:
     return sorted({str(symbol) for symbol in open_positions["Symbol"] if symbol})
 
 
-def build_holdings(  # noqa: PLR0913
-    frame: pd.DataFrame,
-    quotes: Mapping[str, Quote],
-    fx: FxRates,
-    *,
-    scope: Scope,
-    pool: str | None = None,
-    currency: ValuationCurrency = Currency.CAD,
-    folio_market: Decimal | None = None,
-    sort: str | None = None,
-    reverse: bool = False,
-) -> HoldingSet:
-    """Value every open position in one pool.
+@dataclass(frozen=True)
+class _Rollups:
+    """One pool's derived inputs, read off the frame before anything is valued."""
 
-    Args:
-        frame: The replayed master frame.
-        quotes: Canonical symbol to its cached quote.
-        fx: Rates to convert a quote's currency into the display currency.
-        scope: The pool grain to read at.
-        pool: The account name or account type, ignored at portfolio grain.
-        currency: Currency to express the figures in, or `"native"`.
-        folio_market: Total market value of the whole portfolio.
-        sort: The column to order by, or None for market value.
-        reverse: Flip the sort's natural direction.
+    summary: pd.DataFrame
+    flags: dict[str, tuple[WarningCode, ...]]
+    income: dict[str, tuple[Decimal, Decimal]]
 
-    Returns:
-        The pool's holdings and totals.
 
-    Raises:
-        UnknownSortError: If `sort` is not a sortable measure.
+class FolioPositions:
+    """One invocation's frame and quotes, with the per-pool rollups memoized.
+
+    Valuing a pool means first deriving three things from the master frame: the
+    summary frame, the flag rollup and the dividend rollup.
+
+    Nothing here is cached beyond the object's own life.
     """
-    rows = scope_rows(frame, scope, pool)
-    summary = acb_summary_frame(rows)
-    flags = _flags_by_symbol(rows)
-    income = _dividends_by_symbol(rows)
-    rate, rate_date = _latest_rate(fx)
-    base = base_currency(currency)
 
-    priced_base = ZERO
-    partial: list[Holding] = []
-    closed: list[Holding] = []
-    context = _Context(quotes, flags, income, scope, pool or "", currency, fx)
-    for record in summary.to_dict("records"):
-        holding = _holding(record, context)
-        if holding is None:
-            continue
-        if holding.closed:
-            closed.append(holding)
-            continue
-        partial.append(holding)
-        if holding.market_value_base is not None:
-            priced_base += holding.market_value_base
+    def __init__(
+        self,
+        frame: pd.DataFrame,
+        quotes: Mapping[str, Quote],
+        fx: FxRates,
+    ) -> None:
+        """Hold one invocation's inputs.
 
-    holdings = _with_shares(partial, priced_base, folio_market)
-    if sort is None:
-        holdings.sort(key=_by_value, reverse=True)
-    else:
-        holdings = sort_holdings(holdings, sort, reverse=reverse)
-    closed.sort(key=lambda h: h.symbol)
+        Args:
+            frame: The replayed master frame.
+            quotes: Canonical symbol to its cached quote.
+            fx: Rates to convert a quote's currency into the display currency.
+        """
+        self.frame = frame
+        self.quotes = quotes
+        self.fx = fx
+        self._rollups: dict[tuple[Scope, str], _Rollups] = {}
+        self._market: dict[ValuationCurrency, Decimal | None] = {}
 
-    unpriced = tuple(h.symbol for h in holdings if not h.priced)
-    any_priced = any(h.priced for h in holdings)
-    closed_pnl = sum((h.realized_base + h.dividends_base for h in closed), ZERO)
-    return HoldingSet(
-        holdings=holdings,
-        closed=tuple(closed),
-        scope=scope,
-        pool=pool or "",
-        display_currency=currency,
-        base_currency=base,
-        by_currency=_by_currency(holdings, closed),
-        total_book=sum((h.book_value_base for h in holdings), ZERO),
-        total_market=priced_base if any_priced else None,
-        total_day_pnl=(
-            _sum_optional(h.day_pnl_base for h in holdings) if any_priced else None
-        ),
-        total_unrealized=(
-            _sum_optional(h.unrealized_base for h in holdings) if any_priced else None
-        ),
-        total_realized=(
-            sum((h.realized_base for h in holdings), ZERO)
-            + sum((h.realized_base for h in closed), ZERO)
-        ),
-        total_dividends=(
-            sum((h.dividends_base for h in holdings), ZERO)
-            + sum((h.dividends_base for h in closed), ZERO)
-        ),
-        total_pnl=_total_pnl(
-            _sum_optional(h.total_pnl_base for h in holdings),
-            has_open=bool(holdings),
-            closed_pnl=closed_pnl,
-            any_priced=any_priced,
-        ),
-        unpriced=unpriced,
-        fx_rate=rate,
-        fx_date=rate_date,
-    )
+    def price(self, quotes: Mapping[str, Quote]) -> None:
+        """Supply the quotes, once the symbols worth fetching are known.
+
+        Args:
+            quotes: Canonical symbol to its cached quote.
+        """
+        self.quotes = quotes
+        # Anything already valued was valued without these.
+        self._market.clear()
+
+    def rollups(self, scope: Scope, pool: str | None) -> _Rollups:
+        """Derive one pool's inputs, or hand back the ones already derived."""
+        key = (scope, pool or "")
+        held = self._rollups.get(key)
+        if held is None:
+            rows = scope_rows(self.frame, scope, pool)
+            held = _Rollups(
+                summary=acb_summary_frame(rows),
+                flags=_flags_by_symbol(rows),
+                income=_dividends_by_symbol(rows),
+            )
+            self._rollups[key] = held
+        return held
+
+    def prime(self, scope: Scope) -> None:
+        """Derive every pool's summary at one grain in a single pass.
+
+        We need to walk the frame anyway, lets do it all at once.
+
+        Args:
+            scope: The grain about to be reported pool by pool. Portfolio grain
+                is a single pool and is ignored.
+        """
+        if scope is Scope.FOLIO:
+            return
+        by_pool = acb_summary_frames_by_pool(self.frame, scope)
+        for pool, summary in by_pool.items():
+            key = (scope, pool)
+            if key in self._rollups:
+                continue
+            rows = scope_rows(self.frame, scope, pool)
+            self._rollups[key] = _Rollups(
+                summary=summary,
+                flags=_flags_by_symbol(rows),
+                income=_dividends_by_symbol(rows),
+            )
+
+    def held_symbols(self) -> list[str]:
+        """Every symbol the folio still holds anywhere, at portfolio grain.
+
+        Returns:
+            Canonical symbols with a non-zero portfolio-wide position, sorted.
+        """
+        return _open_symbols(self.rollups(Scope.FOLIO, None).summary)
+
+    def market_value(
+        self,
+        currency: ValuationCurrency = Currency.CAD,
+    ) -> Decimal | None:
+        """Total market value of the whole portfolio.
+
+        Needed even when a narrower pool is displayed, because `weight_in_folio`
+        answers "how much of everything I own is this", which is the number that
+        reveals real concentration.
+
+        Args:
+            currency: Currency to express the total in.
+
+        Returns:
+            The portfolio's market value across priced positions, or None when
+            nothing could be priced.
+        """
+        if currency not in self._market:
+            self._market[currency] = self.holdings(
+                scope=Scope.FOLIO,
+                currency=currency,
+            ).total_market
+        return self._market[currency]
+
+    def holdings(  # noqa: PLR0913
+        self,
+        *,
+        scope: Scope,
+        pool: str | None = None,
+        currency: ValuationCurrency = Currency.CAD,
+        folio_market: Decimal | None = None,
+        sort: str | None = None,
+        reverse: bool = False,
+    ) -> HoldingSet:
+        """Value every open position in one pool.
+
+        Args:
+            scope: The pool grain to read at.
+            pool: The account name or account type, ignored at portfolio grain.
+            currency: Currency to express the figures in, or `"native"`.
+            folio_market: Total market value of the whole portfolio.
+            sort: The column to order by, or None for market value.
+            reverse: Flip the sort's natural direction.
+
+        Returns:
+            The pool's holdings and totals.
+
+        Raises:
+            UnknownSortError: If `sort` is not a sortable measure.
+        """
+        derived = self.rollups(scope, pool)
+        quotes = self.quotes
+        fx = self.fx
+        summary = derived.summary
+        flags = derived.flags
+        income = derived.income
+        rate, rate_date = _latest_rate(fx)
+        base = base_currency(currency)
+
+        priced_base = ZERO
+        partial: list[Holding] = []
+        closed: list[Holding] = []
+        context = _Context(quotes, flags, income, scope, pool or "", currency, fx)
+        for record in summary.to_dict("records"):
+            holding = _holding(record, context)
+            if holding is None:
+                continue
+            if holding.closed:
+                closed.append(holding)
+                continue
+            partial.append(holding)
+            if holding.market_value_base is not None:
+                priced_base += holding.market_value_base
+
+        holdings = _with_shares(partial, priced_base, folio_market)
+        if sort is None:
+            holdings.sort(key=_by_value, reverse=True)
+        else:
+            holdings = sort_holdings(holdings, sort, reverse=reverse)
+        closed.sort(key=lambda h: h.symbol)
+
+        unpriced = tuple(h.symbol for h in holdings if not h.priced)
+        any_priced = any(h.priced for h in holdings)
+        closed_pnl = sum((h.realized_base + h.dividends_base for h in closed), ZERO)
+        return HoldingSet(
+            holdings=holdings,
+            closed=tuple(closed),
+            scope=scope,
+            pool=pool or "",
+            display_currency=currency,
+            base_currency=base,
+            by_currency=_by_currency(holdings, closed),
+            total_book=sum((h.book_value_base for h in holdings), ZERO),
+            total_market=priced_base if any_priced else None,
+            total_day_pnl=(
+                _sum_optional(h.day_pnl_base for h in holdings) if any_priced else None
+            ),
+            total_unrealized=(
+                _sum_optional(h.unrealized_base for h in holdings)
+                if any_priced
+                else None
+            ),
+            total_realized=(
+                sum((h.realized_base for h in holdings), ZERO)
+                + sum((h.realized_base for h in closed), ZERO)
+            ),
+            total_dividends=(
+                sum((h.dividends_base for h in holdings), ZERO)
+                + sum((h.dividends_base for h in closed), ZERO)
+            ),
+            total_pnl=_total_pnl(
+                _sum_optional(h.total_pnl_base for h in holdings),
+                has_open=bool(holdings),
+                closed_pnl=closed_pnl,
+                any_priced=any_priced,
+            ),
+            unpriced=unpriced,
+            fx_rate=rate,
+            fx_date=rate_date,
+        )
 
 
 def base_currency(currency: ValuationCurrency) -> Currency:
@@ -519,38 +640,6 @@ def _total_pnl(
     if not has_open:
         return closed_pnl
     return None
-
-
-def folio_market_value(
-    frame: pd.DataFrame,
-    quotes: Mapping[str, Quote],
-    fx: FxRates,
-    *,
-    currency: ValuationCurrency = Currency.CAD,
-) -> Decimal | None:
-    """Total market value of the whole portfolio.
-
-    Needed even when a narrower pool is displayed, because `weight_in_folio`
-    answers "how much of everything I own is this", which is the number that
-    reveals real concentration.
-
-    Args:
-        frame: The replayed master frame.
-        quotes: Canonical symbol to its cached quote.
-        fx: Rates to convert with.
-        currency: Currency to express the total in.
-
-    Returns:
-        The portfolio's market value across priced positions, or None when
-        nothing could be priced.
-    """
-    return build_holdings(
-        frame,
-        quotes,
-        fx,
-        scope=Scope.FOLIO,
-        currency=currency,
-    ).total_market
 
 
 @dataclass(frozen=True)
@@ -769,11 +858,13 @@ def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal
     """
     if rows.empty or "Dividend" not in rows.columns:
         return {}
+    # Filter `paying` to only rows with actual dividends first.
+    paying = rows[rows["Dividend"].notna() | rows["Dividend_USD"].notna()]
     totals: dict[str, tuple[Decimal, Decimal]] = {}
     for symbol, cad, usd in zip(
-        rows["Symbol"].to_numpy(),
-        rows["Dividend"].to_numpy(),
-        rows["Dividend_USD"].to_numpy(),
+        paying["Symbol"].to_numpy(),
+        paying["Dividend"].to_numpy(),
+        paying["Dividend_USD"].to_numpy(),
         strict=True,
     ):
         if not isinstance(symbol, str) or not symbol:

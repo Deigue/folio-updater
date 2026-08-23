@@ -13,7 +13,7 @@ from engine.flows import (
     ROOM_BEARING_TYPES,
     Flows,
     build_flows,
-    contributions_by_year,
+    contributions_by_type_year,
 )
 
 from .helpers.seed import seed_fx, seed_transaction
@@ -42,10 +42,10 @@ def _flows(
     assert cached.result is not None
     return build_flows(
         cached.result,
-        cached.frame,
         scope=scope,
         pool=pool,
         label=pool or "Portfolio",
+        contributions=contributions_by_type_year(cached.frame),
         account_type=account_type,
         room=room,
         year=year,
@@ -877,7 +877,7 @@ def test_contributions_split_by_calendar_year(temp_ctx: TempContext) -> None:
             )
 
         cached = build()
-        by_year = contributions_by_year(cached.frame, AccountType.TFSA)
+        by_year = contributions_by_type_year(cached.frame)[AccountType.TFSA]
 
         assert by_year == {2024: Decimal(3000), 2025: Decimal(7000)}
 
@@ -910,10 +910,10 @@ def test_the_year_split_reads_the_frame_not_the_replay_rows(
 
         flows = build_flows(
             cached.result,
-            cached.frame,
             scope=Scope.TYPE,
             pool=str(AccountType.TFSA),
             label="TFSA",
+            contributions=contributions_by_type_year(cached.frame),
             account_type=AccountType.TFSA,
             room={AccountType.TFSA: {2025: Decimal(7000)}},
             year=2025,
@@ -1103,7 +1103,7 @@ def test_dividends_and_fees_are_carried_per_currency(temp_ctx: TempContext) -> N
 
 
 def test_the_year_split_of_an_empty_frame_is_empty() -> None:
-    assert contributions_by_year(pd.DataFrame(), AccountType.TFSA) == {}
+    assert contributions_by_type_year(pd.DataFrame()) == {}
 
 
 def test_the_year_split_skips_an_unreadable_date() -> None:
@@ -1126,7 +1126,9 @@ def test_the_year_split_skips_an_unreadable_date() -> None:
 
     # The database enforces the date format, so this is belt-and-braces: a bad
     # row is dropped rather than taking the whole report down with it.
-    assert contributions_by_year(frame, AccountType.TFSA) == {2025: Decimal(7000)}
+    assert contributions_by_type_year(frame) == {
+        AccountType.TFSA: {2025: Decimal(7000)},
+    }
 
 
 def test_a_registered_pool_with_no_contributions_has_no_room_row(
@@ -1438,3 +1440,62 @@ def test_a_same_type_transfer_is_skipped_even_when_type_grain_is_tracked(
         # The TFSA type gained only the 3,000 that crossed into it.
         assert tfsa.net_deposited[Currency.CAD] == Decimal(13000)
         assert folio.net_deposited == {Currency.CAD: Decimal(18000)}
+
+
+def _seed_contributions_across_types() -> None:
+    """Contribute to two room-bearing types across two calendar years."""
+    seed_fx(FX_DATES)
+    for account, amount, date in (
+        ("WS-TFSA", "1000", "2025-08-14"),
+        ("WS-TFSA", "500", "2025-08-15"),
+        ("WS-RRSP", "2000", "2025-08-18"),
+    ):
+        seed_transaction(
+            action="CONTRIBUTION",
+            account=account,
+            ticker=None,
+            currency="CAD",
+            amount=amount,
+            price=None,
+            units=None,
+            date=date,
+        )
+
+
+def test_one_scan_keeps_each_types_contributions_apart(
+    temp_ctx: TempContext,
+) -> None:
+    """Reading every type at once must not pool them together."""
+    with temp_ctx():
+        _seed_contributions_across_types()
+
+        every = contributions_by_type_year(build().frame)
+
+        assert every[AccountType.TFSA] == {2025: Decimal(1500)}
+        assert every[AccountType.RRSP] == {2025: Decimal(2000)}
+
+
+def test_room_reads_the_scan_it_was_handed(temp_ctx: TempContext) -> None:
+    """The room line has to read the scan it was handed."""
+    with temp_ctx():
+        _seed_contributions_across_types()
+
+        flows = _flows(
+            Scope.TYPE,
+            "TFSA",
+            account_type=AccountType.TFSA,
+            room={AccountType.TFSA: {2025: Decimal(7000)}},
+        )
+
+        assert flows.room is not None
+        assert flows.room.used == Decimal(1500)
+        assert flows.room.remaining == Decimal(5500)
+
+
+def test_a_type_never_contributed_to_is_absent(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_contributions_across_types()
+
+        every = contributions_by_type_year(build().frame)
+
+        assert AccountType.FHSA not in every

@@ -165,11 +165,11 @@ class Flows:
 
 def build_flows(  # noqa: PLR0913
     result: ReplayResult,
-    frame: pd.DataFrame,
     *,
     scope: Scope,
     pool: str | None,
     label: str,
+    contributions: Mapping[AccountType, Mapping[int, Decimal]],
     account_type: AccountType | None = None,
     room: Mapping[AccountType, Mapping[int, Decimal]] | None = None,
     year: int | None = None,
@@ -179,8 +179,6 @@ def build_flows(  # noqa: PLR0913
     Args:
         result: A completed replay. Its `cash` totals survive a cache round
             trip intact, which is why they are read from here.
-        frame: The master frame, for the per-year contribution split that the
-            cached replay cannot supply.
         scope: The pool grain to read at.
         pool: The account name or account type. Ignored at portfolio grain,
             where the replay credits the literal `FOLIO` key.
@@ -188,6 +186,7 @@ def build_flows(  # noqa: PLR0913
         account_type: The type this pool is, when it is exactly one. Drives
             whether a contribution-room row applies at all.
         room: Configured limits by account type and year.
+        contributions: Every type's per-year contributions
         year: Calendar year to report room for. Defaults to the latest year
             with contributions, so a folio not yet traded in this year still
             reports something meaningful.
@@ -215,35 +214,31 @@ def build_flows(  # noqa: PLR0913
         dividends=_measure(states, "dividends"),
         fees=_measure(states, "fees"),
         realized=_measure(states, "realized_gain"),
-        room=_room(frame, account_type, room or {}, year),
+        room=_room(account_type, room or {}, year, contributions),
     )
 
 
-def contributions_by_year(
+def contributions_by_type_year(
     frame: pd.DataFrame,
-    account_type: AccountType,
-) -> dict[int, Decimal]:
-    """Total contributions to one account type, by calendar year.
+) -> dict[AccountType, dict[int, Decimal]]:
+    """Total contributions to every account type, by calendar year.
 
     Only `CONTRIBUTION` counts. A transfer between two accounts you already own
     consumes no room, however much cash it moves.
 
     Args:
         frame: The master frame.
-        account_type: The type to total.
 
     Returns:
-        Each year mapped to what was contributed to that type.
+        Each account type mapped to its per-year contributions.
     """
     if frame.empty or str(Column.Txn.ACTION) not in frame.columns:
         return {}
 
-    rows = frame[
-        (frame[str(Column.Txn.ACTION)] == str(Action.CONTRIBUTION))
-        & (frame["AcctType"] == str(account_type))
-    ]
-    totals: dict[int, Decimal] = {}
-    for date, amount in zip(
+    rows = frame[frame[str(Column.Txn.ACTION)] == str(Action.CONTRIBUTION)]
+    totals: dict[AccountType, dict[int, Decimal]] = {}
+    for name, date, amount in zip(
+        rows["AcctType"].to_numpy(),
         rows[str(Column.Txn.TXN_DATE)].to_numpy(),
         rows[str(Column.Txn.AMOUNT)].to_numpy(),
         strict=True,
@@ -251,7 +246,12 @@ def contributions_by_year(
         year = _year_of(str(date))
         if year is None:
             continue
-        totals[year] = totals.get(year, ZERO) + abs(dec(amount))
+        try:
+            account_type = AccountType(str(name))
+        except ValueError:
+            continue
+        by_year = totals.setdefault(account_type, {})
+        by_year[year] = by_year.get(year, ZERO) + abs(dec(amount))
     return totals
 
 
@@ -268,16 +268,16 @@ def _measure(
 
 
 def _room(
-    frame: pd.DataFrame,
     account_type: AccountType | None,
     configured: Mapping[AccountType, Mapping[int, Decimal]],
     year: int | None,
+    contributions: Mapping[AccountType, Mapping[int, Decimal]],
 ) -> Room | None:
     """Work out the contribution-room line, or None when it does not apply."""
     if account_type is None or account_type not in ROOM_BEARING_TYPES:
         return None
 
-    by_year = contributions_by_year(frame, account_type)
+    by_year = contributions.get(account_type, {})
     resolved = year if year is not None else (max(by_year) if by_year else None)
     if resolved is None:
         return None

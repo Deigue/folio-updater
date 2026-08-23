@@ -5,7 +5,6 @@ bottom and imports nothing above it. Report rendering lives in `ui`, which is
 at the top and may not be imported by anything below it.
 """
 
-
 from term.console import (
     console_error,
     console_info,

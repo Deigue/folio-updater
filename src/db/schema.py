@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # -- COLUMN DEFINITIONS ---------------------------------------------------
 
+
 class ColumnDefinition:
     """Column definition with type and constraints for database schema."""
 
@@ -184,7 +185,6 @@ QUOTES_COLUMN_DEFINITIONS = [
 
 
 # -- TABLE CREATION -------------------------------------------------------
-
 
 
 def create_txns_table() -> None:

@@ -160,14 +160,15 @@ def load_fx_rates() -> FxRates:
     if frame.empty or Column.FX.FXUSDCAD not in frame.columns:
         return FxRates((), ())
 
+    # convert with `dec` once to test, then add the `pair` to pairs (no double convert)
     pairs = [
-        (str(date), dec(rate))
+        pair
         for date, rate in zip(
             frame[Column.FX.DATE].to_numpy(),
             frame[Column.FX.FXUSDCAD].to_numpy(),
             strict=True,
         )
-        if dec(rate) > ZERO
+        if (pair := (str(date), dec(rate)))[1] > ZERO
     ]
     logger.debug("Loaded %d FX rates for cost-base conversion", len(pairs))
     return FxRates(

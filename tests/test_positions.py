@@ -14,14 +14,14 @@ from domain.numeric import ZERO, dec
 from engine.cache import build
 from engine.fx_rates import FxRates, load_fx_rates
 from engine.positions import (
+    FolioPositions,
     Holding,
     HoldingSet,
     UnknownSortError,
     _Context,
+    _dividends_by_symbol,
     _holding,
     base_currency,
-    build_holdings,
-    folio_market_value,
     held_symbols,
     sort_holdings,
     summarize_closed,
@@ -77,10 +77,11 @@ def test_market_value_and_unrealized_are_exact(temp_ctx: TempContext) -> None:
         # 10 units at $100 USD, so book value is 1,000 USD = 1,250 CAD.
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "120", "110")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -100,10 +101,11 @@ def test_the_day_move_comes_off_the_previous_close(temp_ctx: TempContext) -> Non
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "120", "110")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -131,13 +133,14 @@ def test_day_pnl_pct_divides_by_the_pool_not_the_position(
         # SMALL: 1 unit, priced 100 -> market 125 CAD, day move +10/share.
         seed_transaction(ticker="SMALL", amount="-90", price="90", units="1")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {
                 "BIG": _quote("BIG", "100", "99"),
                 "SMALL": _quote("SMALL", "100", "90"),
             },
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -184,18 +187,12 @@ def test_day_pnl_pct_changes_with_the_scope_displayed(temp_ctx: TempContext) -> 
         frame = _frame()
         fx = load_fx_rates()
 
-        narrow = build_holdings(
-            frame,
-            quotes,
-            fx,
+        narrow = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.TYPE,
             pool="TFSA",
             currency=Currency.CAD,
         )
-        wide = build_holdings(
-            frame,
-            quotes,
-            fx,
+        wide = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -227,12 +224,9 @@ def test_the_two_weights_differ_on_a_narrowed_scope(temp_ctx: TempContext) -> No
         }
         frame = _frame()
         fx = load_fx_rates()
-        folio_total = folio_market_value(frame, quotes, fx, currency=Currency.CAD)
+        folio_total = FolioPositions(frame, quotes, fx).market_value(Currency.CAD)
 
-        narrow = build_holdings(
-            frame,
-            quotes,
-            fx,
+        narrow = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.TYPE,
             pool="TFSA",
             currency=Currency.CAD,
@@ -263,10 +257,7 @@ def test_the_two_weights_match_on_the_portfolio_wide_view(
             "AAA": _quote("AAA", "100", "100"),
             "BBB": _quote("BBB", "100", "100"),
         }
-        holdings = build_holdings(
-            _frame(),
-            quotes,
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), quotes, load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -288,10 +279,11 @@ def test_a_closed_position_is_not_a_holding(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "120", "110")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -329,10 +321,11 @@ def test_a_closed_position_still_counts_toward_totals(temp_ctx: TempContext) -> 
             date="2025-08-18",
         )
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -409,10 +402,11 @@ def test_a_missing_quote_is_excluded_from_totals_not_counted_as_zero(
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
         seed_transaction(ticker="GHOST", amount="-500", price="50", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "100", "100")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -440,10 +434,11 @@ def test_a_quote_in_an_unconvertible_currency_reads_as_unpriced(
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
         euro = _quote("AAA", "120", "110", Currency.EUR)
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": euro},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -465,10 +460,11 @@ def test_a_not_found_quote_does_not_price_a_position(temp_ctx: TempContext) -> N
             fetched_at=datetime.now(UTC),
             status=QuoteStatus.NOT_FOUND,
         )
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": missing},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -486,10 +482,7 @@ def test_usd_display_drops_cad_denominated_holdings(temp_ctx: TempContext) -> No
             "USDCO": _quote("USDCO", "100", "100"),
             "CADCO": _quote("CADCO", "100", "100", Currency.CAD),
         }
-        holdings = build_holdings(
-            _frame(),
-            quotes,
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), quotes, load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency=Currency.USD,
         )
@@ -509,10 +502,7 @@ def test_cad_display_keeps_both_denominations(temp_ctx: TempContext) -> None:
             "USDCO": _quote("USDCO", "100", "100"),
             "CADCO": _quote("CADCO", "100", "100", Currency.CAD),
         }
-        holdings = build_holdings(
-            _frame(),
-            quotes,
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), quotes, load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -537,10 +527,11 @@ def test_market_value_uses_todays_rate_while_book_value_keeps_its_own(
         )
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "100", "100")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -558,10 +549,11 @@ def test_native_currency_leaves_each_holding_alone(temp_ctx: TempContext) -> Non
         seed_fx(FX_DATES)
         seed_transaction(ticker="USDCO", currency="USD", amount="-1000", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"USDCO": _quote("USDCO", "120", "110")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -580,10 +572,11 @@ def test_a_zero_price_does_not_divide_by_zero(temp_ctx: TempContext) -> None:
 
         # `_number` reads a zero price as no price at all, which is the honest
         # reading: a security does not trade at zero.
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "0", "0")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -596,10 +589,11 @@ def test_an_all_unpriced_pool_reports_no_total(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -621,10 +615,11 @@ def test_an_empty_fx_table_does_not_crash(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="CADCO", currency="CAD", amount="-1000", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"CADCO": _quote("CADCO", "120", "110", Currency.CAD)},
             FxRates((), ()),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -661,18 +656,12 @@ def test_an_account_scope_sees_only_its_own_units(temp_ctx: TempContext) -> None
         quotes = {"AAA": _quote("AAA", "100", "100")}
         fx = load_fx_rates()
 
-        one = build_holdings(
-            frame,
-            quotes,
-            fx,
+        one = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.ACCOUNT,
             pool="IBKR-TFSA",
             currency=Currency.CAD,
         )
-        pooled = build_holdings(
-            frame,
-            quotes,
-            fx,
+        pooled = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.TYPE,
             pool="TFSA",
             currency=Currency.CAD,
@@ -697,10 +686,11 @@ def test_total_pnl_is_unrealized_plus_realized_plus_dividends(
             date="2025-08-18",
         )
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "120", "110")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -727,10 +717,11 @@ def test_realized_gains_reach_the_holding(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "150", "150")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -756,10 +747,11 @@ def test_an_unpriced_holding_reports_no_total(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -798,18 +790,12 @@ def test_dividends_pool_to_the_scope(temp_ctx: TempContext) -> None:
         quotes = {"AAA": _quote("AAA", "100", "100")}
         fx = load_fx_rates()
 
-        one = build_holdings(
-            frame,
-            quotes,
-            fx,
+        one = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.ACCOUNT,
             pool="WS-TFSA",
             currency="native",
         )
-        pooled = build_holdings(
-            frame,
-            quotes,
-            fx,
+        pooled = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.TYPE,
             pool="TFSA",
             currency="native",
@@ -825,17 +811,22 @@ def _sortable() -> list[Holding]:
     seed_transaction(ticker="BIG", amount="-9000", price="90", units="100")
     seed_transaction(ticker="MID", amount="-2000", price="100", units="20")
     seed_transaction(ticker="AAA", amount="-100", price="50", units="2")
-    return build_holdings(
-        _frame(),
-        {
-            "BIG": _quote("BIG", "100", "99"),
-            "MID": _quote("MID", "80", "80"),
-            "AAA": _quote("AAA", "500", "400"),
-        },
-        load_fx_rates(),
-        scope=Scope.FOLIO,
-        currency="native",
-    ).holdings
+    return (
+        FolioPositions(
+            _frame(),
+            {
+                "BIG": _quote("BIG", "100", "99"),
+                "MID": _quote("MID", "80", "80"),
+                "AAA": _quote("AAA", "500", "400"),
+            },
+            load_fx_rates(),
+        )
+        .holdings(
+            scope=Scope.FOLIO,
+            currency="native",
+        )
+        .holdings
+    )
 
 
 def test_sorting_defaults_to_largest_first(temp_ctx: TempContext) -> None:
@@ -890,13 +881,18 @@ def test_an_unpriced_holding_sinks_in_either_direction(
         seed_transaction(ticker="PRICED", amount="-1000", units="10")
         seed_transaction(ticker="GHOST", amount="-500", units="10")
 
-        holdings = build_holdings(
-            _frame(),
-            {"PRICED": _quote("PRICED", "100", "100")},
-            load_fx_rates(),
-            scope=Scope.FOLIO,
-            currency="native",
-        ).holdings
+        holdings = (
+            FolioPositions(
+                _frame(),
+                {"PRICED": _quote("PRICED", "100", "100")},
+                load_fx_rates(),
+            )
+            .holdings(
+                scope=Scope.FOLIO,
+                currency="native",
+            )
+            .holdings
+        )
 
         # A blank is not a zero, so it never leads an ascending sort.
         for reverse in (False, True):
@@ -915,16 +911,17 @@ def test_sorting_by_something_that_is_not_a_column_is_refused(
         sort_holdings(_sortable(), "nonsense")
 
 
-def test_build_holdings_takes_a_sort(temp_ctx: TempContext) -> None:
+def test_holdings_takes_a_sort(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         seed_transaction(ticker="BIG", amount="-9000", price="90", units="100")
         seed_transaction(ticker="AAA", amount="-100", price="50", units="2")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"BIG": _quote("BIG", "100", "99"), "AAA": _quote("AAA", "500", "400")},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
             sort="symbol",
@@ -955,10 +952,7 @@ def test_native_keeps_each_holding_in_its_own_currency(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -984,10 +978,7 @@ def test_the_base_figures_are_cad_even_in_native_mode(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -1005,10 +996,7 @@ def test_native_totals_are_grouped_by_currency(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -1043,10 +1031,7 @@ def test_weights_are_common_currency_even_when_rows_are_not(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -1058,10 +1043,7 @@ def test_weights_are_common_currency_even_when_rows_are_not(
 def _mixed_groups() -> HoldingSet:
     """Seed the two-currency folio and value it natively."""
     _mixed_folio()
-    return build_holdings(
-        _frame(),
-        _mixed_quotes(),
-        load_fx_rates(),
+    return FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
         scope=Scope.FOLIO,
         currency="native",
     )
@@ -1140,10 +1122,11 @@ def test_a_single_currency_pool_is_not_mixed(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="CADCO", currency="CAD", amount="-1000", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"CADCO": _quote("CADCO", "150", "150", Currency.CAD)},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency="native",
         )
@@ -1157,10 +1140,7 @@ def test_forcing_cad_leaves_one_group(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency=Currency.CAD,
         )
@@ -1174,10 +1154,7 @@ def test_forcing_usd_totals_in_usd(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = build_holdings(
-            _frame(),
-            _mixed_quotes(),
-            load_fx_rates(),
+        holdings = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
             scope=Scope.FOLIO,
             currency=Currency.USD,
         )
@@ -1199,10 +1176,11 @@ def test_a_usd_view_converts_a_cad_quote_back(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", currency="USD", amount="-1000", units="10")
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {"AAA": _quote("AAA", "125", "125", Currency.CAD)},
             load_fx_rates(),
+        ).holdings(
             scope=Scope.FOLIO,
             currency=Currency.USD,
         )
@@ -1239,10 +1217,11 @@ def test_an_empty_frame_holds_nothing() -> None:
     empty = pd.DataFrame()
 
     assert held_symbols(empty) == []
-    holdings = build_holdings(
+    holdings = FolioPositions(
         empty,
         {},
         FxRates((), ()),
+    ).holdings(
         scope=Scope.FOLIO,
         currency=Currency.CAD,
     )
@@ -1275,10 +1254,11 @@ def test_an_empty_folio_yields_an_empty_holding_set(
         seed_fx(FX_DATES)
         seed_transaction(action="CONTRIBUTION", ticker=None, amount="1000", units=None)
 
-        holdings = build_holdings(
+        holdings = FolioPositions(
             _frame(),
             {},
             load_fx_rates(),
+        ).holdings(
             scope=scope,
             pool="TESTACCT",
             currency=Currency.CAD,
@@ -1286,3 +1266,142 @@ def test_an_empty_folio_yields_an_empty_holding_set(
 
         assert holdings.holdings == []
         assert holdings.unpriced == ()
+
+
+def _two_type_folio() -> None:
+    """Seed a folio holding the same security in two account types."""
+    seed_fx(FX_DATES)
+    seed_transaction(account="WS-TFSA", ticker="AAA", amount="-1000", units="10")
+    seed_transaction(account="WS-RRSP", ticker="AAA", amount="-2000", units="20")
+    seed_transaction(account="WS-RRSP", ticker="BBB", amount="-500", units="5")
+    seed_transaction(
+        action="DIVIDEND",
+        account="WS-TFSA",
+        ticker="AAA",
+        amount="40",
+        price=None,
+        units=None,
+        date="2025-08-18",
+    )
+
+
+def test_positions_derives_each_pools_rollups_once(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _two_type_folio()
+        positions = FolioPositions(
+            _frame(),
+            {"AAA": _quote("AAA", "100", "100")},
+            load_fx_rates(),
+        )
+
+        first = positions.rollups(Scope.FOLIO, None)
+        positions.held_symbols()
+        positions.market_value(Currency.CAD)
+        positions.holdings(scope=Scope.FOLIO, currency=Currency.CAD)
+
+        # Same object, not merely an equal one.
+        assert positions.rollups(Scope.FOLIO, None) is first
+        # A different pool is a different derivation.
+        assert positions.rollups(Scope.TYPE, "TFSA") is not first
+
+
+def test_pricing_later_keeps_the_rollups_already_derived(
+    temp_ctx: TempContext,
+) -> None:
+    """Symbols have to be known before quotes can be fetched for them."""
+    with temp_ctx():
+        _two_type_folio()
+        positions = FolioPositions(_frame(), {}, load_fx_rates())
+
+        assert positions.held_symbols() == ["AAA", "BBB"]
+        derived = positions.rollups(Scope.FOLIO, None)
+
+        positions.price({"AAA": _quote("AAA", "100", "100")})
+
+        assert positions.rollups(Scope.FOLIO, None) is derived
+        # The total reflects the quotes supplied afterwards, not the empty set.
+        assert positions.market_value(Currency.CAD) == Decimal(3750)
+
+
+def test_priming_a_grain_matches_deriving_each_pool_alone(
+    temp_ctx: TempContext,
+) -> None:
+    """The one-pass split has to agree with narrowing pool by pool."""
+    with temp_ctx():
+        _two_type_folio()
+        frame = _frame()
+        quotes = {"AAA": _quote("AAA", "100", "100")}
+        fx = load_fx_rates()
+
+        primed = FolioPositions(frame, quotes, fx)
+        primed.prime(Scope.TYPE)
+
+        for pool in ("TFSA", "RRSP"):
+            alone = FolioPositions(frame, quotes, fx).holdings(
+                scope=Scope.TYPE,
+                pool=pool,
+                currency=Currency.CAD,
+            )
+            assert (
+                primed.holdings(
+                    scope=Scope.TYPE,
+                    pool=pool,
+                    currency=Currency.CAD,
+                )
+                == alone
+            )
+
+
+def test_priming_leaves_a_pool_already_derived_alone(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _two_type_folio()
+        positions = FolioPositions(_frame(), {}, load_fx_rates())
+
+        first = positions.rollups(Scope.TYPE, "TFSA")
+        positions.prime(Scope.TYPE)
+
+        assert positions.rollups(Scope.TYPE, "TFSA") is first
+
+
+def test_priming_the_portfolio_grain_is_a_no_op(temp_ctx: TempContext) -> None:
+    """Portfolio grain is one pool, so there is nothing to split."""
+    with temp_ctx():
+        _two_type_folio()
+        positions = FolioPositions(_frame(), {}, load_fx_rates())
+
+        positions.prime(Scope.FOLIO)
+
+        assert positions.rollups(Scope.FOLIO, None).summary.empty is False
+
+
+def test_a_security_that_paid_nothing_reads_as_zero_dividends(
+    temp_ctx: TempContext,
+) -> None:
+    """The rollup skips non-income rows, so most securities are simply absent."""
+    with temp_ctx():
+        _two_type_folio()
+        holdings = FolioPositions(
+            _frame(),
+            {"AAA": _quote("AAA", "100", "100"), "BBB": _quote("BBB", "100", "100")},
+            load_fx_rates(),
+        ).holdings(
+            scope=Scope.FOLIO,
+            currency=Currency.CAD,
+        )
+
+        by_symbol = {held.symbol: held for held in holdings.holdings}
+        # 40 USD at 1.25.
+        assert by_symbol["AAA"].dividends == Decimal(50)
+        assert by_symbol["BBB"].dividends == ZERO
+
+
+def test_a_dividend_row_carrying_no_symbol_is_skipped() -> None:
+    """Income has to belong to a security before it can be totalled to one."""
+    frame = pd.DataFrame(
+        [
+            {"Symbol": "AAA", "Dividend": 10.0, "Dividend_USD": None},
+            {"Symbol": None, "Dividend": 99.0, "Dividend_USD": None},
+        ],
+    )
+
+    assert _dividends_by_symbol(frame) == {"AAA": (Decimal(10), ZERO)}

@@ -51,6 +51,12 @@ CONTEXT_COLUMNS = ["Symbol", "AcctType", "Impact", "FXRate", "FXDate", "Flags"]
 # Measures shared by every scope.
 SHARED_COLUMNS = ["Proceeds", "Proceeds_USD", "Dividend", "Dividend_USD"]
 
+# The column a pool at each grain is named by.
+POOL_COLUMN: dict[Scope, str] = {
+    Scope.ACCOUNT: str(Column.Txn.ACCOUNT),
+    Scope.TYPE: "AcctType",
+}
+
 # The prefix each scope's column family carries.
 SCOPE_PREFIX: dict[Scope, str] = {
     Scope.ACCOUNT: "Acct",
@@ -215,27 +221,82 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if tracked.empty:
         return pd.DataFrame(columns=["Symbol", *_summary_columns()])
 
-    records: list[dict[str, object]] = []
-    ordered = tracked.sort_values(
+    records = [
+        _summary_record(symbol, rows.iloc[-1])
+        for symbol, rows in _trade_ordered(tracked).groupby("Symbol", sort=True)
+    ]
+    return pd.DataFrame(records, columns=["Symbol", *_summary_columns()])
+
+
+def acb_summary_frames_by_pool(
+    frame: pd.DataFrame,
+    scope: Scope,
+) -> dict[str, pd.DataFrame]:
+    """Summarise every pool at one grain in a single pass over the frame.
+
+    Args:
+        frame: A master frame.
+        scope: The pool grain to split by. Portfolio grain has a single pool and
+            is not a split, so it is rejected.
+
+    Returns:
+        Each pool name mapped to the summary frame `acb_summary_frame` would
+        have produced for it. Pools whose rows track no symbol are absent.
+
+    Raises:
+        ValueError: If asked to split at portfolio grain.
+    """
+    if scope is Scope.FOLIO:
+        msg = "Portfolio grain is a single pool; use acb_summary_frame instead."
+        raise ValueError(msg)
+
+    column = POOL_COLUMN[scope]
+    if frame.empty or "Symbol" not in frame.columns or column not in frame.columns:
+        return {}
+
+    # frame where symbols are not missing
+    tracked = frame[frame["Symbol"].notna()].reset_index(drop=True)
+    if tracked.empty:
+        return {}
+
+    grouped: dict[str, list[dict[str, object]]] = {}
+    for (pool, symbol), rows in _trade_ordered(tracked).groupby(
+        [column, "Symbol"],
+        sort=True,
+    ):
+        grouped.setdefault(str(pool), []).append(
+            _summary_record(symbol, rows.iloc[-1]),
+        )
+
+    columns = ["Symbol", *_summary_columns()]
+    return {
+        pool: pd.DataFrame(records, columns=columns)
+        for pool, records in grouped.items()
+    }
+
+
+def _trade_ordered(tracked: pd.DataFrame) -> pd.DataFrame:
+    """Put the tracked rows in the order the cost base was replayed in."""
+    return tracked.sort_values(
         [str(Column.Txn.TXN_DATE), str(Column.Txn.TXN_ID)],
         kind="stable",
     )
-    for symbol, rows in ordered.groupby("Symbol", sort=True):
-        last = rows.iloc[-1]
-        record: dict[str, object] = {"Symbol": symbol}
-        for scope in Scope:
-            for suffix in ("Units", "ACB", "ACB_USD", "Gain", "Gain_USD"):
-                column = scope_column(scope, suffix)
-                record[column] = last[column]
-            # Both averages are computed rather than carried
-            for suffix in ("Avg", "Avg_USD"):
-                record[scope_column(scope, suffix)] = _average(
-                    last[scope_column(scope, "Units")],
-                    last[scope_column(scope, suffix.replace("Avg", "ACB"))],
-                )
-        records.append(record)
 
-    return pd.DataFrame(records, columns=["Symbol", *_summary_columns()])
+
+def _summary_record(symbol: object, last: pd.Series) -> dict[str, object]:
+    """Read one symbol's closing position off the last row that touched it."""
+    record: dict[str, object] = {"Symbol": symbol}
+    for scope in Scope:
+        for suffix in ("Units", "ACB", "ACB_USD", "Gain", "Gain_USD"):
+            column = scope_column(scope, suffix)
+            record[column] = last[column]
+        # Both averages are computed rather than carried
+        for suffix in ("Avg", "Avg_USD"):
+            record[scope_column(scope, suffix)] = _average(
+                last[scope_column(scope, "Units")],
+                last[scope_column(scope, suffix.replace("Avg", "ACB"))],
+            )
+    return record
 
 
 def _summary_columns() -> list[str]:

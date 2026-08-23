@@ -17,7 +17,13 @@ from domain import (
     Scope,
     WarningCode,
 )
-from engine.frames import acb_summary_frame, master_frame, scope_column
+from engine.frames import (
+    POOL_COLUMN,
+    acb_summary_frame,
+    acb_summary_frames_by_pool,
+    master_frame,
+    scope_column,
+)
 from engine.fx_rates import FxRates
 from engine.replay import (
     ReplayConfig,
@@ -2512,3 +2518,97 @@ def test_a_same_account_journal_still_needs_one_settle_date() -> None:
 
     assert not pairs
     assert len(unpaired) == 2
+
+
+def _two_account_frame() -> pd.DataFrame:
+    """Two accounts of different types, sharing one security between them."""
+    return master_frame(
+        run(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.BUY,
+                    amount="-1000",
+                    units="100",
+                    price="10",
+                    ticker="AAA",
+                    account="IBKR-TFSA",
+                ),
+                make_row(
+                    2,
+                    "2024-01-03",
+                    Action.BUY,
+                    amount="-500",
+                    units="50",
+                    price="10",
+                    ticker="AAA",
+                    account="IBKR-RRSP",
+                ),
+                make_row(
+                    3,
+                    "2024-01-04",
+                    Action.BUY,
+                    amount="-800",
+                    units="40",
+                    price="20",
+                    ticker="BBB",
+                    account="IBKR-TFSA",
+                ),
+                # A later row in the other account must not become AAA's last
+                # row in the TFSA pool.
+                make_row(
+                    4,
+                    "2024-01-05",
+                    Action.BUY,
+                    amount="-300",
+                    units="30",
+                    price="10",
+                    ticker="AAA",
+                    account="IBKR-RRSP",
+                ),
+            ],
+            types={
+                "IBKR-TFSA": AccountType.TFSA,
+                "IBKR-RRSP": AccountType.RRSP,
+            },
+        ),
+    )
+
+
+@pytest.mark.parametrize("scope", [Scope.ACCOUNT, Scope.TYPE])
+def test_splitting_by_pool_matches_filtering_to_each_pool(scope: Scope) -> None:
+    """The one-pass split is only worth having if it agrees with the slow way."""
+    frame = _two_account_frame()
+    column = POOL_COLUMN[scope]
+    split = acb_summary_frames_by_pool(frame, scope)
+
+    pools = sorted({str(value) for value in frame[column].dropna()})
+    assert sorted(split) == pools
+    for pool in pools:
+        alone = acb_summary_frame(frame[frame[column] == pool])
+        assert split[pool].reset_index(drop=True).equals(alone.reset_index(drop=True))
+
+
+def test_splitting_by_pool_refuses_the_portfolio_grain() -> None:
+    """Portfolio grain is a single pool, so splitting it means nothing."""
+    with pytest.raises(ValueError, match="single pool"):
+        acb_summary_frames_by_pool(_two_account_frame(), Scope.FOLIO)
+
+
+def test_splitting_an_untracked_frame_yields_nothing() -> None:
+    frame = master_frame(
+        run(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.CONTRIBUTION,
+                    amount="1000",
+                    ticker=None,
+                ),
+            ],
+        ),
+    )
+    assert acb_summary_frames_by_pool(frame, Scope.TYPE) == {}
+    assert acb_summary_frames_by_pool(pd.DataFrame(), Scope.TYPE) == {}
