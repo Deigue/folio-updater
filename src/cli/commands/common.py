@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import typer
 
@@ -11,10 +11,10 @@ from app import get_config
 from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
-from domain import Column, Table
+from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Scope, Table
 from exporters import ParquetExporter
 from services import ForexService
-from term import console_error, console_success, console_warning
+from term import announce, console_error, console_success, console_warning
 from term.progress import ProgressDisplay
 
 if TYPE_CHECKING:
@@ -23,10 +23,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Re-exported for existing CLI callers
-__all__ = ["audit_footer", "backup_folio", "ensure_fx_coverage", "txn_count"]
+__all__ = [
+    "PoolView",
+    "audit_footer",
+    "backup_folio",
+    "ensure_fx_coverage",
+    "parse_account_type",
+    "resolve_pool",
+    "txn_count",
+]
 
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
+
+
+class PoolView(NamedTuple):
+    """One resolved request for a pooled report.
+
+    Attributes:
+        scope: The pool grain to report at.
+        pool: The account name or account type the rows are filtered to. Empty
+            at portfolio grain, where nothing is filtered out.
+        label: How the scope reads in a heading.
+    """
+
+    scope: Scope
+    pool: str
+    label: str
 
 
 def ensure_fx_coverage() -> None:
@@ -46,7 +69,69 @@ def ensure_fx_coverage() -> None:
     try:
         ForexService.ensure_coverage(earliest, latest)
     except (OSError, ValueError, KeyError):
-        logger.warning("Could not refresh FX rates; using what is stored")
+        announce.warning("Could not refresh FX rates; using what is stored")
+
+
+def parse_account_type(value: str) -> AccountType | None:
+    """Read a `--type` argument as an `AccountType`.
+
+    Args:
+        value: The argument, in any case, using any recognised alias.
+
+    Returns:
+        The account type, or None when it is not one the engine knows.
+    """
+    token = value.strip().upper()
+    if token in ACCOUNT_TYPE_ALIASES:
+        return ACCOUNT_TYPE_ALIASES[token]
+    try:
+        return AccountType(token)
+    except ValueError:
+        return None
+
+
+def resolve_pool(
+    account: str | None,
+    account_type: str | None,
+    *,
+    folio: bool,
+    default_type: str | None = None,
+) -> PoolView:
+    """Decide which pool a `-a` / `-t` / `--folio` request is asking about.
+
+    Args:
+        account: A single broker account, when `--account` was given.
+        account_type: An account type, when `--type` was given.
+        folio: Whether `--folio` asked for the portfolio-wide pool.
+        default_type: The type a bare invocation reports, or None to mean the
+            whole portfolio.
+
+    Returns:
+        The resolved pool.
+
+    Raises:
+        typer.Exit: If both `-a` and `-t` were given, or if the requested
+            account type is not one the engine knows.
+    """
+    if account and account_type:
+        console_error(
+            "Use --account or --type, not both: a dashboard shows one pool.",
+        )
+        raise typer.Exit(1)
+
+    if account:
+        return PoolView(Scope.ACCOUNT, account, account)
+    if folio or (account_type is None and default_type is None):
+        return PoolView(Scope.FOLIO, "", "Portfolio")
+
+    resolved = parse_account_type(account_type or default_type or "")
+    if resolved is None:
+        console_error(
+            f"Unknown account type '{account_type}'. Try one of: "
+            f"{', '.join(str(member).lower() for member in AccountType)}",
+        )
+        raise typer.Exit(1)
+    return PoolView(Scope.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
 
 
 def export_to_parquet() -> None:

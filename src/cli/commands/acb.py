@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import ensure_fx_coverage
+from cli.commands.common import ensure_fx_coverage, resolve_pool
 from domain import Column, Scope
 from engine.cache import load_or_build
 from services.symbols import load_symbol_resolver
@@ -26,17 +26,6 @@ if TYPE_CHECKING:
 # Income rows are hidden unless `--all` asks for them: a dividend never touches
 # the cost base, so it is noise in a buildup.
 INCOME_IMPACT = "INCOME"
-
-
-def _resolve_type(value: str) -> AccountType | None:
-    """Read a `--type` argument as an `AccountType`."""
-    token = value.strip().upper()
-    if token in ACCOUNT_TYPE_ALIASES:
-        return ACCOUNT_TYPE_ALIASES[token]
-    try:
-        return AccountType(token)
-    except ValueError:
-        return None
 
 
 def resolve_view(
@@ -61,19 +50,13 @@ def resolve_view(
     Raises:
         typer.Exit: If the requested account type is not one the engine knows.
     """
-    if folio:
-        return AcbView(Scope.FOLIO, "", "portfolio")
-    if account:
-        return AcbView(Scope.ACCOUNT, account, account)
-
-    resolved = _resolve_type(account_type or "nreg")
-    if resolved is None:
-        console_error(
-            f"Unknown account type '{account_type}'. Try one of: "
-            f"{', '.join(str(member).lower() for member in AccountType)}",
-        )
-        raise typer.Exit(1)
-    return AcbView(Scope.TYPE, str(resolved), str(resolved).replace("_", "-").lower())
+    scope, pool, label = resolve_pool(
+        account,
+        account_type,
+        folio=folio,
+        default_type="nreg",
+    )
+    return AcbView(scope, pool, label if scope is Scope.ACCOUNT else label.lower())
 
 
 def _filter_rows(

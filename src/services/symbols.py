@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from db.queries import get_alias_edges, get_connection
+from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -53,6 +54,8 @@ class SymbolResolver:
             str(key).strip().upper(): str(value)
             for key, value in (overrides or {}).items()
         }
+        # Track each cycle once.
+        self._reported_cycles: set[str] = set()
 
     def canonical(self, ticker: str, on: str | None = None) -> str:
         """Follow renames to the name a security carries today.
@@ -78,7 +81,13 @@ class SymbolResolver:
                 return current
             if new in seen:
                 # A cycle in the alias table is bad data, not a reason to hang.
-                logger.warning("Cycle in ticker aliases at '%s'; stopping there", new)
+                if new not in self._reported_cycles:
+                    self._reported_cycles.add(new)
+                    announce.warning(
+                        f"Cycle in ticker aliases at '{new}'; stopping there. "
+                        "Fix it with `folio symbol`, or renames past it will not "
+                        "resolve.",
+                    )
                 return current
             seen.add(new)
             current = new

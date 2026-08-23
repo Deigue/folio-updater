@@ -175,10 +175,20 @@ def test_oversell_goes_negative_and_warns() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                2, "2024-03-04", Action.SELL, amount="2250", units="-150", price="15",
+                2,
+                "2024-03-04",
+                Action.SELL,
+                amount="2250",
+                units="-150",
+                price="15",
             ),
         ],
     )
@@ -265,7 +275,12 @@ def test_cad_holding_has_blank_usd_columns() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
         ],
     )
@@ -285,7 +300,12 @@ def test_roc_reduces_acb_and_moves_no_cash() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-05-02", Action.ROC, amount="250"),
         ],
@@ -317,7 +337,12 @@ def test_split_preserves_acb() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-06-10", Action.SPLIT, units="10", price="1"),
         ],
@@ -333,7 +358,12 @@ def test_duplicate_split_applied_once() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-06-10", Action.SPLIT, units="10", price="1"),
             make_row(3, "2024-06-10", Action.SPLIT, units="10", price="1"),
@@ -374,7 +404,12 @@ def test_split_in_two_accounts_pools_once_but_splits_each() -> None:
                 account="IBKR-TFSA",
             ),
             make_row(
-                4, "2024-06-10", Action.SPLIT, units="10", price="1", account="WS-TFSA",
+                4,
+                "2024-06-10",
+                Action.SPLIT,
+                units="10",
+                price="1",
+                account="WS-TFSA",
             ),
         ],
         types={"IBKR-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
@@ -426,7 +461,12 @@ def test_negative_dividend_reversal_is_not_coerced_positive() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="10", price="100",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="10",
+                price="100",
             ),
             make_row(2, "2024-04-01", Action.DIVIDEND, amount="-15"),
             make_row(3, "2024-04-01", Action.DIVIDEND, amount="18"),
@@ -449,10 +489,20 @@ def test_dividend_shortly_after_a_sale_is_not_orphaned() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                2, "2024-03-01", Action.SELL, amount="1200", units="-100", price="12",
+                2,
+                "2024-03-01",
+                Action.SELL,
+                amount="1200",
+                units="-100",
+                price="12",
             ),
             make_row(3, "2024-03-20", Action.DIVIDEND, amount="20"),
         ],
@@ -465,10 +515,20 @@ def test_dividend_long_after_a_sale_is_still_orphaned() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                2, "2024-03-01", Action.SELL, amount="1200", units="-100", price="12",
+                2,
+                "2024-03-01",
+                Action.SELL,
+                amount="1200",
+                units="-100",
+                price="12",
             ),
             make_row(3, "2024-08-20", Action.DIVIDEND, amount="20"),
         ],
@@ -485,7 +545,12 @@ def test_the_closing_row_still_counts_as_a_day_held() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-06-01", Action.TFR_OUT, units="100", ticker="TEST"),
             make_row(3, "2024-06-20", Action.DIVIDEND, amount="20"),
@@ -713,7 +778,12 @@ def test_transfer_unpaired_warns() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-05-01", Action.TFR_OUT, units="-100"),
         ],
@@ -814,7 +884,11 @@ def test_sub_cent_cash_residue_is_not_an_overdraft() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.CONTRIBUTION, amount="1000.00", ticker=None,
+                1,
+                "2024-01-02",
+                Action.CONTRIBUTION,
+                amount="1000.00",
+                ticker=None,
             ),
             make_row(
                 2,
@@ -841,7 +915,11 @@ def test_a_one_cent_overdraft_is_still_reported() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.CONTRIBUTION, amount="1000.00", ticker=None,
+                1,
+                "2024-01-02",
+                Action.CONTRIBUTION,
+                amount="1000.00",
+                ticker=None,
             ),
             make_row(
                 2,
@@ -863,10 +941,20 @@ def test_cash_negative_reports_the_first_crossing_only() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                2, "2024-02-02", Action.BUY, amount="-1000", units="100", price="10",
+                2,
+                "2024-02-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
         ],
     )
@@ -1093,7 +1181,12 @@ def test_settle_before_trade_is_trades_only(action: Action) -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-03-04", action, amount="500", settle_date="2024-03-01"),
         ],
@@ -1105,13 +1198,28 @@ def test_superficial_loss_suspect() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                2, "2024-03-04", Action.SELL, amount="700", units="-100", price="7",
+                2,
+                "2024-03-04",
+                Action.SELL,
+                amount="700",
+                units="-100",
+                price="7",
             ),
             make_row(
-                3, "2024-03-20", Action.BUY, amount="-720", units="100", price="7.20",
+                3,
+                "2024-03-20",
+                Action.BUY,
+                amount="-720",
+                units="100",
+                price="7.20",
             ),
         ],
     )
@@ -1123,11 +1231,21 @@ def test_superficial_loss_suspect_buy_precedes_sale() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-02-20", Action.BUY, amount="-350", units="50", price="7"),
             make_row(
-                3, "2024-03-04", Action.SELL, amount="700", units="-100", price="7",
+                3,
+                "2024-03-04",
+                Action.SELL,
+                amount="700",
+                units="-100",
+                price="7",
             ),
         ],
     )
@@ -1175,7 +1293,12 @@ def test_flags_include_codes_raised_after_the_row_was_emitted() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
         ],
     )
@@ -1368,7 +1491,12 @@ def test_split_with_a_non_positive_ratio_is_skipped() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(2, "2024-06-10", Action.SPLIT, units="10", price="0"),
         ],
@@ -1396,7 +1524,12 @@ def test_dust_snaps_to_zero_and_rolls_residual_into_gain() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
                 2,
@@ -1878,10 +2011,20 @@ def test_a_same_day_buy_then_sell_is_not_an_oversell() -> None:
     result = run(
         [
             make_row(
-                2, "2024-03-04", Action.SELL, amount="1200", units="-100", price="12",
+                2,
+                "2024-03-04",
+                Action.SELL,
+                amount="1200",
+                units="-100",
+                price="12",
             ),
             make_row(
-                1, "2024-03-04", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-03-04",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
         ],
     )
@@ -1927,10 +2070,20 @@ def test_a_same_day_split_applies_before_the_sale() -> None:
     result = run(
         [
             make_row(
-                1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10",
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
             ),
             make_row(
-                3, "2024-06-10", Action.SELL, amount="1200", units="-500", price="2.4",
+                3,
+                "2024-06-10",
+                Action.SELL,
+                amount="1200",
+                units="-500",
+                price="2.4",
             ),
             make_row(2, "2024-06-10", Action.SPLIT, units="10", price="1"),
         ],
@@ -1968,7 +2121,11 @@ def test_cost_base_follows_trade_date_not_settle_date() -> None:
                 settle_date="2024-03-06",
             ),
             make_row(
-                3, "2024-03-05", Action.ROC, amount="200", settle_date="2024-03-05",
+                3,
+                "2024-03-05",
+                Action.ROC,
+                amount="200",
+                settle_date="2024-03-05",
             ),
         ],
     )
@@ -2252,3 +2409,106 @@ def test_fee_convention_detection_survives_negative_fees() -> None:
     detected = detect_fee_conventions(rows, detect_fee_signs(rows))
     assert detected["IBKR-PERSONAL"] is FeeConvention.EXCLUDED
     assert detected["QT-TFSA"] is FeeConvention.INCLUDED
+
+
+def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[TxnRow]:
+    """Build a position bought at one broker and moved in kind to another."""
+    return [
+        make_row(
+            1,
+            "2024-04-01",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+            account="QT-TFSA",
+        ),
+        make_row(2, "2024-05-01", Action.TFR_OUT, units="-100", account="QT-TFSA"),
+        make_row(
+            3,
+            "2024-05-01",
+            Action.TFR_IN,
+            units=in_units,
+            account="WS-TFSA",
+            settle_date=in_settle,
+        ),
+    ]
+
+
+def test_transfer_legs_settling_days_apart_still_pair() -> None:
+    """The sending broker releases on one date, the receiving one credits later."""
+    pairs, unpaired = pair_transfers(_cross_broker_legs("2024-05-05"))
+
+    assert len(pairs) == 1
+    assert not unpaired
+
+
+def test_transfer_legs_settling_far_apart_do_not_pair() -> None:
+    """The window is narrow on purpose, so unrelated legs stay unrelated."""
+    pairs, unpaired = pair_transfers(_cross_broker_legs("2024-07-01"))
+
+    assert not pairs
+    assert len(unpaired) == 2
+
+
+def test_a_fractionally_rounded_in_leg_still_pairs() -> None:
+    """Brokers report fractional shares to differing precision.
+
+    A reinvested-dividend holding can arrive rounded a hundred-thousandth off.
+    That is a rounding difference, not a different share count, and refusing to
+    pair on it loses the whole cost base.
+    """
+    pairs, unpaired = pair_transfers(_cross_broker_legs("2024-05-01", "99.99999"))
+
+    assert len(pairs) == 1
+    assert not unpaired
+
+
+def test_a_paired_cross_broker_transfer_carries_its_cost_base() -> None:
+    """The point of pairing across a date gap: the cost base follows the units."""
+    result = run(
+        _cross_broker_legs("2024-05-05"),
+        types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
+    )
+
+    assert WarningCode.TRANSFER_UNPAIRED not in codes(result)
+    assert result.rows[2].acct.units == D("100")
+    assert result.rows[2].acct.acb_cad == D("1000")
+
+
+def test_a_same_account_journal_still_needs_one_settle_date() -> None:
+    """A broker rebooking one balance lands both sides together."""
+    rows = [
+        make_row(
+            1,
+            "2024-04-01",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+            ticker="DLR.TO",
+            account="QT-RRSP",
+        ),
+        make_row(
+            2,
+            "2024-05-01",
+            Action.TFR_OUT,
+            units="-100",
+            ticker="DLR.TO",
+            account="QT-RRSP",
+        ),
+        make_row(
+            3,
+            "2024-05-01",
+            Action.TFR_IN,
+            units="100",
+            ticker="DLR.U.TO",
+            account="QT-RRSP",
+            settle_date="2024-05-03",
+        ),
+    ]
+
+    pairs, unpaired = pair_transfers(rows)
+
+    assert not pairs
+    assert len(unpaired) == 2

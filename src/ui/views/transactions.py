@@ -335,7 +335,7 @@ class TransactionDisplay:
             columns: Columns to render, as given by `_ordered_columns`.
 
         Returns:
-            Mapping of column name to its formatted, markup-bearing cell text.
+            Mapping of column name to its formatted cell text.
         """
         action = row.get(Column.Txn.ACTION, "")
         action_color = TRANSACTION_COLORS.get(action, "white")
