@@ -54,6 +54,7 @@ class Holding:
             has earned. None when it could not be priced, since a third of the
             sum would then be unknown.
         total_pnl_pct: `total_pnl / book_value`.
+        total_pnl_cad: `total_pnl` in CAD
         weight_in_pool: Market value as a share of the displayed pool.
         weight_in_folio: Market value as a share of the whole portfolio.
         priced: Whether a usable price was found.
@@ -92,6 +93,7 @@ class Holding:
     realized_base: Decimal = ZERO
     dividends_base: Decimal = ZERO
     total_pnl_base: Decimal | None = None
+    total_pnl_cad: Decimal | None = None
     closed: bool = False
 
     @property
@@ -215,6 +217,8 @@ class HoldingSet:
         total_realized: Realized gain across every holding.
         total_dividends: Dividends received across every holding.
         total_pnl: Everything the pool has earned.
+        total_pnl_cad: `total_pnl` in CAD.
+        excluded: Positions the currency filter dropped from the pool.
         unpriced: Symbols held but not valued, excluded from every total.
         fx_rate: The USDCAD rate used to convert, when one was needed.
         fx_date: The date that rate is from, for disclosure.
@@ -234,6 +238,8 @@ class HoldingSet:
     total_realized: Decimal = ZERO
     total_dividends: Decimal = ZERO
     total_pnl: Decimal | None = None
+    total_pnl_cad: Decimal | None = None
+    excluded: int = 0
     unpriced: tuple[str, ...] = ()
     fx_rate: Decimal | None = None
     fx_date: str | None = None
@@ -262,6 +268,11 @@ class HoldingSet:
             return None
         return safe_div(self.total_unrealized, self.total_book)
 
+    @property
+    def deposits_measurable(self) -> bool:
+        """If holdings are excluded, net deposits are not measurable."""
+        return self.excluded == 0
+
     def return_on(self, denominator: Decimal | None) -> Decimal | None:
         """Divide everything the pool earned by the Net Deposits provided.
 
@@ -277,11 +288,14 @@ class HoldingSet:
                 flows or the pool holds none of its own money.
 
         Returns:
-            The ratio, or None when either side is missing.
+            The ratio, or None when either side is missing or we are only seeing
+            a subset of holdings.
         """
-        if self.total_pnl is None or not denominator:
+        if self.total_pnl_cad is None or not denominator:
             return None
-        return safe_div(self.total_pnl, denominator)
+        if not self.deposits_measurable:
+            return None
+        return safe_div(self.total_pnl_cad, denominator)
 
     @property
     def flags(self) -> tuple[WarningCode, ...]:
@@ -483,12 +497,18 @@ class FolioPositions:
         base = base_currency(currency)
 
         priced_base = ZERO
+        excluded = 0
         partial: list[Holding] = []
         closed: list[Holding] = []
         context = _Context(quotes, flags, income, scope, pool or "", currency, fx)
+        # Only `-c USD` ever hides a position, so only it has to keep count.
+        filtering = currency is Currency.USD
         for record in summary.to_dict("records"):
             holding = _holding(record, context)
             if holding is None:
+                # Count if we excluded anything due to currency filtering.
+                if filtering:
+                    excluded += _filtered_out(record, scope)
                 continue
             if holding.closed:
                 closed.append(holding)
@@ -533,6 +553,8 @@ class FolioPositions:
                 sum((h.dividends_base for h in holdings), ZERO)
                 + sum((h.dividends_base for h in closed), ZERO)
             ),
+            excluded=excluded,
+            total_pnl_cad=_total_pnl_cad(holdings, closed, any_priced=any_priced),
             total_pnl=_total_pnl(
                 _sum_optional(h.total_pnl_base for h in holdings),
                 has_open=bool(holdings),
@@ -627,6 +649,37 @@ def _by_currency(
     return tuple(groups)
 
 
+def _total_pnl_cad(
+    holdings: list[Holding],
+    closed: list[Holding],
+    *,
+    any_priced: bool,
+) -> Decimal | None:
+    """Total what the pool earned in CAD, or None when part of it is unknown.
+
+    Unlike the base total, this one refuses to be partial. It exists only as the
+    numerator of a return against net deposits, and a sum quietly missing a
+    holding would state a ratio based off an incomplete top half.
+
+    Args:
+        holdings: The pool's open positions.
+        closed: Its sold-out ones, which always know what they banked.
+        any_priced: Whether anything open could be valued at all.
+
+    Returns:
+        The CAD total, or None when it cannot be stated in full.
+    """
+    valued = [h for h in holdings if h.total_pnl_base is not None]
+    if any(h.total_pnl_cad is None for h in (*valued, *closed)):
+        return None
+    return _total_pnl(
+        _sum_optional(h.total_pnl_cad for h in holdings),
+        has_open=bool(holdings),
+        closed_pnl=_sum_optional(h.total_pnl_cad for h in closed),
+        any_priced=any_priced,
+    )
+
+
 def _total_pnl(
     open_pnl: Decimal,
     *,
@@ -681,7 +734,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     # converted at today's rate.
     realized = _realized(record, scope, shown, native)
     realized_base = _realized(record, scope, common, native)
-    dividends, dividends_base = _income(ctx.income, symbol, shown, native)
+    dividends, dividends_base = _income(ctx.income, symbol, shown, common, native)
 
     if closed:
         return Holding(
@@ -697,6 +750,11 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             book_value_base=book_base,
             realized_base=realized_base,
             dividends_base=dividends_base,
+            total_pnl_cad=(
+                realized_base + dividends_base
+                if common is Currency.CAD
+                else _cad_earned(record, ctx, symbol, native, held)
+            ),
             flags=ctx.flags.get(symbol, ()),
             closed=True,
         )
@@ -751,7 +809,70 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         day_pnl_base=None if change_base is None else change_base * held,
         unrealized_base=None if market_base is None else market_base - book_base,
         total_pnl_base=None if total_base is None else total_base + dividends_base,
+        total_pnl_cad=(
+            None
+            if total_base is None
+            else total_base + dividends_base
+            if common is Currency.CAD
+            else _cad_earned(record, ctx, symbol, native, held)
+        ),
     )
+
+
+def _cad_earned(
+    record: Mapping[Any, Any],
+    ctx: _Context,
+    symbol: str,
+    native: Currency,
+    held: Decimal,
+) -> Decimal | None:
+    """Read everything one holding earned, in CAD, ignoring the display currency.
+
+    Only reached when `-c USD` has made the base currency USD. Every other
+    figure on the row is then USD by request, but the deposit-based return
+    divides by net *CAD* deposits, so its numerator has to be read from the
+    frame's CAD columns rather than converted back at today's rate. Realized
+    gains and dividends therefore keep the historical rates they were booked
+    at, exactly as they do everywhere else.
+
+    Args:
+        record: The holding's row from the summary frame.
+        ctx: The valuation context, for the quotes, income rollup and FX table.
+        symbol: Canonical security symbol.
+        native: The currency the holding trades in.
+        held: Units still held, zero for a closed position.
+
+    Returns:
+        The CAD total, or None when an open position could not be priced.
+    """
+    book, _ = _cost(record, ctx.scope, Currency.CAD, native)
+    realized = _realized(record, ctx.scope, Currency.CAD, native)
+    _, dividends = _income(ctx.income, symbol, Currency.CAD, Currency.CAD, native)
+    banked = realized + dividends
+    if held == ZERO:
+        return banked
+
+    price, _ = _converted_price(ctx.quotes.get(symbol), Currency.CAD, ctx.fx)
+    if price is None:
+        return None
+    return (price * held - book) + banked
+
+
+def _filtered_out(record: Mapping[Any, Any], scope: Scope) -> int:
+    """Say whether `-c USD` is why `_holding` refused a row.
+
+    Args:
+        record: The summary row `_holding` refused.
+        scope: The grain the row was read at.
+
+    Returns:
+        1 when the filter dropped a real position, 0 otherwise.
+    """
+    symbol = record.get("Symbol")
+    if not isinstance(symbol, str) or not symbol:
+        # Not a position at all, so nothing was hidden.
+        return 0
+    return int(_native_currency(record, scope) is not Currency.USD)
 
 
 def _with_shares(
@@ -834,12 +955,13 @@ def _income(
     dividends: Mapping[str, tuple[Decimal, Decimal]],
     symbol: str,
     shown: Currency,
+    base: Currency,
     native: Currency,
 ) -> tuple[Decimal, Decimal]:
     """Read one security's dividends, in the shown and the base currency."""
     cad, usd = dividends.get(symbol, (ZERO, ZERO))
     return (usd if _suffix(shown, native) else cad), (
-        usd if shown is Currency.USD and native is Currency.USD else cad
+        usd if _suffix(base, native) else cad
     )
 
 

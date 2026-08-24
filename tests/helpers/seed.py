@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from app import get_config
 from db import (
     create_fx_table,
     create_txns_table,
@@ -28,6 +29,66 @@ from ingest import ActionValidationRules
 TXN_DATE = "2025-08-15"
 ACCOUNT = "TESTACCT"
 TICKER = "TESTTKR"
+
+# keep track of prepared columns by database, reseed only when needed.
+_prepared_txn_columns: dict[str, frozenset[str]] = {}
+
+# settle dates derived from the triplet are always the same. Repeatedly called.
+# memoized by key: (date, action, currency)
+_settlement_dates: dict[tuple[str, str, str], tuple[object, object]] = {}
+
+
+def reset_seed_state() -> None:
+    """Forget which databases have been prepared. Called between tests."""
+    _prepared_txn_columns.clear()
+
+
+def _prepare_txns_table(settled: pd.DataFrame) -> None:
+    """Build the Txns table and widen it, skipping what is already done."""
+    db_path = str(get_config().db_path)
+    columns = frozenset(settled.columns)
+    known = _prepared_txn_columns.get(db_path)
+    if known is not None and columns <= known:
+        return
+
+    if known is None:
+        create_txns_table()
+    helpers.sync_txns_table_columns(settled)
+    _prepared_txn_columns[db_path] = columns | (known or frozenset())
+
+
+def _apply_settlement(
+    row: dict[str, object],
+    *,
+    date: str,
+    action: str,
+    currency: str,
+) -> None:
+    """Fill a row's settlement columns, deriving them at most once per triple.
+
+    The derived date depends on the transaction date, the action and the
+    currency's market calendar, and on nothing else in the row, so the first row
+    of a given triple pays for every later one.
+
+    Args:
+        row: The row to fill, updated in place.
+        date: Transaction date, in YYYY-MM-DD form.
+        action: Transaction action, which sets the settlement period.
+        currency: Currency code, which picks the market calendar.
+    """
+    key = (date, action, currency)
+    settled = _settlement_dates.get(key)
+    if settled is None:
+        derived = settlement_calculator.add_settlement_dates_to_dataframe(
+            pd.DataFrame([row]),
+        ).iloc[0]
+        settled = (
+            derived[Column.Txn.SETTLE_DATE],
+            derived[Column.Txn.SETTLE_CALCULATED],
+        )
+        _settlement_dates[key] = settled
+
+    row[Column.Txn.SETTLE_DATE], row[Column.Txn.SETTLE_CALCULATED] = settled
 
 
 def _numeric(value: str | None) -> float | int | None:
@@ -96,16 +157,12 @@ def seed_transaction(
             row[column] = -value
 
     if settle_date is None:
-        settled = settlement_calculator.add_settlement_dates_to_dataframe(
-            pd.DataFrame([row]),
-        )
-    else:
-        settled = pd.DataFrame([row])
+        _apply_settlement(row, date=date, action=action, currency=currency)
+    settled = pd.DataFrame([row])
     row = {str(key): value for key, value in settled.iloc[0].to_dict().items()}
 
     # Mirrors the pipeline's original setup.
-    create_txns_table()
-    helpers.sync_txns_table_columns(settled)
+    _prepare_txns_table(settled)
     with get_connection() as conn:
         insert_or_replace(conn, Table.TXNS, row)
         return get_last_insert_rowid(conn)

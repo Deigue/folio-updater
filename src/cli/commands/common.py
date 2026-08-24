@@ -52,20 +52,26 @@ class PoolView(NamedTuple):
     label: str
 
 
-def ensure_fx_coverage() -> None:
+def ensure_fx_coverage(*, through_today: bool = False) -> None:
     """Top up FX rates before a replay, when config allows it.
 
     Bounded by the folio's own settle dates rather than by today: a folio that
     already has a rate for every date it needs must not reach for the network
     on every invocation just because the calendar has moved on.
+
+    Args:
+        through_today: Cover every rate published up to the latest the
+            Bank of Canada has.
     """
     if not get_config().auto_getfx:
         return
     earliest = ForexService.get_earliest_transaction_date()
     if earliest is None:
         return
-    with get_connection() as conn:
-        latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
+    latest = None
+    if not through_today:
+        with get_connection() as conn:
+            latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
     try:
         ForexService.ensure_coverage(earliest, latest)
     except (OSError, ValueError, KeyError):

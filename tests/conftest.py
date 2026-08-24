@@ -23,7 +23,9 @@ from engine.settlement import settlement_calculator
 from services import ForexService
 from services.quotes_service import QuotesService
 
+from .fixtures.acb_cache import memory_acb_cache  # noqa: F401
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
+from .helpers.seed import reset_seed_state
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -110,6 +112,7 @@ def nondurable_sqlite() -> Generator[None, Any]:
 def reset_app_context() -> None:
     """Automatically reset AppContext before each test."""
     AppContext.reset_singleton()
+    reset_seed_state()
 
 
 @pytest.fixture(autouse=True)
@@ -355,6 +358,11 @@ def temp_ctx(tmp_path: Path) -> TempContext:
             for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv", "*.meta.json"):
                 for file_path in tmp_path.rglob(pattern):
                     file_path.unlink(missing_ok=True)
+
+            # The database this context seeded into has just been deleted, so
+            # the next context must build its tables again even though it
+            # reuses the same tmp_path.
+            reset_seed_state()
 
             _log_cleanup_status(tmp_path)
 

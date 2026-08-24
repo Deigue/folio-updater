@@ -8,9 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.8.5] - 2026-08-23
+
+### Added
+
 - `folio check` reports what looks wrong with the folio in plain language.
 - `checks` can be configured - You can handle select checks to ignore, accounts to
   ignore from checks, or tickers to be excluded from checks.
+- `folio dash` presents a comprehensive dashboard with current market prices, cash balances,
+  contributions, dividends, realized gains and much more. Users can pool the entire folio,
+  by account type or per account to see data scoped in different views.
+- `folio quotes` inspects, refreshes and clears the cached market prices.
+- The quotes TTL and `contribution_room` for accounts can now be configured.
 
 ### Changed
 
@@ -31,6 +50,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - `Price` and `Units` are now rounded properly, and units drop trailing zeros.
 - The cache freshness indicator no longer scrolls off the top of a short terminal.
+- `folio dash` no longer sums USD dividends into its CAD grand total unconverted.
+- `folio dash` refreshes FX rates all the way through today, instead of stopping at
+  latest transaction date in the folio.
+- `Total%` is blank rather than misleading when `--currency USD` hides part of a pool,
+  and reads the same as the native view when it hides nothing.
 
 ### Security
 

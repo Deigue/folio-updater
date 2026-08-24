@@ -244,7 +244,8 @@ def show_dash(
         raise typer.Exit(1)
 
     if not offline:
-        ensure_fx_coverage()
+        # Quotes are today's, so the rate that converts them has to be too.
+        ensure_fx_coverage(through_today=True)
 
     cached = load_or_build(refresh=refresh)
     if cached.frame.empty:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.7.4"
+version = "0.8.5"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -40,6 +40,7 @@ markers = [
     "no_mock_forex: Disable the mock_forex_data fixture for this test or module.",
     "no_mock_quotes: Disable the mock_quotes fixture for this test or module.",
     "real_parquet_export: Let mutating commands re-export Parquet for real.",
+    "real_acb_cache: Let the cost-base cache round-trip through real files.",
 ]
 
 [tool.coverage.run]

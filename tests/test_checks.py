@@ -1133,6 +1133,7 @@ def test_a_split_both_missing_and_duplicated_reads_as_recorded_wrong() -> None:
     assert result.summary == "2 splits are recorded wrong"
 
 
+@pytest.mark.real_acb_cache
 def test_a_cached_run_reports_exactly_what_a_fresh_one_does(
     temp_ctx: TempContext,
 ) -> None:
@@ -1185,6 +1186,7 @@ def test_editing_the_folio_invalidates_the_cached_diagnostics(
         assert WarningCode.OVERSELL in {w.code for w in rebuilt.result.warnings}
 
 
+@pytest.mark.real_acb_cache
 def test_check_still_works_when_the_cache_holds_no_snapshot(
     temp_ctx: TempContext,
 ) -> None:

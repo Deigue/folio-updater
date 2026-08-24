@@ -20,6 +20,7 @@ from engine.positions import (
     UnknownSortError,
     _Context,
     _dividends_by_symbol,
+    _filtered_out,
     _holding,
     base_currency,
     held_symbols,
@@ -703,6 +704,223 @@ def test_total_pnl_is_unrealized_plus_realized_plus_dividends(
         assert held.total_pnl_pct == Decimal("0.24")  # 240 / 1,000 book
 
 
+def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
+    temp_ctx: TempContext,
+) -> None:
+    """The native view's grand total is CAD, dividends included.
+
+    Every other base-currency figure is read off the frame's CAD columns, so a
+    USD holding's dividends have to be as well. Summing the native USD figure
+    into a CAD total silently understated it by the whole exchange rate.
+    """
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(
+            ticker="AAA",
+            currency=Currency.CAD.value,
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+        seed_transaction(
+            action="DIVIDEND",
+            ticker="USDCO",
+            currency="USD",
+            amount="80",
+            price=None,
+            units=None,
+            date="2025-08-18",
+        )
+        seed_transaction(
+            ticker="USDCO",
+            currency="USD",
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+
+        holdings = FolioPositions(
+            _frame(),
+            {
+                "AAA": _quote("AAA", "100", "100", Currency.CAD),
+                "USDCO": _quote("USDCO", "100", "100"),
+            },
+            load_fx_rates(),
+        ).holdings(scope=Scope.FOLIO, currency="native")
+
+        usd_group = next(
+            group for group in holdings.by_currency if group.currency is Currency.USD
+        )
+        # The group row stays in its own currency, untouched.
+        assert usd_group.dividends == Decimal(80)
+        # The grand total converts at the rate the dividend was paid at.
+        assert holdings.total_dividends == Decimal(80) * dec(RATE)
+        assert holdings.total_pnl == holdings.total_dividends
+
+        # And matches what asking for CAD outright reports.
+        in_cad = FolioPositions(
+            _frame(),
+            {
+                "AAA": _quote("AAA", "100", "100", Currency.CAD),
+                "USDCO": _quote("USDCO", "100", "100"),
+            },
+            load_fx_rates(),
+        ).holdings(scope=Scope.FOLIO, currency=Currency.CAD)
+        assert in_cad.total_dividends == holdings.total_dividends
+
+
+def test_a_currency_filter_that_hides_holdings_refuses_a_deposit_return(
+    temp_ctx: TempContext,
+) -> None:
+    """`-c USD` on a mixed pool cannot be measured against whole-pool deposits."""
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(
+            ticker="AAA",
+            currency=Currency.CAD.value,
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+        seed_transaction(
+            ticker="USDCO",
+            currency="USD",
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+
+        holdings = FolioPositions(
+            _frame(),
+            {
+                "AAA": _quote("AAA", "110", "110", Currency.CAD),
+                "USDCO": _quote("USDCO", "110", "110"),
+            },
+            load_fx_rates(),
+        ).holdings(scope=Scope.FOLIO, currency=Currency.USD)
+
+        assert [h.symbol for h in holdings.holdings] == ["USDCO"]
+        assert holdings.excluded == 1
+        assert holdings.deposits_measurable is False
+        assert holdings.return_on(Decimal(2000)) is None
+
+
+def test_a_usd_only_pool_keeps_its_deposit_return_under_a_currency_filter(
+    temp_ctx: TempContext,
+) -> None:
+    """Nothing is hidden, so `-c USD` measures exactly what the native view does.
+
+    The ratio is taken on the CAD leg either way, so asking for USD moves the
+    displayed figures without moving the one cell that answers "what did this
+    pool return on the money put into it".
+    """
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(
+            ticker="USDCO",
+            currency="USD",
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+
+        frame = _frame()
+        quotes = {"USDCO": _quote("USDCO", "110", "110")}
+
+        in_usd = FolioPositions(frame, quotes, load_fx_rates()).holdings(
+            scope=Scope.FOLIO,
+            currency=Currency.USD,
+        )
+        native = FolioPositions(frame, quotes, load_fx_rates()).holdings(
+            scope=Scope.FOLIO,
+            currency="native",
+        )
+
+        assert in_usd.excluded == 0
+        assert in_usd.deposits_measurable is True
+        # 100 USD earned, read off the frame's CAD columns at 1.25.
+        assert in_usd.total_pnl == Decimal(100)
+        assert in_usd.total_pnl_cad == Decimal(125)
+        assert native.total_pnl_cad == in_usd.total_pnl_cad
+
+        deposited = Decimal(1250)
+        assert in_usd.return_on(deposited) == Decimal("0.1")
+        assert in_usd.return_on(deposited) == native.return_on(deposited)
+
+
+def test_a_closed_position_carries_its_cad_earnings_under_a_currency_filter(
+    temp_ctx: TempContext,
+) -> None:
+    """A sold-out USD position still reports what it earned in CAD.
+
+    It has no market price to look up, so its whole contribution is the
+    realized gain and dividends the frame already holds in CAD.
+    """
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(
+            ticker="SOLD",
+            currency="USD",
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+        # Out at 120: 1,000 cost against 1,200 proceeds, so 200 USD realized.
+        seed_transaction(
+            action="SELL",
+            ticker="SOLD",
+            currency="USD",
+            amount="1200",
+            price="120",
+            units="10",
+            date="2025-08-18",
+        )
+
+        holdings = FolioPositions(_frame(), {}, load_fx_rates()).holdings(
+            scope=Scope.FOLIO,
+            currency=Currency.USD,
+        )
+
+        closed = holdings.closed[0]
+        assert closed.realized == Decimal(200)  # USD, as the row displays it
+        assert closed.total_pnl_cad == Decimal(250)  # the same 200 at 1.25
+        assert holdings.total_pnl == Decimal(200)
+        assert holdings.total_pnl_cad == Decimal(250)
+        assert holdings.deposits_measurable is True
+        assert holdings.return_on(Decimal(1250)) == Decimal("0.2")
+
+
+def test_a_holding_with_no_rate_to_convert_by_reports_no_cad_earnings(
+    temp_ctx: TempContext,
+) -> None:
+    """A USD quote needs no rate to show in USD, but does to reach CAD.
+
+    So `-c USD` can price the row while the return's CAD numerator stays
+    genuinely unknown, rather than being invented at a rate nobody holds.
+    """
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(
+            ticker="USDCO",
+            currency="USD",
+            amount="-1000",
+            price="100",
+            units="10",
+        )
+
+        holdings = FolioPositions(
+            _frame(),
+            {"USDCO": _quote("USDCO", "120", "110")},
+            FxRates((), ()),
+        ).holdings(scope=Scope.FOLIO, currency=Currency.USD)
+
+        held = holdings.holdings[0]
+        assert held.market_value == Decimal(1200)
+        assert held.total_pnl == Decimal(200)
+        assert held.total_pnl_cad is None
+        assert holdings.return_on(Decimal(1250)) is None
+
+
 def test_realized_gains_reach_the_holding(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
@@ -1211,6 +1429,11 @@ def test_a_summary_row_without_a_symbol_is_not_a_holding(
         assert _holding({"Symbol": None}, context) is None
         assert _holding({"Symbol": ""}, context) is None
         assert _holding({}, context) is None
+
+        # Nor is it a holding `-c USD` hid: it has no USD cost base, but then
+        # it has no cost base at all.
+        assert _filtered_out({"Symbol": None}, Scope.FOLIO) == 0
+        assert _filtered_out({}, Scope.FOLIO) == 0
 
 
 def test_an_empty_frame_holds_nothing() -> None:

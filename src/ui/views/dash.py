@@ -241,9 +241,12 @@ def holdings_table(
         # A rule above each total says "this row is a different kind of thing"
         # in one line rather than a blank one, keeping the table short.
         table.add_section()
-        promoted = _promoted_return(holdings, deposited)
         table.add_row(
-            *_subtotal_cells(group, specs, promoted, holdings.total_pnl),
+            *_subtotal_cells(
+                group,
+                specs,
+                _subtotal_return(holdings, group, deposited),
+            ),
         )
         table.add_section()
 
@@ -285,36 +288,57 @@ def _closed_summary_cells(
     return [cells.get(spec.header, "") for spec in specs]
 
 
-def _promoted_return(
+@dataclass(frozen=True)
+class _Return:
+    """What one totals row's `Total%` states, and what colours it.
+
+    Attributes:
+        ratio: The percentage to print, or None to leave the cell blank.
+        earned: The gain the ratio came from, whose sign picks the colour.
+    """
+
+    ratio: Decimal | None = None
+    earned: Decimal | None = None
+
+
+def _subtotal_return(
     holdings: HoldingSet,
+    group: CurrencyTotals,
     deposited: Decimal | None,
-) -> Decimal | None:
+) -> _Return:
     """Decide whether a currency subtotal is really the pool's overall total.
 
     A USD-only pool is still one pool with one deposit history, so it earns the
-    same promotion a CAD-only one does. `return_on` divides the pool's CAD
-    earnings by its CAD deposits, so the ratio calc is in same currency (regardless
-    of the pools original currency)
+    same promotion a CAD-only one does, and `return_on` keeps both sides of the
+    ratio in CAD however the pool is displayed.
 
     Args:
         holdings: The set being rendered.
+        group: The currency group this row totals.
         deposited: Net CAD deposits, when the caller could supply them.
 
     Returns:
-        The return to show in this row's `Total%`, or None to keep the group's
-        own book-based ratio.
+        The promoted return when this row is the pool's overall total, the
+        group's own book-based ratio when a grand total is coming anyway, and a
+        blank when `-c USD` has hidden part of the pool from a whole-pool
+        denominator.
     """
     # no need to promote, we are going to show a grand total anyway
     if holdings.mixed_currency:
-        return None
-    return holdings.return_on(deposited)
+        return _Return(group.total_pnl_pct, group.total_pnl)
+    if not holdings.deposits_measurable:
+        # Holdings are being hidden, we cant calculate truthful `Total%`
+        return _Return()
+    promoted = holdings.return_on(deposited)
+    if promoted is None:
+        return _Return(group.total_pnl_pct, group.total_pnl)
+    return _Return(promoted, holdings.total_pnl_cad)
 
 
 def _subtotal_cells(
     group: CurrencyTotals,
     specs: Sequence[_ColumnSpec],
-    promoted_return: Decimal | None = None,
-    promoted_total_pnl: Decimal | None = None,
+    total: _Return,
 ) -> list[str]:
     """Subtotal one currency group, in that group's own currency.
 
@@ -323,27 +347,12 @@ def _subtotal_cells(
     Args:
         group: The currency group's totals.
         specs: The columns this table is rendering.
-        promoted_return: The pool's return on net deposits, when `_promoted_return`
-            has judged this row to be the pool's overall total. None keeps the
-            group's own book-based ratio.
-        promoted_total_pnl: The pool's total earnings in CAD, which decides the
-            promoted cell's sign. Ignored unless `promoted_return` is not None;
-            a USD-only group's own `total_pnl` is in USD and would be the wrong
-            side of that ratio.
+        total: What the `Total%` cell should say, from `_subtotal_return`.
 
     Returns:
         One cell per column in `specs`.
     """
     move = group.day_pnl_pct
-    # Promotion swaps both sides of the ratio at once: net deposits is a CAD
-    # figure, so it has to be paired with the pool's CAD earnings rather than
-    # the group's native ones.
-    if promoted_return is None:
-        total_pct_numerator = group.total_pnl
-        total_pct = group.total_pnl_pct
-    else:
-        total_pct_numerator = promoted_total_pnl
-        total_pct = promoted_return
     cells = {
         "Symbol": f"[bold]{group.count} held[/bold]",
         # A totals row has no unit count, and the column is never conceded, so
@@ -361,7 +370,7 @@ def _subtotal_cells(
         ),
         "Divs": _money(group.dividends, blank_zero=True),
         "Total": _signed(_money(group.total_pnl), group.total_pnl),
-        "Total%": _signed(_percent(total_pct), total_pct_numerator),
+        "Total%": _signed(_percent(total.ratio), total.earned),
         "Wt%": _percent(group.weight_in_pool),
         "Folio%": _percent(group.weight_in_folio),
     }
@@ -597,21 +606,29 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
             f"[yellow]{_WARN_GLYPH} {len(holdings.unpriced)} position(s) unpriced "
             f"and excluded from totals: {listed}[/yellow]",
         )
+    if not holdings.deposits_measurable and _net_deposited(flows) is not None:
+        notes.append(
+            f"[dim]Total% is blank: it measures the pool against its net "
+            f"deposits, and {holdings.excluded} CAD position(s) are hidden by "
+            f"--currency {holdings.base_currency}. Drop the flag to see "
+            f"it.[/dim]",
+        )
     # A single-currency pool that isn't CAD still gets its `Total%` promoted to
-    # net deposits (see `_promoted_return`), which is a CAD figure, so that one cell
+    # net deposits (see `_subtotal_return`), which is a CAD figure, so that one cell
     # is a conversion even though every other column stays untouched. Only worth
     # disclosing when the promotion actually filled the cell: with no CAD deposits to
     # divide by, `Total%` is blank and there is nothing to have converted.
     single_promoted = (
         not holdings.mixed_currency
-        and holdings.display_currency == "native"
+        and holdings.deposits_measurable
         and holdings.by_currency
         and holdings.by_currency[0].currency is not Currency.CAD
         and _net_deposited(flows) is not None
     )
+    # `-c USD` converts nothing: the CAD holdings are eliminated.
     converts = (
         holdings.mixed_currency
-        or holdings.display_currency != "native"
+        or holdings.display_currency == Currency.CAD
         or single_promoted
     )
     if holdings.fx_rate is not None and converts:

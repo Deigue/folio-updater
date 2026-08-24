@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pytest
 
 from cli.main import app
 from domain import Column, Scope
@@ -459,6 +460,7 @@ def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
 # --- cache -------------------------------------------------------------------
 
 
+@pytest.mark.real_acb_cache
 def test_cache_hit_and_invalidation(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_cad_holding()
