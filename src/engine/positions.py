@@ -42,9 +42,9 @@ class Holding:
         price: Last price, converted into `currency`.
         prev_close: Previous close, converted into `currency`.
         change: The day's per-share move.
-        change_pct: `change / price`.
+        change_pct: `change / prev_close`
         day_pnl: `change * units`.
-        day_pnl_pct: `day_pnl` over the **pool's** total market value.
+        day_pnl_pct: `day_pnl` over the **pool's** market value at yesterday's close.
         market_value: `price * units`.
         unrealized: `market_value - book_value`.
         unrealized_pct: `unrealized / book_value`.
@@ -256,10 +256,15 @@ class HoldingSet:
 
     @property
     def total_day_pnl_pct(self) -> Decimal | None:
-        """The day's move over the pool's market value."""
+        """The day's move over the pool's value at yesterday's close.
+
+        Against `total_market - total_day_pnl`, not `total_market`: a return is
+        measured from where the day started, which is also what makes the
+        per-holding `day_pnl_pct` contributions sum to this figure.
+        """
         if self.total_day_pnl is None or not self.total_market:
             return None
-        return safe_div(self.total_day_pnl, self.total_market)
+        return safe_div(self.total_day_pnl, self.total_market - self.total_day_pnl)
 
     @property
     def total_unrealized_pct(self) -> Decimal | None:
@@ -797,7 +802,11 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         price=price,
         prev_close=prev_close,
         change=change,
-        change_pct=None if change is None else safe_div(change, price),
+        change_pct=(
+            None
+            if change is None or prev_close is None
+            else safe_div(change, prev_close)
+        ),
         day_pnl=None if change is None else change * held,
         market_value=market_value,
         unrealized=unrealized,
@@ -885,8 +894,8 @@ def _with_shares(
     `day_pnl_pct`, `weight_in_pool` and `weight_in_folio` all divide by a total
     that is only known once every holding has been valued, so they are a second
     pass rather than part of `_holding`. `day_pnl_pct` divides by the **pool's**
-    market value, not the position's own: it measures a holding's contribution
-    to the pool's day move, so a large position drifting 1% outweighs a tiny one
+    value, not the position's own: it measures a holding's contribution to the
+    pool's day move, so a large position drifting 1% outweighs a tiny one
     jumping 8%. Dividing by the position's own value instead would cancel the
     units and collapse the column into `change_pct`.
 
@@ -899,6 +908,14 @@ def _with_shares(
     cannot silently distort the shares of the ones that did price.
     """
     folio_total = folio_market if folio_market is not None else pool_market
+    pool_prior = sum(
+        (
+            holding.market_value_base - (holding.day_pnl_base or ZERO)
+            for holding in holdings
+            if holding.market_value_base is not None
+        ),
+        ZERO,
+    )
     filled: list[Holding] = []
     for holding in holdings:
         if holding.market_value_base is None:
@@ -910,7 +927,7 @@ def _with_shares(
                 day_pnl_pct=(
                     None
                     if holding.day_pnl_base is None
-                    else safe_div(holding.day_pnl_base, pool_market)
+                    else safe_div(holding.day_pnl_base, pool_prior)
                 ),
                 weight_in_pool=safe_div(holding.market_value_base, pool_market),
                 weight_in_folio=safe_div(holding.market_value_base, folio_total),

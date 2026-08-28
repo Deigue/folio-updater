@@ -23,6 +23,7 @@ from services.quotes_service import (
     _attr,
     _daily_closes,
     _is_rate_limited,
+    _previous_close,
     _run_concurrently,
     _write,
 )
@@ -633,6 +634,29 @@ def test_attr_survives_a_provider_that_raises() -> None:
 
     assert _attr(Exploding(), "last_price") is None
     assert _attr(Exploding(), "absent") is None
+
+
+def test_the_previous_close_is_the_regular_session_one() -> None:
+
+    class Fast:
+        previous_close = 219.53
+        regular_market_previous_close = 209.66
+
+    assert _previous_close(Fast()) == 209.66
+
+
+def test_the_extended_hours_close_is_the_last_resort() -> None:
+    """A symbol with no daily bars is still better priced than not at all."""
+
+    class NoDailyBars:
+        previous_close = 219.53
+        regular_market_previous_close = None
+
+    class Neither:
+        pass
+
+    assert _previous_close(NoDailyBars()) == 219.53
+    assert _previous_close(Neither()) is None
 
 
 def test_daily_closes_reads_a_batched_download() -> None:

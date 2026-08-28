@@ -435,7 +435,7 @@ class QuotesService:
                 return None
             return ysymbol, {
                 "price": price,
-                "prev_close": _attr(fast, "previous_close"),
+                "prev_close": _previous_close(fast),
                 "currency": _attr(fast, "currency"),
                 "quote_time": now,
             }
@@ -511,6 +511,29 @@ class QuotesService:
             }
 
         return dict(_run_concurrently(_describe, ysymbols))
+
+
+def _previous_close(fast: object) -> object | None:
+    """Read the previous **regular session** close off a `fast_info`.
+
+    `previous_close` - groups a week of *pre/post-market* hourly bars by calendar
+    date and takes the last bar of the day before. (counting extended-hours)
+
+    `regular_market_previous_close` takes the second-last row of the daily bar
+    series, which is the prior session's official close and what every quote
+    page measures the day's change from.
+
+    Args:
+        fast: A yfinance `fast_info` object.
+
+    Returns:
+        The prior regular-session close, falling back to the extended-hours
+        figure.
+    """
+    regular = _attr(fast, "regular_market_previous_close")
+    if regular is not None:
+        return regular
+    return _attr(fast, "previous_close")
 
 
 def _attr(source: object, name: str) -> object | None:

@@ -114,8 +114,10 @@ def test_the_day_move_comes_off_the_previous_close(temp_ctx: TempContext) -> Non
         held = holdings.holdings[0]
         # (120 - 110) * 1.25 = 12.50 CAD per share.
         assert held.change == Decimal("12.5")
-        # change / price, against the *current* price, not the previous close.
-        assert held.change_pct == Decimal("12.5") / Decimal(150)
+        # change / prev_close, the baseline the move is measured from, which is
+        # what every quote page reports. 110 * 1.25 = 137.50 CAD.
+        assert held.prev_close == Decimal("137.5")
+        assert held.change_pct == Decimal("12.5") / Decimal("137.5")
         assert held.day_pnl == Decimal(125)
 
 
@@ -163,11 +165,14 @@ def test_day_pnl_pct_divides_by_the_pool_not_the_position(
         assert big.day_pnl_pct != big.change_pct
         assert small.day_pnl_pct != small.change_pct
 
-        # Every position's share sums to the pool's own day move.
+        # Every position's share sums to the pool's own day move, which is
+        # taken against what the pool was worth at yesterday's close.
         total = big.day_pnl_pct + small.day_pnl_pct
         assert holdings.total_day_pnl is not None
         assert holdings.total_market is not None
-        assert total == holdings.total_day_pnl / holdings.total_market
+        prior = holdings.total_market - holdings.total_day_pnl
+        assert total == holdings.total_day_pnl / prior
+        assert holdings.total_day_pnl_pct == holdings.total_day_pnl / prior
 
 
 def test_day_pnl_pct_changes_with_the_scope_displayed(temp_ctx: TempContext) -> None:
@@ -202,10 +207,12 @@ def test_day_pnl_pct_changes_with_the_scope_displayed(temp_ctx: TempContext) -> 
         aaa_wide = next(h for h in wide.holdings if h.symbol == "AAA")
 
         # Alone in the TFSA it accounts for that pool's whole day move; across
-        # the folio the same dollars move twice as much market value, so the
+        # the folio the same dollars move twice as much value, so the
         # percentage halves. Both readings are correct for their own scope.
-        assert aaa_narrow.day_pnl_pct == Decimal(125) / Decimal(1500)
-        assert aaa_wide.day_pnl_pct == Decimal(125) / Decimal(3000)
+        # The denominator is the pool at yesterday's close: 1,500 - 125 in the
+        # TFSA, 3,000 - 250 across the folio.
+        assert aaa_narrow.day_pnl_pct == Decimal(125) / Decimal(1375)
+        assert aaa_wide.day_pnl_pct == Decimal(125) / Decimal(2750)
 
 
 def test_the_two_weights_differ_on_a_narrowed_scope(temp_ctx: TempContext) -> None:
@@ -1307,8 +1314,9 @@ def test_the_pools_ratios_are_taken_in_the_base_currency(
         holdings = _mixed_groups()
 
         assert holdings.total_unrealized_pct == Decimal(750) / Decimal(2250)
-        # 10 USD per unit over 10 units, at 1.25, against a 3,000 CAD pool.
-        assert holdings.total_day_pnl_pct == Decimal(125) / Decimal(3000)
+        # 10 USD per unit over 10 units, at 1.25, against what the 3,000 CAD
+        # pool was worth before that 125 arrived.
+        assert holdings.total_day_pnl_pct == Decimal(125) / Decimal(2875)
 
 
 def test_the_pools_return_is_taken_on_the_money_put_in(
