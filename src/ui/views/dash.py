@@ -170,13 +170,15 @@ _DASH_DROP_ORDER = (
 
 def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_ColumnSpec, ...]:
     """Choose which columns this table offers before any conceding."""
-    narrowed = holdings.scope.name != "FOLIO"
+    # `Folio%` is only worth a column when the table is part of the folio rather
+    # than all of it, since it is otherwise the same number as `Wt%`. A narrowed
+    # scope is the usual way that happens, and `-c USD` is the other: it hides
+    # the CAD holdings, so even the portfolio-wide table is then a part.
+    partial = holdings.scope.name != "FOLIO" or holdings.excluded > 0
     return tuple(
         spec
         for spec in _HOLDING_COLUMNS
-        # `Folio%` is the same number as `Wt%` on the portfolio-wide view, so it
-        # is dropped outright there rather than shown twice.
-        if (wide or not spec.wide_only) and (narrowed or spec.header != "Folio%")
+        if (wide or not spec.wide_only) and (partial or spec.header != "Folio%")
     )
 
 

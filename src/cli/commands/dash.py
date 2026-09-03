@@ -133,7 +133,9 @@ class _Request:
     `positions` carries the rollups every panel reads from, so a dashboard
     showing several pools derives each one once. `contributions` is here for
     the same reason: the room line is a single scan of the frame however many
-    panels ask for it.
+    panels ask for it. `folio_market` is the CAD denominator behind `Folio%`,
+    which is a share of the whole portfolio however narrow the panel is and
+    whatever currency it is displayed in.
     """
 
     positions: FolioPositions
@@ -269,7 +271,7 @@ def show_dash(
         result=result,
         currency=shown,
         contributions=contributions_by_type_year(cached.frame),
-        folio_market=positions.market_value(shown),
+        folio_market=positions.market_value(),
         sort=sort,
         reverse=reverse,
         wide=wide,

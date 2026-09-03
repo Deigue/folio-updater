@@ -232,7 +232,7 @@ def test_the_two_weights_differ_on_a_narrowed_scope(temp_ctx: TempContext) -> No
         }
         frame = _frame()
         fx = load_fx_rates()
-        folio_total = FolioPositions(frame, quotes, fx).market_value(Currency.CAD)
+        folio_total = FolioPositions(frame, quotes, fx).market_value()
 
         narrow = FolioPositions(frame, quotes, fx).holdings(
             scope=Scope.TYPE,
@@ -1265,6 +1265,44 @@ def test_weights_are_common_currency_even_when_rows_are_not(
             assert held.weight_in_pool == Decimal("0.5")
 
 
+def test_the_folio_share_survives_the_usd_filter(temp_ctx: TempContext) -> None:
+    """`-c USD` narrows what is shown, never what "the whole folio" means.
+
+    It hides the CAD holding, so the USD sleeve alone is worth 1,200 USD and a
+    denominator taken at the display currency would call USDCO 100% of the
+    folio. It is half of it: 1,500 CAD of a 3,000 CAD portfolio.
+    """
+    with temp_ctx():
+        _mixed_folio()
+        positions = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates())
+
+        holdings = positions.holdings(
+            scope=Scope.FOLIO,
+            currency=Currency.USD,
+            folio_market=positions.market_value(),
+        )
+
+        (held,) = holdings.holdings
+        assert held.symbol == "USDCO"
+        # The row itself is USD, as asked.
+        assert held.market_value_base == Decimal(1200)
+        # Its share of everything owned is not.
+        assert held.market_value_cad == Decimal(1500)
+        assert held.weight_in_folio == Decimal("0.5")
+        # The pool is still what the table shows, so it still totals 100%.
+        assert held.weight_in_pool == Decimal(1)
+
+
+def test_the_folio_total_ignores_the_display_currency(temp_ctx: TempContext) -> None:
+    """Valuing at `-c USD` would total the USD sleeve, not the portfolio."""
+    with temp_ctx():
+        _mixed_folio()
+        positions = FolioPositions(_frame(), _mixed_quotes(), load_fx_rates())
+
+        # 1,500 CAD plus 1,200 USD at 1.25, not the 1,200 the filter leaves.
+        assert positions.market_value() == Decimal(3000)
+
+
 def _mixed_groups() -> HoldingSet:
     """Seed the two-currency folio and value it natively."""
     _mixed_folio()
@@ -1527,7 +1565,7 @@ def test_positions_derives_each_pools_rollups_once(temp_ctx: TempContext) -> Non
 
         first = positions.rollups(Scope.FOLIO, None)
         positions.held_symbols()
-        positions.market_value(Currency.CAD)
+        positions.market_value()
         positions.holdings(scope=Scope.FOLIO, currency=Currency.CAD)
 
         # Same object, not merely an equal one.
@@ -1551,7 +1589,7 @@ def test_pricing_later_keeps_the_rollups_already_derived(
 
         assert positions.rollups(Scope.FOLIO, None) is derived
         # The total reflects the quotes supplied afterwards, not the empty set.
-        assert positions.market_value(Currency.CAD) == Decimal(3750)
+        assert positions.market_value() == Decimal(3750)
 
 
 def test_priming_a_grain_matches_deriving_each_pool_alone(

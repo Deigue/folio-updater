@@ -55,6 +55,7 @@ class Holding:
             sum would then be unknown.
         total_pnl_pct: `total_pnl / book_value`.
         total_pnl_cad: `total_pnl` in CAD
+        market_value_cad: `market_value` in CAD
         weight_in_pool: Market value as a share of the displayed pool.
         weight_in_folio: Market value as a share of the whole portfolio.
         priced: Whether a usable price was found.
@@ -94,6 +95,7 @@ class Holding:
     dividends_base: Decimal = ZERO
     total_pnl_base: Decimal | None = None
     total_pnl_cad: Decimal | None = None
+    market_value_cad: Decimal | None = None
     closed: bool = False
 
     @property
@@ -385,7 +387,8 @@ class FolioPositions:
         self.quotes = quotes
         self.fx = fx
         self._rollups: dict[tuple[Scope, str], _Rollups] = {}
-        self._market: dict[ValuationCurrency, Decimal | None] = {}
+        self._market: Decimal | None = None
+        self._valued = False
 
     def price(self, quotes: Mapping[str, Quote]) -> None:
         """Supply the quotes, once the symbols worth fetching are known.
@@ -395,7 +398,8 @@ class FolioPositions:
         """
         self.quotes = quotes
         # Anything already valued was valued without these.
-        self._market.clear()
+        self._market = None
+        self._valued = False
 
     def rollups(self, scope: Scope, pool: str | None) -> _Rollups:
         """Derive one pool's inputs, or hand back the ones already derived."""
@@ -442,29 +446,21 @@ class FolioPositions:
         """
         return _open_symbols(self.rollups(Scope.FOLIO, None).summary)
 
-    def market_value(
-        self,
-        currency: ValuationCurrency = Currency.CAD,
-    ) -> Decimal | None:
-        """Total market value of the whole portfolio.
+    def market_value(self) -> Decimal | None:
+        """Total CAD market value of the whole portfolio.
 
         Needed even when a narrower pool is displayed, because `weight_in_folio`
         answers "how much of everything I own is this", which is the number that
         reveals real concentration.
 
-        Args:
-            currency: Currency to express the total in.
-
         Returns:
             The portfolio's market value across priced positions, or None when
             nothing could be priced.
         """
-        if currency not in self._market:
-            self._market[currency] = self.holdings(
-                scope=Scope.FOLIO,
-                currency=currency,
-            ).total_market
-        return self._market[currency]
+        if not self._valued:
+            self._market = self.holdings(scope=Scope.FOLIO).total_market
+            self._valued = True
+        return self._market
 
     def holdings(  # noqa: PLR0913
         self,
@@ -482,7 +478,7 @@ class FolioPositions:
             scope: The pool grain to read at.
             pool: The account name or account type, ignored at portfolio grain.
             currency: Currency to express the figures in, or `"native"`.
-            folio_market: Total market value of the whole portfolio.
+            folio_market: Total market value of the whole portfolio, in CAD.
             sort: The column to order by, or None for market value.
             reverse: Flip the sort's natural direction.
 
@@ -815,6 +811,11 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         total_pnl_pct=safe_div(total, book) if book else None,
         priced=True,
         market_value_base=market_base,
+        market_value_cad=(
+            market_base
+            if common is Currency.CAD
+            else _market_in_cad(quote, held, ctx.fx)
+        ),
         day_pnl_base=None if change_base is None else change_base * held,
         unrealized_base=None if market_base is None else market_base - book_base,
         total_pnl_base=None if total_base is None else total_base + dividends_base,
@@ -826,6 +827,30 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             else _cad_earned(record, ctx, symbol, native, held)
         ),
     )
+
+
+def _market_in_cad(
+    quote: Quote | None,
+    held: Decimal,
+    fx: FxRates,
+) -> Decimal | None:
+    """Value one open position in CAD, ignoring the display currency.
+
+    Only reached when `-c USD` has made the base currency USD. `weight_in_folio`
+    is a share of the whole portfolio, and the portfolio spans both currencies,
+    so the ratio has to be taken in the one currency every holding can be
+    expressed in.
+
+    Args:
+        quote: The holding's quote, if one was found.
+        held: Units still held.
+        fx: Rates to convert the quote's currency into CAD.
+
+    Returns:
+        The CAD market value, or None when the position could not be priced.
+    """
+    price, _ = _converted_price(quote, Currency.CAD, fx)
+    return None if price is None else price * held
 
 
 def _cad_earned(
@@ -907,7 +932,8 @@ def _with_shares(
     Both denominators count **priced** positions only, so an unpriced holding
     cannot silently distort the shares of the ones that did price.
     """
-    folio_total = folio_market if folio_market is not None else pool_market
+    pool_cad = _sum_optional(holding.market_value_cad for holding in holdings)
+    folio_total = folio_market if folio_market is not None else pool_cad
     pool_prior = sum(
         (
             holding.market_value_base - (holding.day_pnl_base or ZERO)
@@ -930,7 +956,11 @@ def _with_shares(
                     else safe_div(holding.day_pnl_base, pool_prior)
                 ),
                 weight_in_pool=safe_div(holding.market_value_base, pool_market),
-                weight_in_folio=safe_div(holding.market_value_base, folio_total),
+                weight_in_folio=(
+                    None
+                    if holding.market_value_cad is None
+                    else safe_div(holding.market_value_cad, folio_total)
+                ),
             ),
         )
     return filled

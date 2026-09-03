@@ -89,8 +89,8 @@ design, and totals in USD.
 > cost-base currency for `folio acb`; a dashboard's job is to show you what your
 > broker shows you.
 
-**`Wt%`, `Folio%` and `PnL%`**, are always calculated against the CAD market value. A weight
-answers "how much of what I own is this", which spans currencies by definition.
+**`Wt%`, `Folio%` and `PnL%`** are never taken on the row's own currency, but on a
+single common one, so a USD holding's 5% and a CAD holding's 5% means the same thing.
 
 Book value converts at each transaction's own **historical** settle-date rate, because
 that is what CRA taxes. Market value converts at **today's** rate, because it is a
