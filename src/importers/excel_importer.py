@@ -257,18 +257,17 @@ def _update_settlement_dates(
         )
 
     with get_connection() as conn:
-        where = f'"{Column.Txn.SETTLE_CALCULATED}" = ?'
-        params = [1]
-        existing_txns = get_rows(
+        all_txns = get_rows(
             conn,
             Table.TXNS,
-            where=where,
-            params=params,
             order_by=f'"{Column.Txn.TXN_DATE}", "{Column.Txn.TXN_ID}"',
         )
+        calculated = all_txns[Column.Txn.SETTLE_CALCULATED] == 1
+        existing_txns = all_txns[calculated]
+        settled_txns = all_txns[~calculated]
 
-        if existing_txns.empty:  # pragma: no cover
-            announce.info("No calculated settlement dates found to update", "importer")
+        if existing_txns.empty and settled_txns.empty:  # pragma: no cover
+            announce.info("No transactions found to settle", "importer")
             return 0, []
 
         updates: list[dict] = []
@@ -280,7 +279,12 @@ def _update_settlement_dates(
                     continue
                 matches = _match_transactions(existing_txns, statement_data)
                 results.append(
-                    _resolve_statement_match(statement_data, matches, updates),
+                    _resolve_statement_match(
+                        statement_data,
+                        matches,
+                        updates,
+                        settled_txns,
+                    ),
                 )
             except (ValueError, TypeError) as e:
                 announce.warning(f"Skipping invalid statement row: {e}", "importer")
@@ -301,13 +305,15 @@ def _resolve_statement_match(
     statement_data: dict,
     matches: pd.DataFrame,
     updates: list[dict],
+    settled_txns: pd.DataFrame,
 ) -> SettlementMatch:
     """Turn a row's candidate matches into an outcome, queuing an update for a hit.
 
     Args:
         statement_data: Fields extracted from the statement row.
-        matches: Folio transactions the row matched.
+        matches: Transactions with a calculated date that the row matched.
         updates: Pending updates, appended to when exactly one row matched.
+        settled_txns: Transactions whose settlement date is already set properly.
 
     Returns:
         The outcome recorded for this statement row.
@@ -349,6 +355,14 @@ def _resolve_statement_match(
             len(matches),
             described,
         )
+        return result
+
+    already = _match_transactions(settled_txns, statement_data)
+    if len(already) == 1:
+        result.outcome = SettlementOutcome.ALREADY_SETTLED
+        result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
+        result.candidates = 1
+        import_logger.info("  = Already settled: %s", described)
     else:
         import_logger.warning("  ! No match for %s", described)
     return result

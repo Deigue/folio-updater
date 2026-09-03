@@ -155,10 +155,16 @@ class StatementImportResult:
         """Return how many statement rows were weighed for a settlement date."""
         return len(self.settlement_matches)
 
-    def settlement_unplaced(self) -> list[SettlementMatch]:
-        """Return the candidate rows that did not update a transaction."""
-        return [
-            match
+    def settlement_already_settled(self) -> int:
+        """Return how many rows were already settled."""
+        return sum(
+            match.outcome is SettlementOutcome.ALREADY_SETTLED
             for match in self.settlement_matches
-            if match.outcome is not SettlementOutcome.MATCHED
+        )
+
+    def settlement_unplaced(self) -> list[SettlementMatch]:
+        """Return the candidate rows that could not be placed on a transaction."""
+        settled = (SettlementOutcome.MATCHED, SettlementOutcome.ALREADY_SETTLED)
+        return [
+            match for match in self.settlement_matches if match.outcome not in settled
         ]

@@ -128,6 +128,7 @@ class SettlementOutcome(StrEnum):
     """How a statement row fared against the folio's calculated settlement dates."""
 
     MATCHED = "MATCHED"  # Exactly one transaction matched; its date was updated.
+    ALREADY_SETTLED = "ALREADY_SETTLED"  # Matched a row that already has its date.
     UNMATCHED = "UNMATCHED"  # Nothing in the folio matched the row.
     AMBIGUOUS = "AMBIGUOUS"  # Several matched, so none could be updated.
 

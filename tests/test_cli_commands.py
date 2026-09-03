@@ -450,6 +450,60 @@ def test_settle_info_verbose_lists_every_candidate_row(
         assert_in_output("no match", cli_result)
 
 
+def test_settle_info_reimport_reads_as_up_to_date(temp_ctx: TempContext) -> None:
+    """A second directory import reports "Up to date", not a failure.
+
+    Re-running over the statements folder is the normal way to use this, and
+    rows whose transactions are already settled must not look like misses. A
+    statement that genuinely matches nothing still reports "No updates".
+    """
+    with temp_ctx() as ctx:
+        create_txns_table()
+        seed_transaction(
+            action="BUY",
+            date="2026-06-05",
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount="-61.50",
+            price="61.50",
+            units="1",
+        )
+        statements_dir = ctx.config.statements_path
+
+        def statement_row(amount: float, price: str) -> dict[str, Any]:
+            return {
+                "date": "2026-06-08",
+                "amount": amount,
+                "currency": "CAD",
+                "transaction": "BUY",
+                "description": (
+                    f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                    f"${price} per share (executed at 2026-06-05)"
+                ),
+            }
+
+        register_test_dataframe(
+            statements_dir / "ws_statement_WS-TFSA_202606.xlsx",
+            pd.DataFrame([statement_row(-61.5, "61.50")]),
+        )
+        register_test_dataframe(
+            statements_dir / "ws_statement_WS-RRSP_202606.xlsx",
+            pd.DataFrame([statement_row(-99.99, "99.99")]),
+        )
+
+        first = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
+        assert_cli_success(first)
+        assert_in_output("Success", first)
+        # The RRSP statement matches nothing on either run.
+        assert_in_output("No updates", first)
+
+        second = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
+        assert_cli_success(second)
+        assert_in_output("Up to date", second)
+        assert_in_output("are already settled", second)
+
+
 def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
     """`--verbose` describes an import, so it is refused on its own."""
     with temp_ctx() as ctx:

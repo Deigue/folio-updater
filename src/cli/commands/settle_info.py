@@ -127,6 +127,11 @@ def _import_single_statement(
             f"Updated {result.settlement_updates} settlement dates from "
             f'"{statement_path.name}"',
         )
+    elif result.settlement_already_settled() and not result.settlement_unplaced():
+        console_info(
+            f"All {result.settlement_candidates()} row(s) in "
+            f'"{statement_path.name}" are already settled',
+        )
     else:
         console_warning(f'No settlement dates updated from "{statement_path.name}"')
 
@@ -184,6 +189,22 @@ def _report_settlement_matching(
         )
 
 
+def _statement_status(result: StatementImportResult) -> str:
+    """Label one statement's row in the summary table.
+
+    Args:
+        result: What the statement import produced.
+
+    Returns:
+        The status cell, symbol included.
+    """
+    if result.settlement_updates > 0 or result.transfers_created() > 0:
+        return f"{get_symbol('success')}Success"
+    if result.settlement_already_settled() and not result.settlement_unplaced():
+        return f"{get_symbol('info')}Up to date"
+    return f"{get_symbol('warning')}No updates"
+
+
 def _import_statements_from_directory(
     *,
     verbose: bool = False,
@@ -223,12 +244,6 @@ def _import_statements_from_directory(
     for statement_file in statement_files:
         result = _import_single_statement(statement_file, verbose=verbose)
         results.append(result)
-        changed = result.settlement_updates > 0 or result.transfers_created() > 0
-        status = (
-            f"{get_symbol('success')}Success"
-            if changed
-            else f"{get_symbol('warning')}No updates"
-        )
         summary_rows.append(
             {
                 "File": statement_file.name,
@@ -236,7 +251,7 @@ def _import_statements_from_directory(
                 "Unplaced": len(result.settlement_unplaced()),
                 "Transfers": result.transfers_created(),
                 "Rejected": result.transfers_rejected,
-                "Status": status,
+                "Status": _statement_status(result),
             },
         )
 

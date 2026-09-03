@@ -140,6 +140,8 @@ class ImportDisplay:
         """
         if match.outcome is SettlementOutcome.MATCHED:
             return f"{get_symbol('success')}[{THEME_SUCCESS}]matched[/{THEME_SUCCESS}]"
+        if match.outcome is SettlementOutcome.ALREADY_SETTLED:
+            return f"{get_symbol('info')}[dim]settled[/dim]"
         if match.outcome is SettlementOutcome.AMBIGUOUS:
             return (
                 f"{get_symbol('warning')}[yellow]ambiguous "

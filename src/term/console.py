@@ -46,13 +46,11 @@ def _supports_unicode() -> bool:  # pragma: no cover
 
 _UNICODE_SUPPORTED = _supports_unicode()
 
-# Symbols include trailing space for consistent formatting
-# Note: VS16 emojis (warning, info) need double space for proper terminal rendering
 _SYMBOLS = {
     "success": "✅ " if _UNICODE_SUPPORTED else "[OK] ",
     "error": "❌ " if _UNICODE_SUPPORTED else "[ERROR] ",
-    "warning": "⚠️  " if _UNICODE_SUPPORTED else "[WARN] ",
-    "info": "ℹ️  " if _UNICODE_SUPPORTED else "[INFO] ",
+    "warning": "⚠  " if _UNICODE_SUPPORTED else "[WARN] ",
+    "info": "ℹ  " if _UNICODE_SUPPORTED else "[INFO] ",
 }
 
 # The default console. Callers reach it through `active_console()`

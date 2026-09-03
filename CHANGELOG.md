@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   corrections like `TOI.V` match.
 - Settlement matching keys on the account from the statement filename, so the
   same trade in two accounts is no longer ambiguous.
+- Re-importing a statement reports rows that were already settled.
+- The warning and info icons no longer misalign tables they appear in.
 
 ### Security
 

@@ -898,6 +898,66 @@ def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None
         assert unplaced[0].account == "WS-TFSA"
 
 
+def test_import_statements_reports_already_settled_rows(
+    temp_ctx: TempContext,
+) -> None:
+    """Re-importing a statement reports its rows settled, not unmatched.
+
+    Only transactions with a calculated date are candidates, so a second run
+    matches nothing. That is routine, and must not read as a failure.
+    """
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_id = seed_transaction(
+            action="BUY",
+            date="2026-06-05",
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount="-61.50",
+            price="61.50",
+            units="1",
+        )
+
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-06-08",
+                    "amount": -61.5,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$61.50 per share (executed at 2026-06-05)"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202606.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+
+        first = import_statements(statement_file)
+        assert first.settlement_updates == 1
+
+        second = import_statements(statement_file)
+
+        assert second.settlement_updates == 0
+        assert second.settlement_candidates() == 1
+        assert second.settlement_already_settled() == 1
+        # Nothing is wrong, so nothing is reported as unplaced.
+        assert second.settlement_unplaced() == []
+
+        match = second.settlement_matches[0]
+        assert match.outcome is SettlementOutcome.ALREADY_SETTLED
+        assert match.txn_id == txn_id
+
+        # The date from the first run is untouched.
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+        row = txns[txns[Column.Txn.TXN_ID] == txn_id].iloc[0]
+        assert row[Column.Txn.SETTLE_DATE] == "2026-06-08"
+
+
 def test_import_statements_reports_ambiguity_without_an_account(
     temp_ctx: TempContext,
 ) -> None:
