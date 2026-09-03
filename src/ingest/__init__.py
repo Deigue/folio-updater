@@ -7,6 +7,11 @@ to the database; the caller does that with whatever is returned.
 """
 
 from ingest.pipeline import prepare_transactions
+from ingest.rules import TransactionTransformer
 from ingest.validation import ActionValidationRules
 
-__all__ = ["ActionValidationRules", "prepare_transactions"]
+__all__ = [
+    "ActionValidationRules",
+    "TransactionTransformer",
+    "prepare_transactions",
+]

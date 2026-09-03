@@ -30,6 +30,10 @@ TXN_DATE = "2025-08-15"
 ACCOUNT = "TESTACCT"
 TICKER = "TESTTKR"
 
+# Mock symbols
+TSX_TICKER = "TSTKR"  # Toronto listed, so the importer spells it TSTKR.TO
+VENTURE_TICKER = "VNTKR"  # TSX Venture, needing a transform rule to correct
+
 # keep track of prepared columns by database, reseed only when needed.
 _prepared_txn_columns: dict[str, frozenset[str]] = {}
 

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- `folio settle-info --import --verbose` lists every statement row and how it
+  resolved: matched, unmatched, or ambiguous.
+
 ### Changed
 
 ### Deprecated
@@ -15,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Removed
 
 ### Fixed
+
+- Statement tickers now go through the configured transform rules, so venue
+  corrections like `TOI.V` match.
+- Settlement matching keys on the account from the statement filename, so the
+  same trade in two accounts is no longer ambiguous.
 
 ### Security
 

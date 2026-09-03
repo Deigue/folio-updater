@@ -174,11 +174,17 @@ def settle_info_cmd(
         "--import",
         help="Import statement files to update settlement dates",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="List every statement row weighed, matched or not",
+    ),
 ) -> None:
     """Show settlement date information."""
     from cli.commands.settle_info import settlement_info
 
-    settlement_info(file=file, import_flag=import_flag)
+    settlement_info(file=file, import_flag=import_flag, verbose=verbose)
 
 
 @app.command("download", help="Download transactions from brokers")

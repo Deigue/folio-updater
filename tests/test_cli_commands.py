@@ -39,6 +39,7 @@ from .helpers.cli import (
     assert_in_output,
     run_cli_with_config,
 )
+from .helpers.seed import TSX_TICKER, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -392,6 +393,75 @@ def test_settle_info_import_reports_skipped_cash_transfers(
         with get_connection() as conn:
             txns = get_rows(conn, Table.TXNS)
         assert txns.empty
+
+
+def test_settle_info_verbose_lists_every_candidate_row(
+    temp_ctx: TempContext,
+) -> None:
+    """`--verbose` tables each statement row, so an unmatched one is visible."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        seed_transaction(
+            action="BUY",
+            date="2026-06-05",
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount="-61.50",
+            price="61.50",
+            units="1",
+        )
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-06-08",
+                    "amount": -61.5,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$61.50 per share (executed at 2026-06-05)"
+                    ),
+                },
+                {
+                    "date": "2026-06-30",
+                    "amount": -59.57,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$59.57 per share (executed at 2026-06-29)"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202606.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--import", "--verbose", "-f", str(statement_file)],
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output("Settlement Matching", cli_result)
+        assert_in_output("matched", cli_result)
+        assert_in_output("no match", cli_result)
+
+
+def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
+    """`--verbose` describes an import, so it is refused on its own."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--verbose"],
+        )
+
+        assert cli_result.exit_code == 1
+        assert_in_output("only works with", cli_result)
 
 
 @pytest.mark.parametrize(

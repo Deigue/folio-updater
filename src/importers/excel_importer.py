@@ -19,10 +19,10 @@ from db import (
     update_rows,
 )
 from db.helpers import format_transaction_summary
-from domain import TXN_ESSENTIALS, Action, Column, Table
+from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome, Table
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
-from ingest import prepare_transactions
-from models import ImportResults, StatementImportResult
+from ingest import TransactionTransformer, prepare_transactions
+from models import ImportResults, SettlementMatch, StatementImportResult
 from services.symbols import normalize_canadian_ticker
 from term import announce, get_symbol
 
@@ -200,7 +200,10 @@ def import_statements(statement: Path) -> StatementImportResult:
             )
             return StatementImportResult()
 
-        settlement_updates = _update_settlement_dates(stmt_df)
+        settlement_updates, settlement_matches = _update_settlement_dates(
+            stmt_df,
+            statement,
+        )
         transfer_df, transfers_rejected, transfers_skipped = (
             _build_transfer_transactions(stmt_df, statement)
         )
@@ -226,11 +229,33 @@ def import_statements(statement: Path) -> StatementImportResult:
             transfer_results=transfer_results,
             transfers_rejected=transfers_rejected,
             transfers_skipped=transfers_skipped,
+            settlement_matches=settlement_matches,
         )
 
 
-def _update_settlement_dates(df: pd.DataFrame) -> int:
-    """Update settlement dates using the provided DataFrame."""
+def _update_settlement_dates(
+    df: pd.DataFrame,
+    statement: Path,
+) -> tuple[int, list[SettlementMatch]]:
+    """Update settlement dates using the provided DataFrame.
+
+    Args:
+        df: Rows read from the statement.
+        statement: Path the rows came from. Its filename names the account,
+            which keeps two accounts holding the same trade apart.
+
+    Returns:
+        The number of transactions updated, and one `SettlementMatch` per
+        candidate row describing how it was resolved.
+    """
+    account = _extract_account_from_statement_filename(statement)
+    if not account:
+        announce.warning(
+            f'No account in statement filename "{statement.name}"; settlement '
+            "matching cannot tell two accounts' identical trades apart",
+            "importer",
+        )
+
     with get_connection() as conn:
         where = f'"{Column.Txn.SETTLE_CALCULATED}" = ?'
         params = [1]
@@ -244,61 +269,107 @@ def _update_settlement_dates(df: pd.DataFrame) -> int:
 
         if existing_txns.empty:  # pragma: no cover
             announce.info("No calculated settlement dates found to update", "importer")
-            return 0
+            return 0, []
 
-        updates = []
-        candidate_count = 0
+        updates: list[dict] = []
+        results: list[SettlementMatch] = []
         for _, row in df.iterrows():
             try:
-                statement_data = _extract_statement_row_data(row)
-                if not statement_data:  # pragma: no cover
+                statement_data = _extract_statement_row_data(row, account)
+                if not statement_data:
                     continue
-                candidate_count += 1
                 matches = _match_transactions(existing_txns, statement_data)
-
-                if len(matches) == 1:
-                    transaction_row = matches.iloc[0]
-                    txn_id = int(transaction_row[Column.Txn.TXN_ID])
-                    updates.append(
-                        {
-                            Column.Txn.TXN_ID: txn_id,
-                            Column.Txn.SETTLE_DATE: statement_data["settlement_date"],
-                            Column.Txn.SETTLE_CALCULATED: 0,
-                        },
-                    )
-                    txn_summary = format_transaction_summary(transaction_row)
-                    import_logger.info("  * %s", txn_summary)
-                elif len(matches) > 1:  # pragma: no cover
-                    msg = (
-                        f"Multiple matches found for {statement_data['action']} "
-                        f"{statement_data['ticker']} on {statement_data['txn_date']}, "
-                        "skipping"
-                    )
-                    announce.warning(msg, "importer")
-
+                results.append(
+                    _resolve_statement_match(statement_data, matches, updates),
+                )
             except (ValueError, TypeError) as e:
                 announce.warning(f"Skipping invalid statement row: {e}", "importer")
                 continue
 
-        if candidate_count != 0:
+        if results:
             announce.info(
-                f"Matched {len(updates)} out of {candidate_count} candidates.",
+                f"Matched {len(updates)} out of {len(results)} candidates.",
                 "importer",
             )
         if updates:
-            return _apply_settlement_updates_to_db(conn, updates)
+            return _apply_settlement_updates_to_db(conn, updates), results
 
-        return 0  # pragma: no cover
+        return 0, results
 
 
-def _extract_statement_row_data(row: pd.Series) -> dict | None:
-    """Extract and validate data from a statement row."""
+def _resolve_statement_match(
+    statement_data: dict,
+    matches: pd.DataFrame,
+    updates: list[dict],
+) -> SettlementMatch:
+    """Turn a row's candidate matches into an outcome, queuing an update for a hit.
+
+    Args:
+        statement_data: Fields extracted from the statement row.
+        matches: Folio transactions the row matched.
+        updates: Pending updates, appended to when exactly one row matched.
+
+    Returns:
+        The outcome recorded for this statement row.
+    """
+    result = SettlementMatch(
+        outcome=SettlementOutcome.UNMATCHED,
+        settle_date=statement_data["settlement_date"],
+        txn_date=statement_data["txn_date"],
+        action=statement_data["action"],
+        ticker=statement_data["ticker"],
+        currency=str(statement_data["currency"]),
+        amount=statement_data["amount"],
+        units=statement_data["units"],
+        account=statement_data["account"],
+        candidates=len(matches),
+    )
+
+    if len(matches) == 1:
+        transaction_row = matches.iloc[0]
+        result.txn_id = int(transaction_row[Column.Txn.TXN_ID])
+        result.outcome = SettlementOutcome.MATCHED
+        updates.append(
+            {
+                Column.Txn.TXN_ID: result.txn_id,
+                Column.Txn.SETTLE_DATE: statement_data["settlement_date"],
+                Column.Txn.SETTLE_CALCULATED: 0,
+            },
+        )
+        import_logger.info("  * %s", format_transaction_summary(transaction_row))
+        return result
+
+    described = (
+        f"{result.action} {result.ticker} on {result.txn_date} for {result.amount}"
+    )
+    if len(matches) > 1:
+        result.outcome = SettlementOutcome.AMBIGUOUS
+        import_logger.warning(
+            "  ? %d matches for %s, skipping",
+            len(matches),
+            described,
+        )
+    else:
+        import_logger.warning("  ! No match for %s", described)
+    return result
+
+
+def _extract_statement_row_data(row: pd.Series, account: str | None) -> dict | None:
+    """Extract and validate data from a statement row.
+
+    Args:
+        row: One statement row.
+        account: Account the statement belongs to, or None when unknown.
+
+    Returns:
+        Fields to match on, or None when the row is not a settling trade.
+    """
     settlement_date = _normalize_date(row["date"])
     if not settlement_date:  # pragma: no cover
         return None
 
     action_str = str(row["transaction"]).strip().upper()
-    if action_str not in BUSINESS_DAY_SETTLE_ACTIONS:  # pragma: no cover
+    if action_str not in BUSINESS_DAY_SETTLE_ACTIONS:
         return None
 
     description = str(row["description"])
@@ -308,7 +379,7 @@ def _extract_statement_row_data(row: pd.Series) -> dict | None:
         return None
 
     currency = row["currency"]
-    ticker = normalize_canadian_ticker(ticker, currency)
+    ticker = _canonical_statement_ticker(ticker, action_str, currency)
 
     return {
         "settlement_date": settlement_date,
@@ -317,8 +388,39 @@ def _extract_statement_row_data(row: pd.Series) -> dict | None:
         "units": units,
         "txn_date": txn_date,
         "currency": currency,
+        "account": account,
         "amount": abs(float(row["amount"])),
     }
+
+
+def _canonical_statement_ticker(
+    ticker: str,
+    action: str,
+    currency: object,
+) -> str:
+    """Spell a statement's ticker the way the folio stores it.
+
+    Two steps, in the order the import pipeline runs them: add the exchange
+    suffix a CAD ticker is missing, then apply the user's transform rules.
+    Skipping the second step is what left venue-corrected symbols unmatchable.
+
+    Args:
+        ticker: Ticker as written in the statement description.
+        action: Statement action code, in case a rule keys on it.
+        currency: Currency the row is denominated in.
+
+    Returns:
+        The transformed ticker, or the normalized one if no rule applied.
+    """
+    normalized = normalize_canadian_ticker(ticker, str(currency)) or ticker
+    transformed = TransactionTransformer.transform_fields(
+        {
+            Column.Txn.TICKER: normalized,
+            Column.Txn.ACTION: action,
+            Column.Txn.CURRENCY: currency,
+        },
+    )
+    return str(transformed.get(Column.Txn.TICKER, normalized))
 
 
 def _normalize_date(date_value: str) -> str | None:
@@ -377,13 +479,24 @@ def _match_transactions(
     existing_txns: pd.DataFrame,
     statement_data: dict,
 ) -> pd.DataFrame:
-    """Find transactions matching the statement data."""
+    """Find transactions matching the statement data.
+
+    Args:
+        existing_txns: Transactions still carrying a calculated settlement date.
+        statement_data: Fields extracted from one statement row.
+
+    Returns:
+        Every transaction the row matches.
+    """
     conditions = (
         (existing_txns[Column.Txn.ACTION] == statement_data["action"])
         & (existing_txns[Column.Txn.TXN_DATE] == statement_data["txn_date"])
         & (existing_txns[Column.Txn.TICKER] == statement_data["ticker"])
         & (existing_txns[Column.Txn.CURRENCY] == statement_data["currency"])
     )
+
+    if statement_data["account"]:
+        conditions &= existing_txns[Column.Txn.ACCOUNT] == statement_data["account"]
 
     # Matching tolerance for numeric amounts
     amount_tolerance = 0.01

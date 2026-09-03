@@ -10,11 +10,12 @@ import pytest
 
 from datagen import ensure_data_exists
 from db import create_txns_table, get_connection, get_rows
-from domain import TXN_ESSENTIALS, Column, Table
+from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions
 
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
+from .helpers.seed import TSX_TICKER, VENTURE_TICKER, seed_transaction
 
 # Import assertions read the exported parquet back, so these need the real one.
 pytestmark = pytest.mark.real_parquet_export
@@ -721,6 +722,224 @@ def test_import_statements_rejects_transfer_without_account_in_filename(
         with get_connection() as conn:
             txns = get_rows(conn, Table.TXNS)
         assert txns.empty
+
+
+def test_import_statements_matches_transform_corrected_ticker(
+    temp_ctx: TempContext,
+) -> None:
+    """A statement ticker goes through the same transform rules the import did.
+
+    The importer appends `.TO` to every CAD ticker, so a security listed on the
+    TSX *Venture* needs a transform rule to correct the venue. Without applying
+    that rule here the statement looks for `VNTKR.TO` and never finds `VNTKR.V`.
+    """
+    venue_rule = {
+        "transforms": {
+            "rules": [
+                {
+                    "conditions": {"Ticker": [f"{VENTURE_TICKER}.TO"]},
+                    "actions": {"Ticker": f"{VENTURE_TICKER}.V"},
+                },
+            ],
+        },
+    }
+    with temp_ctx(venue_rule) as ctx:
+        create_txns_table()
+        txn_id = seed_transaction(
+            action="BUY",
+            date="2026-05-08",
+            account="WS-PERSONAL",
+            currency="CAD",
+            ticker=f"{VENTURE_TICKER}.V",
+            amount="-186.50",
+            price="93.25",
+            units="2",
+        )
+
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-05-11",
+                    "amount": -186.5,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{VENTURE_TICKER} - Venture Test Corp: Bought 2.0000 "
+                        "shares at $93.25 per share (executed at 2026-05-08)"
+                    ),
+                },
+            ],
+        )
+        statement_file = (
+            ctx.config.project_root / "ws_statement_WS-PERSONAL_202605.xlsx"
+        )
+        register_test_dataframe(statement_file, statement_df)
+        result = import_statements(statement_file)
+
+        assert result.settlement_updates == 1
+        assert [m.ticker for m in result.settlement_matches] == [f"{VENTURE_TICKER}.V"]
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+        row = txns[txns[Column.Txn.TXN_ID] == txn_id].iloc[0]
+        assert row[Column.Txn.SETTLE_DATE] == "2026-05-11"
+        assert int(row[Column.Txn.SETTLE_CALCULATED]) == 0
+
+
+def test_import_statements_matches_identical_trades_by_account(
+    temp_ctx: TempContext,
+) -> None:
+    """The same trade in two accounts settles per account, not ambiguously.
+
+    Buying one share at the same price on the same day in two accounts is
+    ordinary. Only the account, which the statement filename carries, tells the
+    two rows apart.
+    """
+    with temp_ctx() as ctx:
+        create_txns_table()
+        shared = {
+            "action": "BUY",
+            "date": "2026-06-05",
+            "currency": "CAD",
+            "ticker": f"{TSX_TICKER}.TO",
+            "amount": "-61.50",
+            "price": "61.50",
+            "units": "1",
+        }
+        personal_id = seed_transaction(account="WS-PERSONAL", **shared)
+        tfsa_id = seed_transaction(account="WS-TFSA", **shared)
+
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-06-08",
+                    "amount": -61.5,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$61.50 per share (executed at 2026-06-05)"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202606.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+        result = import_statements(statement_file)
+
+        assert result.settlement_updates == 1
+        assert [m.txn_id for m in result.settlement_matches] == [tfsa_id]
+
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+
+        tfsa_row = txns[txns[Column.Txn.TXN_ID] == tfsa_id].iloc[0]
+        assert tfsa_row[Column.Txn.SETTLE_DATE] == "2026-06-08"
+        assert int(tfsa_row[Column.Txn.SETTLE_CALCULATED]) == 0
+
+        # The personal row keeps the date the market calendar gave it.
+        personal_row = txns[txns[Column.Txn.TXN_ID] == personal_id].iloc[0]
+        assert int(personal_row[Column.Txn.SETTLE_CALCULATED]) == 1
+
+
+def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None:
+    """A statement row matching nothing is reported, not silently dropped.
+
+    Rows that never settle on a business day (a dividend here) are not
+    candidates at all, so they are skipped rather than reported unmatched.
+    """
+    with temp_ctx() as ctx:
+        create_txns_table()
+        seed_transaction(
+            action="BUY",
+            date="2026-06-05",
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount="-61.50",
+            price="61.50",
+            units="1",
+        )
+
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-06-08",
+                    "amount": -99.99,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$99.99 per share (executed at 2026-06-05)"
+                    ),
+                },
+                {
+                    "date": "2026-06-30",
+                    "amount": 8.95,
+                    "currency": "CAD",
+                    "transaction": "DIV",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Cash dividend distribution, "
+                        "received on 2026-06-30, record date of 2026-06-15"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202606.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+        result = import_statements(statement_file)
+
+        assert result.settlement_updates == 0
+        assert result.settlement_candidates() == 1
+        unplaced = result.settlement_unplaced()
+        assert len(unplaced) == 1
+        assert unplaced[0].outcome is SettlementOutcome.UNMATCHED
+        assert unplaced[0].candidates == 0
+        assert unplaced[0].account == "WS-TFSA"
+
+
+def test_import_statements_reports_ambiguity_without_an_account(
+    temp_ctx: TempContext,
+) -> None:
+    """Without an account in the filename, identical trades stay ambiguous."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        shared = {
+            "action": "BUY",
+            "date": "2026-06-05",
+            "currency": "CAD",
+            "ticker": f"{TSX_TICKER}.TO",
+            "amount": "-61.50",
+            "price": "61.50",
+            "units": "1",
+        }
+        seed_transaction(account="WS-PERSONAL", **shared)
+        seed_transaction(account="WS-TFSA", **shared)
+
+        statement_df = pd.DataFrame(
+            [
+                {
+                    "date": "2026-06-08",
+                    "amount": -61.5,
+                    "currency": "CAD",
+                    "transaction": "BUY",
+                    "description": (
+                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
+                        "$61.50 per share (executed at 2026-06-05)"
+                    ),
+                },
+            ],
+        )
+        statement_file = ctx.config.project_root / "unnamed_statement.xlsx"
+        register_test_dataframe(statement_file, statement_df)
+        result = import_statements(statement_file)
+
+        assert result.settlement_updates == 0
+        unplaced = result.settlement_unplaced()
+        assert len(unplaced) == 1
+        assert unplaced[0].outcome is SettlementOutcome.AMBIGUOUS
+        assert unplaced[0].candidates == 2
+        assert unplaced[0].account is None
 
 
 # Helper functions

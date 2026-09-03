@@ -47,12 +47,19 @@ def settlement_info(
         "--import",
         help="Import statement files to update settlement dates",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="List every statement row weighed, matched or not",
+    ),
 ) -> None:
     """Show settlement date information for transactions in the database.
 
     Args:
         file: Optional path to monthly statement file to import for settlement updates
         import_flag: Whether to import statement files for settlement updates
+        verbose: Whether to list each statement row and how it was resolved
     """
     bootstrap.reload_config()
     if file and not import_flag:
@@ -62,22 +69,29 @@ def settlement_info(
         )
         raise typer.Exit(1)
 
+    if verbose and not import_flag:
+        console_error(
+            "The [bold italic]--verbose[/bold italic] option only works with"
+            " [bold italic]--import[/bold italic] enabled.",
+        )
+        raise typer.Exit(1)
+
     if import_flag:
-        _handle_statement_import(file)
+        _handle_statement_import(file, verbose=verbose)
 
     _display_settlement_statistics(import_flag=import_flag)
 
 
-def _handle_statement_import(file: str | None) -> None:
+def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None:
     """Handle statement import based on file parameter."""
     if file:
         statement_path = Path(file)
         if not statement_path.exists():
             console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
-        results = [_import_single_statement(statement_path)]
+        results = [_import_single_statement(statement_path, verbose=verbose)]
     else:
-        results = _import_statements_from_directory()
+        results = _import_statements_from_directory(verbose=verbose)
 
     # Updates parquets if any changes were made.
     changed = any(
@@ -90,8 +104,20 @@ def _handle_statement_import(file: str | None) -> None:
             parquet_exporter.export_all()
 
 
-def _import_single_statement(statement_path: Path) -> StatementImportResult:
-    """Import a single statement file."""
+def _import_single_statement(
+    statement_path: Path,
+    *,
+    verbose: bool = False,
+) -> StatementImportResult:
+    """Import a single statement file.
+
+    Args:
+        statement_path: Statement to import.
+        verbose: Whether to list every statement row and how it was resolved.
+
+    Returns:
+        What the statement changed.
+    """
     with ProgressDisplay.spinner(color="dark_violet") as progress:
         progress.add_task(f"Importing {statement_path.name}...", total=None)
         result = import_statements(statement_path)
@@ -103,6 +129,8 @@ def _import_single_statement(statement_path: Path) -> StatementImportResult:
         )
     else:
         console_warning(f'No settlement dates updated from "{statement_path.name}"')
+
+    _report_settlement_matching(statement_path.name, result, verbose=verbose)
 
     if result.transfer_results and result.transfers_created() > 0:
         display = ImportDisplay()
@@ -126,8 +154,48 @@ def _import_single_statement(statement_path: Path) -> StatementImportResult:
     return result
 
 
-def _import_statements_from_directory() -> list[StatementImportResult]:
-    """Import all statement files from the statements directory."""
+def _report_settlement_matching(
+    filename: str,
+    result: StatementImportResult,
+    *,
+    verbose: bool,
+) -> None:
+    """Say what settlement matching could not place, in full when asked.
+
+    Rows that match nothing or match ambiguously used to reach only the
+    importer log, which is what let a mis-spelled ticker go unnoticed. The
+    count is always printed; `verbose` adds the row-by-row table.
+
+    Args:
+        filename: Statement the rows came from.
+        result: What the statement import produced.
+        verbose: Whether to list every candidate row, matched or not.
+    """
+    if verbose:
+        ImportDisplay().show_settlement_detail(filename, result.settlement_matches)
+        return
+
+    unplaced = result.settlement_unplaced()
+    if unplaced:
+        console_warning(
+            f"{len(unplaced)} of {result.settlement_candidates()} statement row(s) "
+            f'in "{filename}" matched no single transaction - rerun with '
+            "[bold italic]--verbose[/bold italic] for details",
+        )
+
+
+def _import_statements_from_directory(
+    *,
+    verbose: bool = False,
+) -> list[StatementImportResult]:
+    """Import all statement files from the statements directory.
+
+    Args:
+        verbose: Whether to list every statement row and how it was resolved.
+
+    Returns:
+        One result per statement file found.
+    """
     config = get_config()
     statements_dir = config.statements_path
 
@@ -153,7 +221,7 @@ def _import_statements_from_directory() -> list[StatementImportResult]:
     summary_rows = []
 
     for statement_file in statement_files:
-        result = _import_single_statement(statement_file)
+        result = _import_single_statement(statement_file, verbose=verbose)
         results.append(result)
         changed = result.settlement_updates > 0 or result.transfers_created() > 0
         status = (
@@ -165,6 +233,7 @@ def _import_statements_from_directory() -> list[StatementImportResult]:
             {
                 "File": statement_file.name,
                 "Settle Updates": result.settlement_updates,
+                "Unplaced": len(result.settlement_unplaced()),
                 "Transfers": result.transfers_created(),
                 "Rejected": result.transfers_rejected,
                 "Status": status,

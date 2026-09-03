@@ -12,6 +12,8 @@ from typing import Any
 
 import pandas as pd
 
+from domain import SettlementOutcome
+
 
 @dataclass
 class MergeEvent:
@@ -102,6 +104,40 @@ class ImportResults:
 
 
 @dataclass
+class SettlementMatch:
+    """One statement row weighed against the folio's calculated settlement dates.
+
+    Every candidate row a statement offers produces one of these, matched or
+    not, so an import can report what it did and what it could not place.
+
+    Attributes:
+        outcome: Whether the row matched exactly one transaction, none, or several.
+        settle_date: The settlement date the statement reports for the row.
+        txn_date: Trade date parsed out of the statement description.
+        action: Statement action code (BUY/SELL/...).
+        ticker: Ticker after normalization and the user's transform rules.
+        currency: Currency the row is denominated in.
+        amount: Absolute amount used for matching.
+        units: Share count parsed from the description, when the row carries one.
+        account: Account the statement belongs to, from its filename.
+        candidates: How many folio transactions the row matched.
+        txn_id: The transaction updated, set only when the outcome is MATCHED.
+    """
+
+    outcome: SettlementOutcome
+    settle_date: str
+    txn_date: str
+    action: str
+    ticker: str
+    currency: str
+    amount: float
+    units: float | None = None
+    account: str | None = None
+    candidates: int = 0
+    txn_id: int | None = None
+
+
+@dataclass
 class StatementImportResult:
     """Result for a statement import operation."""
 
@@ -109,7 +145,20 @@ class StatementImportResult:
     transfer_results: ImportResults | None = None
     transfers_rejected: int = 0
     transfers_skipped: int = 0
+    settlement_matches: list[SettlementMatch] = field(default_factory=list)
 
     def transfers_created(self) -> int:
         """Return number of transfer transactions created from this statement."""
         return self.transfer_results.imported_count() if self.transfer_results else 0
+
+    def settlement_candidates(self) -> int:
+        """Return how many statement rows were weighed for a settlement date."""
+        return len(self.settlement_matches)
+
+    def settlement_unplaced(self) -> list[SettlementMatch]:
+        """Return the candidate rows that did not update a transaction."""
+        return [
+            match
+            for match in self.settlement_matches
+            if match.outcome is not SettlementOutcome.MATCHED
+        ]

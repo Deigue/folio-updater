@@ -124,6 +124,14 @@ class WarningCode(StrEnum):
     SUPERFICIAL_LOSS_SUSPECT = "SUPERFICIAL_LOSS_SUSPECT"
 
 
+class SettlementOutcome(StrEnum):
+    """How a statement row fared against the folio's calculated settlement dates."""
+
+    MATCHED = "MATCHED"  # Exactly one transaction matched; its date was updated.
+    UNMATCHED = "UNMATCHED"  # Nothing in the folio matched the row.
+    AMBIGUOUS = "AMBIGUOUS"  # Several matched, so none could be updated.
+
+
 class QuoteStatus(StrEnum):
     """How the last attempt to price a symbol came out."""
 

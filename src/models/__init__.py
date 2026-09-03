@@ -6,6 +6,7 @@ This module exports the public API for all data models and result types.
 from models.import_results import (
     ImportResults,
     MergeEvent,
+    SettlementMatch,
     StatementImportResult,
     TransformEvent,
 )
@@ -13,6 +14,7 @@ from models.import_results import (
 __all__ = [
     "ImportResults",
     "MergeEvent",
+    "SettlementMatch",
     "StatementImportResult",
     "TransformEvent",
 ]

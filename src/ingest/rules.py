@@ -15,6 +15,8 @@ from domain import Column
 from models import MergeEvent, TransformEvent
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from config.transforms import MergeGroup, TransformRule
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,32 @@ class TransactionTransformer:
         transformer = TransactionTransformer(df)
         transformer._apply_transforms()
         return transformer.df, transformer._merge_events, transformer._transform_events
+
+    @staticmethod
+    def transform_fields(fields: Mapping[str, object]) -> dict[str, object]:
+        """Apply the user's transform rules to a single already-mapped row.
+
+        For callers outside the import pipeline that hold one row rather than a
+        frame: a statement row being matched against the folio has to wear the
+        same ticker the rules gave the transaction when it was imported. Merge
+        groups are skipped, since combining rows is meaningless for one row.
+
+        A rule whose conditions name a field absent from `fields` is skipped, so
+        pass every field the rules might key on.
+
+        Args:
+            fields: Column name to value, keyed by internal (mapped) names.
+
+        Returns:
+            The same fields with every applicable rule applied.
+        """
+        transformer = TransactionTransformer(pd.DataFrame([dict(fields)]))
+        if not transformer.transforms or not transformer.transforms.rules:
+            return dict(fields)
+        for rule in transformer.transforms.rules:
+            transformer._apply_single_rule(rule)
+        row = transformer.df.iloc[0]
+        return {str(name): row[name] for name in transformer.df.columns}
 
     def _apply_transforms(self) -> pd.DataFrame:
         """Apply all transformation rules to the DataFrame.

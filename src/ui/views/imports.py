@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from domain import TXN_ESSENTIALS, Action, Column, TransactionContext
+from domain import (
+    TXN_ESSENTIALS,
+    Action,
+    Column,
+    SettlementOutcome,
+    TransactionContext,
+)
 from term.console import active_console, console_panel, console_print, get_symbol
 from term.keys import getch
 from term.size import available_height
@@ -22,6 +28,7 @@ from ui.vocabulary import (
     THEME_DUPES,
     THEME_EXCLUDED,
     THEME_MERGED,
+    THEME_SUCCESS,
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
 )
@@ -29,7 +36,7 @@ from ui.vocabulary import (
 if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd
 
-    from models import ImportResults
+    from models import ImportResults, SettlementMatch
 
 # Minimum columns always shown for exclusions
 EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
@@ -72,6 +79,73 @@ class ImportDisplay:
             f"[bright_white]{imported_count}[/bright_white] transactions imported "
             f"([dim]{total_count} total in database[/dim])",
         )
+
+    def show_settlement_detail(
+        self,
+        filename: str,
+        matches: list[SettlementMatch],
+    ) -> None:
+        """Show every statement row that was weighed for a settlement date.
+
+        Matched rows carry the transaction they updated. Rows that matched
+        nothing, or matched too much to choose, are the ones worth reading:
+        without this they are visible only in the importer log.
+
+        Args:
+            filename: Name of the statement the rows came from.
+            matches: One entry per candidate row, matched or not.
+        """
+        if not matches:
+            return
+
+        table = Table(
+            title=f"Settlement Matching - {filename} ({len(matches)})",
+            show_header=True,
+            header_style="bold",
+            border_style=THEME_TRANSFORMS,
+            expand=False,
+            padding=SNUG_PADDING,
+        )
+        table.add_column("Result")
+        table.add_column("TxnId", justify="right")
+        table.add_column(str(Column.Txn.TXN_DATE))
+        table.add_column("Settles")
+        table.add_column(str(Column.Txn.ACTION))
+        table.add_column(str(Column.Txn.TICKER))
+        table.add_column(str(Column.Txn.AMOUNT), justify="right")
+        table.add_column(str(Column.Txn.ACCOUNT))
+
+        for match in matches:
+            table.add_row(
+                self._settlement_result_label(match),
+                str(match.txn_id) if match.txn_id is not None else "",
+                match.txn_date,
+                match.settle_date,
+                safe_str(match.action),
+                safe_str(match.ticker),
+                safe_str(match.amount),
+                safe_str(match.account or ""),
+            )
+
+        console_print(table)
+
+    def _settlement_result_label(self, match: SettlementMatch) -> str:
+        """Render one settlement outcome, with the candidate count when it helps.
+
+        Args:
+            match: The outcome to label.
+
+        Returns:
+            Markup for the Result cell.
+        """
+        if match.outcome is SettlementOutcome.MATCHED:
+            return f"{get_symbol('success')}[{THEME_SUCCESS}]matched[/{THEME_SUCCESS}]"
+        if match.outcome is SettlementOutcome.AMBIGUOUS:
+            return (
+                f"{get_symbol('warning')}[yellow]ambiguous "
+                f"({match.candidates})[/yellow]"
+            )
+        return f"{get_symbol('warning')}[{THEME_EXCLUDED}]no match[/{THEME_EXCLUDED}]"
 
     def show_import_audit(
         self,
