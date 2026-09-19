@@ -62,6 +62,18 @@ class Room:
         remaining = self.remaining
         return remaining is not None and remaining < ZERO
 
+    @property
+    def used_ratio(self) -> Decimal | None:
+        """How much of the limit is used, as a ratio, or None without a usable limit."""
+        if self.limit is None or self.limit == ZERO:
+            return None
+        return self.used / self.limit
+
+    @property
+    def full(self) -> bool:
+        """Whether contributions meet the configured limit exactly, to the cent."""
+        return self.limit is not None and q2(self.used) == q2(self.limit)
+
 
 @dataclass(frozen=True)
 class Flows:

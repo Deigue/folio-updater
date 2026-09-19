@@ -6,12 +6,14 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pytest
 
 from domain import AccountType, Action, Column, Currency, Scope
 from engine.cache import build
 from engine.flows import (
     ROOM_BEARING_TYPES,
     Flows,
+    Room,
     build_flows,
     contributions_by_type_year,
 )
@@ -1001,6 +1003,30 @@ def test_room_without_a_configured_limit_still_reports_what_was_used(
         assert flows.room.limit is None
         assert flows.room.remaining is None
         assert not flows.room.over
+
+
+@pytest.mark.parametrize(
+    ("used", "limit", "ratio", "full"),
+    [
+        (Decimal(0), Decimal(7000), Decimal(0), False),
+        (Decimal(3500), Decimal(7000), Decimal("0.5"), False),
+        (Decimal(7000), Decimal(7000), Decimal(1), True),
+        (Decimal("7000.001"), Decimal(7000), Decimal("7000.001") / 7000, True),
+        (Decimal(9000), Decimal(7000), Decimal(9000) / 7000, False),
+        (Decimal(5000), None, None, False),
+        (Decimal(5000), Decimal(0), None, False),
+    ],
+)
+def test_room_states_how_much_of_its_limit_is_used(
+    used: Decimal,
+    limit: Decimal | None,
+    ratio: Decimal | None,
+    full: bool,  # noqa: FBT001
+) -> None:
+    room = Room(AccountType.TFSA, 2025, used, limit)
+
+    assert room.used_ratio == ratio
+    assert room.full is full
 
 
 def test_a_non_registered_pool_has_no_room_row(temp_ctx: TempContext) -> None:

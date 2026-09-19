@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 
-from domain import Action, Column
+from domain import AccountType, Action, Column, Currency
 
 # --- Panel border themes -----------------------------------------------------
 
@@ -26,6 +27,69 @@ TRANSACTION_COLORS = {
     Action.SPLIT: "purple",
     Action.TFR_IN: "green",
     Action.TFR_OUT: "red",
+}
+
+# --- Dashboard palette ------------------------------------------------------
+
+# Sign colours
+GAIN = "green"
+LOSS = "red"
+GAIN_STRONG = "bold bright_green"
+LOSS_STRONG = "bold bright_red"
+FLAT = "dim"
+
+# Ratios (not percentages) at which a figure turns strong or flat.
+DAY_MOVE_STRONG_AT = Decimal("0.03")  # Change% and PnL%
+RETURN_STRONG_AT = Decimal("0.25")  # Unreal% and Total%
+FLAT_BELOW = Decimal("0.001")
+
+# Concentration: a position's weight in its pool or folio.
+WEIGHT_WARN_AT = Decimal("0.20")
+WEIGHT_ALERT_AT = Decimal("0.30")
+WEIGHT_WARN = "yellow"
+WEIGHT_ALERT = "bold yellow"
+WEIGHT_BAR_STYLE = "dim"
+WEIGHT_BAR_WIDTH = 8
+WEIGHT_BAR_FULL = Decimal("0.40")  # the weight that fills the bar
+
+INCOME = TRANSACTION_COLORS[Action.DIVIDEND]
+REFERENCE_STYLE = "dim"
+SUBTOTAL_ROW_STYLE = "bold"
+GRAND_TOTAL_ROW_STYLE = "bold bright_white"
+
+CURRENCY_COLORS = {
+    Currency.CAD: "medium_purple1",
+    Currency.USD: "dark_turquoise",
+}
+
+# Flows panel
+FLOW_COLORS = {
+    "Contributions": TRANSACTION_COLORS[Action.CONTRIBUTION],
+    "Withdrawn": TRANSACTION_COLORS[Action.WITHDRAWAL],
+    "Net Deposited": "bold bright_white",
+    "Dividends": INCOME,
+    "Fees": "indian_red",
+}
+
+# Contribution room: under-used, partly used, exactly full, over the limit.
+ROOM_LOW_BELOW = Decimal("0.5")
+ROOM_LOW = "dark_orange"
+ROOM_PARTIAL = "yellow"
+ROOM_FULL = "green"
+ROOM_OVER = "bold bright_red"
+ROOM_BAR = ("▰", "▱")  # filled, empty
+ROOM_BAR_ASCII = ("#", "-")
+
+ACCOUNT_TYPE_COLORS = {
+    AccountType.TFSA: "sea_green2",
+    AccountType.FHSA: "aquamarine1",
+    AccountType.RRSP: "sky_blue1",
+    AccountType.RRIF: "steel_blue1",
+    AccountType.LIRA: "light_steel_blue",
+    AccountType.RESP: "plum2",
+    AccountType.NON_REGISTERED: "light_coral",
+    AccountType.MARGIN: "salmon1",
+    AccountType.CORPORATE: "tan",
 }
 
 # --- Number precision --------------------------------------------------------
