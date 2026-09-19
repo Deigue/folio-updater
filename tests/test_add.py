@@ -33,7 +33,7 @@ TICKER = "TESTTKR"
 
 BUY_ARGS = [
     "add",
-    "--action",
+    "--type",
     "BUY",
     "--date",
     TXN_DATE,
@@ -41,7 +41,7 @@ BUY_ARGS = [
     ACCOUNT,
     "--currency",
     Currency.USD.value,
-    "--ticker",
+    "--symbol",
     TICKER,
     "--amount",
     "-1502.50",
@@ -111,7 +111,7 @@ class TestAddSuccess:
                 cli_app,
                 [
                     "add",
-                    "--action",
+                    "--type",
                     "div",
                     "--date",
                     TXN_DATE,
@@ -119,7 +119,7 @@ class TestAddSuccess:
                     ACCOUNT,
                     "--currency",
                     Currency.CAD.value,
-                    "--ticker",
+                    "--symbol",
                     TICKER,
                     "--amount",
                     "12.34",
@@ -176,7 +176,7 @@ class TestAddPrompting:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["add", "--action", "SPLIT"],
+                ["add", "--type", "SPLIT"],
                 user_input=answers,
             )
 
@@ -203,7 +203,7 @@ class TestAddPrompting:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["add", "--action", "ROC"],
+                ["add", "--type", "ROC"],
                 user_input=answers,
             )
 
@@ -227,7 +227,7 @@ class TestAddPrompting:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["add", "--action", "ROC"],
+                ["add", "--type", "ROC"],
                 user_input=answers,
             )
 
@@ -245,12 +245,12 @@ class TestAddPrompting:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["add", "--action", "NOTANACTION"],
+                ["add", "--type", "NOTANACTION"],
                 user_input=answers,
             )
 
             assert_cli_success(cli_result)
-            assert_in_output("Unknown action", cli_result)
+            assert_in_output("Unknown type", cli_result)
             assert _added_txn()[Column.Txn.ACTION] == Action.ROC
 
 
@@ -263,7 +263,7 @@ class TestAddValidation:
             ("--date", "not-a-date", "INVALID TxnDate"),
             ("--amount", "twelve", "INVALID Amount"),
             ("--currency", "GBP", "INVALID $"),
-            ("--ticker", "BAD TICKER", "INVALID Ticker"),
+            ("--symbol", "BAD TICKER", "INVALID Ticker"),
         ],
     )
     def test_invalid_field_is_rejected(
@@ -407,7 +407,7 @@ class TestAddSigns:
                 cli_app,
                 [
                     "add",
-                    "--action",
+                    "--type",
                     "BUY",
                     "--date",
                     TXN_DATE,
@@ -415,7 +415,7 @@ class TestAddSigns:
                     ACCOUNT,
                     "--currency",
                     Currency.USD.value,
-                    "--ticker",
+                    "--symbol",
                     TICKER,
                     "--amount",
                     "1502.50",
@@ -441,7 +441,7 @@ class TestAddSigns:
                 cli_app,
                 [
                     "add",
-                    "--action",
+                    "--type",
                     "SELL",
                     "--date",
                     TXN_DATE,
@@ -449,7 +449,7 @@ class TestAddSigns:
                     ACCOUNT,
                     "--currency",
                     Currency.USD.value,
-                    "--ticker",
+                    "--symbol",
                     TICKER,
                     "--amount",
                     "-1502.50",
@@ -490,7 +490,7 @@ class TestAddSettlement:
                 cli_app,
                 [
                     "add",
-                    "--action",
+                    "--type",
                     "ROC",
                     "--date",
                     TXN_DATE,
@@ -498,7 +498,7 @@ class TestAddSettlement:
                     ACCOUNT,
                     "--currency",
                     Currency.CAD.value,
-                    "--ticker",
+                    "--symbol",
                     TICKER,
                     "--amount",
                     "25.00",

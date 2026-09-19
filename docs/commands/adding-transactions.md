@@ -18,12 +18,12 @@ Supply any information you have, `folio add` will prompt for what remains.
 
 ```bash
 # Fully specified, no prompting
-folio add --action BUY --ticker AAPL --date 2025-08-15 \
+folio add --type BUY --symbol AAPL --date 2025-08-15 \
           --account TFSA --currency USD \
           --amount -1502.50 --price -150.25 --units 10
 
 # Partially specified - prompts for the rest
-folio add --action ROC
+folio add --type ROC
 ```
 
 ```text
@@ -39,15 +39,15 @@ Amount: 42.15
 
 | Option       | Short | Meaning                                                                                                    |
 | ------------ | ----- | ---------------------------------------------------------------------------------------------------------- |
-| `--action`   | `-a`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` |
+| `--type`     | `-t`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` |
 | `--date`     | `-d`  | Transaction date, `YYYY-MM-DD` (prompt defaults to today)                                                  |
-| `--account`  | `-n`  | Account alias                                                                                              |
+| `--account`  | `-a`  | Account alias                                                                                              |
 | `--currency` | `-c`  | `USD`, `CAD` or `EUR`                                                                                      |
-| `--ticker`   | `-t`  | Security ticker                                                                                            |
+| `--symbol`   | `-s`  | Security symbol                                                                                            |
 | `--amount`   | `-m`  | Total transaction amount                                                                                   |
 | `--price`    | `-p`  | Price per unit                                                                                             |
 | `--units`    | `-u`  | Number of units                                                                                            |
-| `--fee`      |       | Transaction fee                                                                                            |
+| `--fee`      | `-f`  | Transaction fee                                                                                            |
 | `--set`      |       | `KEY=VALUE` for optional columns, repeatable                                                               |
 | `--force`    |       | Add even when it duplicates an existing transaction                                                        |
 | `--dry-run`  |       | Validate and preview without writing                                                                       |
@@ -101,7 +101,7 @@ To force a workaround in case your account is still set to CAD, you can do the f
 
 ```bash
 folio edit 168 --set Fee=0
-folio add -a FCH -n IBKR-PERSONAL -c CAD -m -5.67 -d 2023-03-11 \
+folio add -t FCH -a IBKR-PERSONAL -c CAD -m -5.67 -d 2023-03-11 \
           --set Description="IBKR FX commission billed in CAD"
 ```
 
@@ -113,12 +113,12 @@ A transfer has two legs, one in each account, and they must balance:
 
 ```bash
 # Cash moving from one broker to another - no ticker, just an amount
-folio add -a TFR_OUT -n WS-RRSP   -c CAD -m 1000 -d 2023-09-18
-folio add -a TFR_IN  -n IBKR-RRSP -c CAD -m 1000 -d 2023-09-18
+folio add -t TFR_OUT -a WS-RRSP   -c CAD -m 1000 -d 2023-09-18
+folio add -t TFR_IN  -a IBKR-RRSP -c CAD -m 1000 -d 2023-09-18
 
 # A position moving - ticker and units, no amount
-folio add -a TFR_OUT -t SCHD -u 100 -n WS-RRSP   -c USD -d 2023-09-18
-folio add -a TFR_IN  -t SCHD -u 100 -n IBKR-RRSP -c USD -d 2023-09-18
+folio add -t TFR_OUT -s SCHD -u 100 -a WS-RRSP   -c USD -d 2023-09-18
+folio add -t TFR_IN  -s SCHD -u 100 -a IBKR-RRSP -c USD -d 2023-09-18
 ```
 
 Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
@@ -136,7 +136,7 @@ Splits store the **ratio** rather than a money value:
 For a 1:10 split, that is `--price 1 --units 10`:
 
 ```bash
-folio add --action SPLIT --ticker NVDA --date 2024-06-10 \
+folio add --type SPLIT --symbol NVDA --date 2024-06-10 \
           --price 1 --units 10 --account TFSA --currency USD
 ```
 
@@ -156,7 +156,7 @@ The prompts spell this out when you do not pass the values on the command line.
 your folio. A column that does not exist yet is added to the transactions table automatically.
 
 ```bash
-folio add -a FCH -d 2025-08-15 -n RRSP -c CAD -m -9.99 \
+folio add -t FCH -d 2025-08-15 -a RRSP -c CAD -m -9.99 \
           --set Description="Annual account fee"
 ```
 
@@ -189,7 +189,7 @@ This is the same approval mechanism as
 If a value cannot be understood, nothing is written and the reason is reported:
 
 ```bash
-$ folio add -a BUY -t AAPL -d notadate -p 1 -u 4 -n TFSA -c USD -m 4
+$ folio add -t BUY -s AAPL -d notadate -p 1 -u 4 -a TFSA -c USD -m 4
 ❌ Transaction was rejected:
 ❌   INVALID TxnDate
 ```
@@ -198,7 +198,7 @@ Use `--dry-run` to check a transaction, including its calculated settlement date
 to it:
 
 ```bash
-folio add -a BUY -t AAPL -d 2025-08-15 -n TFSA -c USD \
+folio add -t BUY -s AAPL -d 2025-08-15 -a TFSA -c USD \
           -m -1502.50 -p 150.25 -u 10 --dry-run
 ```
 

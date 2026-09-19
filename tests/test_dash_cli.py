@@ -102,6 +102,17 @@ def test_dash_narrows_to_an_account_type(temp_ctx: TempContext) -> None:
         assert_not_in_output("OTHER", result)
 
 
+def test_dash_type_all_is_the_whole_portfolio(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        _seed_two_types()
+
+        result = run_cli_with_config(ctx.config, app, ["dash", "-t", "all"])
+
+        assert_cli_success(result)
+        assert_in_output("TESTTKR", result)
+        assert_in_output("OTHER", result)
+
+
 def test_dash_narrows_to_one_account(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         _seed_two_types()

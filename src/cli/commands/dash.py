@@ -207,7 +207,6 @@ def show_dash(
     sort: str | None = None,
     *,
     by_type: bool = False,
-    folio: bool = False,
     wide: bool = False,
     show_closed: bool = False,
     reverse: bool = False,
@@ -223,7 +222,6 @@ def show_dash(
         export: Write the valued holdings to this path instead of printing.
         sort: Order by this column instead of by market value.
         by_type: Tile one panel per account type.
-        folio: Report the portfolio-wide pool, the default anyway.
         wide: Show the wide-only columns.
         show_closed: Break the aggregate "Closed" row open into one row per
             closed position, instead of one summed line.
@@ -282,7 +280,7 @@ def show_dash(
         _show_by_type(request, badge)
         return
 
-    view = resolve_pool(account, account_type, folio=folio)
+    view = resolve_pool(account, account_type)
     holdings, flows = _panel(request, view)
 
     if export:

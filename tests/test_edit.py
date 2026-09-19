@@ -218,7 +218,7 @@ class TestEditArithmetic:
                 cli_app,
                 [
                     "add",
-                    "--action",
+                    "--type",
                     "SPLIT",
                     "--date",
                     "2025-08-10",
@@ -226,7 +226,7 @@ class TestEditArithmetic:
                     ACCOUNT,
                     "--currency",
                     Currency.USD.value,
-                    "--ticker",
+                    "--symbol",
                     "NVDA",
                     "--price",
                     "1",

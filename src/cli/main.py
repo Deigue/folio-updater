@@ -22,6 +22,7 @@ app = typer.Typer(
     help="Folio Updater - Portfolio management CLI tool",
     add_completion=False,
     no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 
@@ -55,11 +56,11 @@ def import_transactions_cmd(
 
 @app.command("add", help="Add a single transaction to the folio")
 def add_cmd(  # noqa: PLR0917
-    action: str | None = typer.Option(
+    txn_type: str | None = typer.Option(
         None,
-        "-a",
-        "--action",
-        help="Transaction action (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
+        "-t",
+        "--type",
+        help="Transaction type (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
     ),
     date: str | None = typer.Option(
         None,
@@ -69,7 +70,7 @@ def add_cmd(  # noqa: PLR0917
     ),
     account: str | None = typer.Option(
         None,
-        "-n",
+        "-a",
         "--account",
         help="Account alias the transaction belongs to",
     ),
@@ -79,7 +80,7 @@ def add_cmd(  # noqa: PLR0917
         "--currency",
         help="Transaction currency (USD, CAD, EUR)",
     ),
-    ticker: str | None = typer.Option(None, "-t", "--ticker", help="Security ticker"),
+    symbol: str | None = typer.Option(None, "-s", "--symbol", help="Security symbol"),
     amount: str | None = typer.Option(
         None,
         "-m",
@@ -98,7 +99,7 @@ def add_cmd(  # noqa: PLR0917
         "--units",
         help="Number of units (shares AFTER the split for SPLIT)",
     ),
-    fee: str | None = typer.Option(None, "--fee", help="Transaction fee"),
+    fee: str | None = typer.Option(None, "-f", "--fee", help="Transaction fee"),
     set_values: list[str] | None = typer.Option(
         None,
         "--set",
@@ -120,11 +121,11 @@ def add_cmd(  # noqa: PLR0917
     from cli.commands.add import add_transaction
 
     add_transaction(
-        action=action,
+        action=txn_type,
         date=date,
         account=account,
         currency=currency,
-        ticker=ticker,
+        ticker=symbol,
         amount=amount,
         price=price,
         units=units,
@@ -209,11 +210,15 @@ def download_cmd(
     ),
     *,
     credentials: bool = typer.Option(
-        default=False,
+        False,
+        "-c",
+        "--credentials",
         help="Reset credentials for the broker",
     ),
     statement: bool = typer.Option(
-        default=False,
+        False,
+        "-s",
+        "--statement",
         help="Download monthly statement using from date (Wealthsimple only)",
     ),
     reference_code: str | None = typer.Option(
@@ -236,7 +241,7 @@ def download_cmd(
     )
 
 
-@app.command("symbol", help="Manage ticker aliases")
+@app.command("symbol", help="Manage ticker aliases", no_args_is_help=True)
 def symbol_cmd(
     add: tuple[str, str, str] | None = typer.Option(
         None,
@@ -264,7 +269,11 @@ def symbol_cmd(
     manage_symbols(add, delete, list_all=list_all)
 
 
-@app.command("acb", help="Show the adjusted cost base buildup for a symbol")
+@app.command(
+    "acb",
+    help="Show the adjusted cost base buildup for a symbol",
+    no_args_is_help=True,
+)
 def acb_cmd(  # noqa: PLR0917
     symbol: str | None = typer.Argument(
         None,
@@ -274,7 +283,7 @@ def acb_cmd(  # noqa: PLR0917
         None,
         "-t",
         "--type",
-        help="Pool by account type: nreg (default), tfsa, rrsp, ...",
+        help="Pool by account type: nreg (default), all, tfsa, rrsp, ...",
     ),
     account: str | None = typer.Option(
         None,
@@ -284,6 +293,7 @@ def acb_cmd(  # noqa: PLR0917
     ),
     currency: str = typer.Option(
         "both",
+        "-c",
         "--currency",
         help="CAD, USD, or both (default: both for USD holdings)",
     ),
@@ -299,20 +309,17 @@ def acb_cmd(  # noqa: PLR0917
     ),
     year: int | None = typer.Option(
         None,
+        "-y",
         "--year",
         help="Shorthand for --from YYYY-01-01 --to YYYY-12-31",
     ),
     export: str | None = typer.Option(
         None,
+        "-e",
         "--export",
         help="Write the reported rows to a .csv or .parquet file",
     ),
     *,
-    folio: bool = typer.Option(
-        False,
-        "--folio",
-        help="Report the portfolio-wide pool",
-    ),
     show_all: bool = typer.Option(
         False,
         "--all",
@@ -320,11 +327,13 @@ def acb_cmd(  # noqa: PLR0917
     ),
     summary: bool = typer.Option(
         False,
+        "-s",
         "--summary",
         help="One row per symbol instead of a per-transaction buildup",
     ),
     refresh: bool = typer.Option(
         False,
+        "-r",
         "--refresh",
         help="Rebuild the cached cost-base frame",
     ),
@@ -341,7 +350,6 @@ def acb_cmd(  # noqa: PLR0917
         date_to=date_to,
         year=year,
         export=export,
-        folio=folio,
         show_all=show_all,
         summary=summary,
         refresh=refresh,
@@ -354,7 +362,7 @@ def dash_cmd(
         None,
         "-t",
         "--type",
-        help="Pool by account type: tfsa, rrsp, nreg, ...",
+        help="Pool by account type: all (default), tfsa, rrsp, nreg, ...",
     ),
     account: str | None = typer.Option(
         None,
@@ -386,11 +394,6 @@ def dash_cmd(
         "-b",
         "--by-type",
         help="Tile one panel per account type",
-    ),
-    folio: bool = typer.Option(
-        False,
-        "--folio",
-        help="Show the portfolio-wide pool (the default)",
     ),
     wide: bool = typer.Option(
         False,
@@ -432,7 +435,6 @@ def dash_cmd(
         export=export,
         sort=sort,
         by_type=by_type,
-        folio=folio,
         wide=wide,
         show_closed=show_closed,
         reverse=reverse,
@@ -452,11 +454,13 @@ def quotes_cmd(
     *,
     refresh: bool = typer.Option(
         False,
+        "-r",
         "--refresh",
         help="Refetch prices from the provider",
     ),
     clear: bool = typer.Option(
         False,
+        "-c",
         "--clear",
         help="Drop cached quotes",
     ),

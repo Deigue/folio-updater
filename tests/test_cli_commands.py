@@ -837,3 +837,23 @@ def test_version_command() -> None:
     assert "folio path:" in cli_result.stdout
     assert "data path:" in cli_result.stdout
     assert "backup path:" in cli_result.stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["import", "add", "download", "symbol", "acb", "dash", "quotes", "check", "edit"],
+)
+def test_short_help_flag(command: str) -> None:
+    """Every command answers `-h` the same as `--help`."""
+    short = runner.invoke(cli_app, [command, "-h"])
+    long = runner.invoke(cli_app, [command, "--help"])
+    assert short.exit_code == 0
+    assert short.stdout == long.stdout
+    assert "Usage" in short.stdout
+
+
+@pytest.mark.parametrize("command", ["acb", "symbol"])
+def test_bare_command_shows_help(command: str) -> None:
+    """Commands that cannot do anything without arguments print their help."""
+    result = runner.invoke(cli_app, [command])
+    assert "Usage" in result.stdout

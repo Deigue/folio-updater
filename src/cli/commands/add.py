@@ -92,11 +92,11 @@ def _resolve_action(action: str | None) -> str:
     """Resolve the action from the option, prompting until one is valid."""
     valid = ", ".join(a.value for a in Action)
     while True:
-        text: str = action if action is not None else typer.prompt("Action")
+        text: str = action if action is not None else typer.prompt("Type")
         normalized = _normalize_action(text)
         if normalized is not None:
             return normalized
-        console_error(f"Unknown action '{text}'. Valid actions: {valid}")
+        console_error(f"Unknown type '{text}'. Valid types: {valid}")
         action = None
 
 

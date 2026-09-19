@@ -13,11 +13,11 @@ folio acb NVDA
 Every invocation computes three grains at once and caches the result, so switching
 between them costs nothing beyond re-rendering:
 
-| Grain            | Flag                    | What it pools                          |
-| ---------------- | ----------------------- | -------------------------------------- |
-| **Account type** | `-t/--type` *(default)* | Every account of one tax type together |
-| **Account**      | `-a/--account`          | A single broker account                |
-| **Portfolio**    | `--folio`               | Everything you own                     |
+| Grain            | Flag                          | What it pools                          |
+| ---------------- | ----------------------------- | -------------------------------------- |
+| **Account type** | `-t/--type` *(default: nreg)* | Every account of one tax type together |
+| **Account**      | `-a/--account`                | A single broker account                |
+| **Portfolio**    | `-t all`                      | Everything you own                     |
 
 A bare `folio acb MSFT` reports the **non-registered** pool, which is where the
 CRA-relevant figures live. `--type tfsa`, `--type rrsp` and so on switch tax type;
@@ -27,20 +27,20 @@ CRA-relevant figures live. `--type tfsa`, `--type rrsp` and so on switch tax typ
 folio acb NVDA                        # non-registered pool
 folio acb NVDA --type tfsa            # every TFSA pooled together
 folio acb NVDA --account IBKR-TFSA    # one broker account
-folio acb NVDA --folio                # portfolio-wide
+folio acb NVDA --type all             # portfolio-wide
 ```
 
 ## Options
 
 | Option            | Effect                                                         |
 | ----------------- | -------------------------------------------------------------- |
-| `--currency`      | `CAD`, `USD`, or `both` (default: both, for USD holdings)      |
+| `-c/--currency`   | `CAD`, `USD`, or `both` (default: both, for USD holdings)      |
 | `--from` / `--to` | Restrict to a date range, `YYYY-MM-DD`                         |
-| `--year YYYY`     | Shorthand for a whole calendar year                            |
+| `-y/--year YYYY`  | Shorthand for a whole calendar year                            |
 | `--all`           | Include `DIVIDEND` and `FCH` rows, which never touch cost base |
-| `--summary`       | One row per symbol instead of a per-transaction buildup        |
-| `--export PATH`   | Write the reported rows to a `.csv` or `.parquet` file         |
-| `--refresh`       | Rebuild the cache before reporting                             |
+| `-s/--summary`    | One row per symbol instead of a per-transaction buildup        |
+| `-e/--export PATH`| Write the reported rows to a `.csv` or `.parquet` file         |
+| `-r/--refresh`    | Rebuild the cache before reporting                             |
 
 `SYMBOL` may be omitted only with `--summary` or `--export`.
 
@@ -88,18 +88,18 @@ based on the suffix. (.csv by default)
 
 What is exported: every column the engine computed, at all three grains at once.
 Only the row filters (`SYMBOL`, `--type`,
-`--account`, `--folio`, `--from`, `--to`, `--year`, `--all`) remain applicable.
+`--account`, `--from`, `--to`, `--year`, `--all`) remain applicable.
 
 ```bash
 folio acb --export acb.parquet            # every symbol, non-registered rows
 folio acb NVDA --export nvda.csv          # one symbol, still writes all scopes
-folio acb --folio --year 2025 --all --export 2025.csv
+folio acb --type all --year 2025 --all --export 2025.csv
 ```
 
 `SYMBOL` may be omitted with `--export`, which is how you dump the whole ledger:
 
 ```bash
-folio acb --folio --all --export full.parquet
+folio acb --type all --all --export full.parquet
 ```
 
 ## Currency

@@ -31,8 +31,6 @@ INCOME_IMPACT = "INCOME"
 def resolve_view(
     account: str | None,
     account_type: str | None,
-    *,
-    folio: bool,
 ) -> AcbView:
     """Decide which pool a request is asking about.
 
@@ -41,8 +39,8 @@ def resolve_view(
 
     Args:
         account: A single broker account, when `--account` was given.
-        account_type: An account type, when `--type` was given.
-        folio: Whether `--folio` asked for the portfolio-wide pool.
+        account_type: An account type, or `all` for the portfolio-wide pool,
+            when `--type` was given.
 
     Returns:
         The resolved view.
@@ -53,7 +51,6 @@ def resolve_view(
     scope, pool, label = resolve_pool(
         account,
         account_type,
-        folio=folio,
         default_type="nreg",
     )
     return AcbView(scope, pool, label if scope is Scope.ACCOUNT else label.lower())
@@ -105,7 +102,6 @@ def show_acb(  # noqa: PLR0917
     year: int | None = None,
     export: str | None = None,
     *,
-    folio: bool = False,
     show_all: bool = False,
     summary: bool = False,
     refresh: bool = False,
@@ -122,7 +118,6 @@ def show_acb(  # noqa: PLR0917
         date_to: Only rows traded on or before this date.
         year: Shorthand for a whole calendar year.
         export: Write the rendered rows to this path instead of only printing.
-        folio: Report the portfolio-wide pool.
         show_all: Include DIVIDEND and FCH rows.
         summary: Print one row per symbol instead of a buildup.
         refresh: Rebuild the cache before reporting.
@@ -144,7 +139,7 @@ def show_acb(  # noqa: PLR0917
         console_warning("No transactions to compute a cost base from.")
         return
 
-    view: AcbView = resolve_view(account, account_type, folio=folio)
+    view: AcbView = resolve_view(account, account_type)
     canonical = load_symbol_resolver().canonical(symbol) if symbol else None
     if year is not None:
         date_from, date_to = f"{year}-01-01", f"{year}-12-31"

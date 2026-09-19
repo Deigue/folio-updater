@@ -10,13 +10,14 @@ By default, `folio dash` is **portfolio-wide**
 
 | Grain            | Flag           | What it shows                      |
 | ---------------- | -------------- | ---------------------------------- |
-| **Portfolio**    | *(default)*    | Everything you own, pooled         |
+| **Portfolio**    | `-t all` *(default)* | Everything you own, pooled   |
 | **Account type** | `-t/--type`    | Every account of one type together |
 | **Account**      | `-a/--account` | A single broker account            |
 | **Every type**   | `--by-type`    | One panel per tax type, tiled      |
 
 ```bash
 folio dash                      # everything
+folio dash --type all           # everything (the default)
 folio dash --type tfsa          # every TFSA pooled
 folio dash --account IBKR-TFSA  # one broker account
 folio dash --by-type            # a panel per tax type, side by side

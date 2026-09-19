@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- CLI shorthands added across `add`, `download`, `acb` and `quotes`, and -h now works as --help
+  on every command.
+- `add` now uses --type/-t, --account/-a, --symbol/-s.
+
 ### Deprecated
 
 ### Removed

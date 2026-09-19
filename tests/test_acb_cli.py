@@ -215,7 +215,7 @@ def test_acb_account_scope(temp_ctx: TempContext) -> None:
 def test_acb_folio_scope(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_cad_holding(account="IBKR-TFSA")
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "--folio"])
+        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "-t", "all"])
     assert_cli_success(result)
     assert_in_output("portfolio", result)
 
@@ -380,7 +380,7 @@ def test_acb_summary_cad_keeps_usd_holdings(temp_ctx: TempContext) -> None:
 def test_acb_requires_a_symbol_without_summary_or_export(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb"])
+        result = run_cli_with_config(ctx.config, app, ["acb", "-t", "nreg"])
     assert result.exit_code == 1
     assert_in_output("SYMBOL is required", result)
 

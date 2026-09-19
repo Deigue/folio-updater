@@ -36,6 +36,9 @@ __all__ = [
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
 
+# The `--type` value that names the portfolio-wide pool rather than one type.
+ALL_POOLS = "all"
+
 
 class PoolView(NamedTuple):
     """One resolved request for a pooled report.
@@ -100,15 +103,14 @@ def resolve_pool(
     account: str | None,
     account_type: str | None,
     *,
-    folio: bool,
     default_type: str | None = None,
 ) -> PoolView:
-    """Decide which pool a `-a` / `-t` / `--folio` request is asking about.
+    """Decide which pool a `-a` / `-t` request is asking about.
 
     Args:
         account: A single broker account, when `--account` was given.
-        account_type: An account type, when `--type` was given.
-        folio: Whether `--folio` asked for the portfolio-wide pool.
+        account_type: An account type, or `all` for the portfolio-wide pool,
+            when `--type` was given.
         default_type: The type a bare invocation reports, or None to mean the
             whole portfolio.
 
@@ -127,14 +129,15 @@ def resolve_pool(
 
     if account:
         return PoolView(Scope.ACCOUNT, account, account)
-    if folio or (account_type is None and default_type is None):
+    requested = account_type or default_type
+    if requested is None or requested.strip().lower() == ALL_POOLS:
         return PoolView(Scope.FOLIO, "", "Portfolio")
 
-    resolved = parse_account_type(account_type or default_type or "")
+    resolved = parse_account_type(requested)
     if resolved is None:
         console_error(
             f"Unknown account type '{account_type}'. Try one of: "
-            f"{', '.join(str(member).lower() for member in AccountType)}",
+            f"{ALL_POOLS}, {', '.join(str(member).lower() for member in AccountType)}",
         )
         raise typer.Exit(1)
     return PoolView(Scope.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
