@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Settlement matching keys on the account from the statement filename, so the
   same trade in two accounts is no longer ambiguous.
 - Re-importing a statement reports rows that were already settled.
+- `folio demo` now checks the database, not just the transaction parquet cache,
+  before generating mock data.
 - The warning and info icons no longer misalign tables they appear in.
 
 ### Security

@@ -15,7 +15,10 @@ import pandas.testing as pd_testing
 import pytest
 
 from datagen import ensure_data_exists, generate_transactions
-from domain import DEFAULT_TICKERS, Column
+from db import create_txns_table, get_connection
+from domain import DEFAULT_TICKERS, Column, Table
+
+from .conftest import _original_ensure_data_exists
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -62,6 +65,32 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         ensure_data_exists()
         txns_df_2 = pd.read_parquet(config.txn_parquet, engine="fastparquet")
         pd_testing.assert_frame_equal(txns_df, txns_df_2)
+
+
+def test_data_creation_skipped_when_db_already_populated(
+    temp_ctx: TempContext,
+) -> None:
+    """Refuse to generate mock data when the db has rows but the parquet is missing.
+
+    This can happen if a real transactions.parquet is deleted or moved while
+    folio.db still holds real transactions: mock data must not be appended on
+    top of it.
+    """
+    with temp_ctx() as ctx:
+        config = ctx.config
+        create_txns_table()
+        with get_connection() as conn:
+            transactions_df = pd.DataFrame(
+                [generate_transactions(DEFAULT_TICKERS[0]).iloc[0]],
+            )
+            transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+
+        assert not config.txn_parquet.exists()
+
+        created = _original_ensure_data_exists(mock=True)
+
+        assert created is False
+        assert not config.txn_parquet.exists()
 
 
 @pytest.mark.parametrize(

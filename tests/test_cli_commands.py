@@ -88,6 +88,18 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         assert config.tkr_parquet.exists()
 
 
+def test_demo_command_reports_existing_data(temp_ctx: TempContext) -> None:
+    """Warn instead of claiming success when transaction data already exists."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+        assert config.txn_parquet.exists()
+
+        cli_result = run_cli_with_config(config, cli_app, ["demo"])
+        assert_cli_success(cli_result)
+        assert_in_output("Demo folio not created due to existing data.", cli_result)
+
+
 @pytest.mark.no_mock_forex
 def test_getfx_command(
     temp_ctx: TempContext,

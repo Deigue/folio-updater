@@ -49,6 +49,19 @@ def ensure_data_exists(*, mock: bool = True) -> bool:
         logger.error(msg)
         raise FileNotFoundError(msg)
 
+    if configuration.db_path.exists():
+        create_txns_table()
+        with get_connection() as conn:
+            if get_row_count(conn, Table.TXNS) > 0:
+                msg = (
+                    "Transaction data already exists in the database: "
+                    f'"{configuration.db_path}". Back up or delete this file first '
+                    "if you want to generate a fresh demo portfolio."
+                )
+                logger.debug(msg)
+                console_warning(msg)
+                return False
+
     folio_path_parent: Path = configuration.folio_path.parent
     default_data_dir: Path = configuration.project_root / "data"
 
