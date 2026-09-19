@@ -33,8 +33,7 @@ from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
 from ui.format import freshness_line
-from ui.layout.tiles import TilingLayout
-from ui.views.dash import holdings_block, show_dashboard
+from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -316,32 +315,24 @@ def _quotes(
 
 
 def _show_by_type(request: _Request, badge: str) -> None:
-    """Tile one panel per account type across the terminal."""
-    from term import console_print  # noqa: PLC0415 - printed only on this path
-
-    console_print(badge)
-
+    """Report every account type that holds a position, one after another."""
     # Every type is about to be reported, so split the frame once here rather
     # than narrowing it again for each panel.
     request.positions.prime(Scope.TYPE)
 
-    blocks = []
+    panels = []
     for name in _account_types(request.frame):
         view = PoolView(Scope.TYPE, name, name.replace("_", "-"))
         holdings, flows = _panel(request, view)
-        if not holdings.holdings and not holdings.closed:
-            continue
-        blocks.append(
-            holdings_block(
-                holdings,
-                flows,
-                view.label,
-                wide=request.wide,
-                show_closed=request.show_closed,
-            ),
-        )
+        if holdings.holdings or holdings.closed:
+            panels.append((holdings, flows, view.label))
 
-    if not blocks:
+    if not panels:
         console_warning("No open positions in any account type.")
         return
-    TilingLayout(blocks).render()
+    show_by_type(
+        panels,
+        wide=request.wide,
+        show_closed=request.show_closed,
+        badge=badge,
+    )

@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `folio demo` now checks the database, not just the transaction parquet cache,
   before generating mock data.
 - The warning and info icons no longer misalign tables they appear in.
+- `folio dash --by-type` now properly lays out the flow panels side-by-side, with each
+  of the holdings tables below.
 
 ### Security
 

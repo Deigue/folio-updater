@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.console import Group
 from rich.panel import Panel
+from rich.rule import Rule
 from rich.table import Table as RichTable
 
 from domain import Currency, WarningCode
@@ -17,7 +18,7 @@ from engine.positions import summarize_closed
 from term import console_print, supports_unicode
 from ui.layout.bars import hbar, meter
 from ui.layout.fit import fit, fit_table
-from ui.layout.tiles import Block
+from ui.layout.tiles import Block, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     CURRENCY_COLORS,
@@ -714,41 +715,55 @@ def _cash_alerts(flows: Flows) -> list[RenderableType]:
     ]
 
 
-def holdings_block(
-    holdings: HoldingSet,
-    flows: Flows,
-    title: str,
+def show_by_type(
+    panels: Sequence[tuple[HoldingSet, Flows, str]],
     *,
     wide: bool = False,
     show_closed: bool = False,
-) -> Block:
-    """Group one scope's panel and table into a tileable block.
+    badge: str | None = None,
+) -> None:
+    """Print one dashboard per account type, flows tiled above the holdings.
+
+    The flows panels are narrow and similar in height, so they tile into a
+    strip across the top. The holdings tables are each nearly as wide as the
+    terminal, so they could never sit side by side and follow in full width,
+    each under a heading of its own.
 
     Args:
-        holdings: The valued positions.
-        flows: The pool's cash and income figures.
-        title: Block name, also the panel title.
+        panels: Each type's valued positions, flows and label.
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per position.
-
-    Returns:
-        A measured `Block` for `TilingLayout`.
+        badge: Cache-freshness line, printed above everything.
     """
-    fitted = holdings_table(holdings, flows=flows, wide=wide, show_closed=show_closed)
-    body: list[RenderableType] = [flows_panel(flows, title)]
-    if fitted.note:
-        body.append(fitted.note)
-    body.append(fitted.table)
-    panel = Group(*body)
-    return Block.create(
-        name=title,
-        key=title[:1].lower(),
-        panel=panel,
-        total=len(holdings.holdings),
-        shown=len(holdings.holdings),
-        data_type="holdings",
-        data=holdings.holdings,
-    )
+    if badge:
+        console_print(badge)
+
+    strip = [
+        Block.create(
+            name=title,
+            key=title[:1].lower(),
+            panel=flows_panel(flows, title),
+            total=0,
+            shown=0,
+            data_type="flows",
+            data=(holdings, flows, title),
+        )
+        for holdings, flows, title in panels
+    ]
+    layout = TilingLayout(strip)
+    layout.render()
+
+    # The tiling reorders the panels, so the sections follow its reading order
+    # rather than the given one. Split from its flows panel, each table needs a
+    # heading to say whose it is.
+    for block in layout.all_blocks:
+        holdings, flows, title = block.data
+        accent = ""
+        if flows.account_type is not None:
+            accent = ACCOUNT_TYPE_COLORS.get(flows.account_type, "")
+        console_print("")
+        console_print(Rule(_panel_title(flows, title), align="left", style=accent))
+        _print_holdings(holdings, flows, wide=wide, show_closed=show_closed)
 
 
 def show_dashboard(
@@ -773,7 +788,24 @@ def show_dashboard(
     if badge:
         console_print(badge)
     console_print(flows_panel(flows, title))
+    _print_holdings(holdings, flows, wide=wide, show_closed=show_closed)
 
+
+def _print_holdings(
+    holdings: HoldingSet,
+    flows: Flows,
+    *,
+    wide: bool,
+    show_closed: bool,
+) -> None:
+    """Print one pool's holdings table with everything it has to disclose.
+
+    Args:
+        holdings: The valued positions.
+        flows: The pool's cash and income figures.
+        wide: Offer the wide-only columns.
+        show_closed: Break the aggregate "Closed" row open per position.
+    """
     if not holdings.holdings and not holdings.closed:
         console_print("[yellow]No open positions in this pool.[/yellow]")
         return
