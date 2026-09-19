@@ -124,6 +124,13 @@ CENTLESS_EXEMPT_HEADERS = with_short_forms(
             "Units",
             "Symbol",
             "Name",
+            # Identifiers and dates are exact by nature: never rounded or scaled.
+            "TxnId",
+            "TxnDate",
+            "SettleDate",
+            "Settle",
+            "Date",
+            "EffectiveDate",
         },
     ),
 )

@@ -131,6 +131,19 @@ def test_money_gives_up_its_scale_before_a_column_goes() -> None:
     assert "K" in rendered
 
 
+def test_ids_and_dates_are_never_abbreviated() -> None:
+    headers = ["TxnId", "SettleDate", "TxnDate", "Amount", "Book"]
+    row = ["3,300", "2025-08-05", "2025-08-07", "88,520.56", "128,225.31"]
+
+    with capture_output(30):
+        result = fit(_table(headers, row))
+
+    rendered = _rendered(result.table, 60)
+    assert "3,300" in rendered
+    assert "2025-08-05" in rendered
+    assert "2025-08-07" in rendered
+
+
 def test_a_price_keeps_its_cents_while_money_loses_them() -> None:
     """A per-unit price is small enough that its cents are the point."""
     headers = ["Symbol", "Last", "Book", "Market", "Unreal", "Total"]
