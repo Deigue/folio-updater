@@ -16,16 +16,28 @@ from app import bootstrap
 from cli.commands.common import ensure_fx_coverage, resolve_pool
 from domain import Column, Scope
 from engine.cache import load_or_build
+from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from exporters.sheets import (
+    acb_buildup_table,
+    acb_ledger_table,
+    acb_summary_table,
+)
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
+from ui.format import format_freshness
 from ui.views.acb import AcbView, NoUsdFiguresError, show_buildup, show_summary
 
 if TYPE_CHECKING:
     import pandas as pd
 
+    from exporters.table import Table
+
 # Income rows are hidden unless `--all` asks for them: a dividend never touches
 # the cost base, so it is noise in a buildup.
 INCOME_IMPACT = "INCOME"
+
+# The one format that stays a raw dump: it is read by programs, not people.
+PARQUET_SUFFIX = ".parquet"
 
 
 def resolve_view(
@@ -82,14 +94,91 @@ def _filter_rows(
     return rows
 
 
-def _export(frame: pd.DataFrame, path: str) -> None:
-    """Write the rendered rows out, choosing the format from the suffix."""
+def _sheet(
+    rows: pd.DataFrame,
+    view: AcbView,
+    *,
+    symbol: str | None,
+    currency: str,
+    badge: str,
+    summary: bool,
+) -> Table:
+    """Build the shape the other flags asked for.
+
+    The same three shapes the command prints: a summary, one symbol's buildup,
+    or the whole ledger when neither was asked for.
+    """
+    if summary:
+        return acb_summary_table(
+            rows,
+            scope=view.scope,
+            name=f"ACB Summary - {view.label}",
+            currency=currency,
+            notes=[badge],
+        )
+    if symbol:
+        return acb_buildup_table(
+            rows,
+            scope=view.scope,
+            name=f"ACB {symbol}",
+            currency=currency,
+            notes=[badge],
+        )
+    return acb_ledger_table(
+        rows,
+        name=f"ACB - {view.label}",
+        currency=currency,
+        notes=[badge],
+    )
+
+
+def _export(
+    rows: pd.DataFrame,
+    view: AcbView,
+    path: str,
+    *,
+    symbol: str | None,
+    currency: str,
+    badge: str,
+    summary: bool,
+) -> None:
+    """Write the reported rows out, choosing the format from the suffix.
+
+    Parquet stays the raw frame at full precision, for a reader that is another
+    program. Everything else is the table the command reports.
+
+    Args:
+        rows: The filtered rows from the master frame.
+        view: The pool being reported, which names the sheet.
+        path: Where to write. A path with no suffix becomes a workbook.
+        symbol: The security asked about, when one was.
+        currency: `CAD`, `USD` or `both`.
+        badge: The freshness line, as plain text for the sheet's notes.
+        summary: Whether one row per symbol was asked for.
+
+    Raises:
+        typer.Exit: If the path names a format that cannot be written.
+    """
     target = Path(path)
-    if target.suffix.lower() == ".parquet":
-        frame.to_parquet(target, engine="fastparquet", index=False)
-    else:
-        frame.to_csv(target, index=False)
-    console_info(f"Exported {len(frame)} row(s) to {target}")
+    if target.suffix.lower() == PARQUET_SUFFIX:
+        rows.to_parquet(target, engine="fastparquet", index=False)
+        console_info(f"Exported {len(rows)} row(s) to {target}")
+        return
+
+    table = _sheet(
+        rows,
+        view,
+        symbol=symbol,
+        currency=currency,
+        badge=badge,
+        summary=summary,
+    )
+    try:
+        written = write_export(target, [table])
+    except (UnsupportedExportError, SingleSheetError) as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
+    console_info(f"Exported {len(table.rows)} row(s) to {written}")
 
 
 def show_acb(  # noqa: PLR0917
@@ -165,4 +254,12 @@ def show_acb(  # noqa: PLR0917
         raise typer.Exit(1) from error
 
     if export:
-        _export(rows, export)
+        _export(
+            rows,
+            view,
+            export,
+            symbol=canonical,
+            currency=currency,
+            badge=f"Cost base {format_freshness(cached.computed_at)}.",
+            summary=summary,
+        )

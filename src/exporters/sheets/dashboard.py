@@ -41,7 +41,7 @@ COLUMNS: tuple[Col, ...] = (
     Col("Unreal", Fmt.MONEY_SIGNED),
     Col("Unreal%", Fmt.PERCENT_SIGNED),
     Col("Realized", Fmt.MONEY_SIGNED),
-    Col("Divs", Fmt.MONEY_QUIET),
+    Col("Divs", Fmt.MONEY, quiet=True),
     Col("Total", Fmt.MONEY_SIGNED),
     Col("Total%", Fmt.PERCENT_SIGNED),
     Col("Book", Fmt.MONEY),

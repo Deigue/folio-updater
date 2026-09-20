@@ -20,7 +20,6 @@ class Fmt(StrEnum):
     ID = "id"
     DATE = "date"
     MONEY = "money"
-    MONEY_QUIET = "money_quiet"  # a magnitude whose zero says nothing
     MONEY_SIGNED = "money_signed"
     PRICE = "price"
     PRICE_SIGNED = "price_signed"
@@ -53,6 +52,9 @@ class Col:
             would get it wrong.
         bar: Draw a bar behind the value, sized by the value itself. A CSV,
             having no cell to draw in, just writes the figure.
+        quiet: Leave a zero blank. For a column where a zero says nothing, such
+            as the price on a cash row or a dividend never paid, where a column
+            of `0.00` is noise a reader has to look past.
     """
 
     header: str
@@ -60,6 +62,7 @@ class Col:
     group: str | None = None
     width: int | None = None
     bar: bool = False
+    quiet: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,9 @@ class Table:
         notes: Plain-text lines written under the table, disclosing what it
             could not show and what it converted at.
         tab_color: An accent for the sheet tab, as `RRGGBB`.
+        freeze: How many leading columns stay put while the sheet is scrolled
+            sideways. Enough of them that a row still says what it is once the
+            figures being read have scrolled into view.
     """
 
     name: str
@@ -125,6 +131,7 @@ class Table:
     blocks: tuple[Block, ...] = ()
     notes: tuple[str, ...] = ()
     tab_color: str | None = None
+    freeze: int = 1
 
     @property
     def headers(self) -> list[str]:
@@ -150,7 +157,6 @@ DATA_ROLES = frozenset({Role.DATA, Role.MUTED, Role.CLOSED})
 DECIMALS: dict[Fmt, int] = {
     Fmt.ID: 0,
     Fmt.MONEY: 2,
-    Fmt.MONEY_QUIET: 2,
     Fmt.MONEY_SIGNED: 2,
     Fmt.PRICE: 4,
     Fmt.PRICE_SIGNED: 4,
@@ -162,9 +168,6 @@ DECIMALS: dict[Fmt, int] = {
 
 # The roles whose values are numbers rather than text.
 NUMERIC: frozenset[Fmt] = frozenset(DECIMALS)
-
-# The roles that leave a zero blank rather than printing it.
-QUIET: frozenset[Fmt] = frozenset({Fmt.MONEY_QUIET})
 
 # The roles rendered as a percentage of a ratio.
 PERCENTS: frozenset[Fmt] = frozenset({Fmt.PERCENT, Fmt.PERCENT_SIGNED})
@@ -234,7 +237,7 @@ def as_number(value: object) -> float | int | Decimal | None:
     return value
 
 
-def render(fmt: Fmt, value: object) -> str:
+def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
     """Render one value the way its format displays it.
 
     The workbook leaves this to Excel and uses it only to size columns. A CSV,
@@ -243,6 +246,7 @@ def render(fmt: Fmt, value: object) -> str:
     Args:
         fmt: How the column reads.
         value: The stored value.
+        quiet: Leave a zero blank rather than printing it.
 
     Returns:
         The text a reader would see, or an empty string for a blank.
@@ -253,7 +257,7 @@ def render(fmt: Fmt, value: object) -> str:
     decimals = DECIMALS.get(fmt)
     if decimals is None:
         return str(value)
-    if fmt in QUIET and not number:
+    if quiet and not number:
         return ""
     if fmt in PERCENTS:
         return f"{float(number) * 100:,.{decimals}f}%"

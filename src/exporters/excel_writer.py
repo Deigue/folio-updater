@@ -95,19 +95,20 @@ def write_sheet(worksheet: Worksheet, table: Table) -> None:
         worksheet: The sheet to write into, assumed empty.
         table: What to write.
     """
+    edges = _band_edges(table.columns)
     cursor = _write_blocks(worksheet, table.blocks)
     if table.grouped:
-        _write_groups(worksheet, table.columns, cursor)
+        _write_groups(worksheet, table.columns, cursor, edges)
         cursor += 1
     header_row = cursor
-    _write_header(worksheet, table.columns, header_row)
+    _write_header(worksheet, table.columns, header_row, edges)
 
     row_number = header_row
     last_data_row = header_row
     filtered = True
     for row in table.rows:
         row_number += 1
-        _write_row(worksheet, table.columns, row, row_number)
+        _write_row(worksheet, table.columns, row, row_number, edges)
         if filtered and row.role in DATA_ROLES:
             last_data_row = row_number
         else:
@@ -139,7 +140,25 @@ def _write_blocks(worksheet: Worksheet, blocks: Iterable[Block]) -> int:
     return cursor
 
 
-def _write_groups(worksheet: Worksheet, columns: Sequence[Col], row: int) -> None:
+def _band_edges(columns: Sequence[Col]) -> frozenset[int]:
+    """Find the columns a band starts at, as one-based indices.
+
+    The first column is never an edge: a border on the left of the sheet marks
+    nothing.
+    """
+    return frozenset(
+        index
+        for index, column in enumerate(columns, start=1)
+        if index > 1 and column.group != columns[index - 2].group
+    )
+
+
+def _write_groups(
+    worksheet: Worksheet,
+    columns: Sequence[Col],
+    row: int,
+    edges: frozenset[int],
+) -> None:
     """Draw the merged band naming each family of columns."""
     start = 0
     while start < len(columns):
@@ -152,6 +171,7 @@ def _write_groups(worksheet: Worksheet, columns: Sequence[Col], row: int) -> Non
             cell.font = style.GROUP_FONT
             cell.alignment = style.GROUP_ALIGNMENT
             cell.fill = style.ROW_FILLS[Role.SUBTOTAL]
+            cell.border = style.edged(left=start + 1 in edges, top=False)
             if end > start:
                 worksheet.merge_cells(
                     start_row=row,
@@ -162,13 +182,19 @@ def _write_groups(worksheet: Worksheet, columns: Sequence[Col], row: int) -> Non
         start = end + 1
 
 
-def _write_header(worksheet: Worksheet, columns: Sequence[Col], row: int) -> None:
+def _write_header(
+    worksheet: Worksheet,
+    columns: Sequence[Col],
+    row: int,
+    edges: frozenset[int],
+) -> None:
     """Write the heading row, which is what the filter and freeze key on."""
     for index, column in enumerate(columns, start=1):
         cell = worksheet.cell(row=row, column=index, value=column.header)
         cell.font = style.HEADER_FONT
         cell.fill = style.HEADER_PATTERN
         cell.alignment = style.HEADER_ALIGNMENT
+        cell.border = style.edged(left=index in edges, top=False)
 
 
 def _write_row(
@@ -176,6 +202,7 @@ def _write_row(
     columns: Sequence[Col],
     row: Row,
     number: int,
+    edges: frozenset[int],
 ) -> None:
     """Write one line, styling each cell by its column's role and the row's."""
     fill = style.ROW_FILLS.get(row.role)
@@ -184,11 +211,11 @@ def _write_row(
     cells = enumerate(zip(columns, row.cells, strict=True), start=1)
     for index, (column, raw) in cells:
         cell = worksheet.cell(row=number, column=index, value=_value(raw))
-        cell.number_format = _number_format(column.fmt, raw)
+        cell.number_format = _number_format(column.fmt, raw, quiet=column.quiet)
         if fill is not None:
             cell.fill = fill
-        if row.role is Role.TOTAL:
-            cell.border = style.TOTAL_BORDER
+        if index in edges or row.role is Role.TOTAL:
+            cell.border = style.edged(left=index in edges, top=row.role is Role.TOTAL)
         signed = _sign_font(column.fmt, raw, bold=bold)
         if signed is not None:
             cell.font = signed
@@ -211,7 +238,8 @@ def _finish(
 ) -> None:
     """Freeze, filter, size and accent the finished sheet."""
     last_column = get_column_letter(len(table.columns))
-    worksheet.freeze_panes = f"B{header_row + 1}"
+    frozen = min(max(table.freeze, 0), len(table.columns))
+    worksheet.freeze_panes = f"{get_column_letter(frozen + 1)}{header_row + 1}"
     if last_data_row > header_row:
         worksheet.auto_filter.ref = f"A{header_row}:{last_column}{last_data_row}"
 
@@ -262,11 +290,13 @@ def _value(raw: object) -> object:
     return str(raw) if number is None else number
 
 
-def _number_format(fmt: Fmt, raw: object) -> str:
+def _number_format(fmt: Fmt, raw: object, *, quiet: bool = False) -> str:
     """Pick the format one cell displays at."""
     if fmt is Fmt.UNITS and _whole(raw):
-        return style.WHOLE_UNITS
-    return style.NUMBER_FORMATS[fmt]
+        chosen = style.WHOLE_UNITS
+    else:
+        chosen = style.NUMBER_FORMATS[fmt]
+    return style.quiet(chosen) if quiet and fmt in NUMERIC else chosen
 
 
 def _whole(raw: object) -> bool:
@@ -292,9 +322,7 @@ def _width(index: int, column: Col, rows: Sequence[Row]) -> int:
     longest = len(column.header) + style.FILTER_PADDING
     for row in rows:
         if index < len(row.cells):
-            longest = max(
-                longest,
-                len(render(column.fmt, row.cells[index])) + style.WIDTH_PADDING,
-            )
+            rendered = render(column.fmt, row.cells[index], quiet=column.quiet)
+            longest = max(longest, len(rendered) + style.WIDTH_PADDING)
     widest = style.NUMBER_MAX_WIDTH if column.fmt in NUMERIC else style.MAX_WIDTH
     return min(max(longest, style.MIN_WIDTH), widest)

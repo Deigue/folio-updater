@@ -37,7 +37,7 @@ def write_csv(path: Path, table: Table) -> None:
         for row in table.rows:
             writer.writerow(
                 [
-                    render(column.fmt, value)
+                    render(column.fmt, value, quiet=column.quiet)
                     for column, value in zip(table.columns, row.cells, strict=True)
                 ],
             )

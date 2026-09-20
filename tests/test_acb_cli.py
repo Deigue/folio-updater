@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -385,7 +386,26 @@ def test_acb_requires_a_symbol_without_summary_or_export(temp_ctx: TempContext) 
     assert_in_output("SYMBOL is required", result)
 
 
-def test_acb_export_writes_a_file(temp_ctx: TempContext, tmp_path: Path) -> None:
+def _exported(target: Path) -> list[list[str]]:
+    """Read an exported CSV back as rows, stopping at the spacer.
+
+    The notes below the table are disclosure rather than data, and a reader of
+    the grid wants the grid.
+    """
+    lines = target.read_text(encoding="utf-8").splitlines()
+    rows: list[list[str]] = []
+    for line in lines:
+        cells = next(csv.reader([line]))
+        if not any(cells):
+            break
+        rows.append(cells)
+    return rows
+
+
+def test_acb_export_writes_the_buildup_it_reports(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
     target = tmp_path / "acb.csv"
     with temp_ctx() as ctx:
         seed_cad_holding()
@@ -397,7 +417,70 @@ def test_acb_export_writes_a_file(temp_ctx: TempContext, tmp_path: Path) -> None
         assert_cli_success(result)
         # Asserted inside the context: `temp_ctx` sweeps *.csv on the way out.
         assert target.exists()
-        assert "AcctACB" in target.read_text(encoding="utf-8")
+        header, *rows = _exported(target)
+        # A buildup is per transaction, so it carries the TxnId of each.
+        assert "TxnId" in header
+        assert len(rows) == 2
+
+
+def test_acb_export_writes_the_summary_when_asked_for_one(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """`--summary --export` used to write the buildup regardless."""
+    target = tmp_path / "acb.csv"
+    with temp_ctx() as ctx:
+        seed_cad_holding()
+        seed_cad_holding(ticker="TSTKR.TO")
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "--summary", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        header, *rows = _exported(target)
+        # One row per symbol, and no per-transaction column in sight.
+        assert "TxnId" not in header
+        assert [row[0] for row in rows] == ["RY.TO", "TSTKR.TO"]
+
+
+def test_acb_export_without_a_symbol_writes_the_whole_ledger(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "acb.csv"
+    with temp_ctx() as ctx:
+        seed_cad_holding()
+        seed_cad_holding(ticker="TSTKR.TO")
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        header, *rows = _exported(target)
+        # Every transaction, with all three pool grains beside it.
+        assert len(rows) == 4
+        for prefix in ("Acct", "Type", "Folio"):
+            assert f"{prefix} ACB" in header
+
+
+def test_a_cad_only_export_leaves_out_the_usd_columns(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """The USD family is blank by design for a CAD holding, so it is dropped."""
+    target = tmp_path / "acb.csv"
+    with temp_ctx() as ctx:
+        seed_cad_holding()
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "RY.TO", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        header, *_ = _exported(target)
+        assert not [column for column in header if column.endswith("USD")]
 
 
 def test_acb_flags_a_seeded_oversell(temp_ctx: TempContext) -> None:

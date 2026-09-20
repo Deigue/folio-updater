@@ -23,7 +23,6 @@ NUMBER_FORMATS: dict[Fmt, str] = {
     Fmt.DATE: "@",  # dates are stored as YYYY-MM-DD text, and sort as such
     Fmt.ID: "0",
     Fmt.MONEY: _MONEY,
-    Fmt.MONEY_QUIET: '#,##0.00;-#,##0.00;""',
     Fmt.MONEY_SIGNED: _MONEY_SIGNED,
     Fmt.PRICE: "#,##0.00##",
     Fmt.PRICE_SIGNED: '#,##0.00##;-#,##0.00##;"-"',
@@ -36,6 +35,26 @@ NUMBER_FORMATS: dict[Fmt, str] = {
 # A whole share count wants no decimal separator trailing it, which
 # `#,##0.######` would leave behind.
 WHOLE_UNITS = "#,##0"
+
+# The three sections of an Excel format are positive, negative and zero.
+_SECTIONS = 3
+
+
+def quiet(number_format: str) -> str:
+    """Rewrite a format so that a zero draws nothing.
+
+    Args:
+        number_format: The format the column would otherwise use.
+
+    Returns:
+        The same format with an empty zero section.
+    """
+    sections = number_format.split(";")
+    if len(sections) >= _SECTIONS:
+        return ";".join([*sections[:2], '""', *sections[_SECTIONS:]])
+    positive = sections[0]
+    return f'{positive};-{positive};""'
+
 
 # --- Palette -----------------------------------------------------------------
 
@@ -106,6 +125,19 @@ ROW_FONTS: dict[Role, Font | None] = {
 BOLD_ROLES = frozenset({Role.SUBTOTAL, Role.TOTAL})
 
 TOTAL_BORDER = Border(top=Side(style="thin", color=HEADER_FILL))
+
+# Drawn down the first column of each band, so a sheet scrolled sideways still
+# shows where one family of columns ends and the next begins.
+BAND_EDGE = Side(style="medium", color=HEADER_FILL)
+
+
+def edged(*, left: bool, top: bool) -> Border:
+    """Build the border one cell needs, from the edges it sits on."""
+    return Border(
+        left=BAND_EDGE if left else None,
+        top=Side(style="thin", color=HEADER_FILL) if top else None,
+    )
+
 
 # In-cell bar drawn behind a weight, full at the same share the terminal's bar
 # fills at. Dark enough that the cell's own text, which a dark theme draws
