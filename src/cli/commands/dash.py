@@ -29,10 +29,13 @@ from engine.positions import (
     UnknownSortError,
     scope_rows,
 )
+from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
+from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from exporters.sheets import dashboard_table
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
-from ui.format import freshness_line
+from ui.format import format_freshness, freshness_line
 from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
@@ -109,6 +112,14 @@ def _badge(
     return f"{line} [dim](offline)[/dim]" if offline else line
 
 
+def _export_note(computed_at: datetime | None, quotes: dict[str, Quote]) -> str:
+    """Say how old both caches are, as plain text for an exported sheet."""
+    quote_at, _ = _quote_age(quotes)
+    empty = not any(quote.fetched_at for quote in quotes.values())
+    aged = "nothing cached" if empty else format_freshness(quote_at)
+    return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
+
+
 def _account_type_of(view: PoolView) -> AccountType | None:
     """Name the account type a pool is, when it is exactly one.
 
@@ -175,17 +186,47 @@ def _panel(request: _Request, view: PoolView) -> tuple[HoldingSet, Flows]:
     return holdings, flows
 
 
-def _export(holdings: HoldingSet, path: str) -> None:
-    """Write the valued holdings out, choosing the format from the suffix."""
-    import pandas as pd  # noqa: PLC0415 - only needed on the export path
+def _tab_color(view: PoolView) -> str | None:
+    """Accent a sheet tab the way the printed panel accents its title."""
+    account_type = _account_type_of(view)
+    if account_type is None:
+        return FOLIO_TAB
+    return ACCOUNT_TYPE_TABS.get(account_type)
 
-    target = Path(path)
-    frame = pd.DataFrame([vars(holding) for holding in holdings.holdings])
-    if target.suffix.lower() in {".xlsx", ".xls"}:
-        frame.to_excel(target, index=False)
-    else:
-        frame.to_csv(target, index=False)
-    console_info(f"Exported {len(frame)} holding(s) to {target}")
+
+def _export(
+    holdings: HoldingSet,
+    flows: Flows,
+    view: PoolView,
+    path: str,
+    badge: str,
+) -> None:
+    """Write the valued holdings out, choosing the format from the suffix.
+
+    Args:
+        holdings: The pool's valued positions.
+        flows: Its cash movements, which supply the return denominator.
+        view: The pool being reported, which names and accents the sheet.
+        path: Where to write. A path with no suffix becomes a workbook.
+        badge: The freshness line, as plain text for the sheet's notes.
+
+    Raises:
+        typer.Exit: If the path names a format that cannot be written.
+    """
+    table = dashboard_table(
+        holdings,
+        view.label,
+        net_deposited=flows.net_deposit_denominator,
+        tab_color=_tab_color(view),
+        notes=[badge],
+    )
+    try:
+        written = write_export(Path(path), [table])
+    except (UnsupportedExportError, SingleSheetError) as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
+    count = len(table.data_rows)
+    console_info(f"Exported {count} holding(s) to {written}")
 
 
 def _account_types(frame: pd.DataFrame) -> list[str]:
@@ -283,7 +324,13 @@ def show_dash(
     holdings, flows = _panel(request, view)
 
     if export:
-        _export(holdings, export)
+        _export(
+            holdings,
+            flows,
+            view,
+            export,
+            _export_note(cached.computed_at, quotes),
+        )
         return
 
     show_dashboard(

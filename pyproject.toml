@@ -60,6 +60,11 @@ omit = [
     'src/models/*',
     'src/ui/*',
     'src/term/*',
+    # Rendering an export is similar work to rendering ui
+    'src/exporters/excel_style.py',
+    'src/exporters/excel_writer.py',
+    'src/exporters/csv_writer.py',
+    'src/exporters/sheets/*',
 ]
 [tool.coverage.report]
 show_missing = true

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
+from openpyxl import load_workbook
 
 from app import bootstrap
 from cli.main import app
@@ -379,7 +380,8 @@ def test_dash_exports_a_file(temp_ctx: TempContext, tmp_path: Path) -> None:
         assert target.exists()
         contents = target.read_text(encoding="utf-8")
         assert "TESTTKR" in contents
-        assert "market_value" in contents
+        # The reported table, not the attribute names behind it.
+        assert "market_value" not in contents
 
 
 def _seed_mixed_currency() -> None:
@@ -638,6 +640,85 @@ def test_dash_exports_an_excel_file(temp_ctx: TempContext, tmp_path: Path) -> No
 
         assert_cli_success(result)
         assert target.exists()
+        # The sheet is named after the scope that was reported.
+        assert load_workbook(target).sheetnames == ["Portfolio"]
+
+
+def test_dash_refuses_an_export_format_it_cannot_write(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    with temp_ctx() as ctx:
+        _seed_two_types()
+        target = tmp_path / "holdings.pdf"
+
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "--export", str(target)],
+        )
+
+        assert result.exit_code == 1
+        assert_in_output(".xlsx", result)
+        assert not target.exists()
+
+
+def test_an_export_without_a_suffix_becomes_a_workbook(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    with temp_ctx() as ctx:
+        _seed_two_types()
+
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "--export", str(tmp_path / "holdings")],
+        )
+
+        assert_cli_success(result)
+        assert (tmp_path / "holdings.xlsx").exists()
+
+
+def test_an_exported_cell_keeps_its_full_precision(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """Formats decide what is shown; the cell still holds every digit."""
+    with temp_ctx() as ctx:
+        seed_fx(FX)
+        seed_transaction(
+            action="CONTRIBUTION",
+            account="WS-TFSA",
+            ticker=None,
+            currency="USD",
+            amount="10000",
+            price=None,
+            units=None,
+            date="2025-08-14",
+        )
+        seed_transaction(
+            account="WS-TFSA",
+            ticker="TESTTKR",
+            currency="USD",
+            amount="-1000.123456789",
+            price="100.0123456789",
+            units="10",
+        )
+        target = tmp_path / "holdings.xlsx"
+
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "--export", str(target)],
+        )
+
+        assert_cli_success(result)
+        sheet = load_workbook(target)["Portfolio"]
+        headers = [cell.value for cell in sheet[1]]
+        avg = sheet.cell(row=2, column=headers.index("Avg") + 1)
+        # Displayed at four decimals, stored with every one the engine computed.
+        assert float(avg.value) == pytest.approx(100.0123456789)
 
 
 def test_dash_accepts_native_currency(temp_ctx: TempContext) -> None:

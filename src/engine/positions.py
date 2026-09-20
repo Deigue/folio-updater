@@ -34,6 +34,7 @@ class Holding:
     Attributes:
         symbol: Canonical security symbol.
         name: Short name from the quote, when one is cached.
+        sector: Sector from the quote, when one is cached.
         pool: The account, account type or portfolio this is pooled over.
         currency: The currency the figures are expressed in.
         units: Units held after the last transaction.
@@ -70,6 +71,8 @@ class Holding:
     units: Decimal
     avg_cost: Decimal
     book_value: Decimal
+    # Defaults begin here: a field above this line is required of every holding.
+    sector: str | None = None
     price: Decimal | None = None
     prev_close: Decimal | None = None
     change: Decimal | None = None
@@ -767,6 +770,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     started = Holding(
         symbol=symbol,
         name=quote.name if quote else None,
+        sector=quote.sector if quote else None,
         pool=ctx.pool,
         currency=shown,
         units=held,
