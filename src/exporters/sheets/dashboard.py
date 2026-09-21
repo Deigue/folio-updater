@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import Currency, WarningCode
-from exporters.table import Col, Fmt, Role, Table, blank_row, row_of
+from exporters.table import Col, Fmt, Role, Row, Table, blank_row, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -24,6 +24,7 @@ _UNITS_SUSPECT = frozenset(
 )
 
 _WEIGHT = "Wt%"
+POOL = "Pool"
 
 COLUMNS: tuple[Col, ...] = (
     Col("Symbol"),
@@ -77,29 +78,77 @@ def dashboard_table(
         The table, with the open positions first, then the closed ones, then the
         per-currency subtotals and the overall total below a spacer.
     """
-    rows = [row_of(COLUMNS, cells, role) for cells, role in _position_cells(holdings)]
-    if rows:
-        rows.append(blank_row(COLUMNS))
-    rows.extend(
-        row_of(
-            COLUMNS,
-            _subtotal_cells(group, _subtotal_return(holdings, group, net_deposited)),
-            Role.SUBTOTAL,
-        )
-        for group in holdings.by_currency
-    )
-    if holdings.mixed_currency:
-        rows.append(
-            row_of(COLUMNS, _total_cells(holdings, net_deposited), Role.TOTAL),
-        )
-
     return Table(
         name=name,
         columns=COLUMNS,
-        rows=tuple(rows),
+        rows=tuple(_pool_rows(COLUMNS, holdings, net_deposited, spacer=True)),
         notes=(*notes, *_notes(holdings)),
         tab_color=tab_color,
     )
+
+
+def pooled_dashboard_table(
+    pools: Sequence[tuple[str, HoldingSet, Decimal | None]],
+    name: str,
+    *,
+    notes: Sequence[str] = (),
+) -> Table:
+    """Lay several pools out as one table, each row naming the pool it is in.
+
+    Args:
+        pools: Each pool's label, valued positions and net CAD deposits.
+        name: What the table is called.
+        notes: Lines to disclose above the ones the table derives itself.
+
+    Returns:
+        The table, one pool after another.
+    """
+    columns = (Col(POOL, width=16), *COLUMNS)
+    rows: list[Row] = []
+    derived: list[str] = []
+    for label, holdings, net_deposited in pools:
+        rows.extend(
+            _pool_rows(columns, holdings, net_deposited, pool=label, spacer=False),
+        )
+        derived.extend(note for note in _notes(holdings) if note not in derived)
+    return Table(name=name, columns=columns, rows=tuple(rows), notes=(*notes, *derived))
+
+
+def _pool_rows(
+    columns: Sequence[Col],
+    holdings: HoldingSet,
+    net_deposited: Decimal | None,
+    *,
+    pool: str | None = None,
+    spacer: bool,
+) -> list[Row]:
+    """Lay one pool out: its positions, then what they total to."""
+    rows = [
+        row_of(columns, _named(cells, pool), role)
+        for cells, role in _position_cells(holdings)
+    ]
+    if rows and spacer:
+        rows.append(blank_row(columns))
+    for group in holdings.by_currency:
+        total = _subtotal_return(holdings, group, net_deposited)
+        cells = _named(_subtotal_cells(group, total), pool)
+        rows.append(row_of(columns, cells, Role.SUBTOTAL))
+    if holdings.mixed_currency:
+        rows.append(
+            row_of(
+                columns,
+                _named(_total_cells(holdings, net_deposited), pool),
+                Role.TOTAL,
+            ),
+        )
+    return rows
+
+
+def _named(cells: dict[str, object], pool: str | None) -> dict[str, object]:
+    """Say which pool a row belongs to, where the table reports several."""
+    if pool is None:
+        return cells
+    return {POOL: pool, **cells}
 
 
 def _position_cells(

@@ -663,6 +663,44 @@ def test_dash_refuses_an_export_format_it_cannot_write(
         assert not target.exists()
 
 
+def test_by_type_exports_a_sheet_for_every_type(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """`--by-type --export` used to print the dashboard and write nothing."""
+    with temp_ctx() as ctx:
+        _seed_two_types()
+        target = tmp_path / "by-type.xlsx"
+
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "--by-type", "--export", str(target)],
+        )
+
+        assert_cli_success(result)
+        assert load_workbook(target).sheetnames == ["NON-REGISTERED", "TFSA"]
+
+
+def test_by_type_flattens_into_one_csv(temp_ctx: TempContext, tmp_path: Path) -> None:
+    """A CSV holds one table, so the pools run together under a Pool column."""
+    with temp_ctx() as ctx:
+        _seed_two_types()
+        target = tmp_path / "by-type.csv"
+
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "--by-type", "--export", str(target)],
+        )
+
+        assert_cli_success(result)
+        lines = target.read_text(encoding="utf-8").splitlines()
+        assert lines[0].startswith("Pool,Symbol")
+        pools = {line.split(",")[0] for line in lines[1:] if line.split(",")[1:2]}
+        assert {"TFSA", "NON-REGISTERED"} <= pools
+
+
 def test_an_export_without_a_suffix_becomes_a_workbook(
     temp_ctx: TempContext,
     tmp_path: Path,

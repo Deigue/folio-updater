@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 import typer
 
@@ -12,6 +12,7 @@ from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
 from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Scope, Table
+from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
 from services import ForexService
 from term import announce, console_error, console_success, console_warning
@@ -38,21 +39,6 @@ BULK_WARNING_SHARE = 0.5
 
 # The `--type` value that names the portfolio-wide pool rather than one type.
 ALL_POOLS = "all"
-
-
-class PoolView(NamedTuple):
-    """One resolved request for a pooled report.
-
-    Attributes:
-        scope: The pool grain to report at.
-        pool: The account name or account type the rows are filtered to. Empty
-            at portfolio grain, where nothing is filtered out.
-        label: How the scope reads in a heading.
-    """
-
-    scope: Scope
-    pool: str
-    label: str
 
 
 def ensure_fx_coverage(*, through_today: bool = False) -> None:
@@ -131,7 +117,7 @@ def resolve_pool(
         return PoolView(Scope.ACCOUNT, account, account)
     requested = account_type or default_type
     if requested is None or requested.strip().lower() == ALL_POOLS:
-        return PoolView(Scope.FOLIO, "", "Portfolio")
+        return FOLIO_VIEW
 
     resolved = parse_account_type(requested)
     if resolved is None:

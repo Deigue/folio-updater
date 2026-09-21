@@ -10,44 +10,36 @@ unrealized gain look wrong, so it is never shown without saying how old it is.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap, get_config
-from cli.commands.common import PoolView, ensure_fx_coverage, resolve_pool
-from domain import AccountType, Currency, Scope
-from engine.accounts import resolve_account_type
+from app import bootstrap
+from cli.commands.common import ensure_fx_coverage, resolve_pool
+from domain import Currency
 from engine.cache import build, load_or_build
-from engine.flows import build_flows, contributions_by_type_year
-from engine.fx_rates import load_fx_rates
-from engine.positions import (
-    SORT_NAMES,
-    FolioPositions,
-    UnknownSortError,
-    scope_rows,
-)
+from engine.panels import FolioValuation, account_type_of, type_view
+from engine.positions import SORT_NAMES, UnknownSortError
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
-from exporters.output import SingleSheetError, UnsupportedExportError, write_export
-from exporters.sheets import dashboard_table
-from services.quotes_service import QuotesService
-from services.symbols import load_symbol_resolver
+from exporters.output import (
+    CSV_SUFFIX,
+    SingleSheetError,
+    UnsupportedExportError,
+    write_export,
+)
+from exporters.sheets import dashboard_table, pooled_dashboard_table
 from term import console_error, console_info, console_warning
 from ui.format import format_freshness, freshness_line
 from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Sequence
     from datetime import datetime
-    from decimal import Decimal
 
-    import pandas as pd
-
-    from engine.flows import Flows
-    from engine.positions import HoldingSet, ValuationCurrency
-    from engine.types import ReplayResult
+    from engine.panels import Panel, PoolView
+    from engine.positions import ValuationCurrency
+    from exporters.table import Table
     from services.quotes_service import Quote
 
 # Labels for the two caches the header ages.
@@ -120,123 +112,66 @@ def _export_note(computed_at: datetime | None, quotes: dict[str, Quote]) -> str:
     return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
 
 
-def _account_type_of(view: PoolView) -> AccountType | None:
-    """Name the account type a pool is, when it is exactly one.
-
-    Contribution room only means something for a single tax type, so a
-    portfolio-wide view has none.
-    """
-    if view.scope is Scope.TYPE:
-        try:
-            return AccountType(view.pool)
-        except ValueError:  # pragma: no cover - resolve_pool already validated
-            return None
-    if view.scope is Scope.ACCOUNT:
-        return resolve_account_type(view.pool)
-    return None
-
-
-@dataclass(frozen=True)
-class _Request:
-    """One dashboard invocation's inputs, past argument parsing.
-
-    `positions` carries the rollups every panel reads from, so a dashboard
-    showing several pools derives each one once. `contributions` is here for
-    the same reason: the room line is a single scan of the frame however many
-    panels ask for it. `folio_market` is the CAD denominator behind `Folio%`,
-    which is a share of the whole portfolio however narrow the panel is and
-    whatever currency it is displayed in.
-    """
-
-    positions: FolioPositions
-    result: ReplayResult
-    currency: ValuationCurrency
-    contributions: Mapping[AccountType, Mapping[int, Decimal]]
-    folio_market: Decimal | None = None
-    sort: str | None = None
-    reverse: bool = False
-    wide: bool = False
-    show_closed: bool = False
-
-    @property
-    def frame(self) -> pd.DataFrame:
-        """The replayed master frame the panels are read from."""
-        return self.positions.frame
-
-
-def _panel(request: _Request, view: PoolView) -> tuple[HoldingSet, Flows]:
-    """Build one scope's holdings and flows together."""
-    holdings = request.positions.holdings(
-        scope=view.scope,
-        pool=view.pool,
-        currency=request.currency,
-        folio_market=request.folio_market,
-        sort=request.sort,
-        reverse=request.reverse,
-    )
-    flows = build_flows(
-        request.result,
-        scope=view.scope,
-        pool=view.pool,
-        label=view.label,
-        account_type=_account_type_of(view),
-        room=get_config().contribution_room,
-        contributions=request.contributions,
-    )
-    return holdings, flows
-
-
 def _tab_color(view: PoolView) -> str | None:
     """Accent a sheet tab the way the printed panel accents its title."""
-    account_type = _account_type_of(view)
+    account_type = account_type_of(view)
     if account_type is None:
         return FOLIO_TAB
     return ACCOUNT_TYPE_TABS.get(account_type)
 
 
-def _export(
-    holdings: HoldingSet,
-    flows: Flows,
-    view: PoolView,
-    path: str,
-    badge: str,
-) -> None:
+def _sheet(panel: Panel, badge: str) -> Table:
+    """Lay one panel out as a sheet of its own."""
+    return dashboard_table(
+        panel.holdings,
+        panel.view.label,
+        net_deposited=panel.flows.net_deposit_denominator,
+        tab_color=_tab_color(panel.view),
+        notes=[badge],
+    )
+
+
+def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
     """Write the valued holdings out, choosing the format from the suffix.
 
+    A workbook gives each pool a sheet. A CSV holds one table, so several pools
+    flatten into one, each row naming the pool it belongs to.
+
     Args:
-        holdings: The pool's valued positions.
-        flows: Its cash movements, which supply the return denominator.
-        view: The pool being reported, which names and accents the sheet.
+        panels: The pools to write, in the order they should appear.
         path: Where to write. A path with no suffix becomes a workbook.
         badge: The freshness line, as plain text for the sheet's notes.
 
     Raises:
         typer.Exit: If the path names a format that cannot be written.
     """
-    table = dashboard_table(
-        holdings,
-        view.label,
-        net_deposited=flows.net_deposit_denominator,
-        tab_color=_tab_color(view),
-        notes=[badge],
-    )
+    target = Path(path)
+    flatten = target.suffix.lower() == CSV_SUFFIX and len(panels) > 1
+    if flatten:
+        tables = [
+            pooled_dashboard_table(
+                [
+                    (
+                        panel.view.label,
+                        panel.holdings,
+                        panel.flows.net_deposit_denominator,
+                    )
+                    for panel in panels
+                ],
+                "Holdings",
+                notes=[badge],
+            ),
+        ]
+    else:
+        tables = [_sheet(panel, badge) for panel in panels]
+
     try:
-        written = write_export(Path(path), [table])
+        written = write_export(target, tables)
     except (UnsupportedExportError, SingleSheetError) as error:
         console_error(str(error))
         raise typer.Exit(1) from error
-    count = len(table.data_rows)
+    count = sum(len(table.data_rows) for table in tables)
     console_info(f"Exported {count} holding(s) to {written}")
-
-
-def _account_types(frame: pd.DataFrame) -> list[str]:
-    """Every account type that still holds an open position, in a stable order."""
-    types: list[str] = []
-    for name in sorted({str(value) for value in frame["AcctType"].dropna()}):
-        rows = scope_rows(frame, Scope.TYPE, name)
-        if not rows.empty:
-            types.append(name)
-    return types
 
 
 def show_dash(
@@ -297,89 +232,53 @@ def show_dash(
         console_error("Could not replay the folio.")
         raise typer.Exit(1)
 
-    # One object for the whole invocation: every panel below reads its rollups
-    # from here, and the FX table is read once rather than once per panel.
-    positions = FolioPositions(cached.frame, {}, load_fx_rates())
-    quotes = _quotes(positions, refresh=refresh, offline=offline)
-    positions.price(quotes)
-
-    badge = _badge(cached.computed_at, quotes, offline=offline)
-    request = _Request(
-        positions=positions,
-        result=result,
+    # One valuation for the whole invocation: every panel below reads its
+    # rollups from here, and the quotes are fetched once rather than per panel.
+    valuation = FolioValuation.build(
+        cached.frame,
+        result,
         currency=shown,
-        contributions=contributions_by_type_year(cached.frame),
-        folio_market=positions.market_value(),
-        sort=sort,
-        reverse=reverse,
-        wide=wide,
-        show_closed=show_closed,
-    )
-
-    if by_type:
-        _show_by_type(request, badge)
-        return
-
-    view = resolve_pool(account, account_type)
-    holdings, flows = _panel(request, view)
-
-    if export:
-        _export(
-            holdings,
-            flows,
-            view,
-            export,
-            _export_note(cached.computed_at, quotes),
-        )
-        return
-
-    show_dashboard(
-        holdings,
-        flows,
-        view.label,
-        wide=wide,
-        show_closed=show_closed,
-        badge=badge,
-    )
-
-
-def _quotes(
-    positions: FolioPositions,
-    *,
-    refresh: bool,
-    offline: bool,
-) -> dict[str, Quote]:
-    """Price every open position, once, for the whole folio."""
-    symbols = positions.held_symbols()
-    if not symbols:
-        return {}
-    return QuotesService.get_quotes(
-        symbols,
-        load_symbol_resolver(),
         refresh=refresh,
         offline=offline,
     )
+    badge = _badge(cached.computed_at, valuation.quotes, offline=offline)
+    note = _export_note(cached.computed_at, valuation.quotes)
 
-
-def _show_by_type(request: _Request, badge: str) -> None:
-    """Report every account type that holds a position, one after another."""
-    # Every type is about to be reported, so split the frame once here rather
-    # than narrowing it again for each panel.
-    request.positions.prime(Scope.TYPE)
-
-    panels = []
-    for name in _account_types(request.frame):
-        view = PoolView(Scope.TYPE, name, name.replace("_", "-"))
-        holdings, flows = _panel(request, view)
-        if holdings.holdings or holdings.closed:
-            panels.append((holdings, flows, view.label))
-
-    if not panels:
-        console_warning("No open positions in any account type.")
+    if by_type:
+        panels = valuation.panels(
+            [type_view(name) for name in valuation.account_types()],
+            sort=sort,
+            reverse=reverse,
+        )
+        if not panels:
+            console_warning("No open positions in any account type.")
+            return
+        if export:
+            _export(panels, export, note)
+            return
+        show_by_type(
+            [(panel.holdings, panel.flows, panel.view.label) for panel in panels],
+            wide=wide,
+            show_closed=show_closed,
+            badge=badge,
+        )
         return
-    show_by_type(
-        panels,
-        wide=request.wide,
-        show_closed=request.show_closed,
+
+    panel = valuation.panel(
+        resolve_pool(account, account_type),
+        sort=sort,
+        reverse=reverse,
+    )
+
+    if export:
+        _export([panel], export, note)
+        return
+
+    show_dashboard(
+        panel.holdings,
+        panel.flows,
+        panel.view.label,
+        wide=wide,
+        show_closed=show_closed,
         badge=badge,
     )
