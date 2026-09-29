@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -55,9 +56,12 @@ def rolling_backup(
         backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
         try:
+            # A connection used as a context manager only commits; it is never
+            # closed. On Windows that leaves both files locked until the
+            # connection is collected, so close them explicitly.
             with (
-                sqlite3.connect(file_path) as source,
-                sqlite3.connect(backup_path) as backup,
+                closing(sqlite3.connect(file_path)) as source,
+                closing(sqlite3.connect(backup_path)) as backup,
             ):
                 source.backup(backup)
                 logger.debug(
