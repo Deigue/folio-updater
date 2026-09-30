@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from domain import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency
+from domain import SUPPORTED_CURRENCIES, TORONTO_TZ, TXN_ESSENTIALS, Action, Column
 from ingest import ActionValidationRules
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def generate_transactions(
     end_date: datetime = SEED_DATE
     transactions = []
     actions = list(Action)
-    currencies = list(Currency)
+    currencies = list(SUPPORTED_CURRENCIES)
     for i in range(num_transactions):
         action = actions[i % len(actions)]
         currency = currencies[i % len(currencies)]

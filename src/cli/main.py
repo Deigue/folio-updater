@@ -78,7 +78,7 @@ def add_cmd(  # noqa: PLR0917
         None,
         "-c",
         "--currency",
-        help="Transaction currency (USD, CAD, EUR)",
+        help="Transaction currency (USD or CAD)",
     ),
     symbol: str | None = typer.Option(None, "-s", "--symbol", help="Security symbol"),
     amount: str | None = typer.Option(

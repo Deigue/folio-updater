@@ -373,6 +373,12 @@ _REFUSED_SETS = [
         "would produce invalid transaction(s)",
         id="clearing-a-required-field",
     ),
+    # The engine converts USD and CAD only; a euro row would stop every replay.
+    pytest.param(
+        ["$=EUR"],
+        "would produce invalid transaction(s)",
+        id="a-currency-the-engine-cannot-convert",
+    ),
 ]
 
 

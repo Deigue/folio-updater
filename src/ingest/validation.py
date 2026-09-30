@@ -24,13 +24,13 @@ from app import get_config
 from app.logging_setup import get_import_logger
 from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
-from domain import TORONTO_TZ, Action, Column, Currency, Sign
+from domain import SUPPORTED_CURRENCIES, TORONTO_TZ, Action, Column, Sign
 from engine.settlement import settlement_calculator
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 actions: list[str] = [action.value for action in Action]
-currencies: set[str] = {currency.value for currency in Currency}
+currencies: set[str] = {currency.value for currency in SUPPORTED_CURRENCIES}
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
 NON_NUMERIC: str = "NON-NUMERIC"
 

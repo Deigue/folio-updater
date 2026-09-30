@@ -7,6 +7,7 @@ every other package is free to depend on it and no import cycle can start here.
 from domain.constants import DEFAULT_TICKERS, TORONTO_TZ, TXN_ESSENTIALS
 from domain.enums import (
     ACCOUNT_TYPE_ALIASES,
+    SUPPORTED_CURRENCIES,
     TAXABLE_ACCOUNT_TYPES,
     AccountType,
     Action,
@@ -27,6 +28,7 @@ from domain.enums import (
 __all__ = [
     "ACCOUNT_TYPE_ALIASES",
     "DEFAULT_TICKERS",
+    "SUPPORTED_CURRENCIES",
     "TAXABLE_ACCOUNT_TYPES",
     "TORONTO_TZ",
     "TXN_ESSENTIALS",

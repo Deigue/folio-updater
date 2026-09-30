@@ -263,6 +263,8 @@ class TestAddValidation:
             ("--date", "not-a-date", "INVALID TxnDate"),
             ("--amount", "twelve", "INVALID Amount"),
             ("--currency", "GBP", "INVALID $"),
+            # Known to the app, but not convertible: it would stop every replay.
+            ("--currency", "EUR", "INVALID $"),
             ("--symbol", "BAD TICKER", "INVALID Ticker"),
         ],
     )

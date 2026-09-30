@@ -17,6 +17,9 @@ class Currency(StrEnum):
     EUR = "EUR"
 
 
+SUPPORTED_CURRENCIES: tuple[Currency, ...] = (Currency.USD, Currency.CAD)
+
+
 class Action(StrEnum):
     """Transaction actions."""
 

@@ -22,7 +22,14 @@ from app.logging_setup import get_import_logger
 from cli.commands.common import audit_footer, backup_folio, export_to_parquet
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_last_insert_rowid, get_rows
-from domain import TORONTO_TZ, TXN_ESSENTIALS, Action, Column, Currency, Table
+from domain import (
+    SUPPORTED_CURRENCIES,
+    TORONTO_TZ,
+    TXN_ESSENTIALS,
+    Action,
+    Column,
+    Table,
+)
 from ingest import ActionValidationRules, prepare_transactions
 from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
@@ -57,7 +64,9 @@ PROMPT_ORDER: tuple[str, ...] = (
 PROMPT_LABELS: dict[str, str] = {
     Column.Txn.TXN_DATE: "Transaction date (YYYY-MM-DD)",
     Column.Txn.ACCOUNT: "Account",
-    Column.Txn.CURRENCY: f"Currency ({'/'.join(c.value for c in Currency)})",
+    Column.Txn.CURRENCY: (
+        f"Currency ({'/'.join(c.value for c in SUPPORTED_CURRENCIES)})"
+    ),
     Column.Txn.TICKER: "Ticker",
     Column.Txn.AMOUNT: "Amount",
     Column.Txn.PRICE: "Price",
