@@ -2,8 +2,7 @@
 {
   "languages": {
     "Python": {
-      // ty replaces Pylance/basedpyright; ruff handles lint + format
-      "language_servers": ["ty", "ruff", "!basedpyright", "!pyright", "..."],
+      "language_servers": ["ty", "ruff"],
       "format_on_save": "on",
       "formatter": {
         "language_server": { "name": "ruff" }
