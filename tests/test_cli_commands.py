@@ -779,22 +779,6 @@ def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
         assert_in_output("Alias for 'OLD' not found.", cli_result)
 
 
-def test_symbol_list_empty_after_deleting_only_alias(temp_ctx: TempContext) -> None:
-    """Test --list when the alias table exists but has no remaining rows."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        run_cli_with_config(
-            config,
-            cli_app,
-            ["symbol", "--add", "OLD", "NEW", "2025-01-01"],
-        )
-        run_cli_with_config(config, cli_app, ["symbol", "--delete", "OLD"])
-
-        cli_result = run_cli_with_config(config, cli_app, ["symbol", "--list"])
-        assert_cli_success(cli_result)
-        assert_in_output("No ticker aliases found.", cli_result)
-
-
 def test_symbol_command(temp_ctx: TempContext) -> None:
     """Test management of ticker aliases with tickers command."""
     with temp_ctx() as ctx:
@@ -839,6 +823,11 @@ def test_symbol_command(temp_ctx: TempContext) -> None:
             assert count == 1
             remaining = get_rows(conn, Table.TICKER_ALIASES)
             assert remaining.iloc[0][Column.Aliases.OLD_TICKER] == "NEW"
+
+        # 5. LIST once the last alias is gone
+        run_cli_with_config(config, cli_app, ["symbol", "--delete", "NEW"])
+        cli_result = run_cli_with_config(config, cli_app, ["symbol", "--list"])
+        assert_in_output("No ticker aliases found.", cli_result)
 
 
 def test_version_command() -> None:

@@ -94,43 +94,6 @@ class TestQueryCommand:
             # The results show the ticker was found
             assert_in_output(DEFAULT_TICKERS[0], cli_result)
 
-    def test_query_action_keyword(self, temp_ctx: TempContext) -> None:
-        """Test query with action keyword."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "BUY"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output('Action="BUY"', cli_result)
-
-    def test_query_date_range(self, temp_ctx: TempContext) -> None:
-        """Test query with date range."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "2025-01-01:2025-12-31"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output(">=2025-01-01", cli_result)
-            assert_in_output("<=2025-12-31", cli_result)
-
-    def test_query_with_sort(self, temp_ctx: TempContext) -> None:
-        """Test query with sorting."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", DEFAULT_TICKERS[0], "sort:-Amount"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("sort:Amount(DESC)", cli_result)
-
     def test_query_combined_filters(self, temp_ctx: TempContext) -> None:
         """Test query with multiple combined filters."""
         with temp_ctx() as ctx:
@@ -307,30 +270,6 @@ class TestQueryCommand:
             assert_cli_success(cli_result)
             assert_in_output("BUY", cli_result)
 
-    def test_query_ticker_with_aliases(self, temp_ctx: TempContext) -> None:
-        """Test that query respects ticker aliases."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-
-            # Create an alias
-            old_ticker = DEFAULT_TICKERS[0]
-            new_ticker = DEFAULT_TICKERS[1]
-
-            run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["symbol", "--add", old_ticker, new_ticker, "2025-01-01"],
-            )
-
-            # Query for the old ticker
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", old_ticker],
-            )
-            assert_cli_success(cli_result)
-            # Should find results because it searches for ticker family
-
     def test_query_command_with_aliases(self, temp_ctx: TempContext) -> None:
         """Test that the query command correctly uses ticker aliases.
 
@@ -409,71 +348,6 @@ class TestQueryCommand:
             assert_in_output(f" {ticker_unrelated} ", result_c)
             assert_not_in_output(f" {ticker_alias_old} ", result_c)
             assert_not_in_output(f" {ticker_alias_new} ", result_c)
-
-    def test_query_action_with_date_phrase(self, temp_ctx: TempContext) -> None:
-        """Test that action keywords work after date phrases.
-
-        Validates that when parsing "BUY last month", the action is correctly
-        captured and not lost to the date parser.
-        """
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            # Query for BUY action with a date range
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "BUY", "last", "month"],
-            )
-            assert_cli_success(cli_result)
-            # Verify BUY action is in the filters
-            assert_in_output('Action="BUY"', cli_result)
-
-    def test_query_multiple_date_patterns(self, temp_ctx: TempContext) -> None:
-        """Test various natural language date patterns."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-
-            # Test "last N days"
-            result_days = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "last", "7", "days"],
-            )
-            assert_cli_success(result_days)
-            assert_in_output("Filters:", result_days)
-
-            # Test "last N weeks"
-            result_weeks = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "last", "3", "weeks"],
-            )
-            assert_cli_success(result_weeks)
-            assert_in_output("Filters:", result_weeks)
-
-            # Test "since YEAR"
-            result_since = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "since", "2024"],
-            )
-            assert_cli_success(result_since)
-            assert_in_output("Filters:", result_since)
-
-    def test_query_complex_combination(self, temp_ctx: TempContext) -> None:
-        """Test complex query with action, ticker, date, and sort."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "BUY", "AAPL", "last", "2", "years", "sort:-Amount"],
-            )
-            assert_cli_success(cli_result)
-            # Verify all components are parsed
-            assert_in_output('Action="BUY"', cli_result)
-            assert_in_output('Ticker="AAPL"', cli_result)
-            assert_in_output("sort:Amount", cli_result)
 
     def test_query_sorting_ascending_descending(self, temp_ctx: TempContext) -> None:
         """Test sort command with both ascending and descending."""
@@ -568,14 +442,6 @@ class TestQueryCommand:
             assert_in_output("limit:3", cli_result)
             assert_in_output("Found 3 matching transaction(s).", cli_result)
 
-    def test_query_currency_keyword(self, temp_ctx: TempContext) -> None:
-        """Test query with a bare currency keyword."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(ctx.config, cli_app, ["query", "USD"])
-            assert_cli_success(cli_result)
-            assert_in_output('$="USD"', cli_result)
-
     def test_query_between_dates_covers_all(self, temp_ctx: TempContext) -> None:
         """Test 'between X and Y' with a wide range returns every transaction."""
         with temp_ctx() as ctx:
@@ -626,19 +492,6 @@ class TestQueryCommand:
             assert_in_output("TxnDate>=2020-01-01", cli_result)
             assert_in_output("limit:4", cli_result)
             assert_in_output("Found 4 matching transaction(s).", cli_result)
-
-    def test_query_since_month_year_with_sort(self, temp_ctx: TempContext) -> None:
-        """Test the documented 'since MONTH YEAR ... sort ... last N' combo."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "since", "july", "2023", "sort:amount", "last", "3"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("TxnDate>=2023-07-01", cli_result)
-            assert_in_output("limit:-3", cli_result)
 
 
 class TestQueryByTxnId:

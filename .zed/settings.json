@@ -12,11 +12,10 @@
   },
   "lsp": {
     "ty": {
+      // Zed hands this object to ty as-is, so the keys are ty's own options:
+      // VS Code's "ty.diagnosticMode" is plain "diagnosticMode" here.
       "settings": {
-        "ty": {
-          // Same as "ty.diagnosticMode": "workspace" in VS Code
-          "diagnosticMode": "workspace"
-        }
+        "diagnosticMode": "workspace"
       }
     }
   },

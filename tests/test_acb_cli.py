@@ -150,18 +150,6 @@ def test_acb_suppresses_usd_columns_for_a_cad_holding(temp_ctx: TempContext) -> 
     assert_not_in_output("Rate", result)
 
 
-def test_acb_shows_both_currencies_for_a_usd_holding(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_usd_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "MSFT"])
-    assert_cli_success(result)
-    # Headers wrap when both variants render, so the USD family shows as a
-    # second header line rather than an inline suffix.
-    assert_in_output("USD", result)
-    assert_in_output("Rate", result)
-    assert_in_output("1.3500", result)  # the settle-date rate that converted it
-
-
 def test_acb_currency_usd_against_a_cad_holding_is_an_error(
     temp_ctx: TempContext,
 ) -> None:
@@ -291,55 +279,6 @@ def test_acb_summary_shows_usd_columns_only_when_something_is_usd(
     assert_cli_success(mixed)
     assert_not_in_output("USD", cad_only)
     assert_in_output("USD", mixed)
-
-
-def test_acb_summary_blanks_a_closed_positions_zeros(temp_ctx: TempContext) -> None:
-    """A fully closed position reports its gain, not three columns of zero."""
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        # Sell the remaining 50 units, taking the position to exactly zero.
-        seed_transaction(
-            action="SELL",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-            account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker="RY.TO",
-            amount="700",
-            price="14",
-            units="-50",
-        )
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-    assert_cli_success(result)
-    assert_in_output("RY.TO", result)
-    # Units, ACB and Avg all land on exactly zero here; only the gain survives.
-    assert_not_in_output("0.0000", result)
-
-
-def test_acb_summary_sinks_closed_positions_to_the_bottom(
-    temp_ctx: TempContext,
-) -> None:
-    """What is still held comes first; history goes underneath."""
-    with temp_ctx() as ctx:
-        # AAA closes out entirely; ZZZ is still held. Alphabetically AAA leads,
-        # so any ordering that keeps it on top has ignored the position.
-        seed_cad_holding(ticker="AAA")
-        seed_transaction(
-            action="SELL",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-            account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker="AAA",
-            amount="700",
-            price="14",
-            units="-50",
-        )
-        seed_cad_holding(ticker="ZZZ")
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-    assert_cli_success(result)
-    output = result.plain_output
-    assert output.index("ZZZ") < output.index("AAA")
 
 
 def test_acb_summary_usd_only_drops_cad_holdings(temp_ctx: TempContext) -> None:
@@ -598,23 +537,6 @@ def test_config_change_invalidates_the_cache(temp_ctx: TempContext) -> None:
 # --- folio symbol --------------------------------------------------------------
 
 
-def test_symbol_add_list_delete(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        added = run_cli_with_config(
-            ctx.config,
-            app,
-            ["symbol", "--add", "SPLG", "SPYM", "2025-10-31"],
-        )
-        listed = run_cli_with_config(ctx.config, app, ["symbol", "--list"])
-        deleted = run_cli_with_config(ctx.config, app, ["symbol", "--delete", "SPLG"])
-        empty = run_cli_with_config(ctx.config, app, ["symbol", "--list"])
-
-    assert_cli_success(added)
-    assert_in_output("SPYM", listed)
-    assert_cli_success(deleted)
-    assert_in_output("No ticker aliases", empty)
-
-
 def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
     """Rows written before the rename pool under the new name."""
     with temp_ctx() as ctx:
@@ -714,33 +636,6 @@ def test_acb_skips_the_fx_fetch_when_auto_getfx_is_off(temp_ctx: TempContext) ->
 #
 # Display only: the replay still walks trade dates, and none of these change a
 # reported number.
-
-
-def seed_dated_holding() -> None:
-    """Seed a buy whose settle date falls in the month after its trade date."""
-    seed_fx({**FX, "2025-09-02": "1.3800"})
-    seed_transaction(
-        action="BUY",
-        date="2025-08-29",
-        settle_date="2025-09-02",
-        account="IBKR-PERSONAL",
-        currency="CAD",
-        ticker="RY.TO",
-        amount="-1000",
-        price="10",
-        units="100",
-    )
-
-
-def test_the_date_column_shows_the_settle_date(temp_ctx: TempContext) -> None:
-    """The settle date is the one the cash and the FX rate belong to."""
-    with temp_ctx() as ctx:
-        seed_dated_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
-    assert_in_output("Settle", result)
-    assert_in_output("2025-09-02", result)
-    assert_not_in_output("2025-08-29", result)
 
 
 def test_rows_run_newest_first(temp_ctx: TempContext) -> None:

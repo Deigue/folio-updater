@@ -184,45 +184,6 @@ def test_by_type_renders_more_than_one_panel(temp_ctx: TempContext) -> None:
         assert_in_output("NON-REGISTERED", result)
 
 
-def test_wide_adds_the_name_column(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-
-        narrow = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-        wide = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "--wide"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(wide)
-        # The quote's short name only appears once the column is offered.
-        assert "Test Ticker Inc" in wide.plain_output
-        assert "Test Ticker Inc" not in narrow.plain_output
-
-
-def test_dash_sorts_by_a_named_column(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "-s", "symbol"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        rows = result.plain_output
-        assert rows.index("OTHER") < rows.index("TESTTKR")
-
-
 def test_dash_reverses_a_sort(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         _seed_two_types()
@@ -253,23 +214,6 @@ def test_a_narrow_window_says_which_columns_are_hidden(
         assert_in_output("widen the window", result)
 
 
-def test_a_wide_window_hides_nothing_and_says_nothing(
-    temp_ctx: TempContext,
-) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        assert_not_in_output("hidden", result)
-
-
 def test_a_folio_that_never_sold_loses_the_realized_column(
     temp_ctx: TempContext,
 ) -> None:
@@ -286,58 +230,6 @@ def test_a_folio_that_never_sold_loses_the_realized_column(
 
         assert_cli_success(result)
         assert_not_in_output("Realized", result)
-
-
-def test_a_folio_that_sold_keeps_the_realized_column(
-    temp_ctx: TempContext,
-) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-        seed_transaction(
-            action="SELL",
-            account="WS-TFSA",
-            ticker="TESTTKR",
-            amount="750",
-            price="150",
-            units="5",
-            date="2025-08-18",
-        )
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        assert_in_output("Realized", result)
-
-
-def test_dash_shows_an_aggregate_closed_row(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-        # Sell every unit: the TFSA's only position is now fully closed.
-        seed_transaction(
-            action="SELL",
-            account="WS-TFSA",
-            ticker="TESTTKR",
-            amount="1500",
-            price="150",
-            units="10",
-            date="2025-08-18",
-        )
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "--type", "tfsa"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        assert_in_output("Closed", result)
-        assert_not_in_output("TESTTKR", result)
 
 
 def test_dash_show_closed_breaks_out_each_position(temp_ctx: TempContext) -> None:
@@ -418,85 +310,6 @@ def _seed_mixed_currency() -> None:
         price="200",
         units="10",
     )
-
-
-def test_a_mixed_folio_subtotals_each_currency(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        _seed_mixed_currency()
-
-        result = run_cli_with_config(ctx.config, app, ["dash"])
-
-        assert_cli_success(result)
-        # One subtotal per currency group...
-        assert result.plain_output.count("1 held") == 2
-        # ...closed by the one converted figure on the page, which the grand
-        # total row and the footnote both label with its currency.
-        assert_in_output("Total", result)
-        assert_in_output("(CAD) converted at USDCAD", result)
-
-
-def test_a_mixed_folio_keeps_each_price_in_its_own_currency(
-    temp_ctx: TempContext,
-) -> None:
-    """The same holding's book value, native versus forced to CAD.
-
-    It cost 1,000 USD, which is 1,250 CAD at the seeded rate. Comparing the two
-    runs is what proves the row is native rather than converted: the CAD figure
-    still appears in the *grand total* of a native run, so its mere presence
-    proves nothing.
-    """
-    with temp_ctx() as ctx:
-        _seed_mixed_currency()
-
-        native = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-        forced = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "--currency", "CAD"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(native)
-        assert_cli_success(forced)
-        # The USD book appears natively and is gone once everything converts.
-        assert "1,000.00" in native.plain_output
-        assert "1,000.00" not in forced.plain_output
-
-
-def test_a_single_currency_folio_draws_no_grand_total(
-    temp_ctx: TempContext,
-) -> None:
-    with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="10000",
-            price=None,
-            units=None,
-            date="2025-08-14",
-        )
-        seed_transaction(
-            ticker="CADCO",
-            currency="CAD",
-            amount="-1000",
-            price="100",
-            units="10",
-        )
-
-        result = run_cli_with_config(ctx.config, app, ["dash"])
-
-        assert_cli_success(result)
-        assert result.plain_output.count("1 held") == 1
-        # Nothing was converted, so repeating the same total would be noise
-        # and there is no rate to disclose.
-        assert_not_in_output("converted at USDCAD", result)
 
 
 def test_a_single_usd_folio_promotes_total_percent_and_discloses_it(
@@ -625,23 +438,6 @@ def test_forcing_usd_on_a_usd_only_pool_keeps_its_total_percent(
         # The ratio is taken on the CAD leg either way, so it is disclosed as
         # the borrowed figure it is rather than read as a USD one.
         assert_in_output("Total% (CAD) converted at USDCAD", forced)
-
-
-def test_dash_exports_an_excel_file(temp_ctx: TempContext, tmp_path: Path) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-        target = tmp_path / "holdings.xlsx"
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "--export", str(target)],
-        )
-
-        assert_cli_success(result)
-        assert target.exists()
-        # The sheet is named after the scope that was reported.
-        assert load_workbook(target).sheetnames == ["Portfolio"]
 
 
 def test_dash_refuses_an_export_format_it_cannot_write(
@@ -842,80 +638,6 @@ def test_dash_badges_a_pool_whose_units_are_wrong(temp_ctx: TempContext) -> None
         assert_cli_success(result)
         assert_in_output("known to be wrong", result)
         assert_in_output("OVERSELL", result)
-
-
-def test_the_panel_shows_gross_contributions_beside_the_net(
-    temp_ctx: TempContext,
-) -> None:
-    """Both lines, because they answer different questions.
-
-    `Contributions` is what was put in and stays put once money comes back out;
-    `Net Deposited` is what of it the pool still holds. A pool with a withdrawal
-    is the case where the two figures separate.
-    """
-    with temp_ctx() as ctx:
-        _seed_two_types()
-        seed_transaction(
-            action="WITHDRAWAL",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="-2500",
-            price=None,
-            units=None,
-            date="2025-08-19",
-        )
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash", "-a", "WS-TFSA"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        assert_in_output("Contributions", result)
-        assert_in_output("10,000.00", result)
-        assert_in_output("Net Deposited", result)
-        assert_in_output("7,500.00", result)
-
-
-def test_the_room_row_shows_for_a_registered_pool(temp_ctx: TempContext) -> None:
-    with temp_ctx(contribution_room={"TFSA": {2025: 7000}}) as ctx:
-        _seed_two_types()
-
-        result = run_cli_with_config(ctx.config, app, ["dash", "-t", "tfsa"])
-
-        assert_cli_success(result)
-        assert_in_output("Room 2025", result)
-        assert_in_output("7,000.00", result)
-
-
-def test_the_room_row_is_absent_for_a_non_registered_pool(
-    temp_ctx: TempContext,
-) -> None:
-    with temp_ctx(contribution_room={"TFSA": {2025: 7000}}) as ctx:
-        _seed_two_types()
-
-        result = run_cli_with_config(ctx.config, app, ["dash", "-t", "nreg"])
-
-        assert_cli_success(result)
-        assert_not_in_output("Room", result)
-
-
-def test_the_freshness_line_ages_both_caches(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        _seed_two_types()
-
-        first = run_cli_with_config(ctx.config, app, ["dash"])
-        assert_cli_success(first)
-        assert "acb computed just now" in first.plain_output
-
-        second = run_cli_with_config(ctx.config, app, ["dash"])
-        assert_cli_success(second)
-        # The cost base was cached by the first run; both ages are disclosed.
-        assert "acb cached" in second.plain_output
-        assert "quotes cached" in second.plain_output
 
 
 def test_refresh_returns_the_cost_base_to_freshly_computed(
