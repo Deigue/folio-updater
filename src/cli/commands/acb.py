@@ -13,14 +13,13 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import ensure_fx_coverage, resolve_pool
+from cli.commands.common import ensure_fx_coverage, load_folio, resolve_pool
 from domain import Column, Scope
-from engine.cache import load_or_build
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from exporters.sheets import (
     acb_buildup_table,
-    acb_ledger_table,
     acb_summary_table,
+    ledger_table,
 )
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
@@ -124,9 +123,9 @@ def _sheet(
             currency=currency,
             notes=[badge],
         )
-    return acb_ledger_table(
+    return ledger_table(
         rows,
-        name=f"ACB - {view.label}",
+        name=f"Ledger - {view.label}",
         currency=currency,
         notes=[badge],
     )
@@ -223,7 +222,7 @@ def show_acb(  # noqa: PLR0917
         raise typer.Exit(1)
 
     ensure_fx_coverage()
-    cached = load_or_build(refresh=refresh)
+    cached = load_folio(refresh=refresh)
     if cached.frame.empty:
         console_warning("No transactions to compute a cost base from.")
         return

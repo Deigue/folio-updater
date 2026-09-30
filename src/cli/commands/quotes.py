@@ -8,7 +8,7 @@ from __future__ import annotations
 import typer
 
 from app import bootstrap
-from engine.cache import load_or_build
+from cli.commands.common import load_folio
 from engine.positions import held_symbols
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
@@ -59,7 +59,7 @@ def manage_quotes(
 
 def _held(ticker: str | None) -> list[str]:
     """Every symbol the folio holds, narrowed by `--ticker`."""
-    cached = load_or_build()
+    cached = load_folio()
     return _requested(held_symbols(cached.frame), ticker)
 
 

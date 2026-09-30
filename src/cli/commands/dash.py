@@ -16,30 +16,34 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import ensure_fx_coverage, resolve_pool
+from cli.commands.common import (
+    ensure_fx_coverage,
+    freshness_note,
+    load_folio,
+    quote_age,
+    replay_result,
+    resolve_pool,
+)
 from domain import Currency
-from engine.cache import build, load_or_build
-from engine.panels import FolioValuation, account_type_of, type_view
+from engine.panels import FolioValuation, type_view
 from engine.positions import SORT_NAMES, UnknownSortError
-from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
 from exporters.output import (
     CSV_SUFFIX,
     SingleSheetError,
     UnsupportedExportError,
     write_export,
 )
-from exporters.sheets import dashboard_table, pooled_dashboard_table
+from exporters.sheets import panel_table, pooled_dashboard_table
 from term import console_error, console_info, console_warning
-from ui.format import format_freshness, freshness_line
+from ui.format import freshness_line
 from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import datetime
 
-    from engine.panels import Panel, PoolView
+    from engine.panels import Panel
     from engine.positions import ValuationCurrency
-    from exporters.table import Table
     from services.quotes_service import Quote
 
 # Labels for the two caches the header ages.
@@ -70,22 +74,6 @@ def _resolve_currency(requested: str | None) -> ValuationCurrency:
         raise typer.Exit(1) from None
 
 
-def _quote_age(quotes: dict[str, Quote]) -> tuple[datetime | None, bool]:
-    """Age the quote cache as a whole: its oldest row wins.
-
-    Returns:
-        When the oldest quote was fetched (None if every one is from this
-        invocation), and whether any of them is past its TTL.
-    """
-    fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
-    stale = any(quote.is_stale for quote in quotes.values())
-    if not fetched:
-        return None, stale
-    oldest = min(fetched)
-    # Anything fetched moments ago in this same run reads as fresh, not cached.
-    return oldest, stale
-
-
 def _badge(
     computed_at: datetime | None,
     quotes: dict[str, Quote],
@@ -93,7 +81,7 @@ def _badge(
     offline: bool,
 ) -> str:
     """Compose the two-cache freshness line."""
-    quote_at, stale = _quote_age(quotes)
+    quote_at, stale = quote_age(quotes)
     empty = not any(quote.fetched_at for quote in quotes.values())
     parts = [(_ACB_LABEL, computed_at), (_QUOTES_LABEL, quote_at)]
     line = freshness_line(
@@ -102,33 +90,6 @@ def _badge(
         missing={_QUOTES_LABEL} if empty else set(),
     )
     return f"{line} [dim](offline)[/dim]" if offline else line
-
-
-def _export_note(computed_at: datetime | None, quotes: dict[str, Quote]) -> str:
-    """Say how old both caches are, as plain text for an exported sheet."""
-    quote_at, _ = _quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    aged = "nothing cached" if empty else format_freshness(quote_at)
-    return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
-
-
-def _tab_color(view: PoolView) -> str | None:
-    """Accent a sheet tab the way the printed panel accents its title."""
-    account_type = account_type_of(view)
-    if account_type is None:
-        return FOLIO_TAB
-    return ACCOUNT_TYPE_TABS.get(account_type)
-
-
-def _sheet(panel: Panel, badge: str) -> Table:
-    """Lay one panel out as a sheet of its own."""
-    return dashboard_table(
-        panel.holdings,
-        panel.view.label,
-        net_deposited=panel.flows.net_deposit_denominator,
-        tab_color=_tab_color(panel.view),
-        notes=[badge],
-    )
 
 
 def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
@@ -148,22 +109,9 @@ def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
     target = Path(path)
     flatten = target.suffix.lower() == CSV_SUFFIX and len(panels) > 1
     if flatten:
-        tables = [
-            pooled_dashboard_table(
-                [
-                    (
-                        panel.view.label,
-                        panel.holdings,
-                        panel.flows.net_deposit_denominator,
-                    )
-                    for panel in panels
-                ],
-                "Holdings",
-                notes=[badge],
-            ),
-        ]
+        tables = [pooled_dashboard_table(panels, "Holdings", notes=[badge])]
     else:
-        tables = [_sheet(panel, badge) for panel in panels]
+        tables = [panel_table(panel, notes=[badge]) for panel in panels]
 
     try:
         written = write_export(target, tables)
@@ -222,15 +170,12 @@ def show_dash(
         # Quotes are today's, so the rate that converts them has to be too.
         ensure_fx_coverage(through_today=True)
 
-    cached = load_or_build(refresh=refresh)
+    cached = load_folio(refresh=refresh)
     if cached.frame.empty:
         console_warning("No transactions to build a dashboard from.")
         return
 
-    result = cached.result or build().result
-    if result is None:  # pragma: no cover - `build` always replays
-        console_error("Could not replay the folio.")
-        raise typer.Exit(1)
+    result = replay_result(cached)
 
     # One valuation for the whole invocation: every panel below reads its
     # rollups from here, and the quotes are fetched once rather than per panel.
@@ -242,7 +187,7 @@ def show_dash(
         offline=offline,
     )
     badge = _badge(cached.computed_at, valuation.quotes, offline=offline)
-    note = _export_note(cached.computed_at, valuation.quotes)
+    note = freshness_note(cached.computed_at, valuation.quotes)
 
     if by_type:
         panels = valuation.panels(

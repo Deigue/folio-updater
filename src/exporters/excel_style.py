@@ -85,6 +85,11 @@ ACCOUNT_TYPE_TABS: dict[AccountType, str] = {
 
 FOLIO_TAB = "1F3864"
 
+# Tabs coloured by what a sheet is for, so the strip reads as groups
+OVERVIEW_TAB = "D4A017"
+COST_BASE_TAB = "6A4C93"
+STORED_TAB = "A0A0A0"
+
 # --- Cell styles -------------------------------------------------------------
 
 HEADER_FONT = Font(bold=True, color=PAPER)
@@ -102,6 +107,8 @@ MUTED_FONT = Font(color=MUTED)
 CLOSED_FONT = Font(italic=True, color=MUTED)
 SUBTOTAL_FONT = Font(bold=True, color=INK)
 TOTAL_FONT = Font(bold=True, size=11, color=INK)
+
+LINK_FONT = Font(color="0563C1", underline="single")
 
 GAIN_FONT = Font(color=GAIN)
 LOSS_FONT = Font(color=LOSS)

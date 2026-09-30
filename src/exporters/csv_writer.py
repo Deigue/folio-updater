@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from typing import TYPE_CHECKING
 
-from exporters.table import render
+from exporters.table import Fmt, render
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -29,7 +29,8 @@ def write_csv(path: Path, table: Table) -> None:
         for block in table.blocks:
             writer.writerow(_padded([block.title], width))
             for line in block.lines:
-                cells = [line.label, render(line.fmt, line.value), line.note]
+                label = render(Fmt.TEXT, line.label)
+                cells = [label, render(line.fmt, line.value), line.note]
                 writer.writerow(_padded(cells, width))
             writer.writerow(_padded([], width))
 
@@ -45,7 +46,7 @@ def write_csv(path: Path, table: Table) -> None:
         if table.notes:
             writer.writerow(_padded([], width))
             for note in table.notes:
-                writer.writerow(_padded([note], width))
+                writer.writerow(_padded([render(Fmt.TEXT, note)], width))
 
 
 def _padded(cells: list[str], width: int) -> list[str]:

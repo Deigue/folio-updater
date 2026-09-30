@@ -5,12 +5,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import Currency, WarningCode
+from engine.panels import account_type_of
+from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
 from exporters.table import Col, Fmt, Role, Row, Table, blank_row, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from decimal import Decimal
 
+    from engine.panels import Panel, PoolView
     from engine.positions import CurrencyTotals, Holding, HoldingSet
 
 OPEN = "Open"
@@ -87,8 +90,43 @@ def dashboard_table(
     )
 
 
+def _tab_color(view: PoolView) -> str | None:
+    """Accent a sheet tab the way the printed panel accents its title.
+
+    Args:
+        view: The pool the sheet reports on.
+
+    Returns:
+        The account type's colour, the portfolio's for a pool spanning several
+        types, or None for a type with no colour of its own.
+    """
+    account_type = account_type_of(view)
+    if account_type is None:
+        return FOLIO_TAB
+    return ACCOUNT_TYPE_TABS.get(account_type)
+
+
+def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
+    """Lay one valued pool out as a sheet of its own, named and accented for it.
+
+    Args:
+        panel: The pool, valued.
+        notes: Lines to disclose above the ones the table derives itself.
+
+    Returns:
+        The table.
+    """
+    return dashboard_table(
+        panel.holdings,
+        panel.view.label,
+        net_deposited=panel.flows.net_deposit_denominator,
+        tab_color=_tab_color(panel.view),
+        notes=notes,
+    )
+
+
 def pooled_dashboard_table(
-    pools: Sequence[tuple[str, HoldingSet, Decimal | None]],
+    panels: Sequence[Panel],
     name: str,
     *,
     notes: Sequence[str] = (),
@@ -96,7 +134,7 @@ def pooled_dashboard_table(
     """Lay several pools out as one table, each row naming the pool it is in.
 
     Args:
-        pools: Each pool's label, valued positions and net CAD deposits.
+        panels: The pools, valued, in the order to list them.
         name: What the table is called.
         notes: Lines to disclose above the ones the table derives itself.
 
@@ -106,11 +144,17 @@ def pooled_dashboard_table(
     columns = (Col(POOL, width=16), *COLUMNS)
     rows: list[Row] = []
     derived: list[str] = []
-    for label, holdings, net_deposited in pools:
+    for panel in panels:
         rows.extend(
-            _pool_rows(columns, holdings, net_deposited, pool=label, spacer=False),
+            _pool_rows(
+                columns,
+                panel.holdings,
+                panel.flows.net_deposit_denominator,
+                pool=panel.view.label,
+                spacer=False,
+            ),
         )
-        derived.extend(note for note in _notes(holdings) if note not in derived)
+        derived.extend(note for note in _notes(panel.holdings) if note not in derived)
     return Table(name=name, columns=columns, rows=tuple(rows), notes=(*notes, *derived))
 
 

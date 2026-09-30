@@ -63,6 +63,11 @@ class Panel:
         """Whether the pool holds anything, or ever did."""
         return bool(self.holdings.holdings or self.holdings.closed)
 
+    @property
+    def active(self) -> bool:
+        """Whether the pool still holds an open position."""
+        return bool(self.holdings.holdings)
+
 
 def account_type_of(view: PoolView) -> AccountType | None:
     """Name the account type a pool is, when it is exactly one.

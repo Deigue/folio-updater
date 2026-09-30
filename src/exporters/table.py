@@ -79,6 +79,19 @@ class Row:
 
 
 @dataclass(frozen=True)
+class Link:
+    """A cell that takes the reader to another sheet of the same workbook.
+
+    Attributes:
+        text: What the cell reads.
+        sheet: The name of the table it points at.
+    """
+
+    text: str
+    sheet: str
+
+
+@dataclass(frozen=True)
 class Line:
     """One labelled figure in a `Block`.
 
@@ -89,7 +102,7 @@ class Line:
         note: A trailing remark, such as the currency or how much room is left.
     """
 
-    label: str
+    label: str | Link
     value: object = None
     fmt: Fmt = Fmt.TEXT
     note: str = ""
@@ -123,15 +136,17 @@ class Table:
         freeze: How many leading columns stay put while the sheet is scrolled
             sideways. Enough of them that a row still says what it is once the
             figures being read have scrolled into view.
+        hidden: Keep the sheet out of the tab strip. Still accessible via right-click
     """
 
     name: str
     columns: tuple[Col, ...]
     rows: tuple[Row, ...] = ()
     blocks: tuple[Block, ...] = ()
-    notes: tuple[str, ...] = ()
+    notes: tuple[str | Link, ...] = ()
     tab_color: str | None = None
     freeze: int = 1
+    hidden: bool = False
 
     @property
     def headers(self) -> list[str]:
@@ -251,6 +266,8 @@ def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
     Returns:
         The text a reader would see, or an empty string for a blank.
     """
+    if isinstance(value, Link):
+        value = value.text
     number = as_number(value)
     if number is None:
         return "" if is_blank(value) else str(value)

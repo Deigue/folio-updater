@@ -8,11 +8,13 @@ the data.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from openpyxl import Workbook
 from openpyxl.formatting.rule import DataBarRule
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.hyperlink import Hyperlink
 
 from exporters import excel_style as style
 from exporters.table import (
@@ -20,6 +22,7 @@ from exporters.table import (
     NUMERIC,
     SIGNED,
     Fmt,
+    Link,
     Role,
     Table,
     as_number,
@@ -28,9 +31,10 @@ from exporters.table import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Sequence
+    from collections.abc import Collection, Iterable, Mapping, Sequence
     from pathlib import Path
 
+    from openpyxl.cell.cell import Cell
     from openpyxl.styles import Font
     from openpyxl.worksheet.worksheet import Worksheet
 
@@ -77,26 +81,59 @@ def write_workbook(path: Path, tables: Sequence[Table]) -> None:
     if default is not None:
         workbook.remove(default)
 
+    # Every sheet is named before any is written, so a link can point forward to it
+    names: dict[str, str] = {}
     taken: list[str] = []
     for table in tables:
         name = sheet_name(table.name, taken)
         taken.append(name)
-        write_sheet(workbook.create_sheet(name), table)
+        names.setdefault(table.name, name)
+
+    for table, name in zip(tables, taken, strict=True):
+        write_sheet(workbook.create_sheet(name), table, names)
 
     if not taken:  # pragma: no cover - callers always pass at least one table
         workbook.create_sheet(_FALLBACK_NAME)
+    _show_a_visible_sheet(workbook)
     workbook.save(path)
 
 
-def write_sheet(worksheet: Worksheet, table: Table) -> None:
+def _show_a_visible_sheet(workbook: Workbook) -> None:
+    """Open the workbook on its first visible sheet.
+
+    Excel refuses a workbook whose active sheet is hidden, and one with every
+    sheet hidden, so the first sheet is shown again if nothing else is.
+    """
+    sheets = workbook.worksheets
+    visible = [
+        index for index, sheet in enumerate(sheets) if sheet.sheet_state == "visible"
+    ]
+    if not visible:
+        sheets[0].sheet_state = "visible"
+        visible = [0]
+    workbook.active = visible[0]
+    for index, sheet in enumerate(sheets):
+        sheet.sheet_view.tabSelected = index == visible[0]
+
+
+def write_sheet(
+    worksheet: Worksheet,
+    table: Table,
+    names: Mapping[str, str] | None = None,
+) -> None:
     """Lay one table out on one worksheet.
 
     Args:
         worksheet: The sheet to write into, assumed empty.
         table: What to write.
+        names: Each table's name mapped to the sheet it was written to, so a
+            link can find its target. A link to anything missing from it is
+            written as plain text.
     """
+    links = names or {}
     edges = _band_edges(table.columns)
-    cursor = _write_blocks(worksheet, table.blocks)
+    layout = _Layout(edges=edges, links=links)
+    cursor = _write_blocks(worksheet, table.blocks, links)
     if table.grouped:
         _write_groups(worksheet, table.columns, cursor, edges)
         cursor += 1
@@ -108,7 +145,7 @@ def write_sheet(worksheet: Worksheet, table: Table) -> None:
     filtered = True
     for row in table.rows:
         row_number += 1
-        _write_row(worksheet, table.columns, row, row_number, edges)
+        _write_row(worksheet, table.columns, row, row_number, layout)
         if filtered and row.role in DATA_ROLES:
             last_data_row = row_number
         else:
@@ -116,11 +153,17 @@ def write_sheet(worksheet: Worksheet, table: Table) -> None:
             # out of reach of a re-sort.
             filtered = False
 
-    _write_notes(worksheet, table.notes, row_number + 2)
+    _write_notes(worksheet, table.notes, row_number + 2, links)
     _finish(worksheet, table, header_row, last_data_row)
+    if table.hidden:
+        worksheet.sheet_state = "hidden"
 
 
-def _write_blocks(worksheet: Worksheet, blocks: Iterable[Block]) -> int:
+def _write_blocks(
+    worksheet: Worksheet,
+    blocks: Iterable[Block],
+    links: Mapping[str, str],
+) -> int:
     """Write the labelled panels above the table, returning the next free row."""
     cursor = 1
     for block in blocks:
@@ -128,8 +171,9 @@ def _write_blocks(worksheet: Worksheet, blocks: Iterable[Block]) -> int:
         title.font = style.TITLE_FONT
         cursor += 1
         for line in block.lines:
-            label = worksheet.cell(row=cursor, column=1, value=line.label)
+            label = worksheet.cell(row=cursor, column=1, value=_value(line.label))
             label.font = style.LABEL_FONT
+            _link(label, line.label, links)
             cell = worksheet.cell(row=cursor, column=2, value=_value(line.value))
             cell.number_format = _number_format(line.fmt, line.value)
             if line.note:
@@ -138,6 +182,19 @@ def _write_blocks(worksheet: Worksheet, blocks: Iterable[Block]) -> int:
             cursor += 1
         cursor += 1
     return cursor
+
+
+@dataclass(frozen=True)
+class _Layout:
+    """What every row of one sheet is drawn against.
+
+    Attributes:
+        edges: The one-based columns a band starts at, which carry a border.
+        links: Each table's name mapped to the sheet it was written to.
+    """
+
+    edges: frozenset[int]
+    links: Mapping[str, str]
 
 
 def _band_edges(columns: Sequence[Col]) -> frozenset[int]:
@@ -202,9 +259,10 @@ def _write_row(
     columns: Sequence[Col],
     row: Row,
     number: int,
-    edges: frozenset[int],
+    layout: _Layout,
 ) -> None:
     """Write one line, styling each cell by its column's role and the row's."""
+    edges = layout.edges
     fill = style.ROW_FILLS.get(row.role)
     font = style.ROW_FONTS.get(row.role)
     bold = row.role in style.BOLD_ROLES
@@ -221,13 +279,31 @@ def _write_row(
             cell.font = signed
         elif font is not None:
             cell.font = font
+        _link(cell, raw, layout.links)
 
 
-def _write_notes(worksheet: Worksheet, notes: Sequence[str], row: int) -> None:
+def _write_notes(
+    worksheet: Worksheet,
+    notes: Sequence[str | Link],
+    row: int,
+    links: Mapping[str, str],
+) -> None:
     """Write the disclosure lines under the table."""
     for offset, note in enumerate(notes):
-        cell = worksheet.cell(row=row + offset, column=1, value=note)
+        cell = worksheet.cell(row=row + offset, column=1, value=_value(note))
         cell.font = style.NOTE_FONT
+        _link(cell, note, links)
+
+
+def _link(cell: Cell, raw: object, links: Mapping[str, str]) -> None:
+    """Point a cell at the sheet its link names, when the workbook holds it."""
+    if not isinstance(raw, Link):
+        return
+    target = links.get(raw.sheet)
+    if target is None:
+        return
+    cell.hyperlink = Hyperlink(ref=cell.coordinate, location=f"'{target}'!A1")
+    cell.font = style.LINK_FONT
 
 
 def _finish(
@@ -243,9 +319,12 @@ def _finish(
     if last_data_row > header_row:
         worksheet.auto_filter.ref = f"A{header_row}:{last_column}{last_data_row}"
 
+    # Get widths dict(index, width) to set sheet col dimensions.
+    panel = _block_widths(table.blocks)
     for index, column in enumerate(table.columns):
         letter = get_column_letter(index + 1)
-        worksheet.column_dimensions[letter].width = _width(index, column, table.rows)
+        width = max(_width(index, column, table.rows), panel.get(index, 0))
+        worksheet.column_dimensions[letter].width = min(width, style.MAX_WIDTH)
 
     if table.tab_color:
         worksheet.sheet_properties.tabColor = table.tab_color
@@ -284,6 +363,8 @@ def _value(raw: object) -> object:
     A number is written as the number it is, at full precision: the format
     decides what a reader sees, never what the cell holds.
     """
+    if isinstance(raw, Link):
+        return raw.text
     if is_blank(raw):
         return None
     number = as_number(raw)
@@ -309,6 +390,23 @@ def _sign_font(fmt: Fmt, raw: object, *, bold: bool) -> Font | None:
     """Colour a figure whose sign carries meaning."""
     number = as_number(raw) if fmt in SIGNED else None
     return None if number is None else style.sign_font(float(number), bold=bold)
+
+
+def _block_widths(blocks: Iterable[Block]) -> dict[int, int]:
+    """Measure what the panels above a table need of its first two columns.
+
+    A note is left out: its neighbours on a panel row are empty, so it spills
+    into them the way any long text does, instead of stretching a column the
+    table below has to live with.
+    """
+    widths: dict[int, int] = {}
+    for block in blocks:
+        for line in block.lines:
+            cells = (render(Fmt.TEXT, line.label), render(line.fmt, line.value))
+            for index, text in enumerate(cells):
+                needed = len(text) + style.WIDTH_PADDING
+                widths[index] = max(widths.get(index, 0), needed)
+    return widths
 
 
 def _width(index: int, column: Col, rows: Sequence[Row]) -> int:

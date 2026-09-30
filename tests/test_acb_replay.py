@@ -1409,6 +1409,21 @@ def test_acb_summary_frame_carries_the_usd_average() -> None:
     assert pd.isna(summary.loc["CADCO", avg_usd])
 
 
+def test_acb_summary_frame_closes_on_the_last_row_replayed() -> None:
+    """A same-day sale stored before its purchase still closes the day at 10 + 3 - 5."""
+    frame = master_frame(
+        run(
+            [
+                make_row(1, "2024-01-02", Action.BUY, amount="-1000", units="10"),
+                make_row(2, "2024-01-03", Action.SELL, amount="600", units="-5"),
+                make_row(3, "2024-01-03", Action.BUY, amount="-330", units="3"),
+            ],
+        ),
+    )
+    summary = acb_summary_frame(frame)
+    assert summary.loc[0, scope_column(Scope.FOLIO, "Units")] == pytest.approx(8)
+
+
 def test_decimal_precision_survives_replay() -> None:
     """Thirds of a share must not drift into float noise."""
     result = run(

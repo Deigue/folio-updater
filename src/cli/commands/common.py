@@ -12,14 +12,21 @@ from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
 from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Scope, Table
+from engine.cache import CachedFrame, build, load_or_build
+from engine.fx_rates import FxRateUnavailableError
 from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
 from services import ForexService
 from term import announce, console_error, console_success, console_warning
 from term.progress import ProgressDisplay
+from ui.format import format_freshness
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
+    from datetime import datetime
+
+    from engine.types import ReplayResult
+    from services.quotes_service import Quote
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +36,11 @@ __all__ = [
     "audit_footer",
     "backup_folio",
     "ensure_fx_coverage",
+    "freshness_note",
+    "load_folio",
     "parse_account_type",
+    "quote_age",
+    "replay_result",
     "resolve_pool",
     "txn_count",
 ]
@@ -39,6 +50,87 @@ BULK_WARNING_SHARE = 0.5
 
 # The `--type` value that names the portfolio-wide pool rather than one type.
 ALL_POOLS = "all"
+
+# How to get past a stored transaction the engine cannot convert.
+FIX_UNCONVERTIBLE = (
+    "Correct those transactions with `folio edit`, or remove them with `folio delete`."
+)
+
+
+def load_folio(*, refresh: bool = False) -> CachedFrame:
+    """Replay the folio, or say why it cannot be replayed.
+
+    Args:
+        refresh: Rebuild the cost-base cache even if it looks current.
+
+    Returns:
+        The replayed master frame.
+
+    Raises:
+        typer.Exit: If a stored transaction is in a currency the engine cannot
+            convert.
+    """
+    try:
+        return load_or_build(refresh=refresh)
+    except FxRateUnavailableError as error:
+        console_error(f"{error} {FIX_UNCONVERTIBLE}")
+        raise typer.Exit(1) from error
+
+
+def replay_result(cached: CachedFrame) -> ReplayResult:
+    """Take the replay behind a cached frame, replaying afresh if it was not kept.
+
+    Args:
+        cached: The loaded master frame.
+
+    Returns:
+        The replay.
+
+    Raises:
+        typer.Exit: If the folio could not be replayed.
+    """
+    result = cached.result or build().result
+    if result is None:  # pragma: no cover - `build` always replays
+        console_error("Could not replay the folio.")
+        raise typer.Exit(1)
+    return result
+
+
+def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
+    """Age the quote cache as a whole: its oldest row wins.
+
+    Args:
+        quotes: The quotes a report was priced with.
+
+    Returns:
+        When the oldest quote was fetched (None if every one is from this
+        invocation), and whether any of them is past its TTL.
+    """
+    fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
+    stale = any(quote.is_stale for quote in quotes.values())
+    if not fetched:
+        return None, stale
+    return min(fetched), stale
+
+
+def freshness_note(
+    computed_at: datetime | None,
+    quotes: Mapping[str, Quote],
+) -> str:
+    """Say how old both caches are (cost base cache + quotes cache date).
+
+    Args:
+        computed_at: When the cost base was computed, or None if just now.
+        quotes: The quotes the sheet was priced with.
+
+    Returns:
+        One sentence, such as `Cost base computed just now; quotes cached 15m
+        ago.`
+    """
+    quote_at, _ = quote_age(quotes)
+    empty = not any(quote.fetched_at for quote in quotes.values())
+    aged = "nothing cached" if empty else format_freshness(quote_at)
+    return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
 
 
 def ensure_fx_coverage(*, through_today: bool = False) -> None:

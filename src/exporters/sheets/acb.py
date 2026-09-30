@@ -1,8 +1,4 @@
-"""The cost-base sheets: a ledger, a per-symbol buildup, and a summary.
-
-The ledger is the master sheet: one row per transaction, carrying its account
-and account type beside all three pool grains at once.
-"""
+"""The cost-base sheets: a symbol's buildup, a pool summary, and the Cost Base."""
 
 from __future__ import annotations
 
@@ -10,15 +6,14 @@ from typing import TYPE_CHECKING
 
 from domain import Column, Scope
 from engine.frames import (
-    CONTEXT_COLUMNS,
-    SCOPE_MEASURES,
-    SCOPE_PREFIX,
-    SHARED_COLUMNS,
-    SOURCE_COLUMNS,
     acb_summary_frame,
+    acb_summary_frames_by_pool,
     scope_column,
 )
-from exporters.table import Col, Fmt, Row, Table, row_of
+from engine.panels import FOLIO_VIEW, type_view
+from exporters.excel_style import COST_BASE_TAB
+from exporters.sheets.summary import SCOPE_NAMES
+from exporters.table import Col, Fmt, Table, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping, Sequence
@@ -36,74 +31,6 @@ MEASURE_FORMATS: dict[str, Fmt] = {
     "Avg": Fmt.PRICE,
     "Gain": Fmt.MONEY_SIGNED,
 }
-
-COLUMN_FORMATS: dict[str, Fmt] = {
-    str(Column.Txn.TXN_ID): Fmt.ID,
-    str(Column.Txn.TXN_DATE): Fmt.DATE,
-    str(Column.Txn.SETTLE_DATE): Fmt.DATE,
-    str(Column.Txn.AMOUNT): Fmt.MONEY_SIGNED,
-    str(Column.Txn.PRICE): Fmt.PRICE,
-    str(Column.Txn.UNITS): Fmt.UNITS,
-    str(Column.Txn.FEE): Fmt.MONEY,
-    "FXRate": Fmt.RATE,
-    "FXDate": Fmt.DATE,
-    "Proceeds": Fmt.MONEY,
-    "Proceeds_USD": Fmt.MONEY,
-    "Dividend": Fmt.MONEY,
-    "Dividend_USD": Fmt.MONEY,
-}
-
-# Columns whose zero says nothing at all.
-QUIET_COLUMNS = frozenset(
-    {
-        str(Column.Txn.PRICE),
-        str(Column.Txn.UNITS),
-        str(Column.Txn.FEE),
-        "Proceeds",
-        "Proceeds_USD",
-        "Dividend",
-        "Dividend_USD",
-    },
-)
-
-# What each pool grain's band of columns is called.
-SCOPE_BANDS: dict[Scope, str] = {
-    Scope.ACCOUNT: "Account pool",
-    Scope.TYPE: "Type pool",
-    Scope.FOLIO: "Portfolio",
-}
-
-_TRANSACTION_BAND = "Transaction"
-
-LEDGER_ORDER: tuple[str, ...] = (
-    "Symbol",
-    str(Column.Txn.TXN_DATE),
-    str(Column.Txn.ACTION),
-    str(Column.Txn.ACCOUNT),
-    str(Column.Txn.CURRENCY),
-    str(Column.Txn.UNITS),
-    str(Column.Txn.PRICE),
-    str(Column.Txn.AMOUNT),
-    # Everything past here scrolls away.
-    str(Column.Txn.TXN_ID),
-    str(Column.Txn.SETTLE_DATE),
-    # `Ticker` is what the broker wrote; `Symbol` above is what that resolves
-    # to today, and what the cost base is pooled under. The two differ only
-    # across a rename, which is exactly when knowing both matters.
-    str(Column.Txn.TICKER),
-    str(Column.Txn.FEE),
-    "AcctType",
-    "Impact",
-    "FXRate",
-    "FXDate",
-    "Proceeds",
-    "Proceeds" + USD,
-    "Dividend",
-    "Dividend" + USD,
-    "Flags",
-)
-
-PINNED_COLUMNS = 8
 
 # The buildup names its dates the way the ledger and the `Txns` sheet do, so a
 # reader filtering one sheet knows what to filter on in the next.
@@ -138,7 +65,7 @@ def acb_buildup_table(
     Returns:
         The table, in settle-date order.
     """
-    cad, usd = _families(currency, usd=_has_usd(rows, (scope,)))
+    cad, usd = families(currency, usd=has_usd(rows, (scope,)))
     columns = [
         Col(_TXN_DATE, Fmt.DATE),
         Col(_SETTLE_DATE, Fmt.DATE),
@@ -173,7 +100,7 @@ def acb_buildup_table(
             row_of(built, _buildup_cells(record, scope))
             for record in ordered.to_dict("records")
         ),
-        notes=(*notes, *_notes(rows)),
+        notes=(*notes, *acb_notes(rows)),
     )
 
 
@@ -199,7 +126,7 @@ def acb_summary_table(
         The table, open positions first and alphabetical within each group.
     """
     summary = acb_summary_frame(rows)
-    cad, usd = _families(currency, usd=_has_usd(summary, (scope,)))
+    cad, usd = families(currency, usd=has_usd(summary, (scope,)))
     if usd and not cad and not summary.empty:
         summary = summary[summary[scope_column(scope, "ACB" + USD)].notna()]
 
@@ -218,94 +145,81 @@ def acb_summary_table(
             row_of(built, _summary_cells(record, scope))
             for record in _open_first(summary, scope).to_dict("records")
         ),
-        notes=(*notes, *_notes(rows)),
+        notes=(*notes, *acb_notes(rows)),
     )
 
 
-def acb_ledger_table(
+COST_BASE_COLUMNS: tuple[Col, ...] = (
+    Col("Pool", width=18),
+    Col("Scope", width=10),
+    Col("Symbol"),
+    # A closed position is a realized gain and nothing else, so its zero units,
+    # cost and average stay blank rather than reading as something still held.
+    Col("Units", Fmt.UNITS, quiet=True),
+    Col("ACB", Fmt.MONEY, quiet=True),
+    Col("Avg", Fmt.PRICE, quiet=True),
+    Col("Gain", Fmt.MONEY_SIGNED),
+)
+
+
+def cost_base_table(
     frame: pd.DataFrame,
     *,
-    name: str = "ACB",
-    currency: str = "both",
+    name: str = "Cost Base",
     notes: Sequence[str] = (),
 ) -> Table:
-    """Lay the whole replay out: one row per transaction, every grain at once.
+    """List every pool's closing cost base, in the currency it is taxed in.
 
     Args:
-        frame: Rows from the master frame.
+        frame: The whole master frame.
         name: What the sheet is called.
-        currency: `CAD`, `USD` or `both`.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, in transaction order, its columns banded by pool grain.
+        The table, one row per pool and symbol: the portfolio first, then each
+        account type, then each account. Open positions lead within each pool.
     """
-    cad, usd = _families(currency, usd=_has_usd(frame, tuple(Scope)))
-    keys = [
-        column for column in _ordered_columns() if _wanted(column, cad=cad, usd=usd)
+    pools: list[tuple[str, Scope, pd.DataFrame]] = [
+        (FOLIO_VIEW.label, Scope.FOLIO, acb_summary_frame(frame)),
     ]
-    columns = [
-        Col(
-            _header(key),
-            COLUMN_FORMATS.get(key, Fmt.TEXT),
-            _TRANSACTION_BAND,
-            quiet=key in QUIET_COLUMNS,
-        )
-        for key in keys
+    for scope in (Scope.TYPE, Scope.ACCOUNT):
+        for pool, summary in sorted(acb_summary_frames_by_pool(frame, scope).items()):
+            label = type_view(pool).label if scope is Scope.TYPE else pool
+            pools.append((label, scope, summary))
+
+    rows = [
+        row_of(COST_BASE_COLUMNS, _cost_base_cells(label, scope, record))
+        for label, scope, summary in pools
+        for record in _open_first(summary, scope).to_dict("records")
     ]
-
-    for scope in Scope:
-        for suffix, _attribute in SCOPE_MEASURES:
-            if not _wanted(suffix, cad=cad, usd=usd):
-                continue
-            keys.append(scope_column(scope, suffix))
-            columns.append(
-                Col(
-                    f"{SCOPE_PREFIX[scope]} {_header(suffix)}",
-                    MEASURE_FORMATS[suffix.removesuffix(USD)],
-                    SCOPE_BANDS[scope],
-                ),
-            )
-
-    ordered = frame.sort_values(str(Column.Txn.TXN_ID), kind="stable")
     return Table(
         name=name,
-        columns=tuple(columns),
-        # Keys and columns are built in step, so the row is already in order.
-        rows=tuple(
-            Row(values) for values in ordered[keys].itertuples(index=False, name=None)
-        ),
-        notes=(*notes, *_notes(frame)),
-        freeze=PINNED_COLUMNS,
+        columns=COST_BASE_COLUMNS,
+        rows=tuple(rows),
+        notes=(*notes, _CONVERSION_NOTE),
+        tab_color=COST_BASE_TAB,
+        freeze=3,
     )
 
 
-def _ordered_columns() -> list[str]:
-    """Order the ledger's transaction columns, keeping every one of them.
-
-    Anything the engine grows that `LEDGER_ORDER` has not been told about lands
-    on the end rather than falling off the sheet.
-    """
-    known = [*SOURCE_COLUMNS, *CONTEXT_COLUMNS, *SHARED_COLUMNS]
-    ordered = [column for column in LEDGER_ORDER if column in known]
-    return ordered + [column for column in known if column not in LEDGER_ORDER]
-
-
-def _header(column: str) -> str:
-    """Spell a frame column the way a reader should see it."""
-    return column.replace(USD, " USD")
-
-
-def _wanted(column: str, *, cad: bool, usd: bool) -> bool:
-    """Report whether a currency's family of columns was asked for."""
-    if column.endswith(USD):
-        return usd
-    if column in {"ACB", "Delta", "Avg", "Gain", "Proceeds", "Dividend"}:
-        return cad
-    return True
+def _cost_base_cells(
+    label: str,
+    scope: Scope,
+    record: Mapping[Hashable, Any],
+) -> dict[str, object]:
+    """Read one symbol's closing position in one pool, in CAD."""
+    return {
+        "Pool": label,
+        "Scope": SCOPE_NAMES[scope],
+        "Symbol": record["Symbol"],
+        "Units": record[scope_column(scope, "Units")],
+        "ACB": record[scope_column(scope, "ACB")],
+        "Avg": record[scope_column(scope, "Avg")],
+        "Gain": record[scope_column(scope, "Gain")],
+    }
 
 
-def _families(currency: str, *, usd: bool) -> tuple[bool, bool]:
+def families(currency: str, *, usd: bool) -> tuple[bool, bool]:
     """Decide which currency variants the sheet carries.
 
     Args:
@@ -323,7 +237,7 @@ def _families(currency: str, *, usd: bool) -> tuple[bool, bool]:
     return True, usd
 
 
-def _has_usd(frame: pd.DataFrame, scopes: Sequence[Scope]) -> bool:
+def has_usd(frame: pd.DataFrame, scopes: Sequence[Scope]) -> bool:
     """Report whether any row carries a USD-denominated cost base."""
     return any(
         column in frame.columns and frame[column].notna().any()
@@ -380,7 +294,7 @@ def _open_first(summary: pd.DataFrame, scope: Scope) -> pd.DataFrame:
     )
 
 
-def _notes(rows: pd.DataFrame) -> list[str]:
+def acb_notes(rows: pd.DataFrame) -> list[str]:
     """Roll the diagnostics up, and say what the CAD figures were converted at."""
     notes: list[str] = []
     flags: dict[str, int] = {}

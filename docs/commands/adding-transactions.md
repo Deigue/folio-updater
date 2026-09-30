@@ -29,7 +29,7 @@ folio add --type ROC
 ```text
 Transaction date (YYYY-MM-DD) [2026-08-08]: 2025-08-20
 Account: RRSP
-Currency (USD/CAD/EUR): CAD
+Currency (USD/CAD): CAD
 Ticker: O
 Amount: 42.15
 ✅ Added transaction (TxnId 62)
@@ -42,7 +42,7 @@ Amount: 42.15
 | `--type`     | `-t`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` |
 | `--date`     | `-d`  | Transaction date, `YYYY-MM-DD` (prompt defaults to today)                                                  |
 | `--account`  | `-a`  | Account alias                                                                                              |
-| `--currency` | `-c`  | `USD`, `CAD` or `EUR`                                                                                      |
+| `--currency` | `-c`  | `USD` or `CAD`, the currencies the cost base can convert                                                   |
 | `--symbol`   | `-s`  | Security symbol                                                                                            |
 | `--amount`   | `-m`  | Total transaction amount                                                                                   |
 | `--price`    | `-p`  | Price per unit                                                                                             |

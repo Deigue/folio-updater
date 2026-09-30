@@ -10,9 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - `folio settle-info --import --verbose` lists every statement row and how it
   resolved: matched, unmatched, or ambiguous.
+- `folio generate` accepts `--out`, `--only`, `--offline` and `--refresh`.
 
 ### Changed
 
+- `folio generate` now writes the whole folio from the cost-base engine: a
+  linked Summary, Flows, a dashboard per pool, the Ledger, Cost Base in CAD,
+  and the stored FX and Tickers tables.
 - CLI shorthands added across `add`, `download`, `acb` and `quotes`, and -h now works as --help
   on every command.
 - `add` now uses --type/-t, --account/-a, --symbol/-s.

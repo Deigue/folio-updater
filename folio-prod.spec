@@ -33,15 +33,15 @@ a = Analysis(
     excludes=[
         # Development dependencies (from pyproject.toml dev group)
         'ipykernel',
-        'nbstripout', 
+        'nbstripout',
         'pyinstaller',
         'ruff',
-        
+
         # Test dependencies (from pyproject.toml test group)
         'pytest',
         'pytest_cov',
         'coverage',
-        
+
         # Jupyter/IPython ecosystem (dev dependencies, not runtime)
         'IPython',
         'jupyter',
@@ -54,14 +54,14 @@ a = Analysis(
         'traitlets',
         'jedi',
         'parso',
-        
+
         # GUI libraries (not needed for CLI)
         'tkinter',
         'turtle',
         '_tkinter',
         'Tkinter',
         'tk',
-        
+
         # Plotting/visualization (not used in CLI)
         'matplotlib',
         'pyplot',
@@ -70,7 +70,7 @@ a = Analysis(
         'bokeh',
         'scipy',
         'sklearn',
-        
+
         # Development/debugging tools
         'doctest',
         'pdb',
@@ -79,7 +79,7 @@ a = Analysis(
         'pstats',
         'trace',
         'timeit',
-        
+
         # Audio/video
         'wave',
         'aifc',

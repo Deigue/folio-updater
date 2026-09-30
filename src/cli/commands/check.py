@@ -17,9 +17,8 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import ensure_fx_coverage
+from cli.commands.common import ensure_fx_coverage, load_folio, replay_result
 from domain import CheckStatus
-from engine.cache import build, load_or_build
 from engine.checks import CHECK_SLUGS, UnknownCheckError, run_checks, validate_slugs
 from term import console_error
 from ui.views.checks import emit_json, print_report
@@ -73,11 +72,8 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
             raise typer.Exit(1) from error
 
     ensure_fx_coverage()
-    cached = load_or_build()
-    result = cached.result or build().result
-    if result is None:  # pragma: no cover - `build` always replays
-        console_error("Could not replay the folio.")
-        raise typer.Exit(1)
+    cached = load_folio()
+    result = replay_result(cached)
 
     try:
         results = run_checks(result, get_config())

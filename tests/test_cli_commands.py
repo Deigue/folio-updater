@@ -216,7 +216,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
 
 
 def test_generate_command(temp_ctx: TempContext) -> None:
-    """Test generate command creates Excel from Parquet files."""
+    """The workbook's source sheets hold what the database holds, and nothing more."""
     with temp_ctx() as ctx:
         config = ctx.config
         ensure_data_exists()
@@ -225,7 +225,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert not config.folio_path.exists()
         cli_result = run_cli_with_config(config, cli_app, ["generate"])
         assert_cli_success(cli_result)
-        assert_in_output("Excel workbook generated successfully", cli_result)
+        assert_in_output("sheets to", cli_result)
         assert config.folio_path.exists()
         transactions_parquet = pd.read_parquet(config.txn_parquet, engine="fastparquet")
         tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
@@ -241,9 +241,11 @@ def test_generate_command(temp_ctx: TempContext) -> None:
             transactions_parquet.reset_index(drop=True).fillna(pd.NA),
             transactions_excel.reset_index(drop=True).fillna(pd.NA),
         )
+        # The tickers sheet now carries what the quote cache knows of each one
+        # too, but still leads with the tickers themselves.
         assert_frame_equal(
             tickers_parquet.reset_index(drop=True).fillna(pd.NA),
-            tickers_excel.reset_index(drop=True).fillna(pd.NA),
+            tickers_excel[tickers_parquet.columns].reset_index(drop=True).fillna(pd.NA),
         )
 
 

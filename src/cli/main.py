@@ -144,12 +144,36 @@ def getfx_cmd() -> None:
     update_fx_rates()
 
 
-@app.command("generate", help="Generate the portfolio with latest data")
-def generate_cmd() -> None:
-    """Generate the portfolio with latest data."""
+@app.command("generate", help="Write the whole folio to one workbook")
+def generate_cmd(
+    out: str | None = typer.Option(
+        None,
+        "--out",
+        help="Write here instead of the configured folio path",
+    ),
+    only: str | None = typer.Option(
+        None,
+        "--only",
+        help="Only these sections: summary, dash, accounts, acb, stored",
+    ),
+    *,
+    offline: bool = typer.Option(
+        False,
+        "-o",
+        "--offline",
+        help="Use cached quotes only, never touching the network",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "-r",
+        "--refresh",
+        help="Refetch quotes and rebuild the cost-base cache",
+    ),
+) -> None:
+    """Write the whole folio to one workbook."""
     from cli.commands.generate import generate_excel
 
-    generate_excel()
+    generate_excel(out=out, only=only, offline=offline, refresh=refresh)
 
 
 @app.command("demo", help="Create demo portfolio with mock data")
