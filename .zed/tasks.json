@@ -1,0 +1,67 @@
+// Ported from .vscode/tasks.json. Run with `task: spawn` (alt-shift-t),
+// repeat with `task: rerun` (alt-t).
+[
+  {
+    "label": "build",
+    "command": "./build.ps1",
+    "reveal": "always"
+  },
+  {
+    "label": "ruff check",
+    "command": "uv",
+    "args": ["run", "ruff", "check"],
+    "reveal": "always"
+  },
+  {
+    "label": "ty check",
+    "command": "uv",
+    "args": ["run", "ty", "check"],
+    "reveal": "always"
+  },
+  {
+    // Zed has no dependsOn, so this chains both in one shell line (PowerShell)
+    "label": "lint (ruff + ty)",
+    "command": "uv run ruff check; uv run ty check",
+    "reveal": "always"
+  },
+  {
+    // Same flags as the VS Code "coverage" task. -n is explicit because
+    // conftest.py skips auto-parallelism when --cov is used.
+    "label": "coverage",
+    "command": "uv",
+    "args": [
+      "run", "python", "-m", "pytest",
+      "-n", "4",
+      "--cov=.",
+      "--cov-report=term-missing",
+      "--log-cli-level=ERROR"
+    ],
+    "reveal": "always"
+  },
+  {
+    // conftest.py parallelises full runs automatically
+    "label": "pytest (all)",
+    "command": "uv",
+    "args": ["run", "pytest"],
+    "reveal": "always"
+  },
+  {
+    "label": "pytest (current file)",
+    "command": "uv",
+    "args": ["run", "pytest", "$ZED_RELATIVE_FILE"],
+    "reveal": "always"
+  },
+  {
+    // Put the cursor inside a test function first
+    "label": "pytest (test at cursor)",
+    "command": "uv",
+    "args": ["run", "pytest", "$ZED_RELATIVE_FILE", "-k", "$ZED_SYMBOL"],
+    "reveal": "always"
+  },
+  {
+    "label": "uv sync (all groups)",
+    "command": "uv",
+    "args": ["sync", "--all-groups"],
+    "reveal": "always"
+  }
+]

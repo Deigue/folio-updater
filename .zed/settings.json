@@ -1,0 +1,32 @@
+// Project settings for folio-updater (ported from .vscode/settings.json)
+{
+  "languages": {
+    "Python": {
+      // ty replaces Pylance/basedpyright; ruff handles lint + format
+      "language_servers": ["ty", "ruff", "!basedpyright", "!pyright", "..."],
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": { "name": "ruff" }
+      }
+    }
+  },
+  "lsp": {
+    "ty": {
+      "settings": {
+        "ty": {
+          // Same as "ty.diagnosticMode": "workspace" in VS Code
+          "diagnosticMode": "workspace"
+        }
+      }
+    }
+  },
+  // Same as python.terminal.activateEnvironment
+  "terminal": {
+    "detect_venv": {
+      "on": {
+        "directories": [".venv"],
+        "activate_script": "default"
+      }
+    }
+  }
+}

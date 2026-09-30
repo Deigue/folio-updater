@@ -113,6 +113,7 @@ exclude = [
     "**/.venv/**",
     "**/.git/**",
     "**/.vscode/**",
+    "*.spec", # PyInstaller specs: injected globals, not project code
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -148,6 +149,14 @@ banned-module-level-imports = ["pandas_market_calendars"]
 # `src` is the project's source root, and `../ws-api-python` is a sibling
 # package developed alongside this one.
 extra-paths = ["src", "../ws-api-python"]
+
+# PyInstaller specs use globals it injects at build time (Analysis, PYZ, EXE,
+# COLLECT). ty only sees them when a .spec is opened in the editor.
+[[tool.ty.overrides]]
+include = ["*.spec"]
+
+[tool.ty.overrides.rules]
+unresolved-reference = "ignore"
 
 [tool.uv]
 managed = true

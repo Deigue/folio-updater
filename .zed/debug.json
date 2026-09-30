@@ -1,0 +1,11 @@
+// Ported from .vscode/launch.json
+[
+  {
+    "label": "Python Debugger: Current File",
+    "adapter": "Debugpy",
+    "request": "launch",
+    "program": "$ZED_FILE",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "justMyCode": false
+  }
+]
