@@ -26,6 +26,7 @@ import pandas as pd
 
 from domain import Column, Scope
 from domain.numeric import safe_div
+from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
     from engine.types import ComputedRow, ReplayResult, ScopeMeasures
@@ -223,7 +224,7 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
     records = [
         _summary_record(symbol, rows.iloc[-1])
-        for symbol, rows in _trade_ordered(tracked).groupby("Symbol", sort=True)
+        for symbol, rows in replay_ordered(tracked).groupby("Symbol", sort=True)
     ]
     return pd.DataFrame(records, columns=["Symbol", *_summary_columns()])
 
@@ -260,7 +261,7 @@ def acb_summary_frames_by_pool(
         return {}
 
     grouped: dict[str, list[dict[str, object]]] = {}
-    for (pool, symbol), rows in _trade_ordered(tracked).groupby(
+    for (pool, symbol), rows in replay_ordered(tracked).groupby(
         [column, "Symbol"],
         sort=True,
     ):
@@ -275,12 +276,29 @@ def acb_summary_frames_by_pool(
     }
 
 
-def _trade_ordered(tracked: pd.DataFrame) -> pd.DataFrame:
-    """Put the tracked rows in the order the cost base was replayed in."""
-    return tracked.sort_values(
-        [str(Column.Txn.TXN_DATE), str(Column.Txn.TXN_ID)],
-        kind="stable",
+_RANK = "_intraday_rank"
+
+
+def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
+    """Put master-frame rows in the exact order the cost base was replayed in.
+
+    Trade date first, then the day's actions in the order the replay applies
+    them (a purchase before a sale, so a same-day round trip is not an
+    oversell), then TxnId.
+
+    Args:
+        frame: Rows from the master frame.
+
+    Returns:
+        The same rows, reordered.
+    """
+    ranked = frame.assign(
+        **{_RANK: frame[str(Column.Txn.ACTION)].map(intraday_rank)},
     )
+    return ranked.sort_values(
+        [str(Column.Txn.TXN_DATE), _RANK, str(Column.Txn.TXN_ID)],
+        kind="stable",
+    ).drop(columns=_RANK)
 
 
 def _summary_record(symbol: object, last: pd.Series) -> dict[str, object]:

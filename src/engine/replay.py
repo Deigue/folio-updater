@@ -109,6 +109,22 @@ _INTRADAY_ORDER: dict[Action, int] = {
 }
 _INTRADAY_DEFAULT = 6
 
+
+def intraday_rank(action: object) -> int:
+    """Rank an action within its day, in the order the replay applies it.
+
+    Args:
+        action: The row's action, as the enum or as its stored text.
+
+    Returns:
+        Its rank; lower is applied first on the same trade date.
+    """
+    try:
+        return _INTRADAY_ORDER.get(Action(str(action)), _INTRADAY_DEFAULT)
+    except ValueError:
+        return _INTRADAY_DEFAULT
+
+
 # What counts as a trade: the actions that exchange cash for units.
 _TRADE_ACTIONS = (Action.BUY, Action.SELL)
 # Actions whose `$` is a real denomination of money that moved, attributed to symbol.
@@ -574,7 +590,7 @@ class _Replay:
             self.rows,
             key=lambda row: (
                 row.txn_date,
-                _INTRADAY_ORDER.get(row.action, _INTRADAY_DEFAULT),
+                intraday_rank(row.action),
                 row.txn_id,
             ),
         )
