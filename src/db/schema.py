@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 import sqlite3
 
-from db.queries import get_connection
+from db.backup import backup_folio
+from db.queries import drop_table, get_columns, get_connection, get_tables
 from domain import Action, Column, Currency, QuoteStatus, Table
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,36 @@ QUOTES_COLUMN_DEFINITIONS = [
     ColumnDefinition(Column.Quote.SECTOR, "TEXT"),
     ColumnDefinition(Column.Quote.EXCHANGE, "TEXT"),
     ColumnDefinition(Column.Quote.MARKET_CAP, NUMERIC_PRECISION),
+    ColumnDefinition(Column.Quote.QUOTE_TYPE, "TEXT"),
+    *(
+        ColumnDefinition(column, NUMERIC_PRECISION)
+        for column in (
+            Column.Quote.TRAILING_PE,
+            Column.Quote.FORWARD_PE,
+            Column.Quote.EPS,
+            Column.Quote.BETA,
+            Column.Quote.DIVIDEND_RATE,
+            Column.Quote.DIVIDEND_YIELD,
+            Column.Quote.LAST_DIVIDEND,
+        )
+    ),
+    ColumnDefinition(Column.Quote.EX_DIVIDEND_DATE, "TEXT"),
+    ColumnDefinition(Column.Quote.EARNINGS_DATE, "TEXT"),
+    *(
+        ColumnDefinition(column, NUMERIC_PRECISION)
+        for column in (
+            Column.Quote.HIGH_52,
+            Column.Quote.LOW_52,
+            Column.Quote.AVG_50,
+            Column.Quote.AVG_200,
+            Column.Quote.VOLUME,
+            Column.Quote.AVG_VOLUME,
+            Column.Quote.EXPENSE_RATIO,
+            Column.Quote.TOTAL_ASSETS,
+        )
+    ),
+    ColumnDefinition(Column.Quote.CATEGORY, "TEXT"),
+    ColumnDefinition(Column.Quote.FUND_FAMILY, "TEXT"),
     ColumnDefinition(Column.Quote.QUOTE_TIME, "TEXT"),
     ColumnDefinition(Column.Quote.FETCHED_AT, "TEXT"),
     ColumnDefinition(Column.Quote.META_FETCHED_AT, "TEXT"),
@@ -247,6 +278,17 @@ def create_quotes_table() -> None:
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
+    expected = [str(col_def.name) for col_def in QUOTES_COLUMN_DEFINITIONS]
+    with get_connection() as conn:
+        existing = (
+            get_columns(conn, Table.QUOTES) if Table.QUOTES in get_tables(conn) else []
+        )
+    if existing and existing != expected:  # pragma: no cover
+        logger.info("Rebuilding the quotes cache for its new columns")
+        backup_folio()
+        with get_connection() as conn:
+            drop_table(conn, Table.QUOTES)
+
     columns_def = [col_def.to_sql() for col_def in QUOTES_COLUMN_DEFINITIONS]
     _create_table(Table.QUOTES, columns_def)
 

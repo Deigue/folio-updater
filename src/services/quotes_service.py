@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from dataclasses import dataclass, field, fields, replace
+from datetime import UTC, datetime, timedelta, tzinfo
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from app import get_config
@@ -23,13 +24,12 @@ from db.queries import (
     insert_or_replace_many,
 )
 from db.schema import create_quotes_table
-from domain import Column, Currency, QuoteStatus, Table
+from domain import TORONTO_TZ, Column, Currency, QuoteStatus, Table
 from domain.numeric import dec
 from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
-    from decimal import Decimal
 
     from services.symbols import SymbolResolver
 
@@ -67,6 +67,80 @@ def _run_concurrently[T](
 
 
 @dataclass(frozen=True)
+class Fundamentals:
+    """Details from provider for a given security beyond its price.
+
+    Attributes:
+        quote_type: The provider's kind of security: EQUITY, ETF, MUTUALFUND...
+        trailing_pe: Price over the last twelve months' earnings.
+        forward_pe: Price over the next twelve months' expected earnings.
+        eps: Earnings per share over the last twelve months.
+        beta: Volatility against the market. A fund's three-year beta.
+        dividend_rate: Annual dividend per share.
+        dividend_yield: Annual dividend over price, as a ratio.
+        last_dividend: The most recent dividend per share.
+        ex_dividend_date: The next or most recent ex-dividend date.
+        earnings_date: The next earnings date, when the provider knows it.
+        high_52: The 52-week high.
+        low_52: The 52-week low.
+        avg_50: The 50-day average price.
+        avg_200: The 200-day average price.
+        volume: The last session's volume.
+        avg_volume: Average daily volume.
+        expense_ratio: A fund's expense ratio, as a ratio.
+        total_assets: A fund's assets under management.
+        category: A fund's category.
+        fund_family: A fund's manager.
+    """
+
+    quote_type: str | None = None
+    trailing_pe: Decimal | None = None
+    forward_pe: Decimal | None = None
+    eps: Decimal | None = None
+    beta: Decimal | None = None
+    dividend_rate: Decimal | None = None
+    dividend_yield: Decimal | None = None
+    last_dividend: Decimal | None = None
+    ex_dividend_date: str | None = None
+    earnings_date: str | None = None
+    high_52: Decimal | None = None
+    low_52: Decimal | None = None
+    avg_50: Decimal | None = None
+    avg_200: Decimal | None = None
+    volume: Decimal | None = None
+    avg_volume: Decimal | None = None
+    expense_ratio: Decimal | None = None
+    total_assets: Decimal | None = None
+    category: str | None = None
+    fund_family: str | None = None
+
+
+# Where each fundamental is stored, and whether it is a number or text.
+_FUNDAMENTAL_COLUMNS: dict[str, tuple[Column.Quote, bool]] = {
+    "quote_type": (Column.Quote.QUOTE_TYPE, False),
+    "trailing_pe": (Column.Quote.TRAILING_PE, True),
+    "forward_pe": (Column.Quote.FORWARD_PE, True),
+    "eps": (Column.Quote.EPS, True),
+    "beta": (Column.Quote.BETA, True),
+    "dividend_rate": (Column.Quote.DIVIDEND_RATE, True),
+    "dividend_yield": (Column.Quote.DIVIDEND_YIELD, True),
+    "last_dividend": (Column.Quote.LAST_DIVIDEND, True),
+    "ex_dividend_date": (Column.Quote.EX_DIVIDEND_DATE, False),
+    "earnings_date": (Column.Quote.EARNINGS_DATE, False),
+    "high_52": (Column.Quote.HIGH_52, True),
+    "low_52": (Column.Quote.LOW_52, True),
+    "avg_50": (Column.Quote.AVG_50, True),
+    "avg_200": (Column.Quote.AVG_200, True),
+    "volume": (Column.Quote.VOLUME, True),
+    "avg_volume": (Column.Quote.AVG_VOLUME, True),
+    "expense_ratio": (Column.Quote.EXPENSE_RATIO, True),
+    "total_assets": (Column.Quote.TOTAL_ASSETS, True),
+    "category": (Column.Quote.CATEGORY, False),
+    "fund_family": (Column.Quote.FUND_FAMILY, False),
+}
+
+
+@dataclass(frozen=True)
 class Quote:
     """A symbol's latest cached market snapshot.
 
@@ -82,8 +156,10 @@ class Quote:
         market_cap: Market capitalisation, in `currency`.
         quote_time: The provider's own market timestamp.
         fetched_at: When the price was last fetched. Drives the TTL.
-        meta_fetched_at: When the metadata was last fetched. Its own TTL.
+        meta_fetched_at: When the metadata, fundamentals included, was last
+            fetched. Its own TTL.
         status: How the last fetch attempt came out.
+        fundamentals: Valuation, dividend, trading-range and fund figures.
     """
 
     symbol: str
@@ -99,6 +175,7 @@ class Quote:
     fetched_at: datetime | None = None
     meta_fetched_at: datetime | None = None
     status: QuoteStatus = QuoteStatus.ERROR
+    fundamentals: Fundamentals = field(default_factory=Fundamentals)
 
     @property
     def age(self) -> timedelta | None:
@@ -115,13 +192,18 @@ class Quote:
             return True
         return age > timedelta(minutes=get_config().quotes_ttl_minutes)
 
-    @property
-    def meta_is_stale(self) -> bool:
-        """Whether the name, sector and market cap are due a refetch."""
+    def meta_older_than(self, max_age: timedelta) -> bool:
+        """Whether the metadata is older than `max_age`, or was never fetched.
+
+        Args:
+            max_age: How old the metadata may be and still be used.
+
+        Returns:
+            True when a refetch is due.
+        """
         if self.meta_fetched_at is None:
             return True
-        elapsed = datetime.now(UTC) - self.meta_fetched_at
-        return elapsed > timedelta(days=get_config().quotes_metadata_ttl_days)
+        return datetime.now(UTC) - self.meta_fetched_at > max_age
 
     @property
     def priced(self) -> bool:
@@ -219,9 +301,9 @@ class QuotesService:
             simply absent.
         """
         try:
+            # Brings a cache of an older shape up to date before it is read.
+            create_quotes_table()
             with get_connection() as conn:
-                if Table.QUOTES not in get_tables(conn):
-                    return {}
                 frame = get_rows(conn, Table.QUOTES)
         except sqlite3.Error as error:
             logger.debug("Could not read the quotes cache: %s", error)
@@ -247,6 +329,7 @@ class QuotesService:
         *,
         refresh: bool = False,
         offline: bool = False,
+        fundamentals: bool = False,
     ) -> dict[str, Quote]:
         """Return a quote for every symbol, fetching only what is due.
 
@@ -256,6 +339,8 @@ class QuotesService:
             refresh: Refetch every symbol regardless of its TTL.
             offline: Never touch the network. Returns whatever is cached,
                 including nothing.
+            fundamentals: Hold the metadata to the fundamentals TTL, which is
+                hours rather than days, for a caller that shows them.
 
         Returns:
             Each requested symbol mapped to a `Quote`. A symbol that could not
@@ -271,9 +356,16 @@ class QuotesService:
             logger.debug("Offline: serving %d quote(s) from cache", len(cached))
             return _fill_gaps(wanted, cached, resolver)
 
-        due = [symbol for symbol in wanted if refresh or _is_due(cached.get(symbol))]
+        max_age = _meta_max_age(fundamentals=fundamentals)
+        due = [
+            symbol
+            for symbol in wanted
+            if refresh
+            or _is_due(cached.get(symbol))
+            or (fundamentals and cached[symbol].meta_older_than(max_age))
+        ]
         if due:
-            cls.refresh(due, resolver, cached=cached)
+            cls.refresh(due, resolver, cached=cached, fundamentals=fundamentals)
             cached = cls.cached(wanted)
 
         return _fill_gaps(wanted, cached, resolver)
@@ -284,6 +376,8 @@ class QuotesService:
         symbols: Sequence[str],
         resolver: SymbolResolver,
         cached: Mapping[str, Quote] | None = None,
+        *,
+        fundamentals: bool = False,
     ) -> RefreshResult:
         """Refetch the given symbols and write them to the cache.
 
@@ -291,6 +385,7 @@ class QuotesService:
             symbols: Canonical folio symbols to refetch.
             resolver: Supplies the provider spelling for each symbol.
             cached: Already-read cached rows, to save a second query.
+            fundamentals: Hold the metadata to the fundamentals TTL.
 
         Returns:
             A tally of what happened.
@@ -323,7 +418,13 @@ class QuotesService:
                 )
                 return RefreshResult(failed=len(wanted))
 
-        metadata = cls._collect_metadata(wanted, ysymbols, known, prices)
+        metadata = cls._collect_metadata(
+            wanted,
+            ysymbols,
+            known,
+            prices,
+            _meta_max_age(fundamentals=fundamentals),
+        )
 
         now = datetime.now(UTC)
         result = RefreshResult(used_fallback=used_fallback)
@@ -350,12 +451,13 @@ class QuotesService:
         ysymbols: Mapping[str, str],
         known: Mapping[str, Quote],
         prices: Mapping[str, dict],
+        max_age: timedelta,
     ) -> dict[str, dict]:
         """Fetch metadata for the symbols whose slower TTL has expired.
 
         `.info` is a full scrape per symbol and heavily rate-limited, so it runs
-        once on first sight of a symbol and roughly monthly after. A failure
-        here costs a name, never a price.
+        once on first sight of a symbol and roughly monthly after, or daily for
+        a caller showing fundamentals.
         """
         due = [
             ysymbols[symbol]
@@ -364,7 +466,7 @@ class QuotesService:
             if ysymbols[symbol] in prices
             and (
                 symbol not in known
-                or known[symbol].meta_is_stale
+                or known[symbol].meta_older_than(max_age)
                 or known[symbol].name is None
             )
         ]
@@ -484,13 +586,14 @@ class QuotesService:
 
     @classmethod
     def _fetch_metadata(cls, ysymbols: Sequence[str]) -> dict[str, dict]:
-        """Fetch name, sector, exchange and market cap for a batch.
+        """Fetch name, sector, exchange, market cap and fundamentals for a batch.
 
         Args:
             ysymbols: Provider spellings to describe.
 
         Returns:
-            Each provider symbol mapped to its raw metadata fields.
+            Each provider symbol mapped to its metadata fields, the
+            fundamentals keyed by their `Fundamentals` field names.
         """
         import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
 
@@ -508,9 +611,82 @@ class QuotesService:
                 "exchange": info.get("exchange") or info.get("fullExchangeName"),
                 "market_cap": info.get("marketCap"),
                 "currency": info.get("currency"),
+                "quote_type": info.get("quoteType"),
+                "trailing_pe": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "eps": _first(info, "trailingEps", "epsTrailingTwelveMonths"),
+                "beta": _first(info, "beta", "beta3Year"),
+                "dividend_rate": _first(
+                    info,
+                    "dividendRate",
+                    "trailingAnnualDividendRate",
+                ),
+                "dividend_yield": _from_percent(info.get("dividendYield")),
+                "last_dividend": info.get("lastDividendValue"),
+                "ex_dividend_date": _epoch_date(info.get("exDividendDate")),
+                # An earnings time is a moment in the trading day, so it is read
+                # on the market's clock: after the close is still the same day.
+                "earnings_date": _epoch_date(
+                    _first(info, "earningsTimestampStart", "earningsTimestamp"),
+                    TORONTO_TZ,
+                ),
+                "high_52": info.get("fiftyTwoWeekHigh"),
+                "low_52": info.get("fiftyTwoWeekLow"),
+                "avg_50": info.get("fiftyDayAverage"),
+                "avg_200": info.get("twoHundredDayAverage"),
+                "volume": _first(info, "regularMarketVolume", "volume"),
+                "avg_volume": info.get("averageVolume"),
+                "expense_ratio": _from_percent(info.get("netExpenseRatio")),
+                "total_assets": _first(info, "totalAssets", "netAssets"),
+                "category": info.get("category"),
+                "fund_family": info.get("fundFamily"),
             }
 
         return dict(_run_concurrently(_describe, ysymbols))
+
+
+def _meta_max_age(*, fundamentals: bool) -> timedelta:
+    """How old cached metadata may be: hours when fundamentals are shown."""
+    config = get_config()
+    if fundamentals:
+        return timedelta(hours=config.quotes_fundamentals_ttl_hours)
+    return timedelta(days=config.quotes_metadata_ttl_days)
+
+
+def _first(info: Mapping[str, Any], *keys: str) -> object | None:
+    """Read the first of several provider keys that holds anything."""
+    for key in keys:
+        value = info.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _from_percent(value: object) -> Decimal | None:
+    """Turn a provider percentage (0.77 meaning 0.77%) into a ratio."""
+    if _text(value) is None:
+        return None
+    number = dec(value)
+    return number / 100 if number else None
+
+
+def _epoch_date(value: object, zone: tzinfo = UTC) -> str | None:
+    """Turn a provider epoch timestamp, in seconds, into a `YYYY-MM-DD` date.
+
+    Args:
+        value: The timestamp. A bare date, such as an ex-dividend date, arrives
+            as midnight UTC, which is why UTC is the default.
+        zone: The clock to read the date on.
+
+    Returns:
+        The date, or None when the value is not a timestamp.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float | Decimal):
+        return None
+    try:
+        return datetime.fromtimestamp(float(value), zone).date().isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
 
 
 def _previous_close(fast: object) -> object | None:
@@ -604,6 +780,7 @@ def _merge(  # noqa: PLR0913, PLR0917
             market_cap=_number(meta.get("market_cap")) or updated.market_cap,
             currency=_currency(meta.get("currency")) or updated.currency,
             meta_fetched_at=now,
+            fundamentals=_fundamentals(meta),
         )
     return updated, QuoteStatus.OK
 
@@ -656,6 +833,12 @@ def _quote_from_record(symbol: str, record: Mapping[Hashable, Any]) -> Quote:
         fetched_at=_moment(record.get(Column.Quote.FETCHED_AT)),
         meta_fetched_at=_moment(record.get(Column.Quote.META_FETCHED_AT)),
         status=resolved,
+        fundamentals=_fundamentals(
+            {
+                name: record.get(column)
+                for name, (column, _) in _FUNDAMENTAL_COLUMNS.items()
+            },
+        ),
     )
 
 
@@ -676,7 +859,25 @@ def _record(quote: Quote) -> dict[str, Any]:
         str(Column.Quote.META_FETCHED_AT): _iso(quote.meta_fetched_at),
         str(Column.Quote.SOURCE): SOURCE,
         str(Column.Quote.STATUS): str(quote.status),
+        **{
+            str(column): (
+                _stored(getattr(quote.fundamentals, name))
+                if numeric
+                else getattr(quote.fundamentals, name)
+            )
+            for name, (column, numeric) in _FUNDAMENTAL_COLUMNS.items()
+        },
     }
+
+
+def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
+    """Read fundamentals out of a mapping keyed by their field names."""
+    read: dict[str, Any] = {}
+    for item in fields(Fundamentals):
+        _, numeric = _FUNDAMENTAL_COLUMNS[item.name]
+        raw = values.get(item.name)
+        read[item.name] = _number(raw) if numeric else _text(raw)
+    return Fundamentals(**read)
 
 
 def _stored(value: Decimal | None) -> float | None:

@@ -137,16 +137,20 @@ contribution_room:
 
 ```yaml
 quotes:
-  ttl_minutes: 15        # how long a cached price stays fresh
-  metadata_ttl_days: 30  # name / sector / market cap refresh interval
-  timeout_seconds: 20    # how long to wait on the provider
-  symbol_overrides: {}   # e.g. TOI.TO: TOI.V
+  ttl_minutes: 15             # how long a cached price stays fresh
+  metadata_ttl_days: 30       # name / sector / market cap refresh interval
+  fundamentals_ttl_hours: 24  # P/E, dividends, 52-week range, ... for `folio ticker`
+  timeout_seconds: 20         # how long to wait on the provider
+  symbol_overrides: {}        # e.g. TOI.TO: TOI.V
 ```
 
 Prices come from Yahoo Finance and are cached in the folio database, one row per
 symbol. `folio dash` refetches only what is past `ttl_minutes`, so switching between
 scopes costs nothing. The name, sector and market cap come from a separate, much
-slower request and are refreshed only every `metadata_ttl_days`.
+slower request and are refreshed only every `metadata_ttl_days`. That same request
+carries the fundamentals (P/E, dividends, earnings date, 52-week range, fund expense
+ratio), which go stale far sooner, so a command that shows them refreshes it once it is
+older than `fundamentals_ttl_hours`.
 
 **`symbol_overrides` allows to override mapping a symbol to what Yahoo finance names it,
 only required when automatic symbol resolution fails. An exchange suffix stays

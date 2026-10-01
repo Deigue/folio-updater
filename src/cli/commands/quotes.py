@@ -9,6 +9,8 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import load_folio
+from engine.cache import load_or_build
+from engine.fx_rates import FxRateUnavailableError
 from engine.positions import held_symbols
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
@@ -95,7 +97,19 @@ def _list(ticker: str | None) -> None:
     if not quotes:
         console_info("No quotes cached yet. Run `folio quotes --refresh`.")
         return
-    console_print(quotes_table(list(quotes.values())))
+    console_print(quotes_table(list(quotes.values()), held=_held_now()))
+
+
+def _held_now() -> set[str] | None:
+    """Every symbol the folio holds, or None when it cannot be replayed.
+
+    Listing the cache must not fail over a folio problem, so an unreplayable
+    folio just leaves the `Held` column out.
+    """
+    try:
+        return set(held_symbols(load_or_build().frame))
+    except FxRateUnavailableError:
+        return None
 
 
 __all__ = ["manage_quotes"]

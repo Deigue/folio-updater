@@ -107,6 +107,7 @@ class Config:
             "quotes": {
                 "ttl_minutes": 15,
                 "metadata_ttl_days": 30,
+                "fundamentals_ttl_hours": 24,
                 "timeout_seconds": 20,
                 "symbol_overrides": {},
             },
@@ -385,6 +386,11 @@ class Config:
         return self._settings["quotes"]["metadata_ttl_days"]
 
     @property
+    def quotes_fundamentals_ttl_hours(self) -> int:
+        """How long cached fundamentals stay fresh for a command showing them."""
+        return self._settings["quotes"]["fundamentals_ttl_hours"]
+
+    @property
     def quotes_timeout_seconds(self) -> int:
         """How long to wait on the quote provider before giving up."""
         return self._settings["quotes"]["timeout_seconds"]
@@ -615,7 +621,12 @@ class Config:
             return
 
         current = validated["quotes"]
-        for key in ("ttl_minutes", "metadata_ttl_days", "timeout_seconds"):
+        for key in (
+            "ttl_minutes",
+            "metadata_ttl_days",
+            "fundamentals_ttl_hours",
+            "timeout_seconds",
+        ):
             value = quotes.get(key)
             if isinstance(value, int) and not isinstance(value, bool) and value > 0:
                 current[key] = value
@@ -804,7 +815,8 @@ class Config:
             ),
             "Quotes TTL": (
                 f"{self.quotes_ttl_minutes}m prices, "
-                f"{self.quotes_metadata_ttl_days}d metadata"
+                f"{self.quotes_metadata_ttl_days}d metadata, "
+                f"{self.quotes_fundamentals_ttl_hours}h fundamentals"
             ),
             "Quote Symbol Overrides": self.quotes_symbol_overrides or "none configured",
             "Contribution Room": (

@@ -221,6 +221,27 @@ class Column(StrEnum):
         SECTOR = "Sector"
         EXCHANGE = "Exchange"
         MARKET_CAP = "MarketCap"
+        # Fundamentals: one snapshot from the same scrape as the name and sector.
+        QUOTE_TYPE = "QuoteType"  # EQUITY, ETF, MUTUALFUND, ...
+        TRAILING_PE = "TrailingPE"
+        FORWARD_PE = "ForwardPE"
+        EPS = "EPS"  # Trailing twelve months
+        BETA = "Beta"
+        DIVIDEND_RATE = "DividendRate"  # Per share, per year
+        DIVIDEND_YIELD = "DividendYield"  # A ratio: 0.0077 is 0.77%
+        LAST_DIVIDEND = "LastDividend"  # Per share
+        EX_DIVIDEND_DATE = "ExDividendDate"
+        EARNINGS_DATE = "EarningsDate"  # The next one, when the provider knows it
+        HIGH_52 = "High52"
+        LOW_52 = "Low52"
+        AVG_50 = "Avg50"  # 50-day average price
+        AVG_200 = "Avg200"  # 200-day average price
+        VOLUME = "Volume"
+        AVG_VOLUME = "AvgVolume"
+        EXPENSE_RATIO = "ExpenseRatio"  # A ratio, funds only
+        TOTAL_ASSETS = "TotalAssets"  # Funds only
+        CATEGORY = "Category"  # Funds only
+        FUND_FAMILY = "FundFamily"  # Funds only
         QUOTE_TIME = "QuoteTime"  # The provider's own market timestamp
         FETCHED_AT = "FetchedAt"  # Drives the price TTL
         META_FETCHED_AT = "MetaFetchedAt"  # Drives the slower metadata TTL

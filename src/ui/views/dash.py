@@ -55,7 +55,7 @@ from ui.vocabulary import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Collection, Sequence
 
     from rich.console import RenderableType
     from rich.table import JustifyMethod
@@ -874,11 +874,16 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     return notes
 
 
-def quotes_table(quotes: Sequence[Quote]) -> RichTable:
+def quotes_table(
+    quotes: Sequence[Quote],
+    held: Collection[str] | None = None,
+) -> RichTable:
     """Render the quote cache with each row's age.
 
     Args:
         quotes: The cached quotes to show.
+        held: The symbols the folio holds, so a quote kept for a sold position
+            or a symbol only looked up stands out. None leaves the column out.
 
     Returns:
         The fitted table.
@@ -890,6 +895,8 @@ def quotes_table(quotes: Sequence[Quote]) -> RichTable:
         border_style="bright_blue",
     )
     table.add_column("Symbol", no_wrap=True)
+    if held is not None:
+        table.add_column("Held", no_wrap=True)
     table.add_column("Yahoo", no_wrap=True)
     table.add_column("Name")
     table.add_column("Price", justify="right")
@@ -899,8 +906,10 @@ def quotes_table(quotes: Sequence[Quote]) -> RichTable:
     table.add_column("Status", no_wrap=True)
 
     for quote in sorted(quotes, key=lambda q: q.symbol):
+        owned = [] if held is None else [_held(quote.symbol in held)]
         table.add_row(
             quote.symbol,
+            *owned,
             quote.ysymbol,
             quote.name or "",
             _signed(_price(quote.price), quote.day_change),
@@ -910,6 +919,11 @@ def quotes_table(quotes: Sequence[Quote]) -> RichTable:
             _status(quote),
         )
     return fit_table(table, ("Name", "Prev", "Yahoo"))
+
+
+def _held(owned: bool) -> str:  # noqa: FBT001 - one flag, read as a cell
+    """Say whether the folio holds a cached symbol, dimming the ones it does not."""
+    return "yes" if owned else "[dim]no[/dim]"
 
 
 def _age(quote: Quote) -> str:

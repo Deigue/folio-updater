@@ -276,6 +276,29 @@ def test_metadata_is_not_refetched_within_its_ttl(temp_ctx: TempContext) -> None
         assert meta.call_count == 0, "metadata was refetched inside its TTL"
 
 
+def test_fundamentals_are_held_to_their_shorter_ttl_only_when_shown(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx(quotes={"metadata_ttl_days": 30, "fundamentals_ttl_hours": 24}):
+        QuotesService.get_quotes(["TESTTKR"], RESOLVER)
+        day_and_a_half = (datetime.now(UTC) - timedelta(hours=36)).isoformat()
+        with get_connection() as conn:
+            conn.execute(
+                f'UPDATE "{Table.QUOTES}" SET "{Column.Quote.META_FETCHED_AT}" = ?',
+                (day_and_a_half,),
+            )
+            conn.commit()
+
+        with patch.object(QuotesService, "_fetch_metadata", return_value={}) as meta:
+            # A dashboard only shows the name and sector: a month is fine.
+            QuotesService.get_quotes(["TESTTKR"], RESOLVER)
+            assert meta.call_count == 0
+
+            # Showing P/E and dividend dates, a day and a half is too old.
+            QuotesService.get_quotes(["TESTTKR"], RESOLVER, fundamentals=True)
+            assert meta.call_count == 1
+
+
 def test_a_quote_in_an_unsupported_currency_is_not_a_crash(
     temp_ctx: TempContext,
 ) -> None:
@@ -445,6 +468,51 @@ def test_fetching_metadata_reads_info() -> None:
     assert described["AAA"]["name"] == "Alpha Inc"
     assert described["AAA"]["sector"] == "Technology"
     assert described["AAA"]["market_cap"] == 1_000
+
+
+@pytest.mark.no_mock_quotes
+def test_fundamentals_are_cached_in_one_set_of_units(temp_ctx: TempContext) -> None:
+    """The provider mixes percentages, ratios and epoch seconds; the cache does not."""
+    stock = {
+        "quoteType": "EQUITY",
+        "trailingEps": 17.97,
+        "dividendYield": 0.77,  # a percentage
+        "exDividendDate": 1795046400,  # midnight UTC, 2026-11-19
+        "earningsTimestamp": 1785355200,  # the last report
+        "earningsTimestampStart": 1793217600,  # the next one: 4pm ET, 2026-10-28
+    }
+    fund = {
+        "quoteType": "ETF",
+        # A fund's figures arrive under different keys from a stock's.
+        "epsTrailingTwelveMonths": 7.68,
+        "beta3Year": 0.99,
+        "trailingAnnualDividendRate": 0.0,
+        "netExpenseRatio": 0.09,  # a percentage
+        "netAssets": 35_000_000_000,
+    }
+    tickers = {
+        "AAA": _FakeTicker(_FastInfo(100.0, 99.0, "USD"), stock),
+        "FFF": _FakeTicker(_FastInfo(50.0, 49.0, "CAD"), fund),
+    }
+
+    with temp_ctx(), _provider(tickers):
+        QuotesService.refresh(["AAA", "FFF"], RESOLVER)
+        cached = QuotesService.cached()
+
+    shares = cached["AAA"].fundamentals
+    assert shares.quote_type == "EQUITY"
+    assert shares.eps == Decimal("17.97")
+    assert shares.dividend_yield == Decimal("0.0077")
+    assert shares.ex_dividend_date == "2026-11-19"
+    assert shares.earnings_date == "2026-10-28"
+
+    units = cached["FFF"].fundamentals
+    assert units.eps == Decimal("7.68")
+    assert units.beta == Decimal("0.99")
+    assert units.expense_ratio == Decimal("0.0009")
+    assert units.total_assets == Decimal(35_000_000_000)
+    # A fund paying nothing reports a zero rate, which is no rate at all.
+    assert units.dividend_rate is None
 
 
 @pytest.mark.no_mock_quotes
