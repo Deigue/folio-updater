@@ -167,6 +167,11 @@ contribution_room:
 Entirely optional: without it, `folio dash` still reports what was contributed each
 year, just with no limit to compare against.
 
+An RRSP contribution made in the first 60 days of a year counts toward the year
+before, the way CRA's deduction limit statement reports it (a deadline that falls on a
+weekend moves to the Monday after). TFSA, FHSA and RESP contributions count in the
+calendar year they were made.
+
 Only `CONTRIBUTION` and `WITHDRAWAL` rows count toward it. `TFR_IN` and `TFR_OUT`
 move cash between accounts you already own and consume no room.
 

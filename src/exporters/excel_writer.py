@@ -131,9 +131,46 @@ def write_sheet(
             written as plain text.
     """
     links = names or {}
+    cursor = 1
+    if table.nav is not None:
+        nav = worksheet.cell(row=cursor, column=1, value=_value(table.nav))
+        _link(nav, table.nav, links)
+        cursor += 1
+    cursor = _write_blocks(worksheet, table.blocks, links, cursor)
+    header_row, last_data_row, cursor = _write_grid(worksheet, table, cursor, links)
+
+    for section in table.sections:
+        title = worksheet.cell(row=cursor + 1, column=1, value=section.name)
+        title.font = style.TITLE_FONT
+        _, _, cursor = _write_grid(worksheet, section, cursor + 2, links)
+
+    _finish(worksheet, table, header_row, last_data_row)
+    if table.hidden:
+        worksheet.sheet_state = "hidden"
+
+
+def _write_grid(
+    worksheet: Worksheet,
+    table: Table,
+    start: int,
+    links: Mapping[str, str],
+) -> tuple[int, int, int]:
+    """Write one table's header, rows and notes, starting at a given row.
+
+    Args:
+        worksheet: The sheet to write into.
+        table: The table whose grid is written. Its blocks and sections are
+            the caller's business.
+        start: The row the grid starts at.
+        links: Each table's name mapped to the sheet it was written to.
+
+    Returns:
+        The header row, the last row of the filterable data, and the first
+        free row after the notes.
+    """
     edges = _band_edges(table.columns)
     layout = _Layout(edges=edges, links=links)
-    cursor = _write_blocks(worksheet, table.blocks, links)
+    cursor = start
     if table.grouped:
         _write_groups(worksheet, table.columns, cursor, edges)
         cursor += 1
@@ -153,19 +190,19 @@ def write_sheet(
             # out of reach of a re-sort.
             filtered = False
 
-    _write_notes(worksheet, table.notes, row_number + 2, links)
-    _finish(worksheet, table, header_row, last_data_row)
-    if table.hidden:
-        worksheet.sheet_state = "hidden"
+    notes_row = row_number + 2
+    _write_notes(worksheet, table.notes, notes_row, links)
+    return header_row, last_data_row, notes_row + len(table.notes)
 
 
 def _write_blocks(
     worksheet: Worksheet,
     blocks: Iterable[Block],
     links: Mapping[str, str],
+    start: int = 1,
 ) -> int:
     """Write the labelled panels above the table, returning the next free row."""
-    cursor = 1
+    cursor = start
     for block in blocks:
         title = worksheet.cell(row=cursor, column=1, value=block.title)
         title.font = style.TITLE_FONT
@@ -319,11 +356,15 @@ def _finish(
     if last_data_row > header_row:
         worksheet.auto_filter.ref = f"A{header_row}:{last_column}{last_data_row}"
 
-    # Get widths dict(index, width) to set sheet col dimensions.
-    panel = _block_widths(table.blocks)
-    for index, column in enumerate(table.columns):
+    # Every table on the sheet shares its columns, so each is sized to the widest
+    # thing any of them, or the panels above, puts there.
+    widths = _block_widths(table.blocks)
+    for grid in (table, *table.sections):
+        for index, column in enumerate(grid.columns):
+            needed = _width(index, column, grid.rows)
+            widths[index] = max(widths.get(index, 0), needed)
+    for index, width in widths.items():
         letter = get_column_letter(index + 1)
-        width = max(_width(index, column, table.rows), panel.get(index, 0))
         worksheet.column_dimensions[letter].width = min(width, style.MAX_WIDTH)
 
     if table.tab_color:

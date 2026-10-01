@@ -137,6 +137,10 @@ class Table:
             sideways. Enough of them that a row still says what it is once the
             figures being read have scrolled into view.
         hidden: Keep the sheet out of the tab strip. Still accessible via right-click
+        nav: A link written in the sheet's first row, above everything else
+        sections: Further tables written below this one on the same sheet, each
+            under its own name. Only the first table is filtered and frozen. A
+            CSV writes the first table alone.
     """
 
     name: str
@@ -147,6 +151,8 @@ class Table:
     tab_color: str | None = None
     freeze: int = 1
     hidden: bool = False
+    nav: Link | None = None
+    sections: tuple[Table, ...] = ()
 
     @property
     def headers(self) -> list[str]:

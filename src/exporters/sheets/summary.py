@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Currency, Scope
+from domain import AccountType, Currency, Scope
 from exporters.excel_style import OVERVIEW_TAB
 from exporters.table import Block, Col, Fmt, Line, Link, Table, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.flows import Flows
+    from engine.flows import Flows, Room
     from engine.panels import Panel
 
 # How each grain reads in a `Scope` column.
@@ -56,6 +56,21 @@ FLOW_COLUMNS: tuple[Col, ...] = (
     Col("Room Used", Fmt.MONEY),
     Col("Room Limit", Fmt.MONEY),
     Col("Room Left", Fmt.MONEY_SIGNED),
+)
+
+HISTORY_COLUMNS: tuple[Col, ...] = (
+    Col("Year", Fmt.ID),
+    Col("Type", width=10),
+    Col("Contributed", Fmt.MONEY),
+    Col("Withdrawn", Fmt.MONEY, quiet=True),
+    Col("Limit", Fmt.MONEY),
+    Col("Used%", Fmt.PERCENT),
+    Col("Left", Fmt.MONEY_SIGNED),
+)
+
+_RRSP_NOTE = (
+    "RRSP contributions made in the first 60 days of a year count toward the "
+    "year before, as CRA counts them."
 )
 
 _FROZEN = 2  # `Pool` and `Scope` say which row is which
@@ -107,6 +122,7 @@ def flows_table(
     *,
     name: str = "Flows",
     notes: Sequence[str] = (),
+    history: Sequence[Room] = (),
 ) -> Table:
     """Flows table representing cash that moved through every pool.
 
@@ -114,10 +130,13 @@ def flows_table(
         pools: Every pool to list, portfolio first.
         name: What the sheet is called.
         notes: Lines to disclose under the table.
+        history: Every year of contribution room used, newest first, listed
+            under the flows as a table of its own.
 
     Returns:
         The table, one row per pool and currency.
     """
+    sections = (history_table(history),) if history else ()
     return Table(
         name=name,
         columns=FLOW_COLUMNS,
@@ -127,6 +146,31 @@ def flows_table(
         notes=tuple(notes),
         tab_color=OVERVIEW_TAB,
         freeze=_FROZEN + 1,
+        sections=sections,
+    )
+
+
+def history_table(
+    history: Sequence[Room],
+    *,
+    name: str = "Contribution history",
+) -> Table:
+    """List what went into every account type having contribution limits by year.
+
+    Args:
+        history: One `Room` per type and year, in the order to list.
+        name: The table's title.
+
+    Returns:
+        The table, one row per type and year. Limit, used and left stay blank
+        for a year with no configured limit rather than reading as zero.
+    """
+    rrsp = any(room.account_type is AccountType.RRSP for room in history)
+    return Table(
+        name=name,
+        columns=HISTORY_COLUMNS,
+        rows=tuple(row_of(HISTORY_COLUMNS, _history_cells(room)) for room in history),
+        notes=(_RRSP_NOTE,) if rrsp else (),
     )
 
 
@@ -231,6 +275,19 @@ def _flow_cells(pool: Panel) -> list[dict[str, object]]:
             )
         rows.append(cells)
     return rows
+
+
+def _history_cells(room: Room) -> dict[str, object]:
+    """Read one type's year of contribution room."""
+    return {
+        "Year": room.year,
+        "Type": str(room.account_type),
+        "Contributed": room.used,
+        "Withdrawn": room.withdrawn,
+        "Limit": room.limit,
+        "Used%": room.used_ratio,
+        "Left": room.remaining,
+    }
 
 
 def _currencies(flows: Flows) -> list[Currency]:

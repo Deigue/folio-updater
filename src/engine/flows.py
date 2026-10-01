@@ -8,6 +8,7 @@ much, and why neither face value nor cost base is the right answer.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 from domain import AccountType, Action, Column, Currency, Scope
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
 
 # The pool key the replay credits portfolio-grain movements to.
 FOLIO_POOL = "FOLIO"
+
+# An RRSP contribution made up to 60 days after a year ends counts toward that
+# year's room, which is how CRA's deduction limit statement reports it.
+RRSP_WINDOW_DAYS = 60
+_SATURDAY = 5
 
 # Account types that carry a CRA contribution limit worth reporting against.
 ROOM_BEARING_TYPES = frozenset(
@@ -44,12 +50,15 @@ class Room:
         year: Calendar year.
         used: Contributions recorded against that type this year.
         limit: The configured limit, or None when none is configured.
+        withdrawn: Withdrawals from that type this year. They never give room
+            back in the same year, so `remaining` ignores them.
     """
 
     account_type: AccountType
     year: int
     used: Decimal
     limit: Decimal | None = None
+    withdrawn: Decimal = ZERO
 
     @property
     def remaining(self) -> Decimal | None:
@@ -233,7 +242,10 @@ def build_flows(  # noqa: PLR0913
 def contributions_by_type_year(
     frame: pd.DataFrame,
 ) -> dict[AccountType, dict[int, Decimal]]:
-    """Total contributions to every account type, by calendar year.
+    """Total contributions to every account type, by the year they count toward.
+
+    That is the calendar year, except for an RRSP: a contribution made in the
+    first 60 days of a year counts toward the year before (see `room_year`).
 
     Only `CONTRIBUTION` counts. A transfer between two accounts you already own
     consumes no room, however much cash it moves.
@@ -244,24 +256,94 @@ def contributions_by_type_year(
     Returns:
         Each account type mapped to its per-year contributions.
     """
+    return _by_type_year(frame, Action.CONTRIBUTION)
+
+
+def withdrawals_by_type_year(
+    frame: pd.DataFrame,
+) -> dict[AccountType, dict[int, Decimal]]:
+    """Total withdrawals from every account type, by calendar year.
+
+    Only `WITHDRAWAL` counts, for the same reason transfers are left out of
+    `contributions_by_type_year`.
+
+    Args:
+        frame: The master frame.
+
+    Returns:
+        Each account type mapped to its per-year withdrawals, as positive sums.
+    """
+    return _by_type_year(frame, Action.WITHDRAWAL)
+
+
+def room_history(
+    contributions: Mapping[AccountType, Mapping[int, Decimal]],
+    withdrawals: Mapping[AccountType, Mapping[int, Decimal]],
+    configured: Mapping[AccountType, Mapping[int, Decimal]],
+    *,
+    through: int,
+) -> list[Room]:
+    """List every year of contributions the folio has used.
+
+    Args:
+        contributions: Every type's per-year contributions.
+        withdrawals: Every type's per-year withdrawals.
+        configured: Configured limits by account type and year.
+        through: The last year to list a limit-only year for, so a limit
+            configured ahead of time does not read as room already unused.
+
+    Returns:
+        One `Room` per type and year, newest year first, types alphabetical.
+    """
+    history: list[Room] = []
+    for account_type in ROOM_BEARING_TYPES:
+        put_in = contributions.get(account_type, {})
+        taken_out = withdrawals.get(account_type, {})
+        if not put_in and not taken_out:
+            continue
+        limits = configured.get(account_type, {})
+        years = set(put_in) | set(taken_out)
+        years |= {year for year in limits if year <= through}
+        history.extend(
+            Room(
+                account_type=account_type,
+                year=year,
+                used=put_in.get(year, ZERO),
+                limit=limits.get(year),
+                withdrawn=taken_out.get(year, ZERO),
+            )
+            for year in years
+        )
+    history.sort(key=lambda room: (-room.year, str(room.account_type)))
+    return history
+
+
+def _by_type_year(
+    frame: pd.DataFrame,
+    action: Action,
+) -> dict[AccountType, dict[int, Decimal]]:
+    """Total one cash action's amounts per account type and calendar year."""
     if frame.empty or str(Column.Txn.ACTION) not in frame.columns:
         return {}
 
-    rows = frame[frame[str(Column.Txn.ACTION)] == str(Action.CONTRIBUTION)]
+    rows = frame[frame[str(Column.Txn.ACTION)] == str(action)]
     totals: dict[AccountType, dict[int, Decimal]] = {}
-    for name, date, amount in zip(
+    for name, stamp, amount in zip(
         rows["AcctType"].to_numpy(),
         rows[str(Column.Txn.TXN_DATE)].to_numpy(),
         rows[str(Column.Txn.AMOUNT)].to_numpy(),
         strict=True,
     ):
-        year = _year_of(str(date))
-        if year is None:
+        day = _date_of(str(stamp))
+        if day is None:
             continue
         try:
             account_type = AccountType(str(name))
         except ValueError:
             continue
+        # Only putting money in has a deadline that reaches back a year.
+        contributing = action is Action.CONTRIBUTION
+        year = room_year(account_type, day) if contributing else day.year
         by_year = totals.setdefault(account_type, {})
         by_year[year] = by_year.get(year, ZERO) + abs(dec(amount))
     return totals
@@ -303,9 +385,31 @@ def _room(
     )
 
 
-def _year_of(date: str) -> int | None:
-    """Read the calendar year off a `YYYY-MM-DD` date."""
+def room_year(account_type: AccountType, day: date) -> int:
+    """Name the year a contribution made on `day` uses the room of.
+
+    An RRSP contribution made within 60 days of a year's end counts toward that
+    year. When the 60th day falls on a weekend, CRA moves the deadline to the
+    Monday after, and so does this. Every other type counts the calendar year.
+
+    Args:
+        account_type: The type contributed to.
+        day: When the contribution was made.
+
+    Returns:
+        The year whose room the contribution uses.
+    """
+    if account_type is not AccountType.RRSP:
+        return day.year
+    deadline = date(day.year - 1, 12, 31) + timedelta(days=RRSP_WINDOW_DAYS)
+    while deadline.weekday() >= _SATURDAY:
+        deadline += timedelta(days=1)
+    return day.year - 1 if day <= deadline else day.year
+
+
+def _date_of(text: str) -> date | None:
+    """Read a `YYYY-MM-DD` date, or None when it is not one."""
     try:
-        return int(date[:4])
+        return date.fromisoformat(text[:10])
     except (TypeError, ValueError):
         return None

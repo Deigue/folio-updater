@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+    from engine.flows import Room
     from engine.panels import FolioValuation, Panel
     from exporters.table import Table as Sheet
     from services.quotes_service import Quote
@@ -182,7 +183,7 @@ def folio_tables(
         return [*dashboards, *cost_base, *stored]
 
     folio, *_ = pools.every
-    flows = flows_table(pools.every)
+    flows = flows_table(pools.every, history=pools.history)
     linked = [flows, *cost_base, *(table for table in stored if not table.hidden)]
     summary = summary_table(
         folio,
@@ -191,7 +192,10 @@ def folio_tables(
         contents=[(table.name, _describe(table.name)) for table in linked],
     )
     reports = [_back_to_summary(table) for table in (flows, *dashboards, *cost_base)]
-    return [summary, *reports, *stored]
+    linked_stored = [
+        table if table.hidden else _back_to_summary(table) for table in stored
+    ]
+    return [summary, *reports, *linked_stored]
 
 
 _SUMMARY = "Summary"
@@ -212,11 +216,13 @@ class _Pools:
         folio: The whole portfolio.
         types: Each account type, active ones first.
         accounts: Each account, active ones first.
+        history: Every year of contribution room used, newest first.
     """
 
     folio: Panel
     types: list[Panel]
     accounts: list[Panel]
+    history: list[Room]
 
     @property
     def every(self) -> list[Panel]:
@@ -236,6 +242,7 @@ def _pools(valuation: FolioValuation | None) -> _Pools | None:
         accounts=_active_first(
             valuation.panels([account_view(name) for name in valuation.accounts()]),
         ),
+        history=valuation.room_history,
     )
 
 
@@ -279,7 +286,7 @@ def _describe(sheet: str) -> str:
 
 def _back_to_summary(table: Sheet) -> Sheet:
     """Give a report sheet a way back to the sheet the workbook opens on."""
-    return replace(table, notes=(Link("Back to Summary", _SUMMARY), *table.notes))
+    return replace(table, nav=Link("Back to Summary", _SUMMARY))
 
 
 def _active_first(panels: list[Panel]) -> list[Panel]:

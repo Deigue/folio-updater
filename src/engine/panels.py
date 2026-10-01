@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, NamedTuple
 
 from app import get_config
 from domain import AccountType, Column, Currency, Scope
+from domain.constants import TORONTO_TZ
 from engine.accounts import resolve_account_type
-from engine.flows import build_flows, contributions_by_type_year
+from engine.flows import (
+    build_flows,
+    contributions_by_type_year,
+    room_history,
+    withdrawals_by_type_year,
+)
 from engine.fx_rates import load_fx_rates
 from engine.positions import FolioPositions, scope_rows
 from services.quotes_service import QuotesService
@@ -20,7 +27,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from engine.flows import Flows
+    from engine.flows import Flows, Room
     from engine.positions import HoldingSet, ValuationCurrency
     from engine.types import ReplayResult
     from services.quotes_service import Quote
@@ -110,6 +117,7 @@ class FolioValuation:
         result: The replay the cash totals are read from.
         currency: The currency figures are expressed in, or `native`.
         contributions: Every type's per-year contributions, for the room line.
+        withdrawals: Every type's per-year withdrawals, for the room history.
         quotes: The quote used for each held symbol.
         folio_market: The whole portfolio's CAD market value, which is the
             denominator behind `Folio%` however narrow a panel is.
@@ -119,6 +127,7 @@ class FolioValuation:
     result: ReplayResult
     currency: ValuationCurrency
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
+    withdrawals: Mapping[AccountType, Mapping[int, Decimal]]
     quotes: dict[str, Quote]
     folio_market: Decimal | None = None
 
@@ -152,6 +161,7 @@ class FolioValuation:
             result=result,
             currency=currency,
             contributions=contributions_by_type_year(frame),
+            withdrawals=withdrawals_by_type_year(frame),
             quotes=quotes,
             folio_market=positions.market_value(),
         )
@@ -160,6 +170,16 @@ class FolioValuation:
     def frame(self) -> pd.DataFrame:
         """The replayed master frame every panel is read from."""
         return self.positions.frame
+
+    @property
+    def room_history(self) -> list[Room]:
+        """Every year of contribution room the folio has used, newest first."""
+        return room_history(
+            self.contributions,
+            self.withdrawals,
+            get_config().contribution_room,
+            through=datetime.now(TORONTO_TZ).year,
+        )
 
     def panel(
         self,

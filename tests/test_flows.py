@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,9 @@ from engine.flows import (
     Room,
     build_flows,
     contributions_by_type_year,
+    room_history,
+    room_year,
+    withdrawals_by_type_year,
 )
 
 from .helpers.seed import seed_fx, seed_transaction
@@ -1157,6 +1161,139 @@ def test_the_year_split_skips_an_unreadable_date() -> None:
     }
 
 
+def test_withdrawals_split_by_year_and_leave_transfers_out(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        for action, amount, date in (
+            ("CONTRIBUTION", "5000", "2025-08-14"),
+            ("WITHDRAWAL", "-1200", "2025-08-18"),
+            ("TFR_OUT", "-800", "2025-08-19"),
+        ):
+            seed_transaction(
+                action=action,
+                account="WS-TFSA",
+                ticker=None,
+                currency="CAD",
+                amount=amount,
+                price=None,
+                units=None,
+                date=date,
+            )
+
+        # A transfer to another account the holder owns gives no room back, so
+        # only the withdrawal counts, and as the positive sum it took out.
+        assert withdrawals_by_type_year(build().frame) == {
+            AccountType.TFSA: {2025: Decimal(1200)},
+        }
+
+
+@pytest.mark.parametrize(
+    ("day", "year"),
+    [
+        # 2023 is not a leap year: the 60th day after year end is March 1.
+        (date(2023, 3, 1), 2022),
+        (date(2023, 3, 2), 2023),
+        # 2024 is: the 60th day is February 29.
+        (date(2024, 2, 29), 2023),
+        # March 1 2025 was a Saturday, so CRA moved the deadline to Monday.
+        (date(2025, 3, 3), 2024),
+        (date(2025, 3, 4), 2025),
+    ],
+)
+def test_an_early_rrsp_contribution_uses_the_year_before(day: date, year: int) -> None:
+    assert room_year(AccountType.RRSP, day) == year
+
+
+def test_the_year_split_counts_an_early_rrsp_contribution_toward_last_year() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                str(Column.Txn.ACTION): str(action),
+                str(Column.Txn.TXN_DATE): day,
+                str(Column.Txn.AMOUNT): amount,
+                "AcctType": str(AccountType.RRSP),
+            }
+            for action, day, amount in (
+                (Action.CONTRIBUTION, "2023-01-30", 6000.0),
+                (Action.CONTRIBUTION, "2023-04-04", 7000.0),
+                (Action.WITHDRAWAL, "2023-01-30", -500.0),
+            )
+        ],
+    )
+
+    assert contributions_by_type_year(frame) == {
+        AccountType.RRSP: {2022: Decimal(6000), 2023: Decimal(7000)},
+    }
+    # A withdrawal has no deadline to reach back across: it is the calendar year.
+    assert withdrawals_by_type_year(frame) == {
+        AccountType.RRSP: {2023: Decimal(500)},
+    }
+
+
+def test_room_history_lists_newest_year_first_then_type() -> None:
+    history = room_history(
+        {
+            AccountType.TFSA: {2024: Decimal(7000), 2025: Decimal(7000)},
+            AccountType.RRSP: {2025: Decimal(13000)},
+        },
+        {},
+        {},
+        through=2026,
+    )
+
+    assert [(room.year, room.account_type) for room in history] == [
+        (2025, AccountType.RRSP),
+        (2025, AccountType.TFSA),
+        (2024, AccountType.TFSA),
+    ]
+
+
+def test_room_history_shows_a_configured_year_nothing_went_into() -> None:
+    history = room_history(
+        {AccountType.TFSA: {2025: Decimal(7000)}},
+        {},
+        {
+            AccountType.TFSA: {
+                2025: Decimal(7000),
+                2026: Decimal(7000),
+                # Configured ahead of time: not yet room anyone could have used.
+                2027: Decimal(7000),
+            },
+            # Configured, but never used: no rows at all for this type.
+            AccountType.FHSA: {2026: Decimal(8000)},
+        },
+        through=2026,
+    )
+
+    unused = history[0]
+    assert (unused.year, unused.account_type) == (2026, AccountType.TFSA)
+    assert unused.used == Decimal(0)
+    assert unused.remaining == Decimal(7000)
+    assert [room.year for room in history] == [2026, 2025]
+
+
+def test_room_history_carries_withdrawals_without_giving_room_back() -> None:
+    history = room_history(
+        {AccountType.TFSA: {2025: Decimal(7000)}},
+        {AccountType.TFSA: {2025: Decimal(2000), 2024: Decimal(500)}},
+        {AccountType.TFSA: {2025: Decimal(7000)}},
+        through=2025,
+    )
+
+    this_year, last_year = history
+    assert this_year.withdrawn == Decimal(2000)
+    # CRA gives withdrawn room back the following year, never the same one.
+    assert this_year.remaining == Decimal(0)
+    assert this_year.used_ratio == Decimal(1)
+    # A year with only a withdrawal still reports it, and no limit to judge by.
+    assert last_year.used == Decimal(0)
+    assert last_year.withdrawn == Decimal(500)
+    assert last_year.limit is None
+    assert last_year.remaining is None
+
+
 def test_a_registered_pool_with_no_contributions_has_no_room_row(
     temp_ctx: TempContext,
 ) -> None:
@@ -1471,7 +1608,7 @@ def test_a_same_type_transfer_is_skipped_even_when_type_grain_is_tracked(
 def _seed_contributions_across_types() -> None:
     """Contribute to two room-bearing types across two calendar years."""
     seed_fx(FX_DATES)
-    for account, amount, date in (
+    for account, amount, day in (
         ("WS-TFSA", "1000", "2025-08-14"),
         ("WS-TFSA", "500", "2025-08-15"),
         ("WS-RRSP", "2000", "2025-08-18"),
@@ -1484,7 +1621,7 @@ def _seed_contributions_across_types() -> None:
             amount=amount,
             price=None,
             units=None,
-            date=date,
+            date=day,
         )
 
 
