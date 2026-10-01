@@ -136,6 +136,21 @@ class SettlementOutcome(StrEnum):
     AMBIGUOUS = "AMBIGUOUS"  # Several matched, so none could be updated.
 
 
+class PriceRange(StrEnum):
+    """A window a price move is measured over, shortest first."""
+
+    HOURS_2 = "2h"  # Intraday: two hours back from the latest bar
+    DAY_1 = "1d"  # Since the previous close
+    DAYS_2 = "2d"  # Since the close two sessions back
+    WEEK_1 = "1wk"
+    MONTH_1 = "1mo"
+    MONTHS_6 = "6mo"
+    YTD = "YTD"  # Since the last close of the previous year
+    YEAR_1 = "1y"
+    YEARS_5 = "5y"
+    ALL = "All"  # Since the first close the provider has
+
+
 class QuoteStatus(StrEnum):
     """How the last attempt to price a symbol came out."""
 
@@ -167,6 +182,7 @@ class Table(StrEnum):
     FX = "FX"
     TICKER_ALIASES = "TickerAliases"
     QUOTES = "Quotes"
+    QUOTE_HISTORY = "QuoteHistory"
 
 
 class Column(StrEnum):
@@ -247,3 +263,13 @@ class Column(StrEnum):
         META_FETCHED_AT = "MetaFetchedAt"  # Drives the slower metadata TTL
         SOURCE = "Source"
         STATUS = "Status"
+
+    class QuoteHistory(StrEnum):
+        """A symbol's price history, condensed to what each range shows."""
+
+        SYMBOL = "Symbol"
+        RANGE = "Range"  # A `PriceRange`
+        SEQ = "Seq"  # 0 is the anchor the move is measured from, then the points
+        DATE = "Date"
+        CLOSE = "Close"
+        FETCHED_AT = "FetchedAt"  # When this symbol's history was last fetched

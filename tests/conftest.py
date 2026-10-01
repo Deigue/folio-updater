@@ -254,6 +254,8 @@ def mock_quotes(
     with (
         patch.object(QuotesService, "_fetch_prices", side_effect=prices),
         patch.object(QuotesService, "_fetch_metadata", side_effect=metadata),
+        patch.object(QuotesService, "_fetch_history", return_value={}),
+        patch.object(QuotesService, "_fetch_intraday", return_value={}),
     ):
         yield
 

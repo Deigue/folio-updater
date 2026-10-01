@@ -11,7 +11,7 @@ import sqlite3
 
 from db.backup import backup_folio
 from db.queries import drop_table, get_columns, get_connection, get_tables
-from domain import Action, Column, Currency, QuoteStatus, Table
+from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +264,48 @@ def create_ticker_aliases_table() -> None:
     """
     columns_def = [col_def.to_sql() for col_def in ALIASES_COLUMN_DEFINITIONS]
     _create_table(Table.TICKER_ALIASES, columns_def)
+
+
+QUOTE_HISTORY_COLUMN_DEFINITIONS = [
+    ColumnDefinition(Column.QuoteHistory.SYMBOL, "TEXT", "NOT NULL"),
+    ColumnDefinition(
+        Column.QuoteHistory.RANGE,
+        "TEXT",
+        (
+            f'NOT NULL CHECK("{Column.QuoteHistory.RANGE}" IN '
+            f"({', '.join(repr(str(r)) for r in PriceRange)}))"
+        ),
+    ),
+    ColumnDefinition(Column.QuoteHistory.SEQ, "INTEGER", "NOT NULL"),
+    ColumnDefinition(Column.QuoteHistory.DATE, "TEXT", "NOT NULL"),
+    ColumnDefinition(Column.QuoteHistory.CLOSE, NUMERIC_PRECISION, "NOT NULL"),
+    ColumnDefinition(Column.QuoteHistory.FETCHED_AT, "TEXT", "NOT NULL"),
+]
+
+
+def create_quote_history_table() -> None:
+    """Create the condensed price history table if it doesn't already exist.
+
+    Each symbol holds a fixed handful of rows per range: an anchor and the
+    points of its sparkline. A refresh replaces a symbol's rows rather than
+    appending.
+
+    Returns:
+        None
+
+    Raises:
+        DatabaseError: If there's an issue with database connection or SQL execution
+    """
+    columns_def = [col_def.to_sql() for col_def in QUOTE_HISTORY_COLUMN_DEFINITIONS]
+    key = ", ".join(
+        f'"{column}"'
+        for column in (
+            Column.QuoteHistory.SYMBOL,
+            Column.QuoteHistory.RANGE,
+            Column.QuoteHistory.SEQ,
+        )
+    )
+    _create_table(Table.QUOTE_HISTORY, [*columns_def, f"PRIMARY KEY ({key})"])
 
 
 def create_quotes_table() -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
@@ -14,7 +14,8 @@ import pandas as pd
 import pytest
 
 from db import get_connection, get_rows, insert_or_replace_many
-from domain import Column, Currency, QuoteStatus, Table
+from domain import Column, Currency, PriceRange, QuoteStatus, Table
+from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
     Quote,
@@ -586,7 +587,7 @@ def test_the_daily_fallback_skips_what_the_download_missed(
 
 @pytest.mark.no_mock_quotes
 def test_the_daily_fallback_handles_a_single_close(temp_ctx: TempContext) -> None:
-    # yfinance flattens the columns when only one symbol was requested.
+    # A flat frame, with the fields alone, is read as the one symbol asked for.
     frame = pd.DataFrame({"Close": [11.0]})
 
     with temp_ctx(), _provider({}, frame):
@@ -732,15 +733,114 @@ def test_daily_closes_reads_a_batched_download() -> None:
         {("AAA", "Close"): [10.0, 11.0], ("BBB", "Close"): [20.0, None]},
     )
 
-    assert _daily_closes(frame, "AAA", single=False) == [10.0, 11.0]
+    assert _daily_closes(frame, "AAA") == [10.0, 11.0]
     # A NaN close is dropped rather than read as a price.
-    assert _daily_closes(frame, "BBB", single=False) == [20.0]
+    assert _daily_closes(frame, "BBB") == [20.0]
     # A symbol the download did not cover simply has no closes.
-    assert _daily_closes(frame, "MISSING", single=False) == []
+    assert _daily_closes(frame, "MISSING") == []
 
 
 def test_daily_closes_reads_a_single_symbol_download() -> None:
     frame = pd.DataFrame({"Close": [10.0, 11.0]})
 
-    # yfinance flattens the columns when only one symbol was requested.
-    assert _daily_closes(frame, "AAA", single=True) == [10.0, 11.0]
+    # A flat frame holds a single symbol's fields.
+    assert _daily_closes(frame, "AAA") == [10.0, 11.0]
+
+
+def _year_from(anchor: int) -> dict[PriceRange, RangeHistory]:
+    """Build a one-range history: a year measured from `anchor`, two points since."""
+    return {
+        PriceRange.YEAR_1: RangeHistory(
+            PriceRange.YEAR_1,
+            PricePoint("2025-09-30", Decimal(anchor)),
+            (
+                PricePoint("2026-03-31", Decimal(150)),
+                PricePoint("2026-09-30", Decimal(200)),
+            ),
+        ),
+    }
+
+
+def test_history_is_fetched_once_a_day_and_replaced_rather_than_grown(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        with patch.object(
+            QuotesService,
+            "_fetch_history",
+            return_value={"TESTTKR": _year_from(100)},
+        ) as fetch:
+            first = QuotesService.history(["TESTTKR"], RESOLVER)
+            assert QuotesService.history(["TESTTKR"], RESOLVER) == first
+            assert fetch.call_count == 1, "history was refetched the same day"
+
+        with patch.object(
+            QuotesService,
+            "_fetch_history",
+            return_value={"TESTTKR": _year_from(120)},
+        ):
+            again = QuotesService.history(["TESTTKR"], RESOLVER, refresh=True)
+
+        assert again["TESTTKR"][PriceRange.YEAR_1].anchor.close == Decimal(120)
+        with get_connection() as conn:
+            assert len(get_rows(conn, Table.QUOTE_HISTORY)) == 3
+        assert QuotesService.history(["TESTTKR"], RESOLVER, offline=True) == again
+
+        # Clearing a symbol's quote takes its history with it.
+        QuotesService.clear(["TESTTKR"])
+        assert QuotesService.history(["TESTTKR"], RESOLVER, offline=True) == {}
+        assert QuotesService.history([], RESOLVER) == {}
+
+
+def test_intraday_ranges_are_fetched_live_and_never_offline(
+    temp_ctx: TempContext,
+) -> None:
+    with (
+        temp_ctx(),
+        patch.object(
+            QuotesService,
+            "_fetch_intraday",
+            return_value={"TESTTKR": _year_from(100)},
+        ),
+    ):
+        assert set(QuotesService.intraday(["TESTTKR"], RESOLVER)) == {"TESTTKR"}
+        assert QuotesService.intraday(["TESTTKR"], RESOLVER, offline=True) == {}
+
+
+@pytest.mark.no_mock_quotes
+def test_fetching_history_condenses_the_downloads(temp_ctx: TempContext) -> None:
+    days = pd.bdate_range("2021-01-04", "2026-09-30")
+    frame = pd.DataFrame({"Close": [float(n) for n in range(1, len(days) + 1)]}, days)
+
+    # The stand-in hands back the same closes for every interval asked for.
+    with temp_ctx(), _provider({}, frame):
+        fetched = QuotesService._fetch_history(["AAA"], today=date(2026, 9, 30))  # noqa: SLF001
+
+    ranges = fetched["AAA"]
+    assert ranges[PriceRange.ALL].anchor == PricePoint("2021-01-04", Decimal(1))
+    assert ranges[PriceRange.YEAR_1].points[-1].when == "2026-09-30"
+
+
+@pytest.mark.no_mock_quotes
+def test_fetching_intraday_stamps_each_bar_in_utc(temp_ctx: TempContext) -> None:
+    bars = pd.date_range(
+        "2026-09-29 09:30",
+        "2026-09-30 15:55",
+        freq="5min",
+        tz="America/New_York",
+    )
+    frame = pd.DataFrame(
+        {("AAA", "Close"): [1.0] * len(bars), ("BBB", "Close"): [2.0] * len(bars)},
+        bars,
+    )
+
+    with temp_ctx(), _provider({}, frame):
+        fetched = QuotesService._fetch_intraday(["AAA", "BBB", "MISSING"])  # noqa: SLF001
+
+    # A batch can come back covering fewer symbols than were asked for, or none.
+    assert set(fetched) == {"AAA", "BBB"}
+    with temp_ctx(), _provider({}, pd.DataFrame()):
+        assert QuotesService._fetch_intraday(["AAA"]) == {}  # noqa: SLF001
+    assert (
+        fetched["AAA"][PriceRange.DAY_1].points[-1].when == "2026-09-30T19:55:00+00:00"
+    )

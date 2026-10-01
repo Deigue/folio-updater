@@ -11,7 +11,7 @@ import logging
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, fields, replace
-from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -22,10 +22,18 @@ from db.queries import (
     get_rows,
     get_tables,
     insert_or_replace_many,
+    replace_rows,
 )
-from db.schema import create_quotes_table
-from domain import TORONTO_TZ, Column, Currency, QuoteStatus, Table
+from db.schema import create_quote_history_table, create_quotes_table
+from domain import TORONTO_TZ, Column, Currency, PriceRange, QuoteStatus, Table
 from domain.numeric import dec
+from services.price_history import (
+    PricePoint,
+    RangeHistory,
+    condense,
+    condense_intraday,
+    months_back,
+)
 from term import announce
 
 if TYPE_CHECKING:
@@ -489,25 +497,140 @@ class QuotesService:
         Returns:
             Number of rows removed.
         """
+        wanted = None if symbols is None else [symbol.upper() for symbol in symbols]
+        if wanted == []:
+            return 0
+        placeholders = ", ".join("?" for _ in wanted or ())
+
+        def matching(column: str) -> str | None:
+            """Narrow a delete to the symbols asked for, or None for every row."""
+            return None if wanted is None else f'"{column}" IN ({placeholders})'
+
         try:
+            # A symbol's history goes with its quote, so both tables are cleared.
+            create_quote_history_table()
             with get_connection() as conn:
+                delete_rows(
+                    conn,
+                    Table.QUOTE_HISTORY,
+                    where=matching(Column.QuoteHistory.SYMBOL),
+                    params=wanted,
+                )
                 if Table.QUOTES not in get_tables(conn):
                     return 0
-                if symbols is None:
-                    return delete_rows(conn, Table.QUOTES)
-                wanted = [symbol.upper() for symbol in symbols]
-                if not wanted:
-                    return 0
-                placeholders = ", ".join("?" for _ in wanted)
                 return delete_rows(
                     conn,
                     Table.QUOTES,
-                    where=f'"{Column.Quote.SYMBOL}" IN ({placeholders})',
+                    where=matching(Column.Quote.SYMBOL),
                     params=wanted,
                 )
         except sqlite3.Error as error:
             logger.debug("Could not clear the quotes cache: %s", error)
             return 0
+
+    @classmethod
+    def history(
+        cls,
+        symbols: Sequence[str],
+        resolver: SymbolResolver,
+        *,
+        refresh: bool = False,
+        offline: bool = False,
+    ) -> dict[str, dict[PriceRange, RangeHistory]]:
+        """Return each symbol's condensed price history, fetching what is due.
+
+        History is fetched at most once a day: each range is measured from its
+        anchor to the live price, so the moves stay current between fetches.
+
+        Args:
+            symbols: Canonical folio symbols.
+            resolver: Supplies the provider spelling for each symbol.
+            refresh: Refetch every symbol, however recently it was fetched.
+            offline: Never touch the network; return whatever is stored.
+
+        Returns:
+            Each symbol with any history mapped to its ranges. A symbol the
+            provider has no history for is absent.
+        """
+        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        if not wanted:
+            return {}
+        stored = _read_history(wanted)
+        if not offline:
+            today = datetime.now(TORONTO_TZ).date()
+            due = [
+                symbol
+                for symbol in wanted
+                if refresh
+                or symbol not in stored
+                or stored[symbol][0].astimezone(TORONTO_TZ).date() != today
+            ]
+            if due:
+                stored.update(cls._refetch_history(due, resolver, today))
+        return {symbol: stored[symbol][1] for symbol in wanted if symbol in stored}
+
+    @classmethod
+    def intraday(
+        cls,
+        symbols: Sequence[str],
+        resolver: SymbolResolver,
+        *,
+        offline: bool = False,
+    ) -> dict[str, dict[PriceRange, RangeHistory]]:
+        """Return the `2h` and `1d` ranges, live. These are never stored.
+
+        Args:
+            symbols: Canonical folio symbols.
+            resolver: Supplies the provider spelling for each symbol.
+            offline: Never touch the network, which leaves nothing to return.
+
+        Returns:
+            Each symbol the provider had bars for, mapped to its ranges.
+        """
+        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        if offline or not wanted:
+            return {}
+        ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in wanted}
+        try:
+            fetched = cls._fetch_intraday(list(ysymbols))
+        except Exception as error:  # noqa: BLE001 - the provider raises freely
+            logger.debug("Could not fetch intraday bars: %s", error)
+            return {}
+        return {
+            ysymbols[ysymbol]: ranges
+            for ysymbol, ranges in fetched.items()
+            if ysymbol in ysymbols
+        }
+
+    @classmethod
+    def _refetch_history(
+        cls,
+        symbols: Sequence[str],
+        resolver: SymbolResolver,
+        today: date,
+    ) -> dict[str, tuple[datetime, dict[PriceRange, RangeHistory]]]:
+        """Fetch, condense and store the history of every symbol due.
+
+        The fetch returns only symbols it found history for, so one the
+        provider returned nothing for keeps whatever it had.
+        """
+        ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in symbols}
+        try:
+            fetched = cls._fetch_history(list(ysymbols), today=today)
+        except Exception as error:  # noqa: BLE001 - the provider raises freely
+            logger.warning(
+                "Could not fetch price history (%s); using what is kept",
+                error,
+            )
+            return {}
+
+        now = datetime.now(UTC)
+        written: dict[str, tuple[datetime, dict[PriceRange, RangeHistory]]] = {}
+        for ysymbol, ranges in fetched.items():
+            symbol = ysymbols[ysymbol]
+            _write_history(symbol, ranges, now)
+            written[symbol] = (now, ranges)
+        return written
 
     # -- NETWORK ---------------------------------------------------------
 
@@ -573,7 +696,7 @@ class QuotesService:
 
         fetched: dict[str, dict] = {}
         for ysymbol in ysymbols:
-            closes = _daily_closes(frame, ysymbol, single=len(ysymbols) == 1)
+            closes = _daily_closes(frame, ysymbol)
             if not closes:
                 continue
             fetched[ysymbol] = {
@@ -643,6 +766,99 @@ class QuotesService:
             }
 
         return dict(_run_concurrently(_describe, ysymbols))
+
+    @classmethod
+    def _fetch_history(
+        cls,
+        ysymbols: Sequence[str],
+        *,
+        today: date,
+    ) -> dict[str, dict[PriceRange, RangeHistory]]:
+        """Fetch and condense a batch's history, in three downloads.
+
+        Daily closes for the last year, weekly for five, monthly for the whole
+        listing: enough for every stored range, and small whatever a symbol's
+        age. The raw frames are condensed here and never kept.
+
+        Args:
+            ysymbols: Provider spellings to fetch.
+            today: The day the ranges are measured back from.
+
+        Returns:
+            Each provider symbol mapped to its condensed ranges.
+        """
+        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+
+        timeout = get_config().quotes_timeout_seconds
+        # A margin either side of the earliest anchor, for holidays and gaps.
+        margin = timedelta(days=14)
+        daily_from = min(months_back(today, 12), date(today.year - 1, 12, 31))
+        windows = {
+            "daily": {"interval": "1d", "start": (daily_from - margin).isoformat()},
+            "weekly": {
+                "interval": "1wk",
+                "start": (months_back(today, 60) - margin).isoformat(),
+            },
+            "monthly": {"interval": "1mo", "period": "max"},
+        }
+        frames = {
+            name: yf.download(
+                list(ysymbols),
+                group_by="ticker",
+                progress=False,
+                auto_adjust=False,
+                timeout=timeout,
+                **window,
+            )
+            for name, window in windows.items()
+        }
+
+        condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
+        for ysymbol in ysymbols:
+            series = {
+                name: _dated_closes(frame, ysymbol) for name, frame in frames.items()
+            }
+            ranges = condense(
+                series["daily"],
+                series["weekly"],
+                series["monthly"],
+                today=today,
+            )
+            if ranges:
+                condensed[ysymbol] = ranges
+        return condensed
+
+    @classmethod
+    def _fetch_intraday(
+        cls,
+        ysymbols: Sequence[str],
+    ) -> dict[str, dict[PriceRange, RangeHistory]]:
+        """Fetch and condense a batch's five-minute bars over the last sessions.
+
+        Args:
+            ysymbols: Provider spellings to fetch.
+
+        Returns:
+            Each provider symbol mapped to its `2h` and `1d` ranges.
+        """
+        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+
+        frame = yf.download(
+            list(ysymbols),
+            period="5d",
+            interval="5m",
+            group_by="ticker",
+            progress=False,
+            auto_adjust=False,
+            timeout=get_config().quotes_timeout_seconds,
+        )
+        condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
+        for ysymbol in ysymbols:
+            bars = _dated_closes(frame, ysymbol, intraday=True)
+            ranges = condense_intraday(bars)
+            if ranges:
+                condensed[ysymbol] = ranges
+        return condensed
 
 
 def _meta_max_age(*, fundamentals: bool) -> timedelta:
@@ -720,10 +936,56 @@ def _attr(source: object, name: str) -> object | None:
         return None
 
 
-def _daily_closes(frame: Any, ysymbol: str, *, single: bool) -> list[float]:  # noqa: ANN401
+def _dated_closes(
+    frame: Any,  # noqa: ANN401 - a pandas frame from the provider
+    ysymbol: str,
+    *,
+    intraday: bool = False,
+) -> list[PricePoint]:
+    """Pull one symbol's closes, with their dates, out of a batched download.
+
+    Args:
+        frame: The provider's download, or None when it returned nothing.
+        ysymbol: The provider symbol to read.
+        intraday: Stamp each close with its UTC time rather than its date.
+
+    Returns:
+        The closes, oldest first.
+    """
+    if frame is None or frame.empty:
+        return []
+    try:
+        closes = _close_column(frame, ysymbol).dropna()
+    except (KeyError, TypeError, IndexError):
+        return []
+    points: list[PricePoint] = []
+    for stamp, close in zip(closes.index, closes.to_numpy(), strict=True):
+        moment = stamp.to_pydatetime()
+        if intraday:
+            aware = moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+            when = aware.astimezone(UTC).isoformat()
+        else:
+            when = moment.date().isoformat()
+        points.append(PricePoint(when, dec(close)))
+    return points
+
+
+def _close_column(frame: Any, ysymbol: str) -> Any:  # noqa: ANN401 - pandas
+    """Find one symbol's closes in a download, whatever shape it came in.
+
+    Grouped by ticker, a download keys its columns by symbol and then field,
+    and yfinance keeps that shape even for a single symbol. A flat frame, with
+    the fields alone, can only hold one symbol, so it is read as that one.
+    """
+    if frame.columns.nlevels > 1:
+        return frame[ysymbol]["Close"]
+    return frame["Close"]
+
+
+def _daily_closes(frame: Any, ysymbol: str) -> list[float]:  # noqa: ANN401
     """Pull the close series for one symbol out of a batched download."""
     try:
-        column = frame["Close"] if single else frame[ysymbol]["Close"]
+        column = _close_column(frame, ysymbol)
     except (KeyError, TypeError, IndexError):
         return []
     return [float(value) for value in column.dropna().tolist()]
@@ -900,3 +1162,86 @@ def _write(rows: list[dict[str, Any]]) -> None:
             insert_or_replace_many(conn, Table.QUOTES, rows)
     except sqlite3.Error as error:
         announce.warning(f"Could not write the quotes cache: {error}")
+
+
+def _write_history(
+    symbol: str,
+    ranges: Mapping[PriceRange, RangeHistory],
+    fetched_at: datetime,
+) -> None:
+    """Replace a symbol's stored history with a freshly condensed one."""
+    stamp = fetched_at.isoformat()
+    rows = [
+        {
+            str(Column.QuoteHistory.SYMBOL): symbol,
+            str(Column.QuoteHistory.RANGE): str(price_range),
+            str(Column.QuoteHistory.SEQ): seq,
+            str(Column.QuoteHistory.DATE): point.when,
+            str(Column.QuoteHistory.CLOSE): float(point.close),
+            str(Column.QuoteHistory.FETCHED_AT): stamp,
+        }
+        for price_range, summary in ranges.items()
+        for seq, point in enumerate((summary.anchor, *summary.points))
+    ]
+    try:
+        create_quote_history_table()
+        with get_connection() as conn:
+            replace_rows(
+                conn,
+                Table.QUOTE_HISTORY,
+                rows,
+                where=f'"{Column.QuoteHistory.SYMBOL}" = ?',
+                params=[symbol],
+            )
+    except sqlite3.Error as error:
+        announce.warning(f"Could not write the price history: {error}")
+
+
+def _read_history(
+    symbols: Sequence[str],
+) -> dict[str, tuple[datetime, dict[PriceRange, RangeHistory]]]:
+    """Read stored history back, with when each symbol's was fetched."""
+    placeholders = ", ".join("?" for _ in symbols)
+    try:
+        create_quote_history_table()
+        with get_connection() as conn:
+            frame = get_rows(
+                conn,
+                Table.QUOTE_HISTORY,
+                where=f'"{Column.QuoteHistory.SYMBOL}" IN ({placeholders})',
+                params=list(symbols),
+                order_by=(
+                    f'"{Column.QuoteHistory.SYMBOL}", "{Column.QuoteHistory.RANGE}", '
+                    f'"{Column.QuoteHistory.SEQ}"'
+                ),
+            )
+    except sqlite3.Error as error:
+        logger.debug("Could not read the price history: %s", error)
+        return {}
+
+    grouped: dict[str, dict[PriceRange, list[PricePoint]]] = {}
+    fetched: dict[str, datetime] = {}
+    for record in frame.to_dict("records"):
+        symbol = str(record[Column.QuoteHistory.SYMBOL])
+        moment = _moment(record[Column.QuoteHistory.FETCHED_AT])
+        if moment is not None:
+            # The oldest stamp wins, so a part-written symbol reads as due.
+            fetched[symbol] = min(fetched.get(symbol, moment), moment)
+        price_range = PriceRange(str(record[Column.QuoteHistory.RANGE]))
+        point = PricePoint(
+            str(record[Column.QuoteHistory.DATE]),
+            dec(record[Column.QuoteHistory.CLOSE]),
+        )
+        grouped.setdefault(symbol, {}).setdefault(price_range, []).append(point)
+
+    return {
+        symbol: (
+            fetched[symbol],
+            {
+                price_range: RangeHistory(price_range, points[0], tuple(points[1:]))
+                for price_range, points in ranges.items()
+            },
+        )
+        for symbol, ranges in grouped.items()
+        if symbol in fetched
+    }

@@ -451,6 +451,44 @@ def insert_or_replace_many(
         return cursor.rowcount
 
 
+def replace_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    rows: list[dict],
+    where: str,
+    params: list | tuple,
+) -> int:
+    """Swap the rows matching a condition for new ones, in one transaction.
+
+    Either every matching row is replaced or, on an error, nothing changes.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to rewrite part of
+        rows: The new rows, at least one, every one carrying the same columns.
+        where: SQL WHERE clause choosing the rows being replaced.
+        params: Parameters for the `where` clause.
+
+    Returns:
+        Number of rows written, or 0 if there was an error.
+    """
+    keys = list(rows[0])
+    columns = ", ".join(f'"{col}"' for col in keys)
+    placeholders = ", ".join("?" for _ in keys)
+    insert = f'INSERT INTO "{table_name}" ({columns}) VALUES ({placeholders})'
+    try:
+        with connection:
+            connection.execute(f'DELETE FROM "{table_name}" WHERE {where}', params)
+            connection.executemany(
+                insert,
+                [tuple(row.get(col) for col in keys) for row in rows],
+            )
+    except sqlite3.Error:
+        logger.exception("Error replacing rows in table '%s'", table_name)
+        return 0
+    return len(rows)
+
+
 def delete_rows(
     connection: sqlite3.Connection,
     table_name: str,
