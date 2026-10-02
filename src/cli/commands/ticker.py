@@ -3,6 +3,9 @@
 Display all details about a given ticker- its quote, fundamentals, how far its price has
 moved over every range, and how each pool of the folio holds it. Works for symbols
 the folio has never traded as well (showing all details except the Holding information)
+
+With no symbol, or several, it compares them instead: one row each, with the
+move over every range in a column, so each range can be read down.
 """
 
 from __future__ import annotations
@@ -17,17 +20,27 @@ from cli.commands.common import (
     ensure_fx_coverage,
     load_folio,
     replay_result,
+    resolve_pool,
 )
-from domain import Currency
+from domain import Currency, Scope
 from engine.panels import FolioValuation
 from engine.performance import price_moves
-from engine.ticker import symbol_position
+from engine.ticker import (
+    MARKET_SORT,
+    MATRIX_SORTS,
+    UnknownMatrixSortError,
+    performance_rows,
+    sort_performance,
+    symbol_position,
+)
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
-from term import console_error
-from ui.views.ticker import show_ticker
+from term import console_error, console_warning
+from ui.views.ticker import show_matrix, show_ticker
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from engine.cache import CachedFrame
     from engine.positions import ValuationCurrency
     from engine.ticker import SymbolPosition
@@ -37,22 +50,33 @@ _CHOICES: tuple[CurrencyChoice, ...] = ("native", "CAD", "USD", "both")
 
 
 def report_ticker(
-    symbol: str,
+    symbols: Sequence[str] = (),
     currency: str | None = None,
     *,
     by_account: bool = False,
+    account_type: str | None = None,
+    account: str | None = None,
+    sort: str | None = None,
+    reverse: bool = False,
     refresh: bool = False,
     offline: bool = False,
 ) -> None:
-    """Show one security across the folio, with its quote and performance.
+    """Show one security in focus, or compare several.
 
     Args:
-        symbol: The symbol to look up, owned or not. An old alias resolves to
-            the symbol it was renamed to.
-        currency: `native` (the security's own currency), `CAD`, `USD` or
-            `both`. A CAD security only ever shows CAD.
-        by_account: One row per broker account rather than per account type.
-        refresh: Refetch the quote, fundamentals and history, and rebuild the
+        symbols: One symbol to look up, owned or not; several to compare; or
+            none to compare every open position. An old alias resolves to the
+            symbol it was renamed to.
+        currency: One symbol only: `native` (the security's own currency),
+            `CAD`, `USD` or `both`. A CAD security only ever shows CAD.
+        by_account: One symbol only: a row per broker account rather than per
+            account type.
+        account_type: Comparing: the account type whose holdings to list, and
+            whose market values and weights to show.
+        account: Comparing: a single broker account instead.
+        sort: Comparing: order by `market` or by a range such as `1wk`.
+        reverse: Comparing: flip the sort's direction.
+        refresh: Refetch quotes, fundamentals and history, and rebuild the
             cost-base cache.
         offline: Never touch the network; show whatever is cached.
 
@@ -60,6 +84,52 @@ def report_ticker(
         typer.Exit: On an unusable request, or a symbol nobody knows.
     """
     bootstrap.reload_config()
+    if len(symbols) == 1:
+        if account or account_type or sort or reverse:
+            console_error(
+                "--type, --account, --sort and --reverse arrange a comparison. "
+                "Name no symbol, or several, to use them.",
+            )
+            raise typer.Exit(1)
+        _report_one(
+            symbols[0],
+            currency,
+            by_account=by_account,
+            refresh=refresh,
+            offline=offline,
+        )
+        return
+
+    if by_account or currency:
+        console_error("--by-account and --currency apply to a single symbol.")
+        raise typer.Exit(1)
+    if sort is not None and sort.strip().lower() not in MATRIX_SORTS:
+        console_error(str(UnknownMatrixSortError(sort)))
+        raise typer.Exit(1)
+    _report_matrix(
+        symbols,
+        account_type=account_type,
+        account=account,
+        sort=sort,
+        reverse=reverse,
+        refresh=refresh,
+        offline=offline,
+    )
+
+
+def _report_one(
+    symbol: str,
+    currency: str | None,
+    *,
+    by_account: bool,
+    refresh: bool,
+    offline: bool,
+) -> None:
+    """Show one security across the folio, with its quote and performance.
+
+    Raises:
+        typer.Exit: On an unusable request, or a symbol nobody knows.
+    """
     choice = _currency_choice(currency)
 
     resolver = load_symbol_resolver()
@@ -119,6 +189,92 @@ def report_ticker(
             computed_at=cached.computed_at,
             offline=offline,
             with_acb=traded,
+        ),
+    )
+
+
+def _report_matrix(
+    symbols: Sequence[str],
+    *,
+    account_type: str | None,
+    account: str | None,
+    sort: str | None,
+    reverse: bool,
+    refresh: bool,
+    offline: bool,
+) -> None:
+    """Compare securities over every range, one row each.
+
+    Market values are in CAD, so they compare across currencies; prices and
+    moves stay in each security's own currency, where a percentage needs none.
+
+    Raises:
+        typer.Exit: When none of the symbols asked for is known.
+    """
+    resolver = load_symbol_resolver()
+    view = resolve_pool(account, account_type)
+    if not offline:
+        ensure_fx_coverage(through_today=True)
+    cached = load_folio(refresh=refresh)
+
+    panel = None
+    if not cached.frame.empty:
+        valuation = FolioValuation.build(
+            cached.frame,
+            replay_result(cached),
+            currency=Currency.CAD,
+            refresh=refresh,
+            offline=offline,
+        )
+        panel = valuation.panel(view)
+
+    if symbols:
+        wanted = list(dict.fromkeys(resolver.canonical(name) for name in symbols))
+    else:
+        held = panel.holdings.holdings if panel is not None else []
+        wanted = [holding.symbol for holding in held]
+    if not wanted:
+        console_warning(f"No open positions in {view.label} to compare.")
+        return
+
+    # Held securities were priced with the folio; only named ones may be new.
+    quotes = QuotesService.get_quotes(
+        wanted,
+        resolver,
+        refresh=refresh and bool(symbols),
+        offline=offline,
+    )
+    traded = set() if cached.frame.empty else set(cached.frame["Symbol"])
+    unknown = [
+        name for name in wanted if not quotes[name].priced and name not in traded
+    ]
+    if unknown:
+        if not offline:
+            QuotesService.clear(unknown)
+        console_warning(f"Nothing known about: {', '.join(unknown)}.")
+        wanted = [name for name in wanted if name not in unknown]
+    if not wanted:
+        raise typer.Exit(1)
+
+    history = QuotesService.history(wanted, resolver, refresh=refresh, offline=offline)
+    intraday = QuotesService.intraday(wanted, resolver, offline=offline)
+    moves = {
+        name: price_moves(quotes[name], history.get(name, {}), intraday.get(name, {}))
+        for name in wanted
+    }
+    rows = performance_rows(panel, {name: quotes[name] for name in wanted}, moves)
+    if sort is not None or not symbols:
+        rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)
+
+    show_matrix(
+        rows,
+        title=view.label,
+        pool_weight=view.scope is not Scope.FOLIO,
+        badge=cache_badge(
+            {name: quotes[name] for name in wanted},
+            computed_at=cached.computed_at,
+            offline=offline,
+            with_acb=panel is not None,
         ),
     )
 

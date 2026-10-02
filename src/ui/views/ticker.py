@@ -15,9 +15,11 @@ from engine.panels import account_type_of
 from term import console_print
 from term.size import terminal_size
 from ui.cells import (
+    EM_DASH,
     UNICODE,
     WARN_GLYPH,
     clock_time,
+    currency_tint,
     day_move,
     graded,
     income,
@@ -52,7 +54,7 @@ if TYPE_CHECKING:
 
     from engine.performance import RangeMove
     from engine.positions import Holding
-    from engine.ticker import PoolLine, SymbolPosition
+    from engine.ticker import PerformanceRow, PoolLine, SymbolPosition
     from services.quotes_service import Quote
 
 # A fund reports a fund's figures; anything else reports a company's.
@@ -85,6 +87,11 @@ _MAGNITUDES = (
 )
 
 _POOL_DROP_ORDER = ("Weight", "Book", "Unreal%", "Total%", "Divs", "Realized")
+
+# Matrix columns, conceded in this order on a narrow terminal.
+_MATRIX_DROP_ORDER = ("Wt%", "2d", "2h", "5y", "Market")
+# Bolding the best and worst of a column means nothing with only one row.
+_COMPARABLE = 2
 
 
 def show_ticker(
@@ -549,3 +556,80 @@ def _footer(position: SymbolPosition) -> list[str]:
             f"[yellow]{WARN_GLYPH} Flags: {codes}. Run `folio check`.[/yellow]",
         )
     return notes
+
+
+# -- MATRIX -------------------------------------------------------------------
+
+
+def show_matrix(
+    rows: Sequence[PerformanceRow],
+    *,
+    title: str,
+    pool_weight: bool,
+    badge: str | None = None,
+) -> None:
+    """Print securities one per row, with their move over every range.
+
+    Reading down a range's column compares them over that range: the best and
+    worst of each column are drawn bold.
+
+    Args:
+        rows: The securities, in the order to list them.
+        title: The pool the market values and weights are read from.
+        pool_weight: Show each security's share of that pool as well as of the
+            whole portfolio. Only worth a column when the pool is not the
+            whole portfolio.
+        badge: Cache-freshness line, printed above the table.
+    """
+    if badge:
+        console_print(badge)
+    table = RichTable(
+        title=f"Performance · {title} · market value in CAD",
+        title_justify="left",
+        border_style="bright_blue",
+        header_style="bold bright_white",
+    )
+    table.add_column("Symbol", no_wrap=True)
+    for header in ("Last", "Market", *(("Wt%",) if pool_weight else ()), "Folio%"):
+        table.add_column(header, justify="right", no_wrap=True)
+    for price_range in PriceRange:
+        table.add_column(str(price_range), justify="right", no_wrap=True)
+
+    extremes = {price_range: _extremes(rows, price_range) for price_range in PriceRange}
+    for row in rows:
+        quote = row.quote
+        last = price(quote.price)
+        if quote.currency is not None and quote.price is not None:
+            last = currency_tint(quote.currency, last)
+        cells = [
+            row.symbol,
+            last,
+            money(row.market) if row.market is not None else "",
+            *((weight(row.weight_in_pool),) if pool_weight else ()),
+            weight(row.weight_in_folio) if row.weight_in_folio is not None else "",
+        ]
+        for price_range in PriceRange:
+            move = row.moves.get(price_range)
+            cell = EM_DASH if move is None else _move_ratio(move)
+            if move is not None and move.change_pct in extremes[price_range]:
+                cell = f"[bold]{cell}[/bold]"
+            cells.append(cell)
+        table.add_row(*cells)
+
+    fitted = fit(table, _MATRIX_DROP_ORDER)
+    if fitted.note:
+        console_print(fitted.note)
+    console_print(fitted.table)
+
+
+def _extremes(rows: Sequence[PerformanceRow], price_range: PriceRange) -> set[Decimal]:
+    """Find the best and worst move over one range, when there are two to compare."""
+    moves = [
+        move.change_pct
+        for row in rows
+        if (move := row.moves.get(price_range)) is not None
+        and move.change_pct is not None
+    ]
+    if len(moves) < _COMPARABLE:
+        return set()
+    return {max(moves), min(moves)}

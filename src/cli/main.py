@@ -469,30 +469,54 @@ def dash_cmd(
 
 @app.command(
     "ticker",
-    help="Show one security: its quote, fundamentals, performance and holdings",
-    no_args_is_help=True,
+    help="Show one security in focus, or compare several over every range",
 )
 def ticker_cmd(
-    symbol: str = typer.Argument(
-        ...,
-        help="Symbol to look up, whether the folio holds it or not",
+    symbols: list[str] | None = typer.Argument(
+        None,
+        help="One symbol to look up, owned or not; several, or none (every "
+        "holding), to compare",
     ),
     currency: str | None = typer.Option(
         None,
         "-c",
         "--currency",
-        help="native (default, the symbol's own currency), CAD, USD or both",
+        help="One symbol: native (default, the symbol's own currency), CAD, "
+        "USD or both",
+    ),
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Comparing: only what one account type holds (tfsa, rrsp, nreg, ...)",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Comparing: only what one broker account holds",
+    ),
+    sort: str | None = typer.Option(
+        None,
+        "-s",
+        "--sort",
+        help="Comparing: order by market (default) or a range, e.g. -s 1wk",
     ),
     *,
+    reverse: bool = typer.Option(
+        False,
+        "-r",
+        "--reverse",
+        help="Comparing: flip the sort direction",
+    ),
     by_account: bool = typer.Option(
         False,
         "-b",
         "--by-account",
-        help="One row per broker account instead of per account type",
+        help="One symbol: a row per broker account instead of per account type",
     ),
     refresh: bool = typer.Option(
         False,
-        "-r",
         "--refresh",
         help="Refetch the quote, fundamentals and history",
     ),
@@ -503,13 +527,17 @@ def ticker_cmd(
         help="Use cached data only, never touching the network",
     ),
 ) -> None:
-    """Show one security: its quote, fundamentals, performance and holdings."""
+    """Show one security in focus, or compare several over every range."""
     from cli.commands.ticker import report_ticker
 
     report_ticker(
-        symbol,
+        symbols or [],
         currency,
         by_account=by_account,
+        account_type=account_type,
+        account=account,
+        sort=sort,
+        reverse=reverse,
         refresh=refresh,
         offline=offline,
     )

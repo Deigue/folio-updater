@@ -32,9 +32,14 @@ def _seed() -> None:
         ["TESTTKR", "-c", "CAD"],
         # Priced by the provider, but never traded: no holdings to show.
         ["OTHER"],
+        # Comparisons: every holding, one pool's, or the symbols named, one of
+        # which nobody knows and is left out.
+        [],
+        ["-t", "tfsa", "-s", "1wk", "-r"],
+        ["TESTTKR", "OTHER", "UNKNOWNSYM", "-s", "market"],
     ],
 )
-def test_ticker_serves_a_held_or_unheld_symbol(
+def test_ticker_serves_one_symbol_or_a_comparison(
     temp_ctx: TempContext,
     args: list[str],
 ) -> None:
@@ -50,6 +55,12 @@ def test_ticker_serves_a_held_or_unheld_symbol(
         ["UNKNOWNSYM"],
         ["UNKNOWNSYM", "--offline"],
         ["TESTTKR", "-c", "EUR"],
+        # A comparison of nothing anyone knows has nothing to show.
+        ["UNKNOWNSYM", "NOSUCHSYM"],
+        # Flags for the other shape of the command.
+        ["TESTTKR", "-t", "tfsa"],
+        ["TESTTKR", "OTHER", "-b"],
+        ["-s", "volume"],
     ],
 )
 def test_ticker_refuses_what_it_cannot_show(
@@ -62,3 +73,10 @@ def test_ticker_refuses_what_it_cannot_show(
         result = run_cli_with_config(ctx.config, app, ["ticker", *args])
 
         assert result.exit_code == 1
+
+
+def test_comparing_an_empty_folio_says_there_is_nothing_held(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        assert_cli_success(run_cli_with_config(ctx.config, app, ["ticker"]))

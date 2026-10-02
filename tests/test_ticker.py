@@ -6,11 +6,19 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import pytest
+
 from domain import Currency, PriceRange, QuoteStatus
 from engine.cache import build
-from engine.panels import FolioValuation
-from engine.performance import price_moves
-from engine.ticker import symbol_position
+from engine.panels import FolioValuation, type_view
+from engine.performance import RangeMove, price_moves
+from engine.ticker import (
+    PerformanceRow,
+    UnknownMatrixSortError,
+    performance_rows,
+    sort_performance,
+    symbol_position,
+)
 from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import Quote
 
@@ -227,3 +235,73 @@ def test_an_unpriced_quote_has_no_moves() -> None:
     history = {PriceRange.YEAR_1: _ranged(PriceRange.YEAR_1, 100)}
 
     assert set(price_moves(quote, history, {}).values()) == {None}
+
+
+def _row(symbol: str, week: str | None, market: int | None) -> PerformanceRow:
+    """Build a matrix row with only a week's move and a market value."""
+    moves = {}
+    if week is not None:
+        change = Decimal(week)
+        moves[PriceRange.WEEK_1] = RangeMove(
+            PriceRange.WEEK_1,
+            anchor=Decimal(100),
+            change=change,
+            change_pct=change / 100,
+            points=(),
+            start="2026-09-24",
+        )
+    quote = Quote(symbol=symbol, ysymbol=symbol, status=QuoteStatus.OK)
+    return PerformanceRow(
+        symbol,
+        quote,
+        moves,
+        market=None if market is None else Decimal(market),
+    )
+
+
+def test_the_matrix_sorts_best_first_with_the_unmeasured_last() -> None:
+    rows = [_row("AAA", "2", 500), _row("BBB", None, 900), _row("CCC", "-3", 100)]
+
+    def order(name: str, *, reverse: bool = False) -> list[str]:
+        return [row.symbol for row in sort_performance(rows, name, reverse=reverse)]
+
+    assert order("market") == ["BBB", "AAA", "CCC"]
+    # A row with no move over the range trails, whichever way it is sorted.
+    assert order("1WK") == ["AAA", "CCC", "BBB"]
+    assert order("1wk", reverse=True) == ["CCC", "AAA", "BBB"]
+    with pytest.raises(UnknownMatrixSortError, match="Try one of: market, 2h"):
+        sort_performance(rows, "volume")
+
+
+def test_the_matrix_reads_market_and_weights_from_the_pool(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_two_types()
+        cached = build()
+        assert cached.result is not None
+        valuation = FolioValuation.build(
+            cached.frame,
+            cached.result,
+            currency=Currency.CAD,
+        )
+        panel = valuation.panel(type_view("TFSA"))
+        quote = Quote(symbol="TESTTKR", ysymbol="TESTTKR", status=QuoteStatus.OK)
+        unheld = Quote(symbol="OTHER", ysymbol="OTHER", status=QuoteStatus.OK)
+
+        held, other = performance_rows(
+            panel,
+            {"TESTTKR": quote, "OTHER": unheld},
+            {},
+        )
+
+        # The TFSA's half of the holding: all of the pool, half the portfolio.
+        assert held.weight_in_pool == Decimal(1)
+        assert held.weight_in_folio == Decimal("0.5")
+        assert held.market is not None
+        # A security the pool does not hold has nothing to weigh.
+        assert (other.market, other.weight_in_pool, other.weight_in_folio) == (
+            None,
+            None,
+            None,
+        )
