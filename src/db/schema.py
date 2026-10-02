@@ -287,7 +287,7 @@ def create_quote_history_table() -> None:
     """Create the condensed price history table if it doesn't already exist.
 
     Each symbol holds a fixed handful of rows per range: an anchor and the
-    points of its sparkline. A refresh replaces a symbol's rows rather than
+    points of its chart. A refresh replaces a symbol's rows rather than
     appending.
 
     Returns:

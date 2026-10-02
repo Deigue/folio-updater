@@ -227,6 +227,14 @@ class Quote:
             return None
         return self.price - self.prev_close
 
+    @property
+    def day_change_pct(self) -> Decimal | None:
+        """The day's move as a share of the previous close, or None without one."""
+        change = self.day_change
+        if change is None or not self.prev_close:
+            return None
+        return change / self.prev_close
+
 
 @dataclass(frozen=True)
 class RefreshResult:
@@ -774,11 +782,12 @@ class QuotesService:
         *,
         today: date,
     ) -> dict[str, dict[PriceRange, RangeHistory]]:
-        """Fetch and condense a batch's history, in three downloads.
+        """Fetch and condense a batch's history, in four downloads.
 
         Daily closes for the last year, weekly for five, monthly for the whole
-        listing: enough for every stored range, and small whatever a symbol's
-        age. The raw frames are condensed here and never kept.
+        listing, and hourly bars for the last month's shape: enough for every
+        stored range, and small whatever a symbol's age. The raw frames are
+        condensed here and never kept.
 
         Args:
             ysymbols: Provider spellings to fetch.
@@ -787,42 +796,36 @@ class QuotesService:
         Returns:
             Each provider symbol mapped to its condensed ranges.
         """
-        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
-
-        timeout = get_config().quotes_timeout_seconds
         # A margin either side of the earliest anchor, for holidays and gaps.
         margin = timedelta(days=14)
         daily_from = min(months_back(today, 12), date(today.year - 1, 12, 31))
-        windows = {
-            "daily": {"interval": "1d", "start": (daily_from - margin).isoformat()},
-            "weekly": {
-                "interval": "1wk",
-                "start": (months_back(today, 60) - margin).isoformat(),
-            },
-            "monthly": {"interval": "1mo", "period": "max"},
-        }
         frames = {
-            name: yf.download(
-                list(ysymbols),
-                group_by="ticker",
-                progress=False,
-                auto_adjust=False,
-                timeout=timeout,
-                **window,
-            )
-            for name, window in windows.items()
+            "daily": _download(
+                ysymbols,
+                interval="1d",
+                start=(daily_from - margin).isoformat(),
+            ),
+            "weekly": _download(
+                ysymbols,
+                interval="1wk",
+                start=(months_back(today, 60) - margin).isoformat(),
+            ),
+            "monthly": _download(ysymbols, interval="1mo", period="max"),
+            "hourly": _download(
+                ysymbols,
+                interval="60m",
+                start=(months_back(today, 1) - margin).isoformat(),
+            ),
         }
 
         condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
         for ysymbol in ysymbols:
-            series = {
-                name: _dated_closes(frame, ysymbol) for name, frame in frames.items()
-            }
             ranges = condense(
-                series["daily"],
-                series["weekly"],
-                series["monthly"],
+                _dated_closes(frames["daily"], ysymbol),
+                _dated_closes(frames["weekly"], ysymbol),
+                _dated_closes(frames["monthly"], ysymbol),
                 today=today,
+                hourly=_dated_closes(frames["hourly"], ysymbol, intraday=True),
             )
             if ranges:
                 condensed[ysymbol] = ranges
@@ -833,32 +836,52 @@ class QuotesService:
         cls,
         ysymbols: Sequence[str],
     ) -> dict[str, dict[PriceRange, RangeHistory]]:
-        """Fetch and condense a batch's five-minute bars over the last sessions.
+        """Fetch and condense a batch's bars over the last week of sessions.
+
+        One-minute bars for `2h`, five-minute bars for the rest. Regular
+        sessions only: no pre- or after-market trading.
 
         Args:
             ysymbols: Provider spellings to fetch.
 
         Returns:
-            Each provider symbol mapped to its `2h` and `1d` ranges.
+            Each provider symbol mapped to its `2h`, `1d`, `2d` and `1wk` ranges.
         """
-        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
-
-        frame = yf.download(
-            list(ysymbols),
-            period="5d",
-            interval="5m",
-            group_by="ticker",
-            progress=False,
-            auto_adjust=False,
-            timeout=get_config().quotes_timeout_seconds,
-        )
+        minutes = _download(ysymbols, interval="1m", period="5d")
+        fives = _download(ysymbols, interval="5m", period="5d")
+        week_from = datetime.now(TORONTO_TZ).date() - timedelta(days=7)
         condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
         for ysymbol in ysymbols:
-            bars = _dated_closes(frame, ysymbol, intraday=True)
-            ranges = condense_intraday(bars)
+            ranges = condense_intraday(
+                _dated_closes(minutes, ysymbol, intraday=True),
+                _dated_closes(fives, ysymbol, intraday=True),
+                week_from=week_from,
+            )
             if ranges:
                 condensed[ysymbol] = ranges
         return condensed
+
+
+def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 - pandas
+    """Download a batch's bars over one window, grouped by symbol.
+
+    Args:
+        ysymbols: Provider spellings to fetch.
+        **window: The `interval`, and a `start` or a `period`.
+
+    Returns:
+        The provider's frame, or None when it returned nothing.
+    """
+    import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+
+    return yf.download(
+        list(ysymbols),
+        group_by="ticker",
+        progress=False,
+        auto_adjust=False,
+        timeout=get_config().quotes_timeout_seconds,
+        **window,
+    )
 
 
 def _meta_max_age(*, fundamentals: bool) -> timedelta:

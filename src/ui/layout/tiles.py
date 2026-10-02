@@ -123,12 +123,15 @@ class TilingLayout:
     6. Renders full-width blocks at the end, below the tiled columns.
     """
 
-    def __init__(self, blocks: list[Block]) -> None:
+    def __init__(self, blocks: list[Block], *, ordered: bool = False) -> None:
         """Initialize the tiling layout.
 
         Args:
             blocks: List of Block instances to arrange.
+            ordered: Place the blocks in the order given rather than tallest
+                first, so the first one always anchors the left-hand column.
         """
+        self.ordered = ordered
         # Separate full-width blocks from tiled blocks
         self.tiled_blocks = [b for b in blocks if not b.full_width]
         self.full_width_blocks = [b for b in blocks if b.full_width]
@@ -150,14 +153,18 @@ class TilingLayout:
         if not self.tiled_blocks:
             return []
 
-        sorted_blocks = sorted(self.tiled_blocks, key=lambda b: b.height, reverse=True)
+        sorted_blocks = (
+            list(self.tiled_blocks)
+            if self.ordered
+            else sorted(self.tiled_blocks, key=lambda b: b.height, reverse=True)
+        )
 
-        # First block (tallest) anchors the first column
+        # The first block (the tallest, unless ordered) anchors the first column
         self._columns = [[sorted_blocks[0]]]
         column_heights = [sorted_blocks[0].height]
         column_widths = [sorted_blocks[0].width]
 
-        # Reference height is the tallest block's height
+        # Its height is the budget every other column stacks against
         reference_height = sorted_blocks[0].height
 
         for block in sorted_blocks[1:]:

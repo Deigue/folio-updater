@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from domain import PriceRange
 from services.price_history import (
-    SPARK_POINTS,
+    CHART_POINTS,
     PricePoint,
     condense,
     condense_intraday,
@@ -67,26 +67,58 @@ def test_a_range_keeps_its_anchor_and_a_bounded_sample_ending_at_the_latest() ->
     year = condense(daily, [], [], today=TODAY)[PriceRange.YEAR_1]
 
     # Two hundred-odd sessions, whatever the symbol, condense to the same few.
-    assert len(year.points) == SPARK_POINTS
+    assert len(year.points) == CHART_POINTS
     assert year.points[-1] == daily[-1]
     assert year.anchor not in year.points
 
 
-def test_intraday_ranges_read_the_latest_session() -> None:
-    def session(day: date, bars: int) -> list[PricePoint]:
-        opening = datetime(day.year, day.month, day.day, 13, 30, tzinfo=UTC)
-        return [
-            PricePoint((opening + timedelta(minutes=5 * n)).isoformat(), Decimal(n))
-            for n in range(bars)
-        ]
+def test_a_month_is_anchored_on_a_close_and_drawn_from_hourly_bars() -> None:
+    daily = _weekdays(date(2026, 8, 3), TODAY)
+    hourly = [
+        PricePoint(f"2026-08-{day:02d}T15:30:00+00:00", Decimal(day))
+        for day in range(24, 32)
+        if date(2026, 8, day).weekday() < 5
+    ]
 
-    yesterday = session(date(2026, 9, 29), 78)
-    today = session(TODAY, 60)  # still trading at 18:25 UTC
+    month = condense(daily, [], [], today=TODAY, hourly=hourly)[PriceRange.MONTH_1]
 
-    ranges = condense_intraday([*yesterday, *today])
+    # A month back is Sunday Aug 30: the Friday close is the start, and only the
+    # bars after it draw the shape.
+    assert month.anchor.when == "2026-08-28"
+    assert [point.when[:10] for point in month.points] == ["2026-08-31"]
 
-    # The day is measured from yesterday's last bar, two hours from 16:25 UTC.
-    assert ranges[PriceRange.DAY_1].anchor == yesterday[-1]
+
+def _session(day: date, bars: int) -> list[PricePoint]:
+    """Five-minute bars from the 9:30 open (13:30 UTC in summer)."""
+    opening = datetime(day.year, day.month, day.day, 13, 30, tzinfo=UTC)
+    return [
+        PricePoint((opening + timedelta(minutes=5 * n)).isoformat(), Decimal(n))
+        for n in range(bars)
+    ]
+
+
+def test_intraday_ranges_sit_on_the_sessions_they_cover() -> None:
+    monday = _session(date(2026, 9, 28), 78)
+    yesterday = _session(date(2026, 9, 29), 78)
+    today = _session(TODAY, 60)  # its last bar opens at 2:25 PM
+
+    ranges = condense_intraday(
+        today,
+        [*monday, *yesterday, *today],
+        week_from=date(2026, 9, 28),
+    )
+
+    # The day is today's session only, five hours into six and a half.
+    day = ranges[PriceRange.DAY_1]
+    assert day.points[0] == today[0]
+    assert day.anchor == yesterday[-1]
+    assert day.fill == Decimal(5 * 3600) / Decimal(6.5 * 3600)
+    # Two days is yesterday and today, yesterday's half of it whole.
+    two_days = ranges[PriceRange.DAYS_2]
+    assert two_days.points[0] == yesterday[0]
+    assert two_days.fill == (1 + day.fill) / 2
+    # A week drawn from the sessions after it begins.
+    assert ranges[PriceRange.WEEK_1].points[0] == yesterday[0]
+    # Two hours back from the last bar.
     assert ranges[PriceRange.HOURS_2].anchor.when == "2026-09-30T16:25:00+00:00"
-    assert ranges[PriceRange.HOURS_2].points[-1] == today[-1]
-    assert condense_intraday([]) == {}
+    assert condense_intraday([], [], week_from=TODAY) == {}

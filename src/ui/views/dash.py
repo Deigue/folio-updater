@@ -15,27 +15,32 @@ from rich.table import Table as RichTable
 from domain import Currency, WarningCode
 from domain.numeric import ZERO, q2
 from engine.positions import summarize_closed
-from term import console_print, supports_unicode
+from term import console_print
+from ui.cells import (
+    EM_DASH,
+    UNICODE,
+    WARN_GLYPH,
+    currency_tint,
+    day_move,
+    income,
+    lifetime_return,
+    money,
+    percent,
+    price,
+    signed,
+    style,
+    units,
+    weight,
+)
 from ui.layout.bars import hbar, meter
 from ui.layout.fit import fit, fit_table
 from ui.layout.tiles import Block, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
-    CURRENCY_COLORS,
-    DAY_MOVE_STRONG_AT,
-    FLAT,
-    FLAT_BELOW,
     FLOW_COLORS,
-    GAIN,
-    GAIN_STRONG,
     GRAND_TOTAL_ROW_STYLE,
-    INCOME,
     LOSS,
-    LOSS_STRONG,
-    MONEY_PRECISION,
-    PRICE_PRECISION,
     REFERENCE_STYLE,
-    RETURN_STRONG_AT,
     ROOM_BAR,
     ROOM_BAR_ASCII,
     ROOM_FULL,
@@ -44,14 +49,9 @@ from ui.vocabulary import (
     ROOM_OVER,
     ROOM_PARTIAL,
     SUBTOTAL_ROW_STYLE,
-    UNIT_PRECISION,
-    WEIGHT_ALERT,
-    WEIGHT_ALERT_AT,
     WEIGHT_BAR_FULL,
     WEIGHT_BAR_STYLE,
     WEIGHT_BAR_WIDTH,
-    WEIGHT_WARN,
-    WEIGHT_WARN_AT,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -65,11 +65,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from services.quotes_service import Quote
     from ui.layout.fit import FitResult
 
-_UNICODE = supports_unicode()
-_WARN_GLYPH = "⚠" if _UNICODE else "!"
-_EM_DASH = "—" if _UNICODE else "-"
-
-_PERCENT_PRECISION = 2
 
 # Diagnostics that make a pool's units untrustworthy.
 _UNITS_SUSPECT = frozenset(
@@ -101,126 +96,7 @@ class _ColumnSpec:
     def render(self, holding: Holding) -> str:
         """Render this column's cell for one position row."""
         text = self.cell(holding)
-        return _style(text, REFERENCE_STYLE) if self.muted else text
-
-
-def _money(value: Decimal | None, *, blank_zero: bool = False) -> str:
-    """Render a money figure, leaving a genuine blank blank.
-
-    Rounded to cents *before* the sign is read, so an FX residue of a
-    millionth of a cent prints as `0.00` rather than the alarming `-0.00`.
-    """
-    if value is None:
-        return _EM_DASH
-    number = float(q2(value)) + 0.0  # collapses -0.0, which reads as a real debit
-    if blank_zero and number == 0:
-        return ""
-    return f"{number:,.{MONEY_PRECISION}f}"
-
-
-def _price(value: Decimal | None) -> str:
-    """Render a per-unit price at its own, finer precision."""
-    if value is None:
-        return _EM_DASH
-    return f"{float(value):,.{PRICE_PRECISION}f}".rstrip("0").rstrip(".")
-
-
-def _units(value: Decimal | None) -> str:
-    """Render a share count, dropping the zeros a whole position does not need."""
-    if value is None:
-        return _EM_DASH
-    text = f"{float(value):,.{UNIT_PRECISION}f}"
-    return text.rstrip("0").rstrip(".") if "." in text else text
-
-
-def _percent(value: Decimal | None) -> str:
-    """Render a ratio as a percentage."""
-    if value is None:
-        return _EM_DASH
-    return f"{float(value) * 100:,.{_PERCENT_PRECISION}f}%"
-
-
-def _style(text: str, style: str | None) -> str:
-    """Wrap a rendered cell in a style, leaving blanks and placeholders bare.
-
-    A blank must stay truly blank, since `fit` drops a column no row fills in.
-    """
-    if not text or not style or text == _EM_DASH:
-        return text
-    return f"[{style}]{text}[/]"
-
-
-def _signed(text: str, value: Decimal | None) -> str:
-    """Colour a rendered cell by the sign of the number behind it.
-
-    Green up, red down, matching every other table in the app.
-    """
-    if value is None or value == 0:
-        return text
-    return _style(text, GAIN if value > 0 else LOSS)
-
-
-def _graded(
-    text: str,
-    ratio: Decimal | None,
-    strong_at: Decimal,
-    sign: Decimal | None = None,
-) -> str:
-    """Colour a percentage by its sign and how large it is.
-
-    A move too small to matter is dimmed, an ordinary one takes the plain sign
-    colour, and one at or beyond `strong_at` is drawn bold and bright.
-
-    Args:
-        text: The rendered percentage.
-        ratio: The ratio behind it, which decides the intensity.
-        strong_at: The magnitude at which the colour turns strong.
-        sign: What decides up or down, when that is not the ratio itself.
-
-    Returns:
-        The cell, marked up.
-    """
-    if ratio is not None and abs(ratio) < FLAT_BELOW:
-        return _style(text, FLAT)
-    sign = ratio if sign is None else sign
-    if ratio is None or sign is None or sign == 0:
-        return text
-    strong = abs(ratio) >= strong_at
-    if sign > 0:
-        return _style(text, GAIN_STRONG if strong else GAIN)
-    return _style(text, LOSS_STRONG if strong else LOSS)
-
-
-def _day_move(value: Decimal | None, sign: Decimal | None = None) -> str:
-    """Render a one-day percentage move, graded by its size."""
-    return _graded(_percent(value), value, DAY_MOVE_STRONG_AT, sign)
-
-
-def _return(value: Decimal | None, sign: Decimal | None = None) -> str:
-    """Render a lifetime percentage return, graded by its size."""
-    return _graded(_percent(value), value, RETURN_STRONG_AT, sign)
-
-
-def _income(value: Decimal) -> str:
-    """Render dividend income in its own colour, blanking a zero."""
-    return _style(_money(value, blank_zero=True), INCOME)
-
-
-def _currency(currency: Currency, text: str) -> str:
-    """Tint a currency label with that currency's colour."""
-    return _style(text, CURRENCY_COLORS.get(currency, "dim"))
-
-
-def _weight(value: Decimal | None) -> str:
-    """Render a position's weight, flagged once it concentrates its pool."""
-    text = _percent(value)
-    if value is None:
-        return text
-    if value >= WEIGHT_ALERT_AT:
-        return _style(text, WEIGHT_ALERT)
-    if value >= WEIGHT_WARN_AT:
-        return _style(text, WEIGHT_WARN)
-    return text
+        return style(text, REFERENCE_STYLE) if self.muted else text
 
 
 def _weight_bar(holding: Holding) -> str:
@@ -228,14 +104,14 @@ def _weight_bar(holding: Holding) -> str:
     weight = holding.weight_in_pool
     if weight is None:
         return ""
-    bar = hbar(weight / WEIGHT_BAR_FULL, WEIGHT_BAR_WIDTH, unicode=_UNICODE)
-    return _style(bar, WEIGHT_BAR_STYLE)
+    bar = hbar(weight / WEIGHT_BAR_FULL, WEIGHT_BAR_WIDTH, unicode=UNICODE)
+    return style(bar, WEIGHT_BAR_STYLE)
 
 
 def _symbol_cell(holding: Holding) -> str:
     """Render the symbol, badged when its units are known to be wrong."""
     if set(holding.flags) & _UNITS_SUSPECT:
-        return f"[red]{holding.symbol} {_WARN_GLYPH}[/red]"
+        return f"[red]{holding.symbol} {WARN_GLYPH}[/red]"
     return holding.symbol
 
 
@@ -250,30 +126,30 @@ _HOLDING_COLUMNS: tuple[_ColumnSpec, ...] = (
         justify="left",
         wide_only=True,
     ),
-    _ColumnSpec("Units", lambda h: _units(h.units), muted=True),
-    _ColumnSpec("Avg", lambda h: _price(h.avg_cost), muted=True),
-    _ColumnSpec("Last", lambda h: _price(h.price)),
-    _ColumnSpec("Change", lambda h: _signed(_price(h.change), h.change)),
-    _ColumnSpec("Change%", lambda h: _day_move(h.change_pct)),
-    _ColumnSpec("PnL", lambda h: _signed(_money(h.day_pnl), h.day_pnl)),
-    _ColumnSpec("PnL%", lambda h: _day_move(h.day_pnl_pct)),
-    _ColumnSpec("Unreal", lambda h: _signed(_money(h.unrealized), h.unrealized)),
-    _ColumnSpec("Unreal%", lambda h: _return(h.unrealized_pct)),
+    _ColumnSpec("Units", lambda h: units(h.units), muted=True),
+    _ColumnSpec("Avg", lambda h: price(h.avg_cost), muted=True),
+    _ColumnSpec("Last", lambda h: price(h.price)),
+    _ColumnSpec("Change", lambda h: signed(price(h.change), h.change)),
+    _ColumnSpec("Change%", lambda h: day_move(h.change_pct)),
+    _ColumnSpec("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl)),
+    _ColumnSpec("PnL%", lambda h: day_move(h.day_pnl_pct)),
+    _ColumnSpec("Unreal", lambda h: signed(money(h.unrealized), h.unrealized)),
+    _ColumnSpec("Unreal%", lambda h: lifetime_return(h.unrealized_pct)),
     # Realized and Divs blank their zeros
     _ColumnSpec(
         "Realized",
-        lambda h: _signed(_money(h.realized, blank_zero=True), h.realized),
+        lambda h: signed(money(h.realized, blank_zero=True), h.realized),
     ),
-    _ColumnSpec("Divs", lambda h: _income(h.dividends)),
-    _ColumnSpec("Total", lambda h: _signed(_money(h.total_pnl), h.total_pnl)),
-    _ColumnSpec("Total%", lambda h: _return(h.total_pnl_pct)),
-    _ColumnSpec("Book", lambda h: _money(h.book_value), muted=True),
-    _ColumnSpec("Market", lambda h: _money(h.market_value)),
-    _ColumnSpec("Wt%", lambda h: _weight(h.weight_in_pool)),
+    _ColumnSpec("Divs", lambda h: income(h.dividends)),
+    _ColumnSpec("Total", lambda h: signed(money(h.total_pnl), h.total_pnl)),
+    _ColumnSpec("Total%", lambda h: lifetime_return(h.total_pnl_pct)),
+    _ColumnSpec("Book", lambda h: money(h.book_value), muted=True),
+    _ColumnSpec("Market", lambda h: money(h.market_value)),
+    _ColumnSpec("Wt%", lambda h: weight(h.weight_in_pool)),
     # The bar has a column of its own so every `Wt%` figure, totals included,
     # stays right-aligned. Totals rows leave it blank.
     _ColumnSpec("Weight", _weight_bar, justify="left", wide_only=True),
-    _ColumnSpec("Folio%", lambda h: _weight(h.weight_in_folio)),
+    _ColumnSpec("Folio%", lambda h: weight(h.weight_in_folio)),
 )
 
 # Column drop order as terminals get too narrow.
@@ -391,12 +267,12 @@ def _closed_cells(holding: Holding, specs: Sequence[_ColumnSpec]) -> list[str]:
     total = holding.closed_total
     cells = {
         "Symbol": f"{holding.symbol} [dim](closed)[/dim]",
-        "Realized": _signed(
-            _money(holding.realized, blank_zero=True),
+        "Realized": signed(
+            money(holding.realized, blank_zero=True),
             holding.realized,
         ),
-        "Divs": _income(holding.dividends),
-        "Total": _signed(_money(total, blank_zero=True), total),
+        "Divs": income(holding.dividends),
+        "Total": signed(money(total, blank_zero=True), total),
     }
     return [cells.get(spec.header, "") for spec in specs]
 
@@ -410,9 +286,9 @@ def _closed_summary_cells(
     total = totals.total
     cells = {
         "Symbol": f"[bold dim]Closed ({totals.count})[/bold dim]",
-        "Realized": _signed(_money(totals.realized, blank_zero=True), totals.realized),
-        "Divs": _income(totals.dividends),
-        "Total": _signed(_money(total, blank_zero=True), total),
+        "Realized": signed(money(totals.realized, blank_zero=True), totals.realized),
+        "Divs": income(totals.dividends),
+        "Total": signed(money(total, blank_zero=True), total),
     }
     return [cells.get(spec.header, "") for spec in specs]
 
@@ -485,22 +361,22 @@ def _subtotal_cells(
         "Symbol": f"[bold]{group.count} held[/bold]",
         # A totals row has no unit count, and the column is never conceded, so
         # it is free space in exactly the place the currency belongs.
-        "Units": _currency(group.currency, str(group.currency)),
-        "Book": _money(group.book),
-        "Market": _money(group.market),
-        "PnL": _signed(_money(group.day_pnl), group.day_pnl),
-        "PnL%": _day_move(group.day_pnl_pct),
-        "Unreal": _signed(_money(group.unrealized), group.unrealized),
-        "Unreal%": _return(group.unrealized_pct, group.unrealized),
-        "Realized": _signed(
-            _money(group.realized, blank_zero=True),
+        "Units": currency_tint(group.currency, str(group.currency)),
+        "Book": money(group.book),
+        "Market": money(group.market),
+        "PnL": signed(money(group.day_pnl), group.day_pnl),
+        "PnL%": day_move(group.day_pnl_pct),
+        "Unreal": signed(money(group.unrealized), group.unrealized),
+        "Unreal%": lifetime_return(group.unrealized_pct, group.unrealized),
+        "Realized": signed(
+            money(group.realized, blank_zero=True),
             group.realized,
         ),
-        "Divs": _income(group.dividends),
-        "Total": _signed(_money(group.total_pnl), group.total_pnl),
-        "Total%": _return(total.ratio, total.earned),
-        "Wt%": _percent(group.weight_in_pool),
-        "Folio%": _percent(group.weight_in_folio),
+        "Divs": income(group.dividends),
+        "Total": signed(money(group.total_pnl), group.total_pnl),
+        "Total%": lifetime_return(total.ratio, total.earned),
+        "Wt%": percent(group.weight_in_pool),
+        "Folio%": percent(group.weight_in_folio),
     }
     return [cells.get(spec.header, "") for spec in specs]
 
@@ -513,27 +389,30 @@ def _grand_total_cells(
     """Total across every currency, converted into the base currency."""
     base = holdings.base_currency
     deposited = _net_deposited(flows)
-    whole = _percent(Decimal(1)) if holdings.total_market else ""
+    whole = percent(Decimal(1)) if holdings.total_market else ""
     cells = {
         "Symbol": "[bold]Total[/bold]",
-        "Units": _currency(base, f"({base})"),
+        "Units": currency_tint(base, f"({base})"),
         "Wt%": whole,
         # How much of everything owned this whole scope accounts for
-        "Folio%": _percent(holdings.total_weight_in_folio),
-        "Book": _money(holdings.total_book),
-        "Market": _money(holdings.total_market),
-        "PnL": _signed(_money(holdings.total_day_pnl), holdings.total_day_pnl),
-        "Unreal": _signed(_money(holdings.total_unrealized), holdings.total_unrealized),
-        "Realized": _signed(
-            _money(holdings.total_realized, blank_zero=True),
+        "Folio%": percent(holdings.total_weight_in_folio),
+        "Book": money(holdings.total_book),
+        "Market": money(holdings.total_market),
+        "PnL": signed(money(holdings.total_day_pnl), holdings.total_day_pnl),
+        "Unreal": signed(money(holdings.total_unrealized), holdings.total_unrealized),
+        "Realized": signed(
+            money(holdings.total_realized, blank_zero=True),
             holdings.total_realized,
         ),
-        "Divs": _income(holdings.total_dividends),
-        "Total": _signed(_money(holdings.total_pnl), holdings.total_pnl),
-        "PnL%": _day_move(holdings.total_day_pnl_pct, holdings.total_day_pnl),
-        "Unreal%": _return(holdings.total_unrealized_pct, holdings.total_unrealized),
+        "Divs": income(holdings.total_dividends),
+        "Total": signed(money(holdings.total_pnl), holdings.total_pnl),
+        "PnL%": day_move(holdings.total_day_pnl_pct, holdings.total_day_pnl),
+        "Unreal%": lifetime_return(
+            holdings.total_unrealized_pct,
+            holdings.total_unrealized,
+        ),
         # Against net deposits rather than book value: see `return_on`.
-        "Total%": _return(holdings.return_on(deposited), holdings.total_pnl),
+        "Total%": lifetime_return(holdings.return_on(deposited), holdings.total_pnl),
     }
     return [cells.get(spec.header, "") for spec in specs]
 
@@ -598,7 +477,7 @@ def _panel_title(flows: Flows, title: str | None) -> str:
     if flows.account_type is None:
         return name
     accent = ACCOUNT_TYPE_COLORS.get(flows.account_type)
-    return _style(name, f"bold {accent}" if accent else None)
+    return style(name, f"bold {accent}" if accent else None)
 
 
 # The first measure past capital, where the earnings section begins.
@@ -626,11 +505,11 @@ def _add_money_rows(table: RichTable, flows: Flows) -> None:
         moved = flows.transfers_value if amounts is flows.transfers else {}
         for index, currency in enumerate(sorted(amounts, key=str)):
             amount = amounts[currency]
-            note = _currency(currency, str(currency))
+            note = currency_tint(currency, str(currency))
             actual = moved.get(currency)
             # When transfers value and transfer are not the same.
             if actual is not None and q2(actual) != q2(amount):
-                note += _style(f"  of {_money(actual)} moved", "dim")
+                note += style(f"  of {money(actual)} moved", "dim")
             table.add_row(
                 label if index == 0 else "",
                 _flow_amount(label, amount, alert=alert),
@@ -649,12 +528,12 @@ def _flow_amount(label: str, amount: Decimal, *, alert: bool) -> str:
     Returns:
         The rendered amount.
     """
-    text = _money(amount)
+    text = money(amount)
     if alert:
-        return _style(text, LOSS) if q2(amount) < ZERO else text
+        return style(text, LOSS) if q2(amount) < ZERO else text
     if label == "Realized":
-        return _signed(text, q2(amount))
-    return _style(text, FLOW_COLORS.get(label))
+        return signed(text, q2(amount))
+    return style(text, FLOW_COLORS.get(label))
 
 
 def _room_rows(room: Room) -> list[tuple[str, str, str]]:
@@ -664,23 +543,23 @@ def _room_rows(room: Room) -> list[tuple[str, str, str]]:
     figures above it, so the panel grows a row rather than a column.
     """
     label = f"Room {room.year}"
-    used = _money(room.used)
+    used = money(room.used)
     remaining = room.remaining
     if room.limit is None or remaining is None:
-        return [(label, used, _style("contributed, no limit configured", "dim"))]
-    figures = f"{used} / {_money(room.limit)}"
+        return [(label, used, style("contributed, no limit configured", "dim"))]
+    figures = f"{used} / {money(room.limit)}"
     colour = _room_colour(room)
     if room.full:
         note = "full"
     elif room.over:
-        note = f"{_money(abs(remaining))} over"
+        note = f"{money(abs(remaining))} over"
     else:
-        note = f"{_money(remaining)} left"
-    rows = [(label, _style(figures, colour), _style(note, "dim"))]
+        note = f"{money(remaining)} left"
+    rows = [(label, style(figures, colour), style(note, "dim"))]
     if room.used_ratio is not None:
-        glyphs = ROOM_BAR if _UNICODE else ROOM_BAR_ASCII
+        glyphs = ROOM_BAR if UNICODE else ROOM_BAR_ASCII
         gauge = meter(room.used_ratio, len(figures), glyphs)
-        rows.append(("", _style(gauge, colour), ""))
+        rows.append(("", style(gauge, colour), ""))
     return rows
 
 
@@ -709,7 +588,7 @@ def _cash_alerts(flows: Flows) -> list[RenderableType]:
     return [
         "",
         (
-            f"[red]{_WARN_GLYPH} Cash is negative ({currencies}). A transaction is "
+            f"[red]{WARN_GLYPH} Cash is negative ({currencies}). A transaction is "
             f"probably missing.[/red]\n[dim]  Run `folio check` to find it.[/dim]"
         ),
     ]
@@ -824,7 +703,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     if holdings.unpriced:
         listed = ", ".join(holdings.unpriced)
         notes.append(
-            f"[yellow]{_WARN_GLYPH} {len(holdings.unpriced)} position(s) unpriced "
+            f"[yellow]{WARN_GLYPH} {len(holdings.unpriced)} position(s) unpriced "
             f"and excluded from totals: {listed}[/yellow]",
         )
     if not holdings.deposits_measurable and _net_deposited(flows) is not None:
@@ -868,7 +747,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     if suspect:
         codes = ", ".join(str(code) for code in suspect)
         notes.append(
-            f"[red]{_WARN_GLYPH} Badged positions carry {codes}; their units are "
+            f"[red]{WARN_GLYPH} Badged positions carry {codes}; their units are "
             f"known to be wrong. Run `folio check`.[/red]",
         )
     return notes
@@ -912,8 +791,8 @@ def quotes_table(
             *owned,
             quote.ysymbol,
             quote.name or "",
-            _signed(_price(quote.price), quote.day_change),
-            _price(quote.prev_close),
+            signed(price(quote.price), quote.day_change),
+            price(quote.prev_close),
             str(quote.currency) if quote.currency else "",
             _age(quote),
             _status(quote),
@@ -930,7 +809,7 @@ def _age(quote: Quote) -> str:
     """Render how long ago a quote was fetched, highlighting a stale one."""
     age = quote.age
     if age is None:
-        return _EM_DASH
+        return EM_DASH
     seconds = int(age.total_seconds())
     if seconds < 60:  # noqa: PLR2004 - a minute, in seconds
         text = "just now"

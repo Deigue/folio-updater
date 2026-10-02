@@ -5,6 +5,8 @@ Makes the price cache inspectable.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import typer
 
 from app import bootstrap
@@ -17,17 +19,12 @@ from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
 from ui.views.dash import quotes_table
 
-
-def _requested(frame_symbols: list[str], ticker: str | None) -> list[str]:
-    """Narrow the folio's held symbols to the one `--ticker` asked for."""
-    if ticker is None:
-        return frame_symbols
-    canonical = load_symbol_resolver().canonical(ticker)
-    return [symbol for symbol in frame_symbols if symbol == canonical]
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def manage_quotes(
-    ticker: str | None = None,
+    symbols: Sequence[str] = (),
     *,
     refresh: bool = False,
     clear: bool = False,
@@ -35,9 +32,10 @@ def manage_quotes(
     """Inspect or refresh the market quote cache.
 
     Args:
-        ticker: Limit the action to one security.
+        symbols: Limit the action to these securities. An old alias acts on
+            the symbol it was renamed to.
         refresh: Refetch prices from the provider.
-        clear: Drop cached rows.
+        clear: Drop cached rows, price history included.
 
     Raises:
         typer.Exit: When both actions were asked for at once.
@@ -48,26 +46,31 @@ def manage_quotes(
         console_error("Pick one of --refresh or --clear.")
         raise typer.Exit(1)
 
+    resolver = load_symbol_resolver()
+    wanted = list(dict.fromkeys(resolver.canonical(symbol) for symbol in symbols))
+
     if clear:
-        _clear(ticker)
+        _clear(wanted)
         return
 
     if refresh:
-        _refresh(ticker)
+        _refresh(wanted)
         return
 
-    _list(ticker)
+    _list(wanted)
 
 
-def _held(ticker: str | None) -> list[str]:
-    """Every symbol the folio holds, narrowed by `--ticker`."""
-    cached = load_folio()
-    return _requested(held_symbols(cached.frame), ticker)
+def _held(wanted: Sequence[str]) -> list[str]:
+    """Every symbol the folio holds, narrowed to the ones asked for."""
+    held = held_symbols(load_folio().frame)
+    if not wanted:
+        return held
+    return [symbol for symbol in held if symbol in wanted]
 
 
-def _refresh(ticker: str | None) -> None:
+def _refresh(wanted: Sequence[str]) -> None:
     """Refetch prices and report what came back."""
-    symbols = _held(ticker)
+    symbols = _held(wanted)
     if not symbols:
         console_info("No open positions to price.")
         return
@@ -84,16 +87,16 @@ def _refresh(ticker: str | None) -> None:
         )
 
 
-def _clear(ticker: str | None) -> None:
-    """Drop cached quotes, all of them or just one."""
-    dropped = QuotesService.clear([ticker] if ticker else None)
-    target = ticker or "every symbol"
+def _clear(wanted: Sequence[str]) -> None:
+    """Drop cached quotes, all of them or just the ones asked for."""
+    dropped = QuotesService.clear(wanted or None)
+    target = ", ".join(wanted) or "every symbol"
     console_success(f"Cleared {dropped} cached quote(s) for {target}.")
 
 
-def _list(ticker: str | None) -> None:
+def _list(wanted: Sequence[str]) -> None:
     """Print what the cache currently holds."""
-    quotes = QuotesService.cached([ticker.upper()] if ticker else None)
+    quotes = QuotesService.cached(wanted or None)
     if not quotes:
         console_info("No quotes cached yet. Run `folio quotes --refresh`.")
         return

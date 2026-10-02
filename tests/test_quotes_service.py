@@ -342,6 +342,7 @@ def test_day_change_needs_both_sides() -> None:
         prev_close=Decimal(10),
     ).day_change == Decimal(2)
     assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change is None
+    assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change_pct is None
 
 
 def test_reading_an_empty_cache_is_not_an_error(temp_ctx: TempContext) -> None:

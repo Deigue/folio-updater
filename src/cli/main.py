@@ -467,13 +467,65 @@ def dash_cmd(
     )
 
 
+@app.command(
+    "ticker",
+    help="Show one security: its quote, fundamentals, performance and holdings",
+    no_args_is_help=True,
+)
+def ticker_cmd(
+    symbol: str = typer.Argument(
+        ...,
+        help="Symbol to look up, whether the folio holds it or not",
+    ),
+    currency: str | None = typer.Option(
+        None,
+        "-c",
+        "--currency",
+        help="native (default, the symbol's own currency), CAD, USD or both",
+    ),
+    *,
+    by_account: bool = typer.Option(
+        False,
+        "-b",
+        "--by-account",
+        help="One row per broker account instead of per account type",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "-r",
+        "--refresh",
+        help="Refetch the quote, fundamentals and history",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "-o",
+        "--offline",
+        help="Use cached data only, never touching the network",
+    ),
+) -> None:
+    """Show one security: its quote, fundamentals, performance and holdings."""
+    from cli.commands.ticker import report_ticker
+
+    report_ticker(
+        symbol,
+        currency,
+        by_account=by_account,
+        refresh=refresh,
+        offline=offline,
+    )
+
+
 @app.command("quotes", help="Inspect or refresh the market quote cache")
 def quotes_cmd(
+    symbols: list[str] | None = typer.Argument(
+        None,
+        help="Securities to act on. Every cached one when none are given.",
+    ),
     ticker: str | None = typer.Option(
         None,
         "-t",
         "--ticker",
-        help="Limit the action to one security",
+        help="Limit the action to one security (same as naming it)",
     ),
     *,
     refresh: bool = typer.Option(
@@ -493,7 +545,7 @@ def quotes_cmd(
     from cli.commands.quotes import manage_quotes
 
     manage_quotes(
-        ticker=ticker,
+        [*(symbols or []), *([ticker] if ticker else [])],
         refresh=refresh,
         clear=clear,
     )

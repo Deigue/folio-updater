@@ -49,3 +49,29 @@ def meter(fraction: Decimal, width: int, glyphs: tuple[str, str]) -> str:
     filled_glyph, empty_glyph = glyphs
     filled = int(_clamp(fraction) * width)
     return filled_glyph * filled + empty_glyph * (width - filled)
+
+
+def position_bar(
+    value: Decimal,
+    low: Decimal,
+    high: Decimal,
+    width: int,
+    *,
+    unicode: bool = True,
+) -> str:
+    """Mark where a value sits between a low and a high, such as a 52-week range.
+
+    Args:
+        value: The value to place, clamped to the range.
+        low: The left end.
+        high: The right end.
+        width: Cells the bar spans.
+        unicode: Whether the terminal can draw box elements.
+
+    Returns:
+        A track `width` cells wide with one marker on it.
+    """
+    track, marker = ("━", "●") if unicode else ("-", "o")
+    fraction = Decimal(0) if high == low else _clamp((value - low) / (high - low))
+    at = int((fraction * (width - 1)).to_integral_value())
+    return track * at + marker + track * (width - 1 - at)

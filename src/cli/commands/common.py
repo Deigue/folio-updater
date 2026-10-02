@@ -19,7 +19,7 @@ from exporters import ParquetExporter
 from services import ForexService
 from term import announce, console_error, console_success, console_warning
 from term.progress import ProgressDisplay
-from ui.format import format_freshness
+from ui.format import format_freshness, freshness_line
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -35,6 +35,7 @@ __all__ = [
     "PoolView",
     "audit_footer",
     "backup_folio",
+    "cache_badge",
     "ensure_fx_coverage",
     "freshness_note",
     "load_folio",
@@ -111,6 +112,43 @@ def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
     if not fetched:
         return None, stale
     return min(fetched), stale
+
+
+# Labels for the two caches a priced report ages.
+_ACB_LABEL = "acb"
+_QUOTES_LABEL = "quotes"
+
+
+def cache_badge(
+    quotes: Mapping[str, Quote],
+    *,
+    computed_at: datetime | None = None,
+    offline: bool = False,
+    with_acb: bool = True,
+) -> str:
+    """Compose the freshness line for a priced report.
+
+    Args:
+        quotes: The quotes the report was priced with.
+        computed_at: When the cost base was computed, or None if just now.
+        offline: Whether the network was kept out of it, which is said.
+        with_acb: Age the cost base too. A report that read no folio leaves it
+            out rather than claim a cost base it never used.
+
+    Returns:
+        A Rich-markup line for cache-freshness status.
+    """
+    quote_at, stale = quote_age(quotes)
+    empty = not any(quote.fetched_at for quote in quotes.values())
+    parts = [(_QUOTES_LABEL, quote_at)]
+    if with_acb:
+        parts.insert(0, (_ACB_LABEL, computed_at))
+    line = freshness_line(
+        parts,
+        warn={_QUOTES_LABEL} if stale and not empty else set(),
+        missing={_QUOTES_LABEL} if empty else set(),
+    )
+    return f"{line} [dim](offline)[/dim]" if offline else line
 
 
 def freshness_note(

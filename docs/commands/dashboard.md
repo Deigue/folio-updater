@@ -208,3 +208,21 @@ the suffix (`.csv` or `.xlsx`). Only the displayed scope's holdings are written.
 folio dash --export holdings.csv
 folio dash --type tfsa --export tfsa.xlsx
 ```
+
+## Prices
+
+Prices come from Yahoo Finance and are cached in the folio database. `folio quotes`
+shows what the cache holds, how old each price is, and whether the folio still holds
+the symbol.
+
+```bash
+folio quotes                  # list every cached quote
+folio quotes MSFT VFV.TO      # just these
+folio quotes --refresh        # refetch every held symbol now
+folio quotes AAPL --clear    # drop a cached quote and its price history
+folio quotes --clear          # empty the cache
+```
+
+A held symbol Yahoo does not know is remembered as `NOT_FOUND` and asked about again
+once a week, so a typo in the folio does not cost a lookup on every run. A symbol you
+only looked up with `folio ticker` and Yahoo did not know is not kept at all.

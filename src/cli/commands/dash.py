@@ -17,10 +17,10 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import (
+    cache_badge,
     ensure_fx_coverage,
     freshness_note,
     load_folio,
-    quote_age,
     replay_result,
     resolve_pool,
 )
@@ -35,20 +35,13 @@ from exporters.output import (
 )
 from exporters.sheets import panel_table, pooled_dashboard_table
 from term import console_error, console_info, console_warning
-from ui.format import freshness_line
 from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from datetime import datetime
 
     from engine.panels import Panel
     from engine.positions import ValuationCurrency
-    from services.quotes_service import Quote
-
-# Labels for the two caches the header ages.
-_ACB_LABEL = "acb"
-_QUOTES_LABEL = "quotes"
 
 
 def _resolve_currency(requested: str | None) -> ValuationCurrency:
@@ -72,24 +65,6 @@ def _resolve_currency(requested: str | None) -> ValuationCurrency:
             f"Unknown currency '{requested}'. Use CAD, USD or native.",
         )
         raise typer.Exit(1) from None
-
-
-def _badge(
-    computed_at: datetime | None,
-    quotes: dict[str, Quote],
-    *,
-    offline: bool,
-) -> str:
-    """Compose the two-cache freshness line."""
-    quote_at, stale = quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    parts = [(_ACB_LABEL, computed_at), (_QUOTES_LABEL, quote_at)]
-    line = freshness_line(
-        parts,
-        warn={_QUOTES_LABEL} if stale and not empty else set(),
-        missing={_QUOTES_LABEL} if empty else set(),
-    )
-    return f"{line} [dim](offline)[/dim]" if offline else line
 
 
 def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
@@ -186,7 +161,11 @@ def show_dash(
         refresh=refresh,
         offline=offline,
     )
-    badge = _badge(cached.computed_at, valuation.quotes, offline=offline)
+    badge = cache_badge(
+        valuation.quotes,
+        computed_at=cached.computed_at,
+        offline=offline,
+    )
     note = freshness_note(cached.computed_at, valuation.quotes)
 
     if by_type:
