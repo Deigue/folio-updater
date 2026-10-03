@@ -10,11 +10,16 @@ from models.import_results import (
     StatementImportResult,
     TransformEvent,
 )
+from models.update_report import Concern, HardFailure, UpdateReport, UpdateStage
 
 __all__ = [
+    "Concern",
+    "HardFailure",
     "ImportResults",
     "MergeEvent",
     "SettlementMatch",
     "StatementImportResult",
     "TransformEvent",
+    "UpdateReport",
+    "UpdateStage",
 ]

@@ -209,13 +209,10 @@ class ImportDisplay:
                 dupe_parts.append(f"[red]{db}[/red] db")
             parts.append(f"[bold]Dupes Rejected:[/bold] {', '.join(dupe_parts)}")
 
-        # Calculate expected tally (net change from merges + exclusions)
-        merge_delta = merged_into - merge_candidates
-        expected_imported = read_count + merge_delta - excluded - intra - db
-
         # Import summary with color coding
         imported = results.imported_count()
-        if imported == expected_imported:
+        expected_imported = results.expected_count()
+        if results.tally_matches():
             parts.append(f"[bold]Imported:[/bold] [green]{imported}[/green]")
         else:
             parts.append(

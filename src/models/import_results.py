@@ -98,6 +98,26 @@ class ImportResults:
         """Return number of merge operations performed."""
         return len(self.merge_events)
 
+    def expected_count(self) -> int:
+        """Return how many rows should have been imported, by tallying each stage.
+
+        Rows read, less the net shrink from merges, less exclusions and both
+        kinds of rejected duplicate. Anything other than `imported_count` means
+        rows went missing (or appeared) somewhere the audit does not account for.
+        """
+        merge_delta = self.merged_into() - self.merge_candidates()
+        return (
+            self.read_count()
+            + merge_delta
+            - self.excluded_count()
+            - self.intra_rejected_count()
+            - self.db_rejected_count()
+        )
+
+    def tally_matches(self) -> bool:
+        """Return whether the imported rows match the stage-by-stage tally."""
+        return self.imported_count() == self.expected_count()
+
     def __int__(self) -> int:  # backwards compatibility if cast to int
         """Return imported count when cast to int (for backwards compatibility)."""
         return self.imported_count()
