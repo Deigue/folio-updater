@@ -33,6 +33,17 @@
             "problemMatcher": []
         },
         {
+            "label": "prepare release (version + changelog)",
+            "type": "process",
+            "command": "uv",
+            "args": ["run", "python", "scripts/prepare_changelog.py"],
+            "presentation": {
+                "reveal": "always",
+                "focus": true
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "ruff check",
             "type": "process",
             "command": "uv",

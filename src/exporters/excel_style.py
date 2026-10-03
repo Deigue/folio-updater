@@ -30,6 +30,13 @@ NUMBER_FORMATS: dict[Fmt, str] = {
     Fmt.PERCENT: "0.00%",
     Fmt.PERCENT_SIGNED: _PERCENT_SIGNED,
     Fmt.RATE: "0.0000",
+    Fmt.RATIO: "#,##0.00",
+    # Each trailing comma divides by a thousand, so the cell keeps its whole
+    # value while it reads as 3.81T. Excel allows two conditions and a default.
+    Fmt.LARGE: (
+        '[>=1000000000000]#,##0.00,,,,"T";[>=1000000000]#,##0.00,,,"B";#,##0.00,,"M"'
+    ),
+    Fmt.COUNT: '[>=1000000]#,##0.00,,"M";[>=1000]#,##0.00,"K";#,##0.00',
 }
 
 # A whole share count wants no decimal separator trailing it, which

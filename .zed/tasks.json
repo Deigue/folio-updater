@@ -59,6 +59,13 @@
     "reveal": "always"
   },
   {
+    // Prompts in the terminal: bump the version or not, then roll the changelog
+    "label": "prepare release (version + changelog)",
+    "command": "uv",
+    "args": ["run", "python", "scripts/prepare_changelog.py"],
+    "reveal": "always"
+  },
+  {
     "label": "uv sync (all groups)",
     "command": "uv",
     "args": ["sync", "--all-groups"],

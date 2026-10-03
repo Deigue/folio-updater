@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING
 
 from domain import Column
 from exporters.excel_style import STORED_TAB
-from exporters.table import Col, Fmt, Row, Table
+from exporters.table import Col, Fmt, Row, Table, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from datetime import datetime
 
     import pandas as pd
 
@@ -96,24 +97,58 @@ def fx_table(rates: pd.DataFrame, name: str) -> Table:
     )
 
 
+_QUOTE = "Quote"
+_VALUATION = "Valuation"
+_DIVIDENDS = "Dividends"
+_TRADING = "Trading"
+_FUND = "Fund"
+_REFERENCE = "Reference"
+
+# Laid out for a screen's width: what compares across tickers comes first, and
+# what only identifies one (its type, exchange, fetch dates, and the ticker as
+# the transactions spell it) waits at the right.
 TICKER_COLUMNS: tuple[Col, ...] = (
-    Col(str(Column.Ticker.TICKER)),
     Col("Symbol"),
-    Col("Name", width=24),
-    Col("Sector", width=18),
-    Col("Exchange"),
-    Col("$"),
-    Col("Last", Fmt.PRICE),
-    Col("As of", Fmt.DATE),
+    Col("Name", width=22),
+    Col("$", width=6, group=_QUOTE),
+    Col("Last", Fmt.PRICE, group=_QUOTE),
+    Col("Day%", Fmt.PERCENT_SIGNED, group=_QUOTE),
+    Col("vs 52w high", Fmt.PERCENT_SIGNED, group=_QUOTE),
+    Col("Market cap", Fmt.LARGE, group=_VALUATION),
+    Col("P/E", Fmt.RATIO, group=_VALUATION),
+    Col("Fwd P/E", Fmt.RATIO, group=_VALUATION),
+    Col("EPS", Fmt.PRICE, group=_VALUATION),
+    Col("Beta", Fmt.RATIO, group=_VALUATION),
+    Col("Earnings", Fmt.DATE, group=_VALUATION),
+    Col("Yield", Fmt.PERCENT, group=_DIVIDENDS),
+    Col("Dividend", Fmt.PRICE, group=_DIVIDENDS),
+    Col("Last paid", Fmt.PRICE, group=_DIVIDENDS),
+    Col("Ex-dividend", Fmt.DATE, group=_DIVIDENDS),
+    Col("52w low", Fmt.PRICE, group=_TRADING),
+    Col("52w high", Fmt.PRICE, group=_TRADING),
+    Col("50d avg", Fmt.PRICE, group=_TRADING),
+    Col("200d avg", Fmt.PRICE, group=_TRADING),
+    Col("Volume", Fmt.COUNT, group=_TRADING),
+    Col("Avg volume", Fmt.COUNT, group=_TRADING),
+    Col("Expense", Fmt.PERCENT, group=_FUND),
+    Col("Assets", Fmt.LARGE, group=_FUND),
+    Col("Category", width=18, group=_FUND),
+    Col("Family", width=22, group=_FUND),
+    Col("Type", group=_REFERENCE),
+    Col("Sector", width=16, group=_REFERENCE),
+    Col("Exchange", group=_REFERENCE),
+    Col("Price as of", Fmt.DATE, group=_REFERENCE),
+    Col("Fundamentals as of", Fmt.DATE, group=_REFERENCE),
+    Col(str(Column.Ticker.TICKER), group=_REFERENCE),
 )
 
 
-def tickers_table(
+def traded_tickers_table(
     tickers: Sequence[tuple[str, str]],
     quotes: Mapping[str, Quote],
     name: str,
 ) -> Table:
-    """List every ticker the folio has traded, with what is known about it.
+    """List every ticker the folio has traded, with its latest quote and fundamentals.
 
     Args:
         tickers: Each ticker as the transactions spell it, paired with the
@@ -123,35 +158,69 @@ def tickers_table(
         name: What the sheet is called.
 
     Returns:
-        The table, one row per ticker, `Ticker` first as it always was.
+        The table, one row per ticker, by symbol. A renamed security keeps a row
+        per ticker it traded under, told apart by the `Ticker` at the far right.
     """
-    rows: list[Row] = []
-    for ticker, symbol in tickers:
-        quote = quotes.get(symbol)
-        rows.append(
-            Row(
-                (
-                    ticker,
-                    symbol,
-                    quote.name if quote else None,
-                    quote.sector if quote else None,
-                    quote.exchange if quote else None,
-                    str(quote.currency) if quote and quote.currency else None,
-                    quote.price if quote else None,
-                    _as_of(quote),
-                ),
-            ),
-        )
+    rows = [
+        row_of(TICKER_COLUMNS, _ticker_cells(ticker, symbol, quotes.get(symbol)))
+        for ticker, symbol in sorted(tickers, key=lambda pair: (pair[1], pair[0]))
+    ]
     return Table(
         name=name,
         columns=TICKER_COLUMNS,
         rows=tuple(rows),
         tab_color=STORED_TAB,
+        freeze=2,  # `Symbol` and `Name` say which row is which
     )
 
 
-def _as_of(quote: Quote | None) -> str | None:
-    """Date a quote by when it was last fetched, which is what ages it."""
-    if quote is None or quote.fetched_at is None:
-        return None
-    return quote.fetched_at.date().isoformat()
+def _ticker_cells(
+    ticker: str,
+    symbol: str,
+    quote: Quote | None,
+) -> dict[str, object]:
+    """Read one traded ticker's quote and fundamentals, blank when uncached."""
+    cells: dict[str, object] = {"Symbol": symbol, str(Column.Ticker.TICKER): ticker}
+    if quote is None:
+        return cells
+    facts = quote.fundamentals
+    cells.update(
+        {
+            "Name": quote.name,
+            "$": str(quote.currency) if quote.currency else None,
+            "Last": quote.price,
+            "Day%": quote.day_change_pct,
+            "vs 52w high": quote.from_high_52,
+            "Market cap": quote.market_cap,
+            "P/E": facts.trailing_pe,
+            "Fwd P/E": facts.forward_pe,
+            "EPS": facts.eps,
+            "Beta": facts.beta,
+            "Earnings": facts.earnings_date,
+            "Yield": facts.dividend_yield,
+            "Dividend": facts.dividend_rate,
+            "Last paid": facts.last_dividend,
+            "Ex-dividend": facts.ex_dividend_date,
+            "52w low": facts.low_52,
+            "52w high": facts.high_52,
+            "50d avg": facts.avg_50,
+            "200d avg": facts.avg_200,
+            "Volume": facts.volume,
+            "Avg volume": facts.avg_volume,
+            "Expense": facts.expense_ratio,
+            "Assets": facts.total_assets,
+            "Category": facts.category,
+            "Family": facts.fund_family,
+            "Type": facts.quote_type,
+            "Sector": quote.sector,
+            "Exchange": quote.exchange,
+            "Price as of": _date_of(quote.fetched_at),
+            "Fundamentals as of": _date_of(quote.meta_fetched_at),
+        },
+    )
+    return cells
+
+
+def _date_of(moment: datetime | None) -> str | None:
+    """Date a fetch by the day it happened, which is what ages it."""
+    return None if moment is None else moment.date().isoformat()

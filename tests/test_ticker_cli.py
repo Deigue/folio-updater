@@ -12,6 +12,8 @@ from .helpers.cli import assert_cli_success, run_cli_with_config
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .test_types import TempContext
 
 FX = {f"2025-08-{day}": "1.25" for day in range(14, 21)}
@@ -80,3 +82,22 @@ def test_comparing_an_empty_folio_says_there_is_nothing_held(
 ) -> None:
     with temp_ctx() as ctx:
         assert_cli_success(run_cli_with_config(ctx.config, app, ["ticker"]))
+
+
+def test_ticker_exports_either_view(temp_ctx: TempContext, tmp_path: Path) -> None:
+    with temp_ctx() as ctx:
+        _seed()
+
+        def export(*args: str) -> tuple[int, bool]:
+            target = tmp_path / args[-1]
+            result = run_cli_with_config(
+                ctx.config,
+                app,
+                ["ticker", *args[:-1], "-e", str(target)],
+            )
+            return result.exit_code, target.exists()
+
+        assert export("TESTTKR", "one.xlsx") == (0, True)
+        assert export("all.csv") == (0, True)
+        # One security's sheet holds several tables, which no CSV can.
+        assert export("TESTTKR", "one.csv") == (1, False)

@@ -457,13 +457,13 @@ def _pool_table(position: SymbolPosition, *, by_account: bool) -> RichTable:
         cells = _closed_cells(line) if line.holding.closed else _open_cells(line)
         table.add_row(*cells, style="dim" if line.holding.closed else None)
 
-    table.add_section()
-    total = position.total
-    table.add_row(
-        "POOLED",
-        *_figures(total, share=None),
-        style=GRAND_TOTAL_ROW_STYLE,
-    )
+    if position.pooled_differs:
+        table.add_section()
+        table.add_row(
+            "POOLED",
+            *_figures(position.total, share=None),
+            style=GRAND_TOTAL_ROW_STYLE,
+        )
     return table
 
 
@@ -537,14 +537,26 @@ def _conversion_notes(position: SymbolPosition, quote: Quote) -> list[str]:
 
 
 def _footer(position: SymbolPosition) -> list[str]:
-    """Say when it was first traded, and anything the replay flagged."""
+    """Say when it was first bought and at what, and anything the replay flagged."""
     notes: list[str] = []
-    held = position.held_for(datetime.now(TORONTO_TZ).date())
-    years, months = held
-    notes.append(
-        f"[dim]First traded {long_date(position.first_traded)} · "
-        f"held {years}y {months}m[/dim]",
-    )
+    years, months = position.held_for(datetime.now(TORONTO_TZ).date())
+    traded = long_date(position.first_traded)
+    bought = position.first_buy
+    if bought is None:
+        # Only ever transferred in: there is no purchase price to give.
+        opening = f"First traded {traded}"
+    else:
+        at = f"at {price(bought.price)} {bought.currency}"
+        if bought.split_since:
+            at += " (before a later split)"
+        if bought.date == position.first_traded:
+            opening = f"First bought {traded} {at}"
+        else:
+            # Transferred in first, bought later: both dates matter.
+            opening = (
+                f"First traded {traded} · first bought {long_date(bought.date)} {at}"
+            )
+    notes.append(f"[dim]{opening} · held {years}y {months}m[/dim]")
     if not position.total.priced and not position.total.closed:
         notes.append(
             f"[yellow]{WARN_GLYPH} No live price: market value and unrealized "

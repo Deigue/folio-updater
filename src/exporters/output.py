@@ -30,16 +30,27 @@ class UnsupportedExportError(ValueError):
 
 
 class SingleSheetError(ValueError):
-    """A multi-scope export asked for a format that holds one table."""
+    """An export asked a format that holds one table to hold several."""
 
     MESSAGE = (
         "A CSV holds one table. Export to .xlsx for a sheet per scope, or "
         "narrow the request to one scope."
     )
+    SECTIONS_MESSAGE = (
+        "A CSV holds one table, and '{name}' is several on one sheet. Export to .xlsx."
+    )
 
-    def __init__(self) -> None:
-        """Carry the one message this error ever has."""
-        super().__init__(self.MESSAGE)
+    def __init__(self, sectioned: str | None = None) -> None:
+        """Say why the tables will not fit in one CSV.
+
+        Args:
+            sectioned: The name of a single table that carries sections, or
+                None when the problem is several tables.
+        """
+        if sectioned is None:
+            super().__init__(self.MESSAGE)
+        else:
+            super().__init__(self.SECTIONS_MESSAGE.format(name=sectioned))
 
 
 def write_export(path: Path, tables: Sequence[Table]) -> Path:
@@ -56,7 +67,8 @@ def write_export(path: Path, tables: Sequence[Table]) -> Path:
     Raises:
         UnsupportedExportError: If the suffix names a format that cannot be
             written.
-        SingleSheetError: If several tables were asked to share a CSV.
+        SingleSheetError: If several tables, or one carrying sections, were
+            asked to share a CSV.
     """
     target = path if path.suffix else path.with_suffix(WORKBOOK_SUFFIX)
     suffix = target.suffix.lower()
@@ -64,6 +76,8 @@ def write_export(path: Path, tables: Sequence[Table]) -> Path:
     if suffix == CSV_SUFFIX:
         if len(tables) != 1:
             raise SingleSheetError
+        if tables[0].sections:
+            raise SingleSheetError(tables[0].name)
         write_csv(target, tables[0])
         return target
 

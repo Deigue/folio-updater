@@ -18,6 +18,7 @@ from domain import Column, Currency, PriceRange, QuoteStatus, Table
 from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
+    Fundamentals,
     Quote,
     QuotesService,
     RefreshResult,
@@ -343,6 +344,15 @@ def test_day_change_needs_both_sides() -> None:
     ).day_change == Decimal(2)
     assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change is None
     assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change_pct is None
+    # 93 against a 52-week high of 100: seven percent below it.
+    off_high = Quote(
+        symbol="X",
+        ysymbol="X",
+        price=Decimal(93),
+        fundamentals=Fundamentals(high_52=Decimal(100)),
+    )
+    assert off_high.from_high_52 == Decimal("-0.07")
+    assert Quote(symbol="X", ysymbol="X", price=Decimal(93)).from_high_52 is None
 
 
 def test_reading_an_empty_cache_is_not_an_error(temp_ctx: TempContext) -> None:

@@ -20,6 +20,7 @@ A portfolio management system that imports and processes financial transaction d
 - **`folio symbol`**: Alias ticker symbols that are renamed or different to be treated the same
 - **[`folio acb`](docs/commands/cost-base.md)**: Adjusted cost base buildup for a symbol, pooled by account, account type or portfolio
 - **[`folio dash`](docs/commands/dashboard.md)**: Dashboard with holdings, cash and flows at current market prices
+- **[`folio ticker`](docs/commands/ticker.md)**: Show comprehensive details for a ticker, or compare holdings.
 - **[`folio quotes`](docs/commands/dashboard.md#prices)**: Inspect or refresh the cached market prices
 - **[`folio query`](docs/commands/querying.md)**: Search and filter transactions using natural language or explicit filters
 - **[`folio check`](docs/commands/checking.md)**: Check the folio for missing or inconsistent transactions

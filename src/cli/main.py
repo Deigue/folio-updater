@@ -154,7 +154,7 @@ def generate_cmd(
     only: str | None = typer.Option(
         None,
         "--only",
-        help="Only these sections: summary, dash, accounts, acb, stored",
+        help="Only these sections: summary, perf, dash, accounts, acb, stored",
     ),
     *,
     offline: bool = typer.Option(
@@ -341,7 +341,7 @@ def acb_cmd(  # noqa: PLR0917
         None,
         "-e",
         "--export",
-        help="Write the reported rows to a .csv or .parquet file",
+        help="Write the reported rows to a .xlsx, .csv or .parquet file",
     ),
     *,
     show_all: bool = typer.Option(
@@ -509,6 +509,12 @@ def ticker_cmd(
         "--reverse",
         help="Comparing: flip the sort direction",
     ),
+    export: str | None = typer.Option(
+        None,
+        "-e",
+        "--export",
+        help="Write it to a .xlsx (or, comparing, .csv) file instead of printing",
+    ),
     by_account: bool = typer.Option(
         False,
         "-b",
@@ -538,6 +544,7 @@ def ticker_cmd(
         account=account,
         sort=sort,
         reverse=reverse,
+        export=export,
         refresh=refresh,
         offline=offline,
     )
@@ -560,13 +567,13 @@ def quotes_cmd(
         False,
         "-r",
         "--refresh",
-        help="Refetch prices from the provider",
+        help="Refetch prices for the held symbols named, or every held one",
     ),
     clear: bool = typer.Option(
         False,
         "-c",
         "--clear",
-        help="Drop cached quotes",
+        help="Drop cached quotes and their price history",
     ),
 ) -> None:
     """Inspect or refresh the market quote cache."""

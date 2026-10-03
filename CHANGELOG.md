@@ -8,15 +8,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.8.12] - 2026-10-03
+
+### Added
+
 - `folio settle-info --import --verbose` lists every statement row and how it
   resolved: matched, unmatched, or ambiguous.
 - `folio generate` accepts `--out`, `--only`, `--offline` and `--refresh`.
+- `folio ticker` fully describes tickers (quote, fundamentals, a price chart for
+  every range from 2 hours to all time, and its holdings), or compares every holding
+  over each range; `-e` exports either view.
+- `quotes.fundamentals_ttl_hours` sets how often `folio ticker` refreshes fundamentals.
 
 ### Changed
 
 - `folio generate` now writes the whole folio from the cost-base engine: a
-  linked Summary, Flows, a dashboard per pool, the Ledger, Cost Base in CAD,
-  and the stored FX and Tickers tables.
+  linked Summary, Flows with contributions per year, Performance, a dashboard per
+  pool, the Ledger, Cost Base in CAD, and the stored FX and Tickers tables.
+- `folio quotes` takes symbols positionally, several at once, and marks the ones no
+  longer held.
 - CLI shorthands added across `add`, `download`, `acb` and `quotes`, and -h now works as --help
   on every command.
 - `add` now uses --type/-t, --account/-a, --symbol/-s.
@@ -38,6 +58,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - The warning and info icons no longer misalign tables they appear in.
 - `folio dash --by-type` now properly lays out the flow panels side-by-side, with each
   of the holdings tables below.
+- RRSP contributions made in the first 60 days of a year count toward the previous
+  year's room, as CRA counts them.
+- Refreshing quotes for a single symbol no longer comes back empty when Yahoo throttles.
 
 ### Security
 

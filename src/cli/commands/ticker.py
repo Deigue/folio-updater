@@ -10,6 +10,7 @@ move over every range in a column, so each range can be read down.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import typer
@@ -18,13 +19,14 @@ from app import bootstrap
 from cli.commands.common import (
     cache_badge,
     ensure_fx_coverage,
+    freshness_note,
     load_folio,
     replay_result,
     resolve_pool,
 )
 from domain import Currency, Scope
 from engine.panels import FolioValuation
-from engine.performance import price_moves
+from engine.performance import fetch_moves
 from engine.ticker import (
     MARKET_SORT,
     MATRIX_SORTS,
@@ -33,9 +35,11 @@ from engine.ticker import (
     sort_performance,
     symbol_position,
 )
+from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from exporters.sheets import performance_table, ticker_table
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
-from term import console_error, console_warning
+from term import console_error, console_info, console_warning
 from ui.views.ticker import show_matrix, show_ticker
 
 if TYPE_CHECKING:
@@ -44,6 +48,7 @@ if TYPE_CHECKING:
     from engine.cache import CachedFrame
     from engine.positions import ValuationCurrency
     from engine.ticker import SymbolPosition
+    from exporters.table import Table
 
 CurrencyChoice = Literal["native", "CAD", "USD", "both"]
 _CHOICES: tuple[CurrencyChoice, ...] = ("native", "CAD", "USD", "both")
@@ -58,6 +63,7 @@ def report_ticker(
     account: str | None = None,
     sort: str | None = None,
     reverse: bool = False,
+    export: str | None = None,
     refresh: bool = False,
     offline: bool = False,
 ) -> None:
@@ -76,6 +82,9 @@ def report_ticker(
         account: Comparing: a single broker account instead.
         sort: Comparing: order by `market` or by a range such as `1wk`.
         reverse: Comparing: flip the sort's direction.
+        export: Write what would be shown to this path instead of printing
+            it. A single symbol's sheet needs a workbook; a comparison can also
+            be a CSV.
         refresh: Refetch quotes, fundamentals and history, and rebuild the
             cost-base cache.
         offline: Never touch the network; show whatever is cached.
@@ -95,6 +104,7 @@ def report_ticker(
             symbols[0],
             currency,
             by_account=by_account,
+            export=export,
             refresh=refresh,
             offline=offline,
         )
@@ -112,6 +122,7 @@ def report_ticker(
         account=account,
         sort=sort,
         reverse=reverse,
+        export=export,
         refresh=refresh,
         offline=offline,
     )
@@ -122,6 +133,7 @@ def _report_one(
     currency: str | None,
     *,
     by_account: bool,
+    export: str | None,
     refresh: bool,
     offline: bool,
 ) -> None:
@@ -160,13 +172,12 @@ def _report_one(
             console_error(f"Yahoo Finance does not know '{canonical}'.")
         raise typer.Exit(1)
 
-    history = QuotesService.history(
-        [canonical],
+    moves = fetch_moves(
+        {canonical: quote},
         resolver,
         refresh=refresh,
         offline=offline,
-    ).get(canonical, {})
-    intraday = QuotesService.intraday([canonical], resolver, offline=offline)
+    )[canonical]
 
     positions: list[SymbolPosition] = []
     if traded:
@@ -178,11 +189,25 @@ def _report_one(
             offline=offline,
         )
 
+    aliases = [name for name in resolver.family(canonical) if name != canonical]
+    if export:
+        note = freshness_note(cached.computed_at, {canonical: quote})
+        table = ticker_table(
+            quote,
+            moves,
+            positions,
+            aliases=aliases,
+            by_account=by_account,
+            notes=[note],
+        )
+        _export(table, export)
+        return
+
     show_ticker(
         quote,
-        price_moves(quote, history, intraday.get(canonical, {})),
+        moves,
         positions,
-        aliases=[name for name in resolver.family(canonical) if name != canonical],
+        aliases=aliases,
         by_account=by_account,
         badge=cache_badge(
             {canonical: quote},
@@ -200,6 +225,7 @@ def _report_matrix(
     account: str | None,
     sort: str | None,
     reverse: bool,
+    export: str | None,
     refresh: bool,
     offline: bool,
 ) -> None:
@@ -256,20 +282,28 @@ def _report_matrix(
     if not wanted:
         raise typer.Exit(1)
 
-    history = QuotesService.history(wanted, resolver, refresh=refresh, offline=offline)
-    intraday = QuotesService.intraday(wanted, resolver, offline=offline)
-    moves = {
-        name: price_moves(quotes[name], history.get(name, {}), intraday.get(name, {}))
-        for name in wanted
-    }
-    rows = performance_rows(panel, {name: quotes[name] for name in wanted}, moves)
+    priced = {name: quotes[name] for name in wanted}
+    moves = fetch_moves(priced, resolver, refresh=refresh, offline=offline)
+    rows = performance_rows(panel, priced, moves)
     if sort is not None or not symbols:
         rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)
+
+    pool_weight = view.scope is not Scope.FOLIO
+    if export:
+        note = freshness_note(cached.computed_at, priced)
+        table = performance_table(
+            rows,
+            name=f"Performance - {view.label}",
+            pool_weight=pool_weight,
+            notes=[note],
+        )
+        _export(table, export)
+        return
 
     show_matrix(
         rows,
         title=view.label,
-        pool_weight=view.scope is not Scope.FOLIO,
+        pool_weight=pool_weight,
         badge=cache_badge(
             {name: quotes[name] for name in wanted},
             computed_at=cached.computed_at,
@@ -277,6 +311,20 @@ def _report_matrix(
             with_acb=panel is not None,
         ),
     )
+
+
+def _export(table: Table, path: str) -> None:
+    """Write a sheet out, choosing the format from the path's suffix.
+
+    Raises:
+        typer.Exit: If the path names a format that cannot hold the sheet.
+    """
+    try:
+        written = write_export(Path(path), [table])
+    except (UnsupportedExportError, SingleSheetError) as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
+    console_info(f"Exported {table.name} to {written}")
 
 
 def _currency_choice(requested: str | None) -> CurrencyChoice:

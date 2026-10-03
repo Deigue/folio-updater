@@ -11,8 +11,9 @@ from exporters.sheets.dashboard import (
     pooled_dashboard_table,
 )
 from exporters.sheets.ledger import ledger_table
-from exporters.sheets.stored import fx_table, tickers_table, transactions_table
+from exporters.sheets.stored import fx_table, traded_tickers_table, transactions_table
 from exporters.sheets.summary import flows_table, summary_table
+from exporters.sheets.ticker import performance_table, ticker_table
 
 __all__ = [
     "acb_buildup_table",
@@ -23,8 +24,10 @@ __all__ = [
     "fx_table",
     "ledger_table",
     "panel_table",
+    "performance_table",
     "pooled_dashboard_table",
     "summary_table",
-    "tickers_table",
+    "ticker_table",
+    "traded_tickers_table",
     "transactions_table",
 ]

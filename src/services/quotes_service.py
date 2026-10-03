@@ -228,6 +228,14 @@ class Quote:
         return self.price - self.prev_close
 
     @property
+    def from_high_52(self) -> Decimal | None:
+        """How far the price sits from its 52-week high: -0.07 is 7% below it."""
+        high = self.fundamentals.high_52
+        if self.price is None or not high:
+            return None
+        return self.price / high - 1
+
+    @property
     def day_change_pct(self) -> Decimal | None:
         """The day's move as a share of the previous close, or None without one."""
         change = self.day_change

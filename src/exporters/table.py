@@ -27,6 +27,9 @@ class Fmt(StrEnum):
     PERCENT = "percent"
     PERCENT_SIGNED = "percent_signed"
     RATE = "rate"
+    RATIO = "ratio"  # a plain ratio at two places, such as a P/E or a beta
+    LARGE = "large"  # an amount too large to read whole: 3.81T, 35.16B, 512.40M
+    COUNT = "count"  # a count read by magnitude: 27.01M, 168.06K
 
 
 class Role(StrEnum):
@@ -137,6 +140,9 @@ class Table:
             sideways. Enough of them that a row still says what it is once the
             figures being read have scrolled into view.
         hidden: Keep the sheet out of the tab strip. Still accessible via right-click
+        freeze_rows: Keep everything above the table's header in view while the
+            sheet scrolls. Off for a sheet whose panels above are too tall to
+            pin, which would leave little of the screen to scroll.
         nav: A link written in the sheet's first row, above everything else
         sections: Further tables written below this one on the same sheet, each
             under its own name. Only the first table is filtered and frozen. A
@@ -151,6 +157,7 @@ class Table:
     tab_color: str | None = None
     freeze: int = 1
     hidden: bool = False
+    freeze_rows: bool = True
     nav: Link | None = None
     sections: tuple[Table, ...] = ()
 
@@ -185,6 +192,17 @@ DECIMALS: dict[Fmt, int] = {
     Fmt.PERCENT: 2,
     Fmt.PERCENT_SIGNED: 2,
     Fmt.RATE: 4,
+    Fmt.RATIO: 2,
+    Fmt.LARGE: 2,
+    Fmt.COUNT: 2,
+}
+
+# How a compact figure is abbreviated: each `(at least, divided by, suffix)`,
+# largest first. The last one is what everything smaller falls to. Excel's own
+# number formats in `excel_style` say the same thing, for the workbook.
+COMPACT_STEPS: dict[Fmt, tuple[tuple[int, int, str], ...]] = {
+    Fmt.LARGE: ((10**12, 10**12, "T"), (10**9, 10**9, "B"), (0, 10**6, "M")),
+    Fmt.COUNT: ((10**6, 10**6, "M"), (10**3, 10**3, "K"), (0, 1, "")),
 }
 
 # The roles whose values are numbers rather than text.
@@ -282,9 +300,30 @@ def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
         return str(value)
     if quiet and not number:
         return ""
+    return _number(fmt, float(number), decimals)
+
+
+def _number(fmt: Fmt, number: float, decimals: int) -> str:
+    """Render a number at its format's precision, in its format's shape."""
+    if fmt in COMPACT_STEPS:
+        return _compact(number, COMPACT_STEPS[fmt], decimals)
     if fmt in PERCENTS:
-        return f"{float(number) * 100:,.{decimals}f}%"
-    text = f"{float(number):,.{decimals}f}"
+        return f"{number * 100:,.{decimals}f}%"
+    text = f"{number:,.{decimals}f}"
     if fmt is Fmt.UNITS and "." in text:
         return text.rstrip("0").rstrip(".")
     return text
+
+
+def _compact(
+    number: float,
+    steps: tuple[tuple[int, int, str], ...],
+    decimals: int,
+) -> str:
+    """Abbreviate a figure by the largest step it reaches: 3.81T, 27.01M."""
+    *larger, (_, divisor, suffix) = steps
+    for at_least, size, unit in larger:
+        if abs(number) >= at_least:
+            divisor, suffix = size, unit
+            break
+    return f"{number / divisor:,.{decimals}f}{suffix}"

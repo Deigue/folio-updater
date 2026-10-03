@@ -13,6 +13,7 @@ from engine.cache import build
 from engine.panels import FolioValuation, type_view
 from engine.performance import RangeMove, price_moves
 from engine.ticker import (
+    FirstBuy,
     PerformanceRow,
     UnknownMatrixSortError,
     performance_rows,
@@ -80,10 +81,18 @@ def test_the_total_is_the_portfolio_grain_not_the_sum_of_the_lines(
             lines["TFSA"].avg_cost,
             (lines["NON_REGISTERED"].avg_cost + lines["TFSA"].avg_cost) / 2,
         }
+        # Three pools, so pooling them says something none of them does.
+        assert position.pooled_differs
         # The pool that sold out stays, last, with what it realized.
         assert position.lines[-1].holding.closed
         assert position.lines[-1].holding.realized == Decimal(300)
         assert position.first_traded == "2025-08-14"
+        # The price it first went in at, as traded, with no split since.
+        assert position.first_buy == FirstBuy(
+            "2025-08-14",
+            Decimal("150.25"),
+            Currency.USD,
+        )
         assert position.held_for(date(2026, 8, 13)) == (0, 11)
 
 
@@ -305,3 +314,44 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
             None,
             None,
         )
+
+
+def test_the_first_buy_is_the_first_one_with_a_price(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx(FX)
+        # A buy imported without its price, then one with it, then a split.
+        seed_transaction(account="WS-TFSA", price=None, date="2025-08-14")
+        seed_transaction(account="WS-TFSA", price="120", date="2025-08-15")
+        seed_transaction(
+            action="SPLIT",
+            account="WS-TFSA",
+            amount=None,
+            price="1",
+            units="2",
+            date="2025-08-18",
+        )
+        # Arrived only by transfer, from an account the folio does not track.
+        seed_transaction(
+            action="TFR_IN",
+            account="WS-TFSA",
+            ticker="OTHER",
+            amount=None,
+            price=None,
+            units="5",
+        )
+        valuation = _valuation()
+
+        bought = symbol_position(valuation, "TESTTKR")
+        moved_in = symbol_position(valuation, "OTHER")
+
+        assert bought is not None
+        assert bought.first_buy == FirstBuy(
+            "2025-08-15",
+            Decimal(120),
+            Currency.USD,
+            split_since=True,
+        )
+        assert moved_in is not None
+        assert moved_in.first_buy is None
+        # One pool each: pooled figures would only repeat it.
+        assert not bought.pooled_differs

@@ -1,8 +1,9 @@
 """The `folio generate` command.
 
-Writes the whole folio as one workbook: a summary, a dashboard per pool, the
-cost-base ledger, and the stored transactions, rates and tickers it was all
-computed from. Everything is read off one valuation, so every sheet agrees with
+Writes the whole folio as one workbook: a summary with every pool's flows, every
+holding's performance over each range, a dashboard per pool, the cost-base
+ledger, and the stored transactions, rates and tickers it was all computed
+from. Everything is read off one valuation, so every sheet agrees with
 every other.
 """
 
@@ -24,6 +25,7 @@ from db.backup import rolling_backup
 from engine.cache import load_or_build
 from engine.fx_rates import FxRateUnavailableError
 from engine.panels import FolioValuation
+from engine.performance import fetch_moves
 from exporters.folio_workbook import (
     SECTIONS,
     FolioSources,
@@ -33,6 +35,7 @@ from exporters.folio_workbook import (
     parse_sections,
 )
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_success, console_warning
 from term.progress import ProgressDisplay
 
@@ -101,7 +104,19 @@ def write_folio(
         offline=offline,
     )
     note = freshness_note(cached.computed_at, valuation.quotes)
-    tables = folio_tables(FolioSources.read(valuation), sections, notes=[note])
+    moves = {}
+    if Section.PERF in sections:
+        moves = fetch_moves(
+            valuation.quotes,
+            load_symbol_resolver(),
+            refresh=refresh,
+            offline=offline,
+        )
+    tables = folio_tables(
+        FolioSources.read(valuation, moves=moves),
+        sections,
+        notes=[note],
+    )
     return _write(target, tables)
 
 

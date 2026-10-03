@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -10,14 +10,16 @@ from app import get_config
 from db import get_connection, get_distinct_values, get_rows
 from domain import Column, Table
 from engine.panels import FOLIO_VIEW, account_view, type_view
+from engine.ticker import MARKET_SORT, performance_rows, sort_performance
 from exporters.sheets import (
     cost_base_table,
     flows_table,
     fx_table,
     ledger_table,
     panel_table,
+    performance_table,
     summary_table,
-    tickers_table,
+    traded_tickers_table,
     transactions_table,
 )
 from exporters.table import Link
@@ -30,8 +32,10 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+    from domain import PriceRange
     from engine.flows import Room
     from engine.panels import FolioValuation, Panel
+    from engine.performance import RangeMove
     from exporters.table import Table as Sheet
     from services.quotes_service import Quote
 
@@ -40,6 +44,7 @@ class Section(StrEnum):
     """A group of sheets that `--only` can ask for by name."""
 
     SUMMARY = "summary"  # the headline figures and every pool's flows
+    PERF = "perf"  # every holding's price move over each range
     DASH = "dash"  # the portfolio's dashboard, and one per account type
     ACCOUNTS = "accounts"  # one dashboard per broker account
     ACB = "acb"  # the Ledger, and every pool's closing cost base
@@ -50,7 +55,7 @@ SECTIONS: tuple[Section, ...] = tuple(Section)
 
 # The sections that need a replay; without one only the stored tables remain.
 VALUED: frozenset[Section] = frozenset(
-    {Section.SUMMARY, Section.DASH, Section.ACCOUNTS, Section.ACB},
+    {Section.SUMMARY, Section.PERF, Section.DASH, Section.ACCOUNTS, Section.ACB},
 )
 
 
@@ -102,6 +107,8 @@ class FolioSources:
         rates: The stored USDCAD rates.
         tickers: Each traded ticker, paired with the symbol it resolves to.
         quotes: The whole quote cache, keyed by symbol, for the tickers sheet.
+        moves: Each held symbol's price move over every range, for the
+            Performance sheet. Empty when that sheet was not asked for.
     """
 
     valuation: FolioValuation | None
@@ -109,14 +116,23 @@ class FolioSources:
     rates: pd.DataFrame
     tickers: list[tuple[str, str]]
     quotes: Mapping[str, Quote]
+    moves: Mapping[str, Mapping[PriceRange, RangeMove | None]] = field(
+        default_factory=dict,
+    )
 
     @classmethod
-    def read(cls, valuation: FolioValuation | None) -> FolioSources:
+    def read(
+        cls,
+        valuation: FolioValuation | None,
+        moves: Mapping[str, Mapping[PriceRange, RangeMove | None]] | None = None,
+    ) -> FolioSources:
         """Read the stored tables a workbook reproduces.
 
         Args:
             valuation: The priced replay the other sheets are laid out from, or
                 None when there is none.
+            moves: Each held symbol's move over every range, when the
+                Performance sheet is wanted.
 
         Returns:
             The sources, ready to lay out.
@@ -144,6 +160,7 @@ class FolioSources:
             rates=ForexService.get_fx_rates_from_db(),
             tickers=[(name, resolver.canonical(name)) for name in names],
             quotes=QuotesService.cached(),
+            moves=moves or {},
         )
 
 
@@ -177,21 +194,32 @@ def folio_tables(
                 ledger_table(frame, txns=sources.txns),
                 cost_base_table(frame),
             ]
+    performance: list[Sheet] = []
+    if pools is not None and Section.PERF in chosen:
+        performance = [_performance(pools.folio, sources, notes)]
     stored = _stored(sources) if Section.STORED in chosen else []
 
     if pools is None or Section.SUMMARY not in chosen:
-        return [*dashboards, *cost_base, *stored]
+        return [*performance, *dashboards, *cost_base, *stored]
 
     folio, *_ = pools.every
     flows = flows_table(pools.every, history=pools.history)
-    linked = [flows, *cost_base, *(table for table in stored if not table.hidden)]
+    linked = [
+        flows,
+        *performance,
+        *cost_base,
+        *(table for table in stored if not table.hidden),
+    ]
     summary = summary_table(
         folio,
         pools.every,
         notes=notes,
         contents=[(table.name, _describe(table.name)) for table in linked],
     )
-    reports = [_back_to_summary(table) for table in (flows, *dashboards, *cost_base)]
+    reports = [
+        _back_to_summary(table)
+        for table in (flows, *performance, *dashboards, *cost_base)
+    ]
     linked_stored = [
         table if table.hidden else _back_to_summary(table) for table in stored
     ]
@@ -203,6 +231,7 @@ _SUMMARY = "Summary"
 # What the Summary's contents panel says each linked sheet holds.
 _DESCRIPTIONS: dict[str, str] = {
     "Flows": "Cash, contributions and room, for every pool",
+    "Performance": "Every holding's price move over each range, 2h to all time",
     "Ledger": "Every transaction, with its cost base at every grain",
     "Cost Base": "Every pool's closing cost base, in CAD",
 }
@@ -260,6 +289,17 @@ def _dashboards(
     return [panel_table(panel, notes=notes) for panel in panels]
 
 
+def _performance(folio: Panel, sources: FolioSources, notes: Sequence[str]) -> Sheet:
+    """Compare every holding over each range, largest market value first."""
+    quotes = {
+        holding.symbol: holding_quote
+        for holding in folio.holdings.holdings
+        if (holding_quote := sources.quotes.get(holding.symbol)) is not None
+    }
+    rows = performance_rows(folio, quotes, sources.moves)
+    return performance_table(sort_performance(rows, MARKET_SORT), notes=notes)
+
+
 def _stored(sources: FolioSources) -> list[Sheet]:
     """Return list of stored tables: rates, tickers, and the importable Txns.
 
@@ -270,7 +310,7 @@ def _stored(sources: FolioSources) -> list[Sheet]:
     return [
         transactions_table(sources.txns, config.txn_sheet, hidden=True),
         fx_table(sources.rates, config.fx_sheet),
-        tickers_table(sources.tickers, sources.quotes, config.tkr_sheet),
+        traded_tickers_table(sources.tickers, sources.quotes, config.tkr_sheet),
     ]
 
 

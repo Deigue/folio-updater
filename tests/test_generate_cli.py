@@ -34,6 +34,7 @@ FX = {
 EVERY_SHEET = [
     "Summary",
     "Flows",
+    "Performance",
     "Portfolio",
     "NON-REGISTERED",
     "TFSA",
@@ -191,7 +192,7 @@ def test_only_refuses_a_section_that_does_not_exist(
         result = _generate(ctx, target, "--only", "dashboards")
 
         assert result.exit_code == 1
-        assert_in_output("summary, dash, accounts, acb, stored", result)
+        assert_in_output("summary, perf, dash, accounts, acb, stored", result)
         assert not target.exists()
 
 

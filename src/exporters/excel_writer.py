@@ -352,7 +352,8 @@ def _finish(
     """Freeze, filter, size and accent the finished sheet."""
     last_column = get_column_letter(len(table.columns))
     frozen = min(max(table.freeze, 0), len(table.columns))
-    worksheet.freeze_panes = f"{get_column_letter(frozen + 1)}{header_row + 1}"
+    pinned = header_row + 1 if table.freeze_rows else 1
+    worksheet.freeze_panes = f"{get_column_letter(frozen + 1)}{pinned}"
     if last_data_row > header_row:
         worksheet.auto_filter.ref = f"A{header_row}:{last_column}{last_data_row}"
 

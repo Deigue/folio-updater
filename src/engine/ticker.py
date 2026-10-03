@@ -10,13 +10,15 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
-from domain import Column, Currency, PriceRange, WarningCode
-from domain.numeric import ZERO
+from domain import Action, Column, Currency, PriceRange, WarningCode
+from domain.numeric import ZERO, dec
 from engine.panels import FOLIO_VIEW, account_view, type_view
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from decimal import Decimal
+
+    import pandas as pd
 
     from engine.panels import FolioValuation, Panel, PoolView
     from engine.performance import RangeMove
@@ -38,6 +40,24 @@ class PoolLine:
 
 
 @dataclass(frozen=True)
+class FirstBuy:
+    """The folio's first purchase of a security.
+
+    Attributes:
+        date: When it was bought, `YYYY-MM-DD`.
+        price: The price per share, as traded.
+        currency: The currency it was bought in.
+        split_since: Whether a split has changed the share count since, which
+            leaves the price as traded no longer comparable to today's.
+    """
+
+    date: str
+    price: Decimal
+    currency: Currency
+    split_since: bool = False
+
+
+@dataclass(frozen=True)
 class SymbolPosition:
     """A security representation across the folio.
 
@@ -47,6 +67,8 @@ class SymbolPosition:
             first, then the closed ones.
         total: The portfolio-wide holding. Read from the portfolio grain
         first_traded: The folio's first transaction in it, `YYYY-MM-DD`.
+        first_buy: Its first purchase, or None when it only ever arrived by
+            transfer from an account the folio does not track.
         currency: The currency every figure is expressed in.
         fx_rate: The USDCAD rate a converted market value was read at, when
             the figures needed one.
@@ -60,6 +82,7 @@ class SymbolPosition:
     currency: Currency
     fx_rate: Decimal | None = None
     fx_date: str | None = None
+    first_buy: FirstBuy | None = None
 
     def held_for(self, today: date) -> tuple[int, int]:
         """Measure how long since the first transaction, in years and months.
@@ -75,6 +98,15 @@ class SymbolPosition:
         if today.day < first.day:
             months -= 1
         return divmod(max(months, 0), 12)
+
+    @property
+    def pooled_differs(self) -> bool:
+        """Whether the portfolio-wide figures say anything the lines do not.
+
+        With a single line, open or closed, that pool is the whole portfolio's
+        holding, so the pooled figures would only repeat it.
+        """
+        return len(self.lines) > 1
 
     @property
     def flags(self) -> tuple[WarningCode, ...]:
@@ -140,7 +172,30 @@ def symbol_position(
         currency=total.currency,
         fx_rate=folio.holdings.fx_rate,
         fx_date=folio.holdings.fx_date,
+        first_buy=_first_buy(rows),
     )
+
+
+def _first_buy(rows: pd.DataFrame) -> FirstBuy | None:
+    """Find the first purchase with a price, and whether a split followed it."""
+    action, when = str(Column.Txn.ACTION), str(Column.Txn.TXN_DATE)
+    buys = rows[rows[action] == str(Action.BUY)].sort_values(
+        [when, str(Column.Txn.TXN_ID)],
+        kind="stable",
+    )
+    for record in buys.to_dict("records"):
+        price = dec(record[str(Column.Txn.PRICE)])
+        if price <= ZERO:
+            continue
+        bought = str(record[when])
+        splits = rows[(rows[action] == str(Action.SPLIT)) & (rows[when] > bought)]
+        return FirstBuy(
+            date=bought,
+            price=price,
+            currency=Currency(str(record[str(Column.Txn.CURRENCY)])),
+            split_since=not splits.empty,
+        )
+    return None
 
 
 def _holding_of(panel: Panel, symbol: str) -> Holding | None:
@@ -160,8 +215,9 @@ class PerformanceRow:
         symbol: The canonical symbol.
         quote: Its live quote.
         moves: Its move over every range.
-        market: The pool's market value of it, in the valuation's currency.
-            None for a security the pool does not hold.
+        market: The pool's market value of it, in CAD whatever currency the
+            pool was valued in, so rows compare. None for a security the pool
+            does not hold.
         weight_in_pool: Its share of the pool shown.
         weight_in_folio: Its share of the whole portfolio.
     """
@@ -218,7 +274,7 @@ def performance_rows(
                 symbol=symbol,
                 quote=quote,
                 moves=moves.get(symbol, {}),
-                market=holding.market_value if holding else None,
+                market=holding.market_value_cad if holding else None,
                 weight_in_pool=holding.weight_in_pool if holding else None,
                 weight_in_folio=holding.weight_in_folio if holding else None,
             ),

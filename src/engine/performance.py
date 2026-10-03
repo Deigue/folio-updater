@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from domain import PriceRange
 from services.price_history import session_day
+from services.quotes_service import QuotesService
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
     from services.price_history import PricePoint, RangeHistory
     from services.quotes_service import Quote
+    from services.symbols import SymbolResolver
 
 SESSION_RANGES = frozenset({PriceRange.DAY_1, PriceRange.DAYS_2})
 
@@ -137,3 +139,37 @@ def _close_before(stored: RangeHistory, first: date) -> Decimal:
     closes: list[PricePoint] = [stored.anchor, *stored.points]
     earlier = [point for point in closes if session_day(point) < first]
     return earlier[-1].close if earlier else stored.anchor.close
+
+
+def fetch_moves(
+    quotes: Mapping[str, Quote],
+    resolver: SymbolResolver,
+    *,
+    refresh: bool = False,
+    offline: bool = False,
+) -> dict[str, dict[PriceRange, RangeMove | None]]:
+    """Measure every range for a batch of securities, fetching what is due.
+
+    Stored history is refetched at most once a day, and the intraday bars
+    behind `2h` to `1wk` live, both in one batch for every security.
+
+    Args:
+        quotes: Each security's live quote, keyed by canonical symbol.
+        resolver: Supplies the provider spelling for each symbol.
+        refresh: Refetch the stored history regardless of when it was fetched.
+        offline: Never touch the network: stored history only, no intraday.
+
+    Returns:
+        Each security mapped to its move over every range.
+    """
+    symbols = list(quotes)
+    history = QuotesService.history(symbols, resolver, refresh=refresh, offline=offline)
+    intraday = QuotesService.intraday(symbols, resolver, offline=offline)
+    return {
+        symbol: price_moves(
+            quotes[symbol],
+            history.get(symbol, {}),
+            intraday.get(symbol, {}),
+        )
+        for symbol in symbols
+    }

@@ -39,7 +39,7 @@ folio acb NVDA --type all             # portfolio-wide
 | `-y/--year YYYY`  | Shorthand for a whole calendar year                            |
 | `--all`           | Include `DIVIDEND` and `FCH` rows, which never touch cost base |
 | `-s/--summary`    | One row per symbol instead of a per-transaction buildup        |
-| `-e/--export PATH`| Write the reported rows to a `.csv` or `.parquet` file         |
+| `-e/--export PATH`| Write the report to a `.xlsx`, `.csv` or `.parquet` file       |
 | `-r/--refresh`    | Rebuild the cache before reporting                             |
 
 `SYMBOL` may be omitted only with `--summary` or `--export`.
@@ -83,17 +83,21 @@ CAD is the tax currency, the converted figures for a USD holding belong in it.
 
 ## Export
 
-`--export PATH` exports all rows to `.csv` or `.parquet`, chosen
-based on the suffix. (.csv by default)
+`--export PATH` writes what the command reports, choosing the format from the
+suffix (a path with none becomes a workbook):
 
-What is exported: every column the engine computed, at all three grains at once.
-Only the row filters (`SYMBOL`, `--type`,
-`--account`, `--from`, `--to`, `--year`, `--all`) remain applicable.
+- `.xlsx` or `.csv`: the table as printed. `--summary` writes the summary, a
+  `SYMBOL` writes its buildup, and neither writes the whole ledger for the pool.
+  `--currency` and the row filters (`--type`, `--account`, `--from`, `--to`,
+  `--year`, `--all`) apply as they do on screen. Cells keep full precision; only
+  their display is rounded.
+- `.parquet`: the raw rows behind it, every column the engine computed at all
+  three grains, for another program to read.
 
 ```bash
-folio acb --export acb.parquet            # every symbol, non-registered rows
-folio acb NVDA --export nvda.csv          # one symbol, still writes all scopes
-folio acb --type all --year 2025 --all --export 2025.csv
+folio acb NVDA --export nvda.xlsx             # one symbol's buildup
+folio acb --summary --export summary.csv      # one row per symbol
+folio acb --type all --year 2025 --all --export 2025.xlsx
 ```
 
 `SYMBOL` may be omitted with `--export`, which is how you dump the whole ledger:

@@ -233,11 +233,11 @@ def test_generate_command(temp_ctx: TempContext) -> None:
             config.folio_path,
             sheet_name=config.txn_sheet,
         )
-        # The first row is the link back to the Summary; the header is below it.
+        # The link back to the Summary, then the column bands, then the header.
         tickers_excel = pd.read_excel(
             config.folio_path,
             sheet_name=config.tkr_sheet,
-            header=1,
+            header=2,
         )
         assert_frame_equal(
             transactions_parquet.reset_index(drop=True).fillna(pd.NA),
