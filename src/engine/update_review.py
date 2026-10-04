@@ -9,7 +9,7 @@ the commands required to fix them.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -17,16 +17,32 @@ from domain import TXN_ESSENTIALS, Action, CheckStatus, Column, SettlementOutcom
 from models import Concern, UpdateStage
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Mapping
     from datetime import date
 
     from engine.checks import CheckResult
-    from models import ImportResults, MergeEvent, SettlementMatch
+    from models import CancelEvent, ImportResults, MergeEvent, SettlementMatch
 
 # Cash moves between two of the user's own accounts land a few days apart at most.
 TRANSFER_WINDOW_DAYS = 3
+# How far back a late cancellation looks for the stored row it voids.
+CANCEL_WINDOW_DAYS = 31
 _AMOUNT_TOLERANCE = 0.01
 _MONTH = "%Y-%m"
+
+# Every `folio add` needs these; a row lacking one gets a placeholder.
+_ADD_REQUIRED = frozenset(
+    {
+        Column.Txn.ACTION,
+        Column.Txn.TXN_DATE,
+        Column.Txn.ACCOUNT,
+        Column.Txn.CURRENCY,
+        Column.Txn.AMOUNT,
+    },
+)
+
+# How a placeholder names a column whose header is not a word.
+_PLACEHOLDERS = {Column.Txn.CURRENCY: "currency"}
 
 # The `folio add` option for each column, in the order the command reads best.
 _ADD_OPTIONS: tuple[tuple[str, str], ...] = (
@@ -52,9 +68,11 @@ def _essentials(df: pd.DataFrame) -> list[str]:
 
 
 def add_command(row: pd.Series, *, force: bool = False) -> str:
-    """Spell out the `folio add` that would recreate a row.
+    """Spell out the `folio add` that would recreate a row as it would be stored.
 
-    Values the row lacks become `<placeholders>` for the user to fill in.
+    A value every add needs but the row lacks becomes a `<placeholder>` for the
+    user to fill in; an optional one the row lacks (an FXT's ticker) is left
+    out, the way the import would have stored it.
 
     Args:
         row: The transaction to recreate.
@@ -66,7 +84,12 @@ def add_command(row: pd.Series, *, force: bool = False) -> str:
     parts = ["folio add"]
     for column, option in _ADD_OPTIONS:
         value = row.get(column)
-        shown = str(value).strip() if _present(value) else f"<{column.lower()}>"
+        if _present(value):
+            shown = str(value).strip()
+        elif column in _ADD_REQUIRED:
+            shown = f"<{_PLACEHOLDERS.get(column, column.lower())}>"
+        else:
+            continue
         parts.append(f'{option} "{shown}"' if " " in shown else f"{option} {shown}")
     if force:
         parts.append("--force")
@@ -96,6 +119,50 @@ def header_rows(excluded: pd.DataFrame, source_columns: Iterable[str]) -> pd.Ser
         return bool(values) and all(value in names for value in values)
 
     return excluded.apply(is_header, axis=1).astype(bool)
+
+
+def upcoming_dividends(excluded: pd.DataFrame) -> pd.Series:
+    """Mark excluded dividends that carry no amount yet.
+
+    A broker can list a dividend once its ex-dividend date passes, before the
+    payment lands, with no amount (Wealthsimple does). The import rightly turns
+    it away; the paid dividend arrives in a later download.
+
+    Args:
+        excluded: Rows the formatter excluded.
+
+    Returns:
+        A boolean mask over `excluded`, True for announced, unpaid dividends.
+    """
+    amounts = pd.to_numeric(
+        excluded.get(Column.Txn.AMOUNT, pd.Series(index=excluded.index)),
+        errors="coerce",
+    )
+    dividend = excluded[Column.Txn.ACTION].astype(str).str.upper() == Action.DIVIDEND
+    return dividend & (amounts.isna() | (amounts == 0))
+
+
+def _reasons(rows: pd.DataFrame) -> tuple[str, ...]:
+    """Say why each excluded row was turned away, one line per row."""
+    return tuple(
+        f"{_row_summary(row)}: {row[Column.REJECTION_REASON]}"
+        for row in rows.to_dict("records")
+    )
+
+
+def _row_summary(row: Mapping[Any, Any]) -> str:
+    """Render a row as date ticker amount currency account, skipping blanks."""
+    columns = (
+        Column.Txn.TXN_DATE,
+        Column.Txn.ACTION,
+        Column.Txn.TICKER,
+        Column.Txn.AMOUNT,
+        Column.Txn.CURRENCY,
+        Column.Txn.ACCOUNT,
+    )
+    return " ".join(
+        str(row.get(column)).strip() for column in columns if _present(row.get(column))
+    )
 
 
 def odd_merges(events: Iterable[MergeEvent]) -> list[MergeEvent]:
@@ -147,11 +214,15 @@ def old_db_dupes(rejected: pd.DataFrame, since: str | None) -> pd.DataFrame:
     return rejected[dates < since]
 
 
+# A review of one part of an import: its concerns, and notes on expected noise.
+_Review = tuple[list[Concern], list[str]]
+
+
 def review_import(
     filename: str,
     results: ImportResults,
     since: str | None,
-) -> tuple[list[Concern], list[str]]:
+) -> _Review:
     """Review one file's import.
 
     Args:
@@ -164,105 +235,219 @@ def review_import(
     """
     concerns: list[Concern] = []
     noise: list[str] = []
-
-    excluded = results.excluded_df
-    if not excluded.empty:
-        headers = header_rows(excluded, results.read_df.columns)
-        if headers.any():
-            noise.append(f"{filename}: {int(headers.sum())} repeated header row(s)")
-        real = excluded[~headers]
-        if not real.empty:
-            concerns.append(
-                Concern(
-                    stage=UpdateStage.IMPORT,
-                    title=f"{len(real)} row(s) excluded from {filename}",
-                    why=(
-                        "These rows failed validation and are not in the folio. "
-                        "If one is genuine, add it by hand, or fix the source and "
-                        "re-import it. A bare transfer may instead arrive with a "
-                        "later monthly statement."
-                    ),
-                    rows=real,
-                    commands=tuple(add_command(row) for _, row in real.iterrows()),
-                ),
-            )
-
-    intra = results.intra_rejected_df
-    if not intra.empty:
-        concerns.append(
-            Concern(
-                stage=UpdateStage.IMPORT,
-                title=f"{len(intra)} identical row(s) dropped from {filename}",
-                why=(
-                    "Rows that repeat within one file are all dropped, every copy. "
-                    "If they were separate fills of the same order, add each back."
-                ),
-                rows=intra,
-                commands=tuple(
-                    add_command(row, force=True) for _, row in intra.iterrows()
-                ),
-            ),
-        )
-
-    db_dupes = results.db_rejected_df
-    if not db_dupes.empty:
-        old = old_db_dupes(db_dupes, since)
-        expected = len(db_dupes) - len(old)
-        if expected:
-            noise.append(f"{filename}: {expected} row(s) re-sent for the resume day")
-        if not old.empty:
-            concerns.append(
-                Concern(
-                    stage=UpdateStage.IMPORT,
-                    title=f"{len(old)} older row(s) in {filename} already in the folio",
-                    why=(
-                        "These predate the broker's latest stored transaction, so "
-                        "the file overlaps an earlier import. They were skipped. "
-                        "Only a genuine repeat trade needs adding back."
-                    ),
-                    rows=old,
-                    commands=tuple(
-                        add_command(row, force=True) for _, row in old.iterrows()
-                    ),
-                ),
-            )
-
-    odd = odd_merges(results.merge_events)
-    if odd:
-        rows = pd.concat([event.source_rows for event in odd], ignore_index=True)
-        concerns.append(
-            Concern(
-                stage=UpdateStage.IMPORT,
-                title=f"{len(odd)} unusual merge(s) in {filename}",
-                why=(
-                    "A merge folded in a repeated action, or netted negative from "
-                    "a positive payment, which usually means a correction or "
-                    "reversal was combined with the original. These are the "
-                    "source rows."
-                ),
-                rows=rows,
-                commands=tuple(
-                    f"folio query {e.merged_row.get(Column.Txn.TICKER, '')} "
-                    f"{e.merged_row.get(Column.Txn.TXN_DATE, '')}".strip()
-                    for e in odd
-                ),
-            ),
-        )
-
-    if not results.tally_matches():
-        concerns.append(
-            Concern(
-                stage=UpdateStage.IMPORT,
-                title=f"Import tally does not add up for {filename}",
-                why=(
-                    f"{results.imported_count()} row(s) imported where the stages "
-                    f"account for {results.expected_count()}. Compare the file "
-                    "with importer.log to find the rows that went astray."
-                ),
-            ),
-        )
-
+    for part_concerns, part_noise in (
+        _review_cancellations(filename, results.cancel_events),
+        _review_excluded(filename, results),
+        _review_intra_dupes(filename, results.intra_rejected_df),
+        _review_db_dupes(filename, results.db_rejected_df, since),
+        _review_merges(filename, results.merge_events),
+        _review_tally(filename, results),
+    ):
+        concerns.extend(part_concerns)
+        noise.extend(part_noise)
     return concerns, noise
+
+
+def _review_cancellations(filename: str, events: Iterable[CancelEvent]) -> _Review:
+    """Note each cancellation that voided a row in the same file."""
+    return [], [
+        f"{filename}: cancelled by the broker, both left out: "
+        f"{_row_summary(event.cancelled)}"
+        for event in events
+        if event.cancelled is not None
+    ]
+
+
+def _review_excluded(filename: str, results: ImportResults) -> _Review:
+    """Split exclusions into header lines, unpaid dividends and real rows."""
+    excluded = results.excluded_df
+    if excluded.empty:
+        return [], []
+    noise: list[str] = []
+    headers = header_rows(excluded, results.read_df.columns)
+    if headers.any():
+        noise.append(f"{filename}: {int(headers.sum())} repeated header row(s)")
+    unpaid = upcoming_dividends(excluded) & ~headers
+    noise.extend(
+        f"Dividend announced, not paid yet: {_row_summary(row)}"
+        for row in excluded[unpaid].to_dict("records")
+    )
+    real = excluded[~headers & ~unpaid]
+    if real.empty:
+        return [], noise
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"{len(real)} row(s) excluded from {filename}",
+        why=(
+            "These rows failed validation and are not in the folio. If one is "
+            "genuine, add it by hand, or fix the source and re-import it. A bare "
+            "transfer may instead arrive with a later monthly statement."
+        ),
+        rows=real[_essentials(real)],
+        details=_reasons(real),
+        commands=tuple(add_command(row) for _, row in real.iterrows()),
+    )
+    return [concern], noise
+
+
+def _review_intra_dupes(filename: str, intra: pd.DataFrame) -> _Review:
+    """Raise rows dropped for repeating within the file."""
+    if intra.empty:
+        return [], []
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"{len(intra)} identical row(s) dropped from {filename}",
+        why=(
+            "Rows that repeat within one file are all dropped, every copy. If "
+            "they were separate fills of the same order, add each back."
+        ),
+        rows=intra,
+        commands=tuple(add_command(row, force=True) for _, row in intra.iterrows()),
+    )
+    return [concern], []
+
+
+def _review_db_dupes(
+    filename: str,
+    db_dupes: pd.DataFrame,
+    since: str | None,
+) -> _Review:
+    """Note duplicates of the resume day; raise older ones."""
+    if db_dupes.empty:
+        return [], []
+    old = old_db_dupes(db_dupes, since)
+    expected = len(db_dupes) - len(old)
+    noise = [f"{filename}: {expected} row(s) re-sent for the resume day"] * bool(
+        expected,
+    )
+    if old.empty:
+        return [], noise
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"{len(old)} older row(s) in {filename} already in the folio",
+        why=(
+            "These predate the broker's latest stored transaction, so the file "
+            "overlaps an earlier import. They were skipped. Only a genuine "
+            "repeat trade needs adding back."
+        ),
+        rows=old,
+        commands=tuple(add_command(row, force=True) for _, row in old.iterrows()),
+    )
+    return [concern], noise
+
+
+def _review_merges(filename: str, events: Iterable[MergeEvent]) -> _Review:
+    """Raise merges whose shape suggests the wrong rows were combined."""
+    odd = odd_merges(events)
+    if not odd:
+        return [], []
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"{len(odd)} unusual merge(s) in {filename}",
+        why=(
+            "A merge folded in a repeated action, or netted negative from a "
+            "positive payment, which usually means a correction or reversal was "
+            "combined with the original. These are the source rows."
+        ),
+        rows=pd.concat([event.source_rows for event in odd], ignore_index=True),
+        commands=tuple(
+            f"folio query {e.merged_row.get(Column.Txn.TICKER, '')} "
+            f"{e.merged_row.get(Column.Txn.TXN_DATE, '')}".strip()
+            for e in odd
+        ),
+    )
+    return [concern], []
+
+
+def _review_tally(filename: str, results: ImportResults) -> _Review:
+    """Raise an import whose rows do not add up stage by stage."""
+    if results.tally_matches():
+        return [], []
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"Import tally does not add up for {filename}",
+        why=(
+            f"{results.imported_count()} row(s) imported where the stages account "
+            f"for {results.expected_count()}. Compare the file with importer.log "
+            "to find the rows that went astray."
+        ),
+    )
+    return [concern], []
+
+
+def review_late_cancellations(
+    filename: str,
+    events: Iterable[CancelEvent],
+    txns: pd.DataFrame,
+) -> list[Concern]:
+    """Raise cancellations whose voided row was not in the same file.
+
+    The row such a cancellation voids was most likely stored by an earlier
+    import. Stored rows on the same account and currency, with the opposite
+    amount, from the month before the cancellation, are offered for deletion.
+
+    Args:
+        filename: The file the cancellations came from.
+        events: Cancellations found while importing it.
+        txns: Every stored transaction.
+
+    Returns:
+        One concern per cancellation that voided nothing in its file.
+    """
+    concerns: list[Concern] = []
+    for event in events:
+        if event.cancelled is not None:
+            continue
+        row = event.cancellation
+        candidates = _cancelled_candidates(row, txns)
+        found = not candidates.empty
+        concerns.append(
+            Concern(
+                stage=UpdateStage.IMPORT,
+                title=f"Cancellation in {filename}: {_row_summary(row)}",
+                why=(
+                    "The broker cancelled a row that was not in this file, so it "
+                    "is probably already in the folio. Delete the one it cancels "
+                    "(the earliest, if several are listed)."
+                    if found
+                    else "The broker cancelled a row that is neither in this file "
+                    "nor in the folio. Check the broker's activity for it."
+                ),
+                rows=candidates,
+                commands=tuple(
+                    f"folio delete {int(txn_id)}"
+                    for txn_id in candidates.get(Column.Txn.TXN_ID, [])
+                ),
+            ),
+        )
+    return concerns
+
+
+def _cancelled_candidates(row: dict[str, object], txns: pd.DataFrame) -> pd.DataFrame:
+    """Find stored rows a cancellation could void.
+
+    Args:
+        row: The cancelling row.
+        txns: Every stored transaction.
+
+    Returns:
+        Matching stored rows, earliest first.
+    """
+    amount = pd.to_numeric(pd.Series([row.get(Column.Txn.AMOUNT)]), errors="coerce")
+    when = pd.to_datetime(str(row.get(Column.Txn.TXN_DATE)), errors="coerce")
+    if txns.empty or amount.isna().iloc[0] or pd.isna(when):
+        return txns.iloc[0:0]
+    stored = pd.to_numeric(txns[Column.Txn.AMOUNT], errors="coerce")
+    days = pd.to_datetime(txns[Column.Txn.TXN_DATE], errors="coerce")
+    match = (
+        ((stored + amount.iloc[0]).abs() < _AMOUNT_TOLERANCE)
+        & (days <= when)
+        & (days >= when - pd.Timedelta(days=CANCEL_WINDOW_DAYS))
+    )
+    for column in (Column.Txn.ACCOUNT, Column.Txn.CURRENCY):
+        if _present(row.get(column)):
+            match &= txns[column].astype(str) == str(row.get(column))
+    return txns[match].sort_values(Column.Txn.TXN_DATE, kind="stable")
 
 
 def transfer_like_pairs(
@@ -526,18 +711,12 @@ def review_checks(results: Iterable[CheckResult]) -> tuple[list[Concern], int]:
             warned += 1
         if result.status is not CheckStatus.FAIL:
             continue
-        rows = pd.DataFrame(
-            {
-                "Subject": [f.subject for f in result.findings],
-                "Detail": [f.detail for f in result.findings],
-            },
-        )
         concerns.append(
             Concern(
                 stage=UpdateStage.CHECK,
                 title=f"{result.name}: {result.summary}",
                 why="A health check failed; the folio needs a correction.",
-                rows=rows,
+                details=tuple(f"{f.subject}: {f.detail}" for f in result.findings),
                 commands=(f"folio check --only {result.slug}",),
             ),
         )

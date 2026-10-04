@@ -265,6 +265,24 @@ def download_cmd(
     )
 
 
+@app.command(
+    "update",
+    help="Catch up: download, import, settle, check, generate, then report",
+)
+def update_cmd(
+    *,
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Skip downloading and continue from the files waiting to import",
+    ),
+) -> None:
+    """Catch the folio up in one go and report what changed."""
+    from cli.commands.update import run_update
+
+    run_update(resume=resume)
+
+
 @app.command("symbol", help="Manage ticker aliases", no_args_is_help=True)
 def symbol_cmd(
     add: tuple[str, str, str] | None = typer.Option(

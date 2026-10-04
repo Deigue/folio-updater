@@ -8,7 +8,7 @@ from services.forex_service import ForexService
 from services.ibkr_service import DownloadRequest, IBKRService, IBKRServiceError
 from services.quotes_service import Quote, QuotesService, RefreshResult
 from services.symbols import SymbolResolver, load_symbol_resolver
-from services.wealthsimple_service import WealthsimpleService
+from services.wealthsimple_service import WealthsimpleService, WealthsimpleServiceError
 
 __all__ = [
     "DownloadRequest",
@@ -20,5 +20,6 @@ __all__ = [
     "RefreshResult",
     "SymbolResolver",
     "WealthsimpleService",
+    "WealthsimpleServiceError",
     "load_symbol_resolver",
 ]

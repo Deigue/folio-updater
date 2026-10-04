@@ -15,6 +15,7 @@ from engine.update_review import (
     old_db_dupes,
     review_checks,
     review_import,
+    review_late_cancellations,
     review_statement,
     review_stuck,
     review_transfer_pairs,
@@ -23,7 +24,13 @@ from engine.update_review import (
     statement_months,
     transfer_like_pairs,
 )
-from models import ImportResults, MergeEvent, SettlementMatch, UpdateStage
+from models import (
+    CancelEvent,
+    ImportResults,
+    MergeEvent,
+    SettlementMatch,
+    UpdateStage,
+)
 from tests.helpers.seed import ACCOUNT, TICKER, TSX_TICKER, VENTURE_TICKER
 
 OTHER_ACCOUNT = "OTHERACCT"
@@ -48,6 +55,28 @@ MISSING_AMOUNT_ROW = {
     Column.Txn.TICKER: TSX_TICKER,
     Column.Txn.ACCOUNT: ACCOUNT,
     Column.REJECTION_REASON: "MISSING Amount",
+}
+# A withdrawal the broker sent without its amount or currency.
+BARE_WITHDRAWAL_ROW = {
+    Column.Txn.TXN_DATE: "2026-09-20",
+    Column.Txn.ACTION: Action.WITHDRAWAL.value,
+    Column.Txn.AMOUNT: None,
+    Column.Txn.CURRENCY: None,
+    Column.Txn.ACCOUNT: ACCOUNT,
+    Column.REJECTION_REASON: "MISSING $, MISSING Amount",
+}
+# A broker cancelling a deposit, and the deposit, as mapped.
+CANCEL_ROW: dict[str, object] = {
+    Column.Txn.TXN_DATE: "2026-09-08",
+    Column.Txn.ACTION: "Deposits/Withdrawals",
+    Column.Txn.AMOUNT: "-13000",
+    Column.Txn.CURRENCY: CAD,
+    Column.Txn.ACCOUNT: ACCOUNT,
+}
+DEPOSIT_ROW: dict[str, object] = {
+    **CANCEL_ROW,
+    Column.Txn.TXN_DATE: "2026-09-07",
+    Column.Txn.AMOUNT: "13000",
 }
 
 
@@ -83,6 +112,7 @@ def _results(
     db: pd.DataFrame | None = None,
     final: pd.DataFrame | None = None,
     merges: list[MergeEvent] | None = None,
+    cancels: list[CancelEvent] | None = None,
 ) -> ImportResults:
     """Build import results whose tally adds up, from the parts given."""
     empty = pd.DataFrame()
@@ -92,10 +122,12 @@ def _results(
         db_rejected_df=empty if db is None else db,
         final_df=empty if final is None else final,
         merge_events=merges or [],
+        cancel_events=cancels or [],
     )
     # Read exactly as many rows as the stages account for, so the tally balances.
     read = (
         results.imported_count()
+        + results.cancelled_count()
         + results.excluded_count()
         + results.intra_rejected_count()
         + results.db_rejected_count()
@@ -144,6 +176,15 @@ class TestAddCommand:
         assert "-m <amount>" in command
         assert "--force" not in command
 
+    def test_leaves_out_optional_fields_it_lacks(self) -> None:
+        """An FXT stored without a ticker is added back without one."""
+        row = pd.Series(
+            {**_txn("2026-09-15", Action.FXT, -1.0), Column.Txn.TICKER: None},
+        )
+        command = add_command(row, force=True)
+        assert " -s " not in command
+        assert "<" not in command
+
     def test_force_and_quoting(self) -> None:
         """A value with spaces is quoted, and force appends --force."""
         row = pd.Series({**MISSING_AMOUNT_ROW, Column.Txn.ACCOUNT: "MY ACCT"})
@@ -173,14 +214,33 @@ class TestImportReview:
         assert header_rows(pd.DataFrame(), SOURCE_COLUMNS).empty
 
     def test_real_exclusion_is_a_concern(self) -> None:
-        """An excluded transaction is raised with the add that recreates it."""
-        excluded = pd.DataFrame([HEADER_ROW, MISSING_AMOUNT_ROW])
+        """An excluded transaction is raised, with its reason and the add for it."""
+        excluded = pd.DataFrame([HEADER_ROW, BARE_WITHDRAWAL_ROW])
         concerns, _ = review_import("ws.csv", _results(excluded=excluded), None)
         assert len(concerns) == 1
         concern = concerns[0]
         assert concern.stage is UpdateStage.IMPORT
-        assert len(concern.rows) == 1
-        assert concern.commands[0].startswith("folio add -t DIVIDEND")
+        assert concern.details == (
+            f"2026-09-20 WITHDRAWAL {ACCOUNT}: MISSING $, MISSING Amount",
+        )
+        assert "-c <currency> -m <amount>" in concern.commands[0]
+        assert concern.commands[0].startswith("folio add -t WITHDRAWAL")
+
+    def test_unpaid_dividend_is_expected(self) -> None:
+        """A dividend listed before it pays is noted, not raised."""
+        excluded = pd.DataFrame([MISSING_AMOUNT_ROW])
+        concerns, noise = review_import("ws.csv", _results(excluded=excluded), None)
+        assert concerns == []
+        unpaid = f"2026-09-15 DIVIDEND {TSX_TICKER} CAD {ACCOUNT}"
+        assert noise == [f"Dividend announced, not paid yet: {unpaid}"]
+
+    def test_paired_cancellation_is_expected(self) -> None:
+        """A cancellation that voided its row in the file is noted, not raised."""
+        event = CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW)
+        concerns, noise = review_import("cash.csv", _results(cancels=[event]), None)
+        assert concerns == []
+        voided = f"2026-09-07 Deposits/Withdrawals 13000 CAD {ACCOUNT}"
+        assert noise == [f"cash.csv: cancelled by the broker, both left out: {voided}"]
 
     def test_intra_duplicates_are_a_concern(self) -> None:
         """Every dropped copy gets a forced add."""
@@ -414,7 +474,7 @@ class TestChecksAndPrices:
         assert warned == 1
         assert len(concerns) == 1
         assert concerns[0].commands == ("folio check --only unit-balances",)
-        assert concerns[0].rows["Subject"].tolist() == [TICKER]
+        assert concerns[0].details == (f"{TICKER}: sold more than held",)
 
     def test_unpriced_holdings(self) -> None:
         """Each unpriced holding is named once."""
@@ -423,3 +483,46 @@ class TestChecksAndPrices:
         assert concern.title.endswith(VENTURE_TICKER)
         assert f"folio ticker {VENTURE_TICKER}" in concern.commands
         assert review_unpriced([]) is None
+
+
+class TestLateCancellations:
+    """Cancellations whose voided row was imported by an earlier run."""
+
+    STORED = pd.DataFrame(
+        [
+            _txn("2026-08-01", Action.CONTRIBUTION, 13000.0, "", ACCOUNT, CAD, 5),
+            _txn("2026-09-07", Action.CONTRIBUTION, 13000.0, "", ACCOUNT, CAD, 9),
+            _txn(
+                "2026-09-07",
+                Action.CONTRIBUTION,
+                13000.0,
+                "",
+                OTHER_ACCOUNT,
+                CAD,
+                10,
+            ),
+        ],
+    )
+
+    def test_offers_the_stored_row(self) -> None:
+        """Only a recent stored row of the same account and currency is offered."""
+        concerns = review_late_cancellations(
+            "cash.csv",
+            [CancelEvent(cancellation=CANCEL_ROW)],
+            self.STORED,
+        )
+        assert [c.commands for c in concerns] == [("folio delete 9",)]
+
+    def test_nothing_stored_to_void(self) -> None:
+        """With nothing to offer, the concern says to check the broker."""
+        concerns = review_late_cancellations(
+            "cash.csv",
+            [
+                CancelEvent(cancellation=CANCEL_ROW),
+                CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW),
+            ],
+            self.STORED.iloc[0:0],
+        )
+        assert len(concerns) == 1
+        assert concerns[0].commands == ()
+        assert "neither in this file nor in the folio" in concerns[0].why

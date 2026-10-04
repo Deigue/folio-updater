@@ -39,6 +39,7 @@ class Concern:
         title: Short heading, e.g. "Excluded rows in ibkr_Trades.csv".
         why: What it means and why it matters, in a sentence or two.
         rows: The offending rows, if the concern is about specific rows.
+        details: Free-text findings, one per line, when there are no rows.
         commands: Follow-up commands that resolve it, ready to copy.
     """
 
@@ -46,6 +47,7 @@ class Concern:
     title: str
     why: str
     rows: pd.DataFrame = field(default_factory=pd.DataFrame)
+    details: tuple[str, ...] = ()
     commands: tuple[str, ...] = ()
 
 

@@ -16,6 +16,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+### Security
+
+## [0.8.13] - 2026-10-04
+
+### Added
+
+- `folio update` catches the folio up in one command, then reports what changed
+  and what needs a second look.
+- `transforms.cancellations` in config.yaml drops a broker's cancelling row
+  together with the row it voids, such as IBKR's CANCELLATION of a deposit.
+
+### Changed
+
+- `folio import` leaves a file that fails to import in the imports folder, and
+  says when a file could not be read.
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
 - A Wealthsimple monthly statement that is not published yet is reported as
   not out yet instead of failing.
 - An expired Wealthsimple session is refreshed from the stored login instead of
