@@ -32,6 +32,8 @@ from ui.vocabulary import DOWNLOAD_DROP_ORDER
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from config import Config
     from models.wealthsimple.activity_feed_item import ActivityFeedItem
 
@@ -92,12 +94,12 @@ def download_statements(
 
     if broker == "wealthsimple":
         if statement and from_date:
-            _wealthsimple_statement(from_date)
+            download_ws_statement(from_date)
         else:
-            _wealthsimple_transactions(from_date, to_date)
+            download_wealthsimple(from_date, to_date)
 
     if broker == "ibkr":
-        _handle_ibkr_download(
+        download_ibkr(
             config=config,
             from_date=from_date,
             to_date=to_date,
@@ -105,13 +107,26 @@ def download_statements(
         )
 
 
-def _handle_ibkr_download(
+def download_ibkr(
     config: Config,
     from_date: str | None,
     to_date: str | None,
     reference_code: str | None,
-) -> None:
+) -> list[str]:
+    """Download every configured IBKR flex query into the imports folder.
+
+    Args:
+        config: The application configuration.
+        from_date: From date in YYYY-MM-DD format, or None for the latest stored.
+        to_date: To date in YYYY-MM-DD format, or None for today.
+        reference_code: Retry one earlier request by its reference code instead.
+
+    Returns:
+        One line per query that failed, naming the query and the error. Empty
+        when every query succeeded.
+    """
     files_downloaded: bool = False
+    failures: list[str] = []
     with IBKRService() as ibkr:
         _ensure_ibkr_token(ibkr)
 
@@ -121,7 +136,7 @@ def _handle_ibkr_download(
             if reference_code:
                 progress.update(task, description="Downloading by reference code...")
                 _handle_ibkr_reference_code(ibkr, reference_code)
-                return
+                return failures
 
             broker_config: dict[str, str] = _get_broker_config(config, "ibkr")
             resolved_to_date: str = _resolve_to_date(to_date)
@@ -147,6 +162,7 @@ def _handle_ibkr_download(
                     console_success(f"{query_name}: {lines} lines received")
                 except IBKRServiceError as e:
                     console_error(f"{query_name}: {e}")
+                    failures.append(f"{query_name}: {e}")
 
     if files_downloaded:
         console_success(f'Files saved to: "{config.imports_path}"')
@@ -154,6 +170,7 @@ def _handle_ibkr_download(
         console_info("  folio import")
     else:
         console_warning("No transactions downloaded")
+    return failures
 
 
 def _ensure_ibkr_token(ibkr: IBKRService) -> None:
@@ -212,7 +229,7 @@ def _handle_credentials(broker: str) -> None:  # pragma: no cover
         raise typer.Exit(1)
 
 
-def _wealthsimple_transactions(
+def download_wealthsimple(
     from_date: str | None,
     to_date: str | None,
 ) -> None:
@@ -295,12 +312,16 @@ def _wealthsimple_transactions(
         console_warning("No transactions downloaded")
 
 
-def _wealthsimple_statement(from_date: str) -> None:
+def download_ws_statement(from_date: str) -> list[Path]:
     """Retrieve wealthsimple monthly statement.
 
     Args:
         from_date (str | None): From date string in YYYY-MM-DD format.
             Example: '2024-05-01' for May 2024 statement.
+
+    Returns:
+        The statement files written, one per account with transactions. Empty
+        when the month has no statement yet.
     """
     ws = WealthsimpleService()
     ws.ensure_authenticated()
@@ -327,8 +348,8 @@ def _wealthsimple_statement(from_date: str) -> None:
                 msg = f"No statement transactions found for account {account_id}"
                 console_warning(msg)
 
+    config = get_config()
     if exported_files:
-        config = get_config()
         console_success(f"Retrieved {total_transactions} statement transactions")
         console_success(f'Files saved to: "{config.statements_path}"')
         for filename in exported_files:
@@ -337,6 +358,28 @@ def _wealthsimple_statement(from_date: str) -> None:
         console_info("  folio settle-info --import")
     else:
         console_warning("No statement transactions downloaded")
+    return [config.statements_path / name for name in exported_files]
+
+
+def latest_txn_date(broker: str, account: str | None = None) -> str | None:
+    """Return the date of a broker's latest stored transaction.
+
+    A download resumes from this date, inclusive, so the day itself always
+    arrives a second time.
+
+    Args:
+        broker: Broker key as it appears in account names (`ibkr`, `ws`).
+        account: Look at this one account instead of every account of the broker.
+
+    Returns:
+        The date as YYYY-MM-DD, or None when the broker has no transactions.
+    """
+    if account:
+        condition = f"Account = '{account}'"
+    else:
+        condition = f"UPPER(Account) LIKE UPPER('%{broker}%')"
+    with get_connection() as conn:
+        return get_max_value(conn, Table.TXNS, Column.Txn.TXN_DATE, condition)
 
 
 def _resolve_from_date(
@@ -361,28 +404,18 @@ def _resolve_from_date(
 
     # Fallback handling
     try:
-        with get_connection() as conn:
-            if account_override:
-                account_has_broker = f"Account = '{account_override}'"
-            else:  # pragma: no cover
-                account_has_broker = f"UPPER(Account) LIKE UPPER('%{broker}%')"
-            latest_date_str: str | None = get_max_value(
-                conn,
-                Table.TXNS,
-                Column.Txn.TXN_DATE,
-                account_has_broker,
+        latest_date_str = latest_txn_date(broker, account_override)
+        if latest_date_str:
+            latest_date = datetime.strptime(
+                latest_date_str,
+                "%Y-%m-%d",
+            ).replace(tzinfo=TORONTO_TZ)
+            resolved_date = latest_date.strftime("%Y%m%d")
+            console_info(
+                f"from_date: Using latest {broker.upper()} transaction date: "
+                f"{latest_date_str}",
             )
-            if latest_date_str:
-                latest_date = datetime.strptime(
-                    latest_date_str,
-                    "%Y-%m-%d",
-                ).replace(tzinfo=TORONTO_TZ)
-                resolved_date = latest_date.strftime("%Y%m%d")
-                console_info(
-                    f"from_date: Using latest {broker.upper()} transaction date: "
-                    f"{latest_date_str}",
-                )
-                return resolved_date
+            return resolved_date
     except (ValueError, OSError, sqlite3.Error) as e:
         console_warning(f"Warning: Could not determine latest transaction date: {e}")
 

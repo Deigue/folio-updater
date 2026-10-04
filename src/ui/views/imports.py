@@ -154,12 +154,15 @@ class ImportDisplay:
         results: ImportResults,
         *,
         verbose: bool = False,
+        interactive: bool = True,
     ) -> None:
         """Display rich audit summary for an import operation.
 
         Args:
             results: ImportResults with audit data.
             verbose: If True, includes imported transactions block.
+            interactive: If True, offers to expand truncated blocks by keypress.
+                An unattended run passes False and keeps the truncated view.
         """
         self._show_stats_panel(results)
         blocks = self._build_audit_blocks(results, verbose=verbose)
@@ -168,8 +171,8 @@ class ImportDisplay:
             layout = TilingLayout(blocks)
             layout.render()
 
-        # Handle expandable blocks if needed.
-        self._prompt_and_expand_blocks(blocks, results)
+        if interactive:
+            self._prompt_and_expand_blocks(blocks, results)
 
     def _show_stats_panel(self, results: ImportResults) -> None:
         """Display stats panel in compact mode with color-coding.

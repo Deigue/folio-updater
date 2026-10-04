@@ -9,6 +9,7 @@ every other.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,7 +25,7 @@ from cli.commands.common import (
 from db.backup import rolling_backup
 from engine.cache import load_or_build
 from engine.fx_rates import FxRateUnavailableError
-from engine.panels import FolioValuation
+from engine.panels import FOLIO_VIEW, FolioValuation
 from engine.performance import fetch_moves
 from exporters.folio_workbook import (
     SECTIONS,
@@ -50,13 +51,27 @@ if TYPE_CHECKING:
 _VALUATION = "native"
 
 
+@dataclass(frozen=True)
+class WrittenFolio:
+    """A workbook `write_folio` wrote.
+
+    Attributes:
+        path: Where it was written.
+        unpriced: Held symbols no quote was found for, left out of every
+            market total in it.
+    """
+
+    path: Path
+    unpriced: tuple[str, ...] = ()
+
+
 def write_folio(
     target: Path | None = None,
     sections: Sequence[Section] = SECTIONS,
     *,
     refresh: bool = False,
     offline: bool = False,
-) -> Path | None:
+) -> WrittenFolio | None:
     """Value the folio and write it out as a workbook.
 
     Args:
@@ -68,7 +83,7 @@ def write_folio(
         offline: Never touch the network: price from cached quotes only.
 
     Returns:
-        The path written, or None when there was nothing to write.
+        What was written, or None when there was nothing to write.
 
     Raises:
         typer.Exit: If the target names a format that cannot hold a workbook.
@@ -88,7 +103,8 @@ def write_folio(
         )
         if Section.STORED not in sections:
             return None
-        return _write(target, folio_tables(FolioSources.read(None), sections))
+        written = _write(target, folio_tables(FolioSources.read(None), sections))
+        return WrittenFolio(written)
 
     if cached.frame.empty:
         console_warning("No transactions to generate a workbook from.")
@@ -117,7 +133,8 @@ def write_folio(
         sections,
         notes=[note],
     )
-    return _write(target, tables)
+    unpriced = valuation.panel(FOLIO_VIEW).holdings.unpriced
+    return WrittenFolio(_write(target, tables), unpriced=unpriced)
 
 
 def _write(target: Path | None, tables: Sequence[Table]) -> Path:

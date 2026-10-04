@@ -89,7 +89,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
         if not statement_path.exists():
             console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
-        results = [_import_single_statement(statement_path, verbose=verbose)]
+        results = [import_single_statement(statement_path, verbose=verbose)]
     else:
         results = _import_statements_from_directory(verbose=verbose)
 
@@ -104,16 +104,18 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
             parquet_exporter.export_all()
 
 
-def _import_single_statement(
+def import_single_statement(
     statement_path: Path,
     *,
     verbose: bool = False,
+    interactive: bool = True,
 ) -> StatementImportResult:
     """Import a single statement file.
 
     Args:
         statement_path: Statement to import.
         verbose: Whether to list every statement row and how it was resolved.
+        interactive: Whether the transfer audit offers to expand by keypress.
 
     Returns:
         What the statement changed.
@@ -140,7 +142,11 @@ def _import_single_statement(
     if result.transfer_results and result.transfers_created() > 0:
         display = ImportDisplay()
         display.show_import_summary(statement_path.name, result.transfer_results)
-        display.show_import_audit(result.transfer_results, verbose=True)
+        display.show_import_audit(
+            result.transfer_results,
+            verbose=True,
+            interactive=interactive,
+        )
 
     if result.transfers_skipped > 0:
         console_info(
@@ -242,7 +248,7 @@ def _import_statements_from_directory(
     summary_rows = []
 
     for statement_file in statement_files:
-        result = _import_single_statement(statement_file, verbose=verbose)
+        result = import_single_statement(statement_file, verbose=verbose)
         results.append(result)
         summary_rows.append(
             {
