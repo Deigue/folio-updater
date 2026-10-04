@@ -202,12 +202,12 @@ class TestEditArithmetic:
             assert Decimal(str(_row(second)[Column.Txn.PRICE])) == Decimal(200)
 
     def test_split_migration_scenario(self, temp_ctx: TempContext) -> None:
-        """The NVDA split un-adjustment from the issue, end to end."""
+        """A manually split-adjusted history is un-adjusted, end to end."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             # History that was manually split-adjusted: price /10, units *10.
             txn_id = seed_transaction(
-                ticker="NVDA",
+                ticker="SPLITCO",
                 date="2025-08-01",
                 price="12.34",
                 units="100",
@@ -227,7 +227,7 @@ class TestEditArithmetic:
                     "--currency",
                     Currency.USD.value,
                     "--symbol",
-                    "NVDA",
+                    "SPLITCO",
                     "--price",
                     "1",
                     "--units",
@@ -241,7 +241,7 @@ class TestEditArithmetic:
                 cli_app,
                 [
                     "edit",
-                    "NVDA",
+                    "SPLITCO",
                     "before",
                     "2025-08-10",
                     "--set",

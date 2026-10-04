@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from datagen import ensure_data_exists
 from db import create_txns_table, get_connection, get_rows
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions
@@ -21,8 +20,6 @@ from .helpers.seed import TSX_TICKER, VENTURE_TICKER, seed_transaction
 pytestmark = pytest.mark.real_parquet_export
 
 if TYPE_CHECKING:
-    from config import Config
-
     from .test_types import TempContext
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -444,11 +441,10 @@ def test_import_duplicate_handling(
     caplog.set_level(logging.INFO, logger="importer")
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
         txn_sheet = config.txn_sheet
 
         # Test 1: Intra-file duplicates (without approval)
-        default_df = _get_default_dataframe(config)
+        default_df = _valid_rows()
         df_with_dupes = pd.concat([default_df, default_df.iloc[[0]]], ignore_index=True)
         temp_path = config.folio_path.parent / "temp_intra_dupes.xlsx"
         register_test_dataframe(temp_path, df_with_dupes, txn_sheet)
@@ -540,9 +536,8 @@ def test_import_missing_essential_column(temp_ctx: TempContext) -> None:
     """Test that import fails when essential column is missing."""
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
 
-        default_df = _get_default_dataframe(config)
+        default_df = _valid_rows()
         essential_to_remove = next(iter(TXN_ESSENTIALS))
 
         df = default_df.drop(columns=[essential_to_remove])
@@ -1003,6 +998,17 @@ def test_import_statements_reports_ambiguity_without_an_account(
 
 
 # Helper functions
-def _get_default_dataframe(config: Config) -> pd.DataFrame:
-    """Get the default DataFrame from the transactions parquet."""
-    return pd.read_parquet(config.txn_parquet, engine="fastparquet")
+def _valid_rows() -> pd.DataFrame:
+    """Build a few distinct rows the importer accepts as they are."""
+    return pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: ["2025-08-14", "2025-08-15", "2025-08-18"],
+            Column.Txn.ACTION: ["BUY", "BUY", "SELL"],
+            Column.Txn.AMOUNT: [-1000.0, -400.0, 600.0],
+            Column.Txn.CURRENCY: ["USD", "USD", "USD"],
+            Column.Txn.PRICE: [100.0, 40.0, 120.0],
+            Column.Txn.UNITS: [10.0, 10.0, -5.0],
+            Column.Txn.TICKER: ["TESTTKR", "OTHER", "TESTTKR"],
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 3,
+        },
+    )

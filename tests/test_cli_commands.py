@@ -15,9 +15,9 @@ from typer.testing import CliRunner
 from cli.commands import import_data
 from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
-from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, generate_transactions
+from datagen import ensure_data_exists
 from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
-from domain import DEFAULT_TICKERS, Column, Table
+from domain import Column, Table
 from services.ibkr_service import IBKRAuthenticationError
 from term.console import active_console
 from tests.fixtures.dataframe_cache import register_test_dataframe
@@ -39,7 +39,7 @@ from .helpers.cli import (
     assert_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import TSX_TICKER, seed_transaction
+from .helpers.seed import ACCOUNT, TSX_TICKER, TXN_DATE, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -49,6 +49,8 @@ if TYPE_CHECKING:
 runner = CliRunner()
 
 EXPECTED_TRANSACTION_COUNT = 2
+# A statement description names its symbol in at most five letters.
+STATEMENT_TICKER = "STMTK"
 TYPER_INVALID_COMMAND_EXIT_CODE = 2
 
 
@@ -194,7 +196,6 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         file_count: int = 2
         create_transaction_data(file1)
         create_transaction_data(file2)
-        ensure_data_exists()
         cli_result = run_cli_with_config(
             config,
             import_data.app,
@@ -204,9 +205,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         assert_in_output("Found 2 files to import", cli_result)
         txn_count = EXPECTED_TRANSACTION_COUNT * file_count
         assert_in_output(f"Total transactions imported: {txn_count}", cli_result)
-        mock_txn_count = DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
-        total_txns = mock_txn_count + txn_count
-        assert_in_output(f"Exported {total_txns} transactions to Parquet", cli_result)
+        assert_in_output(f"Exported {txn_count} transactions to Parquet", cli_result)
         processed_folder = config.processed_path
         assert processed_folder.exists()
         assert (processed_folder / file1.name).exists()
@@ -297,20 +296,15 @@ def test_settle_info_scenarios(
 ) -> None:
     """Test various settle-info command scenarios."""
     with temp_ctx() as ctx:
-        ensure_data_exists()
-        txn_data = generate_transactions(DEFAULT_TICKERS[0], DEFAULT_TXN_COUNT)
+        seed_transaction(ticker=STATEMENT_TICKER, amount="-1502.50", units="10")
         statement_df = pd.DataFrame(
             [
                 {
-                    "date": "2025-07-25",
-                    "amount": txn_data.iloc[0][Column.Txn.AMOUNT],
-                    "currency": txn_data.iloc[0][Column.Txn.CURRENCY].value,
-                    "transaction": txn_data.iloc[0][Column.Txn.ACTION].value,
-                    "description": (
-                        f"{DEFAULT_TICKERS[0]} - "
-                        f"{txn_data.iloc[0][Column.Txn.UNITS]} SHARES "
-                        f"{txn_data.iloc[0][Column.Txn.TXN_DATE]}"
-                    ),
+                    "date": "2025-08-18",
+                    "amount": -1502.50,
+                    "currency": "USD",
+                    "transaction": "BUY",
+                    "description": f"{STATEMENT_TICKER} - 10 SHARES {TXN_DATE}",
                 },
             ],
         )
@@ -595,7 +589,7 @@ def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
             "db_date",
             [],
             {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
-            "Using latest IBKR transaction date: 2025-09-24",
+            f"Using latest IBKR transaction date: {TXN_DATE}",
             "setup_db",
         ),
         (
@@ -672,13 +666,13 @@ def _setup_ibkr_test_scenario(
 ) -> None:
     """Set up IBKR-specific test scenario configurations."""
     if setup_action == "setup_db":
-        ensure_data_exists()
+        seed_transaction()
         monkeypatch.setattr(
             "cli.commands.download._resolve_from_date",
             lambda from_date_str, broker: _resolve_from_date(
                 from_date_str,
                 broker,
-                account_override="MOCK-ACCOUNT",
+                account_override=ACCOUNT,
             ),
         )
     elif setup_action == "setup_token_prompt":
@@ -774,7 +768,7 @@ def _test_wealthsimple_scenario(
 def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:
     """Test --list when the alias table has never been created."""
     with temp_ctx() as ctx:
-        ensure_data_exists()
+        seed_transaction()
         cli_result = run_cli_with_config(ctx.config, cli_app, ["symbol", "--list"])
         assert_cli_success(cli_result)
         assert_in_output("No ticker aliases found.", cli_result)
@@ -783,7 +777,7 @@ def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:
 def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
     """Test --delete when the alias table has never been created."""
     with temp_ctx() as ctx:
-        ensure_data_exists()
+        seed_transaction()
         cli_result = run_cli_with_config(
             ctx.config,
             cli_app,

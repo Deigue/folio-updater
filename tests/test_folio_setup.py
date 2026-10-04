@@ -14,11 +14,13 @@ import pandas as pd
 import pandas.testing as pd_testing
 import pytest
 
-from datagen import ensure_data_exists, generate_transactions
-from db import create_txns_table, get_connection
-from domain import DEFAULT_TICKERS, Column, Table
+from datagen import ensure_data_exists
+from db import get_connection, get_distinct_set
+from domain import Column, Table
 
 from .conftest import _original_ensure_data_exists
+from .helpers.folio import txn_total
+from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -41,25 +43,16 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         assert config.tkr_parquet.exists()
         # * forex is tested separately
 
+        # The exported files mirror the database, whatever the demo holds.
+        with get_connection() as conn:
+            stored_tickers = get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER)
         tickers_df = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
-        assert tickers_df.shape == (len(DEFAULT_TICKERS), 1)
         assert set(tickers_df.columns) == {Column.Ticker.TICKER}
-        assert sorted(tickers_df[Column.Ticker.TICKER].tolist()) == sorted(
-            DEFAULT_TICKERS,
-        )
+        assert set(tickers_df[Column.Ticker.TICKER]) == stored_tickers
 
         txns_df = pd.read_parquet(config.txn_parquet, engine="fastparquet")
-        txns_df = txns_df.mask(pd.isna(txns_df), None)
         assert not txns_df.empty
-        txn_lists = [generate_transactions(ticker) for ticker in DEFAULT_TICKERS]
-        expected_txns_df = pd.concat(txn_lists, ignore_index=True)
-        expected_txns_df = expected_txns_df.mask(pd.isna(expected_txns_df), None)
-        # Don't compare auto-calculated fields
-        txns_df_clean = txns_df.drop(
-            columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],
-            errors="ignore",
-        )
-        pd_testing.assert_frame_equal(txns_df_clean, expected_txns_df)
+        assert len(txns_df) == txn_total()
 
         # Repeat call data remains same.
         ensure_data_exists()
@@ -78,12 +71,7 @@ def test_data_creation_skipped_when_db_already_populated(
     """
     with temp_ctx() as ctx:
         config = ctx.config
-        create_txns_table()
-        with get_connection() as conn:
-            transactions_df = pd.DataFrame(
-                [generate_transactions(DEFAULT_TICKERS[0]).iloc[0]],
-            )
-            transactions_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+        seed_transaction()
 
         assert not config.txn_parquet.exists()
 

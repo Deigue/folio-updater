@@ -2,11 +2,11 @@
 
 import pandas as pd
 
-from datagen import DEFAULT_TXN_COUNT, ensure_data_exists
-from domain import DEFAULT_TICKERS
+from datagen import ensure_data_exists
 from exporters import ParquetExporter
 
 from .helpers.dataframe import verify_db_contents
+from .helpers.folio import txn_total
 from .test_types import TempContext
 
 
@@ -19,7 +19,7 @@ def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
         # Test 1: Initial export from database to Parquet
         exporter = ParquetExporter()
         export_count: int = exporter.export_transactions()
-        assert export_count == DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
+        assert export_count == txn_total()
 
         # Read from Parquet and verify
         parquet_path = config.txn_parquet

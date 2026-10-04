@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from cli.main import app as cli_app
 from cli.query_parser import parse_query_terms
-from datagen import DEFAULT_TXN_COUNT, ensure_data_exists, get_mock_data_date_range
+from datagen import ensure_data_exists
 from db import add_column_to_table, get_connection, get_row_count, get_rows
-from domain import DEFAULT_TICKERS, Action, Column, Table
-from ingest.validation import ActionValidationRules
+from domain import Column, Table
 
 from .helpers.cli import (
     assert_cli_success,
@@ -22,6 +21,7 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
+from .helpers.folio import earliest_txn_date, plain_ticker, txn_total
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
@@ -36,17 +36,6 @@ def suppress_logging_conflicts() -> Generator[None, Any]:
     logging.disable(logging.CRITICAL)
     yield
     logging.disable(logging.NOTSET)
-
-
-# Calculate expected number of excluded transactions per ticker
-# based on generate_transactions logic and ActionValidationRules
-_actions = list(Action)
-_expected_excluded_txns_per_ticker = 0
-for i in range(DEFAULT_TXN_COUNT):
-    _action = _actions[i % len(_actions)]
-    _rules = ActionValidationRules.get_rules_for_action(_action.value)
-    if Column.Txn.TICKER in _rules["optional_fields"]:
-        _expected_excluded_txns_per_ticker += 1
 
 
 class TestQueryParserAgainstLiveSchema:
@@ -85,14 +74,15 @@ class TestQueryCommand:
         """Test query for a single ticker."""
         with temp_ctx() as ctx:
             ensure_data_exists()
+            ticker = plain_ticker()
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", DEFAULT_TICKERS[0]],
+                ["query", ticker],
             )
             assert_cli_success(cli_result)
             # The results show the ticker was found
-            assert_in_output(DEFAULT_TICKERS[0], cli_result)
+            assert_in_output(ticker, cli_result)
 
     def test_query_combined_filters(self, temp_ctx: TempContext) -> None:
         """Test query with multiple combined filters."""
@@ -101,7 +91,7 @@ class TestQueryCommand:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", "BUY", DEFAULT_TICKERS[0]],
+                ["query", "BUY", plain_ticker()],
             )
             assert_cli_success(cli_result)
             # Should find matching results
@@ -130,7 +120,7 @@ class TestQueryCommand:
 
             # Count txns for a specific ticker in the database
             with get_connection() as conn:
-                ticker = DEFAULT_TICKERS[0]
+                ticker = plain_ticker()
                 where = f'"{Column.Txn.TICKER}" = ?'
                 params = [ticker]
                 expected_count = get_row_count(conn, Table.TXNS, where, params)
@@ -192,14 +182,15 @@ class TestQueryCommand:
         """Test query combining action and ticker."""
         with temp_ctx() as ctx:
             ensure_data_exists()
+            ticker = plain_ticker()
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", "BUY", DEFAULT_TICKERS[0]],
+                ["query", "BUY", ticker],
             )
             assert_cli_success(cli_result)
             assert_in_output("BUY", cli_result)
-            assert_in_output(DEFAULT_TICKERS[0], cli_result)
+            assert_in_output(ticker, cli_result)
 
     def test_query_partial_date(self, temp_ctx: TempContext) -> None:
         """Test query with partial dates (year or year-month)."""
@@ -220,8 +211,7 @@ class TestQueryCommand:
         """Test 'MONTH YEAR' (either word order) returns exactly that month's rows."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            mock_start, _mock_end = get_mock_data_date_range()
-            target_month_start = mock_start.replace(day=1)
+            target_month_start = date.fromisoformat(earliest_txn_date()).replace(day=1)
             target_year = target_month_start.year
             target_month = target_month_start.month
             month_prefix = f"{target_year}-{target_month:02d}"
@@ -278,73 +268,49 @@ class TestQueryCommand:
         2. Querying the old ticker finds both old and new ticker transactions
         3. Querying the new ticker finds both old and new ticker transactions
         4. Querying an unrelated ticker finds only its own transactions
+
+        The renamed pair is seeded on top of the folio, so the counts do not
+        depend on what the folio already holds.
         """
         with temp_ctx() as ctx:
             config = ctx.config
-            # 1. Setup: Ensure mock data exists
             ensure_data_exists()
-            # Verify that transactions for DEFAULT_TICKERS are created
-            total_mock_txns = DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
-            with get_connection() as conn:
-                assert get_row_count(conn, Table.TXNS) == total_mock_txns
-
-            # Choose two tickers for aliasing and one unrelated
-            ticker_alias_old = DEFAULT_TICKERS[0]  # e.g., "SPY"
-            ticker_alias_new = DEFAULT_TICKERS[1]  # e.g., "AAPL"
-            ticker_unrelated = DEFAULT_TICKERS[2]  # e.g., "O"
-            alias_effective_date = "2025-01-01"  # Before any mock transactions
+            ticker_alias_old, ticker_alias_new, ticker_unrelated = (
+                "OLDCO",
+                "NEWCO",
+                "OTHCO",
+            )
+            for ticker in (ticker_alias_old, ticker_alias_new, ticker_unrelated):
+                seed_transaction(ticker=ticker, amount="-1502.50")
+                seed_transaction(ticker=ticker, amount="-1602.50")
 
             # 2. Create an alias: ticker_alias_old -> ticker_alias_new
             run_cli_with_config(
                 config,
                 cli_app,
-                [
-                    "symbol",
-                    "--add",
-                    ticker_alias_old,
-                    ticker_alias_new,
-                    alias_effective_date,
-                ],
+                ["symbol", "--add", ticker_alias_old, ticker_alias_new, "2025-01-01"],
             )
 
-            # 3. Query for the old ticker ticker_alias_old
+            # 3. Query for the old ticker: finds both old and new transactions
             result_a = run_cli_with_config(config, cli_app, ["query", ticker_alias_old])
             assert_cli_success(result_a)
-            # Should find transactions for ticker_alias_old and ticker_alias_new
-            expected_txns_count_aliased = (
-                DEFAULT_TXN_COUNT - _expected_excluded_txns_per_ticker
-            ) * 2
-            assert_in_output(
-                f"Found {expected_txns_count_aliased} matching transaction(s).",
-                result_a,
-            )
+            assert_in_output("Found 4 matching transaction(s).", result_a)
             assert_in_output(f" {ticker_alias_old} ", result_a)
             assert_in_output(f" {ticker_alias_new} ", result_a)
             assert_not_in_output(f" {ticker_unrelated} ", result_a)
 
-            # 4. Query for the new ticker ticker_alias_new
+            # 4. Query for the new ticker: also finds both
             result_b = run_cli_with_config(config, cli_app, ["query", ticker_alias_new])
             assert_cli_success(result_b)
-            # Should also find transactions for ticker_alias_old and ticker_alias_new
-            assert_in_output(
-                f"Found {expected_txns_count_aliased} matching transaction(s).",
-                result_b,
-            )
+            assert_in_output("Found 4 matching transaction(s).", result_b)
             assert_in_output(f" {ticker_alias_old} ", result_b)
             assert_in_output(f" {ticker_alias_new} ", result_b)
             assert_not_in_output(f" {ticker_unrelated} ", result_b)
 
-            # 5. Query for the unrelated ticker ticker_unrelated
+            # 5. Query for the unrelated ticker: only its own transactions
             result_c = run_cli_with_config(config, cli_app, ["query", ticker_unrelated])
             assert_cli_success(result_c)
-            # Should find only transactions for ticker_unrelated
-            expected_txns_count_single = (
-                DEFAULT_TXN_COUNT - _expected_excluded_txns_per_ticker
-            )
-            assert_in_output(
-                f"Found {expected_txns_count_single} matching transaction(s).",
-                result_c,
-            )
+            assert_in_output("Found 2 matching transaction(s).", result_c)
             assert_in_output(f" {ticker_unrelated} ", result_c)
             assert_not_in_output(f" {ticker_alias_old} ", result_c)
             assert_not_in_output(f" {ticker_alias_new} ", result_c)
@@ -412,13 +378,14 @@ class TestQueryCommand:
             ensure_data_exists()
 
             # Query for a known ticker
+            ticker = plain_ticker()
             result_ticker = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", DEFAULT_TICKERS[0]],
+                ["query", ticker],
             )
             assert_cli_success(result_ticker)
-            assert_in_output(f'Ticker="{DEFAULT_TICKERS[0]}"', result_ticker)
+            assert_in_output(f'Ticker="{ticker}"', result_ticker)
 
     def test_query_limit_natural_language(self, temp_ctx: TempContext) -> None:
         """Test that 'last N' (no time unit) limits the number of results."""
@@ -452,7 +419,7 @@ class TestQueryCommand:
                 ["query", "between", "2020", "and", "2030"],
             )
             assert_cli_success(cli_result)
-            expected_total = DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
+            expected_total = txn_total()
             output_msg = f"Found {expected_total} matching transaction(s)"
             assert_in_output(output_msg, cli_result)
 
@@ -460,7 +427,7 @@ class TestQueryCommand:
         """Test single-sided 'after'/'before' date phrases."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            expected_total = DEFAULT_TXN_COUNT * len(DEFAULT_TICKERS)
+            expected_total = txn_total()
 
             result_after = run_cli_with_config(
                 ctx.config,

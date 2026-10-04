@@ -19,15 +19,14 @@ import pytest
 
 from cli import query_parser
 from cli.query_parser import parse_query_terms
-from domain import DEFAULT_TICKERS, TORONTO_TZ, Column
+from domain import TORONTO_TZ, Column
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-# Mirrors what the mock data generator produces, so parsed values stay
-# representative of real folio contents.
-MOCK_TICKERS = set(DEFAULT_TICKERS)
-MOCK_ACCOUNTS = {"MOCK-ACCOUNT", "TFSA", "RRSP"}
+# Stand-ins for what a folio holds, so the parser has known names to recognize.
+MOCK_TICKERS = {"TESTTKR", "OTHER", "CADCO.TO"}
+MOCK_ACCOUNTS = {"TEST-ACCOUNT", "TFSA", "RRSP"}
 MOCK_COLUMNS = [column.value for column in Column.Txn]
 
 
@@ -47,7 +46,7 @@ class TestQueryParser:
 
     def test_parse_account(self) -> None:
         """A known account name is recognized as an Account filter."""
-        account = "MOCK-ACCOUNT"
+        account = "TEST-ACCOUNT"
         query = parse_query_terms([account])
         account_filters = [f for f in query.filters if f.column == Column.Txn.ACCOUNT]
         assert len(account_filters) == 1
@@ -55,11 +54,11 @@ class TestQueryParser:
 
     def test_parse_ticker(self) -> None:
         """Test parsing a simple ticker."""
-        query = parse_query_terms([DEFAULT_TICKERS[0]])
+        query = parse_query_terms(["TESTTKR"])
         assert len(query.filters) == 1
         assert query.filters[0].column == Column.Txn.TICKER
         assert query.filters[0].operator == ":"
-        assert query.filters[0].value == DEFAULT_TICKERS[0]
+        assert query.filters[0].value == "TESTTKR"
 
     def test_parse_action(self) -> None:
         """Test parsing an action keyword."""
@@ -257,7 +256,7 @@ class TestQueryParser:
         """Test parsing a complex combined query."""
         query = parse_query_terms(
             [
-                DEFAULT_TICKERS[0],
+                "TESTTKR",
                 "BUY",
                 "2025-01-01:2025-12-31",
                 "sort:-Amount",
