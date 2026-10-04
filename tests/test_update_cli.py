@@ -151,14 +151,14 @@ def test_clean_run_goes_through_every_stage(
         assert_in_output("Update finished with", result)
 
 
-def test_statements_on_hand_are_reimported(
+def test_statement_on_hand_is_imported_not_fetched(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A month already on hand is re-read, not fetched; others are fetched.
+    """A month waiting in the statements folder is imported, not fetched.
 
-    August's statement is on disk: it confirms one date and leaves another
-    stuck. July's is fetched and is not out yet.
+    August's statement is on disk: it confirms one date, leaves another stuck,
+    and is archived once read. July's is fetched and is not out yet.
     """
     with temp_ctx() as ctx:
         config = ctx.config
@@ -203,6 +203,8 @@ def test_statements_on_hand_are_reimported(
 
         assert result.exit_code == 0
         assert fetched == ["2025-07-01"]
+        assert not statement.exists()
+        assert (config.statements_processed_path / statement.name).exists()
         assert_in_output("Nothing new to import", result)
         assert_in_output("Settlement dates confirmed (1)", result)
         assert_in_output("settlement date(s) the statements could not confirm", result)

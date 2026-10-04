@@ -103,6 +103,8 @@ This does two things:
 - **Institutional transfers**: The statement is the only source with a real amount and date, so this
   command creates the `TFR_IN` / `TFR_OUT` transaction directly from it.
 
+Each statement is then moved to `statements/processed/`, so the next import does not read it again.
+
 Cash moved between your bank and Wealthsimple also appears on the statement as a
 `TRFIN` / `TRFOUT` row, described as "Money transfer ...". Those rows are skipped,
 since the activities download already brings them in as `CONTRIBUTION` /

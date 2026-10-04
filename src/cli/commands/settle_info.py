@@ -5,6 +5,7 @@ Handles querying settlement date information for transactions in the database.
 
 from __future__ import annotations
 
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -165,6 +166,33 @@ def import_single_statement(
     return result
 
 
+def archive_statement(statement_path: Path) -> None:
+    """Move a processed statement out of the statements directory.
+
+    Like an imported file, a statement is archived once it has been read,
+    whatever it changed. The archive is kept for reference and never read
+    again.
+
+    Args:
+        statement_path: The statement that was imported.
+    """
+    config = get_config()
+
+    archive = config.statements_processed_path
+    destination = archive / statement_path.name
+    counter = 1
+    while destination.exists():
+        destination = (
+            archive / f"{statement_path.stem}_{counter}{statement_path.suffix}"
+        )
+        counter += 1
+
+    shutil.move(str(statement_path), str(destination))
+    console_info(
+        f"Moved {statement_path.name} to {config.statements_path.name}/{archive.name}/",
+    )
+
+
 def _report_settlement_matching(
     filename: str,
     result: StatementImportResult,
@@ -250,6 +278,7 @@ def _import_statements_from_directory(
     for statement_file in statement_files:
         result = import_single_statement(statement_file, verbose=verbose)
         results.append(result)
+        archive_statement(statement_file)
         summary_rows.append(
             {
                 "File": statement_file.name,

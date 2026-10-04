@@ -466,12 +466,13 @@ def test_settle_info_verbose_lists_every_candidate_row(
         assert_in_output("no match", cli_result)
 
 
-def test_settle_info_reimport_reads_as_up_to_date(temp_ctx: TempContext) -> None:
-    """A second directory import reports "Up to date", not a failure.
+def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> None:
+    """Every statement read is archived, and a re-download reads as "Up to date".
 
-    Re-running over the statements folder is the normal way to use this, and
-    rows whose transactions are already settled must not look like misses. A
-    statement that genuinely matches nothing still reports "No updates".
+    A statement is moved to the archive whether it updated anything or not, so
+    the next run never reads it again. Downloading it once more brings it back:
+    rows whose transactions are already settled must not look like misses, and
+    the new copy is archived beside the old one rather than over it.
     """
     with temp_ctx() as ctx:
         create_txns_table()
@@ -511,13 +512,24 @@ def test_settle_info_reimport_reads_as_up_to_date(temp_ctx: TempContext) -> None
         first = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
         assert_cli_success(first)
         assert_in_output("Success", first)
-        # The RRSP statement matches nothing on either run.
-        assert_in_output("No updates", first)
+        assert_in_output("No updates", first)  # the RRSP statement matches nothing
 
+        archive = ctx.config.statements_processed_path
+        tfsa = "ws_statement_WS-TFSA_202606.xlsx"
+        for name in (tfsa, "ws_statement_WS-RRSP_202606.xlsx"):
+            assert (archive / name).exists()
+            assert not (statements_dir / name).exists()
+
+        register_test_dataframe(
+            statements_dir / tfsa,
+            pd.DataFrame([statement_row(-61.5, "61.50")]),
+        )
         second = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
         assert_cli_success(second)
+        assert_in_output("Found 1 statement file(s)", second)
         assert_in_output("Up to date", second)
         assert_in_output("are already settled", second)
+        assert (archive / "ws_statement_WS-TFSA_202606_1.xlsx").exists()
 
 
 def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:

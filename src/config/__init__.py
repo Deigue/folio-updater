@@ -154,6 +154,7 @@ class Config:
         self._imports_path: Path = data_path / "imports"
         self._processed_path: Path = data_path / "processed"
         self._statements_path: Path = data_path / "statements"
+        self._statements_processed_path: Path = self._statements_path / "processed"
         self._optional_fields = OptionalFieldsConfig(settings["optional_columns"])
         self._transforms = TransformsConfig(settings["transforms"])
 
@@ -267,6 +268,18 @@ class Config:
         if not self._statements_path.exists():
             self._statements_path.mkdir(parents=True, exist_ok=True)
         return self._statements_path
+
+    @property
+    def statements_processed_path(self) -> Path:
+        """The directory where fully imported statements are archived.
+
+        A subfolder of the statements directory, so statements a run has
+        finished with stay apart from the ones still waiting. The directory is
+        created lazily when first accessed.
+        """
+        if not self._statements_processed_path.exists():
+            self._statements_processed_path.mkdir(parents=True, exist_ok=True)
+        return self._statements_processed_path
 
     @property
     def max_backups(self) -> int:

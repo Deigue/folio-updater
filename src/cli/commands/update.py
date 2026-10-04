@@ -31,7 +31,7 @@ from cli.commands.download import (
 )
 from cli.commands.generate import write_folio
 from cli.commands.import_data import import_directory, pending_import_files
-from cli.commands.settle_info import import_single_statement
+from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
 from domain import TORONTO_TZ, Column, SettlementOutcome, Table
 from engine.checks import run_checks
@@ -369,7 +369,11 @@ def _calculated_ws() -> pd.DataFrame:
 
 
 def _statement_files(config: Config, month: str) -> list[Path]:
-    """Return the statements already stored for a YYYY-MM month."""
+    """Return the statements waiting for a YYYY-MM month.
+
+    Archived statements are ignored: a month that still has calculated dates
+    after its statement was archived is downloaded again.
+    """
     pattern = f"ws_statement_*_{month.replace('-', '')}.*"
     return sorted(
         path
@@ -381,8 +385,9 @@ def _statement_files(config: Config, month: str) -> list[Path]:
 def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
     """Confirm calculated settlement dates from every statement that can exist.
 
-    A month's statement already on hand is imported again rather than fetched,
-    which also catches trades imported after it was first read.
+    A month's statement still waiting in the statements folder is imported
+    rather than fetched. Every statement read is archived and never read again,
+    so a month that keeps calculated dates is downloaded afresh next run.
 
     Args:
         config: The application configuration.
@@ -396,10 +401,14 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
         console_info("No calculated settlement date waits on a published statement.")
 
     changed = False
+    imported: set[str] = set()
     for month in months:
         files = _statement_files(config, month) or _fetch_statement(month, report)
+        if files:
+            imported.add(month)
         for path in files:
             result = import_single_statement(path, verbose=True, interactive=False)
+            archive_statement(path)
             report.settled.extend(
                 match
                 for match in result.settlement_matches
@@ -423,7 +432,7 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
     on_hand = {
         month
         for month in statement_months(remaining[Column.Txn.SETTLE_DATE], today)
-        if _statement_files(config, month)
+        if month in imported or _statement_files(config, month)
     }
     stuck, pending = split_remaining(remaining, on_hand, today)
     if (concern := review_stuck(stuck)) is not None:

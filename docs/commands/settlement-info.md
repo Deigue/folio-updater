@@ -18,6 +18,11 @@ folio settle-info --import --verbose
 
 Calculated settlement dates can be updated with actual values by importing broker monthly statements.
 
+`folio settle-info --import` reads every statement in the `statements/` folder and then moves it
+to `statements/processed/`, whether it updated anything or not. That folder is a record only and is
+never read again. If settlement dates are still calculated for a month whose statement was already
+read, `folio update` downloads that statement again.
+
 ## Expected Statement Format
 
 - `date`: Settlement date from the statement
