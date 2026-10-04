@@ -46,6 +46,24 @@ class TransformEvent:
 
 
 @dataclass
+class CancelEvent:
+    """A broker row that cancels an earlier one, and the row it voided.
+
+    Attributes:
+        cancellation: The cancelling row, as read.
+        cancelled: The row it voided, or None when the file held no row for it
+            (the voided row may already be stored from an earlier import).
+    """
+
+    cancellation: dict[str, Any]
+    cancelled: dict[str, Any] | None = None
+
+    def rows(self) -> int:
+        """Return how many rows the cancellation took out of the import."""
+        return 1 if self.cancelled is None else 2
+
+
+@dataclass
 class ImportResults:
     """Results for a transaction import operation.
 
@@ -65,6 +83,7 @@ class ImportResults:
 
     merge_events: list[MergeEvent] = field(default_factory=list)
     transform_events: list[TransformEvent] = field(default_factory=list)
+    cancel_events: list[CancelEvent] = field(default_factory=list)
 
     # Database counts
     existing_count: int = 0
@@ -98,16 +117,22 @@ class ImportResults:
         """Return number of merge operations performed."""
         return len(self.merge_events)
 
+    def cancelled_count(self) -> int:
+        """Return how many rows cancellations took out, cancelling rows included."""
+        return sum(event.rows() for event in self.cancel_events)
+
     def expected_count(self) -> int:
         """Return how many rows should have been imported, by tallying each stage.
 
-        Rows read, less the net shrink from merges, less exclusions and both
-        kinds of rejected duplicate. Anything other than `imported_count` means
-        rows went missing (or appeared) somewhere the audit does not account for.
+        Rows read, less cancelled rows, less the net shrink from merges, less
+        exclusions and both kinds of rejected duplicate. Anything other than
+        `imported_count` means rows went missing (or appeared) somewhere the
+        audit does not account for.
         """
         merge_delta = self.merged_into() - self.merge_candidates()
         return (
             self.read_count()
+            - self.cancelled_count()
             + merge_delta
             - self.excluded_count()
             - self.intra_rejected_count()

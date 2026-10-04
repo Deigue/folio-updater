@@ -79,6 +79,12 @@ transforms:
       amount_field: "Amount"
       operations:
         Fee: 0
+  cancellations:
+    - name: "IBKR Cancellation"
+      conditions:
+        Description: ["CANCELLATION"]
+      match_fields: ["Account", "$", "Action"]
+      amount_field: "Amount"
 brokers:
   ibkr:
     FlexReport: "FLEX_QUERY_ID_FOR_TRADES"

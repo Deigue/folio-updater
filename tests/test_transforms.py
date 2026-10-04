@@ -163,5 +163,97 @@ def test_transform_scenarios(
     """Test various transformation scenarios with parametrized data."""
     with temp_ctx(config):
         df = pd.DataFrame(test_data)
-        result, _, _ = TransactionTransformer.transform(df)
+        result, _, _, _ = TransactionTransformer.transform(df)
         assert validate(result)
+
+
+CANCEL_CONFIG = {
+    "transforms": {
+        "cancellations": [
+            {
+                "name": "Broker Cancellation",
+                "conditions": {"Description": ["CANCELLATION"]},
+                "match_fields": ["Account", "$", "Action"],
+            },
+        ],
+    },
+}
+DEPOSIT = "Deposits/Withdrawals"
+
+
+def _cash_rows(rows: list[tuple[str, str, str, str]]) -> pd.DataFrame:
+    """Build cash rows from (date, amount, account, description)."""
+    return pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: [r[0] for r in rows],
+            Column.Txn.ACTION: [DEPOSIT] * len(rows),
+            Column.Txn.AMOUNT: [r[1] for r in rows],
+            Column.Txn.CURRENCY: ["CAD"] * len(rows),
+            Column.Txn.ACCOUNT: [r[2] for r in rows],
+            "Description": [r[3] for r in rows],
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    ("rows", "kept", "voided"),
+    [
+        pytest.param(
+            [
+                ("2026-09-08", "-13000", "ACCT", "CANCELLATION"),
+                ("2026-09-07", "13000", "ACCT", "DEPOSIT"),
+                ("2026-09-08", "13000", "ACCT", "DEPOSIT"),
+            ],
+            ["2026-09-08"],
+            "2026-09-07",
+            id="earliest-on-or-before",
+        ),
+        pytest.param(
+            [
+                ("2026-09-08", "-13000", "ACCT", "CANCELLATION"),
+                ("2026-09-09", "13000", "ACCT", "DEPOSIT"),
+                ("2026-09-07", "13000", "OTHER", "DEPOSIT"),
+                ("2026-09-07", "500", "ACCT", "DEPOSIT"),
+            ],
+            ["2026-09-09", "2026-09-07", "2026-09-07"],
+            None,
+            id="nothing-to-void",
+        ),
+    ],
+)
+def test_cancellations(
+    temp_ctx: TempContext,
+    rows: list[tuple[str, str, str, str]],
+    kept: list[str],
+    voided: str | None,
+) -> None:
+    """A cancellation drops itself and the earliest matching row before it."""
+    with temp_ctx(CANCEL_CONFIG):
+        result, _, _, cancels = TransactionTransformer.transform(_cash_rows(rows))
+
+    assert result[Column.Txn.TXN_DATE].tolist() == kept
+    assert len(cancels) == 1
+    cancelled = cancels[0].cancelled
+    assert (None if cancelled is None else cancelled[Column.Txn.TXN_DATE]) == voided
+
+
+def test_cancellation_rule_needs_its_fields(temp_ctx: TempContext) -> None:
+    """A rule naming a column the data lacks is skipped, leaving every row."""
+    rows = _cash_rows([("2026-09-08", "-13000", "ACCT", "CANCELLATION")])
+    with temp_ctx(CANCEL_CONFIG):
+        result, _, _, cancels = TransactionTransformer.transform(
+            rows.drop(columns=[Column.Txn.CURRENCY]),
+        )
+
+    assert len(result) == 1
+    assert cancels == []
+
+
+def test_no_cancellation_leaves_rows(temp_ctx: TempContext) -> None:
+    """A file with no cancelling row passes through the rule untouched."""
+    rows = _cash_rows([("2026-09-07", "13000", "ACCT", "DEPOSIT")])
+    with temp_ctx(CANCEL_CONFIG):
+        result, _, _, cancels = TransactionTransformer.transform(rows)
+
+    assert len(result) == 1
+    assert cancels == []

@@ -65,9 +65,45 @@ Additional field transformations to apply to the merged row. Common examples:
 - `Fee: 0` - Set fee to 0 for dividends
 - `Units: 0` - Set units to 0 (dividends don't involve unit purchases)
 
+## Cancellations
+
+A broker that reverses a transaction can send a second row with the opposite amount
+instead of removing the first. IBKR, for example, follows a mistaken deposit with a
+`Deposits/Withdrawals` row of the negative amount and the description `CANCELLATION`.
+Imported as they are, the deposit counts as money in and the cancellation is
+rejected, so the folio shows a contribution that never happened.
+
+A `cancellations` rule drops both rows:
+
+```yaml
+transforms:
+  cancellations:
+    - name: "IBKR Cancellation"
+      conditions:
+        Description: ["CANCELLATION"]
+      match_fields: ["Account", "$", "Action"]
+      amount_field: "Amount"
+```
+
+- `conditions` (required): marks a cancelling row, in the same form as a rule's
+  conditions (`contains:` works too).
+- `match_fields` (required): fields the cancelled row must share with it. The
+  currency column is named `$`.
+- `amount_field` (optional, default `Amount`): the cancelled row carries the
+  opposite amount here.
+
+Each cancelling row voids the **earliest** matching row on or before its date, and
+both are left out of the import. The import audit lists them under **Cancelled**.
+
+A cancelling row with nothing to void in its file is still left out: the row it
+voids was most likely imported earlier. `folio update` then lists the stored rows
+it could void, with the `folio delete` command for each.
+
 ## Processing Order
 
-Merge groups are processed **before** regular transformation rules. This means:
+Cancellations run first, while actions still read as the broker wrote them. Merge
+groups are processed **before** regular transformation rules. This means:
 
-1. Dividends and withholding taxes are merged first
-2. Then regular transforms (like setting Fee=0 for DIVIDEND) are applied
+1. Cancelled rows are dropped first
+2. Dividends and withholding taxes are merged next
+3. Then regular transforms (like setting Fee=0 for DIVIDEND) are applied

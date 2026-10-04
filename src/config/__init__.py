@@ -781,8 +781,9 @@ class Config:
     def __str__(self) -> str:
         """Return a human-readable dump of every configured setting."""
         transforms = (
-            f"{len(self.transforms.rules)} rule(s) and "
-            f"{len(self.transforms.merge_groups)} merge group(s)"
+            f"{len(self.transforms.rules)} rule(s), "
+            f"{len(self.transforms.merge_groups)} merge group(s) and "
+            f"{len(self.transforms.cancellations)} cancellation rule(s)"
         )
         details: dict[str, Any] = {
             "Config Path": self.config_path,

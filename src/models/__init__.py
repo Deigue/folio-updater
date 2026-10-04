@@ -4,6 +4,7 @@ This module exports the public API for all data models and result types.
 """
 
 from models.import_results import (
+    CancelEvent,
     ImportResults,
     MergeEvent,
     SettlementMatch,
@@ -13,6 +14,7 @@ from models.import_results import (
 from models.update_report import Concern, HardFailure, UpdateReport, UpdateStage
 
 __all__ = [
+    "CancelEvent",
     "Concern",
     "HardFailure",
     "ImportResults",

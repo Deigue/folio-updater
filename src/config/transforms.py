@@ -70,6 +70,44 @@ class MergeGroup:
         )
 
 
+class CancelRule:
+    """Configuration for rows that cancel an earlier row in the same file.
+
+    A broker that reverses a transaction often sends a second row with the
+    opposite amount (IBKR marks it `CANCELLATION`). Each row matching
+    `conditions` voids the earliest row on or before it that agrees on every
+    `match_fields` value and carries the opposite amount; both are left out.
+    """
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        conditions: dict[str, list[str]],
+        match_fields: list[str],
+        amount_field: str,
+    ) -> None:
+        """Initialize a cancellation rule.
+
+        Args:
+            name: Descriptive name for this rule
+            conditions: Field conditions marking a cancelling row
+            match_fields: Fields the cancelled row must share with it
+            amount_field: Field holding the amount, opposite in the cancelled row
+        """
+        self.name = name
+        self.conditions = conditions
+        self.match_fields = match_fields
+        self.amount_field = amount_field
+
+    def __repr__(self) -> str:
+        """Return string representation of the cancellation rule."""
+        return (
+            f"CancelRule(name={self.name}, conditions={self.conditions}, "
+            f"match_fields={self.match_fields})"
+        )
+
+
 class TransformsConfig:
     """Configuration for transaction transformations."""
 
@@ -81,9 +119,12 @@ class TransformsConfig:
         """
         self.rules: list[TransformRule] = []
         self.merge_groups: list[MergeGroup] = []
+        self.cancellations: list[CancelRule] = []
 
         if not transforms_config:  # pragma: no cover
             return
+
+        self.cancellations = self._parse_cancellations(transforms_config)
 
         rules_list = transforms_config.get("rules", [])
         if not isinstance(rules_list, list):  # pragma: no cover
@@ -127,6 +168,57 @@ class TransformsConfig:
             return TransformRule(processed_conditions, processed_actions)
 
         return None  # pragma: no cover
+
+    def _parse_cancellations(
+        self,
+        transforms_config: dict[str, Any],
+    ) -> list[CancelRule]:
+        """Parse every valid cancellation rule.
+
+        Args:
+            transforms_config: Dictionary containing transformation rules
+
+        Returns:
+            The rules that parsed, in the order given.
+        """
+        cancellations = transforms_config.get("cancellations", [])
+        if not isinstance(cancellations, list):  # pragma: no cover
+            return []
+        parsed = (self._parse_cancel_rule(config) for config in cancellations)
+        return [rule for rule in parsed if rule is not None]
+
+    def _parse_cancel_rule(self, cancel_config: object) -> CancelRule | None:
+        """Parse a single cancellation rule configuration.
+
+        Args:
+            cancel_config: Raw cancellation rule configuration
+
+        Returns:
+            Parsed CancelRule or None if invalid
+        """
+        if not isinstance(cancel_config, dict):  # pragma: no cover
+            return None
+
+        name = cancel_config.get("name", "")
+        conditions = self._process_conditions(cancel_config.get("conditions", {}))
+        match_fields = cancel_config.get("match_fields", [])
+        amount_field = cancel_config.get("amount_field", Column.Txn.AMOUNT)
+        if not all(
+            [
+                isinstance(name, str) and name,
+                conditions,
+                isinstance(match_fields, list) and match_fields,
+                isinstance(amount_field, str) and amount_field,
+            ],
+        ):  # pragma: no cover
+            return None
+
+        return CancelRule(
+            name=name,
+            conditions=conditions,
+            match_fields=[str(f) for f in match_fields],
+            amount_field=amount_field,
+        )
 
     def _parse_merge_group(self, group_config: object) -> MergeGroup | None:
         """Parse a single merge group configuration.
@@ -226,8 +318,8 @@ class TransformsConfig:
         return processed
 
     def __bool__(self) -> bool:
-        """Return True if there are transformation rules or merge groups configured."""
-        return bool(self.rules) or bool(self.merge_groups)
+        """Return True if any rule, merge group or cancellation is configured."""
+        return bool(self.rules or self.merge_groups or self.cancellations)
 
     def __len__(self) -> int:
         """Return the number of transformation rules."""

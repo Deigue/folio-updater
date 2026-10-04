@@ -6,23 +6,26 @@ import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 
 from app import get_config
 from app.logging_setup import get_import_logger
 from db.helpers import format_transaction_summary
 from domain import Column
-from models import MergeEvent, TransformEvent
+from models import CancelEvent, MergeEvent, TransformEvent
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from config.transforms import MergeGroup, TransformRule
+    from config.transforms import CancelRule, MergeGroup, TransformRule
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 CONTAINS_PREFIX = "contains:"
+# A cancellation and the row it voids carry amounts that sum to zero.
+_CANCEL_TOLERANCE = 0.005
 
 
 class TransactionTransformer:
@@ -40,26 +43,38 @@ class TransactionTransformer:
         self._has_groups: bool = False
         self._merge_events: list[MergeEvent] = []
         self._transform_events: list[TransformEvent] = []
+        self._cancel_events: list[CancelEvent] = []
 
     @staticmethod
     def transform(
         df: pd.DataFrame,
-    ) -> tuple[pd.DataFrame, list[MergeEvent], list[TransformEvent]]:
-        """Transform data returning detailed merge & transform events.
+    ) -> tuple[
+        pd.DataFrame,
+        list[MergeEvent],
+        list[TransformEvent],
+        list[CancelEvent],
+    ]:
+        """Transform data returning detailed cancel, merge & transform events.
 
         Args:
             df: DataFrame with mapped transaction data
 
         Returns:
-            (transformed_df, merge_events, transform_events)
+            (transformed_df, merge_events, transform_events, cancel_events)
             merge_events: list of MergeEvent objects
             transform_events: list of TransformEvent objects
+            cancel_events: list of CancelEvent objects
         """
         if df.empty:  # pragma: no cover
-            return df, [], []
+            return df, [], [], []
         transformer = TransactionTransformer(df)
         transformer._apply_transforms()
-        return transformer.df, transformer._merge_events, transformer._transform_events
+        return (
+            transformer.df,
+            transformer._merge_events,
+            transformer._transform_events,
+            transformer._cancel_events,
+        )
 
     @staticmethod
     def transform_fields(fields: Mapping[str, object]) -> dict[str, object]:
@@ -93,7 +108,12 @@ class TransactionTransformer:
         Returns:
             DataFrame with all applicable transformations applied
         """
-        # Apply merge groups first (before regular transformations)
+        # Cancellations first, while actions still read as the broker wrote them
+        if self.transforms and self.transforms.cancellations:
+            for rule in self.transforms.cancellations:
+                self._apply_cancel_rule(rule)
+
+        # Apply merge groups next (before regular transformations)
         if self.transforms and self.transforms.merge_groups:
             for group_index, group in enumerate(self.transforms.merge_groups):
                 import_logger.debug(
@@ -122,20 +142,9 @@ class TransactionTransformer:
         Args:
             rule: The transformation rule to apply
         """
-        # Create a boolean mask for rows that match all conditions
-        mask = pd.Series([True] * len(self.df), index=self.df.index)
-
-        for field_name, match_values in rule.conditions.items():
-            if field_name not in self.df.columns:
-                import_logger.debug(
-                    "Condition field '%s' not found in data, skipping rule",
-                    field_name,
-                )
-                return
-
-            # Create condition mask: field value must match one of the specified values
-            field_mask = self._create_field_mask(field_name, match_values)
-            mask = mask & field_mask
+        mask = self._conditions_mask(rule.conditions)
+        if mask is None:
+            return
 
         # Count matching rows
         matching_rows = mask.sum()
@@ -178,6 +187,122 @@ class TransactionTransformer:
                     row_count=int(matching_rows),
                 ),
             )
+
+    def _conditions_mask(self, conditions: dict[str, list[str]]) -> pd.Series | None:
+        """Mark the rows that meet every condition.
+
+        Args:
+            conditions: Field name to the values that field may hold.
+
+        Returns:
+            A boolean mask over the rows, or None when a condition names a field
+            the data does not have (the rule cannot apply).
+        """
+        mask = pd.Series([True] * len(self.df), index=self.df.index)
+        for field_name, match_values in conditions.items():
+            if field_name not in self.df.columns:
+                import_logger.debug(
+                    "Condition field '%s' not found in data, skipping rule",
+                    field_name,
+                )
+                return None
+            # Field value must match one of the specified values
+            mask = mask & self._create_field_mask(field_name, match_values)
+        return mask
+
+    def _apply_cancel_rule(self, rule: CancelRule) -> None:
+        """Drop each cancelling row together with the row it voids.
+
+        A cancelling row voids the earliest row on or before it that shares
+        every match field and carries the opposite amount. One with nothing to
+        void in this file is dropped alone: the row it voids may already be
+        stored, and a cancellation is never a transaction of its own.
+
+        Args:
+            rule: The cancellation rule to apply.
+        """
+        needed = [*rule.match_fields, rule.amount_field]
+        missing = [name for name in needed if name not in self.df.columns]
+        if missing:
+            import_logger.warning(
+                "SKIP cancellation rule '%s' (missing fields: %s)",
+                rule.name,
+                missing,
+            )
+            return
+        mask = self._conditions_mask(rule.conditions)
+        if mask is None or not mask.any():
+            return
+
+        amounts = pd.to_numeric(self.df[rule.amount_field], errors="coerce")
+        dates = pd.to_datetime(
+            self.df.get(Column.Txn.TXN_DATE, pd.Series(index=self.df.index)),
+            errors="coerce",
+        )
+        keys = self.df[rule.match_fields].astype(str)
+        positions = np.arange(len(self.df))
+        dropped: list[int] = []
+        for pos in np.flatnonzero(mask.to_numpy()):
+            cancel_date = dates.iloc[pos]
+            candidates = (
+                ~mask.to_numpy()
+                & ~np.isin(positions, dropped)
+                & (keys == keys.iloc[pos]).all(axis=1).to_numpy()
+                & ((amounts + amounts.iloc[pos]).abs() < _CANCEL_TOLERANCE).to_numpy()
+                & (
+                    dates.isna() | pd.isna(cancel_date) | (dates <= cancel_date)
+                ).to_numpy()
+            )
+            found = np.flatnonzero(candidates)
+            # Earliest first; rows with no readable date go last.
+            order = np.argsort(
+                dates.iloc[found].to_numpy(na_value=np.datetime64("NaT")),
+                kind="stable",
+            )
+            voided = int(found[order[0]]) if len(found) else None
+            self._record_cancel(
+                rule,
+                self.df.iloc[pos],
+                None if voided is None else self.df.iloc[voided],
+            )
+            dropped.append(int(pos))
+            if voided is not None:
+                dropped.append(voided)
+
+        self.df = self.df.drop(index=self.df.index[dropped])
+
+    def _record_cancel(
+        self,
+        rule: CancelRule,
+        cancellation: pd.Series,
+        cancelled: pd.Series | None,
+    ) -> None:
+        """Log one cancellation and keep it for the import audit.
+
+        Args:
+            rule: The rule that matched.
+            cancellation: The cancelling row.
+            cancelled: The row it voids, or None when the file held none.
+        """
+        import_logger.info(
+            "CANCEL (%s) %s",
+            rule.name,
+            format_transaction_summary(cancellation),
+        )
+        if cancelled is None:
+            import_logger.warning("   ? nothing in this file for it to void")
+        else:
+            import_logger.info("   x %s", format_transaction_summary(cancelled))
+        self._cancel_events.append(
+            CancelEvent(
+                cancellation={str(k): v for k, v in cancellation.items()},
+                cancelled=(
+                    None
+                    if cancelled is None
+                    else {str(k): v for k, v in cancelled.items()}
+                ),
+            ),
+        )
 
     def _create_field_mask(
         self,

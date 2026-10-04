@@ -36,7 +36,7 @@ from ui.vocabulary import (
 if TYPE_CHECKING:  # pragma: no cover
     import pandas as pd
 
-    from models import ImportResults, SettlementMatch
+    from models import CancelEvent, ImportResults, SettlementMatch
 
 # Minimum columns always shown for exclusions
 EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
@@ -189,6 +189,10 @@ class ImportDisplay:
         read_count = results.read_count()
         parts.append(f"[bold]Read:[/bold] [green]{read_count}[/green]")
 
+        cancelled = results.cancelled_count()
+        if cancelled > 0:
+            parts.append(f"[bold]Cancelled:[/bold] [red]{cancelled}[/red]")
+
         merge_candidates = results.merge_candidates()
         merged_into = results.merged_into()
         if merge_candidates > 0:
@@ -271,6 +275,8 @@ class ImportDisplay:
             )
 
         max_rows = available_height(table=True)
+
+        blocks.extend(self._cancel_blocks(results.cancel_events))
 
         if results.transform_events:
             total = len(results.transform_events)
@@ -415,6 +421,57 @@ class ImportDisplay:
             table.add_row(line)
 
         return table
+
+    def _cancel_blocks(self, events: list[CancelEvent]) -> list[Block]:
+        """Build the block for cancellations, always shown in full, if any."""
+        if not events:
+            return []
+        return [
+            Block.create(
+                name="Cancelled",
+                key="c",
+                panel=self._build_cancel_panel(events),
+                total=len(events),
+                shown=len(events),
+                data_type="cancel",
+                data=events,
+            ),
+        ]
+
+    def _build_cancel_panel(self, events: list[CancelEvent]) -> Table:
+        """Build a table for cancellations: each cancelling row and what it voided.
+
+        Both rows are left out of the import; a cancellation with nothing in
+        the file to void says so.
+        """
+        table = Table(
+            title=f"Cancelled ({len(events)})",
+            show_header=False,
+            border_style=THEME_EXCLUDED,
+            expand=False,
+            box=None,
+            padding=SNUG_PADDING,
+        )
+        table.add_column("tree")
+        for event in events:
+            table.add_row(f"[red]- {self._summary(event.cancellation)}[/red]")
+            if event.cancelled is None:
+                table.add_row("  [yellow]└ nothing in this file to void[/yellow]")
+            else:
+                table.add_row(f"  [red]└ {self._summary(event.cancelled)}[/red]")
+        return table
+
+    def _summary(self, row: dict[str, Any]) -> str:
+        """Render a row as date|action|amount|account, the merge panel's style."""
+        return "|".join(
+            safe_str(row.get(column, ""))
+            for column in (
+                Column.Txn.TXN_DATE,
+                Column.Txn.ACTION,
+                Column.Txn.AMOUNT,
+                Column.Txn.ACCOUNT,
+            )
+        )
 
     def _build_transform_panel(
         self,
