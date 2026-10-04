@@ -16,6 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- A Wealthsimple monthly statement that is not published yet is reported as
+  not out yet instead of failing.
+- An expired Wealthsimple session is refreshed from the stored login instead of
+  asking for the password and TOTP again.
+
 ### Security
 
 ## [0.8.12] - 2026-10-03

@@ -22,6 +22,7 @@ import ws_api
 from keyring.errors import PasswordDeleteError
 from ws_api import (
     LoginFailedException,
+    ManualLoginRequired,
     OTPRequiredException,
     WealthsimpleAPI,
     WSAPISession,
@@ -48,6 +49,47 @@ logger = logging.getLogger(__name__)
 KEYRING_SERVICE = "folio-updater.wealthsimple"
 KEYRING_USERNAME_KEY = "default_username"
 INSTITUTIONAL_TRANSFER_TYPE = "INSTITUTIONAL_TRANSFER_INTENT"
+
+
+def _token_expired(error: ws_api.WSApiException) -> bool:  # pragma: no cover
+    """Report whether a request failed only because the access token expired.
+
+    Args:
+        error: What the API client raised.
+
+    Returns:
+        True when Wealthsimple answered that the request is not authenticated.
+    """
+    response = getattr(error, "response", None)
+    errors = response.get("errors") if isinstance(response, dict) else None
+    return isinstance(errors, list) and any(
+        isinstance(item, dict)
+        and (
+            (item.get("extensions") or {}).get("code") == "UNAUTHENTICATED"
+            or str(item.get("message", "")).startswith("Not Authorized")
+        )
+        for item in errors
+    )
+
+
+def _statement_unpublished(
+    error: ws_api.WSApiException,
+) -> bool:  # pragma: no cover
+    """Report whether a statement request failed only because it is not out yet.
+
+    Args:
+        error: What the API client raised.
+
+    Returns:
+        True when the response held a null `monthlyStatement`.
+    """
+    response = getattr(error, "response", None)
+    data = response.get("data") if isinstance(response, dict) else None
+    return (
+        isinstance(data, dict)
+        and "monthlyStatement" in data
+        and data["monthlyStatement"] is None
+    )
 
 
 class WealthsimpleServiceError(Exception):
@@ -212,26 +254,75 @@ class WealthsimpleService:
 
         self._session = self._load_session(self._username)
         if self._session:
-            try:
-                self._ws_api = WealthsimpleAPI.from_token(
-                    self._session,
-                    self._persist_session_callback(),
-                    self._username,
-                )
-            except ws_api.WSApiException as e:
-                logger.warning(
-                    "Existing session invalid for %s, will re-authenticate: %s",
-                    self._username,
-                    e,
-                )
-                self._session = None
-            else:
+            self._ws_api = self._resume_session(self._session, self._username)
+            if self._ws_api is not None:
                 logger.debug("Using existing session for user: %s", self._username)
                 self._setup_security_cache()
                 return
 
         self._interactive_login(prompt_func, password_prompt_func)  # pragma: no cover
         self._setup_security_cache()  # pragma: no cover
+
+    def _resume_session(
+        self,
+        session: WSAPISession,
+        username: str,
+    ) -> WealthsimpleAPI | None:
+        """Resume a stored session, refreshing its access token when expired.
+
+        Args:
+            session: The session loaded from the keyring.
+            username: Whose session it is.
+
+        Returns:
+            The resumed API, or None when the session cannot be resumed and a
+            fresh login is needed.
+        """
+        persist = self._persist_session_callback()
+        try:
+            return WealthsimpleAPI.from_token(session, persist, username)
+        except ws_api.WSApiException as e:  # pragma: no cover
+            if _token_expired(e):
+                return self._refresh_session(session, username)
+            logger.warning(
+                "Existing session invalid for %s, will re-authenticate: %s",
+                username,
+                e,
+            )
+            return None
+
+    def _refresh_session(
+        self,
+        session: WSAPISession,
+        username: str,
+    ) -> WealthsimpleAPI | None:  # pragma: no cover
+        """Refresh an expired access token from the stored refresh token.
+
+        Clearing the access token sends the API client straight to its
+        refresh, which stores the new tokens through the persist callback.
+
+        Args:
+            session: The session whose access token expired.
+            username: Whose session it is.
+
+        Returns:
+            The resumed API, or None when the refresh was refused.
+        """
+        logger.info("REFRESH expired access token for %s", username)
+        session.access_token = None
+        try:
+            return WealthsimpleAPI.from_token(
+                session,
+                self._persist_session_callback(),
+                username,
+            )
+        except (ws_api.WSApiException, ManualLoginRequired) as e:
+            logger.warning(
+                "Session could not be refreshed for %s, will re-authenticate: %s",
+                username,
+                e,
+            )
+            return None
 
     def _interactive_login(
         self,
@@ -405,13 +496,20 @@ class WealthsimpleService:
                 Example: '2024-05-01' for May 2024 statement.
 
         Returns:
-            List of BrokerageMonthlyStatementTransaction entries
+            List of BrokerageMonthlyStatementTransaction entries. Empty when
+            the month's statement is not published yet.
 
         Raises:
             WealthsimpleServiceError: If API not initialized
         """
         ws = self.ensure_authenticated()
-        statement = ws.get_statement_transactions(account_id, period)
+        try:
+            statement = ws.get_statement_transactions(account_id, period)
+        except ws_api.WSApiException as error:
+            if not _statement_unpublished(error):
+                raise
+            logger.info("NOT PUBLISHED: monthly statement for period %s", period)
+            return []
         logger.info("RETRIEVED monthly statement for period: %s", period)
         return [
             BrokerageMonthlyStatementTransaction.from_dict(txn)
