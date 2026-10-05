@@ -56,7 +56,7 @@ def test_forex_export_parquet(
         with patch.object(
             ForexService,
             "get_fx_rates_from_boc",
-            return_value=cached_fx_data(None),
+            side_effect=cached_fx_data,
         ):
             exporter = ParquetExporter()
             result = exporter.export_forex(start_date)

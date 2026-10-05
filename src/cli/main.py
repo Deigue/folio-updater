@@ -176,9 +176,9 @@ def generate_cmd(
     generate_excel(out=out, only=only, offline=offline, refresh=refresh)
 
 
-@app.command("demo", help="Create demo portfolio with mock data")
+@app.command("demo", help="Create a demo portfolio from real market history")
 def demo_cmd() -> None:
-    """Create demo portfolio with mock data."""
+    """Create a demo portfolio from real market history."""
     from cli.commands.demo import create_folio
 
     create_folio()

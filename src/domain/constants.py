@@ -20,6 +20,3 @@ TXN_ESSENTIALS: list[str] = [
     Column.Txn.TICKER,  # Stock or ETF ticker
     Column.Txn.ACCOUNT,  # Account alias where transaction occurred
 ]
-
-# Default tickers for newly created folio file
-DEFAULT_TICKERS = ["SPY", "AAPL", "O", "REI-UN.TO", "RY.TO"]

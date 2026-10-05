@@ -227,6 +227,11 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert_in_output("sheets to", cli_result)
         assert config.folio_path.exists()
         transactions_parquet = pd.read_parquet(config.txn_parquet, engine="fastparquet")
+        # A column added after the table was made is stored as text, and the
+        # workbook writes it back as the number it holds.
+        transactions_parquet[Column.Txn.FEE] = pd.to_numeric(
+            transactions_parquet[Column.Txn.FEE],
+        )
         tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
         transactions_excel = pd.read_excel(
             config.folio_path,
@@ -243,10 +248,10 @@ def test_generate_command(temp_ctx: TempContext) -> None:
             transactions_excel.reset_index(drop=True).fillna(pd.NA),
         )
         # The tickers sheet now carries what the quote cache knows of each one
-        # too, but still leads with the tickers themselves.
-        assert_frame_equal(
-            tickers_parquet.reset_index(drop=True).fillna(pd.NA),
-            tickers_excel[tickers_parquet.columns].reset_index(drop=True).fillna(pd.NA),
+        # too, and keeps a renamed security's names together, but holds the same
+        # tickers.
+        assert sorted(tickers_parquet[Column.Ticker.TICKER]) == sorted(
+            tickers_excel[Column.Ticker.TICKER],
         )
 
 

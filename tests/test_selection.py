@@ -9,7 +9,7 @@ from datagen import ensure_data_exists
 from db import add_column_to_table, get_connection, get_rows, update_rows
 from domain import Column, Table
 
-from .helpers.seed import ACCOUNT, seed_transaction
+from .helpers.seed import ACCOUNT, TICKER, seed_transaction
 
 if TYPE_CHECKING:
     from tests.test_types import TempContext
@@ -183,6 +183,82 @@ class TestBareLimitOrder:
             selection = select_transactions([_SEEDED, "limit:2"])
 
             assert selection.txn_ids == [newest, middle]
+
+
+class TestQueryResults:
+    """Which rows a query's filters, searches and sorts actually return."""
+
+    def test_an_action_keyword_keeps_only_that_action(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """`buy`, in any case, drops every other action, alone or with a ticker."""
+        with temp_ctx():
+            ensure_data_exists()
+            bought = seed_transaction()
+            seed_transaction(action="SELL", amount="600", units="-5")
+            seed_transaction(
+                action="DIVIDEND",
+                amount="25",
+                price=None,
+                units=None,
+            )
+            seed_transaction(ticker="OTHERCO")
+
+            assert select_transactions([_SEEDED, "buy", TICKER]).txn_ids == [bought]
+
+    def test_sort_orders_rows_by_the_column_either_way(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """`sort:Ticker` and `sort:-Ticker` run the rows in opposite orders."""
+        with temp_ctx():
+            ensure_data_exists()
+            zed = seed_transaction(ticker="ZEDCO")
+            alpha = seed_transaction(ticker="ALFCO")
+            middle = seed_transaction(ticker="MIDCO")
+
+            ascending = select_transactions([_SEEDED, "sort:Ticker"])
+            descending = select_transactions([_SEEDED, "sort:-Ticker"])
+
+            assert ascending.txn_ids == [alpha, middle, zed]
+            assert descending.txn_ids == [zed, middle, alpha]
+
+    def test_a_later_sort_breaks_ties_in_an_earlier_one(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """Rows sharing a ticker fall back to the second sort, newest first."""
+        with temp_ctx():
+            ensure_data_exists()
+            older = seed_transaction(ticker="ALFCO", date="2025-01-02")
+            zed = seed_transaction(ticker="ZEDCO", date="2025-03-03")
+            newer = seed_transaction(ticker="ALFCO", date="2025-06-02")
+
+            selection = select_transactions([_SEEDED, "sort:Ticker", "sort:-TxnDate"])
+
+            assert selection.txn_ids == [newer, older, zed]
+
+    def test_text_search_matches_part_of_an_account_name(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """A term that is no ticker or account finds accounts containing it."""
+        with temp_ctx():
+            ensure_data_exists()
+            inside = seed_transaction(account="NESTEGG-TFSA")
+            seed_transaction()
+
+            assert select_transactions(["NESTEGG"]).txn_ids == [inside]
+
+    def test_a_date_bound_drops_rows_before_it(self, temp_ctx: TempContext) -> None:
+        """`>=2025` keeps the second of January and drops New Year's Eve."""
+        with temp_ctx():
+            ensure_data_exists()
+            seed_transaction(date="2024-12-31")
+            kept = seed_transaction(date="2025-01-02")
+
+            assert select_transactions([_SEEDED, ">=2025"]).txn_ids == [kept]
 
 
 class TestSelectionBounds:

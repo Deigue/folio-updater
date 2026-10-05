@@ -56,7 +56,6 @@ omit = [
     'tests/fixtures/dataframe_cache.py',
     'tests/helpers/seed.py',
     'src/db/backup.py',
-    'src/datagen/folio_setup.py',
     'src/models/*',
     'src/ui/*',
     'src/term/*',

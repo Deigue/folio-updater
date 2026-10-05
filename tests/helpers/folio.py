@@ -16,6 +16,12 @@ def txn_total() -> int:
         return get_row_count(conn, Table.TXNS)
 
 
+def ticker_rows(ticker: str) -> int:
+    """Count the stored transactions booked under exactly `ticker`."""
+    with get_connection() as conn:
+        return get_row_count(conn, Table.TXNS, f'"{Column.Txn.TICKER}" = ?', [ticker])
+
+
 def earliest_txn_date() -> str:
     """Return the first trade date in the folio, in YYYY-MM-DD form."""
     with get_connection() as conn:

@@ -1,6 +1,6 @@
 """Demo command for the folio CLI.
 
-Handles creating a demo portfolio with mock data.
+Builds a realistic demo portfolio from real market history.
 """
 
 from __future__ import annotations
@@ -18,17 +18,17 @@ app = typer.Typer()
 
 @app.command(name="")
 def create_folio() -> None:
-    """Create a demo portfolio with mock data.
+    """Create a demo portfolio from real market history.
 
-    This command creates a demo folio with sample data if one doesn't already exist.
-    Useful for testing and demonstration.
+    Builds two years of transactions across four accounts if the folio holds no
+    data yet, so every command has something to show.
     """
     bootstrap.reload_config()
 
     try:
         with ProgressDisplay.spinner("sea_green3") as progress:
-            progress.add_task("Generating mock data...", total=None)
-            created = ensure_data_exists(mock=True)
+            progress.add_task("Building the demo portfolio...", total=None)
+            created = ensure_data_exists()
     except (OSError, ValueError, KeyError) as e:
         console_error(f"Error creating demo portfolio: {e}")
         raise typer.Exit(1) from e

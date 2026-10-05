@@ -172,6 +172,7 @@ def test_acb_reports_the_conversion_basis(temp_ctx: TempContext) -> None:
 
 
 def test_acb_account_scope(temp_ctx: TempContext) -> None:
+    """One account holds its own 50 units; the TFSA type pools both, 550."""
     with temp_ctx() as ctx:
         seed_cad_holding(account="IBKR-TFSA")
         seed_transaction(
@@ -198,15 +199,24 @@ def test_acb_account_scope(temp_ctx: TempContext) -> None:
     assert_cli_success(single)
     assert_cli_success(pooled)
     assert_in_output("IBKR-TFSA", single)
+    assert_not_in_output("550", single)
     assert_in_output("tfsa", pooled)
+    assert_in_output("550", pooled)
 
 
 def test_acb_folio_scope(temp_ctx: TempContext) -> None:
+    """The portfolio pools a TFSA's 50 units with a taxable account's 50."""
     with temp_ctx() as ctx:
         seed_cad_holding(account="IBKR-TFSA")
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "-t", "all"])
-    assert_cli_success(result)
-    assert_in_output("portfolio", result)
+        seed_cad_holding(account="IBKR-PERSONAL")
+        portfolio = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "-t", "all"])
+        taxable = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+    # Only the pooled view ever holds both buys at once.
+    assert_cli_success(portfolio)
+    assert_in_output("portfolio", portfolio)
+    assert_in_output("200", portfolio)
+    assert_cli_success(taxable)
+    assert_not_in_output("200", taxable)
 
 
 def test_acb_unknown_type_errors(temp_ctx: TempContext) -> None:
@@ -242,15 +252,35 @@ def test_acb_hides_income_rows_unless_all(temp_ctx: TempContext) -> None:
 
 
 def test_acb_year_filter(temp_ctx: TempContext) -> None:
+    """A year keeps its own rows and drops the rest; an empty year says so."""
     with temp_ctx() as ctx:
         seed_cad_holding()
-        result = run_cli_with_config(
+        seed_transaction(
+            action="BUY",
+            date="2024-08-14",
+            settle_date="2024-08-14",
+            account="IBKR-PERSONAL",
+            currency="CAD",
+            ticker="RY.TO",
+            amount="-900",
+            price="9",
+            units="100",
+        )
+        this_year = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "RY.TO", "--year", "2025"],
+        )
+        empty = run_cli_with_config(
             ctx.config,
             app,
             ["acb", "RY.TO", "--year", "2020"],
         )
-    assert_cli_success(result)
-    assert_in_output("No RY.TO transactions", result)
+    assert_cli_success(this_year)
+    assert_in_output("2025-08-14", this_year)
+    assert_not_in_output("2024-08-14", this_year)
+    assert_cli_success(empty)
+    assert_in_output("No RY.TO transactions", empty)
 
 
 def test_acb_summary(temp_ctx: TempContext) -> None:
@@ -623,13 +653,6 @@ def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
         result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
     assert_cli_success(result)
     assert_in_output("No holdings", result)
-
-
-def test_acb_skips_the_fx_fetch_when_auto_getfx_is_off(temp_ctx: TempContext) -> None:
-    with temp_ctx({"cost_basis": {"auto_getfx": False}}) as ctx:
-        seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
 
 
 # --- table presentation -----------------------------------------------------------

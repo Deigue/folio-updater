@@ -24,7 +24,7 @@ from domain import Column, Currency, Sign, Table
 from engine.settlement import settlement_calculator
 from ingest import ActionValidationRules
 
-# Inside the mock data range, so settlement calculations hit the market
+# Inside the demo folio's range, so settlement calculations hit the market
 # calendars preloaded by the session fixture.
 TXN_DATE = "2025-08-15"
 ACCOUNT = "TESTACCT"

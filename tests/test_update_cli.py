@@ -8,7 +8,6 @@ import pandas as pd
 import pytest
 
 from cli.main import app as cli_app
-from datagen import ensure_data_exists
 from services import WealthsimpleServiceError
 from services.wealthsimple_service import WealthsimpleAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
@@ -65,7 +64,6 @@ def test_failed_download_stops_and_cleans_up(
     """A broker failure stops before import and removes only this run's files."""
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
         earlier = config.imports_path / "earlier_download.csv"
         earlier.touch()
 
@@ -97,7 +95,6 @@ def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
     """A file that cannot be imported stays put, with the way back spelled out."""
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
         broken = config.imports_path / IBKR_FILE
         broken.touch()  # nothing registered for it, so reading it fails
 
@@ -121,8 +118,16 @@ def test_clean_run_goes_through_every_stage(
     """
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
         seed_transaction(account=WS_ACCOUNT)  # a calculated date from a past month
+        seed_transaction(
+            action="TFR_OUT",
+            account=WS_ACCOUNT,
+            currency="CAD",
+            ticker=None,
+            amount="-100",
+            price=None,
+            units=None,
+        )
 
         def ibkr(*_args: object) -> list[str]:
             return []
@@ -147,6 +152,7 @@ def test_clean_run_goes_through_every_stage(
         assert (config.processed_path / WS_FILE).exists()
         assert_in_output("New transactions (2)", result)
         assert_in_output("statement download failed", result)
+        assert_in_output("only warned: folio check", result)
         assert_in_output("Folio workbook:", result)
         assert_in_output("Update finished with", result)
 
@@ -162,7 +168,6 @@ def test_statement_on_hand_is_imported_not_fetched(
     """
     with temp_ctx() as ctx:
         config = ctx.config
-        ensure_data_exists()
         seed_transaction(
             account=WS_ACCOUNT,
             ticker=f"{TSX_TICKER}.TO",

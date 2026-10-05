@@ -279,6 +279,7 @@ class TestDeleteGuards:
             )
 
             assert cli_result.exit_code == 1
+            assert_in_output("No transaction with TxnId 999999.", cli_result)
             assert _txn_count() == before
             assert txn_id in _txn_ids()
 

@@ -15,9 +15,9 @@ import pandas as pd
 import pytest
 import yaml
 
-import datagen as _datagen_package
 from app import AppContext, get_config
-from datagen import create_mock_data, get_mock_data_date_range
+from datagen import DemoFolio
+from datagen.demo import END, START
 from domain import TORONTO_TZ, Column, Currency
 from engine.settlement import settlement_calculator
 from services import ForexService
@@ -32,61 +32,10 @@ if TYPE_CHECKING:
 
     from .test_types import TempContext
 
-# Store the original function before any monkey patching
-import datagen.folio_setup
-
-_original_ensure_data_exists = datagen.folio_setup.ensure_data_exists
-
-# Global state to track the active cached_mock_data path
-_active_cached_mock_data: Path | None = None
-
-
-def _patched_ensure_data_exists(*, mock: bool = True) -> bool:
-    """Global patched version of ensure_data_exists that uses cached data."""
-    logger = logging.getLogger(__name__)
-
-    if not mock:  # pragma: no cover
-        return _original_ensure_data_exists(mock=False)
-
-    config = get_config()
-    if config.txn_parquet.exists():
-        return False
-
-    # Include the original validation logic from ensure_data_exists
-    folio_path_parent: Path = config.folio_path.parent
-    default_data_dir: Path = config.project_root / "data"
-
-    # Only create data folder in automated fashion
-    if folio_path_parent.is_relative_to(default_data_dir):
-        folio_path_parent.mkdir(parents=True, exist_ok=True)
-    elif not folio_path_parent.exists():
-        msg: str = f'MISSING folder: "{folio_path_parent}"'
-        logger.error(msg)
-        raise FileNotFoundError(msg)
-
-    if _active_cached_mock_data is None:  # pragma: no cover
-        return _original_ensure_data_exists(mock=True)
-
-    config.data_path.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(_active_cached_mock_data / "folio.db", config.db_path)
-    shutil.copy2(_active_cached_mock_data / "transactions.parquet", config.txn_parquet)
-    shutil.copy2(_active_cached_mock_data / "tickers.parquet", config.tkr_parquet)
-    fx_src = _active_cached_mock_data / "fx.parquet"
-    if fx_src.exists():  # pragma: no cover
-        shutil.copy2(fx_src, config.fx_parquet)
-    return True
-
-
-# Replace the function at module level so all imports get the patched version
-datagen.folio_setup.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[invalid-assignment]
-# Also patch the package-level export so `from datagen import ensure_data_exists`
-# receives the patched function (the package __init__ does a from-import).
-_datagen_package.ensure_data_exists = _patched_ensure_data_exists  # ty: ignore[invalid-assignment]
-
 # Session-scoped caches
 _fx_cache: dict[str, pd.DataFrame] = {}
-_mock_data_cache: dict[str, Path] = {}
 
+# Synthetic rates reach this far back from today, or back to the demo's start.
 FX_WINDOW_DAYS = 60
 
 
@@ -356,7 +305,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
             # Additional cleanup - reset the instance config
             config_path.unlink(missing_ok=True)
 
-            # Clean artifacts created by folio_setup/mock_data
+            # Clean artifacts created by the demo folio
             for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv", "*.meta.json"):
                 for file_path in tmp_path.rglob(pattern):
                     file_path.unlink(missing_ok=True)
@@ -412,7 +361,11 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
     cache_key = "fx_data_60days"
     if cache_key not in _fx_cache:
         end = pd.Timestamp(datetime.now(TORONTO_TZ).date())
-        dates = pd.bdate_range(end - pd.Timedelta(days=FX_WINDOW_DAYS), end)
+        start = min(
+            end - pd.Timedelta(days=FX_WINDOW_DAYS),
+            pd.Timestamp(START) - pd.Timedelta(days=14),
+        )
+        dates = pd.bdate_range(start, end)
         # Generate mock forex dataframe
         fx_df = pd.DataFrame(
             {
@@ -436,67 +389,56 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
 
 
 @pytest.fixture(scope="session")
-def cached_mock_data(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Create and cache mock data files for the entire test session.
+def cached_demo(
+    tmp_path_factory: pytest.TempPathFactory,
+    cached_fx_data: Callable[[str | None], pd.DataFrame],
+    preload_settlement_schedules: None,  # noqa: ARG001 - built over its calendars
+) -> Path:
+    """Build the real demo folio once per session, for tests to copy.
 
-    This fixture generates mock data (parquet files and sqlite db) once per session
-    and stores them in a temporary directory that can be copied to
-    individual test contexts. This directory persists across individual tests.
+    Built through the real pipeline, with the synthetic rates standing in for
+    the Bank of Canada, so the copied folio carries FX for its whole span.
 
     Returns:
-        Path to the cached data directory containing generated mock files.
+        The data folder holding the built folio's database and Parquet files.
     """
-    logger = logging.getLogger(__name__)
-    cache_dir = tmp_path_factory.mktemp("mock_data_cache")
-
-    logger.debug("Generating cached mock data at %s", cache_dir)
-
-    # Store paths for reference
-    _mock_data_cache["root"] = cache_dir
-    _mock_data_cache["db_path"] = cache_dir / "folio.db"
-    _mock_data_cache["txn_parquet"] = cache_dir / "transactions.parquet"
-    _mock_data_cache["tkr_parquet"] = cache_dir / "tickers.parquet"
-    _mock_data_cache["fx_parquet"] = cache_dir / "fx.parquet"
-
-    # Build a small mock FX frame so the creation routine doesn't reach
-    # out to any external services during cache generation.
-    mock_fx_data = pd.DataFrame(
-        {
-            Column.FX.DATE: ["2022-01-01"],
-            Column.FX.FXUSDCAD: [1.25],
-            Column.FX.FXCADUSD: [0.8],
-        },
-    )
-
-    # Ensure a fresh AppContext for generation
+    root = tmp_path_factory.mktemp("demo_cache")
+    (root / "config.yaml").write_text(yaml.safe_dump({"backup": {"enabled": False}}))
     AppContext.reset_singleton()
-    app_ctx = AppContext.get_instance()
-    app_ctx.initialize(cache_dir)
-
-    with (
-        patch.object(ForexService, "get_fx_rates_from_boc", return_value=mock_fx_data),
-        patch.object(ForexService, "insert_fx_data", return_value=None),
-    ):
-        create_mock_data()
-
-    AppContext.reset_singleton()
-    logger.debug("Cached mock data generated successfully")
-    return cache_dir / "data"
+    AppContext.get_instance().initialize(root)
+    try:
+        with patch.object(
+            ForexService,
+            "get_fx_rates_from_boc",
+            side_effect=cached_fx_data,
+        ):
+            DemoFolio().build()
+        return get_config().data_path
+    finally:
+        AppContext.reset_singleton()
 
 
 @pytest.fixture(autouse=True)
-def use_cached_mock_data(
-    cached_mock_data: Path,
-) -> Generator[None, Any]:
-    """Set the global cached mock data path for the patched ensure_data_exists."""
-    global _active_cached_mock_data  # noqa: PLW0603
+def demo_from_cache(cached_demo: Path) -> Generator[None, Any]:
+    """Copy the session's demo folio in, instead of building it again.
 
-    old_path = _active_cached_mock_data
-    _active_cached_mock_data = cached_mock_data
-    try:
+    `DemoFolio.ensure` still runs for real, so its guards are what a test sees;
+    only the build behind it is swapped.
+    """
+
+    def copy_cached(_self: DemoFolio) -> None:
+        config = get_config()
+        config.data_path.mkdir(parents=True, exist_ok=True)
+        for path in (
+            config.db_path,
+            config.txn_parquet,
+            config.tkr_parquet,
+            config.fx_parquet,
+        ):
+            shutil.copy2(cached_demo / path.name, path)
+
+    with patch.object(DemoFolio, "build", copy_cached):
         yield
-    finally:
-        _active_cached_mock_data = old_path
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -507,9 +449,9 @@ def preload_settlement_schedules() -> None:
     to minimize pandas_market_calendars API interactions during tests.
     """
     logger = logging.getLogger(__name__)
-    start_date, end_date = get_mock_data_date_range()
-    buffer_start = start_date - pd.Timedelta(days=10)
-    buffer_end = end_date + pd.Timedelta(days=30)
+    today = pd.Timestamp(datetime.now(TORONTO_TZ).date())
+    buffer_start = pd.Timestamp(START) - pd.Timedelta(days=10)
+    buffer_end = max(pd.Timestamp(END), today) + pd.Timedelta(days=30)
 
     logger.debug(
         "PRE-LOADING market calendars for testing from %s to %s",
@@ -532,17 +474,3 @@ def preload_settlement_schedules() -> None:
             buffer_end,
         )
     )
-
-
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_mock_data_cache(cached_mock_data: Path) -> Generator[None, Any]:  # noqa: ARG001
-    """Cleanup the mock_data_cache directory after the test session."""
-    cache_root = _mock_data_cache.get("root")
-    yield
-
-    if cache_root is not None and cache_root.exists():
-        shutil.rmtree(cache_root, ignore_errors=True)
-        logging.getLogger(__name__).debug(
-            "Cleaned up mock_data_cache at %s",
-            cache_root,
-        )

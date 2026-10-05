@@ -394,7 +394,6 @@ class TestEditValidation:
     ) -> None:
         """Refuse invalid edits. Must leave the row untouched."""
         with temp_ctx() as ctx:
-            ensure_data_exists()
             txn_id = seed_transaction()
             before = _row(txn_id)
             flags = [flag for value in spec for flag in ("--set", value)]

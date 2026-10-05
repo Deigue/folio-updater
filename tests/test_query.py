@@ -12,7 +12,7 @@ import pytest
 from cli.main import app as cli_app
 from cli.query_parser import parse_query_terms
 from datagen import ensure_data_exists
-from db import add_column_to_table, get_connection, get_row_count, get_rows
+from db import add_column_to_table, get_connection, get_row_count
 from domain import Column, Table
 
 from .helpers.cli import (
@@ -21,7 +21,7 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
-from .helpers.folio import earliest_txn_date, plain_ticker, txn_total
+from .helpers.folio import earliest_txn_date, plain_ticker, ticker_rows
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
@@ -60,7 +60,12 @@ class TestQueryParserAgainstLiveSchema:
 
 
 class TestQueryCommand:
-    """Tests for the query CLI command."""
+    """The `query` command end to end: terms in, the right count reported.
+
+    How a term parses is tested in test_query_parser.py, and which rows a filter,
+    search or sort returns in test_selection.py. These check the command wires
+    the two together and reports what it found.
+    """
 
     def test_query_no_terms(self, temp_ctx: TempContext) -> None:
         """Test query command without any terms."""
@@ -69,49 +74,6 @@ class TestQueryCommand:
             cli_result = run_cli_with_config(ctx.config, cli_app, ["query"])
             # Typer requires the terms argument, so it fails with exit code 2
             assert cli_result.exit_code == 2
-
-    def test_query_single_ticker(self, temp_ctx: TempContext) -> None:
-        """Test query for a single ticker."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            ticker = plain_ticker()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ticker],
-            )
-            assert_cli_success(cli_result)
-            # The results show the ticker was found
-            assert_in_output(ticker, cli_result)
-
-    def test_query_combined_filters(self, temp_ctx: TempContext) -> None:
-        """Test query with multiple combined filters."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "BUY", plain_ticker()],
-            )
-            assert_cli_success(cli_result)
-            # Should find matching results
-            result_has_output = (
-                "Found" in cli_result.plain_output
-                or "No transactions" in cli_result.plain_output
-            )
-            assert result_has_output
-
-    def test_query_explicit_filter(self, temp_ctx: TempContext) -> None:
-        """Test query with explicit filter syntax."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "Action:BUY"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output('Action="BUY"', cli_result)
 
     def test_query_results_with_ticker(self, temp_ctx: TempContext) -> None:
         """Test that query returns correct results for a ticker."""
@@ -160,50 +122,6 @@ class TestQueryCommand:
             assert_cli_success(cli_result)
             assert_in_output("No transactions found", cli_result)
 
-    def test_query_text_search(self, temp_ctx: TempContext) -> None:
-        """Test query with text search terms."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            # Get an actual account name
-            with get_connection() as conn:
-                accounts_df = get_rows(conn, Table.TXNS)
-                if not accounts_df.empty:
-                    account = accounts_df.iloc[0][Column.Txn.ACCOUNT]
-                    # Search for part of the account name
-                    search_term = account[:3] if len(account) > 3 else account
-                    cli_result = run_cli_with_config(
-                        ctx.config,
-                        cli_app,
-                        ["query", search_term],
-                    )
-                    assert_cli_success(cli_result)
-
-    def test_query_action_with_ticker(self, temp_ctx: TempContext) -> None:
-        """Test query combining action and ticker."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            ticker = plain_ticker()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "BUY", ticker],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("BUY", cli_result)
-            assert_in_output(ticker, cli_result)
-
-    def test_query_partial_date(self, temp_ctx: TempContext) -> None:
-        """Test query with partial dates (year or year-month)."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            # Test with year only
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ">=2025"],
-            )
-            assert_cli_success(cli_result)
-
     def test_query_month_year_phrase_matches_exact_date_range(
         self,
         temp_ctx: TempContext,
@@ -247,18 +165,6 @@ class TestQueryCommand:
             )
             assert_cli_success(cli_result)
             assert_in_output("No transactions found", cli_result)
-
-    def test_query_case_insensitive_action(self, temp_ctx: TempContext) -> None:
-        """Test that action keywords are case-insensitive."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "buy"],  # lowercase
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("BUY", cli_result)
 
     def test_query_command_with_aliases(self, temp_ctx: TempContext) -> None:
         """Test that the query command correctly uses ticker aliases.
@@ -315,77 +221,24 @@ class TestQueryCommand:
             assert_not_in_output(f" {ticker_alias_old} ", result_c)
             assert_not_in_output(f" {ticker_alias_new} ", result_c)
 
-    def test_query_sorting_ascending_descending(self, temp_ctx: TempContext) -> None:
-        """Test sort command with both ascending and descending."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-
-            # Test ascending sort
-            result_asc = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "sort:Ticker"],
-            )
-            assert_cli_success(result_asc)
-            assert_in_output("sort:Ticker(ASC)", result_asc)
-
-            # Test descending sort
-            result_desc = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "sort:-Amount"],
-            )
-            assert_cli_success(result_desc)
-            assert_in_output("sort:Amount(DESC)", result_desc)
-
-    def test_query_multiple_sorts(self, temp_ctx: TempContext) -> None:
-        """Test multiple sort commands applied in order."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "sort:Ticker", "sort:-TxnDate"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("sort:Ticker(ASC)", cli_result)
-            assert_in_output("sort:TxnDate(DESC)", cli_result)
-
     def test_query_contains_operator(self, temp_ctx: TempContext) -> None:
         """Test that explicit `~` (contains/LIKE) filters execute against the DB."""
         with temp_ctx() as ctx:
             ensure_data_exists()
+            search_term = plain_ticker()
             with get_connection() as conn:
-                accounts_df = get_rows(conn, Table.TXNS)
-                account = accounts_df.iloc[0][Column.Txn.ACCOUNT]
-                search_term = account[:3] if len(account) > 3 else account
-                where = f'"{Column.Txn.ACCOUNT}" LIKE ?'
+                where = f'"{Column.Txn.TICKER}" LIKE ?'
                 params = [f"%{search_term}%"]
                 expected_count = get_row_count(conn, Table.TXNS, where, params)
 
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", f"Account~{search_term}"],
+                ["query", f"Ticker~{search_term}"],
             )
             assert_cli_success(cli_result)
             output_msg = f"Found {expected_count} matching transaction(s)"
             assert_in_output(output_msg, cli_result)
-
-    def test_query_ticker_and_account_search(self, temp_ctx: TempContext) -> None:
-        """Test that both ticker and account names are searched."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-
-            # Query for a known ticker
-            ticker = plain_ticker()
-            result_ticker = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ticker],
-            )
-            assert_cli_success(result_ticker)
-            assert_in_output(f'Ticker="{ticker}"', result_ticker)
 
     def test_query_limit_natural_language(self, temp_ctx: TempContext) -> None:
         """Test that 'last N' (no time unit) limits the number of results."""
@@ -413,13 +266,14 @@ class TestQueryCommand:
         """Test 'between X and Y' with a wide range returns every transaction."""
         with temp_ctx() as ctx:
             ensure_data_exists()
+            ticker = plain_ticker()
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", "between", "2020", "and", "2030"],
+                ["query", ticker, "between", "2020", "and", "2030"],
             )
             assert_cli_success(cli_result)
-            expected_total = txn_total()
+            expected_total = ticker_rows(ticker)
             output_msg = f"Found {expected_total} matching transaction(s)"
             assert_in_output(output_msg, cli_result)
 
@@ -427,12 +281,13 @@ class TestQueryCommand:
         """Test single-sided 'after'/'before' date phrases."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            expected_total = txn_total()
+            ticker = plain_ticker()
+            expected_total = ticker_rows(ticker)
 
             result_after = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", "after", "2000"],
+                ["query", ticker, "after", "2000"],
             )
             assert_cli_success(result_after)
             output_msg = f"Found {expected_total} matching transaction(s)"
@@ -441,7 +296,7 @@ class TestQueryCommand:
             result_before = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                ["query", "before", "2000"],
+                ["query", ticker, "before", "2000"],
             )
             assert_cli_success(result_before)
             assert_in_output("No transactions found", result_before)

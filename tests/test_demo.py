@@ -1,9 +1,4 @@
-"""Tests for folio setup functionality.
-
-This module contains tests including creation, validation, and error handling of folio
-files.
-
-"""
+"""Tests for the demo folio: when it is built, and what building it leaves."""
 
 from __future__ import annotations
 
@@ -14,11 +9,13 @@ import pandas as pd
 import pandas.testing as pd_testing
 import pytest
 
+from app import get_config
 from datagen import ensure_data_exists
 from db import get_connection, get_distinct_set
-from domain import Column, Table
+from domain import CheckStatus, Column, Table
+from engine import cache
+from engine.checks import run_checks
 
-from .conftest import _original_ensure_data_exists
 from .helpers.folio import txn_total
 from .helpers.seed import seed_transaction
 
@@ -31,7 +28,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def test_data_creation(temp_ctx: TempContext) -> None:
-    """Test default mock data creation."""
+    """The demo leaves its exported files mirroring the database it built."""
     with temp_ctx() as ctx:
         config = ctx.config
         txn_parquet: Path = config.txn_parquet
@@ -60,13 +57,33 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         pd_testing.assert_frame_equal(txns_df, txns_df_2)
 
 
+def test_the_demo_replays_clean(temp_ctx: TempContext) -> None:
+    """The demo is a folio with nothing wrong in it: every check passes.
+
+    The generator tracks what the replay checks, so this fails the moment a
+    change to the scenario, or to the engine, lets one slip.
+    """
+    with temp_ctx():
+        ensure_data_exists()
+        result = cache.build().result
+        assert result is not None
+        checks = run_checks(result, get_config())
+
+    assert [str(warning) for warning in result.warnings] == []
+    assert [
+        f"{check.slug}: {check.summary}"
+        for check in checks
+        if check.status is not CheckStatus.OK
+    ] == []
+
+
 def test_data_creation_skipped_when_db_already_populated(
     temp_ctx: TempContext,
 ) -> None:
-    """Refuse to generate mock data when the db has rows but the parquet is missing.
+    """Refuse to build the demo when the db has rows but the parquet is missing.
 
     This can happen if a real transactions.parquet is deleted or moved while
-    folio.db still holds real transactions: mock data must not be appended on
+    folio.db still holds real transactions: the demo must not be appended on
     top of it.
     """
     with temp_ctx() as ctx:
@@ -75,36 +92,18 @@ def test_data_creation_skipped_when_db_already_populated(
 
         assert not config.txn_parquet.exists()
 
-        created = _original_ensure_data_exists(mock=True)
+        created = ensure_data_exists()
 
         assert created is False
         assert not config.txn_parquet.exists()
 
 
-@pytest.mark.parametrize(
-    ("path_suffix", "mock"),
-    [
-        ("nonexistent_folder/folio.xlsx", True),
-        ("nonexistent_file.xlsx", False),
-    ],
-)
-def test_error_scenarios(
+def test_a_missing_folio_folder_is_refused(
     tmp_path: Path,
     temp_ctx: TempContext,
-    path_suffix: str,
-    *,
-    mock: bool,
 ) -> None:
-    """Raise FileNotFoundError for various error scenarios."""
-    missing_path: Path = tmp_path / path_suffix
-    assert not missing_path.exists()
-    with temp_ctx({"folio_path": str(missing_path)}):
-        conftest_level = logging.getLogger("tests.conftest").getEffectiveLevel()
-        foliosetup_level = logging.getLogger("datagen.folio_setup").getEffectiveLevel()
-        logging.getLogger("tests.conftest").setLevel(logging.CRITICAL)
-        logging.getLogger("datagen.folio_setup").setLevel(logging.CRITICAL)
-        with pytest.raises(FileNotFoundError):
-            ensure_data_exists(mock=mock)
-        assert not missing_path.exists()
-        logging.getLogger("tests.conftest").setLevel(conftest_level)
-        logging.getLogger("datagen.folio_setup").setLevel(foliosetup_level)
+    """Only the default data folder is created; any other must already exist."""
+    missing_path: Path = tmp_path / "nonexistent_folder" / "folio.xlsx"
+    with temp_ctx({"folio_path": str(missing_path)}), pytest.raises(FileNotFoundError):
+        ensure_data_exists()
+    assert not missing_path.parent.exists()

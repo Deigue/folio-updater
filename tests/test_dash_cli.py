@@ -8,10 +8,8 @@ from unittest.mock import patch
 import pytest
 from openpyxl import load_workbook
 
-from app import bootstrap
 from cli.main import app
 from services.quotes_service import QuotesService, RefreshResult
-from services.symbols import SymbolResolver
 
 from .helpers.cli import (
     UNCONSTRAINED_WIDTH,
@@ -24,8 +22,7 @@ from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from config import Config
+    from unittest.mock import MagicMock
 
     from .test_types import TempContext
 
@@ -754,15 +751,17 @@ def test_quotes_can_be_narrowed_to_one_ticker(temp_ctx: TempContext) -> None:
         assert_in_output("Fetched 1 quote(s)", result)
 
 
-def test_the_symbol_override_reaches_the_provider(temp_ctx: TempContext) -> None:
+def test_the_symbol_override_reaches_the_provider(
+    temp_ctx: TempContext,
+    quotes_fetch: MagicMock,
+) -> None:
     """A configured override must survive the whole config-to-fetch path."""
-    with temp_ctx(quotes={"symbol_overrides": {"TESTTKR": "OTHER"}}) as ctx:
+    with temp_ctx(quotes={"symbol_overrides": {"TESTTKR": "CADCO.TO"}}) as ctx:
         _seed_two_types()
-        _assert_override_applies(ctx.config)
 
+        result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
-def _assert_override_applies(config: Config) -> None:
-    """Check the resolver built from config carries the override through."""
-    bootstrap.reload_config(config.project_root)
-    resolver = SymbolResolver([], config.quotes_symbol_overrides)
-    assert resolver.yahoo_symbol("TESTTKR") == "OTHER"
+    assert_cli_success(result)
+    asked = {symbol for call in quotes_fetch.call_args_list for symbol in call.args[0]}
+    assert "CADCO.TO" in asked
+    assert "TESTTKR" not in asked
