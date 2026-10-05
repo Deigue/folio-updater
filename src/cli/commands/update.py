@@ -30,7 +30,11 @@ from cli.commands.download import (
     latest_txn_date,
 )
 from cli.commands.generate import write_folio
-from cli.commands.import_data import import_directory, pending_import_files
+from cli.commands.import_data import (
+    confirm_demo_replacement,
+    import_directory,
+    pending_import_files,
+)
 from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
 from domain import TORONTO_TZ, Column, SettlementOutcome, Table
@@ -254,6 +258,19 @@ def _import_stage(
         since: Each broker's latest stored transaction date before the run.
     """
     console_rule("Import", style=_UPDATE_RULE)
+    if pending_import_files(config.imports_path) and not confirm_demo_replacement():
+        report.failure = HardFailure(
+            stage=UpdateStage.IMPORT,
+            error="The folio holds the demo portfolio, and replacing it was declined.",
+            next_steps=(
+                (
+                    "To replace the demo with your transactions: "
+                    "folio update --resume, and answer yes."
+                ),
+                f"To keep the demo: move the downloads out of {config.imports_path}.",
+            ),
+        )
+        return
     outcomes = import_directory(config.imports_path, verbose=True, interactive=False)
     if not outcomes:
         console_info("Nothing new to import.")

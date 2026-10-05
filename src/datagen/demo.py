@@ -33,9 +33,12 @@ import pandas as pd
 from app import get_config, initialize_app
 from config import write_missing_setting
 from db import (
+    backup_folio,
     create_ticker_aliases_table,
     create_txns_table,
+    drop_table,
     get_connection,
+    get_distinct_set,
     get_row_count,
     insert_or_replace,
 )
@@ -112,6 +115,9 @@ CRA_ROOM: dict[str, dict[int, int]] = {
     "TFSA": {2024: 7000, 2025: 7000, 2026: 7000},
     "RRSP": {2024: 31560, 2025: 32490, 2026: 33810},
 }
+
+# Every demo account is named MOCK-something, or MOCK2- for the second broker.
+_DEMO_ACCOUNT = re.compile(r"^MOCK\d*-")
 
 _CENT = Decimal("0.01")
 _RATE_PLACES = Decimal("0.0001")
@@ -1095,6 +1101,39 @@ class DemoFolio:
         ForexService.ensure_coverage()
         ParquetExporter().export_all()
         logger.info("CREATED demo folio: %d transactions", len(rows))
+
+    @staticmethod
+    def clear() -> None:
+        """Remove the demo, so real transactions start an empty folio from TxnId 1.
+
+        The folio is backed up first. Exchange rates and cached quotes stay, being
+        real data, and so does any contribution room the demo wrote to config.
+        """
+        backup_folio()
+        with get_connection() as conn:
+            drop_table(conn, Table.TXNS)
+            drop_table(conn, Table.TICKER_ALIASES)
+        config = get_config()
+        config.txn_parquet.unlink(missing_ok=True)
+        config.tkr_parquet.unlink(missing_ok=True)
+        logger.info("REMOVED demo folio")
+
+
+def _is_demo_account(name: str) -> bool:
+    """Whether an account name is one the demo uses."""
+    return bool(_DEMO_ACCOUNT.match(name))
+
+
+def is_demo_folio() -> bool:
+    """Whether the folio holds the demo and nothing else.
+
+    Returns:
+        True when it has transactions and every one is in a demo account. A
+        folio the user has added any account of their own to is theirs.
+    """
+    with get_connection() as conn:
+        accounts = get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT)
+    return bool(accounts) and all(_is_demo_account(str(name)) for name in accounts)
 
 
 def ensure_data_exists() -> bool:

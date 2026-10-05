@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
+from datagen import is_demo_folio
 from db import get_connection, get_row_count, get_rows
 from domain import Column, Table, TransactionContext
 from exporters import ParquetExporter
@@ -85,6 +86,13 @@ def settlement_info(
 
 def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None:
     """Handle statement import based on file parameter."""
+    if is_demo_folio():
+        console_error(
+            "This folio holds the demo portfolio, which no statement belongs to. "
+            "Import your own transactions first (folio import offers to replace "
+            "the demo), then run folio settle-info -i.",
+        )
+        raise typer.Exit(1)
     if file:
         statement_path = Path(file)
         if not statement_path.exists():

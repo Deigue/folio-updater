@@ -13,6 +13,7 @@ import typer
 
 from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet
+from datagen import DemoFolio, is_demo_folio
 from importers import import_transactions
 from models import ImportResults
 from term import (
@@ -174,8 +175,46 @@ def import_file(
     return FileImport(file_path, results=results)
 
 
+def confirm_demo_replacement() -> bool:
+    """Offer to replace the demo portfolio before an import joins it.
+
+    Asked only while the folio holds the demo and nothing else; the files are
+    not read to find out whose rows they hold. A non-interactive run, with
+    nobody to answer, keeps the demo.
+
+    Returns:
+        True to go ahead with the import, False to leave everything as it is.
+    """
+    if not is_demo_folio():
+        return True
+
+    console_warning(
+        "This folio holds the demo portfolio; importing would mix your "
+        "transactions into it.",
+    )
+    try:
+        replace = typer.confirm(
+            "Replace the demo with your own transactions? A backup is kept.",
+            default=False,
+        )
+    except typer.Abort:
+        replace = False
+    if replace:
+        DemoFolio.clear()
+        console_success("Removed the demo portfolio.")
+    return replace
+
+
+def _cancelled_for_the_demo() -> typer.Exit:
+    """Report a declined import over the demo, ready to be raised."""
+    console_info("Import cancelled; the demo portfolio is unchanged.")
+    return typer.Exit(1)
+
+
 def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
     """Import a single file and export to Parquet."""
+    if not confirm_demo_replacement():
+        raise _cancelled_for_the_demo()
     outcome = import_file(file_path, verbose=verbose)
     if outcome.imported > 0:
         export_to_parquet()
@@ -258,6 +297,8 @@ def _import_status(outcome: FileImport) -> str:
 
 def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> None:
     """Import all files from directory and export to Parquet."""
+    if pending_import_files(dir_path) and not confirm_demo_replacement():
+        raise _cancelled_for_the_demo()
     outcomes = import_directory(dir_path, verbose=verbose)
     if not outcomes:
         console_error(f"No supported files found in {dir_path}")

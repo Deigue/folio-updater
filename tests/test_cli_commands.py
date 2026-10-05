@@ -531,6 +531,36 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
         assert (archive / "ws_statement_WS-TFSA_202606_1.xlsx").exists()
 
 
+def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
+    """No statement belongs to the demo: the way forward is your own import."""
+    with temp_ctx() as ctx:
+        ensure_data_exists()
+        statement = ctx.config.statements_path / "ws_statement_WS-TFSA_202606.xlsx"
+        register_test_dataframe(
+            statement,
+            pd.DataFrame(
+                [
+                    {
+                        "date": "2026-06-08",
+                        "amount": -61.5,
+                        "currency": "CAD",
+                        "transaction": "BUY",
+                        "description": f"{TSX_TICKER} - 1 SHARES 2026-06-05",
+                    },
+                ],
+            ),
+        )
+
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["settle-info", "-i"])
+
+        left_in_place = statement.exists()
+
+    assert cli_result.exit_code == 1
+    assert_in_output("holds the demo portfolio", cli_result)
+    assert_in_output("folio import", cli_result)
+    assert left_in_place
+
+
 def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
     """`--verbose` describes an import, so it is refused on its own."""
     with temp_ctx() as ctx:

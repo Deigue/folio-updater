@@ -8,12 +8,14 @@ import pandas as pd
 import pytest
 
 from cli.main import app as cli_app
+from datagen import ensure_data_exists
 from services import WealthsimpleServiceError
 from services.wealthsimple_service import WealthsimpleAuthenticationError
 from tests.fixtures.dataframe_cache import register_test_dataframe
 
 from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
+from .helpers.folio import txn_total
 from .helpers.seed import TSX_TICKER, seed_transaction
 
 if TYPE_CHECKING:
@@ -106,6 +108,29 @@ def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
         assert_in_output("folio update --resume", result)
         assert_in_output("folio download -b ibkr -f 2026-09-01 -t 2026-10-03", result)
         assert_not_in_output("Folio workbook", result)
+
+
+def test_an_update_over_the_demo_stops_until_you_replace_it(
+    temp_ctx: TempContext,
+) -> None:
+    """Real downloads are not mixed into the demo: with no yes, nothing moves."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+        before = txn_total()
+        download = config.imports_path / WS_FILE
+        create_transaction_data(download)
+
+        result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+
+        after = txn_total()
+        kept = download.exists()
+
+    assert result.exit_code == 1
+    assert_in_output("Update stopped at Import", result)
+    assert_in_output("folio update --resume, and answer yes", result)
+    assert after == before
+    assert kept
 
 
 def test_clean_run_goes_through_every_stage(
