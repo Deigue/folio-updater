@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from app import bootstrap
-from config import Config
+from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
 from .test_types import TempContext
@@ -275,3 +275,42 @@ def test_fee_default_of_false_is_honoured(temp_ctx: TempContext) -> None:
     # An unrecognised spelling leaves the default in place.
     with temp_ctx({"accounts": {"defaults": {"amount_includes_fees": "maybe"}}}) as ctx:
         assert ctx.config.account_fee_default == "auto"
+
+
+ROOM = {"TFSA": {2025: 7000}}
+
+
+@pytest.mark.parametrize(
+    "unset",
+    [
+        pytest.param("contribution_room: {}\n", id="as-config-load-writes-it"),
+        pytest.param("", id="absent"),
+    ],
+)
+def test_a_missing_setting_is_written_around_the_users_comments(
+    tmp_path: Path,
+    unset: str,
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        f"# my folio\nlog_level: ERROR  # keep quiet\n{unset}\n# brokers\nbrokers: []",
+        encoding="utf-8",
+    )
+
+    assert write_missing_setting(config_path, "contribution_room", ROOM) is True
+
+    text = config_path.read_text(encoding="utf-8")
+    assert "# my folio\nlog_level: ERROR  # keep quiet\n" in text
+    assert "# brokers\nbrokers: []" in text
+    assert Config.load(tmp_path).contribution_room == {
+        AccountType.TFSA: {2025: Decimal(7000)},
+    }
+
+
+def test_a_setting_with_a_value_is_left_alone(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.yaml"
+    existing = "contribution_room:\n  RRSP:\n    2025: 32490\n"
+    config_path.write_text(existing, encoding="utf-8")
+
+    assert write_missing_setting(config_path, "contribution_room", ROOM) is False
+    assert config_path.read_text(encoding="utf-8") == existing

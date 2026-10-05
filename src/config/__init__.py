@@ -6,6 +6,7 @@ It provides a centralized way to access configuration values throughout the appl
 
 from __future__ import annotations
 
+import re
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -844,3 +845,41 @@ class Config:
     def __repr__(self) -> str:
         """Return a concise representation of the Config object."""
         return f"<Config config_path={self.config_path}>"
+
+
+def write_missing_setting(config_path: Path, key: str, value: dict[str, Any]) -> bool:
+    """Give a top-level setting a value, unless it already has one.
+
+    The file is edited as text so the user's comments and layout survive: the
+    setting's one empty line (`key: {}`, as `Config.load` writes it, or a bare
+    `key:`) is replaced, or the setting is appended when it is absent.
+
+    Args:
+        config_path: The config.yaml to edit.
+        key: Top-level setting name.
+        value: What to write under it.
+
+    Returns:
+        True when the file was changed, False when the setting already had a
+        value.
+    """
+    text = config_path.read_text(encoding="utf-8")
+    if (yaml.safe_load(text) or {}).get(key):
+        return False
+
+    block = yaml.safe_dump({key: value}, default_flow_style=False, sort_keys=False)
+    empty = re.compile(
+        rf"^{re.escape(key)}:[ \t]*(?:\{{\}}|null|~)?[ \t]*(?:#.*)?\n?",
+        re.MULTILINE,
+    )
+    if empty.search(text):
+        edited = empty.sub(lambda _: block, text, count=1)
+    else:
+        separator = "" if not text or text.endswith("\n") else "\n"
+        edited = f"{text}{separator}{block}"
+
+    staging = config_path.with_name(f"{config_path.name}.tmp")
+    with Path.open(staging, "w", encoding="utf-8") as f:
+        f.write(edited)
+    staging.replace(config_path)
+    return True

@@ -185,3 +185,32 @@ def test_business_days(start_date: str, days: int, expected: str) -> None:
     start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ).date()
     result = calculator.calculate_simple_business_days(start, days)
     assert result == expected
+
+
+def test_an_earlier_batch_widens_a_cached_calendar() -> None:
+    """A trade dated before the cached schedule still settles on the next day.
+
+    The cache used to be trusted once loaded, so in one process an older
+    batch following a newer one settled against the wrong trading days, and
+    could even settle before it traded.
+    """
+    fresh = SettlementCalculator()
+    for currency in (Currency.USD, Currency.CAD):
+        fresh.calendar_schedules[currency] = fresh.get_calendar_schedule(
+            currency,
+            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
+            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
+        )
+    df = pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: ["2024-11-06", "2025-07-24"],
+            Column.Txn.ACTION: [Action.BUY, Action.BUY],
+            Column.Txn.CURRENCY: [Currency.USD, Currency.USD],
+        },
+    )
+
+    result = fresh.add_settlement_dates_to_dataframe(df)
+
+    assert result[Column.Txn.SETTLE_DATE].tolist() == ["2024-11-07", "2025-07-25"]
+    # The days already loaded are kept, not swapped for the older range.
+    assert fresh.calendar_schedules[Currency.USD][-1] >= pd.Timestamp("2025-10-01")

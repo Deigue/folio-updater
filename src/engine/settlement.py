@@ -187,24 +187,15 @@ class SettlementCalculator:
     ) -> None:
         """Ensure calendar schedules are loaded for the given date range.
 
+        A schedule already cached is widened rather than trusted: a batch
+        dated before it would otherwise settle against the wrong days.
+
         Args:
             start_date: Start date (timezone-aware)
             end_date: End date (timezone-aware)
         """
-        # Check if we need to load/expand schedules
         for currency in [Currency.USD, Currency.CAD]:
-            if (
-                currency not in self.calendar_schedules
-                or len(self.calendar_schedules[currency]) == 0
-            ):
-                # Load schedule with buffer
-                buffer_start = start_date - pd.Timedelta(days=10)
-                buffer_end = end_date + pd.Timedelta(days=30)
-                self.calendar_schedules[currency] = self.get_calendar_schedule(
-                    currency,
-                    buffer_start,
-                    buffer_end,
-                )
+            self.get_calendar_schedule(currency, start_date, end_date)
 
     def calculate_simple_business_days(
         self,
@@ -238,6 +229,9 @@ class SettlementCalculator:
     ) -> pd.DatetimeIndex:
         """Get or create calendar schedule for date range.
 
+        A cached schedule that does not cover the range is replaced by one
+        spanning both, so widening never drops days already loaded.
+
         Args:
             currency: Currency to get calendar for
             start_date: Start date for schedule
@@ -246,15 +240,14 @@ class SettlementCalculator:
         Returns:
             DatetimeIndex of valid trading days
         """
-        # Check if we have a cached schedule that covers our range
-        if currency in self.calendar_schedules:
-            existing_schedule = self.calendar_schedules[currency]
-            if (
-                len(existing_schedule) > 0
-                and existing_schedule[0].tz_localize(TORONTO_TZ) <= start_date
-                and existing_schedule[-1].tz_localize(TORONTO_TZ) >= end_date
-            ):
+        existing_schedule = self.calendar_schedules.get(currency, _EMPTY_SCHEDULE)
+        if len(existing_schedule) > 0:
+            cached_start = existing_schedule[0].tz_localize(TORONTO_TZ)
+            cached_end = existing_schedule[-1].tz_localize(TORONTO_TZ)
+            if cached_start <= start_date and cached_end >= end_date:
                 return existing_schedule
+            start_date = min(start_date, cached_start)
+            end_date = max(end_date, cached_end)
 
         calendar: mcal.MarketCalendar | None = self._calendars.get(currency)
         if calendar is None:  # pragma: no cover

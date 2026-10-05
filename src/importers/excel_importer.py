@@ -13,7 +13,6 @@ from app.logging_setup import audit_footer, get_import_logger
 from db import (
     backup_folio,
     get_connection,
-    get_row_count,
     get_rows,
     txn_count,
     update_rows,
@@ -88,29 +87,57 @@ def import_transactions(
         audit_footer()
         return 0
 
-    backup_folio()
+    import_results = insert_transactions(txns_df, account)
 
-    import_results = prepare_transactions(txns_df, account)
-    prepared_df = import_results.final_df
-
-    with get_connection() as conn:
-        try:
-            prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-        except sqlite3.IntegrityError:
-            _analyze_and_insert_rows(conn, prepared_df)
-        final_count = get_row_count(conn, Table.TXNS)
-
-    imported_count = len(prepared_df)
+    imported_count = len(import_results.final_df)
     msg: str = f"DONE: {imported_count} imported"
     import_logger.info(msg)
     summaries = import_results.final_df.apply(format_transaction_summary, axis=1)
     for summary in summaries:
         import_logger.info(" + %s", summary)
-    import_logger.info("TOTAL %d transactions in database", final_count)
+    import_logger.info(
+        "TOTAL %d transactions in database",
+        import_results.final_db_count,
+    )
     audit_footer()
-    import_results.existing_count = existing_count
-    import_results.final_db_count = final_count
     return import_results if with_results else imported_count
+
+
+def insert_transactions(
+    txns_df: pd.DataFrame,
+    account: str | None = None,
+    *,
+    map_headers: bool = True,
+) -> ImportResults:
+    """Run rows through the ingest pipeline and store the ones that survive it.
+
+    The folio is backed up first whenever anything is about to be written.
+
+    Args:
+        txns_df: The rows to add, as read from a source or built in code.
+        account: Fallback account for rows that name none.
+        map_headers: Whether the columns still carry a source's own headers.
+            False when they are already keyed by internal names.
+
+    Returns:
+        Every stage of the preparation, with the database counts before and
+        after filled in.
+    """
+    existing_count = txn_count()
+    import_results = prepare_transactions(txns_df, account, map_headers=map_headers)
+    prepared_df = import_results.final_df
+
+    if not prepared_df.empty:
+        backup_folio()
+        with get_connection() as conn:
+            try:
+                prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+            except sqlite3.IntegrityError:
+                _analyze_and_insert_rows(conn, prepared_df)
+
+    import_results.existing_count = existing_count
+    import_results.final_db_count = txn_count()
+    return import_results
 
 
 def _analyze_and_insert_rows(
@@ -646,17 +673,8 @@ def _build_transfer_transactions(
 
 def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:
     """Pass transfer transactions to the standard import pipeline."""
-    import_results = prepare_transactions(transfer_df, map_headers=False)
+    import_results = insert_transactions(transfer_df, map_headers=False)
     prepared_df = import_results.final_df
-    existing_count = txn_count()
-
-    if not prepared_df.empty:
-        backup_folio()
-        with get_connection() as conn:
-            try:
-                prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-            except sqlite3.IntegrityError:
-                _analyze_and_insert_rows(conn, prepared_df)
 
     import_logger.info(
         "IMPORT %d transfer transaction(s) from statement",
@@ -664,7 +682,4 @@ def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:
     )
     for summary in prepared_df.apply(format_transaction_summary, axis=1):
         import_logger.info(" + %s", summary)
-
-    import_results.existing_count = existing_count
-    import_results.final_db_count = txn_count()
     return import_results
