@@ -214,6 +214,28 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         assert not file2.exists()
 
 
+def test_importing_several_files_backs_the_folio_up_once(
+    temp_ctx: TempContext,
+) -> None:
+    """Every file writes, but only the folio as it stood before the command is kept."""
+    with temp_ctx(backup={"enabled": True}) as ctx:
+        config = ctx.config
+        seed_transaction()
+        create_transaction_data(config.imports_path / "transactions1.xlsx")
+        create_transaction_data(config.imports_path / "transactions2.xlsx")
+
+        cli_result = run_cli_with_config(config, cli_app, ["import"])
+        backups = sorted(p.name for p in config.backup_path.rglob("folio_*.db"))
+
+    assert_in_output(
+        f"Total transactions imported: {EXPECTED_TRANSACTION_COUNT * 2}",
+        cli_result,
+    )
+    # The name ends in the count of transactions it holds: the one seeded.
+    assert len(backups) == 1
+    assert backups[0].endswith("_1.db")
+
+
 def test_generate_command(temp_ctx: TempContext) -> None:
     """The workbook's source sheets hold what the database holds, and nothing more."""
     with temp_ctx() as ctx:

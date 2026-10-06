@@ -5,7 +5,8 @@ from __future__ import annotations
 import logging
 import shutil
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,9 +15,13 @@ from db.helpers import txn_count as get_txn_count
 from domain import TORONTO_TZ
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# None outside a backup scope; inside one, whether the folio is already backed up.
+_scope: ContextVar[bool | None] = ContextVar("backup_scope", default=None)
 
 
 def rolling_backup(
@@ -89,7 +94,36 @@ def rolling_backup(
         old_backup.unlink()
 
 
+@contextmanager
+def backup_scope() -> Iterator[None]:
+    """Back the folio up at most once for everything run inside.
+
+    One command can write several times (an update imports each file, then
+    settles each statement), and a copy before every write would crowd the
+    rotation with states nobody restores to. Within a scope only the first
+    `backup_folio()` acts: the copy from before the first write undoes the whole
+    command. Nothing is copied when nothing is written. A nested scope joins the
+    one already open.
+    """
+    if _scope.get() is not None:
+        yield
+        return
+    token = _scope.set(False)
+    try:
+        yield
+    finally:
+        _scope.reset(token)
+
+
 def backup_folio() -> None:
-    """Take a rolling backup of the folio database, if it holds anything."""
+    """Take a rolling backup of the folio database, if it holds anything.
+
+    Inside a `backup_scope()`, only the first call does anything.
+    """
+    if _scope.get():
+        logger.debug("Folio already backed up for this command")
+        return
+    if _scope.get() is not None:
+        _scope.set(True)
     if get_txn_count() > 0:
         rolling_backup(get_config().db_path)

@@ -5,7 +5,7 @@ This module exports the API for commonly used database operations.
 
 # Also export module references for less common operations
 from db import backup, helpers, queries, schema
-from db.backup import backup_folio
+from db.backup import backup_folio, backup_scope
 from db.helpers import txn_count
 from db.queries import (
     add_column_to_table,
@@ -38,6 +38,7 @@ __all__ = [
     "add_column_to_table",
     "backup",
     "backup_folio",
+    "backup_scope",
     "create_fx_table",
     "create_quotes_table",
     "create_ticker_aliases_table",

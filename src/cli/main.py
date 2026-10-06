@@ -26,6 +26,14 @@ app = typer.Typer(
 )
 
 
+@app.callback()
+def _one_backup_per_command(ctx: typer.Context) -> None:
+    """Back the folio up at most once, however many times the command writes."""
+    from db import backup_scope
+
+    ctx.with_resource(backup_scope())
+
+
 @app.command("import", help="Import transactions from files")
 def import_transactions_cmd(
     file: str | None = typer.Option(

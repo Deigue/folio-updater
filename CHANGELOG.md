@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 
+- Each command issues at most one backup of the folio database.
+
 ### Security
 
 ## [0.8.13] - 2026-10-04

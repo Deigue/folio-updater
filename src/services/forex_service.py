@@ -13,7 +13,6 @@ from io import StringIO
 import pandas as pd
 import requests
 
-from app import get_config
 from db import (
     create_fx_table,
     get_connection,
@@ -22,7 +21,6 @@ from db import (
     get_rows,
     get_tables,
 )
-from db.backup import rolling_backup
 from domain import TORONTO_TZ, Column, Table
 from term import announce
 
@@ -136,6 +134,8 @@ class ForexService:
     def insert_fx_data(fx_df: pd.DataFrame) -> int:
         """Insert FX data into the database.
 
+        No backup is taken first: rates can always be fetched again.
+
         Args:
             fx_df: Prepared FX DataFrame to insert.
 
@@ -145,7 +145,6 @@ class ForexService:
         if fx_df.empty:  # pragma: no cover
             return 0
 
-        rolling_backup(get_config().db_path)
         with get_connection() as conn:
             if get_tables(conn).count(Table.FX) == 0:
                 create_fx_table()
