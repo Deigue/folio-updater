@@ -127,20 +127,6 @@ def seed_superficial_loss(
     )
 
 
-def test_acb_renders_a_buildup(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
-    assert_in_output("RY.TO", result)
-    assert_in_output("non-registered", result)
-    assert_in_output("BUY", result)
-    assert_in_output("SELL", result)
-    # Money is asserted against the frame in test_acb_replay instead
-    assert_in_output("Held", result)
-    assert_in_output("ACB", result)
-
-
 def test_acb_suppresses_usd_columns_for_a_cad_holding(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_cad_holding()

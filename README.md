@@ -14,7 +14,7 @@ A portfolio management system that imports and processes financial transaction d
 - **[`folio delete`](docs/commands/deleting-transactions.md)**: Delete transactions, one at a time or in batch
 - **[`folio getfx`](docs/commands/forex-rates.md)**: Update foreign exchange rates automatically
 - **`folio generate`**: Generate the latest portfolio from the database
-- **`folio demo`**: Create a demo portfolio with mock data for testing
+- **[`folio demo`](docs/commands/demo.md)**: Build a realistic two-year demo portfolio from real market history, to explore every command
 - **[`folio settle-info`](docs/commands/settlement-info.md)**: Retrieve and update settlement date information
 - **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/commands/download/ibkr-integration.md), [Wealthsimple](docs/commands/download/wealthsimple-integration.md))
 - **`folio symbol`**: Alias ticker symbols that are renamed or different to be treated the same

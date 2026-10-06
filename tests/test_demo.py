@@ -13,7 +13,7 @@ from app import get_config
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import get_alias_edges, get_connection, get_distinct_set, get_rows
-from domain import CheckStatus, Column, Table
+from domain import AccountType, Action, CheckStatus, Column, Table
 from engine import cache
 from engine.checks import run_checks
 
@@ -62,6 +62,102 @@ def test_data_creation(temp_ctx: TempContext) -> None:
         ensure_data_exists()
         txns_df_2 = pd.read_parquet(config.txn_parquet, engine="fastparquet")
         pd_testing.assert_frame_equal(txns_df, txns_df_2)
+
+
+def _showcase(
+    txns: pd.DataFrame,
+    frame: pd.DataFrame,
+    renames: list[tuple[str, str, str]],
+) -> dict[str, bool]:
+    """List whether each feature the demo exists to show actually exists.
+
+    Args:
+        txns: The stored transactions.
+        frame: The replay's master frame, one row per transaction.
+        renames: The stored ticker renames, as (old, new, effective date).
+
+    Returns:
+        Each feature, named, and whether the demo shows it.
+    """
+    action, account = txns[Column.Txn.ACTION], txns[Column.Txn.ACCOUNT]
+    ticker, day = txns[Column.Txn.TICKER], txns[Column.Txn.TXN_DATE]
+    trades = txns[action.isin([Action.BUY, Action.SELL])]
+    out, into = txns[action == Action.TFR_OUT], txns[action == Action.TFR_IN]
+    paid = set(zip(day[action == Action.DIVIDEND], account, ticker, strict=False))
+    # Cash legs pair by size, as the replay pairs them: they land days apart.
+    cash_out, cash_in = (
+        legs[legs[Column.Txn.TICKER].isna()].assign(
+            Size=legs[Column.Txn.AMOUNT].abs(),
+        )
+        for legs in (out, into)
+    )
+    sells = frame[frame[Column.Txn.ACTION] == Action.SELL]
+    last = frame.groupby([Column.Txn.ACCOUNT, "Symbol"]).tail(1)
+    taxable_gains = last.loc[last["AcctType"] == AccountType.NON_REGISTERED, "AcctGain"]
+    rrsp_deposits = txns[
+        (action == Action.CONTRIBUTION) & account.str.endswith("RRSP")
+    ][Column.Txn.TXN_DATE]
+    return {
+        "every kind of transaction": set(action) == {str(a) for a in Action},
+        "one account type held at two brokers": bool(
+            account.drop_duplicates().str.split("-").str[-1].duplicated().any(),
+        ),
+        "a split recorded in each account holding it": bool(
+            (txns[action == Action.SPLIT].groupby([day, ticker]).size() > 1).any(),
+        ),
+        "a ticker traded under its old and its new name": any(
+            {old, new} <= set(ticker) for old, new, _ in renames
+        ),
+        "settle dates both calculated and from the broker": (
+            set(trades[Column.Txn.SETTLE_CALCULATED].astype(int)) == {0, 1}
+        ),
+        "dividends reinvested on the day they are paid": any(
+            (row.TxnDate, row.Account, row.Ticker) in paid
+            for row in trades[trades[Column.Txn.FEE].isna()].itertuples()
+        ),
+        "a currency journal (Norbert's gambit)": not out.merge(
+            into,
+            on=[Column.Txn.TXN_DATE, Column.Txn.ACCOUNT],
+        )
+        .query("Ticker_x != Ticker_y")
+        .empty,
+        "units moved in kind between accounts": not out.merge(
+            into,
+            on=Column.Txn.TICKER,
+        )
+        .query("Account_x != Account_y")
+        .empty,
+        "cash moved between accounts": not cash_out.merge(cash_in, on="Size")
+        .query("Account_x != Account_y")
+        .empty,
+        "a taxable gain and a taxable loss": (
+            bool((taxable_gains > 0).any()) and bool((taxable_gains < 0).any())
+        ),
+        "a position sold out, and one only partly sold": (
+            bool((sells["AcctUnits"] == 0).any())
+            and bool((sells["AcctUnits"] > 0).any())
+        ),
+        "an RRSP deposit counted toward the previous year": bool(
+            rrsp_deposits.str[5:7].isin(["01", "02"]).any(),
+        ),
+    }
+
+
+def test_the_demo_shows_every_feature_it_exists_to_show(
+    temp_ctx: TempContext,
+) -> None:
+    """A snapshot refresh or a script edit must not quietly lose a showcase.
+
+    The clean replay cannot see this: a demo with no splits still replays clean.
+    """
+    with temp_ctx():
+        ensure_data_exists()
+        with get_connection() as conn:
+            txns = get_rows(conn, Table.TXNS)
+            renames = get_alias_edges(conn)
+        features = _showcase(txns, cache.build().frame, renames)
+
+    assert [name for name, shown in features.items() if not shown] == []
 
 
 def test_the_demo_replays_clean(temp_ctx: TempContext) -> None:
