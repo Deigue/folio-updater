@@ -166,7 +166,7 @@ def test_multiple_txns() -> None:
     assert result.loc[1, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
 
-    # DIVIDEND, no existing date -> same day as txn date
+    # DIVIDEND, no existing date -> same day as trade date
     assert result.loc[2, Column.Txn.SETTLE_DATE] == "2025-07-24"
     assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 0
 

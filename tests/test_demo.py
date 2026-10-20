@@ -73,7 +73,7 @@ def _showcase(
 
     Args:
         txns: The stored transactions.
-        frame: The replay's master frame, one row per transaction.
+        frame: The replay's ledger, one row per transaction.
         renames: The stored ticker renames, as (old, new, effective date).
 
     Returns:
@@ -108,7 +108,7 @@ def _showcase(
         "a ticker traded under its old and its new name": any(
             {old, new} <= set(ticker) for old, new, _ in renames
         ),
-        "settle dates both calculated and from the broker": (
+        "settlement dates both calculated and from the broker": (
             set(trades[Column.Txn.SETTLE_CALCULATED].astype(int)) == {0, 1}
         ),
         "dividends reinvested on the day they are paid": any(

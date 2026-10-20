@@ -1,10 +1,10 @@
 # Settlement Date Auto-Calculation
 
-The folio-updater automatically calculates settlement dates for transactions based on transaction type and market calendars. This feature provides two internal data fields that are automatically managed by the system.
+The folio-updater automatically calculates settlement dates for transactions based on their action and market calendars. This feature provides two internal data fields that are automatically managed by the system.
 
 ## Overview
 
-Settlement dates represent when a transaction is officially settled in the market. Different transaction types have different settlement rules, and the system tries to automatically calculate these dates using business day logic and market calendars.
+Settlement dates represent when a transaction is officially settled in the market. Different actions have different settlement rules, and the system tries to automatically calculate these dates using business day logic and market calendars.
 
 ## Internal Data Fields
 
@@ -27,7 +27,7 @@ The system adds two internal fields to track settlement dates:
 
 ### Same-Day Settlement
 
-These transaction types settle on the same day as the transaction date:
+These actions settle on their trade date:
 
 - **DIVIDEND**: Dividend payments
 - **CONTRIBUTION**: Account contributions
@@ -38,14 +38,14 @@ These transaction types settle on the same day as the transaction date:
 
 ### T+1/T+2 Settlement
 
-These transaction types settle on business days after the transaction date:
+These actions settle a number of business days after their trade date:
 
-- **BUY**: Stock purchases
-- **SELL**: Stock sales
+- **BUY**: Security purchases
+- **SELL**: Security sales
 - **FXT**: Foreign exchange transactions
-- **SPLIT**: Stock splits
+- **SPLIT**: Splits
 
-#### Settlement Period Rules
+#### Settlement Lag Rules
 
 - **T+1 (1 business day)**: Effective May 28, 2024 for USD transactions and May 27, 2024 for CAD transactions
 - **T+2 (2 business days)**: For transactions before the T+1 effective dates

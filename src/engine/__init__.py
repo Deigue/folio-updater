@@ -1,7 +1,7 @@
 """Engine for folio-updater."""
 
 from engine.accounts import fee_convention_for, is_taxable, resolve_account_type
-from engine.frames import acb_summary_frame, master_frame
+from engine.frames import acb_summary_frame, ledger_frame
 from engine.fx_rates import Conversion, FxRates, load_fx_rates
 from engine.replay import ReplayConfig, replay
 from engine.transfers import TransferPair, pair_transfers
@@ -31,9 +31,9 @@ __all__ = [
     "acb_summary_frame",
     "fee_convention_for",
     "is_taxable",
+    "ledger_frame",
     "load_fx_rates",
     "load_txn_rows",
-    "master_frame",
     "pair_transfers",
     "replay",
     "resolve_account_type",

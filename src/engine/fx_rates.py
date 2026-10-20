@@ -125,7 +125,7 @@ class FxRates:
         """Resolve the USDCAD rate for a date, classifying how it was found."""
         if other is not Currency.USD:
             msg = (
-                f"No exchange rate source for {other}. Only USD/CAD conversion "
+                f"No FX rate source for {other}. Only USD/CAD conversion "
                 f"is supported; the FX table holds Bank of Canada FXUSDCAD only."
             )
             raise FxRateUnavailableError(msg)

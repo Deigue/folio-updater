@@ -1,4 +1,4 @@
-"""Turn a replay into the wide master frame the CLI and exports render from.
+"""Turn a replay into the wide ledger the CLI and exports render from.
 
 The frame is the display and export boundary. The replay itself is exact
 Decimal arithmetic end to end; numbers become float here, where the smallest
@@ -116,7 +116,7 @@ def _grain_cells(
 
 
 def _row_record(computed: ComputedRow) -> dict[str, object]:
-    """Flatten one `ComputedRow` into the master frame's columns."""
+    """Flatten one `ComputedRow` into the ledger's columns."""
     row = computed.row
     record: dict[str, object] = {
         str(Column.Txn.TXN_ID): row.txn_id,
@@ -147,7 +147,7 @@ def _row_record(computed: ComputedRow) -> dict[str, object]:
 
 
 def master_columns() -> list[str]:
-    """Every column of the master frame, in display order.
+    """Every column of the ledger, in display order.
 
     Returns:
         Source columns, then derived context, then the shared measures, then
@@ -160,7 +160,7 @@ def master_columns() -> list[str]:
 
 
 def index_by_txn_id(frame: pd.DataFrame) -> pd.DataFrame:
-    """Index a master frame by `TxnId` while keeping it as a column.
+    """Index a ledger by `TxnId` while keeping it as a column.
 
     The index name is cleared deliberately: leaving it set would make `TxnId`
     both an index level and a column label, which `sort_values` and `groupby`
@@ -168,7 +168,7 @@ def index_by_txn_id(frame: pd.DataFrame) -> pd.DataFrame:
     cache read, since Parquet stores no index.
 
     Args:
-        frame: A master frame, indexed however it arrived.
+        frame: A ledger, indexed however it arrived.
 
     Returns:
         The same frame indexed by TxnId, ascending.
@@ -178,8 +178,8 @@ def index_by_txn_id(frame: pd.DataFrame) -> pd.DataFrame:
     return indexed
 
 
-def master_frame(result: ReplayResult) -> pd.DataFrame:
-    """Build the wide master frame, one row per transaction.
+def ledger_frame(result: ReplayResult) -> pd.DataFrame:
+    """Build the wide ledger, one row per transaction.
 
     Args:
         result: A completed replay.
@@ -201,13 +201,13 @@ def master_frame(result: ReplayResult) -> pd.DataFrame:
 
 
 def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Collapse the master frame to one row per symbol, all three grains.
+    """Collapse the ledger to one row per symbol, all three grains.
 
     The final state of each pool is the last row that touched it, in trade-date
     order.
 
     Args:
-        frame: A master frame.
+        frame: A ledger.
 
     Returns:
         One row per symbol carrying units, cost base, average cost and realized
@@ -216,7 +216,7 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty or "Symbol" not in frame.columns:
         return pd.DataFrame(columns=["Symbol", *_summary_columns()])
 
-    # TxnId is both the index and a column on the master frame, so drop the
+    # TxnId is both the index and a column on the ledger, so drop the
     # index to avoid ambiguity for sort_values and groupby.
     tracked = frame[frame["Symbol"].notna()].reset_index(drop=True)
     if tracked.empty:
@@ -236,7 +236,7 @@ def acb_summary_frames_by_pool(
     """Summarise every pool at one grain in a single pass over the frame.
 
     Args:
-        frame: A master frame.
+        frame: A ledger.
         grain: The pool grain to split by. Folio grain has a single pool and
             is not a split, so it is rejected.
 
@@ -280,14 +280,14 @@ _RANK = "_intraday_rank"
 
 
 def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
-    """Put master-frame rows in the exact order the cost base was replayed in.
+    """Put ledger rows in the exact order the cost base was replayed in.
 
     Trade date first, then the day's actions in the order the replay applies
     them (a purchase before a sale, so a same-day round trip is not an
     oversell), then TxnId.
 
     Args:
-        frame: Rows from the master frame.
+        frame: Rows from the ledger.
 
     Returns:
         The same rows, reordered.

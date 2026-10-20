@@ -1,7 +1,7 @@
 # Dashboard
 
 `folio dash` prices what you currently hold: units and average cost from the
-cost-base replay, live prices from Yahoo Finance, and a panel of cash and
+cost-base replay, prices from Yahoo Finance quotes, and a panel of cash and
 cumulative flows above the table.
 
 By default, `folio dash` shows the **folio pool**: everything, pooled.
@@ -13,14 +13,14 @@ By default, `folio dash` shows the **folio pool**: everything, pooled.
 | **Portfolio**    | `-t all` *(default)* | Everything you own, pooled   |
 | **Account type** | `-t/--type`    | Every account of one type together |
 | **Account**      | `-a/--account` | A single broker account            |
-| **Every type**   | `--by-type`    | One panel per tax type, tiled      |
+| **Every type**   | `--by-type`    | One panel per account type, tiled  |
 
 ```bash
 folio dash                      # everything
 folio dash --type all           # everything (the default)
 folio dash --type tfsa          # every TFSA pooled
 folio dash --account IBKR-TFSA  # one broker account
-folio dash --by-type            # a panel per tax type, side by side
+folio dash --by-type            # a panel per account type, side by side
 ```
 
 `-t` and `-a` are mutually exclusive, and `--by-type` takes neither.
@@ -41,7 +41,7 @@ folio dash --by-type            # a panel per tax type, side by side
 ## Sorting
 
 ```bash
-folio dash -s total      # biggest total return first
+folio dash -s total      # biggest total gain first
 folio dash -s total -r   # worst first
 folio dash -s symbol     # A to Z
 ```
@@ -57,7 +57,7 @@ Sort by any of: `symbol`, `name`, `units`, `avg`, `last`, `change`, `change%`,
 
 ## Currency
 
-**Every holding is reported in the currency it trades in.** A US stock shows its
+**Every holding is reported in the currency it trades in.** A US security shows its
 average cost, price, book value and market value in USD, consistent with your brokers.
 Rows are grouped by currency, each group having its own subtotal.
 
@@ -93,7 +93,7 @@ design, and totals in USD.
 **`Wt%`, `Folio%` and `PnL%`** are never taken on the row's own currency, but on a
 single common one, so a USD holding's 5% and a CAD holding's 5% means the same thing.
 
-Book value converts at each transaction's own **historical** settle-date rate, because
+Book value converts at each transaction's own **historical** settlement-date rate, because
 that is what CRA taxes. Market value converts at **today's** rate, because it is a
 current valuation. The footnote names the rate and its date used.
 
@@ -102,9 +102,9 @@ current valuation. The footnote names the rate and its date used.
 | Column     | Meaning                                                       |
 | ---------- | ------------------------------------------------------------- |
 | `Avg`      | Adjusted cost base per unit                                   |
-| `Last`     | Current price                                                 |
+| `Last`     | Price                                                         |
 | `Change`   | The day's move per unit                                       |
-| `Change%`  | `Change` over the current price                               |
+| `Change%`  | `Change` over the price                                       |
 | `PnL`      | Day gain on the holding: `Change x Units`                     |
 | `PnL%`     | That gain as a share of **the whole pool's** market value     |
 | `Unreal`   | `Market - Book`, the gain you are still holding               |
@@ -132,11 +132,11 @@ subtotal and total.
 `--show-closed` breaks that one row open into the individual closed holdings.
 
 **`Total` column truthfully answers "how has this done".** Unrealized gain flatters a
-stock you never sold and punishes one you trim. Adding realized gains and dividends gives
+security you never sold and punishes one you trim. Adding realized gains and dividends gives
 the whole picture.
 
 **The overall `Total%` is measured against net deposits.** We cannot use `Book` because
-when we earn dividends, we can reinvest them to buy more stocks, and that adds to `Book`.
+when we earn dividends, we can reinvest them to buy more units, and that adds to `Book`.
 Similarly, when we sell a holding, its gains are added to `Total`, but the `Book` (its
 ACB) behind it disappears, since we sold it all. Thus `Net Deposits`, i.e: What
 money we effectively put in; is the right number to denominate against to calculate the
@@ -172,7 +172,7 @@ contributions - withdrawals + what transfers carried in or out
 
 Transfers move portions of what you contributed between the pools of your folio. Since
 we carry the entire transaction ledger, folio can smartly calculate the portion of
-incoming or outgoing transfers that are *actual deposits*. This value is important to
+each incoming or outgoing transfer that is your own money, its *deposit share*. This value is important to
 know "how much of the money we put in, exists in this pool"; to compare against its
 current-day state, in order to gauge the real performance of its holdings.
 

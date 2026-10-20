@@ -57,7 +57,7 @@ class ParquetExporter:
 
         Args:
             start_date: Start date in YYYY-MM-DD format. If None, uses earliest
-                       transaction date from database.
+                       trade date from database.
 
         Returns:
             int: Number of FX rate records exported.

@@ -45,9 +45,9 @@ class FirstBuy:
 
     Attributes:
         date: When it was bought, `YYYY-MM-DD`.
-        price: The price per share, as traded.
+        price: The price per unit, as traded.
         currency: The currency it was bought in.
-        split_since: Whether a split has changed the share count since, which
+        split_since: Whether a split has changed the units since, which
             leaves the price as traded no longer comparable to today's.
     """
 

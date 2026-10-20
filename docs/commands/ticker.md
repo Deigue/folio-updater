@@ -32,7 +32,7 @@ folio ticker MSFT -b -c both
 
 Details shown:
 
-- **Header**: the name, last price and the day's move from the previous close.
+- **Header**: the name, price and the day's move from the previous close.
 - **Fundamentals**: valuation (market cap, P/E, EPS, beta, next earnings), dividends
   (rate, yield, ex-dividend date) and trading (52-week range, moving averages,
   volume). A fund shows its assets, expense ratio and family instead.
@@ -58,7 +58,7 @@ Details shown:
 | `5y`  | The weekly close five years ago                            | weekly closes     |
 | `All` | The first monthly close Yahoo has                          | monthly closes    |
 
-Every move runs from an official close to the last price, price only: dividends are
+Every move runs from an official close to the latest price, price only: dividends are
 not added back. The bars only draw a range's shape. `1d` and `2d` sit on a fixed
 session axis like an intraday chart, so while the market is open they fill only part
 of the way.
@@ -94,7 +94,7 @@ folio ticker -s ytd -r
 | `-o`, `--offline`  | Use cached data only                                            |
 | `--refresh`        | Refetch quotes and price history                                |
 
-Each row carries the last price in the security's own currency, the market value in
+Each row carries the price in the security's own currency, the market value in
 CAD (so the column compares), its share of the folio, and its move over every range.
 The best and worst of each range are bold. Sorted, the largest comes first; a
 security with nothing to measure over that range stays at the bottom.

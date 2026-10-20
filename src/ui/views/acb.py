@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from engine.cache import CachedFrame
 
-# Column families the buildup renders, as (header, master-frame measure).
+# Column families the buildup renders, as (header, ledger measure).
 _MEASURE_COLUMNS: list[tuple[str, str]] = [
     ("Delta", "Delta"),
     ("ACB", "ACB"),
@@ -352,7 +352,7 @@ def _print_footer(
     Args:
         rows: The rows whose `Flags` column is rolled up.
         exclude: Flag codes to leave out of the roll-up, e.g. a code that is
-            only meaningful per-lot and would just be noise once pooled across
+            only meaningful per transaction and would just be noise once pooled across
             symbols.
     """
     flags: dict[str, int] = {}
@@ -366,7 +366,7 @@ def _print_footer(
         console_warning(f"Flags: {summary}")
 
     console_print(
-        "[dim]CAD cost base is converted at each transaction's settle date, "
+        "[dim]CAD cost base is converted at each transaction's settlement date, "
         "not at today's rate.[/dim]",
     )
 

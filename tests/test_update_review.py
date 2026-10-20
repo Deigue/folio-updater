@@ -65,7 +65,7 @@ BARE_WITHDRAWAL_ROW = {
     Column.Txn.ACCOUNT: ACCOUNT,
     Column.REJECTION_REASON: "MISSING $, MISSING Amount",
 }
-# A broker cancelling a deposit, and the deposit, as mapped.
+# A broker cancelling a contribution, and the contribution, as mapped.
 CANCEL_ROW: dict[str, object] = {
     Column.Txn.TXN_DATE: "2026-09-08",
     Column.Txn.ACTION: "Deposits/Withdrawals",

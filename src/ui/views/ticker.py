@@ -74,7 +74,7 @@ _CHART_MAX_POINTS = 60
 _CHARTS_PER_ROW = (5, 4, 3, 2, 1)
 # A chart panel's border and padding, around its points.
 _CHART_FRAME = 4
-# A move with nothing between its anchor and the live price has no shape.
+# A move with nothing between its anchor and the price has no shape.
 _ENDS_ONLY = 2
 # A move this many times the anchor reads as a multiple, not a percentage.
 _MULTIPLE_FROM = Decimal(10)
@@ -530,7 +530,7 @@ def _conversion_notes(position: SymbolHoldings, quote: Quote) -> list[str]:
         return []
     rate = f"USDCAD {float(position.fx_rate):,.4f} ({position.fx_date})"
     note = (
-        "[dim]Cost base at each transaction's settle-date rate; "
+        "[dim]Cost base at each transaction's settlement-date rate; "
         f"market value at {rate}.[/dim]"
     )
     return [note]
@@ -559,7 +559,7 @@ def _footer(position: SymbolHoldings) -> list[str]:
     notes.append(f"[dim]{opening} · held {years}y {months}m[/dim]")
     if not position.total.priced and not position.total.closed:
         notes.append(
-            f"[yellow]{WARN_GLYPH} No live price: market value and unrealized "
+            f"[yellow]{WARN_GLYPH} No price: market value and unrealized "
             f"gain are blank.[/yellow]",
         )
     if position.flags:

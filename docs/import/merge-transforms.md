@@ -68,9 +68,9 @@ Additional field transformations to apply to the merged row. Common examples:
 ## Cancellations
 
 A broker that reverses a transaction can send a second row with the opposite amount
-instead of removing the first. IBKR, for example, follows a mistaken deposit with a
+instead of removing the first. IBKR, for example, follows a mistaken contribution with a
 `Deposits/Withdrawals` row of the negative amount and the description `CANCELLATION`.
-Imported as they are, the deposit counts as money in and the cancellation is
+Imported as they are, the contribution counts as money in and the cancellation is
 rejected, so the folio shows a contribution that never happened.
 
 A `cancellations` rule drops both rows:

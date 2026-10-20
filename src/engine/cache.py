@@ -1,4 +1,4 @@
-"""Cache the master frame so repeated cost-base commands stay instant.
+"""Cache the ledger so repeated cost-base commands stay instant.
 
 Invalidation is automatic: `add`, `edit`, `delete` and `import`
 all move the transactions fingerprint, and a change to the config keys that
@@ -19,7 +19,7 @@ import pandas as pd
 from app import get_config
 from db.queries import get_connection, get_txns_fingerprint
 from domain import TORONTO_TZ
-from engine.frames import index_by_txn_id, master_frame
+from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import load_fx_rates
 from engine.replay import ReplayConfig, replay
 from engine.snapshot import decode as decode_replay
@@ -38,10 +38,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class CachedFrame:
-    """A master frame together with how it was obtained.
+    """A ledger together with how it was obtained.
 
     Attributes:
-        frame: The master frame. (cached or computed)
+        frame: The ledger. (cached or computed)
         computed_at: When the frame was built. `None` means it was built by this
             invocation.
         result: The replay behind the frame. A fresh build carries it whole; a
@@ -68,7 +68,7 @@ def _config_hash() -> str:
     """Hash the config keys that change the arithmetic.
 
     Only `accounts.map` and `accounts.defaults` qualify: they decide an
-    account's tax type and where its commissions sit.
+    account's type and where its commissions sit.
     """
     config = get_config()
     payload = json.dumps(
@@ -95,7 +95,7 @@ def fingerprint() -> str:
 
 
 def build() -> CachedFrame:
-    """Run a replay and build the master frame from it.
+    """Run a replay and build the ledger from it.
 
     Returns:
         A freshly computed `CachedFrame`, carrying the replay result.
@@ -103,7 +103,7 @@ def build() -> CachedFrame:
     rows = load_txn_rows()
     resolver = load_symbol_resolver()
     result = replay(rows, load_fx_rates(), ReplayConfig.build(rows, resolver))
-    return CachedFrame(frame=master_frame(result), result=result)
+    return CachedFrame(frame=ledger_frame(result), result=result)
 
 
 def _read_cache(parquet: Path, expected: str) -> CachedFrame | None:
@@ -156,13 +156,13 @@ def _write_cache(
 
 
 def load_or_build(*, refresh: bool = False) -> CachedFrame:
-    """Return the master frame, from cache when it is still valid.
+    """Return the ledger, from cache when it is still valid.
 
     Args:
         refresh: Rebuild and rewrite the cache even if it looks current.
 
     Returns:
-        The master frame, and when it was computed. A `computed_at` of `None`
+        The ledger, and when it was computed. A `computed_at` of `None`
         means this invocation built it.
     """
     parquet = get_config().acb_parquet

@@ -17,6 +17,6 @@ TXN_ESSENTIALS: list[str] = [
     Column.Txn.CURRENCY,  # Currency
     Column.Txn.PRICE,  # Price per unit
     Column.Txn.UNITS,  # Number of units
-    Column.Txn.TICKER,  # Stock or ETF ticker
+    Column.Txn.TICKER,  # Security ticker, such as a stock or ETF
     Column.Txn.ACCOUNT,  # Account alias where transaction occurred
 ]

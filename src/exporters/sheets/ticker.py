@@ -33,7 +33,7 @@ MOVE_COLUMNS: tuple[Col, ...] = (
 _POOLED = "POOLED"
 _MATRIX_NOTE = (
     "Market values in CAD. Moves are price only, each in the security's own "
-    "currency, from an official close to the last price."
+    "currency, from an official close to the latest price."
 )
 _CRA = "CRA"
 
@@ -73,7 +73,7 @@ def ticker_table(  # noqa: PLR0913
         notes=(
             *notes,
             *_first_buy_note(positions),
-            "Every move runs from an official close to the last price, price only.",
+            "Every move runs from an official close to the latest price, price only.",
         ),
         tab_color=OVERVIEW_TAB,
         # The quote and fundamentals panels are too tall to pin above it.

@@ -151,11 +151,11 @@ class ActionValidationRules:
     SIGN_RULES: ClassVar[dict[Action, dict[str, Sign]]] = {
         Action.BUY: {
             Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
-            Column.Txn.UNITS: Sign.POSITIVE,  # shares acquired
+            Column.Txn.UNITS: Sign.POSITIVE,  # units acquired
         },
         Action.SELL: {
             Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
-            Column.Txn.UNITS: Sign.NEGATIVE,  # shares disposed
+            Column.Txn.UNITS: Sign.NEGATIVE,  # units disposed
         },
         Action.WITHDRAWAL: {Column.Txn.AMOUNT: Sign.NEGATIVE},
         Action.CONTRIBUTION: {Column.Txn.AMOUNT: Sign.POSITIVE},
@@ -166,11 +166,11 @@ class ActionValidationRules:
         },
         Action.TFR_IN: {
             Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
-            Column.Txn.UNITS: Sign.POSITIVE,  # shares in
+            Column.Txn.UNITS: Sign.POSITIVE,  # units in
         },
         Action.TFR_OUT: {
             Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
-            Column.Txn.UNITS: Sign.NEGATIVE,  # shares out
+            Column.Txn.UNITS: Sign.NEGATIVE,  # units out
         },
     }
 

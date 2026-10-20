@@ -646,7 +646,7 @@ def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
             "db_date",
             [],
             {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
-            f"Using latest IBKR transaction date: {TXN_DATE}",
+            f"Using latest IBKR trade date: {TXN_DATE}",
             "setup_db",
         ),
         (

@@ -43,7 +43,7 @@ RESOLVER = SymbolResolver([])
 
 
 def _age_cached(symbol: str, *, minutes: int) -> None:
-    """Backdate a cached quote so its TTL has expired."""
+    """Backdate a cached quote past its TTL, so it is stale."""
     stale = (datetime.now(UTC) - timedelta(minutes=minutes)).isoformat()
     with get_connection() as conn:
         conn.execute(
@@ -447,7 +447,7 @@ def test_fetching_prices_reads_fast_info() -> None:
 def test_fetching_prices_skips_a_symbol_with_no_price() -> None:
     tickers = {
         "AAA": _FakeTicker(_FastInfo(200.0, 190.0, "USD")),
-        # A symbol the provider knows of but has no last price for.
+        # A symbol the provider knows of but has no price for.
         "GHOST": _FakeTicker(_FastInfo(None, 0.0, "USD")),
     }
 

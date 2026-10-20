@@ -22,7 +22,7 @@ from engine.frames import (
     acb_summary_frame,
     acb_summary_frames_by_pool,
     grain_column,
-    master_frame,
+    ledger_frame,
 )
 from engine.fx_rates import FxRates
 from engine.replay import (
@@ -290,7 +290,7 @@ def test_cad_holding_has_blank_usd_columns() -> None:
             ),
         ],
     )
-    frame = master_frame(result)
+    frame = ledger_frame(result)
     for grain in Grain:
         assert frame[grain_column(grain, "ACB")].iloc[0] == pytest.approx(1000)
         assert pd.isna(frame[grain_column(grain, "ACB_USD")].iloc[0])
@@ -1311,13 +1311,13 @@ def test_flags_include_codes_raised_after_the_row_was_emitted() -> None:
     assert WarningCode.CASH_NEGATIVE in result.rows[0].flags
 
 
-def test_master_frame_is_one_row_per_txn() -> None:
+def test_ledger_frame_is_one_row_per_txn() -> None:
     rows = [
         make_row(1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10"),
         make_row(2, "2024-01-03", Action.CONTRIBUTION, amount="500", ticker=None),
         make_row(3, "2024-01-04", Action.SELL, amount="600", units="-50", price="12"),
     ]
-    frame = master_frame(run(rows))
+    frame = ledger_frame(run(rows))
     assert len(frame) == len(rows)
     assert frame.index.is_unique
     assert set(frame.index) == {1, 2, 3}
@@ -1334,7 +1334,7 @@ def test_master_frame_is_one_row_per_txn() -> None:
 
 
 def test_acb_summary_frame_has_one_row_per_symbol() -> None:
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [
                 make_row(
@@ -1375,7 +1375,7 @@ def test_acb_summary_frame_has_one_row_per_symbol() -> None:
 
 def test_acb_summary_frame_carries_the_usd_average() -> None:
     """`Avg_USD` is derived like `Avg`, and stays blank for a CAD holding."""
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [
                 make_row(
@@ -1411,7 +1411,7 @@ def test_acb_summary_frame_carries_the_usd_average() -> None:
 
 def test_acb_summary_frame_closes_on_the_last_row_replayed() -> None:
     """A same-day sale stored before its purchase still closes the day at 10 + 3 - 5."""
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [
                 make_row(1, "2024-01-02", Action.BUY, amount="-1000", units="10"),
@@ -1684,13 +1684,13 @@ def test_margin_accounts_are_allowed_to_go_negative() -> None:
 
 
 def test_empty_replay_produces_an_empty_frame() -> None:
-    frame = master_frame(run([]))
+    frame = ledger_frame(run([]))
     assert frame.empty
     assert acb_summary_frame(frame).empty
 
 
 def test_summary_of_a_frame_with_no_holdings_is_empty() -> None:
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="500", ticker=None)],
         ),
@@ -1700,7 +1700,7 @@ def test_summary_of_a_frame_with_no_holdings_is_empty() -> None:
 
 
 def _raw_row(**overrides: object) -> pd.DataFrame:
-    """One raw Txns record, the way pd.read_sql_query hands it back."""
+    """One `Txns` row, the way pd.read_sql_query hands it back."""
     record: dict[str, object] = {
         str(Column.Txn.TXN_ID): 1,
         str(Column.Txn.TXN_DATE): "2024-01-02",
@@ -1974,7 +1974,7 @@ def test_pair_transfers_does_not_reuse_a_consumed_in_leg() -> None:
 
 def test_summary_leaves_an_average_blank_when_a_measure_is_missing() -> None:
     """A cached frame can carry a blank cell; the average must not invent one."""
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [
                 make_row(
@@ -2023,7 +2023,7 @@ def test_a_same_day_buy_supplies_a_transfer_out() -> None:
     destination = next(c for c in result.rows if c.row.txn_id == 3)
     assert source.acct.units == D("0")
     assert source.acct.acb_cad == D("0")
-    # The cost base arrives with the shares rather than stranding at source.
+    # The cost base arrives with the units rather than stranding at source.
     assert destination.acct.units == D("100")
     assert destination.acct.acb_cad == D("1000")
 
@@ -2083,7 +2083,7 @@ def test_a_same_day_transfer_in_supplies_a_sale() -> None:
     assert WarningCode.OVERSELL not in codes(result)
     sale = next(c for c in result.rows if c.row.txn_id == 4)
     assert sale.acct.units == D("0")
-    # Cost base came across with the shares, so the gain is 1400 - 1000.
+    # Cost base came across with the units, so the gain is 1400 - 1000.
     assert sale.acct.gain_cad == D("400")
 
 
@@ -2117,9 +2117,9 @@ def test_cost_base_follows_trade_date_not_settle_date() -> None:
     """Settlement lags differ by action, so settle order loses the true sequence.
 
     A T+2 buy traded on the 4th settles on the 6th, while a return of capital
-    traded on the 5th settles the same day. Replaying by settle date would apply
+    traded on the 5th settles the same day. Replaying by settlement date would apply
     the distribution to the smaller pre-purchase cost base, floor it at zero and
-    invent a capital gain.
+    invent a realized gain.
     """
     result = run(
         [
@@ -2473,10 +2473,10 @@ def test_transfer_legs_settling_far_apart_do_not_pair() -> None:
 
 
 def test_a_fractionally_rounded_in_leg_still_pairs() -> None:
-    """Brokers report fractional shares to differing precision.
+    """Brokers report fractional units to differing precision.
 
     A reinvested-dividend holding can arrive rounded a hundred-thousandth off.
-    That is a rounding difference, not a different share count, and refusing to
+    That is a rounding difference, not a different unit count, and refusing to
     pair on it loses the whole cost base.
     """
     pairs, unpaired = pair_transfers(_cross_broker_legs("2024-05-01", "99.99999"))
@@ -2537,7 +2537,7 @@ def test_a_same_account_journal_still_needs_one_settle_date() -> None:
 
 def _two_account_frame() -> pd.DataFrame:
     """Two accounts of different types, sharing one security between them."""
-    return master_frame(
+    return ledger_frame(
         run(
             [
                 make_row(
@@ -2612,7 +2612,7 @@ def test_splitting_by_pool_refuses_the_folio_grain() -> None:
 
 
 def test_splitting_an_untracked_frame_yields_nothing() -> None:
-    frame = master_frame(
+    frame = ledger_frame(
         run(
             [
                 make_row(

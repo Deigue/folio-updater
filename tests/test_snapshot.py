@@ -1,4 +1,4 @@
-"""Tests for persisting a replay alongside the cached master frame.
+"""Tests for persisting a replay alongside the cached ledger.
 
 The property that matters is that a cache hit and a fresh replay are
 indistinguishable to a reader.

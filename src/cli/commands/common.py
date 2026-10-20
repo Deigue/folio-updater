@@ -65,7 +65,7 @@ def load_folio(*, refresh: bool = False) -> CachedFrame:
         refresh: Rebuild the cost-base cache even if it looks current.
 
     Returns:
-        The replayed master frame.
+        The replayed ledger.
 
     Raises:
         typer.Exit: If a stored transaction is in a currency the engine cannot
@@ -82,7 +82,7 @@ def replay_result(cached: CachedFrame) -> ReplayResult:
     """Take the replay behind a cached frame, replaying afresh if it was not kept.
 
     Args:
-        cached: The loaded master frame.
+        cached: The loaded ledger.
 
     Returns:
         The replay.
@@ -174,7 +174,7 @@ def freshness_note(
 def ensure_fx_coverage(*, through_today: bool = False) -> None:
     """Top up FX rates before a replay, when config allows it.
 
-    Bounded by the folio's own settle dates rather than by today: a folio that
+    Bounded by the folio's own settlement dates rather than by today: a folio that
     already has a rate for every date it needs must not reach for the network
     on every invocation just because the calendar has moved on.
 

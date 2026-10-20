@@ -154,7 +154,7 @@ def test_acb_reports_the_conversion_basis(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_usd_holding()
         result = run_cli_with_config(ctx.config, app, ["acb", "MSFT"])
-    assert_in_output("settle date", result)
+    assert_in_output("settlement date", result)
 
 
 def test_acb_account_grain(temp_ctx: TempContext) -> None:

@@ -433,7 +433,7 @@ class Config:
 
     @property
     def acb_parquet(self) -> Path:
-        """Path to the cached cost-base master frame."""
+        """Path to the cached cost-base ledger."""
         return self._data_path / "acb.parquet"
 
     @property

@@ -8,7 +8,7 @@ Finance with:
     uv run python -m datagen.demo --refresh
 
 The price history stores what Yahoo serves: closes and dividends adjusted for every
-split since, as if today's share count had always applied. A price or a
+split since, as if today's unit count had always applied. A price or a
 dividend on a given day is un-adjusted when it is read, so a trade before a
 split books the price the market actually showed that day.
 """
@@ -150,7 +150,7 @@ def _closes() -> dict[str, list[Decimal]]:
 
 @cache
 def _splits() -> dict[str, list[tuple[date, Decimal]]]:
-    """Split dates and ratios (new shares per old share) per symbol."""
+    """Split dates and ratios (new units per old unit) per symbol."""
     return {symbol: _parse_events(text) for symbol, text in _SPLITS.items()}
 
 
@@ -171,7 +171,7 @@ def trading_symbol(symbol: str, on: date) -> str:
 
 
 def split_factor(symbol: str, on: date) -> Decimal:
-    """How many of today's shares one share held on `on` has become.
+    """How many of today's units one unit held on `on` has become.
 
     Args:
         symbol: Folio symbol.
@@ -199,7 +199,7 @@ def price_on(symbol: str, on: date) -> Decimal:
     month `on` falls, then un-adjusted for any split after it.
 
     Args:
-        symbol: Folio symbol, or `USDCAD` for the exchange rate.
+        symbol: Folio symbol, or `USDCAD` for the FX rate.
         on: Any day the price history covers.
 
     Returns:
@@ -224,13 +224,13 @@ def price_on(symbol: str, on: date) -> Decimal:
 
 @cache
 def dividends(symbol: str) -> list[tuple[date, Decimal]]:
-    """Every dividend a symbol paid inside the window, per share held then.
+    """Every dividend a symbol paid inside the window, per unit held then.
 
     Args:
         symbol: Folio symbol.
 
     Returns:
-        (ex-date, amount per share on that date), oldest first.
+        (ex-date, amount per unit on that date), oldest first.
     """
     events = _parse_events(_DIVIDENDS.get(symbol, ""))
     return [(day, amount * split_factor(symbol, day)) for day, amount in events]
@@ -290,10 +290,10 @@ class _Account:
 
     Attributes:
         name: Account name; the folio infers its type from it.
-        kind: The account's tax type.
+        kind: The account type.
         fee_included: QuestTrade-style: a trade's `Amount` already contains the
             commission. Otherwise the commission is charged on top, IBKR-style.
-        broker_settles: The broker reports settle dates, so the folio keeps
+        broker_settles: The broker reports settlement dates, so the folio keeps
             them instead of calculating its own.
     """
 
@@ -308,7 +308,7 @@ class _Account:
         return self.kind in TAXABLE_ACCOUNT_TYPES
 
     def fee(self, units: int) -> Decimal:
-        """Charge the commission on a trade of `units` shares."""
+        """Charge the commission on a trade of `units` units."""
         if self.fee_included:
             return Decimal("4.95")
         return max(Decimal(1), Decimal("0.01") * units).quantize(_CENT)
@@ -363,8 +363,8 @@ class _Simulation:
     and the superficial-loss window around every taxable sale (never entered).
 
     Cash is booked conservatively: a debit lands on its trade date and a credit
-    on its settle date, so a balance that holds here also holds when the
-    replay books both on their settle dates.
+    on its settlement date, so a balance that holds here also holds when the
+    replay books both on their settlement dates.
     """
 
     def __init__(self) -> None:
@@ -557,7 +557,7 @@ class _Simulation:
     # -- what the investor does -----------------------------------------------
 
     def contribute(self, day: date, account: _Account, amount: int) -> None:
-        """Deposit new money, within the account type's contribution room."""
+        """Contribute new money, within the account type's contribution room."""
         cash = Decimal(amount)
         limits = CRA_ROOM.get(account.kind.value)
         if limits is not None:
@@ -861,7 +861,7 @@ def _script(sim: _Simulation) -> None:
     """Every hand-placed event, each one there to show something."""
     at = sim.at
 
-    # Day one: every account opens with a deposit. The TFSA at the second broker
+    # Day one: every account opens with a contribution. The TFSA at the second broker
     # takes 2024's whole TFSA room.
     at(START, "contribute", PERSONAL, 60_000)
     at(START, "contribute", RRSP, 15_000)
@@ -878,7 +878,7 @@ def _script(sim: _Simulation) -> None:
     at(date(2024, 10, 3), "buy", RRSP, "QQQ", units=5)
 
     # The second broker prices its commission into each trade's amount and
-    # reports its own settle dates.
+    # reports its own settlement dates.
     for symbol, units in (("RY.TO", 10), ("TD.TO", 20), ("ENB.TO", 30), ("CNR.TO", 10)):
         at(date(2024, 10, 2), "buy", TFSA2, symbol, units=units)
 
@@ -894,7 +894,7 @@ def _script(sim: _Simulation) -> None:
     ):
         at(date(2024, 10, 7), "buy", PERSONAL, symbol, units=units)
 
-    # Funding a TFSA from a taxable account: a withdrawal and a contribution,
+    # Moving money into a TFSA from a taxable account: a withdrawal and a contribution,
     # which uses the year's room, never a transfer.
     at(date(2025, 1, 6), "move", PERSONAL, TFSA, 7_000)
     at(date(2026, 1, 6), "move", PERSONAL, TFSA, 7_000)
@@ -926,7 +926,7 @@ def _script(sim: _Simulation) -> None:
     # kind, and is left empty.
     at(date(2025, 9, 15), "transfer_all", TFSA2, TFSA)
 
-    # Cash out of a TFSA: room comes back the next year.
+    # A withdrawal from a TFSA: room comes back the next year.
     at(date(2026, 6, 1), "sell", TFSA, "VFV.TO", units=10)
     at(date(2026, 6, 15), "withdraw", TFSA, 1_500)
 

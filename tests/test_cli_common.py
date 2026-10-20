@@ -52,5 +52,5 @@ def test_fx_coverage_through_today_drops_the_settle_date_bound() -> None:
         common_cmd.ensure_fx_coverage(through_today=True)
 
     ensure.assert_called_once_with("2025-01-02", None)
-    # The settle date is not even read, so the folio is not opened for it.
+    # The settlement date is not even read, so the folio is not opened for it.
     latest.assert_not_called()

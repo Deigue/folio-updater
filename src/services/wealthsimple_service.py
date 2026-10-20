@@ -526,7 +526,7 @@ class WealthsimpleService:
             account_id: Account ID to retrieve balances for
 
         Returns:
-            Dictionary mapping security IDs to quantities
+            Dictionary mapping security IDs to units held
 
         Raises:
             WealthsimpleServiceError: If API not initialized
@@ -614,7 +614,7 @@ class WealthsimpleService:
         units = self._normalize_units(activity.asset_quantity)
         price = self._get_price_string(activity.amount, activity.asset_quantity)
 
-        # Handle stock splits: extract ratio from description and override price/units
+        # Handle splits: extract ratio from description and override price/units
         if action == Action.SPLIT and activity.description:
             split_from, split_to = self._extract_split_ratio(activity.description)
             if split_from and split_to:
@@ -726,7 +726,7 @@ class WealthsimpleService:
         """Normalize units, removing unnecessary trailing zeros.
 
         Args:
-            units: The asset quantity
+            units: The activity's units
 
         Returns:
             Normalized units string
@@ -743,13 +743,13 @@ class WealthsimpleService:
 
     @staticmethod
     def _extract_split_ratio(description: str) -> tuple[Decimal | None, Decimal | None]:
-        """Extract stock split ratio from description.
+        """Extract split ratio from description.
 
         Parses description like "Subdivision: 60.5 -> 90.75 shares of XYZ"
-        to extract the held shares (from) and total shares (to).
+        to extract the units held (from) and total units (to).
 
         For example: if held_shares=60 and total_shares=90,
-        this represents a split where for every 2 old shares, you get 3 new shares.
+        this represents a split where for every 2 old units, you get 3 new units.
         The function returns (2, 3) representing the FROM:TO ratio.
 
         Args:
@@ -795,7 +795,7 @@ class WealthsimpleService:
 
         Args:
             amount: The transaction amount
-            units: The asset quantity
+            units: The activity's units
 
         Returns:
             Price string, empty if not calculable

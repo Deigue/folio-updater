@@ -5,7 +5,7 @@ spreadsheet or a broker download.
 
 It exists for the transactions your brokers may not report cleanly:
 
-- **`SPLIT`**: stock splits.
+- **`SPLIT`**: splits.
 - **`ROC`**: return of capital, which reduces your ACB and often only shows up on a year-end
   tax slip.
 - Corrections and one-off entries you know about but no broker file records.
@@ -27,7 +27,7 @@ folio add --type ROC
 ```
 
 ```text
-Transaction date (YYYY-MM-DD) [2026-08-08]: 2025-08-20
+Trade date (YYYY-MM-DD) [2026-08-08]: 2025-08-20
 Account: RRSP
 Currency (USD/CAD): CAD
 Ticker: O
@@ -40,7 +40,7 @@ Amount: 42.15
 | Option       | Short | Meaning                                                                                                    |
 | ------------ | ----- | ---------------------------------------------------------------------------------------------------------- |
 | `--type`     | `-t`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` |
-| `--date`     | `-d`  | Transaction date, `YYYY-MM-DD` (prompt defaults to today)                                                  |
+| `--date`     | `-d`  | Trade date, `YYYY-MM-DD` (prompt defaults to today)                                                        |
 | `--account`  | `-a`  | Account alias                                                                                              |
 | `--currency` | `-c`  | `USD` or `CAD`, the currencies the cost base can convert                                                   |
 | `--symbol`   | `-s`  | Security symbol                                                                                            |
@@ -57,9 +57,9 @@ Amount: 42.15
 | Action               | Meaning                                                                                                  |
 | -------------------- | -------------------------------------------------------------------------------------------------------- |
 | `BUY` / `SELL`       | Acquiring or disposing of a security.                                                                    |
-| `DIVIDEND`           | Cash distribution received.                                                                              |
+| `DIVIDEND`           | Cash dividend received.                                                                                  |
 | `ROC`                | Return of capital. Reduces cost base without moving any cash. Only `Amount` matters.                     |
-| `SPLIT`              | Stock split, stored as a ratio (`Price` = shares before, `Units` = shares after).                        |
+| `SPLIT`              | Split, stored as a ratio (`Price` = units before, `Units` = units after).                                |
 | `CONTRIBUTION`       | New money entering the folio from outside it.                                                            |
 | `WITHDRAWAL`         | Money leaving the folio.                                                                                  |
 | `TFR_IN` / `TFR_OUT` | Cash or units moving between accounts **you already own**                                                |
@@ -69,24 +69,24 @@ Amount: 42.15
 ## Amount and Units Signs
 
 Each action has a real cash and share direction, and Amount/Units are corrected to match it. A BUY
-spends cash and gains shares; a SELL is the reverse. You do not have to get the sign right, enter
+spends cash and gains units; a SELL is the reverse. You do not have to get the sign right, enter
 `--amount 1502.50` on a BUY and it is stored as `-1502.50`.
 
 | Action         | Amount              | Units                 |
 | -------------- | ------------------- | --------------------- |
-| `BUY`          | negative (cash out) | positive (shares in)  |
-| `SELL`         | positive (cash in)  | negative (shares out) |
+| `BUY`          | negative (cash out) | positive (units in)   |
+| `SELL`         | positive (cash in)  | negative (units out)  |
 | `WITHDRAWAL`   | negative            | n/a                   |
 | `CONTRIBUTION` | positive            | n/a                   |
 | `DIVIDEND`     | positive            | n/a                   |
 | `ROC`          | positive            | n/a                   |
 | `SPLIT`        | n/a                 | positive (ratio)      |
-| `TFR_IN`       | positive (cash in)  | positive (shares in)  |
-| `TFR_OUT`      | negative (cash out) | negative (shares out) |
+| `TFR_IN`       | positive (cash in)  | positive (units in)   |
+| `TFR_OUT`      | negative (cash out) | negative (units out)  |
 | `FCH`, `FXT`   | either              | either                |
 
 `FCH` and `FXT` are left alone deliberately: both directions are legitimate for them, a fee versus
-interest earned, or the two opposing legs of an FX trade.
+interest earned, or the two opposing legs of a currency conversion.
 
 ## Currency Conversions and the FX Fee
 
@@ -126,12 +126,12 @@ Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
 These rules apply to every ingest path, not just `folio add`: imports from brokers and
 spreadsheets are corrected the same way, and the correction is recorded in the importer audit log.
 
-## Recording a Stock Split
+## Recording a Split
 
 Splits store the **ratio** rather than a money value:
 
-- `Price` is the number of shares **before** the split.
-- `Units` is the number of shares **after** the split.
+- `Price` is the number of units **before** the split.
+- `Units` is the number of units **after** the split.
 
 For a 1:10 split, that is `--price 1 --units 10`:
 
@@ -140,7 +140,7 @@ folio add --type SPLIT --symbol NVDA --date 2024-06-10 \
           --price 1 --units 10 --account TFSA --currency USD
 ```
 
-For a 4:1 reverse split, `--price 4 --units 1`.
+For a split with a ratio below one, such as four units becoming one, `--price 4 --units 1`.
 
 The prompts spell this out when you do not pass the values on the command line.
 

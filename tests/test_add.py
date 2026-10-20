@@ -184,8 +184,8 @@ class TestAddPrompting:
             # Prompt text is echoed on stdout; the rich tables that mention
             # every column land in plain_output instead.
             prompts = cli_result.stdout
-            assert "shares BEFORE the split" in prompts
-            assert "shares AFTER the split" in prompts
+            assert "units BEFORE the split" in prompts
+            assert "units AFTER the split" in prompts
             assert "Amount" not in prompts
 
             row = _added_txn()
@@ -434,7 +434,7 @@ class TestAddSigns:
             assert float(row[Column.Txn.UNITS]) == pytest.approx(10)
 
     def test_sell_units_are_forced_negative(self, temp_ctx: TempContext) -> None:
-        """A SELL entered with positive units is stored as shares disposed."""
+        """A SELL entered with positive units is stored as units disposed."""
         with temp_ctx() as ctx:
             ensure_data_exists()
 
@@ -472,7 +472,7 @@ class TestAddSettlement:
     """Settlement dates are calculated the same way imports calculate them."""
 
     def test_buy_settles_on_a_later_business_day(self, temp_ctx: TempContext) -> None:
-        """A BUY gets a calculated settlement date after the transaction date."""
+        """A BUY gets a calculated settlement date after the trade date."""
         with temp_ctx() as ctx:
             ensure_data_exists()
 

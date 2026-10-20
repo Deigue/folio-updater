@@ -61,7 +61,7 @@ regular-expression characters need no escaping. A single condition can mix both 
 
 ### 1. Foreign Exchange Transactions
 
-Convert currency trades to FX transaction type:
+Mark currency conversions with the FXT action:
 
 ```yaml
 transforms:
@@ -124,7 +124,7 @@ transforms:
 
 ### 5. Numeric Value Matching
 
-Match transactions based on numeric values like price, quantity, or fees:
+Match transactions based on numeric values like price, units, or fees:
 
 ```yaml
 transforms:
@@ -141,7 +141,7 @@ transforms:
         Note: "Fee-free transaction"
 ```
 
-**Use case**: Apply special handling for transactions with specific numeric values, such as zero-commission trades or round-number quantities.
+**Use case**: Apply special handling for transactions with specific numeric values, such as zero-commission trades or round numbers of units.
 
 ### 6. Account Transfers
 

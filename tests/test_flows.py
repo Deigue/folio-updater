@@ -447,7 +447,7 @@ def _seed_grown_then_swept(out_account: str, in_account: str) -> None:
 def test_a_swept_cash_transfer_moves_deposits_not_face_value(
     temp_ctx: TempContext,
 ) -> None:
-    """Cash raised by selling at a profit is not all a returned deposit.
+    """Cash raised by selling at a gain is not all a returned deposit.
 
     Sell a holding for a 5,000 gain and move 7,500 of the proceeds to another broker
     Face value says 7500 left, but actually only 5000 worth of deposits moves.
@@ -811,7 +811,7 @@ def test_the_return_denominator_is_the_cad_money_put_in() -> None:
 def test_a_folio_funded_only_in_usd_has_no_return_denominator() -> None:
     """CAD only: joining a USD deposit to the sum needs a rate that would lie.
 
-    Today's rate rewrites a historical deposit and the settle-date rate is not
+    Today's rate rewrites a historical deposit and the settlement-date rate is not
     carried for cash movements, so a percentage here would be invented. No
     denominator means a blank cell, which is the honest answer.
     """
@@ -894,7 +894,7 @@ def test_the_year_split_reads_the_frame_not_the_replay_rows(
     """A cache hit rebuilds the replay from a snapshot holding only diagnosed rows.
 
     Walking `ReplayResult.rows` would therefore miss most contributions on a
-    cached run, so the split must come off the master frame, which is always
+    cached run, so the split must come off the ledger, which is always
     1:1 with `Txns`.
     """
     with temp_ctx():
@@ -1071,7 +1071,7 @@ def test_the_folio_grain_has_no_room_row(temp_ctx: TempContext) -> None:
             units=None,
         )
 
-        # Room belongs to one tax type; a whole-folio view spans several.
+        # Room belongs to one account type; a whole-folio view spans several.
         assert _flows().room is None
 
 
@@ -1404,7 +1404,7 @@ def test_an_in_leg_settling_before_its_out_leg_still_balances(
 ) -> None:
     """A broker can credit the receiving side before the sender releases.
 
-    Pairing allows a settle-date window, so the cash walk can reach the in leg
+    Pairing allows a settlement-date window, so the cash walk can reach the in leg
     first. The sending side is settled then, while it still holds what is about
     to leave, rather than the arriving deposits being lost.
     """

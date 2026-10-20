@@ -68,13 +68,13 @@ def add_cmd(  # noqa: PLR0917
         None,
         "-t",
         "--type",
-        help="Transaction type (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
+        help="Action (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
     ),
     date: str | None = typer.Option(
         None,
         "-d",
         "--date",
-        help="Transaction date in YYYY-MM-DD format (default: today)",
+        help="Trade date in YYYY-MM-DD format (default: today)",
     ),
     account: str | None = typer.Option(
         None,
@@ -99,13 +99,13 @@ def add_cmd(  # noqa: PLR0917
         None,
         "-p",
         "--price",
-        help="Price per unit (shares BEFORE the split for SPLIT)",
+        help="Price per unit (units BEFORE the split for SPLIT)",
     ),
     units: str | None = typer.Option(
         None,
         "-u",
         "--units",
-        help="Number of units (shares AFTER the split for SPLIT)",
+        help="Number of units (units AFTER the split for SPLIT)",
     ),
     fee: str | None = typer.Option(None, "-f", "--fee", help="Transaction fee"),
     set_values: list[str] | None = typer.Option(
@@ -406,7 +406,7 @@ def acb_cmd(  # noqa: PLR0917
     )
 
 
-@app.command("dash", help="Show holdings, cash and flows at current market prices")
+@app.command("dash", help="Show holdings, cash and flows, valued at their quotes")
 def dash_cmd(
     account_type: str | None = typer.Option(
         None,
@@ -475,7 +475,7 @@ def dash_cmd(
         help="Use cached quotes only, never touching the network",
     ),
 ) -> None:
-    """Show holdings, cash and flows at current market prices."""
+    """Show holdings, cash and flows, valued at their quotes."""
     from cli.commands.dash import show_dash
 
     show_dash(

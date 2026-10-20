@@ -23,14 +23,14 @@ SUPPORTED_CURRENCIES: tuple[Currency, ...] = (Currency.USD, Currency.CAD)
 class Action(StrEnum):
     """Transaction actions."""
 
-    BUY = "BUY"  # This represents buying a stock
-    SELL = "SELL"  # This represents selling a stock
-    DIVIDEND = "DIVIDEND"  # Acquired dividends from stocks
+    BUY = "BUY"  # This represents buying a security
+    SELL = "SELL"  # This represents selling a security
+    DIVIDEND = "DIVIDEND"  # Acquired dividends from securities
     CONTRIBUTION = "CONTRIBUTION"  # New money into the folio, from outside it
     FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
     FXT = "FXT"  # Foreign Exchange Trades
     ROC = "ROC"  # Return of capital: reduces ACB, a reclassification not cash
-    SPLIT = "SPLIT"  # Designates stock splits (Price->FROM, Units->TO)
+    SPLIT = "SPLIT"  # Designates splits (Price->FROM, Units->TO)
     TFR_IN = "TFR_IN"  # Cash or units arriving from another account you own
     TFR_OUT = "TFR_OUT"  # Cash or units leaving for another account you own
     WITHDRAWAL = "WITHDRAWAL"  # Money leaving the folio, to outside it
@@ -78,7 +78,7 @@ ACCOUNT_TYPE_ALIASES: dict[str, AccountType] = {
 
 
 class FeeConvention(StrEnum):
-    """Whether a txn `Amount` on a trade already contains the commission.
+    """Whether a trade's `Amount` already contains the commission.
 
     QuestTrade reports `Amount` net of the fee (INCLUDED);
     IBKR and Wealthsimple report it gross, with the fee charged separately (EXCLUDED).
@@ -212,7 +212,7 @@ class Column(StrEnum):
         TICKER = "Ticker"
 
     class FX(StrEnum):
-        """Forex rate columns."""
+        """FX rate columns."""
 
         DATE = "Date"
         FXUSDCAD = "FXUSDCAD"
@@ -243,9 +243,9 @@ class Column(StrEnum):
         FORWARD_PE = "ForwardPE"
         EPS = "EPS"  # Trailing twelve months
         BETA = "Beta"
-        DIVIDEND_RATE = "DividendRate"  # Per share, per year
+        DIVIDEND_RATE = "DividendRate"  # Per unit, per year
         DIVIDEND_YIELD = "DividendYield"  # A ratio: 0.0077 is 0.77%
-        LAST_DIVIDEND = "LastDividend"  # Per share
+        LAST_DIVIDEND = "LastDividend"  # Per unit
         EX_DIVIDEND_DATE = "ExDividendDate"
         EARNINGS_DATE = "EarningsDate"  # The next one, when the provider knows it
         HIGH_52 = "High52"

@@ -1,4 +1,4 @@
-"""Persist the parts of a replay the master frame does not carry.
+"""Persist the parts of a replay the ledger does not carry.
 
 The cached frame holds every transaction's computed figures, but a replay
 produces three extra things: the diagnostics it raised, the running cash per
@@ -160,7 +160,7 @@ def _decode_warning(payload: dict[str, Any]) -> ReplayWarning:
 
 
 def encode(result: ReplayResult) -> dict[str, Any] | None:
-    """Flatten everything about a replay the master frame does not already hold.
+    """Flatten everything about a replay the ledger does not already hold.
 
     Args:
         result: A completed replay.
@@ -169,7 +169,7 @@ def encode(result: ReplayResult) -> dict[str, Any] | None:
         A JSON-ready snapshot, or None when the replay diagnosed more rows than
         worth storing.
     """
-    # unique txn ids that were diagnosed.
+    # unique transaction ids that were diagnosed.
     diagnosed = {
         warning.txn_id for warning in result.warnings if warning.txn_id is not None
     }

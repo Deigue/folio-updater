@@ -255,7 +255,7 @@ def _import_stage(
     Args:
         config: The application configuration.
         report: Where concerns, notes and a failure are recorded.
-        since: Each broker's latest stored transaction date before the run.
+        since: Each broker's latest stored trade date before the run.
     """
     console_rule("Import", style=_UPDATE_RULE)
     if pending_import_files(config.imports_path) and not confirm_demo_replacement():

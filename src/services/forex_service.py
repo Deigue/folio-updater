@@ -254,10 +254,10 @@ class ForexService:
 
     @staticmethod
     def get_earliest_transaction_date() -> str | None:
-        """Get the earliest transaction date from the database.
+        """Get the earliest trade date from the database.
 
         Returns:
-            Earliest transaction date in YYYY-MM-DD format, or None if no transactions.
+            Earliest trade date in YYYY-MM-DD format, or None if no transactions.
         """
         try:
             with get_connection() as conn:
@@ -268,12 +268,12 @@ class ForexService:
 
                 result = get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
                 if result:
-                    logger.debug("Earliest transaction date: %s", result)
+                    logger.debug("Earliest trade date: %s", result)
                     return result
                 logger.debug("No transactions found in database")
                 return None
         except sqlite3.Error as e:
-            logger.debug("Could not get earliest transaction date: %s", e)
+            logger.debug("Could not get earliest trade date: %s", e)
             return None
 
     @staticmethod
@@ -315,7 +315,7 @@ class ForexService:
         """Work out how far back coverage has to reach for this folio.
 
         Returns:
-            The earliest transaction date, or 30 days ago for an empty folio.
+            The earliest trade date, or 30 days ago for an empty folio.
         """
         earliest = cls.get_earliest_transaction_date()
         if earliest is not None:
@@ -333,7 +333,7 @@ class ForexService:
 
         Args:
             start: Earliest date that needs a rate, YYYY-MM-DD. Defaults to the
-                folio's own earliest transaction date
+                folio's own earliest trade date
             end: Latest date that needs a rate, YYYY-MM-DD. (capped to latest available)
 
         Returns:

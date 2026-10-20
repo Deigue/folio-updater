@@ -1,4 +1,4 @@
-"""How far a price has moved over each range, measured to the live price."""
+"""How far a price has moved over each range, measured to the latest price."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ class RangeMove:
     Attributes:
         range: The range measured.
         anchor: The official close the move is measured from.
-        change: The live price less the anchor, per share.
+        change: The price less the anchor, per unit.
         change_pct: `change` over the anchor, or None when the anchor is zero.
-        points: The range's shape, oldest first, ending at the live price.
+        points: The range's shape, oldest first, ending at the price.
         start: Where the range begins: the anchor's date, the first session's
             date for `1d` and `2d`, or for `2h` the UTC timestamp of its first
             bar.
@@ -48,7 +48,7 @@ class RangeMove:
 
     @property
     def multiple(self) -> Decimal | None:
-        """The live price as a multiple of the anchor: 2 is a doubling."""
+        """The price as a multiple of the anchor: 2 is a doubling."""
         return None if self.change_pct is None else 1 + self.change_pct
 
 
@@ -57,7 +57,7 @@ def price_moves(
     history: Mapping[PriceRange, RangeHistory],
     intraday: Mapping[PriceRange, RangeHistory],
 ) -> dict[PriceRange, RangeMove | None]:
-    """Measure the live price against every range's anchor.
+    """Measure the price against every range's anchor.
 
     Args:
         quote: The symbol's live quote.
@@ -67,7 +67,7 @@ def price_moves(
 
     Returns:
         Every range, shortest first, mapped to its move. None where there is
-        no live price, or nothing that reaches back that far.
+        no price, or nothing that reaches back that far.
     """
     price = quote.price if quote.priced else None
     moves: dict[PriceRange, RangeMove | None] = {}

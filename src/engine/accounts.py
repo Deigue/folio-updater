@@ -1,4 +1,4 @@
-"""Infer an account's tax type and fee convention from its name.
+"""Infer an account's type and fee convention from its name.
 
 Convention `<BROKER>-<TYPE>`
 """
@@ -30,7 +30,7 @@ def _override_key() -> tuple[tuple[str, str], ...]:
 
 
 def resolve_account_type(account: str) -> AccountType:
-    """Determine the tax type of an account from its name.
+    """Determine the account type of an account from its name.
 
     Resolution order: an exact match in `accounts.map`, then a right-to-left
     scan of the name's tokens (so `IBKR-TFSA` resolves on `TFSA`, not on a

@@ -29,7 +29,7 @@ def prepare_transactions(
     """Prepare DataFrame for database insertion by applying filters and mappings.
 
     Args:
-        df: Raw transaction DataFrame
+        df: Source rows DataFrame
         account: Optional fallback account name
         map_headers: If True, map external headers to internal field names. Set
             False when the DataFrame is already keyed by internal names (e.g.

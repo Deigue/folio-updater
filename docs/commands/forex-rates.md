@@ -1,4 +1,4 @@
-# Forex Rate Management
+# FX Rate Management
 
 The folio-updater application includes foreign exchange (FX) rate management functionality that automatically fetches, stores, and exports USD/CAD currency conversion rates.
 
@@ -44,6 +44,6 @@ The exported FX data includes three columns:
 
 | Column     | Description                   | Example      |
 | ---------- | ----------------------------- | ------------ |
-| `Date`     | Transaction date (YYYY-MM-DD) | `2025-09-20` |
-| `FXUSDCAD` | USD to CAD exchange rate      | `1.3542`     |
-| `FXCADUSD` | CAD to USD exchange rate      | `0.7384`     |
+| `Date`     | Rate date (YYYY-MM-DD)        | `2025-09-20` |
+| `FXUSDCAD` | USD to CAD FX rate            | `1.3542`     |
+| `FXCADUSD` | CAD to USD FX rate            | `0.7384`     |

@@ -94,7 +94,7 @@ def _ordered_columns(
 
 
 def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> list[str]:
-    """List what columns a txn table may drop in order.
+    """List what columns a transactions table may drop in order.
 
     Args:
         display_df: DataFrame being displayed.

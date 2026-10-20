@@ -40,7 +40,7 @@ class Holding:
         units: Units held after the last transaction.
         avg_cost: Cost base per unit.
         book_value: Cost base of the holding.
-        price: Last price, converted into `currency`.
+        price: Price, converted into `currency`.
         prev_close: Previous close, converted into `currency`.
         change: The day change, per unit.
         change_pct: `change / prev_close`
@@ -318,10 +318,10 @@ class HoldingSet:
 
 
 def grain_rows(frame: pd.DataFrame, grain: Grain, pool: str | None) -> pd.DataFrame:
-    """Narrow the master frame to one pool.
+    """Narrow the ledger to one pool.
 
     Args:
-        frame: The master frame.
+        frame: The ledger.
         grain: The grain to read at.
         pool: The account name or account type, ignored at folio grain.
 
@@ -338,7 +338,7 @@ def held_symbols(frame: pd.DataFrame) -> list[str]:
     """Every symbol the folio still holds anywhere, at folio grain.
 
     Args:
-        frame: The master frame.
+        frame: The ledger.
 
     Returns:
         Canonical symbols with a non-zero holding at the folio grain, sorted.
@@ -367,7 +367,7 @@ class _Rollups:
 class FolioHoldings:
     """One invocation's frame and quotes, with the per-pool rollups memoized.
 
-    Valuing a pool means first deriving three things from the master frame: the
+    Valuing a pool means first deriving three things from the ledger: the
     summary frame, the flag rollup and the dividend rollup.
 
     Nothing here is cached beyond the object's own life.
@@ -382,7 +382,7 @@ class FolioHoldings:
         """Hold one invocation's inputs.
 
         Args:
-            frame: The replayed master frame.
+            frame: The replayed ledger.
             quotes: Canonical symbol to its cached quote.
             fx: Rates to convert a quote's currency into the display currency.
         """
@@ -521,7 +521,7 @@ class FolioHoldings:
             if holding.market_value_base is not None:
                 priced_base += holding.market_value_base
 
-        holdings = _with_shares(partial, priced_base, folio_market)
+        holdings = _with_weights(partial, priced_base, folio_market)
         if sort is None:
             holdings.sort(key=_by_value, reverse=True)
         else:
@@ -913,7 +913,7 @@ def _filtered_out(record: Mapping[Any, Any], grain: Grain) -> int:
     return int(_native_currency(record, grain) is not Currency.USD)
 
 
-def _with_shares(
+def _with_weights(
     holdings: list[Holding],
     pool_market: Decimal,
     folio_market: Decimal | None,
@@ -934,7 +934,7 @@ def _with_shares(
     holding's 5% have to mean the same thing.
 
     Both denominators count **priced** holdings only, so an unpriced holding
-    cannot silently distort the shares of the ones that did price.
+    cannot silently distort the weights of the ones that did price.
     """
     pool_cad = _sum_optional(holding.market_value_cad for holding in holdings)
     folio_total = folio_market if folio_market is not None else pool_cad
@@ -1009,7 +1009,7 @@ def _income(
     base: Currency,
     native: Currency,
 ) -> tuple[Decimal, Decimal]:
-    """Read one security's dividends, in the shown and the base currency."""
+    """Read one security's dividends, in the row's currency and in the base currency."""
     cad, usd = dividends.get(symbol, (ZERO, ZERO))
     return (usd if _suffix(shown, native) else cad), (
         usd if _suffix(base, native) else cad
@@ -1023,7 +1023,7 @@ def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal
     row scoped to a particular security in this pool.
 
     Args:
-        rows: The pool's rows from the master frame.
+        rows: The pool's rows from the ledger.
 
     Returns:
         Each symbol mapped to `(CAD, USD)` totals. The USD figure is blank for

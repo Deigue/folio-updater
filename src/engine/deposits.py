@@ -5,7 +5,7 @@ transfer between two accounts the holder already owns must move the **deposit**
 portion of what it carries, and nothing else. This is more complex to calculate
 accurately than how brokers calculate:
 
-- **Face value** moves too much. Sell a holding at a profit and sweep the cash
+- **Face value** moves too much. Sell a holding at a gain and sweep the cash
   to another broker, then taking face value means you are counting gains as part of the
   pools "deposit"
 - **Cost base** moves the wrong thing. A dividend reinvested at the old broker
@@ -50,8 +50,8 @@ if TYPE_CHECKING:
 # legitimately be named after a type, exactly as `CashKey` guards against.
 PoolId = tuple["Grain", str]
 
-# Deposits per currency. Never blended: a deposit is denominated in the currency
-# it was made in, whatever asset it later became.
+# Deposits per currency. Never blended: a contribution is denominated in the currency
+# it was made in, whatever it was later invested in.
 Deposits = dict["Currency", "Decimal"]
 
 # A pool emptied by several legs divides by a slightly smaller pool basis each time,

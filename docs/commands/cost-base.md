@@ -15,12 +15,12 @@ between them costs nothing beyond re-rendering:
 
 | Grain            | Flag                          | What it pools                          |
 | ---------------- | ----------------------------- | -------------------------------------- |
-| **Account type** | `-t/--type` *(default: nreg)* | Every account of one tax type together |
+| **Account type** | `-t/--type` *(default: nreg)* | All accounts of one account type       |
 | **Account**      | `-a/--account`                | A single broker account                |
 | **Portfolio**    | `-t all`                      | Everything you own                     |
 
 A bare `folio acb MSFT` reports the **non-registered** pool, which is where the
-CRA-relevant figures live. `--type tfsa`, `--type rrsp` and so on switch tax type;
+CRA-relevant figures live. `--type tfsa`, `--type rrsp` and so on switch account type;
 `nreg`, `personal`, `cash` and `taxable` are all accepted for non-registered.
 
 ```bash
@@ -46,7 +46,7 @@ folio acb NVDA --type all             # the folio pool
 
 ## Reading the table
 
-Rows are dated and ordered by **settle date**, i.e. the date the cash moved and the date
+Rows are dated and ordered by **settlement date**, i.e. the date the cash moved and the date
 whose FX rate converted it, showing the **newest first**.
 The cost base itself is still replayed in trade-date order; the ordering
 here is presentation only.
@@ -56,7 +56,7 @@ here is presentation only.
 preceding row, so it still reads correctly with the newest row on top.
 
 > [!NOTE]
-> `--from`, `--to` and `--year` filter on the **trade** date, not the settle date shown
+> `--from`, `--to` and `--year` filter on the **trade** date, not the settlement date shown
 > in the table. A trade made late in December and settling in January therefore appears
 > under the earlier year.
 
@@ -113,7 +113,7 @@ the original-currency variant and appear only for USD-denominated holdings; for 
 holding they would be blank by design, so they are suppressed along with the FX rate
 column.
 
-**The CAD cost base is converted at each transaction's settle date, not at today's
+**The CAD cost base is converted at each transaction's settlement date, not at today's
 rate.**
 
 | Event         | USDCAD | ACB (USD) | ACB (CAD) | Avg (USD) |  Avg (CAD) |
@@ -122,7 +122,7 @@ rate.**
 | Buy 10 @ $100 | 1.40   |     2,000 |     2,700 |    100.00 | **135.00** |
 
 On a sale the CAD cost base comes off **proportionally**, while proceeds are converted
-at that day's rate. The gap between them is the FX component of the capital gain,
+at that day's rate. The gap between them is the FX component of the realized gain,
 which is what CRA taxes.
 
 ## What the engine knows
@@ -179,7 +179,7 @@ printed a table.
 > [!IMPORTANT]
 > **`SUPERFICIAL_LOSS_SUSPECT` is a flag only: the cost base and gain figures are
 > *not* adjusted for it.** By CRA rule, a superficial loss should be denied and added
-> back to the cost base of the shares that caused it. This engine deliberately does not
+> back to the cost base of the units that caused it. This engine deliberately does not
 > do that: it tracks cost base the same way your broker does, matching Units, ACB and
 > Avg 1:1 against your account statements. If this flag fires, the realized loss shown
 > here is not the one CRA will actually allow - work out the adjustment yourself (or
@@ -189,7 +189,7 @@ Two of these are deliberately narrower than they first appear:
 
 - **`SETTLE_BEFORE_TRADE` judges trades only.** This diagnostic code is only applicable
   to trade type transactions like `BUY` and `SELL`
-- **`INCOME_WITHOUT_POSITION` allows a 60-day tail.** A distribution is earned
+- **`INCOME_WITHOUT_POSITION` allows a 60-day tail.** A dividend is earned
   on its ex-date and paid weeks later, during which the holding could be sold out. The
   diagnostic is income against a pool that never held the symbol, or has not held it in months.
 
@@ -209,7 +209,7 @@ cached 15m ago
 
 ## FX coverage
 
-Cost-base conversion needs a Bank of Canada rate for every settle date. Weekend and
+Cost-base conversion needs a Bank of Canada rate for every settlement date. Weekend and
 holiday settlements have no rate of their own: those carry back to the previous
 business day. `folio acb` tops up missing rates itself unless
 `cost_basis.auto_getfx` is turned off, and only when the folio's own dates are not

@@ -17,8 +17,8 @@ The system's default behavior is to prevent all duplicates, but sometimes you ne
 
 The system identifies duplicates based on all transaction essentials:
 
-- `TxnDate` - Transaction date
-- `Action` - Transaction type (BUY, SELL, etc.)
+- `TxnDate` - Trade date
+- `Action` - Action (BUY, SELL, etc.)
 - `Amount` - Total transaction amount
 - `$` - Currency code
 - `Price` - Price per unit

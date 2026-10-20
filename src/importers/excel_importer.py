@@ -183,7 +183,7 @@ def _analyze_and_insert_rows(
 
 
 def import_statements(statement: Path) -> StatementImportResult:
-    """Import monthly statement data: settle dates and institutional transfers.
+    """Import monthly statement data: settlement dates and institutional transfers.
 
     A statement serves two purposes. For trades already in the folio, finds
     matching transactions and backfills its settlement date. It is also the only source
@@ -196,7 +196,7 @@ def import_statements(statement: Path) -> StatementImportResult:
     - currency: Transaction currency
     - transaction: Action types (BUY/SELL/TRFOUT/TRFIN etc.)
     - description: Contains ticker and units info for BUY/SELL transactions
-                   Also contains transaction date for matching
+                   Also contains trade date for matching
 
     Args:
         statement (Path): Path to the statement file (Excel or CSV).
@@ -480,7 +480,7 @@ def _normalize_date(date_value: str) -> str | None:
 def _parse_transaction_description(
     description: str,
 ) -> tuple[str | None, float | None, str | None]:
-    """Extract ticker, units, and transaction date from description.
+    """Extract ticker, units, and trade date from description.
 
     Args:
         description: Statement description text

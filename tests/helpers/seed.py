@@ -37,7 +37,7 @@ VENTURE_TICKER = "VNTKR"  # TSX Venture, needing a transform rule to correct
 # keep track of prepared columns by database, reseed only when needed.
 _prepared_txn_columns: dict[str, frozenset[str]] = {}
 
-# settle dates derived from the triplet are always the same. Repeatedly called.
+# settlement dates derived from the triplet are always the same. Repeatedly called.
 # memoized by key: (date, action, currency)
 _settlement_dates: dict[tuple[str, str, str], tuple[object, object]] = {}
 
@@ -70,14 +70,14 @@ def _apply_settlement(
 ) -> None:
     """Fill a row's settlement columns, deriving them at most once per triple.
 
-    The derived date depends on the transaction date, the action and the
+    The derived date depends on the trade date, the action and the
     currency's market calendar, and on nothing else in the row, so the first row
     of a given triple pays for every later one.
 
     Args:
         row: The row to fill, updated in place.
-        date: Transaction date, in YYYY-MM-DD form.
-        action: Transaction action, which sets the settlement period.
+        date: Trade date, in YYYY-MM-DD form.
+        action: Transaction action, which sets the settlement lag.
         currency: Currency code, which picks the market calendar.
     """
     key = (date, action, currency)
@@ -120,7 +120,7 @@ def seed_transaction(
 
     Args:
         action: Transaction action (BUY, SELL, ...).
-        date: Transaction date in YYYY-MM-DD form.
+        date: Trade date in YYYY-MM-DD form.
         account: Owning account name.
         currency: Currency code.
         ticker: Ticker symbol, or None for a row that carries no security.

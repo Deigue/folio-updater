@@ -251,7 +251,7 @@ def contributions_by_type_year(
     consumes no room, however much cash it moves.
 
     Args:
-        frame: The master frame.
+        frame: The ledger.
 
     Returns:
         Each account type mapped to its per-year contributions.
@@ -268,7 +268,7 @@ def withdrawals_by_type_year(
     `contributions_by_type_year`.
 
     Args:
-        frame: The master frame.
+        frame: The ledger.
 
     Returns:
         Each account type mapped to its per-year withdrawals, as positive sums.

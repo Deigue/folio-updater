@@ -103,7 +103,7 @@ def _money(value: Decimal, currency: Currency | None = None) -> str:
 
 
 def _units(value: Decimal) -> str:
-    """Render a share count without the trailing zeros a whole lot never needs."""
+    """Render units without the trailing zeros a whole number never needs."""
     text = f"{value:,.6f}"
     return text.rstrip("0").rstrip(".") if "." in text else text
 
@@ -249,7 +249,7 @@ def _result(  # noqa: PLR0913, PLR0917 - one call per check, all reading as pros
 
 
 def _check_account_types(folio: _Folio) -> CheckResult:
-    """Every account has to resolve to a tax type before anything else means much."""
+    """Every account has to resolve to an account type before anything else counts."""
     findings = [
         CheckFinding(
             subject=str(warning.account),
@@ -495,7 +495,7 @@ def _check_income_sanity(folio: _Folio) -> CheckResult:
                 detail=(
                     f"return of capital on {warning.symbol} in {warning.account} "
                     f"runs {_money(warning.value or ZERO)} past what the holding "
-                    f"cost. The excess is taxed as a capital gain, so check it is "
+                    f"cost. The excess becomes a realized gain, so check it is "
                     f"really a return of capital."
                 ),
                 txn_ids=(warning.txn_id,) if warning.txn_id else (),
@@ -607,7 +607,7 @@ def _check_settlement_dates(folio: _Folio) -> CheckResult:
                 detail=(
                     f"{row.account} traded {row.txn_date} and settles "
                     f"{row.settle_date}, far longer than that account usually "
-                    f"takes. Check the settle date."
+                    f"takes. Check the settlement date."
                 ),
                 txn_ids=(row.txn_id,),
             ),
@@ -617,7 +617,8 @@ def _check_settlement_dates(folio: _Folio) -> CheckResult:
         "settlement-dates",
         findings,
         "every trade settles when it should",
-        f"{_plural(len(findings), 'settle date needs', 'settle dates need')} a look",
+        _plural(len(findings), "settlement date needs", "settlement dates need")
+        + " a look",
         CheckStatus.WARN,
     )
 

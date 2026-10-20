@@ -13,7 +13,7 @@ still come out of one pass over each ordering rather than three separate replays
 Six core rules followed:
 
 1. `ROC` moves no cash, it reclassifies a distribution already paid.
-2. Order the cash replay by settle date.
+2. Order the cash replay by settlement date.
 3. Auto-detect the fee convention per account.
 4. Two `FXT` shapes exist, distinguishable from the row itself.
 5. Carry the cost base across a `TFR_IN`/`TFR_OUT` pair, never reading `Amount`.
@@ -76,7 +76,7 @@ FXT_TOLERANCE = Decimal("0.005")
 FEE_MATCH_TOLERANCE = Decimal("0.01")
 
 # Brokers can rounds Price to 2dp, so Price * Units is out by up to half a cent
-# per share regardless of fees. Widen tolerance to capture subcent rounding for
+# per unit regardless of commission. Widen tolerance to capture subcent rounding for
 # fee convention detection.
 PRICE_ROUNDING_PER_UNIT = Decimal("0.005")
 
@@ -138,7 +138,7 @@ SETTLE_LAG_MIN_TRADES = 5
 
 _WEEKDAYS = 5
 
-# How long after a holding closes a distribution on it is still expected. A
+# How long after a holding closes a dividend on it is still expected. A
 # dividend is earned on the ex-date and paid weeks later, so a sale can leave income
 # arriving against a pool holding nothing. This is normal behaviour and should be
 # ignored. Sized to cover a quarterly payer's ex-to-pay gap with buffer.
@@ -324,7 +324,7 @@ class ReplayConfig:
     """Per-account facts the replay needs, resolved before it starts.
 
     Attributes:
-        account_types: Tax type of each account.
+        account_types: Account type of each account.
         fee_conventions: Resolved fee convention of each account.
         fee_signs: Fee multiplier turning each account's stored fee into a
             commission. Defaults to positive-means-charged for any account not
@@ -544,7 +544,7 @@ class _Replay:
         )
 
     def _attach_flags(self) -> None:
-        """Tag each master row with every code raised against it.
+        """Tag each ledger row with every code raised against it.
 
         Runs last, because the cash walk and the end-of-replay checks raise
         codes long after the row that carries them was emitted.
@@ -558,21 +558,21 @@ class _Replay:
         ]
 
     def _warn_unknown_accounts(self) -> None:
-        """Report accounts whose tax type could not be inferred."""
+        """Report accounts whose account type could not be inferred."""
         for account, acct_type in sorted(self.cfg.account_types.items()):
             if acct_type is AccountType.UNKNOWN:
                 self.warn(
                     WarningCode.UNKNOWN_ACCOUNT_TYPE,
                     grain=Grain.ACCOUNT,
                     pool=account,
-                    detail=f"Could not infer a tax type for account '{account}'",
+                    detail=f"Could not infer an account type for account '{account}'",
                     account=account,
                 )
 
     # -- CURRENCY SHORTCUTS -----------------------------------------------
 
     def to_cad(self, amount: Decimal, row: TxnRow) -> Decimal:
-        """Convert a row amount into CAD at that row's settle-date rate."""
+        """Convert a row amount into CAD at that row's settlement-date rate."""
         return self.fx.to_cad(amount, row.fx_date, row.currency).value
 
     def rate_for(self, row: TxnRow) -> tuple[Decimal | None, str | None]:
@@ -605,7 +605,7 @@ class _Replay:
         """Keep the cost-base change the deposit rule will divide by.
 
         Recorded during this walk rather than looked up afterwards so the
-        settle-date cash walk needs no `txn_id` index over every row: only rows
+        settlement-date cash walk needs no `txn_id` index over every row: only rows
         sitting in a pool that some transfer crosses are kept, which on a real
         ledger is a small fraction of the whole.
         """
@@ -620,7 +620,7 @@ class _Replay:
                 self.acb_delta[grain][row.txn_id] = delta
 
     def _apply(self, row: TxnRow) -> ComputedRow:
-        """Apply one row to all three pools and emit a master row."""
+        """Apply one row to all three pools and emit a ledger row."""
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
         symbol = (
             self.cfg.symbols.canonical(row.ticker, row.txn_date) if row.ticker else None
@@ -740,7 +740,7 @@ class _Replay:
                 symbol=symbol,
             )
 
-        # Recorded after the checks above, so a distribution is judged against
+        # Recorded after the checks above, so a dividend is judged against
         # the holding as it stood before this row.
         if held_before or state.units > ZERO:
             state.last_held = row.txn_date
@@ -774,8 +774,8 @@ class _Replay:
 
         The CAD cost base comes off *proportionally*, not by converting the
         removed native amount. Proceeds, by contrast, are converted at the
-        settle-date rate. The gap between the two is the FX component of the
-        capital gain, which is exactly what CRA taxes.
+        settlement-date rate. The gap between the two is the FX component of the
+        realized gain, which is exactly what CRA taxes.
         """
         trade: TradeCash = self._trade(row)
         sold = abs(row.units)
@@ -860,9 +860,9 @@ class _Replay:
         symbol: str,
         state: HoldingState,
     ) -> None:
-        """Scale a holding's units by the split ratio. The total cost base is untouched.
+        """Scale a holding's units by the split ratio. The ACB is untouched.
 
-        `Price` is shares before and `Units` shares after, so a 1:10 split
+        `Price` is units before and `Units` units after, so a 1:10 split
         multiplies units by ten and divides average cost by ten while the total
         stays byte-identical. `Amount` on a SPLIT row is junk.
         """
@@ -972,7 +972,7 @@ class _Replay:
 
         if row.currency is Currency.USD:
             # Same currency on both legs carries the native figure intact; a
-            # currency journal has none to carry, so derive it from CAD.
+            # journal has none to carry, so derive it from CAD.
             state.acb_usd += (
                 moved_native
                 if moved_native != ZERO
@@ -1001,7 +1001,7 @@ class _Replay:
         return resolve_trade_cash(row, self._convention(row), self._fee_sign(row))
 
     def _check_fxt(self, row: TxnRow) -> None:
-        """Reconcile a single fx txn conversion against itself."""
+        """Reconcile a single currency conversion against itself."""
         if ZERO in (row.price, row.units):
             return
         implied = abs(row.units * row.price)
@@ -1034,7 +1034,7 @@ class _Replay:
     # -- THE CASH WALK ----------------------------------------------------
 
     def _cash_walk(self) -> None:
-        """Accumulate cash per pool and currency, in settle-date order."""
+        """Accumulate cash per pool and currency, in settlement-date order."""
         ordered = sorted(self.rows, key=lambda row: (row.settle_date, row.txn_id))
         pending: list[TxnRow] = []
         current_date = ""
@@ -1063,7 +1063,7 @@ class _Replay:
     def _advance_pool_basis(self, row: TxnRow) -> None:
         """Move the pool basis by the cost base one row changed.
 
-        Applied at the row's **settle date**, alongside its cash, even though
+        Applied at the row's **settlement date**, alongside its cash, even though
         `_acb_walk` computed it in trade-date order. A buy on T settling T+2
         raises the cost base on T and drops cash on T+2; booking both here keeps
         `pool basis = cost base + cash` self-consistent, so a purchase leaves the
@@ -1127,7 +1127,7 @@ class _Replay:
             name = _pool_key(grain, row, acct_type)
             self._record_moved_value(row, grain, name)
             # Whichever leg is reached first settles the sending side, once.
-            # Pairing allows a settle-date window and a broker can credit the
+            # Pairing allows a settlement-date window and a broker can credit the
             # receiving account before the sender releases.
             if not self.deposits.pending(pair_id, grain):
                 self._take_deposits(pair_id, grain)
@@ -1228,7 +1228,7 @@ class _Replay:
     ) -> None:
         """Apply one cash movement to all three pool grains at once."""
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-        # Pool basis follows cash in CAD. Converted at the row's own settle-date
+        # Pool basis follows cash in CAD. Converted at the row's own settlement-date
         # rate, the same one the cost base used
         basis = ZERO
         if cash != ZERO and self.deposits.active:
@@ -1331,7 +1331,7 @@ class _Replay:
         """Carry realized gains from the holding states onto the cash states.
 
         Gains land in the holding's own currency, matching every other figure a
-        `CashState` carries. The CAD-converted view lives on the master frame.
+        `CashState` carries. The CAD-converted view lives on the ledger.
         """
         for grain in Grain:
             for (pool, _symbol), state in self.pools.all_states(grain):
@@ -1464,8 +1464,8 @@ class _Replay:
     def _settle_lag_check(self) -> None:
         """Report a trade settling far outside its account's usual lag.
 
-        The typical settlement lag is calculated for the account, txns offending
-        this patttern are reported.
+        The typical settlement lag is calculated for the account, and transactions
+        outside it are reported.
         """
         lags: dict[str, list[tuple[TxnRow, int]]] = {}
         for row in self.rows:
@@ -1578,7 +1578,7 @@ def replay(rows: Sequence[TxnRow], fx: FxRates, cfg: ReplayConfig) -> ReplayResu
         cfg: Replay configuration: Per-account types, fee conventions, symbol resolution
 
     Returns:
-        One master row per transaction, the diagnostics raised, and running cash
+        One ledger row per transaction, the diagnostics raised, and running cash
         per pool grain, pool and currency.
     """
     return _Replay(rows, fx, cfg).run()

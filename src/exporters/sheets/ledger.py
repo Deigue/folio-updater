@@ -103,7 +103,7 @@ def ledger_table(
     """Generate the Ledger: one row per transaction, every grain at once.
 
     Args:
-        frame: Rows from the master frame.
+        frame: Rows from the ledger.
         txns: The stored transactions, whose columns the frame does not carry
             are added to the transaction band.
         name: What the sheet is called.
@@ -164,7 +164,7 @@ def _with_stored_columns(
     frame: pd.DataFrame,
     txns: pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Join the stored columns the master frame leaves out, keyed on `TxnId`.
+    """Join the stored columns the ledger leaves out, keyed on `TxnId`.
 
     The stored table is the left side, so a transaction the replay dropped is
     still listed.

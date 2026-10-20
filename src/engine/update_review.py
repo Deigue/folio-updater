@@ -202,7 +202,7 @@ def old_db_dupes(rejected: pd.DataFrame, since: str | None) -> pd.DataFrame:
 
     Args:
         rejected: Rows rejected as already in the database.
-        since: The broker's latest stored transaction date before this run, or
+        since: The broker's latest stored trade date before this run, or
             None when the file is not a broker download.
 
     Returns:
@@ -228,7 +228,7 @@ def review_import(
     Args:
         filename: The file imported.
         results: What the import pipeline produced.
-        since: The broker's latest stored transaction date before this run.
+        since: The broker's latest stored trade date before this run.
 
     Returns:
         The concerns, and one-line notes for what was expected noise.
@@ -455,7 +455,7 @@ def transfer_like_pairs(
     new_ids: Iterable[int],
     days: int = TRANSFER_WINDOW_DAYS,
 ) -> pd.DataFrame:
-    """Find withdrawals and contributions that look like one internal transfer.
+    """Find withdrawals and contributions that look like one transfer.
 
     Args:
         txns: Every stored transaction.

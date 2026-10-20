@@ -46,7 +46,7 @@ brokers:
 
 ### Basic Download
 
-Download all transactions from the latest transaction date to today:
+Download all transactions from the latest trade date to today:
 
 ```bash
 folio download --broker wealthsimple

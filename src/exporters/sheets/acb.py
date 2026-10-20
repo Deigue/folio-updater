@@ -38,7 +38,8 @@ _TXN_DATE = str(Column.Txn.TXN_DATE)
 _SETTLE_DATE = str(Column.Txn.SETTLE_DATE)
 
 _CONVERSION_NOTE = (
-    "CAD cost base is converted at each transaction's settle date, not at today's rate."
+    "CAD cost base is converted at each transaction's settlement date, "
+    "not at today's rate."
 )
 
 
@@ -56,14 +57,14 @@ def acb_buildup_table(
     the accumulation they are.
 
     Args:
-        rows: The symbol's rows from the master frame.
+        rows: The symbol's rows from the ledger.
         grain: The pool grain being reported.
         name: What the sheet is called.
         currency: `CAD`, `USD` or `both`.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, in settle-date order.
+        The table, in settlement-date order.
     """
     cad, usd = families(currency, usd=has_usd(rows, (grain,)))
     columns = [
@@ -115,7 +116,7 @@ def acb_summary_table(
     """Collapse a pool to one row per symbol: its closing holding.
 
     Args:
-        rows: The pool's rows from the master frame.
+        rows: The pool's rows from the ledger.
         grain: The pool grain being reported.
         name: What the sheet is called.
         currency: `CAD`, `USD` or `both`. `USD` drops the CAD-denominated
@@ -171,7 +172,7 @@ def cost_base_table(
     """List every pool's closing cost base, in the currency it is taxed in.
 
     Args:
-        frame: The whole master frame.
+        frame: The whole ledger.
         name: What the sheet is called.
         notes: Lines to disclose above the ones the table derives itself.
 

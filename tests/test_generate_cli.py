@@ -213,7 +213,7 @@ def test_an_unreplayable_folio_still_writes_its_stored_sheets(
     temp_ctx: TempContext,
     tmp_path: Path,
 ) -> None:
-    """`generate` wrote the raw transactions before it could value anything.
+    """`generate` wrote the transactions before it could value anything.
 
     A folio the engine cannot replay must not lose that: it gets the stored
     sheets, and a warning saying why the rest are missing.

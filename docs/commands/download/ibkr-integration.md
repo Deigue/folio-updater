@@ -74,7 +74,7 @@ This guide explains how to set up and use the Interactive Brokers (IBKR) integra
 
 ### Basic Download
 
-Download statements from the latest transaction date to today:
+Download statements from the latest trade date to today:
 
 ```bash
 folio download --broker ibkr

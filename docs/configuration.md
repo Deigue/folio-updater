@@ -136,7 +136,7 @@ contribution_room:
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
 | **`display`**            | `currency` (`CAD` or `USD`): the currency cost-base output defaults to.                                                                                                                                                                                                                                                 |
 | **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
-| **`quotes`**             | Market-price cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                           |
+| **`quotes`**             | Quote cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                                  |
 | **`contribution_room`**  | CRA contribution limits by account type and year. See [Contribution room](#contribution-room) below.                                                                                                                                                                                                                    |
 
 ## Quotes
@@ -187,7 +187,7 @@ move cash between accounts you already own and consume no room.
 
 ## Account resolution
 
-Each account's tax type will try to infer from the
+Each account's type is inferred from the
 `<BROKER>-<TYPE>` naming convention: `IBKR-TFSA` is a TFSA, `WS-PERSONAL` is
 non-registered, `QT-RRSP` is an RRSP. Recognised types are `NON_REGISTERED`, `MARGIN`,
 `CORPORATE`, `TFSA`, `RRSP`, `RRIF`, `RESP`, `FHSA` and `LIRA`;
@@ -220,8 +220,8 @@ evenly.
 
 Essential fields (internal names) that must be present in your Excel data:
 
-- `TxnDate` - transaction date (YYYY-MM-DD)
-- `Action` - transaction type (BUY, SELL, DIVIDEND, CONTRIBUTION, etc.)
+- `TxnDate` - trade date (YYYY-MM-DD)
+- `Action` - action (BUY, SELL, DIVIDEND, CONTRIBUTION, etc.)
 - `Amount` - Total amount (Price * Units)
 - `$` - currency code (e.g., USD, CAD)
 - `Price` - price per unit
@@ -234,7 +234,7 @@ Essential fields (internal names) that must be present in your Excel data:
 The system automatically manages additional internal fields:
 
 - `Fee` - Fees that may be associated with the transaction. Recognized internally as a numeric value.
-- `SettleDate` - settlement date (auto-calculated based on transaction type and market rules)
+- `SettleDate` - settlement date (auto-calculated based on action and market rules)
 - `SettleCalculated` - flag (0/1) indicating if settlement date was auto-calculated
 
 > [!NOTE]

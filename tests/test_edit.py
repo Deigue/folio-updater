@@ -286,7 +286,7 @@ class TestEditSettlement:
         self,
         temp_ctx: TempContext,
     ) -> None:
-        """A calculated settlement date follows its transaction date."""
+        """A calculated settlement date follows its trade date."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()

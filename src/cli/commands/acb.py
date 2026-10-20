@@ -76,7 +76,7 @@ def _filter_rows(
     date_to: str | None,
     show_all: bool,
 ) -> pd.DataFrame:
-    """Narrow the master frame to the rows a request asked for."""
+    """Narrow the ledger to the rows a request asked for."""
     rows = frame
     if view.grain is Grain.ACCOUNT:
         rows = rows[rows[str(Column.Txn.ACCOUNT)] == view.pool]
@@ -147,7 +147,7 @@ def _export(
     program. Everything else is the table the command reports.
 
     Args:
-        rows: The filtered rows from the master frame.
+        rows: The filtered rows from the ledger.
         view: The pool being reported, which names the sheet.
         path: Where to write. A path with no suffix becomes a workbook.
         symbol: The security asked about, when one was.

@@ -1,6 +1,6 @@
 """Keep the cost-base cache in memory instead of on disk.
 
-`engine.cache` persists the master frame as Parquet plus a JSON sidecar. Every
+`engine.cache` persists the ledger as Parquet plus a JSON sidecar. Every
 command that reads the cost base (`dash`, `acb`, `check`, `quotes`) writes that
 pair whenever the cache is cold, and under test the cache is cold in every
 `temp_ctx`, so the write lands once per test, which is extremely expensive.
@@ -73,7 +73,7 @@ class _MemoryCache:
 
         Args:
             parquet: The path the real cache would have used, as the key.
-            frame: The master frame to keep.
+            frame: The ledger to keep.
             expected: The fingerprint the frame was built at.
             result: The replay behind the frame, snapshotted the way the real
                 cache snapshots it.

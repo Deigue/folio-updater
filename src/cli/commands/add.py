@@ -62,7 +62,7 @@ PROMPT_ORDER: tuple[str, ...] = (
 )
 
 PROMPT_LABELS: dict[str, str] = {
-    Column.Txn.TXN_DATE: "Transaction date (YYYY-MM-DD)",
+    Column.Txn.TXN_DATE: "Trade date (YYYY-MM-DD)",
     Column.Txn.ACCOUNT: "Account",
     Column.Txn.CURRENCY: (
         f"Currency ({'/'.join(c.value for c in SUPPORTED_CURRENCIES)})"
@@ -75,8 +75,8 @@ PROMPT_LABELS: dict[str, str] = {
 
 # SPLIT encodes the ratio as Price -> FROM, Units -> TO, which is not obvious.
 SPLIT_LABELS: dict[str, str] = {
-    Column.Txn.PRICE: "Price (shares BEFORE the split, e.g. 1 for a 1:10 split)",
-    Column.Txn.UNITS: "Units (shares AFTER the split, e.g. 10 for a 1:10 split)",
+    Column.Txn.PRICE: "Price (units BEFORE the split, e.g. 1 for a 1:10 split)",
+    Column.Txn.UNITS: "Units (units AFTER the split, e.g. 10 for a 1:10 split)",
 }
 
 
@@ -148,7 +148,7 @@ def _collect_fields(action: str, supplied: dict[str, str | None]) -> dict[str, s
 
     if missing and action == Action.SPLIT:
         console_info(
-            "SPLIT ratios are stored as Price=shares BEFORE, Units=shares AFTER.",
+            "SPLIT ratios are stored as Price=units BEFORE, Units=units AFTER.",
         )
 
     for column in missing:
@@ -305,13 +305,13 @@ def add_transaction(  # noqa: PLR0917
 
     Args:
         action: Transaction action (BUY, SELL, SPLIT, ROC, ...).
-        date: Transaction date in YYYY-MM-DD format.
+        date: Trade date in YYYY-MM-DD format.
         account: Account alias the transaction belongs to.
         currency: Transaction currency.
         ticker: Security ticker.
         amount: Total transaction amount.
-        price: Price per unit (shares BEFORE for SPLIT).
-        units: Number of units (shares AFTER for SPLIT).
+        price: Price per unit (units BEFORE for SPLIT).
+        units: Number of units (units AFTER for SPLIT).
         fee: Optional transaction fee.
         set_values: Repeated KEY=VALUE pairs for optional/custom columns.
         force: Insert without confirming a duplicate clash.

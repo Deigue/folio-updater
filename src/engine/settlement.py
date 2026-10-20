@@ -153,10 +153,10 @@ class SettlementCalculator:
         settlement_days: int,
         currency: Currency,
     ) -> str:
-        """Return the Nth trading day strictly after a transaction date.
+        """Return the Nth trading day strictly after a trade date.
 
         Args:
-            timestamp: Transaction date.
+            timestamp: Trade date.
             settlement_days: Trading days until settlement.
             currency: Currency whose market calendar applies.
 
@@ -205,7 +205,7 @@ class SettlementCalculator:
         """Calculate settlement date using simple business day logic.
 
         Args:
-            txn_date: Transaction date
+            txn_date: Trade date
             settlement_days: Number of business days to add
 
         Returns:
@@ -277,7 +277,7 @@ class SettlementCalculator:
         Args:
             action: Transaction action
             currency: Transaction currency
-            txn_date: Transaction date
+            txn_date: Trade date
 
         Returns:
             Tuple of (settlement days, 0/1 for calculated or not)

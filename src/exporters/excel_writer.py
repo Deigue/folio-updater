@@ -423,7 +423,7 @@ def _number_format(fmt: Fmt, raw: object, *, quiet: bool = False) -> str:
 
 
 def _whole(raw: object) -> bool:
-    """Report whether a share count has no fraction worth showing."""
+    """Report whether a unit count has no fraction worth showing."""
     number = as_number(raw)
     return number is not None and float(number) == int(number)
 

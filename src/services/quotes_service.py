@@ -84,9 +84,9 @@ class Fundamentals:
         forward_pe: Price over the next twelve months' expected earnings.
         eps: Earnings per share over the last twelve months.
         beta: Volatility against the market. A fund's three-year beta.
-        dividend_rate: Annual dividend per share.
+        dividend_rate: Annual dividend per unit.
         dividend_yield: Annual dividend over price, as a ratio.
-        last_dividend: The most recent dividend per share.
+        last_dividend: The most recent dividend per unit.
         ex_dividend_date: The next or most recent ex-dividend date.
         earnings_date: The next earnings date, when the provider knows it.
         high_52: The 52-week high.
@@ -155,7 +155,7 @@ class Quote:
     Attributes:
         symbol: The folio's own canonical symbol.
         ysymbol: How the provider spells it.
-        price: Last or current price, in `currency`. None when unpriced.
+        price: Price, in `currency`. None when unpriced.
         prev_close: Previous close, which is what `change` is measured from.
         currency: The currency the price is quoted in.
         name: Short name from the provider.
@@ -477,7 +477,7 @@ class QuotesService:
         prices: Mapping[str, dict],
         max_age: timedelta,
     ) -> dict[str, dict]:
-        """Fetch metadata for the symbols whose slower TTL has expired.
+        """Fetch metadata for the symbols that are stale under the slower TTL.
 
         `.info` is a full scrape per symbol and heavily rate-limited, so it runs
         once on first sight of a symbol and roughly monthly after, or daily for
@@ -556,7 +556,7 @@ class QuotesService:
         """Return each symbol's condensed price history, fetching what is due.
 
         History is fetched at most once a day: each range is measured from its
-        anchor to the live price, so the moves stay current between fetches.
+        anchor to the latest price, so the moves stay current between fetches.
 
         Args:
             symbols: Canonical folio symbols.
@@ -652,7 +652,7 @@ class QuotesService:
 
     @classmethod
     def _fetch_prices(cls, ysymbols: Sequence[str]) -> dict[str, dict]:
-        """Fetch last price and previous close for a batch of symbols.
+        """Fetch the price and previous close for a batch of symbols.
 
         Args:
             ysymbols: Provider spellings to price.

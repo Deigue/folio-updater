@@ -438,7 +438,7 @@ def flows_panel(flows: Flows, title: str | None = None) -> Panel:
         a blended total would hide an FX assumption and its date.
     """
     # A borderless table rather than a grid, so `add_section` can draw a faint
-    # rule between capital, earnings and room. The one-space divider plus one
+    # rule between capital, income and room. The one-space divider plus one
     # collapsed space of padding keeps the grid's two-space gap, and its width.
     table = RichTable(
         box=box.HORIZONTALS,
@@ -480,8 +480,8 @@ def _panel_title(flows: Flows, title: str | None) -> str:
     return style(name, f"bold {accent}" if accent else None)
 
 
-# The first measure past capital, where the earnings section begins.
-_EARNINGS_START = "Dividends"
+# The first measure past capital, where the income section begins.
+_INCOME_START = "Dividends"
 
 
 def _add_money_rows(table: RichTable, flows: Flows) -> None:
@@ -498,7 +498,7 @@ def _add_money_rows(table: RichTable, flows: Flows) -> None:
     )
     for label, amounts, alert in measures:
         # A no-op until a row exists, so an empty capital group draws no rule.
-        if label == _EARNINGS_START:
+        if label == _INCOME_START:
             table.add_section()
         if not amounts:
             continue

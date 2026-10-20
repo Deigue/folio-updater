@@ -29,7 +29,7 @@ read, `folio update` downloads that statement again.
 - `amount`: Transaction amount (used for matching)
 - `currency`: Transaction currency
 - `transaction`: Action type (BUY, SELL, etc.)
-- `description`: Contains ticker symbol, units, and original transaction date
+- `description`: Contains ticker symbol, units, and original trade date
 
 ## Overriding a Date by Hand
 

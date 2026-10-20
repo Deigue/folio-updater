@@ -401,7 +401,7 @@ def test_a_balance_that_never_recovers_is_called_one_past_error() -> None:
 
 
 def test_a_buy_funded_the_same_day_never_goes_negative() -> None:
-    """Cash follows the settle date, so same-day funding lands before the buy."""
+    """Cash follows the settlement date, so same-day funding lands before the buy."""
     rows = [
         make_row(1, "2024-06-03", Action.CONTRIBUTION, amount="500", ticker=None),
         make_row(

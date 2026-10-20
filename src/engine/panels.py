@@ -79,7 +79,7 @@ class Panel:
 def account_type_of(view: PoolView) -> AccountType | None:
     """Name the account type a pool is, when it is exactly one.
 
-    Contribution room only means something for a single tax type, so a
+    Contribution room only means something for a single account type, so a
     folio-wide view has none.
 
     Args:
@@ -144,7 +144,7 @@ class FolioValuation:
         """Price the whole folio once, ready to report any pool of it.
 
         Args:
-            frame: The replayed master frame.
+            frame: The replayed ledger.
             result: The replay behind it, which carries the cash totals.
             currency: The currency to express figures in, or `native`.
             refresh: Refetch every quote regardless of its age.
@@ -168,7 +168,7 @@ class FolioValuation:
 
     @property
     def frame(self) -> pd.DataFrame:
-        """The replayed master frame every panel is read from."""
+        """The replayed ledger every panel is read from."""
         return self.positions.frame
 
     @property

@@ -1,4 +1,4 @@
-"""Tests for inferring an account's tax type and fee convention from its name."""
+"""Tests for inferring an account's type and fee convention from its name."""
 
 from __future__ import annotations
 

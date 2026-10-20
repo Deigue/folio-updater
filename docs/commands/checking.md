@@ -11,7 +11,7 @@ It is a **reporter, never a fixer**. It opens the folio, reads it, and prints.
 
 ## Why it exists
 
-A cash account cannot be overdrawn, and you cannot sell shares you never bought. So when
+Cash outside a margin account cannot go below zero, and you cannot sell units you never bought. So when
 a replay of your own transactions produces a negative balance or a negative holding, it
 has *proved* that a transaction is missing, and dated the proof. That is worth far more
 than a warning that something "looks unusual". It narrows a discrepancy from "somewhere
@@ -65,7 +65,7 @@ alone still exit zero.
 
 | Check                     | What it proves                                                                    |
 | ------------------------- | --------------------------------------------------------------------------------- |
-| **Account types**         | Every account resolves to a tax type. Nothing else means much until this passes.  |
+| **Account types**         | Every account resolves to an account type. Nothing else means much until it does. |
 | **Unit balances**         | No holding ever goes below zero. The check that finds the largest defects.        |
 | **Cash balances**         | No account is ever overdrawn.                                                     |
 | **Conversion arithmetic** | A currency conversion's amount, units and rate describe one event, so they agree. |
@@ -93,7 +93,7 @@ Reports the **first** date a balance crosses below zero, not the deepest point i
 reaches. The deepest figure is a consequence, the first date is the lead, and it is the
 date the missing transaction belongs to.
 
-Cash is replayed in **settle-date** order, so a purchase and the contribution funding it
+Cash is replayed in **settlement-date** order, so a purchase and the contribution funding it
 on the same day never trip this check. A balance that goes negative once and then never
 moves again is reported as *one past error* rather than an ongoing one, which tells you
 where to look far better than restating the figure.

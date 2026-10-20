@@ -68,7 +68,7 @@ def _quote(
 
 
 def _frame() -> pd.DataFrame:
-    """Replay whatever has been seeded and hand back the master frame."""
+    """Replay whatever has been seeded and hand back the ledger."""
     return build().frame
 
 
@@ -90,7 +90,7 @@ def test_market_value_and_unrealized_are_exact(temp_ctx: TempContext) -> None:
         held = holdings.holdings[0]
         assert held.units == 10
         assert held.book_value == Decimal(1250)
-        # 120 USD * 1.25 = 150 CAD per share.
+        # 120 USD * 1.25 = 150 CAD per unit.
         assert held.price == Decimal(150)
         assert held.market_value == Decimal(1500)
         assert held.unrealized == Decimal(250)
@@ -112,7 +112,7 @@ def test_the_day_move_comes_off_the_previous_close(temp_ctx: TempContext) -> Non
         )
 
         held = holdings.holdings[0]
-        # (120 - 110) * 1.25 = 12.50 CAD per share.
+        # (120 - 110) * 1.25 = 12.50 CAD per unit.
         assert held.change == Decimal("12.5")
         # change / prev_close, the baseline the move is measured from, which is
         # what every quote page reports. 110 * 1.25 = 137.50 CAD.
@@ -151,7 +151,7 @@ def test_day_pnl_pct_divides_by_the_pool_not_the_holding(
         by_symbol = {held.symbol: held for held in holdings.holdings}
         big, small = by_symbol["BIG"], by_symbol["SMALL"]
 
-        # SMALL moved 10x harder per share...
+        # SMALL moved 10x harder per unit...
         assert small.change_pct is not None
         assert big.change_pct is not None
         assert small.change_pct > big.change_pct
@@ -360,7 +360,7 @@ def test_a_closed_holding_still_counts_toward_totals(temp_ctx: TempContext) -> N
         assert group.realized == Decimal(200)
         assert group.dividends == Decimal(40)
         # Nothing is still open, so there is no cost base to take a return
-        # against, however much the group earned before it was liquidated.
+        # against, however much the group earned before it closed.
         assert group.book == ZERO
         assert group.total_pnl == Decimal(240)
         assert group.total_pnl_pct is None
@@ -383,7 +383,7 @@ def _liquidated(symbol: str, realized: str, dividends: str) -> Holding:
 
 
 def test_closed_holdings_aggregate_into_one_earned_figure() -> None:
-    """The row a currency group shows in place of every liquidated ticker."""
+    """The row a currency group shows in place of every closed holding."""
     totals = summarize_closed(
         [_liquidated("AAA", "200", "40"), _liquidated("BBB", "-50", "10")],
     )
@@ -718,7 +718,7 @@ def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
 
     Every other base-currency figure is read off the frame's CAD columns, so a
     USD holding's dividends have to be as well. Summing the native USD figure
-    into a CAD total silently understated it by the whole exchange rate.
+    into a CAD total silently understated it by the whole FX rate.
     """
     with temp_ctx():
         seed_fx(FX_DATES)
@@ -860,7 +860,7 @@ def test_a_closed_holding_carries_its_cad_earnings_under_a_currency_filter(
 ) -> None:
     """A closed USD holding still reports what it earned in CAD.
 
-    It has no market price to look up, so its whole contribution is the
+    It has no price to look up, so its whole contribution is the
     realized gain and dividends the frame already holds in CAD.
     """
     with temp_ctx():

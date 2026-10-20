@@ -80,7 +80,7 @@ Control the order of the results using the `sort:` prefix.
 
 ```bash
 folio query sort:-Amount
-# Sort by Ticker (A-Z), then by Transaction Date (newest first):**
+# Sort by Ticker (A-Z), then by Trade Date (newest first):**
 folio query sort:Ticker sort:-TxnDate
 folio query AAPL PERSON last 2 years sort:units
 ```

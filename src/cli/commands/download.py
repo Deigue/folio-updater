@@ -389,7 +389,7 @@ def _resolve_from_date(
 ) -> str:
     """Resolve the from date, using fallbacks if not specified.
 
-    Fallback to latest transaction date from broker, or first of current month.
+    Fallback to latest trade date from broker, or first of current month.
 
     Args:
         from_date_str (str | None): The from date string provided by user.
@@ -412,12 +412,12 @@ def _resolve_from_date(
             ).replace(tzinfo=TORONTO_TZ)
             resolved_date = latest_date.strftime("%Y%m%d")
             console_info(
-                f"from_date: Using latest {broker.upper()} transaction date: "
+                f"from_date: Using latest {broker.upper()} trade date: "
                 f"{latest_date_str}",
             )
             return resolved_date
     except (ValueError, OSError, sqlite3.Error) as e:
-        console_warning(f"Warning: Could not determine latest transaction date: {e}")
+        console_warning(f"Warning: Could not determine latest trade date: {e}")
 
     current_date = datetime.now(tz=TORONTO_TZ)
     fallback_date = current_date.replace(day=1)
@@ -505,7 +505,7 @@ def _print_activity_feed_item(activity: ActivityFeedItem) -> None:  # pragma: no
     console_print(f"Account ID: {activity.account_id}")
     console_print(f"Type: {activity.type} ({activity.sub_type})")
     console_print(f"Asset: {activity.asset_symbol}")
-    console_print(f"Quantity: {activity.asset_quantity}")
+    console_print(f"Units: {activity.asset_quantity}")
     console_print(f"Amount: {activity.amount} {activity.currency}")
     console_print(f"Status: {activity.status}")
     console_print(f"Description: {activity.description}")

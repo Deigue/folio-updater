@@ -55,8 +55,8 @@ class TxnRow:
         action: The transaction's action.
         amount: Total cash amount, sign as stored.
         currency: Currency the row is denominated in.
-        price: Price per unit; shares *before* the split on a SPLIT row.
-        units: Number of units; shares *after* the split on a SPLIT row.
+        price: Price per unit; units *before* the split on a SPLIT row.
+        units: Number of units; units *after* the split on a SPLIT row.
         fee: Commission. Which sign means "charged" varies by broker, so it is detected
             per account rather than assumed.
         ticker: Security symbol, as written on the row.
@@ -79,7 +79,7 @@ class TxnRow:
 
     @property
     def fx_date(self) -> str:
-        """Date whose rate converts this row: the settle date where there is one."""
+        """Date whose rate converts this row: the settlement date where there is one."""
         return self.settle_date or self.txn_date
 
     @property
@@ -134,7 +134,7 @@ class CashState:
     might see from the broker's perspective.
 
     `realized_gain` is denominated in this state's own currency, matching every
-    other field here. The CAD-converted figure lives on the master frame.
+    other field here. The CAD-converted figure lives on the ledger.
     """
 
     cash: Decimal = ZERO
@@ -157,8 +157,8 @@ class GrainMeasures:
         acb_usd: Cost base in the holding's own currency, USD holdings only.
         delta_cad: Change in `acb_cad` this row caused.
         delta_usd: Change in `acb_usd` this row caused.
-        avg_cad: Cost base per share in CAD.
-        avg_usd: Cost base per share in USD, USD holdings only.
+        avg_cad: Average cost in CAD.
+        avg_usd: Average cost in USD, USD holdings only.
         gain_cad: Cumulative realized gain in CAD.
         gain_usd: Cumulative realized gain in USD, USD holdings only.
     """
@@ -176,9 +176,9 @@ class GrainMeasures:
 
 @dataclass(frozen=True)
 class ComputedRow:
-    """One master row: the source transaction plus every derived measure.
+    """One ledger row: the source transaction plus every derived measure.
 
-    Strictly one of these per `Txns` row, so the master frame is 1:1 with the
+    Strictly one of these per `Txns` row, so the ledger is 1:1 with the
     table it came from.
     """
 
@@ -380,7 +380,7 @@ def _action(value: object) -> Action | None:
 
 
 def to_txn_rows(frame: pd.DataFrame) -> list[TxnRow]:
-    """Convert raw transaction rows into `TxnRow`s.
+    """Convert `Txns` rows into `TxnRow`s.
 
     Applies decimal conversion and type validation.
     Rows carrying an action the engine does not know are dropped.

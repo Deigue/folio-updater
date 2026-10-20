@@ -80,7 +80,7 @@ class TestQueryCommand:
         with temp_ctx() as ctx:
             ensure_data_exists()
 
-            # Count txns for a specific ticker in the database
+            # Count transactions for a specific ticker in the database
             with get_connection() as conn:
                 ticker = plain_ticker()
                 where = f'"{Column.Txn.TICKER}" = ?'

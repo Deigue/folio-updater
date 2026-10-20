@@ -94,7 +94,7 @@ class ImportResults:
         return len(self.final_df)
 
     def read_count(self) -> int:
-        """Return number of raw transactions read from source file."""
+        """Return number of source rows read from source file."""
         return len(self.read_df)
 
     def excluded_count(self) -> int:
@@ -163,7 +163,7 @@ class SettlementMatch:
         ticker: Ticker after normalization and the user's transform rules.
         currency: Currency the row is denominated in.
         amount: Absolute amount used for matching.
-        units: Share count parsed from the description, when the row carries one.
+        units: Units parsed from the description, when the row carries one.
         account: Account the statement belongs to, from its filename.
         candidates: How many folio transactions the row matched.
         txn_id: The transaction updated, set only when the outcome is MATCHED.

@@ -6,11 +6,11 @@ the replay carry the cost base across, which it must
 
 Two shapes exist:
 
-- **Same account, same settle date**: a currency journal.
-- **Cross account, same symbol, same settle date**: an in-kind move between
+- **Same account, same settlement date**: a journal.
+- **Cross account, same symbol, same settlement date**: an in-kind move between
   two accounts you own, equal magnitude and opposing sign.
 
-Cash txn pair the same way but move no units and no cost base; they matter only
+Cash transfers pair the same way but move no units and no cost base; they matter only
 to the cash replay.
 """
 
@@ -76,16 +76,16 @@ class TransferPair:
 
 # Preference order for candidate matches, lowest first. A cross-account move of
 # the same symbol is the least ambiguous reading, a same-account pair can only
-# be a currency journal, which by definition changes the symbol.
+# be a journal, which by definition changes the symbol.
 _SAME_SYMBOL_CROSS_ACCOUNT = 0
 _JOURNAL_SAME_ACCOUNT = 1
 _CROSS_ACCOUNT_ANY_SYMBOL = 2
 
 
 def _journal_fits(out_leg: TxnRow, in_leg: TxnRow) -> bool:
-    """Whether a same-account pair can be a currency journal.
+    """Whether a same-account pair can be a journal.
 
-    Held to an exact settle date, unlike a cross-account transfer.
+    Held to an exact settlement date, unlike a cross-account transfer.
     """
     return out_leg.settle_date == in_leg.settle_date
 
@@ -115,7 +115,7 @@ def _cash_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
         return None
     if out_leg.account != in_leg.account:
         return _SAME_SYMBOL_CROSS_ACCOUNT
-    # Same account, so this is the cash side of a currency journal.
+    # Same account, so this is the cash side of a journal.
     return _JOURNAL_SAME_ACCOUNT if _journal_fits(out_leg, in_leg) else None
 
 

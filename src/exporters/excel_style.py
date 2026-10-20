@@ -39,7 +39,7 @@ NUMBER_FORMATS: dict[Fmt, str] = {
     Fmt.COUNT: '[>=1000000]#,##0.00,,"M";[>=1000]#,##0.00,"K";#,##0.00',
 }
 
-# A whole share count wants no decimal separator trailing it, which
+# A whole unit count wants no decimal separator trailing it, which
 # `#,##0.######` would leave behind.
 WHOLE_UNITS = "#,##0"
 
