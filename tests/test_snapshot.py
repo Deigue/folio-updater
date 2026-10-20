@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from domain import AccountType, Action, Currency, FeeConvention, Scope
+from domain import AccountType, Action, Currency, FeeConvention, Grain
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, detect_fee_signs, replay
 from engine.snapshot import MAX_SNAPSHOT_ROWS, SCHEMA_VERSION, decode, encode
@@ -115,7 +115,7 @@ def test_a_snapshot_round_trips_every_diagnostic() -> None:
         w.detail for w in original.warnings
     ]
     assert [w.value for w in restored.warnings] == [w.value for w in original.warnings]
-    assert [w.scope for w in restored.warnings] == [w.scope for w in original.warnings]
+    assert [w.grain for w in restored.warnings] == [w.grain for w in original.warnings]
 
 
 def test_a_snapshot_round_trips_cash_exactly() -> None:
@@ -172,7 +172,7 @@ def test_a_snapshot_carries_only_the_rows_a_diagnostic_points_at() -> None:
 
 
 def test_the_diagnosed_rows_round_trip_whole() -> None:
-    """Including the per-scope measures, so no reader gets a half-built row."""
+    """Including the per-grain measures, so no reader gets a half-built row."""
     original = diagnosed_folio()
     restored = round_trip(original)
     source = {row.row.txn_id: row for row in original.rows}
@@ -269,8 +269,8 @@ def test_totals_split_a_security_by_currency() -> None:
     assert split == {Currency.USD: 1, Currency.CAD: 1}
 
 
-def test_cash_keys_survive_a_pool_named_after_a_scope() -> None:
-    """Scope, pool and currency stay three separate fields, never one string."""
+def test_cash_keys_survive_a_pool_named_after_a_grain() -> None:
+    """Grain, pool and currency stay three separate fields, never one string."""
     original = replay_of(
         [
             make_row(
@@ -284,5 +284,5 @@ def test_cash_keys_survive_a_pool_named_after_a_scope() -> None:
         ],
     )
     restored = round_trip(original)
-    assert (Scope.ACCOUNT, "FOLIO", Currency.CAD) in restored.cash
-    assert (Scope.FOLIO, "FOLIO", Currency.CAD) in restored.cash
+    assert (Grain.ACCOUNT, "FOLIO", Currency.CAD) in restored.cash
+    assert (Grain.FOLIO, "FOLIO", Currency.CAD) in restored.cash

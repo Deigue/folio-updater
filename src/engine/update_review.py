@@ -534,7 +534,7 @@ def review_transfer_pairs(txns: pd.DataFrame, new_ids: Iterable[int]) -> Concern
         why=(
             "The same amount left one of your accounts and arrived in another. "
             "As a WITHDRAWAL and CONTRIBUTION it counts as money leaving and "
-            "re-entering the portfolio. If it was a transfer, relabel both legs."
+            "re-entering the folio. If it was a transfer, relabel both legs."
         ),
         rows=pairs,
         commands=tuple(commands),
@@ -724,7 +724,7 @@ def review_checks(results: Iterable[CheckResult]) -> tuple[list[Concern], int]:
 
 
 def review_unpriced(symbols: Iterable[str]) -> Concern | None:
-    """Raise held positions for which no quote could be found.
+    """Raise open holdings for which no quote could be found.
 
     Args:
         symbols: Held symbols left unpriced by the valuation.
@@ -737,7 +737,7 @@ def review_unpriced(symbols: Iterable[str]) -> Concern | None:
         return None
     return Concern(
         stage=UpdateStage.GENERATE,
-        title=f"{len(unpriced)} held position(s) unpriced: {', '.join(unpriced)}",
+        title=f"{len(unpriced)} open holding(s) unpriced: {', '.join(unpriced)}",
         why=(
             "These are left out of every market total. A symbol that trades "
             "under another listing (a .TO that is really a .V) needs a Ticker "

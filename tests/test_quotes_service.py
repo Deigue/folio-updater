@@ -321,7 +321,7 @@ def test_a_quote_in_an_unsupported_currency_is_not_a_crash(
 
         cached = QuotesService.cached(["TESTTKR"])["TESTTKR"]
         # An unconvertible currency is dropped rather than stored or raised on;
-        # the position simply reads as unpriced downstream.
+        # the holding simply reads as unpriced downstream.
         assert cached.currency is None
         assert cached.price == 10
 

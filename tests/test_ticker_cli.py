@@ -114,7 +114,7 @@ def test_comparing_an_empty_folio_says_there_is_nothing_held(
         result = run_cli_with_config(ctx.config, app, ["ticker"])
 
     assert_cli_success(result)
-    assert_in_output("No open positions in Portfolio to compare", result)
+    assert_in_output("No open holdings in Portfolio to compare", result)
 
 
 def test_ticker_exports_either_view(temp_ctx: TempContext, tmp_path: Path) -> None:

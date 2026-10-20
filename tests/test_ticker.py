@@ -18,7 +18,7 @@ from engine.ticker import (
     UnknownMatrixSortError,
     performance_rows,
     sort_performance,
-    symbol_position,
+    symbol_holdings,
 )
 from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import Quote
@@ -55,14 +55,14 @@ def _valuation() -> FolioValuation:
     return FolioValuation.build(cached.frame, cached.result, currency="native")
 
 
-def test_the_total_is_the_portfolio_grain_not_the_sum_of_the_lines(
+def test_the_total_is_the_folio_grain_not_the_sum_of_the_lines(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
         _seed_two_types()
         valuation = _valuation()
 
-        position = symbol_position(valuation, "TESTTKR")
+        position = symbol_holdings(valuation, "TESTTKR")
 
         assert position is not None
         lines = {line.view.pool: line.holding for line in position.lines}
@@ -71,7 +71,7 @@ def test_the_total_is_the_portfolio_grain_not_the_sum_of_the_lines(
             position.total.units == lines["NON_REGISTERED"].units + lines["TFSA"].units
         )
         # ...but pooled across every account, the RRSP's round trip moved the
-        # portfolio's average, which no combination of the lines reproduces.
+        # folio's average, which no combination of the lines reproduces.
         # A USD holding valued natively reads the USD family of columns.
         frame = valuation.frame
         folio_avg = frame[frame["Symbol"] == "TESTTKR"]["FolioAvg_USD"].iloc[-1]
@@ -100,7 +100,7 @@ def test_by_account_lists_broker_accounts(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _seed_two_types()
 
-        position = symbol_position(_valuation(), "TESTTKR", by_account=True)
+        position = symbol_holdings(_valuation(), "TESTTKR", by_account=True)
 
         assert position is not None
         assert [line.view.pool for line in position.lines] == [
@@ -110,16 +110,16 @@ def test_by_account_lists_broker_accounts(temp_ctx: TempContext) -> None:
         ]
 
 
-def test_a_symbol_the_folio_never_traded_has_no_position(
+def test_a_symbol_the_folio_never_traded_has_no_holdings(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
         _seed_two_types()
 
-        assert symbol_position(_valuation(), "NEVERHELD") is None
+        assert symbol_holdings(_valuation(), "NEVERHELD") is None
 
 
-def test_a_holding_the_valuation_currency_hides_has_no_position(
+def test_a_holding_the_valuation_currency_hides_is_not_returned(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
@@ -135,7 +135,7 @@ def test_a_holding_the_valuation_currency_hides_has_no_position(
             currency=Currency.USD,
         )
 
-        assert symbol_position(in_usd, "CADCO.TO") is None
+        assert symbol_holdings(in_usd, "CADCO.TO") is None
 
 
 def _ranged(price_range: PriceRange, anchor: int) -> RangeHistory:
@@ -304,7 +304,7 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
             {},
         )
 
-        # The TFSA's half of the holding: all of the pool, half the portfolio.
+        # The TFSA's half of the holding: all of the pool, half the folio.
         assert held.weight_in_pool == Decimal(1)
         assert held.weight_in_folio == Decimal("0.5")
         assert held.market is not None
@@ -341,8 +341,8 @@ def test_the_first_buy_is_the_first_one_with_a_price(temp_ctx: TempContext) -> N
         )
         valuation = _valuation()
 
-        bought = symbol_position(valuation, "TESTTKR")
-        moved_in = symbol_position(valuation, "OTHER")
+        bought = symbol_holdings(valuation, "TESTTKR")
+        moved_in = symbol_holdings(valuation, "OTHER")
 
         assert bought is not None
         assert bought.first_buy == FirstBuy(

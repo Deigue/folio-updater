@@ -26,14 +26,14 @@ class Action(StrEnum):
     BUY = "BUY"  # This represents buying a stock
     SELL = "SELL"  # This represents selling a stock
     DIVIDEND = "DIVIDEND"  # Acquired dividends from stocks
-    CONTRIBUTION = "CONTRIBUTION"  # New money into the portfolio, from outside it
+    CONTRIBUTION = "CONTRIBUTION"  # New money into the folio, from outside it
     FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
     FXT = "FXT"  # Foreign Exchange Trades
-    ROC = "ROC"  # Return of Capital: reduces cost basis, a reclassification not cash
+    ROC = "ROC"  # Return of capital: reduces ACB, a reclassification not cash
     SPLIT = "SPLIT"  # Designates stock splits (Price->FROM, Units->TO)
     TFR_IN = "TFR_IN"  # Cash or units arriving from another account you own
     TFR_OUT = "TFR_OUT"  # Cash or units leaving for another account you own
-    WITHDRAWAL = "WITHDRAWAL"  # Money leaving the portfolio, to outside it
+    WITHDRAWAL = "WITHDRAWAL"  # Money leaving the folio, to outside it
 
 
 class Sign(StrEnum):
@@ -90,7 +90,7 @@ class FeeConvention(StrEnum):
     EXCLUDED = "excluded"
 
 
-class Scope(StrEnum):
+class Grain(StrEnum):
     """The pool a cost base is accumulated over."""
 
     ACCOUNT = "acct"
@@ -237,7 +237,7 @@ class Column(StrEnum):
         SECTOR = "Sector"
         EXCHANGE = "Exchange"
         MARKET_CAP = "MarketCap"
-        # Fundamentals: one snapshot from the same scrape as the name and sector.
+        # Fundamentals: read once, from the same scrape as the name and sector.
         QUOTE_TYPE = "QuoteType"  # EQUITY, ETF, MUTUALFUND, ...
         TRAILING_PE = "TrailingPE"
         FORWARD_PE = "ForwardPE"

@@ -100,7 +100,7 @@ def test_dash_narrows_to_an_account_type(temp_ctx: TempContext) -> None:
         assert_not_in_output("OTHER", result)
 
 
-def test_dash_type_all_is_the_whole_portfolio(temp_ctx: TempContext) -> None:
+def test_dash_type_all_is_the_whole_folio(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         _seed_two_types()
 
@@ -229,7 +229,7 @@ def test_a_folio_that_never_sold_loses_the_realized_column(
         assert_not_in_output("Realized", result)
 
 
-def test_dash_show_closed_breaks_out_each_position(temp_ctx: TempContext) -> None:
+def test_dash_show_closed_breaks_out_each_holding(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         _seed_two_types()
         seed_transaction(
@@ -322,7 +322,7 @@ def test_a_single_usd_folio_promotes_total_percent_and_discloses_it(
     with temp_ctx() as ctx:
         seed_fx(FX)
         # Funded in CAD (net deposits are tracked in CAD only, see
-        # `_net_deposited`), then the whole balance bought a USD security, so
+        # `_net_deposits`), then the whole balance bought a USD security, so
         # the account itself holds and prices everything in USD.
         seed_transaction(
             action="CONTRIBUTION",
@@ -393,7 +393,7 @@ def test_forcing_usd_on_a_mixed_folio_refuses_a_total_percent(
         assert_cli_success(result)
         assert_in_output("1 held", result)
         assert_in_output("Total% is blank", result)
-        assert_in_output("1 CAD position(s) are hidden", result)
+        assert_in_output("1 CAD holding(s) are hidden", result)
         # Nothing is converted on a USD-only view, so there is no rate to state.
         assert_not_in_output("converted at USDCAD", result)
 
@@ -581,7 +581,7 @@ def test_by_type_says_so_when_nothing_is_held(temp_ctx: TempContext) -> None:
         result = run_cli_with_config(ctx.config, app, ["dash", "--by-type"])
 
         assert_cli_success(result)
-        assert_in_output("No open positions", result)
+        assert_in_output("No open holdings", result)
 
 
 def test_dash_says_so_when_a_pool_holds_nothing(temp_ctx: TempContext) -> None:
@@ -591,7 +591,7 @@ def test_dash_says_so_when_a_pool_holds_nothing(temp_ctx: TempContext) -> None:
         result = run_cli_with_config(ctx.config, app, ["dash", "-a", "NOSUCHACCT"])
 
         assert_cli_success(result)
-        assert_in_output("No open positions", result)
+        assert_in_output("No open holdings", result)
 
 
 def test_dash_reports_negative_cash_as_an_alert(temp_ctx: TempContext) -> None:
@@ -718,7 +718,7 @@ def test_quotes_refresh_with_nothing_held_says_so(temp_ctx: TempContext) -> None
         result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
         assert_cli_success(result)
-        assert_in_output("No open positions to price", result)
+        assert_in_output("No open holdings to price", result)
 
 
 def test_quotes_refresh_discloses_the_throttling_fallback(

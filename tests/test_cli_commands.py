@@ -85,7 +85,7 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         # * forex tested separately
         cli_result = run_cli_with_config(config, cli_app, ["demo"])
         assert_cli_success(cli_result)
-        assert_in_output("Demo portfolio created successfully!", cli_result)
+        assert_in_output("Demo folio created successfully!", cli_result)
         assert config.txn_parquet.exists()
         assert config.tkr_parquet.exists()
 
@@ -578,7 +578,7 @@ def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
         left_in_place = statement.exists()
 
     assert cli_result.exit_code == 1
-    assert_in_output("holds the demo portfolio", cli_result)
+    assert_in_output("is the demo folio", cli_result)
     assert_in_output("folio import", cli_result)
     assert left_in_place
 

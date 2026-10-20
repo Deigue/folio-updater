@@ -101,7 +101,7 @@ def test_a_cumulative_percentage_gives_up_its_second_decimal() -> None:
         result = fit(_table(headers, row))
 
     rendered = _rendered(result.table, 50)
-    # 44.9% says everything 44.85% did about a position held for years.
+    # 44.9% says everything 44.85% did about a holding kept for years.
     assert "44.9%" in rendered
     assert "44.85%" not in rendered
 

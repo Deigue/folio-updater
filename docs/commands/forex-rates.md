@@ -17,7 +17,7 @@ FX rates are sourced from the **Bank of Canada** (BoC) official API:
 
 The system automatically:
 
-1. **Checks for missing data** based on transaction dates in your portfolio
+1. **Checks for missing data** based on transaction dates in your folio
 2. **Fetches new rates** from Bank of Canada API when needed
 3. **Stores rates locally** in SQLite database for fast access
 4. **Maintains data** up to the current business day
@@ -31,7 +31,7 @@ The system automatically:
 
 ### Excel Sheet Configuration
 
-The FX rates are exported to a dedicated sheet in your portfolio Excel file. The sheet name is configurable in `config.yaml`:
+The FX rates are exported to a dedicated sheet in your folio workbook. The sheet name is configurable in `config.yaml`:
 
 ```yaml
 sheets:

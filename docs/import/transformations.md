@@ -1,6 +1,6 @@
 # Transaction Transformations
 
-Transaction transformations allow you to automatically modify imported transaction data based on configurable rules. This feature is useful when your data source provides transactions in one format, but you need them to be represented differently in your portfolio tracking.
+Transaction transformations allow you to automatically modify imported transaction data based on configurable rules. This feature is useful when your data source provides transactions in one format, but you need them to be represented differently in your folio.
 
 ## Overview
 

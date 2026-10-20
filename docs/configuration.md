@@ -121,7 +121,7 @@ contribution_room:
 
 | Key                      | Description                                                                                                                                                                                                                                                                                                             |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`folio_path`**         | Path to your portfolio Excel file. If this is **relative**, it will be based on the path of the executable. If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. Generate this with `folio generate`.                                         |
+| **`folio_path`**         | Path to your folio workbook. If this is **relative**, it will be based on the path of the executable. If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. Generate this with `folio generate`.                                         |
 | **`data_path`**          | Folder path where data files are stored (automatically created if it does not exist). Relative paths will behave similar to the `folio_path`. Default: `data`                                                                                                                                                           |
 | **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                                                                        |
 | **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                                                                               |
@@ -152,7 +152,7 @@ quotes:
 
 Prices come from Yahoo Finance and are cached in the folio database, one row per
 symbol. `folio dash` refetches only what is past `ttl_minutes`, so switching between
-scopes costs nothing. The name, sector and market cap come from a separate, much
+pools costs nothing. The name, sector and market cap come from a separate, much
 slower request and are refreshed only every `metadata_ttl_days`. That same request
 carries the fundamentals (P/E, dividends, earnings date, 52-week range, fund expense
 ratio), which go stale far sooner, so a command that shows them refreshes it once it is

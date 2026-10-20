@@ -13,7 +13,7 @@ from app import bootstrap
 from cli.commands.common import load_folio
 from engine.cache import load_or_build
 from engine.fx_rates import FxRateUnavailableError
-from engine.positions import held_symbols
+from engine.holdings import held_symbols
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
@@ -72,7 +72,7 @@ def _refresh(wanted: Sequence[str]) -> None:
     """Refetch prices and report what came back."""
     symbols = _held(wanted)
     if not symbols:
-        console_info("No open positions to price.")
+        console_info("No open holdings to price.")
         return
 
     result = QuotesService.refresh(symbols, load_symbol_resolver())

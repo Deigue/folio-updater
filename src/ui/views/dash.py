@@ -14,7 +14,7 @@ from rich.table import Table as RichTable
 
 from domain import Currency, WarningCode
 from domain.numeric import ZERO, q2
-from engine.positions import summarize_closed
+from engine.holdings import summarize_closed
 from term import console_print
 from ui.cells import (
     EM_DASH,
@@ -61,7 +61,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from rich.table import JustifyMethod
 
     from engine.flows import Flows, Room
-    from engine.positions import CurrencyTotals, Holding, HoldingSet
+    from engine.holdings import CurrencyTotals, Holding, HoldingSet
     from services.quotes_service import Quote
     from ui.layout.fit import FitResult
 
@@ -94,13 +94,13 @@ class _ColumnSpec:
     muted: bool = False
 
     def render(self, holding: Holding) -> str:
-        """Render this column's cell for one position row."""
+        """Render this column's cell for one holding row."""
         text = self.cell(holding)
         return style(text, REFERENCE_STYLE) if self.muted else text
 
 
 def _weight_bar(holding: Holding) -> str:
-    """Draw a position's weight in its pool as a bar, full at `WEIGHT_BAR_FULL`."""
+    """Draw a holding's weight in its pool as a bar, full at `WEIGHT_BAR_FULL`."""
     weight = holding.weight_in_pool
     if weight is None:
         return ""
@@ -171,9 +171,9 @@ def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_ColumnSpec, ...]:
     """Choose which columns this table offers before any conceding."""
     # `Folio%` is only worth a column when the table is part of the folio rather
     # than all of it, since it is otherwise the same number as `Wt%`. A narrowed
-    # scope is the usual way that happens, and `-c USD` is the other: it hides
-    # the CAD holdings, so even the portfolio-wide table is then a part.
-    partial = holdings.scope.name != "FOLIO" or holdings.excluded > 0
+    # grain is the usual way that happens, and `-c USD` is the other: it hides
+    # the CAD holdings, so even the folio-wide table is then a part.
+    partial = holdings.grain.name != "FOLIO" or holdings.excluded > 0
     return tuple(
         spec
         for spec in _HOLDING_COLUMNS
@@ -189,23 +189,23 @@ def holdings_table(
     wide: bool = False,
     show_closed: bool = False,
 ) -> FitResult:
-    """Render the positions as a Rich table, fitted to the terminal.
+    """Render the holdings as a Rich table, fitted to the terminal.
 
     Rows are grouped by the currency they trade in, each having its own subtotal.
     Since the values are currency-denominated, the grouping is mandatory in order
     for sensible sorting.
 
-    A currency group that has any closed positions gets one more aggregated row at the
+    A currency group that has any closed holdings gets one more aggregated row at the
     bottom. You can see them all when `show_closed` is True.
 
     Args:
-        holdings: The valued positions to show.
+        holdings: The valued holdings to show.
         title: Table title.
         flows: The pool's cash movements, so the grand total can state its
             return against net deposits. Without it that one cell is blank.
         wide: Offer the wide-only columns as well.
         show_closed: Break the aggregate "Closed" row open into one row per
-            closed position instead.
+            closed holding instead.
 
     Returns:
         The fitted table alongside the columns it had to give up, so the
@@ -225,7 +225,7 @@ def holdings_table(
             no_wrap=spec.header != "Name",
         )
 
-    deposited = _net_deposited(flows)
+    deposited = _net_deposits(flows)
     for group in holdings.by_currency:
         members = [h for h in holdings.holdings if h.currency is group.currency]
         for holding in members:
@@ -263,7 +263,7 @@ def holdings_table(
 
 
 def _closed_cells(holding: Holding, specs: Sequence[_ColumnSpec]) -> list[str]:
-    """Render one closed position, blanking every column that no longer applies."""
+    """Render one closed holding, blanking every column that no longer applies."""
     total = holding.closed_total
     cells = {
         "Symbol": f"{holding.symbol} [dim](closed)[/dim]",
@@ -281,7 +281,7 @@ def _closed_summary_cells(
     closed: Sequence[Holding],
     specs: Sequence[_ColumnSpec],
 ) -> list[str]:
-    """Aggregate every closed position in one currency group into one row."""
+    """Aggregate every closed holding in one currency group into one row."""
     totals = summarize_closed(closed)
     total = totals.total
     cells = {
@@ -388,13 +388,13 @@ def _grand_total_cells(
 ) -> list[str]:
     """Total across every currency, converted into the base currency."""
     base = holdings.base_currency
-    deposited = _net_deposited(flows)
+    deposited = _net_deposits(flows)
     whole = percent(Decimal(1)) if holdings.total_market else ""
     cells = {
         "Symbol": "[bold]Total[/bold]",
         "Units": currency_tint(base, f"({base})"),
         "Wt%": whole,
-        # How much of everything owned this whole scope accounts for
+        # How much of everything owned this whole grain accounts for
         "Folio%": percent(holdings.total_weight_in_folio),
         "Book": money(holdings.total_book),
         "Market": money(holdings.total_market),
@@ -417,7 +417,7 @@ def _grand_total_cells(
     return [cells.get(spec.header, "") for spec in specs]
 
 
-def _net_deposited(flows: Flows | None) -> Decimal | None:
+def _net_deposits(flows: Flows | None) -> Decimal | None:
     """Read the return denominator, for a caller that may have no flows at all.
 
     The rule itself (CAD only, judged at cent precision) belongs to the engine:
@@ -427,7 +427,7 @@ def _net_deposited(flows: Flows | None) -> Decimal | None:
 
 
 def flows_panel(flows: Flows, title: str | None = None) -> Panel:
-    """Render cash, contributions and cumulative income for one scope.
+    """Render cash, contributions and cumulative income for one grain.
 
     Args:
         flows: The pool's figures.
@@ -491,7 +491,7 @@ def _add_money_rows(table: RichTable, flows: Flows) -> None:
         ("Contributions", flows.contributions, False),
         ("Withdrawn", flows.withdrawals, False),
         ("Transferred", flows.transfers, False),
-        ("Net Deposited", flows.net_deposited, False),
+        ("Net Deposits", flows.net_deposits, False),
         ("Dividends", flows.dividends, False),
         ("Fees", flows.fees, False),
         ("Realized", flows.realized, False),
@@ -609,9 +609,9 @@ def show_by_type(
     each under a heading of its own.
 
     Args:
-        panels: Each type's valued positions, flows and label.
+        panels: Each type's valued holdings, flows and label.
         wide: Offer the wide-only columns.
-        show_closed: Break the aggregate "Closed" row open per position.
+        show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
     """
     if badge:
@@ -654,14 +654,14 @@ def show_dashboard(
     show_closed: bool = False,
     badge: str | None = None,
 ) -> None:
-    """Print one scope's dashboard: badge, flows panel, then holdings.
+    """Print one grain's dashboard: badge, flows panel, then holdings.
 
     Args:
-        holdings: The valued positions.
+        holdings: The valued holdings.
         flows: The pool's cash and income figures.
         title: Heading for both the panel and the table.
         wide: Offer the wide-only columns.
-        show_closed: Break the aggregate "Closed" row open per position.
+        show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
     """
     if badge:
@@ -680,13 +680,13 @@ def _print_holdings(
     """Print one pool's holdings table with everything it has to disclose.
 
     Args:
-        holdings: The valued positions.
+        holdings: The valued holdings.
         flows: The pool's cash and income figures.
         wide: Offer the wide-only columns.
-        show_closed: Break the aggregate "Closed" row open per position.
+        show_closed: Break the aggregate "Closed" row open per holding.
     """
     if not holdings.holdings and not holdings.closed:
-        console_print("[yellow]No open positions in this pool.[/yellow]")
+        console_print("[yellow]No open holdings in this pool.[/yellow]")
         return
 
     fitted = holdings_table(holdings, flows=flows, wide=wide, show_closed=show_closed)
@@ -703,13 +703,13 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     if holdings.unpriced:
         listed = ", ".join(holdings.unpriced)
         notes.append(
-            f"[yellow]{WARN_GLYPH} {len(holdings.unpriced)} position(s) unpriced "
+            f"[yellow]{WARN_GLYPH} {len(holdings.unpriced)} holding(s) unpriced "
             f"and excluded from totals: {listed}[/yellow]",
         )
-    if not holdings.deposits_measurable and _net_deposited(flows) is not None:
+    if not holdings.deposits_measurable and _net_deposits(flows) is not None:
         notes.append(
             f"[dim]Total% is blank: it measures the pool against its net "
-            f"deposits, and {holdings.excluded} CAD position(s) are hidden by "
+            f"deposits, and {holdings.excluded} CAD holding(s) are hidden by "
             f"--currency {holdings.base_currency}. Drop the flag to see "
             f"it.[/dim]",
         )
@@ -723,7 +723,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
         and holdings.deposits_measurable
         and holdings.by_currency
         and holdings.by_currency[0].currency is not Currency.CAD
-        and _net_deposited(flows) is not None
+        and _net_deposits(flows) is not None
     )
     # `-c USD` converts nothing: the CAD holdings are eliminated.
     converts = (
@@ -747,7 +747,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     if suspect:
         codes = ", ".join(str(code) for code in suspect)
         notes.append(
-            f"[red]{WARN_GLYPH} Badged positions carry {codes}; their units are "
+            f"[red]{WARN_GLYPH} Badged holdings carry {codes}; their units are "
             f"known to be wrong. Run `folio check`.[/red]",
         )
     return notes
@@ -761,7 +761,7 @@ def quotes_table(
 
     Args:
         quotes: The cached quotes to show.
-        held: The symbols the folio holds, so a quote kept for a sold position
+        held: The symbols the folio holds, so a quote kept for a sold holding
             or a symbol only looked up stands out. None leaves the column out.
 
     Returns:

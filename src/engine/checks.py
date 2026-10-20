@@ -8,7 +8,7 @@ not in a query here.
 The engine's own `detail` strings name diagnostics and pool grains. Nothing in
 this module repeats them: a reader is told what is wrong with their folio in
 the words they would use themselves, and the vocabulary of the engine (pool,
-scope, grain, code) never reaches them.
+grain, grain, code) never reaches them.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from domain import Action, CheckStatus, Currency, Scope, WarningCode
+from domain import Action, CheckStatus, Currency, Grain, WarningCode
 from domain.numeric import ZERO, q2
 from engine.replay import DENOMINATED_ACTIONS
 
@@ -136,60 +136,60 @@ class _Folio:
             if not self._account_ignored(account)
         )
         self._by_code: dict[WarningCode, list[ReplayWarning]] = {}
-        # Indexed rather than searched. `fired_at` is asked, per finding,
+        # Indexed rather than searched. `fired_at` is asked, per diagnostic,
         # whether a code also fired at another grain, so scanning the list each
-        # time makes the whole check quadratic in its own findings, which
+        # time makes the whole check quadratic in its own diagnostics, which
         # bites hardest on exactly the badly-broken folio that raises the most.
-        self._fired: set[tuple[WarningCode, Scope | None, int | None]] = set()
+        self._fired: set[tuple[WarningCode, Grain | None, int | None]] = set()
         for warning in result.warnings:
             if self._suppressed(warning):
                 continue
             self._by_code.setdefault(warning.code, []).append(warning)
-            self._fired.add((warning.code, warning.scope, warning.txn_id))
+            self._fired.add((warning.code, warning.grain, warning.txn_id))
 
     def _account_ignored(self, account: str | None) -> bool:
         return bool(account) and str(account).upper() in self._ignored_accounts
 
     def _suppressed(self, warning: ReplayWarning) -> bool:
-        """Whether config says to leave this finding alone."""
+        """Whether config says to leave this diagnostic alone."""
         return self._account_ignored(self.account_of(warning)) or (
             (self.symbol_of(warning) or "").upper() in self._ignored_tickers
         )
 
     def account_of(self, warning: ReplayWarning) -> str | None:
-        """Return the account a finding is about, falling back to its row's."""
+        """Return the account a diagnostic is about, falling back to its row's."""
         if warning.account:
             return warning.account
         computed = self.row_of(warning)
         return computed.row.account if computed else None
 
     def symbol_of(self, warning: ReplayWarning) -> str | None:
-        """Return the security a finding is about, falling back to its row's."""
+        """Return the security a diagnostic is about, falling back to its row's."""
         if warning.symbol:
             return warning.symbol
         computed = self.row_of(warning)
         return computed.symbol if computed else None
 
     def row_of(self, warning: ReplayWarning) -> ComputedRow | None:
-        """Return the transaction a finding tags, where it tags one."""
+        """Return the transaction a diagnostic tags, where it tags one."""
         if warning.txn_id is None:
             return None
         return self.rows.get(warning.txn_id)
 
     def having(self, *codes: WarningCode) -> list[ReplayWarning]:
-        """Every surviving finding carrying one of these codes."""
+        """Every surviving diagnostic carrying one of these codes."""
         warnings = []
         for code in codes:
             warnings.extend(self._by_code.get(code, []))
         return warnings
 
-    def at(self, scope: Scope, *codes: WarningCode) -> list[ReplayWarning]:
-        """Every surviving finding at one pool grain."""
-        return [warning for warning in self.having(*codes) if warning.scope is scope]
+    def at(self, grain: Grain, *codes: WarningCode) -> list[ReplayWarning]:
+        """Every surviving diagnostic at one pool grain."""
+        return [warning for warning in self.having(*codes) if warning.grain is grain]
 
-    def fired_at(self, scope: Scope, code: WarningCode, txn_id: int | None) -> bool:
+    def fired_at(self, grain: Grain, code: WarningCode, txn_id: int | None) -> bool:
         """Whether one code fired against one row at a given grain."""
-        return (code, scope, txn_id) in self._fired
+        return (code, grain, txn_id) in self._fired
 
     def counting(self, *actions: Action) -> int:
         """How many surviving rows carry one of these actions."""
@@ -219,7 +219,7 @@ class _Folio:
 
     def cash(self, account: str, currency: Currency) -> Decimal:
         """Cash state of an account for the given currency."""
-        state = self.result.cash.get((Scope.ACCOUNT, account, currency))
+        state = self.result.cash.get((Grain.ACCOUNT, account, currency))
         return state.cash if state else ZERO
 
 
@@ -311,9 +311,9 @@ def _shortfall_reason(folio: _Folio, warning: ReplayWarning) -> str:
     """
     computed = folio.row_of(warning)
     acct_type = computed.acct_type if computed else None
-    if folio.fired_at(Scope.FOLIO, WarningCode.OVERSELL, warning.txn_id):
+    if folio.fired_at(Grain.FOLIO, WarningCode.OVERSELL, warning.txn_id):
         return "Those units are missing from the folio entirely."
-    if folio.fired_at(Scope.TYPE, WarningCode.OVERSELL, warning.txn_id):
+    if folio.fired_at(Grain.TYPE, WarningCode.OVERSELL, warning.txn_id):
         return (
             f"The {acct_type} total is short too, so this is either a transfer "
             f"between account types or a transaction that was never recorded."
@@ -325,10 +325,10 @@ def _shortfall_reason(folio: _Folio, warning: ReplayWarning) -> str:
 
 
 def _check_unit_balances(folio: _Folio) -> CheckResult:
-    """Report positions that go negative: the proof that a row is missing."""
+    """Report holdings that go negative: the proof that a row is missing."""
     findings = []
     explained: set[tuple[str | None, str | None]] = set()
-    for warning in _ordered(folio.at(Scope.ACCOUNT, WarningCode.OVERSELL)):
+    for warning in _ordered(folio.at(Grain.ACCOUNT, WarningCode.OVERSELL)):
         computed = folio.row_of(warning)
         if computed is None:  # pragma: no cover - OVERSELL always tags a sale
             continue
@@ -349,11 +349,11 @@ def _check_unit_balances(folio: _Folio) -> CheckResult:
             ),
         )
 
-    # A position left negative by a sale already reported above is the same
+    # A holding left negative by a sale already reported above is the same
     # defect seen from the other end. Reporting it twice pads the count and
     # tells the reader nothing they were not just told.
     for warning in _ordered(
-        folio.at(Scope.ACCOUNT, WarningCode.NEGATIVE_FINAL_POSITION),
+        folio.at(Grain.ACCOUNT, WarningCode.NEGATIVE_FINAL_POSITION),
     ):
         if (warning.symbol, warning.account) in explained:
             continue
@@ -373,7 +373,7 @@ def _check_unit_balances(folio: _Folio) -> CheckResult:
         "Unit balances",
         "unit-balances",
         findings,
-        "every position stays above zero",
+        "every holding stays above zero",
         f"{_plural(len(subjects), 'security', 'securities')} never balance",
     )
 
@@ -468,7 +468,7 @@ def _check_split_coverage(folio: _Folio) -> CheckResult:
 
 
 def _check_income_sanity(folio: _Folio) -> CheckResult:
-    """Income arriving where nothing is held usually means the position is missing."""
+    """Income arriving where nothing is held usually means the holding is missing."""
     findings = []
     for warning in _ordered(folio.having(WarningCode.INCOME_WITHOUT_POSITION)):
         computed = folio.row_of(warning)
@@ -488,13 +488,13 @@ def _check_income_sanity(folio: _Folio) -> CheckResult:
             ),
         )
 
-    for warning in _ordered(folio.at(Scope.ACCOUNT, WarningCode.ROC_EXCEEDS_ACB)):
+    for warning in _ordered(folio.at(Grain.ACCOUNT, WarningCode.ROC_EXCEEDS_ACB)):
         findings.append(  # noqa: PERF401 - the two loops read different findings
             CheckFinding(
                 subject=f"TxnId {warning.txn_id}",
                 detail=(
                     f"return of capital on {warning.symbol} in {warning.account} "
-                    f"runs {_money(warning.value or ZERO)} past what the position "
+                    f"runs {_money(warning.value or ZERO)} past what the holding "
                     f"cost. The excess is taxed as a capital gain, so check it is "
                     f"really a return of capital."
                 ),
@@ -505,7 +505,7 @@ def _check_income_sanity(folio: _Folio) -> CheckResult:
         "Income sanity",
         "income-sanity",
         findings,
-        "all income lands on a position held",
+        "all income lands on a holding",
         f"{_plural(len(findings), 'income row needs', 'income rows need')} a look",
         CheckStatus.WARN,
     )
@@ -633,7 +633,7 @@ def _check_transfers(folio: _Folio) -> CheckResult:
         leaving = row.action is Action.TFR_OUT
         moved = (
             f"{_units(abs(row.units))} {computed.symbol}"
-            if row.is_position_transfer
+            if row.is_in_kind_transfer
             else f"{_money(abs(row.amount), row.currency)}"
         )
         findings.append(

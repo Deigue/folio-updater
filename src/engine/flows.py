@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from domain import AccountType, Action, Column, Currency, Scope
+from domain import AccountType, Action, Column, Currency, Grain
 from domain.numeric import ZERO, dec, q2
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
     from engine.types import CashState, ReplayResult
 
-# The pool key the replay credits portfolio-grain movements to.
+# The pool key the replay credits folio-grain movements to.
 FOLIO_POOL = "FOLIO"
 
 # An RRSP contribution made up to 60 days after a year ends counts toward that
@@ -89,8 +89,8 @@ class Flows:
     """Cash and cumulative income for one pool, per currency.
 
     Attributes:
-        scope: The grain these figures were read at.
-        pool: The pool key, empty at portfolio grain.
+        grain: The grain these figures were read at.
+        pool: The pool key, empty at folio grain.
         label: How the pool reads in a heading.
         account_type: The type this pool is, when it is exactly one.
         cash: Running cash balance.
@@ -100,7 +100,7 @@ class Flows:
             (in on a `TFR_IN`, out on a `TFR_OUT`). Not the value moved: a leg
             takes the share of the sending pool's deposits that matches the
             share of the pool it removes, so growth stays behind. See
-            `engine.deposits`. This is needed for Net Deposited.
+            `engine.deposits`. This is needed for net deposits.
         transfers_value: What those transfers actually moved, cash at face and
             securities at the cost base they carried.
         dividends: Cumulative dividends, signed, so reversals stay visible.
@@ -110,7 +110,7 @@ class Flows:
             that carries one.
     """
 
-    scope: Scope
+    grain: Grain
     pool: str
     label: str
     account_type: AccountType | None = None
@@ -125,7 +125,7 @@ class Flows:
     room: Room | None = None
 
     @property
-    def net_deposited(self) -> dict[Currency, Decimal]:
+    def net_deposits(self) -> dict[Currency, Decimal]:
         """How much of the holder's own money this pool still contains.
 
         Contributions, less withdrawals, plus the deposit parts of transfers carried in
@@ -136,7 +136,7 @@ class Flows:
         another broker keeps the growth and moves the deposits. Both legs of a
         pair move the same figure, and a pair sitting inside one pool is skipped
         entirely, so this reduces to exactly contributions less withdrawals at
-        any grain containing both sides: portfolio-wide it is the money the
+        any grain containing both sides: folio-wide it is the money the
         holder ever put in, and per account the money that reached that account.
         """
         currencies = (
@@ -167,7 +167,7 @@ class Flows:
     def net_deposit_denominator(self) -> Decimal | None:
         """The CAD money the holder put in, as a return denominator.
 
-        **CAD only** `net_deposited` keeps deposits per currency
+        **CAD only** `net_deposits` keeps deposits per currency
         and never blends them, because a blended figure hides an FX rate and
         its date. A USD contribution would have to be converted at *some* rate
         to join this sum, and no honest one exists
@@ -178,7 +178,7 @@ class Flows:
         Returns:
             Net CAD deposits, or None when there are none to divide by.
         """
-        deposited = self.net_deposited.get(Currency.CAD)
+        deposited = self.net_deposits.get(Currency.CAD)
         if deposited is None or q2(deposited) == ZERO:
             return None
         return deposited
@@ -187,7 +187,7 @@ class Flows:
 def build_flows(  # noqa: PLR0913
     result: ReplayResult,
     *,
-    scope: Scope,
+    grain: Grain,
     pool: str | None,
     label: str,
     contributions: Mapping[AccountType, Mapping[int, Decimal]],
@@ -200,8 +200,8 @@ def build_flows(  # noqa: PLR0913
     Args:
         result: A completed replay. Its `cash` totals survive a cache round
             trip intact, which is why they are read from here.
-        scope: The pool grain to read at.
-        pool: The account name or account type. Ignored at portfolio grain,
+        grain: The pool grain to read at.
+        pool: The account name or account type. Ignored at folio grain,
             where the replay credits the literal `FOLIO` key.
         label: How the pool should read in a heading.
         account_type: The type this pool is, when it is exactly one. Drives
@@ -215,16 +215,16 @@ def build_flows(  # noqa: PLR0913
     Returns:
         The pool's figures, per currency.
     """
-    key = FOLIO_POOL if scope is Scope.FOLIO else (pool or "")
+    key = FOLIO_POOL if grain is Grain.FOLIO else (pool or "")
     states = {
         currency: state
-        for (grain, name, currency), state in result.cash.items()
-        if grain is scope and name == key
+        for (cash_grain, name, currency), state in result.cash.items()
+        if cash_grain is grain and name == key
     }
 
     return Flows(
-        scope=scope,
-        pool=key if scope is not Scope.FOLIO else "",
+        grain=grain,
+        pool=key if grain is not Grain.FOLIO else "",
         label=label,
         account_type=account_type,
         cash=_measure(states, "cash"),

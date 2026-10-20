@@ -14,15 +14,15 @@ from domain import (
     Column,
     Currency,
     FeeConvention,
-    Scope,
+    Grain,
     WarningCode,
 )
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
     acb_summary_frames_by_pool,
+    grain_column,
     master_frame,
-    scope_column,
 )
 from engine.fx_rates import FxRates
 from engine.replay import (
@@ -291,11 +291,11 @@ def test_cad_holding_has_blank_usd_columns() -> None:
         ],
     )
     frame = master_frame(result)
-    for scope in Scope:
-        assert frame[scope_column(scope, "ACB")].iloc[0] == pytest.approx(1000)
-        assert pd.isna(frame[scope_column(scope, "ACB_USD")].iloc[0])
-        assert pd.isna(frame[scope_column(scope, "Avg_USD")].iloc[0])
-        assert pd.isna(frame[scope_column(scope, "Gain_USD")].iloc[0])
+    for grain in Grain:
+        assert frame[grain_column(grain, "ACB")].iloc[0] == pytest.approx(1000)
+        assert pd.isna(frame[grain_column(grain, "ACB_USD")].iloc[0])
+        assert pd.isna(frame[grain_column(grain, "Avg_USD")].iloc[0])
+        assert pd.isna(frame[grain_column(grain, "Gain_USD")].iloc[0])
     assert pd.isna(frame["FXRate"].iloc[0])
 
 
@@ -321,7 +321,7 @@ def test_roc_reduces_acb_and_moves_no_cash() -> None:
     assert after.units == D("100")
     # Cash still reflects only the buy: the distribution was paid as a dividend
     # long before, so booking the reclassification as cash would double count.
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     assert cash.cash == D("-1000")
     assert cash.dividends == D("0")
 
@@ -458,7 +458,7 @@ def test_dividend_never_touches_acb_but_is_converted() -> None:
     assert dividend_row.acct.delta_cad == D("0")
     assert dividend_row.dividend_usd == D("20")
     assert dividend_row.dividend_cad == D("27.00")
-    assert result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.USD)].dividends == D(
+    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.USD)].dividends == D(
         "20",
     )
 
@@ -478,7 +478,7 @@ def test_negative_dividend_reversal_is_not_coerced_positive() -> None:
             make_row(3, "2024-04-01", Action.DIVIDEND, amount="18"),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     assert cash.dividends == D("3")
 
 
@@ -517,7 +517,7 @@ def test_dividend_shortly_after_a_sale_is_not_orphaned() -> None:
 
 
 def test_dividend_long_after_a_sale_is_still_orphaned() -> None:
-    """Past the tail the position is genuinely gone, so income is a finding."""
+    """Past the tail the holding is genuinely gone, so income is a finding."""
     result = run(
         [
             make_row(
@@ -545,7 +545,7 @@ def test_dividend_long_after_a_sale_is_still_orphaned() -> None:
 def test_the_closing_row_still_counts_as_a_day_held() -> None:
     """The tail is measured from the sale, not from the last row before it.
 
-    A position transferred out in one row held units right up to that moment;
+    A holding transferred out in one row held units right up to that moment;
     measuring from the preceding buy would restart the clock far too early.
     """
     result = run(
@@ -565,10 +565,10 @@ def test_the_closing_row_still_counts_as_a_day_held() -> None:
     assert WarningCode.INCOME_WITHOUT_POSITION not in codes(result)
 
 
-# --- scopes ---------------------------------------------------------------------
+# --- grains ---------------------------------------------------------------------
 
 
-def test_all_scopes_in_one_pass() -> None:
+def test_all_grains_in_one_pass() -> None:
     """A buy in one TFSA and a sell in another: the pool nets, the account does not."""
     result = run(
         [
@@ -599,7 +599,7 @@ def test_all_scopes_in_one_pass() -> None:
     assert sale.folio.units == D("0")
     assert sale.type.gain_cad == D("200")
     oversells = [w for w in result.warnings if w.code is WarningCode.OVERSELL]
-    assert [w.scope for w in oversells] == [Scope.ACCOUNT]
+    assert [w.grain for w in oversells] == [Grain.ACCOUNT]
 
 
 def test_taxable_pool_excludes_registered() -> None:
@@ -822,13 +822,13 @@ def test_cash_transfer_moves_no_acb() -> None:
         ],
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
-    out_cash = result.cash[(Scope.ACCOUNT, "QT-TFSA", Currency.CAD)]
-    in_cash = result.cash[(Scope.ACCOUNT, "WS-TFSA", Currency.CAD)]
+    out_cash = result.cash[(Grain.ACCOUNT, "QT-TFSA", Currency.CAD)]
+    in_cash = result.cash[(Grain.ACCOUNT, "WS-TFSA", Currency.CAD)]
     assert out_cash.cash == D("-500")
     assert in_cash.cash == D("500")
     # A transfer consumes no contribution room.
     assert in_cash.contributions == D("0")
-    assert result.cash[(Scope.TYPE, "TFSA", Currency.CAD)].cash == D("0")
+    assert result.cash[(Grain.TYPE, "TFSA", Currency.CAD)].cash == D("0")
 
 
 def test_pair_transfers_prefers_the_cross_account_same_symbol_match() -> None:
@@ -876,7 +876,7 @@ def test_cash_orders_by_settle_date() -> None:
             ),
         ],
     )
-    assert result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
     assert WarningCode.CASH_NEGATIVE not in codes(result)
 
 
@@ -907,7 +907,7 @@ def test_sub_cent_cash_residue_is_not_an_overdraft() -> None:
             ),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
     assert cash == D("-0.000063")  # the accumulator is still exact
     assert WarningCode.CASH_NEGATIVE not in codes(result)
 
@@ -938,7 +938,7 @@ def test_a_one_cent_overdraft_is_still_reported() -> None:
             ),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
     assert cash == D("-0.01")
     assert WarningCode.CASH_NEGATIVE in codes(result)
 
@@ -976,7 +976,7 @@ def test_contributions_and_withdrawals_are_tracked_apart_from_cash() -> None:
             make_row(2, "2024-06-02", Action.WITHDRAWAL, amount="-2000", ticker=None),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     assert cash.cash == D("5000")
     assert cash.contributions == D("7000")
     assert cash.withdrawals == D("2000")
@@ -1003,8 +1003,8 @@ def test_single_leg_fxt_books_the_fee_against_the_usd_leg() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    assert result.cash[(Scope.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
-    assert result.cash[(Scope.ACCOUNT, "IBKR-RRSP", Currency.USD)].cash == D("9998")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)].cash == D("9998")
 
 
 def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
@@ -1031,8 +1031,8 @@ def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
         ],
         types={"QT-RRSP": AccountType.RRSP},
     )
-    assert result.cash[(Scope.ACCOUNT, "QT-RRSP", Currency.CAD)].cash == D("-1000")
-    assert result.cash[(Scope.ACCOUNT, "QT-RRSP", Currency.USD)].cash == D("735")
+    assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.CAD)].cash == D("-1000")
+    assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.USD)].cash == D("735")
     assert WarningCode.FXT_AMOUNT_INCONSISTENT not in codes(result)
 
 
@@ -1056,7 +1056,7 @@ def test_fxt_amount_inconsistent() -> None:
     )
     assert WarningCode.FXT_AMOUNT_INCONSISTENT in codes(result)
     # The warning never substitutes a recomputed figure for what moved.
-    assert result.cash[(Scope.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13000")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13000")
 
 
 # --- fee conventions -----------------------------------------------------------------
@@ -1329,8 +1329,8 @@ def test_master_frame_is_one_row_per_txn() -> None:
         "Impact",
         "Flags",
     }
-    # A cash-only row tracks no position, so its scope measures stay blank.
-    assert pd.isna(frame.loc[2, scope_column(Scope.ACCOUNT, "ACB")])
+    # A cash-only row tracks no holding, so its grain measures stay blank.
+    assert pd.isna(frame.loc[2, grain_column(Grain.ACCOUNT, "ACB")])
 
 
 def test_acb_summary_frame_has_one_row_per_symbol() -> None:
@@ -1369,8 +1369,8 @@ def test_acb_summary_frame_has_one_row_per_symbol() -> None:
     )
     summary = acb_summary_frame(frame)
     assert list(summary["Symbol"]) == ["AAA", "BBB"]
-    assert summary.loc[0, scope_column(Scope.ACCOUNT, "ACB")] == pytest.approx(1500)
-    assert summary.loc[0, scope_column(Scope.ACCOUNT, "Avg")] == pytest.approx(10)
+    assert summary.loc[0, grain_column(Grain.ACCOUNT, "ACB")] == pytest.approx(1500)
+    assert summary.loc[0, grain_column(Grain.ACCOUNT, "Avg")] == pytest.approx(10)
 
 
 def test_acb_summary_frame_carries_the_usd_average() -> None:
@@ -1401,8 +1401,8 @@ def test_acb_summary_frame_carries_the_usd_average() -> None:
         ),
     )
     summary = acb_summary_frame(frame).set_index("Symbol")
-    avg = scope_column(Scope.ACCOUNT, "Avg")
-    avg_usd = scope_column(Scope.ACCOUNT, "Avg_USD")
+    avg = grain_column(Grain.ACCOUNT, "Avg")
+    avg_usd = grain_column(Grain.ACCOUNT, "Avg_USD")
     # FLAT_FX is 1.30, so the USD average is the CAD one over the rate.
     assert summary.loc["USDCO", avg] == pytest.approx(130)
     assert summary.loc["USDCO", avg_usd] == pytest.approx(100)
@@ -1421,7 +1421,7 @@ def test_acb_summary_frame_closes_on_the_last_row_replayed() -> None:
         ),
     )
     summary = acb_summary_frame(frame)
-    assert summary.loc[0, scope_column(Scope.FOLIO, "Units")] == pytest.approx(8)
+    assert summary.loc[0, grain_column(Grain.FOLIO, "Units")] == pytest.approx(8)
 
 
 def test_decimal_precision_survives_replay() -> None:
@@ -1537,11 +1537,11 @@ def test_unpaired_cash_transfer_moves_no_units() -> None:
         [make_row(1, "2024-05-01", Action.TFR_OUT, amount="-500", ticker=None)],
     )
     assert WarningCode.TRANSFER_UNPAIRED in codes(result)
-    assert result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("-500")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("-500")
 
 
 def test_dust_snaps_to_zero_and_rolls_residual_into_gain() -> None:
-    """A float-noise residue must not leave a position open forever."""
+    """A float-noise residue must not leave a holding open forever."""
     result = run(
         [
             make_row(
@@ -1576,7 +1576,7 @@ def test_fch_is_income_and_charges_cash() -> None:
             make_row(2, "2024-02-02", Action.FCH, amount="500", ticker=None),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     assert cash.cash == D("490.05")
     # A charge counts as a fee; RSU income arriving as FCH does not.
     assert cash.fees == D("9.95")
@@ -1689,7 +1689,7 @@ def test_empty_replay_produces_an_empty_frame() -> None:
     assert acb_summary_frame(frame).empty
 
 
-def test_summary_of_a_frame_with_no_positions_is_empty() -> None:
+def test_summary_of_a_frame_with_no_holdings_is_empty() -> None:
     frame = master_frame(
         run(
             [make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="500", ticker=None)],
@@ -1728,7 +1728,7 @@ def test_a_missing_ticker_reads_as_none() -> None:
 
 
 def test_pair_transfers_rejects_mismatched_shapes() -> None:
-    """A cash leg never pairs with a position leg, whatever the numbers say."""
+    """A cash leg never pairs with a holding leg, whatever the numbers say."""
     rows = [
         make_row(1, "2024-05-01", Action.TFR_OUT, units="-100", account="QT-TFSA"),
         make_row(
@@ -1826,7 +1826,7 @@ def test_a_same_account_cash_journal_pairs() -> None:
 
 
 def test_a_cash_transfer_pair_carries_no_cost_base() -> None:
-    """Both legs go through the pair path, and neither moves a position."""
+    """Both legs go through the pair path, and neither moves a holding."""
     result = run(
         [
             make_row(
@@ -1859,7 +1859,7 @@ def test_a_no_position_finding_is_reported_once_per_row() -> None:
         w for w in result.warnings if w.code is WarningCode.SPLIT_WITHOUT_POSITION
     ]
     assert len(without_position) == 1
-    assert without_position[0].scope is Scope.ACCOUNT
+    assert without_position[0].grain is Grain.ACCOUNT
 
 
 def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type() -> (
@@ -1927,11 +1927,11 @@ def test_a_transfer_leg_carrying_a_ticker_but_no_units_moves_only_cash() -> None
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
     assert WarningCode.TRANSFER_UNPAIRED not in codes(result)
-    # The position stayed where it was; only cash moved.
+    # The holding stayed where it was; only cash moved.
     assert result.rows[1].acct.units == D("100")
     assert result.rows[1].acct.acb_cad == D("1000")
     assert result.rows[2].acct.units == D("0")
-    assert result.cash[(Scope.ACCOUNT, "WS-TFSA", Currency.CAD)].cash == D("500")
+    assert result.cash[(Grain.ACCOUNT, "WS-TFSA", Currency.CAD)].cash == D("500")
 
 
 def test_an_unpaired_leg_with_a_ticker_but_no_units_moves_nothing() -> None:
@@ -1942,7 +1942,7 @@ def test_an_unpaired_leg_with_a_ticker_but_no_units_moves_nothing() -> None:
     assert result.rows[0].acct.units == D("0")
 
 
-def test_pair_transfers_rejects_a_position_in_leg_for_a_cash_out_leg() -> None:
+def test_pair_transfers_rejects_an_in_kind_in_leg_for_a_cash_out_leg() -> None:
     rows = [
         make_row(
             1,
@@ -1988,9 +1988,9 @@ def test_summary_leaves_an_average_blank_when_a_measure_is_missing() -> None:
             ],
         ),
     )
-    frame.loc[1, scope_column(Scope.ACCOUNT, "ACB")] = None
+    frame.loc[1, grain_column(Grain.ACCOUNT, "ACB")] = None
     summary = acb_summary_frame(frame)
-    assert pd.isna(summary.loc[0, scope_column(Scope.ACCOUNT, "Avg")])
+    assert pd.isna(summary.loc[0, grain_column(Grain.ACCOUNT, "Avg")])
 
 
 # --- intra-day ordering ---------------------------------------------------------
@@ -2186,7 +2186,7 @@ def test_cash_follows_settle_date_not_trade_date() -> None:
         ],
     )
     assert WarningCode.CASH_NEGATIVE not in codes(result)
-    assert result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
 
 
 # --- fee signs ------------------------------------------------------------------
@@ -2280,7 +2280,7 @@ def test_a_negative_fee_is_a_charge_where_that_is_the_convention() -> None:
     )
     # The commission is added to the cost base, not netted out of it.
     assert result.rows[-1].acct.acb_cad == D("2000.70")
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     assert cash.cash == D("-2000.70")
     assert cash.fees == D("0.70")
 
@@ -2318,7 +2318,7 @@ def test_a_positive_fee_on_a_negative_fee_account_is_a_rebate() -> None:
             ),
         ],
     )
-    cash = result.cash[(Scope.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
     # Two charges of 0.35 less a 0.02 rebate. Reading the magnitude would debit
     # the rebate instead of crediting it, an error of twice its value.
     assert cash.fees == D("0.68")
@@ -2344,7 +2344,7 @@ def test_a_positive_fee_is_a_charge_where_that_is_the_convention() -> None:
         types={"HAND-TFSA": AccountType.TFSA},
     )
     assert result.rows[-1].acct.acb_cad == D("1005")
-    assert result.cash[(Scope.ACCOUNT, "HAND-TFSA", Currency.CAD)].fees == D("5")
+    assert result.cash[(Grain.ACCOUNT, "HAND-TFSA", Currency.CAD)].fees == D("5")
 
 
 def test_the_fx_commission_follows_the_same_sign_convention() -> None:
@@ -2376,9 +2376,9 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    usd = result.cash[(Scope.ACCOUNT, "IBKR-RRSP", Currency.USD)]
+    usd = result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)]
     assert usd.cash == D("10000") - D("2") - D("1000.35")
-    assert result.cash[(Scope.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
 
 
 def test_fee_convention_detection_survives_negative_fees() -> None:
@@ -2433,7 +2433,7 @@ def test_fee_convention_detection_survives_negative_fees() -> None:
 
 
 def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[TxnRow]:
-    """Build a position bought at one broker and moved in kind to another."""
+    """Build a holding bought at one broker and moved in kind to another."""
     return [
         make_row(
             1,
@@ -2591,12 +2591,12 @@ def _two_account_frame() -> pd.DataFrame:
     )
 
 
-@pytest.mark.parametrize("scope", [Scope.ACCOUNT, Scope.TYPE])
-def test_splitting_by_pool_matches_filtering_to_each_pool(scope: Scope) -> None:
+@pytest.mark.parametrize("grain", [Grain.ACCOUNT, Grain.TYPE])
+def test_splitting_by_pool_matches_filtering_to_each_pool(grain: Grain) -> None:
     """The one-pass split is only worth having if it agrees with the slow way."""
     frame = _two_account_frame()
-    column = POOL_COLUMN[scope]
-    split = acb_summary_frames_by_pool(frame, scope)
+    column = POOL_COLUMN[grain]
+    split = acb_summary_frames_by_pool(frame, grain)
 
     pools = sorted({str(value) for value in frame[column].dropna()})
     assert sorted(split) == pools
@@ -2605,10 +2605,10 @@ def test_splitting_by_pool_matches_filtering_to_each_pool(scope: Scope) -> None:
         assert split[pool].reset_index(drop=True).equals(alone.reset_index(drop=True))
 
 
-def test_splitting_by_pool_refuses_the_portfolio_grain() -> None:
-    """Portfolio grain is a single pool, so splitting it means nothing."""
+def test_splitting_by_pool_refuses_the_folio_grain() -> None:
+    """Folio grain is a single pool, so splitting it means nothing."""
     with pytest.raises(ValueError, match="single pool"):
-        acb_summary_frames_by_pool(_two_account_frame(), Scope.FOLIO)
+        acb_summary_frames_by_pool(_two_account_frame(), Grain.FOLIO)
 
 
 def test_splitting_an_untracked_frame_yields_nothing() -> None:
@@ -2625,5 +2625,5 @@ def test_splitting_an_untracked_frame_yields_nothing() -> None:
             ],
         ),
     )
-    assert acb_summary_frames_by_pool(frame, Scope.TYPE) == {}
-    assert acb_summary_frames_by_pool(pd.DataFrame(), Scope.TYPE) == {}
+    assert acb_summary_frames_by_pool(frame, Grain.TYPE) == {}
+    assert acb_summary_frames_by_pool(pd.DataFrame(), Grain.TYPE) == {}

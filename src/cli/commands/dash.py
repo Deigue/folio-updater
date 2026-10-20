@@ -1,6 +1,6 @@
 """The `folio dash` command.
 
-Prices the folio's open positions and prints them as a broker-style table, with
+Prices the folio's open holdings and prints them as a broker-style table, with
 cash and cumulative flows in a panel above.
 
 Two caches feed the table, the cost-base frame and the quotes, and both ages are
@@ -25,8 +25,8 @@ from cli.commands.common import (
     resolve_pool,
 )
 from domain import Currency
+from engine.holdings import SORT_NAMES, UnknownSortError
 from engine.panels import FolioValuation, type_view
-from engine.positions import SORT_NAMES, UnknownSortError
 from exporters.output import (
     CSV_SUFFIX,
     SingleSheetError,
@@ -40,8 +40,8 @@ from ui.views.dash import show_by_type, show_dashboard
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from engine.holdings import ValuationCurrency
     from engine.panels import Panel
-    from engine.positions import ValuationCurrency
 
 
 def _resolve_currency(requested: str | None) -> ValuationCurrency:
@@ -111,7 +111,7 @@ def show_dash(
     refresh: bool = False,
     offline: bool = False,
 ) -> None:
-    """Show the portfolio dashboard.
+    """Show the folio dashboard.
 
     Args:
         account_type: Report the pooled figures for one account type.
@@ -122,7 +122,7 @@ def show_dash(
         by_type: Tile one panel per account type.
         wide: Show the wide-only columns.
         show_closed: Break the aggregate "Closed" row open into one row per
-            closed position, instead of one summed line.
+            closed holding, instead of one summed line.
         reverse: Flip the sort's natural direction.
         refresh: Refetch quotes and rebuild the cost-base cache.
         offline: Never touch the network.
@@ -175,7 +175,7 @@ def show_dash(
             reverse=reverse,
         )
         if not panels:
-            console_warning("No open positions in any account type.")
+            console_warning("No open holdings in any account type.")
             return
         if export:
             _export(panels, export, note)

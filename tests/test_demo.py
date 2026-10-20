@@ -133,7 +133,7 @@ def _showcase(
         "a taxable gain and a taxable loss": (
             bool((taxable_gains > 0).any()) and bool((taxable_gains < 0).any())
         ),
-        "a position sold out, and one only partly sold": (
+        "a holding sold out, and one only partly sold": (
             bool((sells["AcctUnits"] == 0).any())
             and bool((sells["AcctUnits"] > 0).any())
         ),
@@ -146,7 +146,7 @@ def _showcase(
 def test_the_demo_shows_every_feature_it_exists_to_show(
     temp_ctx: TempContext,
 ) -> None:
-    """A snapshot refresh or a script edit must not quietly lose a showcase.
+    """A price history refresh or a script edit must not quietly lose a showcase.
 
     The clean replay cannot see this: a demo with no splits still replays clean.
     """
@@ -278,7 +278,7 @@ def test_declining_keeps_the_demo_and_imports_nothing(
         left_in_place = source.exists()
 
     assert result.exit_code == 1
-    assert_in_output("the demo portfolio is unchanged", result)
+    assert_in_output("the demo folio is unchanged", result)
     assert after == before
     assert "TEST-ACCOUNT" not in accounts
     assert left_in_place

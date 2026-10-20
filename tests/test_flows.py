@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from domain import AccountType, Action, Column, Currency, Scope
+from domain import AccountType, Action, Column, Currency, Grain
 from engine.cache import build
 from engine.flows import (
     ROOM_BEARING_TYPES,
@@ -37,7 +37,7 @@ FX_DATES = {
 
 
 def _flows(
-    scope: Scope = Scope.FOLIO,
+    grain: Grain = Grain.FOLIO,
     pool: str | None = None,
     account_type: AccountType | None = None,
     room: dict | None = None,
@@ -48,7 +48,7 @@ def _flows(
     assert cached.result is not None
     return build_flows(
         cached.result,
-        scope=scope,
+        grain=grain,
         pool=pool,
         label=pool or "Portfolio",
         contributions=contributions_by_type_year(cached.frame),
@@ -148,7 +148,7 @@ def test_withdrawals_are_tracked_apart_from_transfers(temp_ctx: TempContext) -> 
         assert flows.cash[Currency.CAD] == Decimal(3000)
 
 
-def test_net_deposited_is_contributions_minus_withdrawals(
+def test_net_deposits_is_contributions_minus_withdrawals(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
@@ -173,13 +173,13 @@ def test_net_deposited_is_contributions_minus_withdrawals(
 
         flows = _flows()
 
-        assert flows.net_deposited[Currency.CAD] == Decimal(3800)
+        assert flows.net_deposits[Currency.CAD] == Decimal(3800)
 
 
-def test_net_deposited_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
+def test_net_deposits_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
     """A cash-only TFR_OUT genuinely reduces what this account holds.
 
-    Unlike contribution room, `Net Deposited` answers "how much of my own money is still
+    Unlike contribution room, net deposits answers "how much of my own money is still
     here", and a same-owner institutional transfer out is real money leaving this
     specific pool.
     """
@@ -202,7 +202,7 @@ def test_net_deposited_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
             units=None,
             date="2025-08-18",
         )
-        # A position leg of a transfer moves no cash, so it must not count.
+        # A holding leg of a transfer moves no cash, so it must not count.
         seed_transaction(
             action="TFR_OUT",
             ticker="AAA",
@@ -215,7 +215,7 @@ def test_net_deposited_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
 
         flows = _flows()
 
-        assert flows.net_deposited[Currency.CAD] == Decimal(6000)
+        assert flows.net_deposits[Currency.CAD] == Decimal(6000)
 
 
 def test_an_in_kind_transfer_carries_net_deposits_between_accounts(
@@ -266,12 +266,12 @@ def test_an_in_kind_transfer_carries_net_deposits_between_accounts(
             date="2025-08-18",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
         # The cost base left one account and arrived at the other.
-        assert sender.net_deposited[Currency.CAD] == Decimal(0)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(1000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(1000)
 
 
 def test_an_in_kind_transfer_cancels_at_the_pooled_grains(
@@ -321,7 +321,7 @@ def test_an_in_kind_transfer_cancels_at_the_pooled_grains(
         folio = _flows()
 
         assert folio.transfers == {}
-        assert folio.net_deposited[Currency.CAD] == Decimal(1000)
+        assert folio.net_deposits[Currency.CAD] == Decimal(1000)
 
 
 def test_a_currency_journal_leaves_net_deposits_alone(
@@ -377,7 +377,7 @@ def test_a_currency_journal_leaves_net_deposits_alone(
         folio = _flows()
 
         # The contribution is the only deposit; the conversion added nothing.
-        assert folio.net_deposited == {Currency.CAD: Decimal(1250)}
+        assert folio.net_deposits == {Currency.CAD: Decimal(1250)}
 
 
 def _seed_grown_then_swept(out_account: str, in_account: str) -> None:
@@ -449,18 +449,18 @@ def test_a_swept_cash_transfer_moves_deposits_not_face_value(
 ) -> None:
     """Cash raised by selling at a profit is not all a returned deposit.
 
-    Sell a position for a 5,000 gain and move 7,500 of the proceeds to another broker
+    Sell a holding for a 5,000 gain and move 7,500 of the proceeds to another broker
     Face value says 7500 left, but actually only 5000 worth of deposits moves.
     """
     with temp_ctx():
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
         # Half the pool left, so half the deposits went with it.
-        assert sender.net_deposited[Currency.CAD] == Decimal(5000)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(5000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(5000)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(5000)
 
 
 def test_a_swept_cash_transfer_leaves_the_pooled_grains_alone(
@@ -474,12 +474,12 @@ def test_a_swept_cash_transfer_leaves_the_pooled_grains_alone(
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
 
         folio = _flows()
-        by_type = _flows(Scope.TYPE, str(AccountType.TFSA))
+        by_type = _flows(Grain.TYPE, str(AccountType.TFSA))
 
         assert folio.transfers == {}
         assert by_type.transfers == {}
-        assert folio.net_deposited == {Currency.CAD: Decimal(10000)}
-        assert by_type.net_deposited == {Currency.CAD: Decimal(10000)}
+        assert folio.net_deposits == {Currency.CAD: Decimal(10000)}
+        assert by_type.net_deposits == {Currency.CAD: Decimal(10000)}
 
 
 def test_a_full_transfer_carries_exactly_what_was_contributed(
@@ -565,12 +565,12 @@ def test_a_full_transfer_carries_exactly_what_was_contributed(
             settle_date="2025-08-19",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
         # The dividend was growth, not a deposit, so it moves none of itself.
-        assert sender.net_deposited[Currency.CAD] == Decimal(0)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(10000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(10000)
 
 
 def test_a_partial_in_kind_transfer_counts_uninvested_cash_in_the_pool(
@@ -578,8 +578,8 @@ def test_a_partial_in_kind_transfer_counts_uninvested_cash_in_the_pool(
 ) -> None:
     """The share leaving is measured against the whole pool, cash included.
 
-    10,000 buys the position and a 500 dividend lands beside it, so the pool is
-    worth 10,500 while the position is only 10,000 of it. Moving half the units
+    10,000 buys the holding and a 500 dividend lands beside it, so the pool is
+    worth 10,500 while the holding is only 10,000 of it. Moving half the units
     is 5,000 of 10,500, not 5,000 of 10,000, and the difference is exactly the
     growth that must stay behind.
     """
@@ -640,15 +640,15 @@ def test_a_partial_in_kind_transfer_counts_uninvested_cash_in_the_pool(
             settle_date="2025-08-18",
         )
 
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
 
         # 5,000 of a 10,500 pool: 10000 * 5000/10500.
         moved = Decimal(10000) * Decimal(5000) / Decimal(10500)
-        assert receiver.net_deposited[Currency.CAD] == moved
-        assert sender.net_deposited[Currency.CAD] == Decimal(10000) - moved
+        assert receiver.net_deposits[Currency.CAD] == moved
+        assert sender.net_deposits[Currency.CAD] == Decimal(10000) - moved
         # Ignoring the uninvested cash would have moved a round 5,000 instead.
-        assert receiver.net_deposited[Currency.CAD] != Decimal(5000)
+        assert receiver.net_deposits[Currency.CAD] != Decimal(5000)
 
 
 def test_a_transfer_cannot_carry_more_deposits_than_the_pool_holds(
@@ -719,12 +719,12 @@ def test_a_transfer_cannot_carry_more_deposits_than_the_pool_holds(
             settle_date="2025-08-18",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
         # The whole pool left, so the whole deposit did, and no more.
-        assert sender.net_deposited[Currency.CAD] == Decimal(0)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(1000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(1000)
 
 
 def test_an_unpaired_leg_falls_back_to_face_value(temp_ctx: TempContext) -> None:
@@ -748,9 +748,9 @@ def test_an_unpaired_leg_falls_back_to_face_value(temp_ctx: TempContext) -> None
             settle_date="2025-08-18",
         )
 
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
-        assert receiver.net_deposited[Currency.CAD] == Decimal(5000)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(5000)
 
 
 def test_negative_cash_is_surfaced_as_an_alert(temp_ctx: TempContext) -> None:
@@ -776,13 +776,13 @@ def test_a_sub_cent_residue_is_not_a_missing_transaction() -> None:
     matters most.
     """
     dusty = Flows(
-        scope=Scope.FOLIO,
+        grain=Grain.FOLIO,
         pool="",
         label="Portfolio",
         cash={Currency.CAD: Decimal("-0.000002999")},
     )
     genuinely_short = Flows(
-        scope=Scope.FOLIO,
+        grain=Grain.FOLIO,
         pool="",
         label="Portfolio",
         cash={Currency.CAD: Decimal("-0.01")},
@@ -795,7 +795,7 @@ def test_a_sub_cent_residue_is_not_a_missing_transaction() -> None:
 def _funded(**deposits: str) -> Flows:
     """Build a pool carrying nothing but the named contributions."""
     return Flows(
-        scope=Scope.FOLIO,
+        grain=Grain.FOLIO,
         pool="",
         label="Portfolio",
         contributions={
@@ -826,7 +826,7 @@ def test_an_account_emptied_by_a_transfer_has_no_return_denominator() -> None:
     flows = _funded(CAD="10000")
     flows.transfers[Currency.CAD] = Decimal(-10000)
 
-    assert flows.net_deposited[Currency.CAD] == Decimal(0)
+    assert flows.net_deposits[Currency.CAD] == Decimal(0)
     assert flows.net_deposit_denominator is None
 
 
@@ -841,7 +841,7 @@ def test_a_sub_cent_deposit_residue_is_not_a_denominator() -> None:
     flows.transfers[Currency.CAD] = Decimal(-10000) + Decimal("1E-23")
 
     # Non-zero, and dividing 1,000 of gains by it would report 1e25 percent.
-    assert flows.net_deposited[Currency.CAD] != Decimal(0)
+    assert flows.net_deposits[Currency.CAD] != Decimal(0)
     assert flows.net_deposit_denominator is None
 
 
@@ -916,7 +916,7 @@ def test_the_year_split_reads_the_frame_not_the_replay_rows(
 
         flows = build_flows(
             cached.result,
-            scope=Scope.TYPE,
+            grain=Grain.TYPE,
             pool=str(AccountType.TFSA),
             label="TFSA",
             contributions=contributions_by_type_year(cached.frame),
@@ -945,7 +945,7 @@ def test_room_reports_used_against_the_configured_limit(
         )
 
         flows = _flows(
-            Scope.TYPE,
+            Grain.TYPE,
             str(AccountType.TFSA),
             AccountType.TFSA,
             {AccountType.TFSA: {2025: Decimal(7000)}},
@@ -973,7 +973,7 @@ def test_over_contributing_is_flagged(temp_ctx: TempContext) -> None:
         )
 
         flows = _flows(
-            Scope.TYPE,
+            Grain.TYPE,
             str(AccountType.TFSA),
             AccountType.TFSA,
             {AccountType.TFSA: {2025: Decimal(7000)}},
@@ -1000,7 +1000,7 @@ def test_room_without_a_configured_limit_still_reports_what_was_used(
             units=None,
         )
 
-        flows = _flows(Scope.TYPE, str(AccountType.TFSA), AccountType.TFSA, {}, 2025)
+        flows = _flows(Grain.TYPE, str(AccountType.TFSA), AccountType.TFSA, {}, 2025)
 
         assert flows.room is not None
         assert flows.room.used == Decimal(5000)
@@ -1047,7 +1047,7 @@ def test_a_non_registered_pool_has_no_room_row(temp_ctx: TempContext) -> None:
         )
 
         flows = _flows(
-            Scope.TYPE,
+            Grain.TYPE,
             str(AccountType.NON_REGISTERED),
             AccountType.NON_REGISTERED,
             {},
@@ -1058,7 +1058,7 @@ def test_a_non_registered_pool_has_no_room_row(temp_ctx: TempContext) -> None:
         assert flows.room is None
 
 
-def test_the_portfolio_scope_has_no_room_row(temp_ctx: TempContext) -> None:
+def test_the_folio_grain_has_no_room_row(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         seed_transaction(
@@ -1071,7 +1071,7 @@ def test_the_portfolio_scope_has_no_room_row(temp_ctx: TempContext) -> None:
             units=None,
         )
 
-        # Room belongs to one tax type; a whole-portfolio view spans several.
+        # Room belongs to one tax type; a whole-folio view spans several.
         assert _flows().room is None
 
 
@@ -1082,7 +1082,7 @@ def test_only_registered_types_bear_room() -> None:
     assert AccountType.MARGIN not in ROOM_BEARING_TYPES
 
 
-def test_an_account_scope_sees_only_its_own_cash(temp_ctx: TempContext) -> None:
+def test_an_account_grain_sees_only_its_own_cash(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         for account, amount in (("IBKR-TFSA", "1000"), ("WS-TFSA", "2000")):
@@ -1096,8 +1096,8 @@ def test_an_account_scope_sees_only_its_own_cash(temp_ctx: TempContext) -> None:
                 units=None,
             )
 
-        one = _flows(Scope.ACCOUNT, "IBKR-TFSA")
-        pooled = _flows(Scope.TYPE, str(AccountType.TFSA))
+        one = _flows(Grain.ACCOUNT, "IBKR-TFSA")
+        pooled = _flows(Grain.TYPE, str(AccountType.TFSA))
 
         assert one.cash[Currency.CAD] == Decimal(1000)
         assert pooled.cash[Currency.CAD] == Decimal(3000)
@@ -1302,7 +1302,7 @@ def test_a_registered_pool_with_no_contributions_has_no_room_row(
         seed_transaction(account="WS-TFSA", ticker="AAA", amount="-1000", units="10")
 
         # Nothing was ever contributed, so there is no year to report against.
-        flows = _flows(Scope.TYPE, str(AccountType.TFSA), AccountType.TFSA, {})
+        flows = _flows(Grain.TYPE, str(AccountType.TFSA), AccountType.TFSA, {})
 
         assert flows.room is None
 
@@ -1314,7 +1314,7 @@ def test_an_empty_pool_reports_nothing_rather_than_zeros(
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", amount="-1000", units="10")
 
-        flows = _flows(Scope.ACCOUNT, "NOSUCHACCOUNT")
+        flows = _flows(Grain.ACCOUNT, "NOSUCHACCOUNT")
 
         # Absent, not zero: there is no such pool to report on.
         assert flows.cash == {}
@@ -1345,13 +1345,13 @@ def test_a_withdrawal_and_a_transfer_reduce_deposits_differently(
             settle_date="2025-08-19",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
         folio = _flows()
 
         # 5,000 left after the sweep, less the 1,000 taken out at face value.
-        assert sender.net_deposited[Currency.CAD] == Decimal(4000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(4000)
         # The folio only ever saw the contribution and the withdrawal.
-        assert folio.net_deposited == {Currency.CAD: Decimal(9000)}
+        assert folio.net_deposits == {Currency.CAD: Decimal(9000)}
 
 
 def test_a_transfer_out_of_an_emptied_account_moves_nothing(
@@ -1392,11 +1392,11 @@ def test_a_transfer_out_of_an_emptied_account_moves_nothing(
             )
             del txn_id
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
-        assert sender.net_deposited[Currency.CAD] == Decimal(0)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(10000)
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(10000)
 
 
 def test_an_in_leg_settling_before_its_out_leg_still_balances(
@@ -1445,13 +1445,13 @@ def test_an_in_leg_settling_before_its_out_leg_still_balances(
             settle_date="2025-08-20",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
         folio = _flows()
 
-        assert sender.net_deposited[Currency.CAD] == Decimal(6000)
-        assert receiver.net_deposited[Currency.CAD] == Decimal(4000)
-        assert folio.net_deposited == {Currency.CAD: Decimal(10000)}
+        assert sender.net_deposits[Currency.CAD] == Decimal(6000)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(4000)
+        assert folio.net_deposits == {Currency.CAD: Decimal(10000)}
 
 
 def test_income_arriving_after_an_account_empties_carries_no_deposits(
@@ -1518,12 +1518,12 @@ def test_income_arriving_after_an_account_empties_carries_no_deposits(
             settle_date="2025-08-20",
         )
 
-        sender = _flows(Scope.ACCOUNT, "QT-TFSA")
-        receiver = _flows(Scope.ACCOUNT, "WS-TFSA")
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
 
-        assert sender.net_deposited[Currency.CAD] == Decimal(0)
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
         # Still exactly the 10,000 contributed: the dividend added nothing.
-        assert receiver.net_deposited[Currency.CAD] == Decimal(10000)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(10000)
 
 
 def test_a_same_type_transfer_is_skipped_even_when_type_grain_is_tracked(
@@ -1597,12 +1597,12 @@ def test_a_same_type_transfer_is_skipped_even_when_type_grain_is_tracked(
             settle_date="2025-08-19",
         )
 
-        tfsa = _flows(Scope.TYPE, str(AccountType.TFSA))
+        tfsa = _flows(Grain.TYPE, str(AccountType.TFSA))
         folio = _flows()
 
         # The TFSA type gained only the 3,000 that crossed into it.
-        assert tfsa.net_deposited[Currency.CAD] == Decimal(13000)
-        assert folio.net_deposited == {Currency.CAD: Decimal(18000)}
+        assert tfsa.net_deposits[Currency.CAD] == Decimal(13000)
+        assert folio.net_deposits == {Currency.CAD: Decimal(18000)}
 
 
 def _seed_contributions_across_types() -> None:
@@ -1644,7 +1644,7 @@ def test_room_reads_the_scan_it_was_handed(temp_ctx: TempContext) -> None:
         _seed_contributions_across_types()
 
         flows = _flows(
-            Scope.TYPE,
+            Grain.TYPE,
             "TFSA",
             account_type=AccountType.TFSA,
             room={AccountType.TFSA: {2025: Decimal(7000)}},

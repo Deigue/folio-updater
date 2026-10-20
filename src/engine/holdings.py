@@ -7,13 +7,13 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
-from domain import Currency, Scope, WarningCode
+from domain import Currency, Grain, WarningCode
 from domain.numeric import ZERO, dec, safe_div
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
     acb_summary_frames_by_pool,
-    scope_column,
+    grain_column,
 )
 
 if TYPE_CHECKING:
@@ -29,39 +29,39 @@ ValuationCurrency = Currency | Literal["native"]
 
 @dataclass(frozen=True)
 class Holding:
-    """One valued position in one pool.
+    """One valued holding in one pool.
 
     Attributes:
         symbol: Canonical security symbol.
         name: Short name from the quote, when one is cached.
         sector: Sector from the quote, when one is cached.
-        pool: The account, account type or portfolio this is pooled over.
+        pool: The account, account type or folio this is pooled over.
         currency: The currency the figures are expressed in.
         units: Units held after the last transaction.
         avg_cost: Cost base per unit.
-        book_value: Cost base of the position.
+        book_value: Cost base of the holding.
         price: Last price, converted into `currency`.
         prev_close: Previous close, converted into `currency`.
-        change: The day's per-share move.
+        change: The day change, per unit.
         change_pct: `change / prev_close`
-        day_pnl: `change * units`.
+        day_pnl: Day gain, `change * units`.
         day_pnl_pct: `day_pnl` over the **pool's** market value at yesterday's close.
         market_value: `price * units`.
         unrealized: `market_value - book_value`.
         unrealized_pct: `unrealized / book_value`.
         realized: Cumulative realized gain on this security in this pool.
         dividends: Cumulative dividends received from it in this pool.
-        total_pnl: `unrealized + realized + dividends`, everything this holding
-            has earned. None when it could not be priced, since a third of the
-            sum would then be unknown.
+        total_pnl: Total gain, `unrealized + realized + dividends`: everything
+            this holding has earned. None when it could not be priced, since a
+            third of the sum would then be unknown.
         total_pnl_pct: `total_pnl / book_value`.
         total_pnl_cad: `total_pnl` in CAD
         market_value_cad: `market_value` in CAD
         weight_in_pool: Market value as a share of the displayed pool.
-        weight_in_folio: Market value as a share of the whole portfolio.
+        weight_in_folio: Market value as a share of the whole folio.
         priced: Whether a usable price was found.
         flags: Diagnostics the replay raised against this symbol in this pool.
-        closed: Whether this position has zero units in this pool.
+        closed: Whether this holding has zero units in this pool.
     """
 
     symbol: str
@@ -103,16 +103,16 @@ class Holding:
 
     @property
     def closed_total(self) -> Decimal:
-        """What a closed position earned over its whole life."""
+        """What a closed holding earned over its whole life."""
         return self.realized + self.dividends
 
 
 @dataclass(frozen=True)
 class ClosedTotals:
-    """Data about closed positions in a currency group.
+    """Data about closed holdings in a currency group.
 
     Attributes:
-        count: How many closed positions were folded in.
+        count: How many closed holdings were folded in.
         realized: Realized gain across them.
         dividends: Dividends received from them.
     """
@@ -123,15 +123,15 @@ class ClosedTotals:
 
     @property
     def total(self) -> Decimal:
-        """Everything the closed positions earned."""
+        """Everything the closed holdings earned."""
         return self.realized + self.dividends
 
 
 def summarize_closed(closed: Iterable[Holding]) -> ClosedTotals:
-    """Aggregate closed positions into one earned-since-liquidation figure.
+    """Aggregate closed holdings into one earned-since-liquidation figure.
 
     Args:
-        closed: The closed positions to fold together.
+        closed: The closed holdings to fold together.
 
     Returns:
         Their combined realized gain and dividends.
@@ -156,14 +156,14 @@ class CurrencyTotals:
         count: How many holdings are in the group.
         book: Cost base across the group.
         market: Market value across the group's **priced** holdings.
-        day_pnl: The day's gain or loss across the priced holdings.
+        day_pnl: Day gain across the priced holdings.
         unrealized: Unrealized gain across the priced holdings.
         realized: Realized gain across the group.
         dividends: Dividends received across the group.
-        total_pnl: Everything the group has earned.
+        total_pnl: Total gain across the group.
         day_pnl_pct: The group's share of the pool's day move.
         weight_in_pool: Market value as a share of the displayed pool.
-        weight_in_folio: Market value as a share of the whole portfolio.
+        weight_in_folio: Market value as a share of the whole folio.
     """
 
     currency: Currency
@@ -191,7 +191,7 @@ class CurrencyTotals:
         """Everything the group earned, over its own cost base.
 
         The cost base of anything sold has left `book` entirely, so this
-        overstates the return of a group that has closed positions. It is still the
+        overstates the return of a group that has closed holdings. It is still the
         right reading for a row meaning "what this currency did". BUT, inaccurate
         for a row meaning "what this pool returned": see `HoldingSet.return_on`.
         """
@@ -209,28 +209,28 @@ class HoldingSet:
     per-currency subtotals in `by_currency` are the native ones.
 
     Attributes:
-        holdings: The open positions, sorted by market value.
-        scope: The grain the pool was read at.
-        pool: The pool key, empty at portfolio grain.
+        holdings: The open holdings, sorted by market value.
+        grain: The grain the pool was read at.
+        pool: The pool key, empty at folio grain.
         display_currency: The currency the figures are expressed in.
         base_currency: The currency the totals and ratios are expressed in.
         by_currency: Subtotals per currency group, each in its own currency.
         total_book: Cost base across every open holding, in `base_currency`.
         total_market: Market value across the **priced** holdings only.
-        total_day_pnl: The day's gain or loss across the priced holdings.
+        total_day_pnl: Day gain across the priced holdings.
         total_unrealized: Unrealized gain across the priced holdings.
         total_realized: Realized gain across every holding.
         total_dividends: Dividends received across every holding.
-        total_pnl: Everything the pool has earned.
+        total_pnl: Total gain across the pool.
         total_pnl_cad: `total_pnl` in CAD.
-        excluded: Positions the currency filter dropped from the pool.
+        excluded: Holdings the currency filter dropped from the pool.
         unpriced: Symbols held but not valued, excluded from every total.
         fx_rate: The USDCAD rate used to convert, when one was needed.
         fx_date: The date that rate is from, for disclosure.
     """
 
     holdings: list[Holding]
-    scope: Scope
+    grain: Grain
     pool: str
     display_currency: ValuationCurrency
     closed: tuple[Holding, ...] = ()
@@ -284,10 +284,10 @@ class HoldingSet:
         return self.excluded == 0
 
     def return_on(self, denominator: Decimal | None) -> Decimal | None:
-        """Divide everything the pool earned by the Net Deposits provided.
+        """Divide the pool's total gain by its net deposits.
 
         Against net deposits, not against book value. `total_pnl` counts what
-        closed positions earned as well, and their cost base has left
+        closed holdings earned as well, and their cost base has left
         `total_book` entirely, so dividing by it overstates the return by the
         whole realized history of anything sold. Net deposits is what we want to
         compare against, and having the full replay lets us do that.
@@ -317,40 +317,40 @@ class HoldingSet:
         return tuple(seen)
 
 
-def scope_rows(frame: pd.DataFrame, scope: Scope, pool: str | None) -> pd.DataFrame:
+def grain_rows(frame: pd.DataFrame, grain: Grain, pool: str | None) -> pd.DataFrame:
     """Narrow the master frame to one pool.
 
     Args:
         frame: The master frame.
-        scope: The grain to read at.
-        pool: The account name or account type, ignored at portfolio grain.
+        grain: The grain to read at.
+        pool: The account name or account type, ignored at folio grain.
 
     Returns:
-        The rows belonging to that pool. Portfolio grain filters nothing.
+        The rows belonging to that pool. Folio grain filters nothing.
     """
-    column = POOL_COLUMN.get(scope)
+    column = POOL_COLUMN.get(grain)
     if column is None or not pool:
         return frame
     return frame[frame[column] == pool]
 
 
 def held_symbols(frame: pd.DataFrame) -> list[str]:
-    """Every symbol the folio still holds anywhere, at portfolio grain.
+    """Every symbol the folio still holds anywhere, at folio grain.
 
     Args:
         frame: The master frame.
 
     Returns:
-        Canonical symbols with a non-zero portfolio-wide position, sorted.
+        Canonical symbols with a non-zero holding at the folio grain, sorted.
     """
     return _open_symbols(acb_summary_frame(frame))
 
 
 def _open_symbols(summary: pd.DataFrame) -> list[str]:
-    """Read the still-held symbols off a portfolio-grain summary frame."""
+    """Read the still-held symbols off a folio-grain summary frame."""
     if summary.empty:
         return []
-    column = scope_column(Scope.FOLIO, "Units")
+    column = grain_column(Grain.FOLIO, "Units")
     open_positions = summary[summary[column].fillna(0) != 0]
     return sorted({str(symbol) for symbol in open_positions["Symbol"] if symbol})
 
@@ -364,7 +364,7 @@ class _Rollups:
     income: dict[str, tuple[Decimal, Decimal]]
 
 
-class FolioPositions:
+class FolioHoldings:
     """One invocation's frame and quotes, with the per-pool rollups memoized.
 
     Valuing a pool means first deriving three things from the master frame: the
@@ -389,7 +389,7 @@ class FolioPositions:
         self.frame = frame
         self.quotes = quotes
         self.fx = fx
-        self._rollups: dict[tuple[Scope, str], _Rollups] = {}
+        self._rollups: dict[tuple[Grain, str], _Rollups] = {}
         self._market: Decimal | None = None
         self._valued = False
 
@@ -404,12 +404,12 @@ class FolioPositions:
         self._market = None
         self._valued = False
 
-    def rollups(self, scope: Scope, pool: str | None) -> _Rollups:
+    def rollups(self, grain: Grain, pool: str | None) -> _Rollups:
         """Derive one pool's inputs, or hand back the ones already derived."""
-        key = (scope, pool or "")
+        key = (grain, pool or "")
         held = self._rollups.get(key)
         if held is None:
-            rows = scope_rows(self.frame, scope, pool)
+            rows = grain_rows(self.frame, grain, pool)
             held = _Rollups(
                 summary=acb_summary_frame(rows),
                 flags=_flags_by_symbol(rows),
@@ -418,23 +418,23 @@ class FolioPositions:
             self._rollups[key] = held
         return held
 
-    def prime(self, scope: Scope) -> None:
+    def prime(self, grain: Grain) -> None:
         """Derive every pool's summary at one grain in a single pass.
 
         We need to walk the frame anyway, lets do it all at once.
 
         Args:
-            scope: The grain about to be reported pool by pool. Portfolio grain
+            grain: The grain about to be reported pool by pool. Folio grain
                 is a single pool and is ignored.
         """
-        if scope is Scope.FOLIO:
+        if grain is Grain.FOLIO:
             return
-        by_pool = acb_summary_frames_by_pool(self.frame, scope)
+        by_pool = acb_summary_frames_by_pool(self.frame, grain)
         for pool, summary in by_pool.items():
-            key = (scope, pool)
+            key = (grain, pool)
             if key in self._rollups:
                 continue
-            rows = scope_rows(self.frame, scope, pool)
+            rows = grain_rows(self.frame, grain, pool)
             self._rollups[key] = _Rollups(
                 summary=summary,
                 flags=_flags_by_symbol(rows),
@@ -442,46 +442,46 @@ class FolioPositions:
             )
 
     def held_symbols(self) -> list[str]:
-        """Every symbol the folio still holds anywhere, at portfolio grain.
+        """Every symbol the folio still holds anywhere, at folio grain.
 
         Returns:
-            Canonical symbols with a non-zero portfolio-wide position, sorted.
+            Canonical symbols with a non-zero holding at the folio grain, sorted.
         """
-        return _open_symbols(self.rollups(Scope.FOLIO, None).summary)
+        return _open_symbols(self.rollups(Grain.FOLIO, None).summary)
 
     def market_value(self) -> Decimal | None:
-        """Total CAD market value of the whole portfolio.
+        """Total CAD market value of the whole folio.
 
         Needed even when a narrower pool is displayed, because `weight_in_folio`
         answers "how much of everything I own is this", which is the number that
         reveals real concentration.
 
         Returns:
-            The portfolio's market value across priced positions, or None when
+            The folio's market value across priced holdings, or None when
             nothing could be priced.
         """
         if not self._valued:
-            self._market = self.holdings(scope=Scope.FOLIO).total_market
+            self._market = self.holdings(grain=Grain.FOLIO).total_market
             self._valued = True
         return self._market
 
     def holdings(  # noqa: PLR0913
         self,
         *,
-        scope: Scope,
+        grain: Grain,
         pool: str | None = None,
         currency: ValuationCurrency = Currency.CAD,
         folio_market: Decimal | None = None,
         sort: str | None = None,
         reverse: bool = False,
     ) -> HoldingSet:
-        """Value every open position in one pool.
+        """Value every open holding in one pool.
 
         Args:
-            scope: The pool grain to read at.
-            pool: The account name or account type, ignored at portfolio grain.
+            grain: The pool grain to read at.
+            pool: The account name or account type, ignored at folio grain.
             currency: Currency to express the figures in, or `"native"`.
-            folio_market: Total market value of the whole portfolio, in CAD.
+            folio_market: Total market value of the whole folio, in CAD.
             sort: The column to order by, or None for market value.
             reverse: Flip the sort's natural direction.
 
@@ -491,7 +491,7 @@ class FolioPositions:
         Raises:
             UnknownSortError: If `sort` is not a sortable measure.
         """
-        derived = self.rollups(scope, pool)
+        derived = self.rollups(grain, pool)
         quotes = self.quotes
         fx = self.fx
         summary = derived.summary
@@ -504,15 +504,15 @@ class FolioPositions:
         excluded = 0
         partial: list[Holding] = []
         closed: list[Holding] = []
-        context = _Context(quotes, flags, income, scope, pool or "", currency, fx)
-        # Only `-c USD` ever hides a position, so only it has to keep count.
+        context = _Context(quotes, flags, income, grain, pool or "", currency, fx)
+        # Only `-c USD` ever hides a holding, so only it has to keep count.
         filtering = currency is Currency.USD
         for record in summary.to_dict("records"):
             holding = _holding(record, context)
             if holding is None:
                 # Count if we excluded anything due to currency filtering.
                 if filtering:
-                    excluded += _filtered_out(record, scope)
+                    excluded += _filtered_out(record, grain)
                 continue
             if holding.closed:
                 closed.append(holding)
@@ -534,7 +534,7 @@ class FolioPositions:
         return HoldingSet(
             holdings=holdings,
             closed=tuple(closed),
-            scope=scope,
+            grain=grain,
             pool=pool or "",
             display_currency=currency,
             base_currency=base,
@@ -666,7 +666,7 @@ def _total_pnl_cad(
     holding would state a ratio based off an incomplete top half.
 
     Args:
-        holdings: The pool's open positions.
+        holdings: The pool's open holdings.
         closed: Its sold-out ones, which always know what they banked.
         any_priced: Whether anything open could be valued at all.
 
@@ -691,7 +691,7 @@ def _total_pnl(
     closed_pnl: Decimal,
     any_priced: bool,
 ) -> Decimal | None:
-    """Combine open and closed positions into one total-earned figure."""
+    """Combine open and closed holdings into one total gain."""
     if any_priced:
         return open_pnl + closed_pnl
     if not has_open:
@@ -706,38 +706,38 @@ class _Context:
     quotes: Mapping[str, Quote]
     flags: Mapping[str, tuple[WarningCode, ...]]
     income: Mapping[str, tuple[Decimal, Decimal]]
-    scope: Scope
+    grain: Grain
     pool: str
     currency: ValuationCurrency
     fx: FxRates
 
 
 def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
-    """Value one summary row, or None when it is not a position to show."""
+    """Value one summary row, or None when it is not a holding to show."""
     symbol = record.get("Symbol")
     if not isinstance(symbol, str) or not symbol:
         return None
 
-    scope = ctx.scope
-    held = _measure(record.get(scope_column(scope, "Units")))
+    grain = ctx.grain
+    held = _measure(record.get(grain_column(grain, "Units")))
     closed = held == ZERO
 
-    native = _native_currency(record, scope)
+    native = _native_currency(record, grain)
     shown = native if ctx.currency == "native" else ctx.currency
     if ctx.currency == Currency.USD and native is not Currency.USD:
         # The USD columns are blank by design for a CAD-denominated holding
         return None
 
     common = base_currency(ctx.currency)
-    book, avg = _cost(record, scope, shown, native)
+    book, avg = _cost(record, grain, shown, native)
     # The base book value is read off the frame, never converted
-    book_base, _ = _cost(record, scope, common, native)
+    book_base, _ = _cost(record, grain, common, native)
 
     # Realized gains and dividends are history, not valuation, so both are read
     # in whichever currency the frame already holds them in. Neither is ever
     # converted at today's rate.
-    realized = _realized(record, scope, shown, native)
-    realized_base = _realized(record, scope, common, native)
+    realized = _realized(record, grain, shown, native)
+    realized_base = _realized(record, grain, common, native)
     dividends, dividends_base = _income(ctx.income, symbol, shown, common, native)
 
     if closed:
@@ -838,10 +838,10 @@ def _market_in_cad(
     held: Decimal,
     fx: FxRates,
 ) -> Decimal | None:
-    """Value one open position in CAD, ignoring the display currency.
+    """Value one open holding in CAD, ignoring the display currency.
 
     Only reached when `-c USD` has made the base currency USD. `weight_in_folio`
-    is a share of the whole portfolio, and the portfolio spans both currencies,
+    is a share of the whole folio, and the folio spans both currencies,
     so the ratio has to be taken in the one currency every holding can be
     expressed in.
 
@@ -851,7 +851,7 @@ def _market_in_cad(
         fx: Rates to convert the quote's currency into CAD.
 
     Returns:
-        The CAD market value, or None when the position could not be priced.
+        The CAD market value, or None when the holding could not be priced.
     """
     price, _ = _converted_price(quote, Currency.CAD, fx)
     return None if price is None else price * held
@@ -878,13 +878,13 @@ def _cad_earned(
         ctx: The valuation context, for the quotes, income rollup and FX table.
         symbol: Canonical security symbol.
         native: The currency the holding trades in.
-        held: Units still held, zero for a closed position.
+        held: Units still held, zero for a closed holding.
 
     Returns:
-        The CAD total, or None when an open position could not be priced.
+        The CAD total, or None when an open holding could not be priced.
     """
-    book, _ = _cost(record, ctx.scope, Currency.CAD, native)
-    realized = _realized(record, ctx.scope, Currency.CAD, native)
+    book, _ = _cost(record, ctx.grain, Currency.CAD, native)
+    realized = _realized(record, ctx.grain, Currency.CAD, native)
     _, dividends = _income(ctx.income, symbol, Currency.CAD, Currency.CAD, native)
     banked = realized + dividends
     if held == ZERO:
@@ -896,21 +896,21 @@ def _cad_earned(
     return (price * held - book) + banked
 
 
-def _filtered_out(record: Mapping[Any, Any], scope: Scope) -> int:
+def _filtered_out(record: Mapping[Any, Any], grain: Grain) -> int:
     """Say whether `-c USD` is why `_holding` refused a row.
 
     Args:
         record: The summary row `_holding` refused.
-        scope: The grain the row was read at.
+        grain: The grain the row was read at.
 
     Returns:
-        1 when the filter dropped a real position, 0 otherwise.
+        1 when the filter dropped a real holding, 0 otherwise.
     """
     symbol = record.get("Symbol")
     if not isinstance(symbol, str) or not symbol:
-        # Not a position at all, so nothing was hidden.
+        # Not a holding at all, so nothing was hidden.
         return 0
-    return int(_native_currency(record, scope) is not Currency.USD)
+    return int(_native_currency(record, grain) is not Currency.USD)
 
 
 def _with_shares(
@@ -923,9 +923,9 @@ def _with_shares(
     `day_pnl_pct`, `weight_in_pool` and `weight_in_folio` all divide by a total
     that is only known once every holding has been valued, so they are a second
     pass rather than part of `_holding`. `day_pnl_pct` divides by the **pool's**
-    value, not the position's own: it measures a holding's contribution to the
-    pool's day move, so a large position drifting 1% outweighs a tiny one
-    jumping 8%. Dividing by the position's own value instead would cancel the
+    value, not the holding's own: it measures a holding's contribution to the
+    pool's day move, so a large holding drifting 1% outweighs a tiny one
+    jumping 8%. Dividing by the holding's own value instead would cancel the
     units and collapse the column into `change_pct`.
 
     **All three are taken on the base-currency figures**, whatever currency the
@@ -933,7 +933,7 @@ def _with_shares(
     this", which spans currencies by definition, so a USD holding's 5% and a CAD
     holding's 5% have to mean the same thing.
 
-    Both denominators count **priced** positions only, so an unpriced holding
+    Both denominators count **priced** holdings only, so an unpriced holding
     cannot silently distort the shares of the ones that did price.
     """
     pool_cad = _sum_optional(holding.market_value_cad for holding in holdings)
@@ -981,25 +981,25 @@ def _suffix(shown: Currency, native: Currency) -> str:
 
 def _cost(
     record: Mapping[Any, Any],
-    scope: Scope,
+    grain: Grain,
     shown: Currency,
     native: Currency,
 ) -> tuple[Decimal, Decimal]:
     """Read book value and average cost in the currency being displayed."""
     suffix = _suffix(shown, native)
-    book = _measure(record.get(scope_column(scope, f"ACB{suffix}")))
-    avg = _measure(record.get(scope_column(scope, f"Avg{suffix}")))
+    book = _measure(record.get(grain_column(grain, f"ACB{suffix}")))
+    avg = _measure(record.get(grain_column(grain, f"Avg{suffix}")))
     return book, avg
 
 
 def _realized(
     record: Mapping[Any, Any],
-    scope: Scope,
+    grain: Grain,
     shown: Currency,
     native: Currency,
 ) -> Decimal:
     """Read the cumulative realized gain in the currency being displayed."""
-    return _measure(record.get(scope_column(scope, f"Gain{_suffix(shown, native)}")))
+    return _measure(record.get(grain_column(grain, f"Gain{_suffix(shown, native)}")))
 
 
 def _income(
@@ -1072,7 +1072,7 @@ def _converted_price(
             else fx.to_cad(quote.prev_close, today, quote.currency)
         )
     except (ValueError, RuntimeError):
-        # A currency the FX table cannot reach is an unpriced position, not a
+        # A currency the FX table cannot reach is an unpriced holding, not a
         # crashed command.
         return None, None
 
@@ -1084,9 +1084,9 @@ def _converted_price(
     return from_cad.value, prev_usd
 
 
-def _native_currency(record: Mapping[str, object], scope: Scope) -> Currency:
+def _native_currency(record: Mapping[str, object], grain: Grain) -> Currency:
     """Infer the currency a holding trades in, off its USD columns."""
-    usd: Any = record.get(scope_column(scope, "ACB_USD"))
+    usd: Any = record.get(grain_column(grain, "ACB_USD"))
     return Currency.CAD if usd is None or pd.isna(usd) else Currency.USD
 
 
@@ -1200,7 +1200,7 @@ def sort_holdings(
     Numbers sort largest-first and text A-to-Z, reverse flips the order.
 
     Args:
-        holdings: The positions to order.
+        holdings: The holdings to order.
         name: A name from `SORT_NAMES`, matched case-insensitively.
         reverse: Flip the natural direction.
 
@@ -1233,7 +1233,7 @@ def _by_value(holding: Holding) -> tuple[int, Decimal]:
     """Return sort key for the provided holding.
 
     Ordered on the base-currency figure so a mixed-currency pool sorts by what
-    each position is actually worth, not by the size of its own currency unit.
+    each holding is actually worth, not by the size of its own currency unit.
     """
     if holding.market_value_base is None:
         return (0, ZERO)

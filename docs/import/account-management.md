@@ -4,7 +4,7 @@ This document explains how the folio-updater system handles account management a
 
 ## Overview
 
-The Account column serves as an essential identifier that distinguishes transactions based on where they occurred. This is crucial for portfolios that span multiple accounts or brokers, as transactions might otherwise appear identical but actually represent different account activities.
+The Account column serves as an essential identifier that distinguishes transactions based on where they occurred. This is crucial for a folio that spans multiple accounts or brokers, as transactions might otherwise appear identical but actually represent different account activities.
 
 ## Account Column Mapping
 

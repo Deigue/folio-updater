@@ -52,9 +52,9 @@ if TYPE_CHECKING:
 
     from rich.console import RenderableType
 
+    from engine.holdings import Holding
     from engine.performance import RangeMove
-    from engine.positions import Holding
-    from engine.ticker import PerformanceRow, PoolLine, SymbolPosition
+    from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
     from services.quotes_service import Quote
 
 # A fund reports a fund's figures; anything else reports a company's.
@@ -97,7 +97,7 @@ _COMPARABLE = 2
 def show_ticker(
     quote: Quote,
     moves: Mapping[PriceRange, RangeMove | None],
-    positions: Sequence[SymbolPosition],
+    positions: Sequence[SymbolHoldings],
     *,
     aliases: Sequence[str] = (),
     by_account: bool = False,
@@ -111,7 +111,7 @@ def show_ticker(
         positions: Its holdings across the folio, one per currency shown.
             Empty for a security the folio never traded.
         aliases: Other symbols the folio has known it by.
-        by_account: The positions list broker accounts rather than types.
+        by_account: The holdings list broker accounts rather than types.
         badge: Cache-freshness line, printed above everything.
     """
     if badge:
@@ -419,11 +419,11 @@ def _block(name: str, panel: RenderableType) -> Block:
     )
 
 
-# -- POSITION -----------------------------------------------------------------
+# -- HOLDING ------------------------------------------------------------------
 
 
-def _pool_table(position: SymbolPosition, *, by_account: bool) -> RichTable:
-    """Lay out every pool's holding, with the portfolio-wide total below."""
+def _pool_table(position: SymbolHoldings, *, by_account: bool) -> RichTable:
+    """Lay out every pool's holding, with the folio-wide total below."""
     share = "Acct%" if by_account else "Type%"
     table = RichTable(
         title=f"{position.symbol} held · {position.currency}",
@@ -478,7 +478,7 @@ def _pool_cell(line: PoolLine) -> str:
 
 
 def _open_cells(line: PoolLine) -> list[str]:
-    """Render an open position in one pool."""
+    """Render an open holding in one pool."""
     return [
         _pool_cell(line),
         *_figures(line.holding, share=line.holding.weight_in_pool),
@@ -524,7 +524,7 @@ def _closed_cells(line: PoolLine) -> list[str]:
     ]
 
 
-def _conversion_notes(position: SymbolPosition, quote: Quote) -> list[str]:
+def _conversion_notes(position: SymbolHoldings, quote: Quote) -> list[str]:
     """Say what a table in another currency than the quote's was converted at."""
     if position.currency is quote.currency or position.fx_rate is None:
         return []
@@ -536,7 +536,7 @@ def _conversion_notes(position: SymbolPosition, quote: Quote) -> list[str]:
     return [note]
 
 
-def _footer(position: SymbolPosition) -> list[str]:
+def _footer(position: SymbolHoldings) -> list[str]:
     """Say when it was first bought and at what, and anything the replay flagged."""
     notes: list[str] = []
     years, months = position.held_for(datetime.now(TORONTO_TZ).date())
@@ -589,8 +589,8 @@ def show_matrix(
         rows: The securities, in the order to list them.
         title: The pool the market values and weights are read from.
         pool_weight: Show each security's share of that pool as well as of the
-            whole portfolio. Only worth a column when the pool is not the
-            whole portfolio.
+            whole folio. Only worth a column when the pool is not the
+            whole folio.
         badge: Cache-freshness line, printed above the table.
     """
     if badge:

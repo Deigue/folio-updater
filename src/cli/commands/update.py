@@ -261,7 +261,7 @@ def _import_stage(
     if pending_import_files(config.imports_path) and not confirm_demo_replacement():
         report.failure = HardFailure(
             stage=UpdateStage.IMPORT,
-            error="The folio holds the demo portfolio, and replacing it was declined.",
+            error="The folio is the demo folio, and replacing it was declined.",
             next_steps=(
                 (
                     "To replace the demo with your transactions: "

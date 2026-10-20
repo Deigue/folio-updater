@@ -312,7 +312,7 @@ def create_quotes_table() -> None:
     """Create the market quotes cache table if it doesn't already exist.
 
     The table uses the folio's own canonical Symbol as the PRIMARY KEY and holds
-    one latest snapshot per symbol, so a refresh replaces rather than appends.
+    one latest quote per symbol, so a refresh replaces rather than appends.
 
     Returns:
         None

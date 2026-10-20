@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from decimal import Decimal
 
+    from engine.holdings import CurrencyTotals, Holding, HoldingSet
     from engine.panels import Panel, PoolView
-    from engine.positions import CurrencyTotals, Holding, HoldingSet
 
 OPEN = "Open"
 CLOSED = "Closed"
@@ -60,16 +60,16 @@ def dashboard_table(
     holdings: HoldingSet,
     name: str,
     *,
-    net_deposited: Decimal | None = None,
+    net_deposits: Decimal | None = None,
     tab_color: str | None = None,
     notes: Sequence[str] = (),
 ) -> Table:
-    """Lay one pool's valued positions out as a table.
+    """Lay one pool's valued holdings out as a table.
 
     Args:
-        holdings: The pool's valued positions and totals.
+        holdings: The pool's valued holdings and totals.
         name: What the sheet is called.
-        net_deposited: The pool's net CAD deposits, which is what an overall
+        net_deposits: The pool's net CAD deposits, which is what an overall
             return is measured against. Read from its `Flows`; without it the
             overall `Total%` is left blank rather than measured against a book
             value that anything sold has already left.
@@ -78,13 +78,13 @@ def dashboard_table(
             as how old the prices are.
 
     Returns:
-        The table, with the open positions first, then the closed ones, then the
+        The table, with the open holdings first, then the closed ones, then the
         per-currency subtotals and the overall total below a spacer.
     """
     return Table(
         name=name,
         columns=COLUMNS,
-        rows=tuple(_pool_rows(COLUMNS, holdings, net_deposited, spacer=True)),
+        rows=tuple(_pool_rows(COLUMNS, holdings, net_deposits, spacer=True)),
         notes=(*notes, *_notes(holdings)),
         tab_color=tab_color,
     )
@@ -97,7 +97,7 @@ def _tab_color(view: PoolView) -> str | None:
         view: The pool the sheet reports on.
 
     Returns:
-        The account type's colour, the portfolio's for a pool spanning several
+        The account type's colour, the folio's for a pool spanning several
         types, or None for a type with no colour of its own.
     """
     account_type = account_type_of(view)
@@ -119,7 +119,7 @@ def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
     return dashboard_table(
         panel.holdings,
         panel.view.label,
-        net_deposited=panel.flows.net_deposit_denominator,
+        net_deposits=panel.flows.net_deposit_denominator,
         tab_color=_tab_color(panel.view),
         notes=notes,
     )
@@ -161,27 +161,27 @@ def pooled_dashboard_table(
 def _pool_rows(
     columns: Sequence[Col],
     holdings: HoldingSet,
-    net_deposited: Decimal | None,
+    net_deposits: Decimal | None,
     *,
     pool: str | None = None,
     spacer: bool,
 ) -> list[Row]:
-    """Lay one pool out: its positions, then what they total to."""
+    """Lay one pool out: its holdings, then what they total to."""
     rows = [
         row_of(columns, _named(cells, pool), role)
-        for cells, role in _position_cells(holdings)
+        for cells, role in _holding_cells(holdings)
     ]
     if rows and spacer:
         rows.append(blank_row(columns))
     for group in holdings.by_currency:
-        total = _subtotal_return(holdings, group, net_deposited)
+        total = _subtotal_return(holdings, group, net_deposits)
         cells = _named(_subtotal_cells(group, total), pool)
         rows.append(row_of(columns, cells, Role.SUBTOTAL))
     if holdings.mixed_currency:
         rows.append(
             row_of(
                 columns,
-                _named(_total_cells(holdings, net_deposited), pool),
+                _named(_total_cells(holdings, net_deposits), pool),
                 Role.TOTAL,
             ),
         )
@@ -195,15 +195,15 @@ def _named(cells: dict[str, object], pool: str | None) -> dict[str, object]:
     return {POOL: pool, **cells}
 
 
-def _position_cells(
+def _holding_cells(
     holdings: HoldingSet,
 ) -> list[tuple[dict[str, object], Role]]:
-    """Order every position the pool holds, or used to hold.
+    """Order every holding the pool holds, or used to hold.
 
-    Grouped by currency the way the subtotals below them are, open positions
+    Grouped by currency the way the subtotals below them are, open holdings
     first within each group and in the order the set was sorted in. The sort is
     stable and falls back on the pool's own order, so a currency the subtotals
-    somehow do not name still has its positions written rather than dropped.
+    somehow do not name still has its holdings written rather than dropped.
     """
     order = {group.currency: index for index, group in enumerate(holdings.by_currency)}
     last = len(order)
@@ -218,7 +218,7 @@ def _position_cells(
 
 
 def _open_cells(holding: Holding) -> dict[str, object]:
-    """Read one open position into its cells."""
+    """Read one open holding into its cells."""
     return {
         "Symbol": holding.symbol,
         "Name": holding.name,
@@ -247,9 +247,9 @@ def _open_cells(holding: Holding) -> dict[str, object]:
 
 
 def _closed_cells(holding: Holding) -> dict[str, object]:
-    """Read one sold-out position, blanking every column that no longer applies.
+    """Read one closed holding, blanking every column that no longer applies.
 
-    Units, cost and market value are all zero on a closed position, and printing
+    Units, cost and market value are all zero on a closed holding, and printing
     those zeros would have it read as something still held. What it banked is
     real, so realized gains and dividends stay.
     """
@@ -288,7 +288,7 @@ def _subtotal_cells(group: CurrencyTotals, total: Decimal | None) -> dict[str, o
 
 def _total_cells(
     holdings: HoldingSet,
-    net_deposited: Decimal | None,
+    net_deposits: Decimal | None,
 ) -> dict[str, object]:
     """Total across every currency, converted into the base currency."""
     return {
@@ -302,7 +302,7 @@ def _total_cells(
         "Divs": holdings.total_dividends,
         "Total": holdings.total_pnl,
         # Against net deposits rather than book value: see `HoldingSet.return_on`.
-        "Total%": holdings.return_on(net_deposited),
+        "Total%": holdings.return_on(net_deposits),
         "Book": holdings.total_book,
         "Market": holdings.total_market,
         "Folio%": holdings.total_weight_in_folio,
@@ -312,7 +312,7 @@ def _total_cells(
 def _subtotal_return(
     holdings: HoldingSet,
     group: CurrencyTotals,
-    net_deposited: Decimal | None,
+    net_deposits: Decimal | None,
 ) -> Decimal | None:
     """Decide whether a currency subtotal is really the pool's overall total.
 
@@ -323,12 +323,12 @@ def _subtotal_return(
         return group.total_pnl_pct
     if not holdings.deposits_measurable:
         return None
-    promoted = holdings.return_on(net_deposited)
+    promoted = holdings.return_on(net_deposits)
     return group.total_pnl_pct if promoted is None else promoted
 
 
 def _flags(holding: Holding) -> str:
-    """Spell one position's diagnostics as a filterable list."""
+    """Spell one holding's diagnostics as a filterable list."""
     return ",".join(str(code) for code in holding.flags)
 
 
@@ -338,13 +338,13 @@ def _notes(holdings: HoldingSet) -> list[str]:
     if holdings.unpriced:
         listed = ", ".join(holdings.unpriced)
         notes.append(
-            f"{len(holdings.unpriced)} position(s) unpriced and excluded from "
+            f"{len(holdings.unpriced)} holding(s) unpriced and excluded from "
             f"totals: {listed}",
         )
     if not holdings.deposits_measurable:
         notes.append(
             f"Total% is blank: it measures the pool against its net deposits, "
-            f"and {holdings.excluded} CAD position(s) are hidden by the "
+            f"and {holdings.excluded} CAD holding(s) are hidden by the "
             f"{holdings.base_currency} currency filter.",
         )
     converts = holdings.mixed_currency or holdings.display_currency is Currency.CAD
@@ -357,7 +357,7 @@ def _notes(holdings: HoldingSet) -> list[str]:
     if suspect:
         codes = ", ".join(str(code) for code in suspect)
         notes.append(
-            f"Flagged positions carry {codes}; their units are known to be "
+            f"Flagged holdings carry {codes}; their units are known to be "
             f"wrong. Run `folio check`.",
         )
     return notes

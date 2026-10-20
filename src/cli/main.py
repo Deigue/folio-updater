@@ -184,9 +184,9 @@ def generate_cmd(
     generate_excel(out=out, only=only, offline=offline, refresh=refresh)
 
 
-@app.command("demo", help="Create a demo portfolio from real market history")
+@app.command("demo", help="Create a demo folio from real market history")
 def demo_cmd() -> None:
-    """Create a demo portfolio from real market history."""
+    """Create a demo folio from real market history."""
     from cli.commands.demo import create_folio
 
     create_folio()
@@ -454,7 +454,7 @@ def dash_cmd(
     show_closed: bool = typer.Option(
         False,
         "--show-closed",
-        help="Break the aggregate Closed row open into one row per closed position",
+        help="Break the aggregate Closed row open into one row per closed holding",
     ),
     reverse: bool = typer.Option(
         False,

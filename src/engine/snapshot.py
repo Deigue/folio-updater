@@ -15,14 +15,14 @@ from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from domain import AccountType, Action, Currency, Impact, Scope, WarningCode
+from domain import AccountType, Action, Currency, Grain, Impact, WarningCode
 from engine.types import (
     CashState,
     ComputedRow,
+    GrainMeasures,
     ReplayResult,
     ReplayTotals,
     ReplayWarning,
-    ScopeMeasures,
     TxnRow,
 )
 
@@ -36,8 +36,8 @@ SCHEMA_VERSION = 4
 # Above this many diagnosed rows the snapshot stops being small.
 MAX_SNAPSHOT_ROWS = 5_000
 
-# The nine `ScopeMeasures` fields, in declaration order, resolved once.
-_MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(ScopeMeasures))
+# The nine `GrainMeasures` fields, in declaration order, resolved once.
+_MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
 
 
 def _text(value: Decimal | None) -> str | None:
@@ -50,14 +50,14 @@ def _number(value: Any) -> Decimal | None:  # noqa: ANN401 - reading untyped JSO
     return None if value is None else Decimal(str(value))
 
 
-def _measures(measures: ScopeMeasures) -> list[str]:
-    """Flatten one scope's nine figures, in declaration order."""
+def _measures(measures: GrainMeasures) -> list[str]:
+    """Flatten one grain's nine figures, in declaration order."""
     return [str(getattr(measures, name)) for name in _MEASURE_FIELDS]
 
 
-def _read_measures(values: Sequence[str]) -> ScopeMeasures:
-    """Rebuild one scope's nine figures."""
-    return ScopeMeasures(
+def _read_measures(values: Sequence[str]) -> GrainMeasures:
+    """Rebuild one grain's nine figures."""
+    return GrainMeasures(
         **{name: Decimal(values[i]) for i, name in enumerate(_MEASURE_FIELDS)},
     )
 
@@ -132,7 +132,7 @@ def _encode_warning(warning: ReplayWarning) -> dict[str, Any]:
     return {
         "code": str(warning.code),
         "txn_id": warning.txn_id,
-        "scope": str(warning.scope) if warning.scope else None,
+        "scope": str(warning.grain) if warning.grain else None,
         "pool": warning.pool,
         "detail": warning.detail,
         "account": warning.account,
@@ -148,7 +148,7 @@ def _decode_warning(payload: dict[str, Any]) -> ReplayWarning:
     return ReplayWarning(
         code=WarningCode(payload["code"]),
         txn_id=payload["txn_id"],
-        scope=Scope(payload["scope"]) if payload["scope"] else None,
+        grain=Grain(payload["scope"]) if payload["scope"] else None,
         pool=payload["pool"],
         detail=payload["detail"],
         account=payload["account"],
@@ -181,7 +181,7 @@ def encode(result: ReplayResult) -> dict[str, Any] | None:
         "warnings": [_encode_warning(warning) for warning in result.warnings],
         "cash": [
             {
-                "scope": str(scope),
+                "scope": str(grain),
                 "pool": pool,
                 "currency": str(currency),
                 **{
@@ -189,7 +189,7 @@ def encode(result: ReplayResult) -> dict[str, Any] | None:
                     for field in fields(CashState)
                 },
             }
-            for (scope, pool, currency), state in result.cash.items()
+            for (grain, pool, currency), state in result.cash.items()
         ],
         "totals": [
             [str(action), account, symbol, str(currency), count]
@@ -227,7 +227,7 @@ def decode(payload: dict[str, Any]) -> ReplayResult | None:
         warnings=[_decode_warning(warning) for warning in payload["warnings"]],
     )
     for entry in payload["cash"]:
-        key = (Scope(entry["scope"]), entry["pool"], Currency(entry["currency"]))
+        key = (Grain(entry["scope"]), entry["pool"], Currency(entry["currency"]))
         result.cash[key] = CashState(
             **{field.name: Decimal(entry[field.name]) for field in fields(CashState)},
         )

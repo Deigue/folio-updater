@@ -33,8 +33,8 @@ class SingleSheetError(ValueError):
     """An export asked a format that holds one table to hold several."""
 
     MESSAGE = (
-        "A CSV holds one table. Export to .xlsx for a sheet per scope, or "
-        "narrow the request to one scope."
+        "A CSV holds one table. Export to .xlsx for a sheet per grain, or "
+        "narrow the request to one grain."
     )
     SECTIONS_MESSAGE = (
         "A CSV holds one table, and '{name}' is several on one sheet. Export to .xlsx."

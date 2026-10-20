@@ -2,12 +2,12 @@
 
 Walks the ledger and produces units, adjusted cost base, realized gains and cash
 for all three pool grains at once: account, account type, and the whole
-portfolio, via one pass.
+folio, via one pass.
 
 **Two orderings, one call.** Units and cost base follow the *trade* date; cash
 follows the *settle* date. Ordering the cash replay by trade date produces
 phantom negative balances whenever a buy and the contribution funding it land on
-the same day. Both walks share the row list and every accumulator, so all three scopes
+the same day. Both walks share the row list and every accumulator, so all three grains
 still come out of one pass over each ordering rather than three separate replays.
 
 Six core rules followed:
@@ -35,7 +35,7 @@ from domain import (
     Action,
     Currency,
     FeeConvention,
-    Scope,
+    Grain,
     WarningCode,
 )
 from domain.numeric import ZERO, q2, safe_div
@@ -46,10 +46,10 @@ from engine.types import (
     CashKey,
     CashState,
     ComputedRow,
-    PositionState,
+    GrainMeasures,
+    HoldingState,
     ReplayResult,
     ReplayWarning,
-    ScopeMeasures,
 )
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 ONE = Decimal(1)
 
-# The portfolio-wide pool has no natural name.
+# The folio pool has no natural name.
 FOLIO_POOL = "FOLIO"
 
 # A single-leg FXT's Amount, Units and Price are three views of one conversion,
@@ -84,7 +84,7 @@ PRICE_ROUNDING_PER_UNIT = Decimal("0.005")
 FEE_MAJORITY_SHARE = 0.6
 
 # A realized loss followed by a buy of the same symbol inside this window is a
-# superficial-loss candidate. Just a warning flag.
+# superficial-loss candidate. Just a flag.
 SUPERFICIAL_LOSS_DAYS = 30
 
 # Order actions share a trade date in. The date is the finest resolution the folio
@@ -95,10 +95,10 @@ SUPERFICIAL_LOSS_DAYS = 30
 #   - acquisitions first, so a same-day transfer or sale has something to move
 #   - a transfer's out leg before its in leg, so the cost base being carried is
 #     known by the time the in leg claims it
-#   - sales last, against the largest position, so a same-day buy-then-sell does
+#   - sales last, against the largest holding, so a same-day buy-then-sell does
 #     not read as an oversell.
 #
-# Actions that dont impact cost base sort last, where their position is irrelevant.
+# Actions that dont impact cost base sort last, where their order is irrelevant.
 _INTRADAY_ORDER: dict[Action, int] = {
     Action.BUY: 0,
     Action.TFR_OUT: 1,
@@ -138,7 +138,7 @@ SETTLE_LAG_MIN_TRADES = 5
 
 _WEEKDAYS = 5
 
-# How long after a position closes a distribution on it is still expected. A
+# How long after a holding closes a distribution on it is still expected. A
 # dividend is earned on the ex-date and paid weeks later, so a sale can leave income
 # arriving against a pool holding nothing. This is normal behaviour and should be
 # ignored. Sized to cover a quarterly payer's ex-to-pay gap with buffer.
@@ -359,58 +359,58 @@ class ReplayConfig:
 
 
 class _Pools:
-    """The three position accumulators, addressed by scope.
+    """The three holding accumulators, addressed by grain.
 
-    Kept as separate dicts rather than one dict keyed by scope so that an
+    Kept as separate dicts rather than one dict keyed by grain so that an
     account genuinely named `TFSA` can never collide with the TFSA type pool.
     """
 
     def __init__(self) -> None:
-        self._by_scope: dict[Scope, dict[tuple[str, str], PositionState]] = {
-            scope: {} for scope in Scope
+        self._by_grain: dict[Grain, dict[tuple[str, str], HoldingState]] = {
+            grain: {} for grain in Grain
         }
-        self._seen_splits: dict[Scope, set[tuple[str, str, str, str]]] = {
-            scope: set() for scope in Scope
+        self._seen_splits: dict[Grain, set[tuple[str, str, str, str]]] = {
+            grain: set() for grain in Grain
         }
 
-    def state(self, scope: Scope, pool: str, symbol: str) -> PositionState:
+    def state(self, grain: Grain, pool: str, symbol: str) -> HoldingState:
         """Return the state for one pool and symbol, creating it if new."""
-        return self._by_scope[scope].setdefault((pool, symbol), PositionState())
+        return self._by_grain[grain].setdefault((pool, symbol), HoldingState())
 
     def all_states(
         self,
-        scope: Scope,
-    ) -> Iterable[tuple[tuple[str, str], PositionState]]:
+        grain: Grain,
+    ) -> Iterable[tuple[tuple[str, str], HoldingState]]:
         """Iterate every (pool, symbol) state at one grain."""
-        return self._by_scope[scope].items()
+        return self._by_grain[grain].items()
 
-    def claim_split(self, scope: Scope, key: tuple[str, str, str, str]) -> bool:
+    def claim_split(self, grain: Grain, key: tuple[str, str, str, str]) -> bool:
         """Record a split, returning False when this pool has already had it.
 
         One corporate action reported by three brokers applies once to the
-        pooled type and portfolio grains, but three times across the three
+        pooled type and folio grains, but three times across the three
         account pools: each account really did split.
         """
-        seen = self._seen_splits[scope]
+        seen = self._seen_splits[grain]
         if key in seen:
             return False
         seen.add(key)
         return True
 
 
-def _pool_key(scope: Scope, row: TxnRow, acct_type: AccountType) -> str:
+def _pool_key(grain: Grain, row: TxnRow, acct_type: AccountType) -> str:
     """Name the pool a row belongs to at one grain."""
-    if scope is Scope.ACCOUNT:
+    if grain is Grain.ACCOUNT:
         return row.account
-    if scope is Scope.TYPE:
+    if grain is Grain.TYPE:
         return str(acct_type)
     return FOLIO_POOL
 
 
-def _snapshot(state: PositionState, before: PositionState) -> ScopeMeasures:
+def _snapshot(state: HoldingState, before: HoldingState) -> GrainMeasures:
     """Freeze a pool's figures after a row, alongside the change it caused."""
     usd = state.currency is Currency.USD
-    return ScopeMeasures(
+    return GrainMeasures(
         units=state.units,
         acb_cad=state.acb_cad,
         acb_usd=state.acb_usd if usd else ZERO,
@@ -447,14 +447,14 @@ class _Replay:
             self.pair_by_id[pair.pair_id] = pair
         self.unpaired = {row.txn_id for row in unpaired}
         # Cost base carried by an out leg, waiting for its in leg to claim it.
-        self.carried: dict[tuple[int, Scope], tuple[Decimal, Decimal]] = {}
+        self.carried: dict[tuple[int, Grain], tuple[Decimal, Decimal]] = {}
         # Net deposits, tracked only for the pools dealing with transfers.
         self.deposits = DepositLedger(self._tracked_pools(pairs))
         # Cost-base change per grain then row, kept only for those same pools.
         # Nested rather than keyed by a `(txn_id, grain)` tuple so the settle
         # walk allocates no key to look one up on every row of the ledger.
-        self.acb_delta: dict[Scope, dict[int, Decimal]] = {
-            scope: {} for scope in self.deposits.scopes
+        self.acb_delta: dict[Grain, dict[int, Decimal]] = {
+            grain: {} for grain in self.deposits.grains
         }
         # Track accounts already reported negative, so only the first crossing shows.
         self.reported_negative: set[tuple[str, Currency]] = set()
@@ -465,11 +465,11 @@ class _Replay:
         self.split_holders: dict[tuple[str, str], set[str]] = {}
 
     def _tracked_pools(self, pairs: Sequence[TransferPair]) -> frozenset[PoolId]:
-        """Name the pools whose book value the deposit rule will need.
+        """Name the pools whose pool basis the deposit rule will need.
 
         A pair whose two legs land in the *same* pool at a grain moves nothing
-        there, so that grain needs no book value at all. That is what keeps
-        portfolio grain identical to plain contributions less withdrawals (both
+        there, so that grain needs no pool basis at all. That is what keeps
+        folio grain identical to plain contributions less withdrawals (both
         legs are always `FOLIO`), and does the same for account-type grain on a
         transfer between two brokers holding the same type. Only the pools a
         transfer genuinely crosses are tracked, so a ledger with no transfers
@@ -485,12 +485,12 @@ class _Replay:
                 pair.in_leg.account,
                 AccountType.UNKNOWN,
             )
-            for scope in Scope:
-                out_pool = _pool_key(scope, pair.out_leg, out_type)
-                in_pool = _pool_key(scope, pair.in_leg, in_type)
+            for grain in Grain:
+                out_pool = _pool_key(grain, pair.out_leg, out_type)
+                in_pool = _pool_key(grain, pair.in_leg, in_type)
                 if out_pool != in_pool:
-                    tracked.add((scope, out_pool))
-                    tracked.add((scope, in_pool))
+                    tracked.add((grain, out_pool))
+                    tracked.add((grain, in_pool))
         return frozenset(tracked)
 
     def run(self) -> ReplayResult:
@@ -508,11 +508,11 @@ class _Replay:
 
     # -- DIAGNOSTICS ------------------------------------------------------
 
-    def warn(  # noqa: PLR0913 - every argument names one facet of the finding
+    def warn(  # noqa: PLR0913 - every argument names one facet of the diagnostic
         self,
         code: WarningCode,
         row: TxnRow | None = None,
-        scope: Scope | None = None,
+        grain: Grain | None = None,
         pool: str | None = None,
         detail: str = "",
         *,
@@ -532,7 +532,7 @@ class _Replay:
             ReplayWarning(
                 code=code,
                 txn_id=txn_id,
-                scope=scope,
+                grain=grain,
                 pool=pool,
                 detail=detail,
                 account=account or (row.account if row is not None else None),
@@ -563,7 +563,7 @@ class _Replay:
             if acct_type is AccountType.UNKNOWN:
                 self.warn(
                     WarningCode.UNKNOWN_ACCOUNT_TYPE,
-                    scope=Scope.ACCOUNT,
+                    grain=Grain.ACCOUNT,
                     pool=account,
                     detail=f"Could not infer a tax type for account '{account}'",
                     account=account,
@@ -594,7 +594,7 @@ class _Replay:
                 row.txn_id,
             ),
         )
-        tracked = bool(self.deposits.scopes)
+        tracked = bool(self.deposits.grains)
         for row in ordered:
             computed = self._apply(row)
             self.result.rows.append(computed)
@@ -609,15 +609,15 @@ class _Replay:
         sitting in a pool that some transfer crosses are kept, which on a real
         ledger is a small fraction of the whole.
         """
-        for scope in self.deposits.scopes:
+        for grain in self.deposits.grains:
             # Cheap test first: most rows move no cost base at all, and this
             # runs on every row of the ledger.
-            delta = computed.measures(scope).delta_cad
+            delta = computed.measures(grain).delta_cad
             if delta == ZERO:
                 continue
-            name = _pool_key(scope, row, computed.acct_type)
-            if self.deposits.resolve(scope, name) is not None:
-                self.acb_delta[scope][row.txn_id] = delta
+            name = _pool_key(grain, row, computed.acct_type)
+            if self.deposits.resolve(grain, name) is not None:
+                self.acb_delta[grain][row.txn_id] = delta
 
     def _apply(self, row: TxnRow) -> ComputedRow:
         """Apply one row to all three pools and emit a master row."""
@@ -631,16 +631,16 @@ class _Replay:
             # Record the split against the holding pool.
             self._record_split_coverage(row, symbol)
 
-        measures: dict[Scope, ScopeMeasures] = {}
-        for scope in Scope:
+        measures: dict[Grain, GrainMeasures] = {}
+        for grain in Grain:
             if symbol is None:
-                measures[scope] = ScopeMeasures()
+                measures[grain] = GrainMeasures()
                 continue
-            pool = _pool_key(scope, row, acct_type)
-            state = self.pools.state(scope, pool, symbol)
+            pool = _pool_key(grain, row, acct_type)
+            state = self.pools.state(grain, pool, symbol)
             before = replace(state)
-            self._apply_to_pool(row, scope, pool, symbol, state)
-            measures[scope] = _snapshot(state, before)
+            self._apply_to_pool(row, grain, pool, symbol, state)
+            measures[grain] = _snapshot(state, before)
 
         proceeds_cad, proceeds_usd = self._proceeds(row)
         dividend_cad, dividend_usd = self._dividend(row)
@@ -657,9 +657,9 @@ class _Replay:
             proceeds_usd=proceeds_usd,
             dividend_cad=dividend_cad,
             dividend_usd=dividend_usd,
-            acct=measures[Scope.ACCOUNT],
-            type=measures[Scope.TYPE],
-            folio=measures[Scope.FOLIO],
+            acct=measures[Grain.ACCOUNT],
+            type=measures[Grain.TYPE],
+            folio=measures[Grain.FOLIO],
         )
 
     def _row_checks(self, row: TxnRow) -> None:
@@ -701,51 +701,51 @@ class _Replay:
     def _apply_to_pool(
         self,
         row: TxnRow,
-        scope: Scope,
+        grain: Grain,
         pool: str,
         symbol: str,
-        state: PositionState,
+        state: HoldingState,
     ) -> None:
-        """Dispatch one row against one pool's position."""
+        """Dispatch one row against one pool's holding."""
         if state.currency is None:
             state.currency = row.currency
 
-        # Read before dispatch: the row that closes a position is itself a day
+        # Read before dispatch: the row that closes a holding is itself a day
         # the pool still held it, right up to the moment it sold.
         held_before = state.units > ZERO
 
         if row.action is Action.BUY:
             self._apply_buy(row, state)
         elif row.action is Action.SELL:
-            self._apply_sell(row, scope, pool, symbol, state)
+            self._apply_sell(row, grain, pool, symbol, state)
         elif row.action is Action.ROC:
-            self._apply_roc(row, scope, pool, symbol, state)
+            self._apply_roc(row, grain, pool, symbol, state)
         elif row.action is Action.SPLIT:
-            self._apply_split(row, scope, pool, symbol, state)
+            self._apply_split(row, grain, pool, symbol, state)
         elif row.action in (Action.TFR_OUT, Action.TFR_IN):
-            self._apply_transfer(row, scope, state)
+            self._apply_transfer(row, grain, state)
         elif (
             row.action is Action.DIVIDEND
             and self._income_is_orphaned(row, state)
-            and scope is Scope.ACCOUNT
+            and grain is Grain.ACCOUNT
         ):
-            # Account grain only: the pooled grains have no position either, and
-            # three copies of one finding is noise, not extra information.
+            # Account grain only: the pooled grains have no holding either, and
+            # three copies of one diagnostic is noise, not extra information.
             self.warn(
                 WarningCode.INCOME_WITHOUT_POSITION,
                 row,
-                scope=scope,
+                grain=grain,
                 pool=pool,
-                detail=f"Dividend on {symbol} with no position in {pool}",
+                detail=f"Dividend on {symbol} with no holding in {pool}",
                 symbol=symbol,
             )
 
         # Recorded after the checks above, so a distribution is judged against
-        # the position as it stood before this row.
+        # the holding as it stood before this row.
         if held_before or state.units > ZERO:
             state.last_held = row.txn_date
 
-    def _income_is_orphaned(self, row: TxnRow, state: PositionState) -> bool:
+    def _income_is_orphaned(self, row: TxnRow, state: HoldingState) -> bool:
         """Whether income arrived against a pool that has no claim to it."""
         if state.units != ZERO:
             return False
@@ -754,7 +754,7 @@ class _Replay:
         cutoff = date.fromisoformat(row.txn_date) - timedelta(days=_INCOME_TAIL_DAYS)
         return state.last_held < cutoff.isoformat()
 
-    def _apply_buy(self, row: TxnRow, state: PositionState) -> None:
+    def _apply_buy(self, row: TxnRow, state: HoldingState) -> None:
         """Add units and the full cost, commission included."""
         trade: TradeCash = self._trade(row)
         state.units += abs(row.units)
@@ -765,10 +765,10 @@ class _Replay:
     def _apply_sell(
         self,
         row: TxnRow,
-        scope: Scope,
+        grain: Grain,
         pool: str,
         symbol: str,
-        state: PositionState,
+        state: HoldingState,
     ) -> None:
         """Remove a proportional slice of the cost base and realize the gain.
 
@@ -785,7 +785,7 @@ class _Replay:
             self.warn(
                 WarningCode.OVERSELL,
                 row,
-                scope=scope,
+                grain=grain,
                 pool=pool,
                 detail=f"Sold {sold} against {held} held in {pool}",
                 symbol=symbol,
@@ -812,10 +812,10 @@ class _Replay:
     def _apply_roc(
         self,
         row: TxnRow,
-        scope: Scope,
+        grain: Grain,
         pool: str,
         symbol: str,
-        state: PositionState,
+        state: HoldingState,
     ) -> None:
         """Reduce the cost base by a return of capital. No cash moves."""
         native = abs(row.amount)
@@ -836,31 +836,31 @@ class _Replay:
             self.warn(
                 WarningCode.ROC_EXCEEDS_ACB,
                 row,
-                scope=scope,
+                grain=grain,
                 pool=pool,
                 detail=f"{excess_cad} of return of capital exceeds cost base in {pool}",
                 symbol=symbol,
                 value=excess_cad,
             )
-        if self._income_is_orphaned(row, state) and scope is Scope.ACCOUNT:
+        if self._income_is_orphaned(row, state) and grain is Grain.ACCOUNT:
             self.warn(
                 WarningCode.INCOME_WITHOUT_POSITION,
                 row,
-                scope=scope,
+                grain=grain,
                 pool=pool,
-                detail=f"Return of capital with no position in {pool}",
+                detail=f"Return of capital with no holding in {pool}",
                 symbol=symbol,
             )
 
     def _apply_split(
         self,
         row: TxnRow,
-        scope: Scope,
+        grain: Grain,
         pool: str,
         symbol: str,
-        state: PositionState,
+        state: HoldingState,
     ) -> None:
-        """Scale a position by the split ratio. The total cost base is untouched.
+        """Scale a holding's units by the split ratio. The total cost base is untouched.
 
         `Price` is shares before and `Units` shares after, so a 1:10 split
         multiplies units by ten and divides average cost by ten while the total
@@ -872,12 +872,12 @@ class _Replay:
             return
 
         ratio = row.units / row.price
-        if not self.pools.claim_split(scope, (pool, symbol, row.txn_date, str(ratio))):
-            if scope is Scope.ACCOUNT:
+        if not self.pools.claim_split(grain, (pool, symbol, row.txn_date, str(ratio))):
+            if grain is Grain.ACCOUNT:
                 self.warn(
                     WarningCode.DUPLICATE_SPLIT,
                     row,
-                    scope=scope,
+                    grain=grain,
                     pool=pool,
                     detail=(
                         f"{symbol} already split {ratio} on {row.txn_date} in {pool}"
@@ -888,13 +888,13 @@ class _Replay:
             return
 
         if state.units == ZERO:
-            if scope is Scope.ACCOUNT:
+            if grain is Grain.ACCOUNT:
                 self.warn(
                     WarningCode.SPLIT_WITHOUT_POSITION,
                     row,
-                    scope=scope,
+                    grain=grain,
                     pool=pool,
-                    detail=f"Split of {symbol} with no position in {pool}",
+                    detail=f"Split of {symbol} with no holding in {pool}",
                     symbol=symbol,
                     as_of=row.txn_date,
                 )
@@ -905,8 +905,8 @@ class _Replay:
     def _apply_transfer(
         self,
         row: TxnRow,
-        scope: Scope,
-        state: PositionState,
+        grain: Grain,
+        state: HoldingState,
     ) -> None:
         """Move units and cost base between pools without realizing a gain."""
         pair_id = self.pair_of.get(row.txn_id)
@@ -917,13 +917,13 @@ class _Replay:
             return
 
         if row.action is Action.TFR_OUT:
-            self._transfer_out(row, scope, state, pair_id)
+            self._transfer_out(row, grain, state, pair_id)
         else:
-            self._transfer_in(row, scope, state, pair_id)
+            self._transfer_in(row, grain, state, pair_id)
 
-    def _move_units_only(self, row: TxnRow, state: PositionState) -> None:
+    def _move_units_only(self, row: TxnRow, state: HoldingState) -> None:
         """Apply an unpaired leg: units move, the cost base cannot follow them."""
-        if not row.is_position_transfer:
+        if not row.is_in_kind_transfer:
             return
         if row.action is Action.TFR_OUT:
             state.units -= abs(row.units)
@@ -934,13 +934,13 @@ class _Replay:
     def _transfer_out(
         self,
         row: TxnRow,
-        scope: Scope,
-        state: PositionState,
+        grain: Grain,
+        state: HoldingState,
         pair_id: int,
     ) -> None:
         """Remove units and their share of the cost base, holding it for the in leg."""
-        if not row.is_position_transfer:
-            self.carried[(pair_id, scope)] = (ZERO, ZERO)
+        if not row.is_in_kind_transfer:
+            self.carried[(pair_id, grain)] = (ZERO, ZERO)
             return
 
         moved = abs(row.units)
@@ -953,20 +953,20 @@ class _Replay:
         state.acb_cad -= moved_cad
         state.acb_usd -= moved_native
         self._snap_dust(state)
-        self.carried[(pair_id, scope)] = (moved_cad, moved_native)
+        self.carried[(pair_id, grain)] = (moved_cad, moved_native)
 
     def _transfer_in(
         self,
         row: TxnRow,
-        scope: Scope,
-        state: PositionState,
+        grain: Grain,
+        state: HoldingState,
         pair_id: int,
     ) -> None:
         """Add units and the cost base the out leg handed over."""
-        if not row.is_position_transfer:
+        if not row.is_in_kind_transfer:
             return
 
-        moved_cad, moved_native = self.carried.get((pair_id, scope), (ZERO, ZERO))
+        moved_cad, moved_native = self.carried.get((pair_id, grain), (ZERO, ZERO))
         state.units += abs(row.units)
         state.acb_cad += moved_cad
 
@@ -979,8 +979,8 @@ class _Replay:
                 else self.fx.from_cad(moved_cad, row.fx_date, row.currency).value
             )
 
-    def _snap_dust(self, state: PositionState) -> None:
-        """Snap a residual position to zero, rolling leftover cost into gain."""
+    def _snap_dust(self, state: HoldingState) -> None:
+        """Snap a holding's residual units to zero, rolling leftover cost into gain."""
         if state.units != ZERO and abs(state.units) < DUST_UNITS:
             state.gain_cad -= state.acb_cad
             state.gain_usd -= state.acb_usd
@@ -1040,7 +1040,7 @@ class _Replay:
         current_date = ""
 
         deposits_needed = self.deposits.active or bool(self.unpaired)
-        book_needed = any(self.acb_delta.values())
+        basis_needed = any(self.acb_delta.values())
         for row in ordered:
             if row.settle_date != current_date and pending:
                 self._check_negative_cash(pending, current_date)
@@ -1049,8 +1049,8 @@ class _Replay:
             if deposits_needed:
                 self._apply_deposits(row)
             self._apply_cash(row)
-            if book_needed:
-                self._advance_book_acb(row)
+            if basis_needed:
+                self._advance_pool_basis(row)
             pending.append(row)
         if pending:
             self._check_negative_cash(pending, current_date)
@@ -1060,26 +1060,26 @@ class _Replay:
 
     # -- NET DEPOSITS -----------------------------------------------------
 
-    def _advance_book_acb(self, row: TxnRow) -> None:
-        """Move book value by the cost base one row changed.
+    def _advance_pool_basis(self, row: TxnRow) -> None:
+        """Move the pool basis by the cost base one row changed.
 
         Applied at the row's **settle date**, alongside its cash, even though
         `_acb_walk` computed it in trade-date order. A buy on T settling T+2
         raises the cost base on T and drops cash on T+2; booking both here keeps
-        `book = cost base + cash` self-consistent, so a purchase leaves book
-        value untouched and only genuine growth moves it. Splitting the two
+        `pool basis = cost base + cash` self-consistent, so a purchase leaves the
+        pool basis untouched and only genuine growth moves it. Splitting the two
         dates would inflate the denominator for any transfer landing inside a
         settlement window.
         """
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
         txn_id = row.txn_id
-        for scope, deltas in self.acb_delta.items():
+        for grain, deltas in self.acb_delta.items():
             delta = deltas.get(txn_id)
             if delta is None:
                 continue
-            state = self.deposits.resolve(scope, _pool_key(scope, row, acct_type))
+            state = self.deposits.resolve(grain, _pool_key(grain, row, acct_type))
             if state is not None:
-                state.book_cad += delta
+                state.basis_cad += delta
 
     def _apply_deposits(self, row: TxnRow) -> None:
         """Book one row's effect on net deposits.
@@ -1101,15 +1101,15 @@ class _Replay:
     def _move_deposits(self, row: TxnRow, amount: Decimal) -> None:
         """Apply a contribution or withdrawal to every grain that tracks it."""
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-        for scope in self.deposits.scopes:
-            name = _pool_key(scope, row, acct_type)
-            self.deposits.deposit(scope, name, row.currency, amount)
+        for grain in self.deposits.grains:
+            name = _pool_key(grain, row, acct_type)
+            self.deposits.deposit(grain, name, row.currency, amount)
 
     def _transfer_deposits(self, row: TxnRow) -> None:
         """Move one transfer leg's share of its pool's deposits.
 
         Only grains where the two legs sit in *different* pools do anything: a
-        pair inside one pool moves nothing there, which is exactly why portfolio
+        pair inside one pool moves nothing there, which is exactly why folio
         grain and same-type account-type grain stay at plain contributions less
         withdrawals. Skipping outright rather than adding and subtracting also
         means no rounding residue can accumulate on them.
@@ -1121,76 +1121,76 @@ class _Replay:
 
         pair = self.pair_by_id[pair_id]
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-        for scope in self.deposits.scopes:
-            if self._within_one_pool(pair, scope):
+        for grain in self.deposits.grains:
+            if self._within_one_pool(pair, grain):
                 continue
-            name = _pool_key(scope, row, acct_type)
-            self._record_moved_value(row, scope, name)
+            name = _pool_key(grain, row, acct_type)
+            self._record_moved_value(row, grain, name)
             # Whichever leg is reached first settles the sending side, once.
             # Pairing allows a settle-date window and a broker can credit the
             # receiving account before the sender releases.
-            if not self.deposits.pending(pair_id, scope):
-                self._take_deposits(pair_id, scope)
+            if not self.deposits.pending(pair_id, grain):
+                self._take_deposits(pair_id, grain)
             if row.action is Action.TFR_IN:
-                self.deposits.give(scope, name, pair_id)
+                self.deposits.give(grain, name, pair_id)
 
-    def _within_one_pool(self, pair: TransferPair, scope: Scope) -> bool:
+    def _within_one_pool(self, pair: TransferPair, grain: Grain) -> bool:
         """Whether both legs of a pair land in the same pool at one grain."""
         out_type = self.cfg.account_types.get(
             pair.out_leg.account,
             AccountType.UNKNOWN,
         )
         in_type = self.cfg.account_types.get(pair.in_leg.account, AccountType.UNKNOWN)
-        return _pool_key(scope, pair.out_leg, out_type) == _pool_key(
-            scope,
+        return _pool_key(grain, pair.out_leg, out_type) == _pool_key(
+            grain,
             pair.in_leg,
             in_type,
         )
 
-    def _record_moved_value(self, row: TxnRow, scope: Scope, pool: str) -> None:
+    def _record_moved_value(self, row: TxnRow, grain: Grain, pool: str) -> None:
         """Note what a leg actually moved, for reconciliation against a statement."""
-        if row.is_position_transfer:
-            moved = self.acb_delta[scope].get(row.txn_id, ZERO)
+        if row.is_in_kind_transfer:
+            moved = self.acb_delta[grain].get(row.txn_id, ZERO)
             currency = Currency.CAD
         else:
             moved, currency = row.amount, row.currency
         if moved != ZERO:
-            self._cash(scope, pool, currency).transfers_value += moved
+            self._cash(grain, pool, currency).transfers_value += moved
 
-    def _take_deposits(self, pair_id: int, scope: Scope) -> Deposits:
+    def _take_deposits(self, pair_id: int, grain: Grain) -> Deposits:
         """Remove the sending pool's share of its deposits for one pair."""
         out_leg = self.pair_by_id[pair_id].out_leg
         acct_type = self.cfg.account_types.get(out_leg.account, AccountType.UNKNOWN)
         return self.deposits.take(
-            scope,
-            _pool_key(scope, out_leg, acct_type),
+            grain,
+            _pool_key(grain, out_leg, acct_type),
             pair_id,
-            self._leg_value_cad(out_leg, scope),
+            self._leg_value_cad(out_leg, grain),
         )
 
-    def _leg_value_cad(self, row: TxnRow, scope: Scope) -> Decimal:
+    def _leg_value_cad(self, row: TxnRow, grain: Grain) -> Decimal:
         """Return what one leg removes from its pool, in CAD and non-negative.
 
         A cash leg is worth its amount. An in-kind leg is worth the cost base it
         carried, read off `_acb_walk` rather than recomputed so the two can never
-        disagree, and because that is what the pool's book value is measured in.
+        disagree, and because that is what the pool basis is measured in.
         """
-        if row.is_position_transfer:
-            return abs(self.acb_delta[scope].get(row.txn_id, ZERO))
+        if row.is_in_kind_transfer:
+            return abs(self.acb_delta[grain].get(row.txn_id, ZERO))
         return abs(self.to_cad(row.amount, row))
 
     def _reconcile_transfers(self) -> None:
         """Restate `transfers` as the exact complement of the deposits held.
 
         The accumulated figure is replaced by the one that closes the
-        identity `net_deposited = contributions - withdrawals + transfers`
+        identity `net_deposits = contributions - withdrawals + transfers`
         against the deposits actually held. Only pools the ledger tracks are
         touched; a pool whose transfers all went unpaired keeps its face-value
         total, since nothing measured its deposits.
         """
-        for (scope, pool), state in self.deposits.pools():
+        for (grain, pool), state in self.deposits.pools():
             for currency, deposited in state.deposits.items():
-                cash = self._cash(scope, pool, currency)
+                cash = self._cash(grain, pool, currency)
                 cash.transfers = deposited - cash.contributions + cash.withdrawals
 
     def _unpaired_deposits(self, row: TxnRow) -> None:
@@ -1200,19 +1200,19 @@ class _Replay:
         proportional rule has nothing to work with. Face value is what this
         booked before the rule existed.
         """
-        if row.is_position_transfer:
+        if row.is_in_kind_transfer:
             return
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-        for scope in Scope:
-            name = _pool_key(scope, row, acct_type)
-            state = self._cash(scope, name, row.currency)
+        for grain in Grain:
+            name = _pool_key(grain, row, acct_type)
+            state = self._cash(grain, name, row.currency)
             state.transfers += row.amount
             state.transfers_value += row.amount
-            self.deposits.deposit(scope, name, row.currency, row.amount)
+            self.deposits.deposit(grain, name, row.currency, row.amount)
 
-    def _cash(self, scope: Scope, pool: str, currency: Currency) -> CashState:
+    def _cash(self, grain: Grain, pool: str, currency: Currency) -> CashState:
         """Return the cash state for one pool and currency, creating it if new."""
-        key: CashKey = (scope, pool, currency)
+        key: CashKey = (grain, pool, currency)
         return self.result.cash.setdefault(key, CashState())
 
     def _credit(  # noqa: PLR0913 - one call site per action, all named
@@ -1228,32 +1228,32 @@ class _Replay:
     ) -> None:
         """Apply one cash movement to all three pool grains at once."""
         acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-        # Book value follows cash in CAD. Converted at the row's own settle-date
+        # Pool basis follows cash in CAD. Converted at the row's own settle-date
         # rate, the same one the cost base used
-        book = ZERO
+        basis = ZERO
         if cash != ZERO and self.deposits.active:
             # Converted on `currency`, not `row.currency`: an FXT books its two
             # legs against one row, and each leg is denominated in its own side.
-            book = (
+            basis = (
                 cash
                 if currency is Currency.CAD
                 else self.fx.to_cad(cash, row.fx_date, currency).value
             )
-        for scope in Scope:
-            state = self._cash(scope, _pool_key(scope, row, acct_type), currency)
+        for grain in Grain:
+            state = self._cash(grain, _pool_key(grain, row, acct_type), currency)
             state.cash += cash
             state.contributions += contributions
             state.withdrawals += withdrawals
             state.dividends += dividends
             state.fees += fees
-        # Kept separate: book value is needed at the grains dealing with
+        # Kept separate: pool basis is needed at the grains dealing with
         # transfers, usually just one, and paying for three on every row
         # of the ledger is the whole cost of this feature.
-        if book != ZERO:
-            for scope in self.deposits.scopes:
-                state = self.deposits.resolve(scope, _pool_key(scope, row, acct_type))
+        if basis != ZERO:
+            for grain in self.deposits.grains:
+                state = self.deposits.resolve(grain, _pool_key(grain, row, acct_type))
                 if state is not None:
-                    state.book_cad += book
+                    state.basis_cad += basis
 
     def _apply_cash(self, row: TxnRow) -> None:
         """Book one row's effect on cash.
@@ -1291,7 +1291,7 @@ class _Replay:
         elif row.action is Action.FXT:
             self._apply_fxt_cash(row)
         elif row.action in (Action.TFR_IN, Action.TFR_OUT) and not (
-            row.is_position_transfer
+            row.is_in_kind_transfer
         ):
             # Real cash moves, but how much of it counts as the holder's own
             # money is not its face value -> left to `_apply_deposits` and its
@@ -1328,18 +1328,18 @@ class _Replay:
         )
 
     def _roll_up_realized_gain(self) -> None:
-        """Carry realized gains from the position pools onto the cash states.
+        """Carry realized gains from the holding states onto the cash states.
 
         Gains land in the holding's own currency, matching every other figure a
         `CashState` carries. The CAD-converted view lives on the master frame.
         """
-        for scope in Scope:
-            for (pool, _symbol), state in self.pools.all_states(scope):
+        for grain in Grain:
+            for (pool, _symbol), state in self.pools.all_states(grain):
                 if state.currency is Currency.USD:
-                    bucket = self._cash(scope, pool, Currency.USD)
+                    bucket = self._cash(grain, pool, Currency.USD)
                     bucket.realized_gain += state.gain_usd
                 else:
-                    bucket = self._cash(scope, pool, Currency.CAD)
+                    bucket = self._cash(grain, pool, Currency.CAD)
                     bucket.realized_gain += state.gain_cad
 
     def _check_negative_cash(self, rows: Sequence[TxnRow], on: str) -> None:
@@ -1347,7 +1347,7 @@ class _Replay:
 
         Negative cash needs no external balance to detect and catches a missing
         transaction immediately. Only account pools are judged: a pooled type or
-        portfolio balance nets accounts against each another and says nothing
+        folio balance nets accounts against each another and says nothing
         about a missing row.
 
         **Judged to the cent**, which is the unit cash is denominated in and the
@@ -1360,7 +1360,7 @@ class _Replay:
             for currency in (Currency.CAD, Currency.USD):
                 if (account, currency) in self.reported_negative:
                     continue
-                state = self.result.cash.get((Scope.ACCOUNT, account, currency))
+                state = self.result.cash.get((Grain.ACCOUNT, account, currency))
                 if state is None or q2(state.cash) >= ZERO:
                     continue
                 self.reported_negative.add((account, currency))
@@ -1368,7 +1368,7 @@ class _Replay:
                 self.warn(
                     WarningCode.CASH_NEGATIVE,
                     first,
-                    scope=Scope.ACCOUNT,
+                    grain=Grain.ACCOUNT,
                     pool=f"{account}:{currency}",
                     detail=f"{account} {currency} cash is {state.cash} as of {on}",
                     account=account,
@@ -1381,15 +1381,15 @@ class _Replay:
 
     def _final_position_check(self) -> None:
         """Report any pool that ends below zero units."""
-        for scope in Scope:
-            for (pool, symbol), state in self.pools.all_states(scope):
+        for grain in Grain:
+            for (pool, symbol), state in self.pools.all_states(grain):
                 if state.units < -DUST_UNITS:
                     self.warn(
                         WarningCode.NEGATIVE_FINAL_POSITION,
-                        scope=scope,
+                        grain=grain,
                         pool=f"{pool}:{symbol}",
                         detail=f"{symbol} ends at {state.units} units in {pool}",
-                        account=pool if scope is Scope.ACCOUNT else None,
+                        account=pool if grain is Grain.ACCOUNT else None,
                         symbol=symbol,
                         value=state.units,
                     )
@@ -1401,7 +1401,7 @@ class _Replay:
         if key not in self.split_holders:
             self.split_holders[key] = {
                 pool
-                for (pool, held), state in self.pools.all_states(Scope.ACCOUNT)
+                for (pool, held), state in self.pools.all_states(Grain.ACCOUNT)
                 if held == symbol and state.units > ZERO
             }
 
@@ -1416,7 +1416,7 @@ class _Replay:
             for account in sorted(holders - recorded):
                 self.warn(
                     WarningCode.SPLIT_SCOPE_MISMATCH,
-                    scope=Scope.ACCOUNT,
+                    grain=Grain.ACCOUNT,
                     pool=f"{symbol}:{on}:{account}",
                     detail=f"Split on {symbol} missing on account {account}",
                     account=account,
@@ -1496,7 +1496,7 @@ class _Replay:
     def _superficial_loss_check(self) -> None:
         """Flag a realized loss with a buy of the same symbol in the CRA window.
 
-        A warning flag only, deliberately: cost base and gain are NOT adjusted
+        A flag only, deliberately: cost base and gain are NOT adjusted
         for it, by design, so units/ACB/avg cost keep matching a broker's own
         figures 1:1.
 

@@ -88,7 +88,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
     """Handle statement import based on file parameter."""
     if is_demo_folio():
         console_error(
-            "This folio holds the demo portfolio, which no statement belongs to. "
+            "This folio is the demo folio, which no statement belongs to. "
             "Import your own transactions first (folio import offers to replace "
             "the demo), then run folio settle-info -i.",
         )

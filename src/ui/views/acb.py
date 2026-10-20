@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, NamedTuple
 import pandas as pd
 from rich.table import Table as RichTable
 
-from domain import Action, Column, Currency, Scope, WarningCode
-from engine.frames import acb_summary_frame, scope_column
+from domain import Action, Column, Currency, Grain, WarningCode
+from engine.frames import acb_summary_frame, grain_column
 from term import console_print, console_warning, supports_unicode
 from ui.format import freshness_badge
 from ui.layout.fit import fit_table
@@ -69,13 +69,13 @@ class AcbView(NamedTuple):
     """One resolved request for a cost-base buildup.
 
     Attributes:
-        scope: The pool grain to report at.
+        grain: The pool grain to report at.
         pool: The account name or account type the rows are filtered to. Empty
-            at portfolio grain, where nothing is filtered out.
-        label: How the scope reads in the table title.
+            at folio grain, where nothing is filtered out.
+        label: How the grain reads in the table title.
     """
 
-    scope: Scope
+    grain: Grain
     pool: str
     label: str
 
@@ -151,7 +151,7 @@ def _format(value: float | None, precision: int, *, blank_zero: bool = False) ->
 
 
 def _units(value: float | None, *, blank_zero: bool = False) -> str:
-    """Render a share count, dropping the zeros a whole position does not need."""
+    """Render a unit count, dropping the zeros whole units do not need."""
     text = _format(value, _UNIT_PRECISION, blank_zero=blank_zero)
     return text.rstrip("0").rstrip(".") if "." in text else text
 
@@ -183,7 +183,7 @@ def movements(rows: pd.DataFrame, view: AcbView) -> dict[tuple[str, int], int]:
     """
     moves: dict[tuple[str, int], int] = {}
     for measure in _MOVING_MEASURES:
-        column = scope_column(view.scope, measure)
+        column = grain_column(view.grain, measure)
         if column not in rows.columns:
             continue
         previous: float | None = None
@@ -256,11 +256,11 @@ def _measure_cell(
     *,
     superficial_loss: bool = False,
 ) -> str:
-    """Render one per-scope measure, coloured or annotated as that measure wants."""
+    """Render one per-grain measure, coloured or annotated as that measure wants."""
     precision = _AVG_PRECISION if measure.startswith("Avg") else _MONEY_PRECISION
     value = row[column]
     # A zero delta or gain says nothing: blank it to zero.
-    # A zero ACB or average is a real, closed position.
+    # A zero ACB or average is a real, closed holding.
     text = _format(value, precision, blank_zero=measure.startswith(("Delta", "Gain")))
     if measure.startswith(("Delta", "Gain")):
         cell = _signed(text, value)
@@ -304,7 +304,7 @@ def _render_row(
         f"[{colour}]{action}[/{colour}]",
         _signed(_units(units, blank_zero=True), units),
         _by_direction(
-            _units(row[scope_column(view.scope, "Units")]),
+            _units(row[grain_column(view.grain, "Units")]),
             moves.get(("Units", int(row[str(Column.Txn.TXN_ID)]))),
         ),
         _format(row[str(Column.Txn.PRICE)], _MONEY_PRECISION, blank_zero=True),
@@ -316,7 +316,7 @@ def _render_row(
             cells.append(
                 _measure_cell(
                     row,
-                    scope_column(view.scope, measure),
+                    grain_column(view.grain, measure),
                     measure,
                     moves,
                     superficial_loss=superficial_loss,
@@ -327,7 +327,7 @@ def _render_row(
             cells.append(
                 _measure_cell(
                     row,
-                    scope_column(view.scope, usd),
+                    grain_column(view.grain, usd),
                     usd,
                     moves,
                     superficial_loss=superficial_loss,
@@ -377,20 +377,20 @@ def _summary_currency(summary: pd.DataFrame, view: AcbView) -> Currency:
     A pool is normally mixed, so the question is not "which currency" but
     "are the `_USD` columns worth the width". One USD holding is enough.
     """
-    column = scope_column(view.scope, "ACB_USD")
+    column = grain_column(view.grain, "ACB_USD")
     if column in summary.columns and summary[column].notna().any():
         return Currency.USD
     return Currency.CAD
 
 
-def _open_positions_first(summary: pd.DataFrame, view: AcbView) -> pd.DataFrame:
-    """Sink closed positions to the bottom, alphabetical within each group.
+def _open_holdings_first(summary: pd.DataFrame, view: AcbView) -> pd.DataFrame:
+    """Sink closed holdings to the bottom, alphabetical within each group.
 
-    A closed position is history: its row is a realized gain and four blanks.
+    A closed holding is history: its row is a realized gain and four blanks.
     Interleaving those alphabetically pushes what is actually held apart and
     makes the list of current holdings something you have to hunt for.
     """
-    units = scope_column(view.scope, "Units")
+    units = grain_column(view.grain, "Units")
     ordered = summary.assign(_closed=summary[units].fillna(0) == 0)
     return ordered.sort_values(
         ["_closed", "Symbol"],
@@ -405,7 +405,7 @@ def _drop_cad_only(summary: pd.DataFrame, view: AcbView) -> pd.DataFrame:
     an entirely blank row. Applied only when the CAD columns are hidden: with
     them showing, a CAD holding still has everything to say.
     """
-    return summary[summary[scope_column(view.scope, "ACB_USD")].notna()]
+    return summary[summary[grain_column(view.grain, "ACB_USD")].notna()]
 
 
 def _summary_record(
@@ -415,16 +415,16 @@ def _summary_record(
     show_cad: bool,
     show_usd: bool,
 ) -> dict[str, str]:
-    """Render one symbol's closing position for the summary table."""
+    """Render one symbol's closing holding for the summary table."""
 
     def cell(measure: str, precision: int) -> str:
-        value = record[scope_column(view.scope, measure)]
+        value = record[grain_column(view.grain, measure)]
         text = _format(value, precision, blank_zero=True)
         return _signed(text, value) if measure.startswith("Gain") else text
 
     cells = {
         "Symbol": str(record["Symbol"]),
-        "Units": _units(record[scope_column(view.scope, "Units")], blank_zero=True),
+        "Units": _units(record[grain_column(view.grain, "Units")], blank_zero=True),
     }
     for measure, precision in (
         ("ACB", _MONEY_PRECISION),
@@ -444,7 +444,7 @@ def show_summary(
     currency: str,
     cached: CachedFrame,
 ) -> None:
-    """Print one row per symbol, all three scopes side by side."""
+    """Print one row per symbol, all three grains side by side."""
     summary = acb_summary_frame(rows)
     if summary.empty:
         console_warning(f"No holdings in the {view.label} pool.")
@@ -458,7 +458,7 @@ def show_summary(
         summary = _drop_cad_only(summary, view)
     records = [
         _summary_record(record, view, show_cad=show_cad, show_usd=show_usd)
-        for record in _open_positions_first(summary, view).to_dict("records")
+        for record in _open_holdings_first(summary, view).to_dict("records")
     ]
     console_print(freshness_badge(cached.computed_at))
     show_data_table(

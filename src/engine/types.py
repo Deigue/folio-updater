@@ -14,8 +14,8 @@ from domain import (
     Action,
     Column,
     Currency,
+    Grain,
     Impact,
-    Scope,
     Table,
     WarningCode,
 )
@@ -88,13 +88,13 @@ class TxnRow:
         return ACTION_IMPACT.get(self.action, Impact.NONE)
 
     @property
-    def is_position_transfer(self) -> bool:
+    def is_in_kind_transfer(self) -> bool:
         """Whether a transfer leg moves units rather than cash."""
         return bool(self.ticker) and self.units != ZERO
 
 
 @dataclass
-class PositionState:
+class HoldingState:
     """Running units, cost base and realized gain for one pool and symbol.
 
     `acb_usd` stays at zero for CAD-denominated holdings
@@ -148,7 +148,7 @@ class CashState:
 
 
 @dataclass(frozen=True)
-class ScopeMeasures:
+class GrainMeasures:
     """One pool's figures after a row has been applied.
 
     Attributes:
@@ -192,9 +192,9 @@ class ComputedRow:
     proceeds_usd: Decimal | None = None
     dividend_cad: Decimal | None = None
     dividend_usd: Decimal | None = None
-    acct: ScopeMeasures = field(default_factory=ScopeMeasures)
-    type: ScopeMeasures = field(default_factory=ScopeMeasures)
-    folio: ScopeMeasures = field(default_factory=ScopeMeasures)
+    acct: GrainMeasures = field(default_factory=GrainMeasures)
+    type: GrainMeasures = field(default_factory=GrainMeasures)
+    folio: GrainMeasures = field(default_factory=GrainMeasures)
     flags: tuple[WarningCode, ...] = ()
 
     @property
@@ -202,18 +202,18 @@ class ComputedRow:
         """Whether the `_USD` measures on this row carry anything."""
         return self.row.currency is Currency.USD
 
-    def measures(self, scope: Scope) -> ScopeMeasures:
+    def measures(self, grain: Grain) -> GrainMeasures:
         """Return the measures for one pool grain.
 
         Args:
-            scope: Which pool to read.
+            grain: Which pool to read.
 
         Returns:
-            That scope's `ScopeMeasures`.
+            That grain's `GrainMeasures`.
         """
-        if scope is Scope.ACCOUNT:
+        if grain is Grain.ACCOUNT:
             return self.acct
-        if scope is Scope.TYPE:
+        if grain is Grain.TYPE:
             return self.type
         return self.folio
 
@@ -227,22 +227,22 @@ class ReplayWarning:
 
     Attributes:
         code: Which diagnostic fired.
-        txn_id: The row it tags, or None for a pool-level finding.
-        scope: The pool grain it was detected at, where that matters.
-        pool: The account, type or portfolio key it was detected on.
+        txn_id: The row it tags, or None for a pool-level diagnostic.
+        grain: The pool grain it was detected at, where that matters.
+        pool: The account, type or folio key it was detected on.
         detail: Human-readable specifics.
-        account: The account the finding is about, where it is about one.
-        symbol: The canonical security the finding is about, where there is one.
-        currency: The currency the finding is about, for the cash diagnostics.
-        as_of: The date the finding is about, `YYYY-MM-DD`, where a row's own
+        account: The account the diagnostic is about, where it is about one.
+        symbol: The canonical security the diagnostic is about, where there is one.
+        currency: The currency the diagnostic is about, for the cash diagnostics.
+        as_of: The date the diagnostic is about, `YYYY-MM-DD`, where a row's own
             date is not the answer.
-        value: The value the finding turns on: a cash balance for
-            `CASH_NEGATIVE`, a share count for `NEGATIVE_FINAL_POSITION`.
+        value: The value the diagnostic turns on: a cash balance for
+            `CASH_NEGATIVE`, a unit count for `NEGATIVE_FINAL_POSITION`.
     """
 
     code: WarningCode
     txn_id: int | None = None
-    scope: Scope | None = None
+    grain: Grain | None = None
     pool: str | None = None
     detail: str = ""
     account: str | None = None
@@ -252,9 +252,9 @@ class ReplayWarning:
     value: Decimal | None = None
 
 
-# Cash is tracked per pool grain, per pool, per currency. The scope is part of
+# Cash is tracked per pool grain, per pool, per currency. The grain is part of
 # the key because an account may legitimately be named after a type.
-CashKey = tuple[Scope, str, Currency]
+CashKey = tuple[Grain, str, Currency]
 
 # Rows with shape: action, account, security and currency.
 TallyKey = tuple[Action, str, str, Currency]

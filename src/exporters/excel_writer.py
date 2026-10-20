@@ -47,7 +47,7 @@ _FALLBACK_NAME = "Sheet"
 
 
 def sheet_name(name: str, taken: Collection[str] = ()) -> str:
-    """Make a scope's label legal, and unique within one workbook.
+    """Make a grain's label legal, and unique within one workbook.
 
     Args:
         name: The label the report would like to use.

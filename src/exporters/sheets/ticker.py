@@ -17,9 +17,9 @@ from exporters.table import Block, Col, Fmt, Line, Role, Table, row_of
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from engine.holdings import Holding
     from engine.performance import RangeMove
-    from engine.positions import Holding
-    from engine.ticker import PerformanceRow, PoolLine, SymbolPosition
+    from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
     from services.quotes_service import Quote
 
 MOVE_COLUMNS: tuple[Col, ...] = (
@@ -41,7 +41,7 @@ _CRA = "CRA"
 def ticker_table(  # noqa: PLR0913
     quote: Quote,
     moves: Mapping[PriceRange, RangeMove | None],
-    positions: Sequence[SymbolPosition],
+    positions: Sequence[SymbolHoldings],
     *,
     aliases: Sequence[str] = (),
     by_account: bool = False,
@@ -85,7 +85,7 @@ def ticker_table(  # noqa: PLR0913
     )
 
 
-def _first_buy_note(positions: Sequence[SymbolPosition]) -> list[str]:
+def _first_buy_note(positions: Sequence[SymbolHoldings]) -> list[str]:
     """Say when and at what the folio first bought the security."""
     bought = positions[0].first_buy if positions else None
     if bought is None:
@@ -107,7 +107,7 @@ def performance_table(
         rows: The securities, in the order to list them.
         name: What the sheet is called.
         pool_weight: Carry each security's share of a narrowed pool as well as
-            of the whole portfolio.
+            of the whole folio.
         notes: Lines to disclose, such as how old the prices are.
 
     Returns:
@@ -234,12 +234,12 @@ def _start(start: str) -> str | None:
 
 
 def _holdings_table(
-    position: SymbolPosition,
+    position: SymbolHoldings,
     quoted_in: Currency | None,
     *,
     by_account: bool,
 ) -> Table:
-    """Lay out every pool's holding, with the portfolio-wide pooled figures.
+    """Lay out every pool's holding, with the folio-wide pooled figures.
 
     Args:
         position: The security across the folio, in one currency.

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Column, Scope
+from domain import Column, Grain
 from engine.frames import (
     CONTEXT_COLUMNS,
-    SCOPE_MEASURES,
-    SCOPE_PREFIX,
+    GRAIN_MEASURES,
+    GRAIN_PREFIX,
     SHARED_COLUMNS,
     SOURCE_COLUMNS,
+    grain_column,
     replay_ordered,
-    scope_column,
 )
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheets.acb import MEASURE_FORMATS, USD, acb_notes, families, has_usd
@@ -53,10 +53,10 @@ QUIET_COLUMNS = frozenset(
 )
 
 # What each pool grain's band of columns is called.
-SCOPE_BANDS: dict[Scope, str] = {
-    Scope.ACCOUNT: "Account pool",
-    Scope.TYPE: "Type pool",
-    Scope.FOLIO: "Portfolio",
+GRAIN_BANDS: dict[Grain, str] = {
+    Grain.ACCOUNT: "Account pool",
+    Grain.TYPE: "Type pool",
+    Grain.FOLIO: "Portfolio",
 }
 
 _TRANSACTION_BAND = "Transaction"
@@ -113,7 +113,7 @@ def ledger_table(
     Returns:
         The table, in transaction order, its columns banded by pool grain.
     """
-    cad, usd = families(currency, usd=has_usd(frame, tuple(Scope)))
+    cad, usd = families(currency, usd=has_usd(frame, tuple(Grain)))
     extra: list[str] = []
     if txns is not None:
         frame, extra = _with_stored_columns(frame, txns)
@@ -131,16 +131,16 @@ def ledger_table(
         for key in keys
     ]
 
-    for scope in Scope:
-        for suffix, _attribute in SCOPE_MEASURES:
+    for grain in Grain:
+        for suffix, _attribute in GRAIN_MEASURES:
             if not _wanted(suffix, cad=cad, usd=usd):
                 continue
-            keys.append(scope_column(scope, suffix))
+            keys.append(grain_column(grain, suffix))
             columns.append(
                 Col(
-                    f"{SCOPE_PREFIX[scope]} {_header(suffix)}",
+                    f"{GRAIN_PREFIX[grain]} {_header(suffix)}",
                     MEASURE_FORMATS[suffix.removesuffix(USD)],
-                    SCOPE_BANDS[scope],
+                    GRAIN_BANDS[grain],
                 ),
             )
 

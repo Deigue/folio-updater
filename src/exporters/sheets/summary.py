@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import AccountType, Currency, Scope
+from domain import AccountType, Currency, Grain
 from exporters.excel_style import OVERVIEW_TAB
 from exporters.table import Block, Col, Fmt, Line, Link, Table, row_of
 
@@ -18,16 +18,16 @@ if TYPE_CHECKING:
     from engine.flows import Flows, Room
     from engine.panels import Panel
 
-# How each grain reads in a `Scope` column.
-SCOPE_NAMES: dict[Scope, str] = {
-    Scope.FOLIO: "Portfolio",
-    Scope.TYPE: "Type",
-    Scope.ACCOUNT: "Account",
+# How each grain reads in a `Grain` column.
+GRAIN_NAMES: dict[Grain, str] = {
+    Grain.FOLIO: "Portfolio",
+    Grain.TYPE: "Type",
+    Grain.ACCOUNT: "Account",
 }
 
 PERFORMANCE_COLUMNS: tuple[Col, ...] = (
     Col("Pool", width=18),
-    Col("Scope", width=10),
+    Col("Grain", width=10),
     Col("Held", Fmt.ID),
     Col("Book", Fmt.MONEY),
     Col("Market", Fmt.MONEY),
@@ -42,13 +42,13 @@ PERFORMANCE_COLUMNS: tuple[Col, ...] = (
 
 FLOW_COLUMNS: tuple[Col, ...] = (
     Col("Pool", width=18),
-    Col("Scope", width=10),
+    Col("Grain", width=10),
     Col("$", width=6),
     Col("Cash", Fmt.MONEY_SIGNED),
     Col("Contributions", Fmt.MONEY, quiet=True),
     Col("Withdrawn", Fmt.MONEY, quiet=True),
     Col("Transferred", Fmt.MONEY_SIGNED),
-    Col("Net Deposited", Fmt.MONEY),
+    Col("Net Deposits", Fmt.MONEY),
     Col("Dividends", Fmt.MONEY, quiet=True),
     Col("Fees", Fmt.MONEY, quiet=True),
     Col("Realized", Fmt.MONEY_SIGNED),
@@ -73,7 +73,7 @@ _RRSP_NOTE = (
     "year before, as CRA counts them."
 )
 
-_FROZEN = 2  # `Pool` and `Scope` say which row is which
+_FROZEN = 2  # `Pool` and `Grain` say which row is which
 
 
 def summary_table(
@@ -90,8 +90,8 @@ def summary_table(
     links everything else.
 
     Args:
-        folio: The portfolio-wide panel, which the headline block reads.
-        pools: Every pool to compare, portfolio first, in the order to list.
+        folio: The folio-wide panel, which the headline block reads.
+        pools: Every pool to compare, folio first, in the order to list.
         name: What the sheet is called.
         notes: Lines to disclose under the table, such as how old the prices
             are.
@@ -127,7 +127,7 @@ def flows_table(
     """Flows table representing cash that moved through every pool.
 
     Args:
-        pools: Every pool to list, portfolio first.
+        pools: Every pool to list, folio first.
         name: What the sheet is called.
         notes: Lines to disclose under the table.
         history: Every year of contribution room used, newest first, listed
@@ -175,7 +175,7 @@ def history_table(
 
 
 def _headline(folio: Panel) -> Block:
-    """Read the portfolio's headline figures into a block."""
+    """Read the folio's headline figures into a block."""
     holdings = folio.holdings
     flows = folio.flows
     base = str(holdings.base_currency)
@@ -185,7 +185,7 @@ def _headline(folio: Panel) -> Block:
         Line("Unrealized", holdings.total_unrealized, Fmt.MONEY_SIGNED, base),
         Line("Realized", holdings.total_realized, Fmt.MONEY_SIGNED, base),
         Line("Dividends", holdings.total_dividends, Fmt.MONEY, base),
-        Line("Total earned", holdings.total_pnl, Fmt.MONEY_SIGNED, base),
+        Line("Total gain", holdings.total_pnl, Fmt.MONEY_SIGNED, base),
         Line(
             "Total return",
             holdings.return_on(flows.net_deposit_denominator),
@@ -193,8 +193,8 @@ def _headline(folio: Panel) -> Block:
             "on net deposits",
         ),
         Line(
-            "Net deposited",
-            flows.net_deposited.get(Currency.CAD),
+            "Net Deposits",
+            flows.net_deposits.get(Currency.CAD),
             Fmt.MONEY,
             str(Currency.CAD),
         ),
@@ -229,7 +229,7 @@ def _performance_cells(pool: Panel) -> dict[str, object]:
     holdings = pool.holdings
     return {
         "Pool": _pool(pool),
-        "Scope": SCOPE_NAMES[pool.view.scope],
+        "Grain": GRAIN_NAMES[pool.view.grain],
         "Held": len(holdings.holdings),
         "Book": holdings.total_book,
         "Market": holdings.total_market,
@@ -251,13 +251,13 @@ def _flow_cells(pool: Panel) -> list[dict[str, object]]:
     for currency in _currencies(flows):
         cells: dict[str, object] = {
             "Pool": _pool(pool),
-            "Scope": SCOPE_NAMES[pool.view.scope],
+            "Grain": GRAIN_NAMES[pool.view.grain],
             "$": str(currency),
             "Cash": flows.cash.get(currency),
             "Contributions": flows.contributions.get(currency),
             "Withdrawn": flows.withdrawals.get(currency),
             "Transferred": flows.transfers.get(currency),
-            "Net Deposited": flows.net_deposited.get(currency),
+            "Net Deposits": flows.net_deposits.get(currency),
             "Dividends": flows.dividends.get(currency),
             "Fees": flows.fees.get(currency),
             "Realized": flows.realized.get(currency),

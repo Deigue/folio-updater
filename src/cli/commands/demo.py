@@ -1,6 +1,6 @@
 """Demo command for the folio CLI.
 
-Builds a realistic demo portfolio from real market history.
+Builds a realistic demo folio from real market history.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ app = typer.Typer()
 
 @app.command(name="")
 def create_folio() -> None:
-    """Create a demo portfolio from real market history.
+    """Create a demo folio from real market history.
 
     Builds two years of transactions across four accounts if the folio holds no
     data yet, so every command has something to show.
@@ -27,10 +27,10 @@ def create_folio() -> None:
 
     try:
         with ProgressDisplay.spinner("sea_green3") as progress:
-            progress.add_task("Building the demo portfolio...", total=None)
+            progress.add_task("Building the demo folio...", total=None)
             created = ensure_data_exists()
     except (OSError, ValueError, KeyError) as e:
-        console_error(f"Error creating demo portfolio: {e}")
+        console_error(f"Error creating demo folio: {e}")
         raise typer.Exit(1) from e
 
     if not created:
@@ -40,9 +40,9 @@ def create_folio() -> None:
     # Written the same way `folio generate` writes it, so the demo shows what a
     # real folio's workbook looks like.
     if write_folio() is None:
-        console_error("Error: Failed to create demo portfolio")
+        console_error("Error: Failed to create demo folio")
         raise typer.Exit(1)
-    console_success("Demo portfolio created successfully!")
+    console_success("Demo folio created successfully!")
     console_info("Check your database path for the generated folio database.")
 
 

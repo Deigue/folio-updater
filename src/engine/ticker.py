@@ -20,9 +20,9 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+    from engine.holdings import Holding
     from engine.panels import FolioValuation, Panel, PoolView
     from engine.performance import RangeMove
-    from engine.positions import Holding
     from services.quotes_service import Quote
 
 
@@ -32,7 +32,7 @@ class PoolLine:
 
     Attributes:
         view: The account type or account.
-        holding: Its position there, open or closed.
+        holding: Its holding there, open or closed.
     """
 
     view: PoolView
@@ -58,14 +58,14 @@ class FirstBuy:
 
 
 @dataclass(frozen=True)
-class SymbolPosition:
+class SymbolHoldings:
     """A security representation across the folio.
 
     Attributes:
         symbol: The canonical symbol.
-        lines: Each pool that has ever held it: open positions first, largest
+        lines: Each pool that has ever held it: open holdings first, largest
             first, then the closed ones.
-        total: The portfolio-wide holding. Read from the portfolio grain
+        total: The folio-wide holding. Read from the folio grain
         first_traded: The folio's first transaction in it, `YYYY-MM-DD`.
         first_buy: Its first purchase, or None when it only ever arrived by
             transfer from an account the folio does not track.
@@ -101,9 +101,9 @@ class SymbolPosition:
 
     @property
     def pooled_differs(self) -> bool:
-        """Whether the portfolio-wide figures say anything the lines do not.
+        """Whether the folio-wide figures say anything the lines do not.
 
-        With a single line, open or closed, that pool is the whole portfolio's
+        With a single line, open or closed, that pool is the whole folio's
         holding, so the pooled figures would only repeat it.
         """
         return len(self.lines) > 1
@@ -117,12 +117,12 @@ class SymbolPosition:
         return tuple(seen)
 
 
-def symbol_position(
+def symbol_holdings(
     valuation: FolioValuation,
     symbol: str,
     *,
     by_account: bool = False,
-) -> SymbolPosition | None:
+) -> SymbolHoldings | None:
     """Find a security in every pool of a valued folio.
 
     Args:
@@ -131,7 +131,7 @@ def symbol_position(
         by_account: One line per broker account rather than per account type.
 
     Returns:
-        The security's position, or None when the folio never traded it or the
+        The security's holdings, or None when the folio never traded it or the
         valuation's currency hides it.
     """
     frame = valuation.frame
@@ -162,11 +162,11 @@ def symbol_position(
         ),
     )
 
-    return SymbolPosition(
+    return SymbolHoldings(
         symbol=symbol,
         lines=tuple(lines),
         total=total,
-        # Earliest of anything, so a position transferred in from an
+        # Earliest of anything, so a holding transferred in from an
         # account the folio does not track still has a start.
         first_traded=str(rows[str(Column.Txn.TXN_DATE)].min()),
         currency=total.currency,
@@ -219,7 +219,7 @@ class PerformanceRow:
             pool was valued in, so rows compare. None for a security the pool
             does not hold.
         weight_in_pool: Its share of the pool shown.
-        weight_in_folio: Its share of the whole portfolio.
+        weight_in_folio: Its share of the whole folio.
     """
 
     symbol: str

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, NamedTuple
 
 from app import get_config
-from domain import AccountType, Column, Currency, Scope
+from domain import AccountType, Column, Currency, Grain
 from domain.constants import TORONTO_TZ
 from engine.accounts import resolve_account_type
 from engine.flows import (
@@ -17,7 +17,7 @@ from engine.flows import (
     withdrawals_by_type_year,
 )
 from engine.fx_rates import load_fx_rates
-from engine.positions import FolioPositions, scope_rows
+from engine.holdings import FolioHoldings, grain_rows
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.flows import Flows, Room
-    from engine.positions import HoldingSet, ValuationCurrency
+    from engine.holdings import HoldingSet, ValuationCurrency
     from engine.types import ReplayResult
     from services.quotes_service import Quote
 
@@ -37,18 +37,18 @@ class PoolView(NamedTuple):
     """One resolved request for a pooled report.
 
     Attributes:
-        scope: The pool grain to report at.
+        grain: The pool grain to report at.
         pool: The account name or account type the rows are filtered to. Empty
-            at portfolio grain, where nothing is filtered out.
-        label: How the scope reads in a heading.
+            at folio grain, where nothing is filtered out.
+        label: How the grain reads in a heading.
     """
 
-    scope: Scope
+    grain: Grain
     pool: str
     label: str
 
 
-FOLIO_VIEW = PoolView(Scope.FOLIO, "", "Portfolio")
+FOLIO_VIEW = PoolView(Grain.FOLIO, "", "Portfolio")
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,7 @@ class Panel:
 
     Attributes:
         view: The pool this reports on.
-        holdings: Its valued positions and totals.
+        holdings: Its valued holdings and totals.
         flows: Its cash, contributions and cumulative income.
     """
 
@@ -72,7 +72,7 @@ class Panel:
 
     @property
     def active(self) -> bool:
-        """Whether the pool still holds an open position."""
+        """Whether the pool still has an open holding."""
         return bool(self.holdings.holdings)
 
 
@@ -80,7 +80,7 @@ def account_type_of(view: PoolView) -> AccountType | None:
     """Name the account type a pool is, when it is exactly one.
 
     Contribution room only means something for a single tax type, so a
-    portfolio-wide view has none.
+    folio-wide view has none.
 
     Args:
         view: The pool being reported.
@@ -88,24 +88,24 @@ def account_type_of(view: PoolView) -> AccountType | None:
     Returns:
         The account type, or None when the pool spans more than one.
     """
-    if view.scope is Scope.TYPE:
+    if view.grain is Grain.TYPE:
         try:
             return AccountType(view.pool)
         except ValueError:  # pragma: no cover - callers resolve the type first
             return None
-    if view.scope is Scope.ACCOUNT:
+    if view.grain is Grain.ACCOUNT:
         return resolve_account_type(view.pool)
     return None
 
 
 def type_view(name: str) -> PoolView:
     """Name one account type's pool, the way a heading reads it."""
-    return PoolView(Scope.TYPE, name, name.replace("_", "-"))
+    return PoolView(Grain.TYPE, name, name.replace("_", "-"))
 
 
 def account_view(name: str) -> PoolView:
     """Name one broker account's pool."""
-    return PoolView(Scope.ACCOUNT, name, name)
+    return PoolView(Grain.ACCOUNT, name, name)
 
 
 @dataclass(frozen=True)
@@ -119,11 +119,11 @@ class FolioValuation:
         contributions: Every type's per-year contributions, for the room line.
         withdrawals: Every type's per-year withdrawals, for the room history.
         quotes: The quote used for each held symbol.
-        folio_market: The whole portfolio's CAD market value, which is the
+        folio_market: The whole folio's CAD market value, which is the
             denominator behind `Folio%` however narrow a panel is.
     """
 
-    positions: FolioPositions
+    positions: FolioHoldings
     result: ReplayResult
     currency: ValuationCurrency
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
@@ -151,9 +151,9 @@ class FolioValuation:
             offline: Never touch the network; use whatever is cached.
 
         Returns:
-            The valuation, with every open position priced.
+            The valuation, with every open holding priced.
         """
-        positions = FolioPositions(frame, {}, load_fx_rates())
+        positions = FolioHoldings(frame, {}, load_fx_rates())
         quotes = _quotes(positions, refresh=refresh, offline=offline)
         positions.price(quotes)
         return cls(
@@ -202,7 +202,7 @@ class FolioValuation:
             UnknownSortError: If `sort` is not a sortable measure.
         """
         holdings = self.positions.holdings(
-            scope=view.scope,
+            grain=view.grain,
             pool=view.pool,
             currency=self.currency,
             folio_market=self.folio_market,
@@ -211,7 +211,7 @@ class FolioValuation:
         )
         flows = build_flows(
             self.result,
-            scope=view.scope,
+            grain=view.grain,
             pool=view.pool,
             label=view.label,
             account_type=account_type_of(view),
@@ -221,12 +221,12 @@ class FolioValuation:
         return Panel(view=view, holdings=holdings, flows=flows)
 
     def account_types(self) -> list[str]:
-        """Every account type that holds a position, in a stable order."""
-        return self._pools(Scope.TYPE, "AcctType")
+        """Every account type with a holding, in a stable order."""
+        return self._pools(Grain.TYPE, "AcctType")
 
     def accounts(self) -> list[str]:
-        """Every account that holds a position, in a stable order."""
-        return self._pools(Scope.ACCOUNT, str(Column.Txn.ACCOUNT))
+        """Every account with a holding, in a stable order."""
+        return self._pools(Grain.ACCOUNT, str(Column.Txn.ACCOUNT))
 
     def panels(
         self,
@@ -248,11 +248,11 @@ class FolioValuation:
         if views:
             # Every pool at this grain is about to be reported, so split the
             # frame once rather than narrowing it again for each panel.
-            self.positions.prime(views[0].scope)
+            self.positions.prime(views[0].grain)
         built = (self.panel(view, sort=sort, reverse=reverse) for view in views)
         return [panel for panel in built if panel.occupied]
 
-    def _pools(self, scope: Scope, column: str) -> list[str]:
+    def _pools(self, grain: Grain, column: str) -> list[str]:
         """Name every pool at one grain that has rows of its own."""
         frame = self.frame
         if column not in frame.columns:  # pragma: no cover - always present
@@ -260,17 +260,17 @@ class FolioValuation:
         return [
             name
             for name in sorted({str(value) for value in frame[column].dropna()})
-            if not scope_rows(frame, scope, name).empty
+            if not grain_rows(frame, grain, name).empty
         ]
 
 
 def _quotes(
-    positions: FolioPositions,
+    positions: FolioHoldings,
     *,
     refresh: bool,
     offline: bool,
 ) -> dict[str, Quote]:
-    """Price every open position, once, for the whole folio."""
+    """Price every open holding, once, for the whole folio."""
     symbols = positions.held_symbols()
     if not symbols:
         return {}

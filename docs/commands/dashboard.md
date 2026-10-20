@@ -4,9 +4,9 @@
 cost-base replay, live prices from Yahoo Finance, and a panel of cash and
 cumulative flows above the table.
 
-By default, `folio dash` is **portfolio-wide**
+By default, `folio dash` shows the **folio pool**: everything, pooled.
 
-## Scoping
+## Grains
 
 | Grain            | Flag           | What it shows                      |
 | ---------------- | -------------- | ---------------------------------- |
@@ -103,21 +103,21 @@ current valuation. The footnote names the rate and its date used.
 | ---------- | ------------------------------------------------------------- |
 | `Avg`      | Adjusted cost base per unit                                   |
 | `Last`     | Current price                                                 |
-| `Change`   | The day's move per share                                      |
+| `Change`   | The day's move per unit                                       |
 | `Change%`  | `Change` over the current price                               |
-| `PnL`      | The day's gain or loss on the position: `Change x Units`      |
+| `PnL`      | Day gain on the holding: `Change x Units`                     |
 | `PnL%`     | That gain as a share of **the whole pool's** market value     |
 | `Unreal`   | `Market - Book`, the gain you are still holding               |
 | `Realized` | Gains already banked on this security in this pool            |
 | `Divs`     | Dividends this security has paid you in this pool             |
-| `Total`    | `Unreal + Realized + Divs`: everything the holding has earned |
+| `Total`    | Total gain, `Unreal + Realized + Divs`                        |
 | `Total%`   | `Total` over `Book` (the total line differs, see below)       |
 | `Wt%`      | The holding as a percentage of the pool shown                 |
 | `Folio%`   | The holding as a percentage of **everything you own**         |
 
-### Closed positions
+### Closed holdings
 
-A position you have fully sold is no longer a holding, but its realized gain and
+A holding you have fully sold is closed, but its realized gain and
 the dividends it paid are real money the pool earned. These are rolled into a
 single **`Closed`** row at the foot of each currency group, and counted in every
 subtotal and total.
@@ -129,7 +129,7 @@ subtotal and total.
 | Closed (3)  |       |  1,200.00 | 300.00 | 1,500.00|
 ```
 
-`--show-closed` breaks that one row open into the individual closed positions.
+`--show-closed` breaks that one row open into the individual closed holdings.
 
 **`Total` column truthfully answers "how has this done".** Unrealized gain flatters a
 stock you never sold and punishes one you trim. Adding realized gains and dividends gives
@@ -137,14 +137,14 @@ the whole picture.
 
 **The overall `Total%` is measured against net deposits.** We cannot use `Book` because
 when we earn dividends, we can reinvest them to buy more stocks, and that adds to `Book`.
-Similarly, when we sell a position, its gains are added to `Total`, but the `Book` or
-cost basis behind it dissapears, since we sold it all. Thus `Net Deposits`, i.e: What
+Similarly, when we sell a holding, its gains are added to `Total`, but the `Book` (its
+ACB) behind it disappears, since we sold it all. Thus `Net Deposits`, i.e: What
 money we effectively put in; is the right number to denominate against to calculate the
 `Total%` of the whole pool.
 
 ## Cash and flows
 
-Every scope carries a panel above the table with cash, contributions, withdrawals,
+Every pool carries a panel above the table with cash, contributions, withdrawals,
 dividends, fees and realized gains for that pool.
 
 ```text
@@ -152,7 +152,7 @@ dividends, fees and realized gains for that pool.
 | Cash               5.00  CAD   |
 | Contributions 20,000.00  CAD   |
 | Withdrawn      2,000.00  CAD   |
-| Net Deposited 18,000.00  CAD   |
+| Net Deposits  18,000.00  CAD   |
 | Dividends      5,000.00  CAD   |
 | Fees               0.00  CAD   |
 | Realized       8,000.00  CAD   |
@@ -164,13 +164,13 @@ dividends, fees and realized gains for that pool.
 true `CONTRIBUTION` rows. It is the figure to read when you want to know what you
 have put on per account, per account type or across the whole folio.
 
-**`Net Deposited` is how much of your own money the pool still holds:**
+**`Net Deposits` is how much of your own money the pool still holds:**
 
 ```text
 contributions - withdrawals + what transfers carried in or out
 ```
 
-Transfers move portions of what you contributed in and out of the portfolio. Since
+Transfers move portions of what you contributed between the pools of your folio. Since
 we carry the entire transaction ledger, folio can smartly calculate the portion of
 incoming or outgoing transfers that are *actual deposits*. This value is important to
 know "how much of the money we put in, exists in this pool"; to compare against its
@@ -195,14 +195,14 @@ market value and unrealized gain on the page wrong.
 
 ## Diagnostics
 
-A pool whose units the replay knows to be wrong (an `OVERSELL`, or a position
+A pool whose units the replay knows to be wrong (an `OVERSELL`, or a holding
 ending below zero) is **badged**, and the footer says so. Those units are not
 presented as fact. Run [`folio check`](checking.md) to find the missing row.
 
 ## Export
 
 `--export PATH` writes every computed field per holding, choosing the format from
-the suffix (`.csv` or `.xlsx`). Only the displayed scope's holdings are written.
+the suffix (`.csv` or `.xlsx`). Only the displayed pool's holdings are written.
 
 ```bash
 folio dash --export holdings.csv

@@ -6,7 +6,7 @@ it, and prints. Where a fix has an obvious command it names it, but the user
 runs that themselves.
 
 The replay is always freshly computed rather than read from the cost-base
-cache, because a cached frame carries no diagnostics: the warnings live on
+cache, because a cached frame carries no diagnostics: they live on
 the replay result the cache deliberately discards.
 """
 

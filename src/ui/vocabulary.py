@@ -43,7 +43,7 @@ DAY_MOVE_STRONG_AT = Decimal("0.03")  # Change% and PnL%
 RETURN_STRONG_AT = Decimal("0.25")  # Unreal% and Total%
 FLAT_BELOW = Decimal("0.001")
 
-# Concentration: a position's weight in its pool or folio.
+# Concentration: a holding's weight in its pool or folio.
 WEIGHT_WARN_AT = Decimal("0.20")
 WEIGHT_ALERT_AT = Decimal("0.30")
 WEIGHT_WARN = "yellow"
@@ -66,7 +66,7 @@ CURRENCY_COLORS = {
 FLOW_COLORS = {
     "Contributions": TRANSACTION_COLORS[Action.CONTRIBUTION],
     "Withdrawn": TRANSACTION_COLORS[Action.WITHDRAWAL],
-    "Net Deposited": "bold bright_white",
+    "Net Deposits": "bold bright_white",
     "Dividends": INCOME,
     "Fees": "indian_red",
 }

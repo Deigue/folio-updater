@@ -6,7 +6,7 @@ spreadsheet or a broker download.
 It exists for the transactions your brokers may not report cleanly:
 
 - **`SPLIT`**: stock splits.
-- **`ROC`**: return of capital, which reduces your cost basis and often only shows up on a year-end
+- **`ROC`**: return of capital, which reduces your ACB and often only shows up on a year-end
   tax slip.
 - Corrections and one-off entries you know about but no broker file records.
 
@@ -60,8 +60,8 @@ Amount: 42.15
 | `DIVIDEND`           | Cash distribution received.                                                                              |
 | `ROC`                | Return of capital. Reduces cost base without moving any cash. Only `Amount` matters.                     |
 | `SPLIT`              | Stock split, stored as a ratio (`Price` = shares before, `Units` = shares after).                        |
-| `CONTRIBUTION`       | New money entering the portfolio from outside it.                                                        |
-| `WITHDRAWAL`         | Money leaving the portfolio.                                                                             |
+| `CONTRIBUTION`       | New money entering the folio from outside it.                                                            |
+| `WITHDRAWAL`         | Money leaving the folio.                                                                                  |
 | `TFR_IN` / `TFR_OUT` | Cash or units moving between accounts **you already own**                                                |
 | `FCH`                | Financial charge. A catch-all for cash adjustments: fees, interest, rebates, income such as an RSU vest. |
 | `FXT`                | Currency conversion.                                                                                     |
@@ -116,7 +116,7 @@ A transfer has two legs, one in each account, and they must balance:
 folio add -t TFR_OUT -a WS-RRSP   -c CAD -m 1000 -d 2023-09-18
 folio add -t TFR_IN  -a IBKR-RRSP -c CAD -m 1000 -d 2023-09-18
 
-# A position moving - ticker and units, no amount
+# An in-kind transfer: ticker and units, no amount
 folio add -t TFR_OUT -s SCHD -u 100 -a WS-RRSP   -c USD -d 2023-09-18
 folio add -t TFR_IN  -s SCHD -u 100 -a IBKR-RRSP -c USD -d 2023-09-18
 ```

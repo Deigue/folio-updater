@@ -9,9 +9,9 @@ import pandas as pd
 import pytest
 
 from cli.main import app
-from domain import Column, Scope
+from domain import Column, Grain
 from engine.cache import fingerprint, load_or_build
-from engine.frames import scope_column
+from engine.frames import grain_column
 from term import supports_unicode
 from ui.views.acb import (
     _FALL,
@@ -157,7 +157,7 @@ def test_acb_reports_the_conversion_basis(temp_ctx: TempContext) -> None:
     assert_in_output("settle date", result)
 
 
-def test_acb_account_scope(temp_ctx: TempContext) -> None:
+def test_acb_account_grain(temp_ctx: TempContext) -> None:
     """One account holds its own 50 units; the TFSA type pools both, 550."""
     with temp_ctx() as ctx:
         seed_cad_holding(account="IBKR-TFSA")
@@ -190,8 +190,8 @@ def test_acb_account_scope(temp_ctx: TempContext) -> None:
     assert_in_output("550", pooled)
 
 
-def test_acb_folio_scope(temp_ctx: TempContext) -> None:
-    """The portfolio pools a TFSA's 50 units with a taxable account's 50."""
+def test_acb_folio_grain(temp_ctx: TempContext) -> None:
+    """The folio pools a TFSA's 50 units with a taxable account's 50."""
     with temp_ctx() as ctx:
         seed_cad_holding(account="IBKR-TFSA")
         seed_cad_holding(account="IBKR-PERSONAL")
@@ -704,11 +704,11 @@ def test_movements_track_each_currency_separately() -> None:
     frame = pd.DataFrame(
         {
             str(Column.Txn.TXN_ID): [1, 2],
-            scope_column(Scope.ACCOUNT, "Avg"): [100.0, 110.0],
-            scope_column(Scope.ACCOUNT, "Avg_USD"): [80.0, 70.0],
+            grain_column(Grain.ACCOUNT, "Avg"): [100.0, 110.0],
+            grain_column(Grain.ACCOUNT, "Avg_USD"): [80.0, 70.0],
         },
     )
-    view = AcbView(Scope.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
+    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
     moves = movements(frame, view)
     assert moves[("Avg", 2)] == 1
     assert moves[("Avg_USD", 2)] == -1
@@ -716,14 +716,14 @@ def test_movements_track_each_currency_separately() -> None:
     assert ("Avg", 1) not in moves
 
 
-def test_movements_track_the_running_position() -> None:
+def test_movements_track_the_running_holding() -> None:
     frame = pd.DataFrame(
         {
             str(Column.Txn.TXN_ID): [1, 2, 3],
-            scope_column(Scope.ACCOUNT, "Units"): [100.0, 150.0, 90.0],
+            grain_column(Grain.ACCOUNT, "Units"): [100.0, 150.0, 90.0],
         },
     )
-    view = AcbView(Scope.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
+    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
     moves = movements(frame, view)
     assert moves[("Units", 2)] == 1
     assert moves[("Units", 3)] == -1
@@ -734,10 +734,10 @@ def test_a_measure_that_holds_still_is_not_marked() -> None:
     frame = pd.DataFrame(
         {
             str(Column.Txn.TXN_ID): [1, 2],
-            scope_column(Scope.ACCOUNT, "Units"): [100.0, 100.0],
+            grain_column(Grain.ACCOUNT, "Units"): [100.0, 100.0],
         },
     )
-    view = AcbView(Scope.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
+    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
     assert movements(frame, view) == {}
 
 

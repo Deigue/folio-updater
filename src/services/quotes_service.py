@@ -150,7 +150,7 @@ _FUNDAMENTAL_COLUMNS: dict[str, tuple[Column.Quote, bool]] = {
 
 @dataclass(frozen=True)
 class Quote:
-    """A symbol's latest cached market snapshot.
+    """A symbol's quote: its latest cached market data.
 
     Attributes:
         symbol: The folio's own canonical symbol.
@@ -215,7 +215,7 @@ class Quote:
 
     @property
     def priced(self) -> bool:
-        """Whether this quote can be used to value a position."""
+        """Whether this quote can be used to value a holding."""
         return (
             self.status is QuoteStatus.OK and self.price is not None and self.price > 0
         )

@@ -176,7 +176,7 @@ def import_file(
 
 
 def confirm_demo_replacement() -> bool:
-    """Offer to replace the demo portfolio before an import joins it.
+    """Offer to replace the demo folio before an import joins it.
 
     Asked only while the folio holds the demo and nothing else; the files are
     not read to find out whose rows they hold. A non-interactive run, with
@@ -189,7 +189,7 @@ def confirm_demo_replacement() -> bool:
         return True
 
     console_warning(
-        "This folio holds the demo portfolio; importing would mix your "
+        "This folio is the demo folio; importing would mix your "
         "transactions into it.",
     )
     try:
@@ -201,13 +201,13 @@ def confirm_demo_replacement() -> bool:
         replace = False
     if replace:
         DemoFolio.clear()
-        console_success("Removed the demo portfolio.")
+        console_success("Removed the demo folio.")
     return replace
 
 
 def _cancelled_for_the_demo() -> typer.Exit:
     """Report a declined import over the demo, ready to be raised."""
-    console_info("Import cancelled; the demo portfolio is unchanged.")
+    console_info("Import cancelled; the demo folio is unchanged.")
     return typer.Exit(1)
 
 

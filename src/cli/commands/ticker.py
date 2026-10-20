@@ -24,7 +24,7 @@ from cli.commands.common import (
     replay_result,
     resolve_pool,
 )
-from domain import Currency, Scope
+from domain import Currency, Grain
 from engine.panels import FolioValuation
 from engine.performance import fetch_moves
 from engine.ticker import (
@@ -33,7 +33,7 @@ from engine.ticker import (
     UnknownMatrixSortError,
     performance_rows,
     sort_performance,
-    symbol_position,
+    symbol_holdings,
 )
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from exporters.sheets import performance_table, ticker_table
@@ -46,8 +46,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from engine.cache import CachedFrame
-    from engine.positions import ValuationCurrency
-    from engine.ticker import SymbolPosition
+    from engine.holdings import ValuationCurrency
+    from engine.ticker import SymbolHoldings
     from exporters.table import Table
 
 CurrencyChoice = Literal["native", "CAD", "USD", "both"]
@@ -71,7 +71,7 @@ def report_ticker(
 
     Args:
         symbols: One symbol to look up, owned or not; several to compare; or
-            none to compare every open position. An old alias resolves to the
+            none to compare every open holding. An old alias resolves to the
             symbol it was renamed to.
         currency: One symbol only: `native` (the security's own currency),
             `CAD`, `USD` or `both`. A CAD security only ever shows CAD.
@@ -179,7 +179,7 @@ def _report_one(
         offline=offline,
     )[canonical]
 
-    positions: list[SymbolPosition] = []
+    positions: list[SymbolHoldings] = []
     if traded:
         positions = _positions(
             cached,
@@ -260,7 +260,7 @@ def _report_matrix(
         held = panel.holdings.holdings if panel is not None else []
         wanted = [holding.symbol for holding in held]
     if not wanted:
-        console_warning(f"No open positions in {view.label} to compare.")
+        console_warning(f"No open holdings in {view.label} to compare.")
         return
 
     # Held securities were priced with the folio; only named ones may be new.
@@ -288,7 +288,7 @@ def _report_matrix(
     if sort is not None or not symbols:
         rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)
 
-    pool_weight = view.scope is not Scope.FOLIO
+    pool_weight = view.grain is not Grain.FOLIO
     if export:
         note = freshness_note(cached.computed_at, priced)
         table = performance_table(
@@ -348,7 +348,7 @@ def _positions(
     *,
     by_account: bool,
     offline: bool,
-) -> list[SymbolPosition]:
+) -> list[SymbolHoldings]:
     """Value the security in every currency the request asked to see.
 
     The native view is valued first, since it says which currency the security
@@ -357,14 +357,14 @@ def _positions(
     """
     result = replay_result(cached)
 
-    def valued(currency: ValuationCurrency) -> SymbolPosition | None:
+    def valued(currency: ValuationCurrency) -> SymbolHoldings | None:
         valuation = FolioValuation.build(
             cached.frame,
             result,
             currency=currency,
             offline=offline,
         )
-        return symbol_position(valuation, symbol, by_account=by_account)
+        return symbol_holdings(valuation, symbol, by_account=by_account)
 
     native = valued("native")
     if native is None or choice in {"native", "USD"} or native.currency is Currency.CAD:

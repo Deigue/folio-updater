@@ -1,4 +1,4 @@
-"""The entire portfolio exported into an excel workbook."""
+"""The folio workbook: the whole folio rendered into an Excel workbook."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ class Section(StrEnum):
 
     SUMMARY = "summary"  # the headline figures and every pool's flows
     PERF = "perf"  # every holding's price move over each range
-    DASH = "dash"  # the portfolio's dashboard, and one per account type
+    DASH = "dash"  # the folio's dashboard, and one per account type
     ACCOUNTS = "accounts"  # one dashboard per broker account
     ACB = "acb"  # the Ledger, and every pool's closing cost base
     STORED = "stored"  # FX rates and tickers, and the importable Txns
@@ -242,7 +242,7 @@ class _Pools:
     """Every pool the workbook reports, valued once.
 
     Attributes:
-        folio: The whole portfolio.
+        folio: The whole folio.
         types: Each account type, active ones first.
         accounts: Each account, active ones first.
         history: Every year of contribution room used, newest first.
@@ -255,7 +255,7 @@ class _Pools:
 
     @property
     def every(self) -> list[Panel]:
-        """The portfolio, then every type, then every account."""
+        """The folio, then every type, then every account."""
         return [self.folio, *self.types, *self.accounts]
 
 

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Column, Scope
+from domain import Column, Grain
 from engine.frames import (
     acb_summary_frame,
     acb_summary_frames_by_pool,
-    scope_column,
+    grain_column,
 )
 from engine.panels import FOLIO_VIEW, type_view
 from exporters.excel_style import COST_BASE_TAB
-from exporters.sheets.summary import SCOPE_NAMES
+from exporters.sheets.summary import GRAIN_NAMES
 from exporters.table import Col, Fmt, Table, row_of
 
 if TYPE_CHECKING:
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 USD = "_USD"
 
-# How each measure of a scope family reads, and at what precision.
+# How each measure of a grain family reads, and at what precision.
 MEASURE_FORMATS: dict[str, Fmt] = {
     "Units": Fmt.UNITS,
     "ACB": Fmt.MONEY,
@@ -45,7 +45,7 @@ _CONVERSION_NOTE = (
 def acb_buildup_table(
     rows: pd.DataFrame,
     *,
-    scope: Scope,
+    grain: Grain,
     name: str,
     currency: str = "both",
     notes: Sequence[str] = (),
@@ -57,7 +57,7 @@ def acb_buildup_table(
 
     Args:
         rows: The symbol's rows from the master frame.
-        scope: The pool grain being reported.
+        grain: The pool grain being reported.
         name: What the sheet is called.
         currency: `CAD`, `USD` or `both`.
         notes: Lines to disclose above the ones the table derives itself.
@@ -65,7 +65,7 @@ def acb_buildup_table(
     Returns:
         The table, in settle-date order.
     """
-    cad, usd = families(currency, usd=has_usd(rows, (scope,)))
+    cad, usd = families(currency, usd=has_usd(rows, (grain,)))
     columns = [
         Col(_TXN_DATE, Fmt.DATE),
         Col(_SETTLE_DATE, Fmt.DATE),
@@ -97,7 +97,7 @@ def acb_buildup_table(
         name=name,
         columns=built,
         rows=tuple(
-            row_of(built, _buildup_cells(record, scope))
+            row_of(built, _buildup_cells(record, grain))
             for record in ordered.to_dict("records")
         ),
         notes=(*notes, *acb_notes(rows)),
@@ -107,28 +107,28 @@ def acb_buildup_table(
 def acb_summary_table(
     rows: pd.DataFrame,
     *,
-    scope: Scope,
+    grain: Grain,
     name: str,
     currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Table:
-    """Collapse a pool to one row per symbol: its closing position.
+    """Collapse a pool to one row per symbol: its closing holding.
 
     Args:
         rows: The pool's rows from the master frame.
-        scope: The pool grain being reported.
+        grain: The pool grain being reported.
         name: What the sheet is called.
         currency: `CAD`, `USD` or `both`. `USD` drops the CAD-denominated
             holdings, which have no USD figures to show.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, open positions first and alphabetical within each group.
+        The table, open holdings first and alphabetical within each group.
     """
     summary = acb_summary_frame(rows)
-    cad, usd = families(currency, usd=has_usd(summary, (scope,)))
+    cad, usd = families(currency, usd=has_usd(summary, (grain,)))
     if usd and not cad and not summary.empty:
-        summary = summary[summary[scope_column(scope, "ACB" + USD)].notna()]
+        summary = summary[summary[grain_column(grain, "ACB" + USD)].notna()]
 
     columns: list[Col] = [Col("Symbol"), Col("Units", Fmt.UNITS)]
     for measure in ("ACB", "Avg", "Gain"):
@@ -142,8 +142,8 @@ def acb_summary_table(
         name=name,
         columns=built,
         rows=tuple(
-            row_of(built, _summary_cells(record, scope))
-            for record in _open_first(summary, scope).to_dict("records")
+            row_of(built, _summary_cells(record, grain))
+            for record in _open_first(summary, grain).to_dict("records")
         ),
         notes=(*notes, *acb_notes(rows)),
     )
@@ -151,9 +151,9 @@ def acb_summary_table(
 
 COST_BASE_COLUMNS: tuple[Col, ...] = (
     Col("Pool", width=18),
-    Col("Scope", width=10),
+    Col("Grain", width=10),
     Col("Symbol"),
-    # A closed position is a realized gain and nothing else, so its zero units,
+    # A closed holding is a realized gain and nothing else, so its zero units,
     # cost and average stay blank rather than reading as something still held.
     Col("Units", Fmt.UNITS, quiet=True),
     Col("ACB", Fmt.MONEY, quiet=True),
@@ -176,21 +176,21 @@ def cost_base_table(
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, one row per pool and symbol: the portfolio first, then each
-        account type, then each account. Open positions lead within each pool.
+        The table, one row per pool and symbol: the folio first, then each
+        account type, then each account. Open holdings lead within each pool.
     """
-    pools: list[tuple[str, Scope, pd.DataFrame]] = [
-        (FOLIO_VIEW.label, Scope.FOLIO, acb_summary_frame(frame)),
+    pools: list[tuple[str, Grain, pd.DataFrame]] = [
+        (FOLIO_VIEW.label, Grain.FOLIO, acb_summary_frame(frame)),
     ]
-    for scope in (Scope.TYPE, Scope.ACCOUNT):
-        for pool, summary in sorted(acb_summary_frames_by_pool(frame, scope).items()):
-            label = type_view(pool).label if scope is Scope.TYPE else pool
-            pools.append((label, scope, summary))
+    for grain in (Grain.TYPE, Grain.ACCOUNT):
+        for pool, summary in sorted(acb_summary_frames_by_pool(frame, grain).items()):
+            label = type_view(pool).label if grain is Grain.TYPE else pool
+            pools.append((label, grain, summary))
 
     rows = [
-        row_of(COST_BASE_COLUMNS, _cost_base_cells(label, scope, record))
-        for label, scope, summary in pools
-        for record in _open_first(summary, scope).to_dict("records")
+        row_of(COST_BASE_COLUMNS, _cost_base_cells(label, grain, record))
+        for label, grain, summary in pools
+        for record in _open_first(summary, grain).to_dict("records")
     ]
     return Table(
         name=name,
@@ -204,18 +204,18 @@ def cost_base_table(
 
 def _cost_base_cells(
     label: str,
-    scope: Scope,
+    grain: Grain,
     record: Mapping[Hashable, Any],
 ) -> dict[str, object]:
-    """Read one symbol's closing position in one pool, in CAD."""
+    """Read one symbol's closing holding in one pool, in CAD."""
     return {
         "Pool": label,
-        "Scope": SCOPE_NAMES[scope],
+        "Grain": GRAIN_NAMES[grain],
         "Symbol": record["Symbol"],
-        "Units": record[scope_column(scope, "Units")],
-        "ACB": record[scope_column(scope, "ACB")],
-        "Avg": record[scope_column(scope, "Avg")],
-        "Gain": record[scope_column(scope, "Gain")],
+        "Units": record[grain_column(grain, "Units")],
+        "ACB": record[grain_column(grain, "ACB")],
+        "Avg": record[grain_column(grain, "Avg")],
+        "Gain": record[grain_column(grain, "Gain")],
     }
 
 
@@ -237,15 +237,15 @@ def families(currency: str, *, usd: bool) -> tuple[bool, bool]:
     return True, usd
 
 
-def has_usd(frame: pd.DataFrame, scopes: Sequence[Scope]) -> bool:
+def has_usd(frame: pd.DataFrame, grains: Sequence[Grain]) -> bool:
     """Report whether any row carries a USD-denominated cost base."""
     return any(
         column in frame.columns and frame[column].notna().any()
-        for column in (scope_column(scope, "ACB" + USD) for scope in scopes)
+        for column in (grain_column(grain, "ACB" + USD) for grain in grains)
     )
 
 
-def _buildup_cells(record: Mapping[Hashable, Any], scope: Scope) -> dict[str, object]:
+def _buildup_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, object]:
     """Read one transaction into the buildup's cells."""
     cells: dict[str, object] = {
         _TXN_DATE: record[str(Column.Txn.TXN_DATE)],
@@ -253,7 +253,7 @@ def _buildup_cells(record: Mapping[Hashable, Any], scope: Scope) -> dict[str, ob
         "TxnId": record[str(Column.Txn.TXN_ID)],
         "Action": record[str(Column.Txn.ACTION)],
         "Units": record[str(Column.Txn.UNITS)],
-        "Held": record[scope_column(scope, "Units")],
+        "Held": record[grain_column(grain, "Units")],
         "Price": record[str(Column.Txn.PRICE)],
         "Amount": record[str(Column.Txn.AMOUNT)],
         "Fee": record[str(Column.Txn.FEE)],
@@ -262,32 +262,32 @@ def _buildup_cells(record: Mapping[Hashable, Any], scope: Scope) -> dict[str, ob
         "Flags": record["Flags"],
     }
     for measure in ("Delta", "ACB", "Avg", "Gain"):
-        cells[measure] = record[scope_column(scope, measure)]
-        cells[f"{measure} USD"] = record[scope_column(scope, measure + USD)]
+        cells[measure] = record[grain_column(grain, measure)]
+        cells[f"{measure} USD"] = record[grain_column(grain, measure + USD)]
     return cells
 
 
-def _summary_cells(record: Mapping[Hashable, Any], scope: Scope) -> dict[str, object]:
-    """Read one symbol's closing position into the summary's cells."""
+def _summary_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, object]:
+    """Read one symbol's closing holding into the summary's cells."""
     cells: dict[str, object] = {
         "Symbol": record["Symbol"],
-        "Units": record[scope_column(scope, "Units")],
+        "Units": record[grain_column(grain, "Units")],
     }
     for measure in ("ACB", "Avg", "Gain"):
-        cells[measure] = record[scope_column(scope, measure)]
-        cells[f"{measure} USD"] = record[scope_column(scope, measure + USD)]
+        cells[measure] = record[grain_column(grain, measure)]
+        cells[f"{measure} USD"] = record[grain_column(grain, measure + USD)]
     return cells
 
 
-def _open_first(summary: pd.DataFrame, scope: Scope) -> pd.DataFrame:
-    """Sink closed positions to the bottom, alphabetical within each group.
+def _open_first(summary: pd.DataFrame, grain: Grain) -> pd.DataFrame:
+    """Sink closed holdings to the bottom, alphabetical within each group.
 
-    A closed position is history: a realized gain and four blanks. Interleaving
+    A closed holding is history: a realized gain and four blanks. Interleaving
     those alphabetically pushes what is actually held apart.
     """
     if summary.empty:
         return summary
-    units = scope_column(scope, "Units")
+    units = grain_column(grain, "Units")
     ordered = summary.assign(_closed=summary[units].fillna(0) == 0)
     return ordered.sort_values(["_closed", "Symbol"], kind="stable").drop(
         columns="_closed",

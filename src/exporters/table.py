@@ -37,7 +37,7 @@ class Role(StrEnum):
 
     DATA = "data"
     MUTED = "muted"  # reference data rather than performance
-    CLOSED = "closed"  # a position that is no longer held
+    CLOSED = "closed"  # a holding that is no longer held
     BLANK = "blank"  # a spacer, and the end of the filtered range
     SUBTOTAL = "subtotal"
     TOTAL = "total"

@@ -11,7 +11,7 @@ from app import get_config
 from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
 from db import backup_folio, get_connection, get_max_value, txn_count
-from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Scope, Table
+from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Grain, Table
 from engine.cache import CachedFrame, build, load_or_build
 from engine.fx_rates import FxRateUnavailableError
 from engine.panels import FOLIO_VIEW, PoolView
@@ -49,7 +49,7 @@ __all__ = [
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
 
-# The `--type` value that names the portfolio-wide pool rather than one type.
+# The `--type` value that names the folio pool rather than one type.
 ALL_POOLS = "all"
 
 # How to get past a stored transaction the engine cannot convert.
@@ -225,10 +225,10 @@ def resolve_pool(
 
     Args:
         account: A single broker account, when `--account` was given.
-        account_type: An account type, or `all` for the portfolio-wide pool,
+        account_type: An account type, or `all` for the folio pool,
             when `--type` was given.
         default_type: The type a bare invocation reports, or None to mean the
-            whole portfolio.
+            whole folio.
 
     Returns:
         The resolved pool.
@@ -244,7 +244,7 @@ def resolve_pool(
         raise typer.Exit(1)
 
     if account:
-        return PoolView(Scope.ACCOUNT, account, account)
+        return PoolView(Grain.ACCOUNT, account, account)
     requested = account_type or default_type
     if requested is None or requested.strip().lower() == ALL_POOLS:
         return FOLIO_VIEW
@@ -256,7 +256,7 @@ def resolve_pool(
             f"{ALL_POOLS}, {', '.join(str(member).lower() for member in AccountType)}",
         )
         raise typer.Exit(1)
-    return PoolView(Scope.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
+    return PoolView(Grain.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
 
 
 def export_to_parquet() -> None:

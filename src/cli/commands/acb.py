@@ -14,7 +14,7 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import ensure_fx_coverage, load_folio, resolve_pool
-from domain import Column, Scope
+from domain import Column, Grain
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from exporters.sheets import (
     acb_buildup_table,
@@ -50,7 +50,7 @@ def resolve_view(
 
     Args:
         account: A single broker account, when `--account` was given.
-        account_type: An account type, or `all` for the portfolio-wide pool,
+        account_type: An account type, or `all` for the folio pool,
             when `--type` was given.
 
     Returns:
@@ -59,12 +59,12 @@ def resolve_view(
     Raises:
         typer.Exit: If the requested account type is not one the engine knows.
     """
-    scope, pool, label = resolve_pool(
+    grain, pool, label = resolve_pool(
         account,
         account_type,
         default_type="nreg",
     )
-    return AcbView(scope, pool, label if scope is Scope.ACCOUNT else label.lower())
+    return AcbView(grain, pool, label if grain is Grain.ACCOUNT else label.lower())
 
 
 def _filter_rows(
@@ -78,9 +78,9 @@ def _filter_rows(
 ) -> pd.DataFrame:
     """Narrow the master frame to the rows a request asked for."""
     rows = frame
-    if view.scope is Scope.ACCOUNT:
+    if view.grain is Grain.ACCOUNT:
         rows = rows[rows[str(Column.Txn.ACCOUNT)] == view.pool]
-    elif view.scope is Scope.TYPE:
+    elif view.grain is Grain.TYPE:
         rows = rows[rows["AcctType"] == view.pool]
     if symbol is not None:
         rows = rows[rows["Symbol"] == symbol]
@@ -110,7 +110,7 @@ def _sheet(
     if summary:
         return acb_summary_table(
             rows,
-            scope=view.scope,
+            grain=view.grain,
             name=f"ACB Summary - {view.label}",
             currency=currency,
             notes=[badge],
@@ -118,7 +118,7 @@ def _sheet(
     if symbol:
         return acb_buildup_table(
             rows,
-            scope=view.scope,
+            grain=view.grain,
             name=f"ACB {symbol}",
             currency=currency,
             notes=[badge],

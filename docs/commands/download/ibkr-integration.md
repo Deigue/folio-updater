@@ -140,6 +140,6 @@ If you get timeout errors:
 
 1. **Download**: `folio download` → Downloads CSV files to `data/imports/`
 2. **Import**: `folio import` → Imports CSV data to database
-3. **Generate**: `folio generate` → Creates updated Excel portfolio file
+3. **Generate**: `folio generate` → Creates the updated folio workbook
 
 This integration allows you to automatically sync your IBKR transactions to the folio.

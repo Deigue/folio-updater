@@ -329,13 +329,13 @@ def test_a_same_day_buy_then_sell_is_not_an_oversell() -> None:
     assert check(rows, "unit-balances").status is CheckStatus.OK
 
 
-def test_a_position_left_negative_by_a_reported_sale_is_not_reported_twice() -> None:
+def test_a_holding_left_negative_by_a_reported_sale_is_not_reported_twice() -> None:
     """The oversell and the negative ending are one defect, not two."""
     result = check(oversold_in_one_account(), "unit-balances")
     assert len(result.findings) == 1
 
 
-def test_a_position_left_negative_with_no_sale_is_reported() -> None:
+def test_a_holding_left_negative_with_no_sale_is_reported() -> None:
     rows = [
         make_row(
             1,
@@ -665,7 +665,7 @@ def test_a_split_row_does_not_invent_a_currency_conflict() -> None:
 # --- income sanity ------------------------------------------------------------
 
 
-def test_a_dividend_with_no_position_is_reported() -> None:
+def test_a_dividend_with_no_holding_is_reported() -> None:
     rows = [
         make_row(1, "2024-02-01", Action.DIVIDEND, amount="25", ticker="RY.TO"),
     ]
@@ -697,7 +697,7 @@ def test_return_of_capital_past_the_cost_base_is_reported() -> None:
         make_row(2, "2024-06-01", Action.ROC, amount="400", ticker="ZAG.TO"),
     ]
     result = check(rows, "income-sanity")
-    assert "past what the position cost" in details(result)
+    assert "past what the holding cost" in details(result)
 
 
 # --- settlement dates ---------------------------------------------------------

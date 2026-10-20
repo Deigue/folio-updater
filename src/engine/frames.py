@@ -4,7 +4,7 @@ The frame is the display and export boundary. The replay itself is exact
 Decimal arithmetic end to end; numbers become float here, where the smallest
 column is displayed to 6dp and float64 carries fifteen significant figures.
 
-Conventions for the per-scope columns:
+Conventions for the per-grain columns:
 
 - **CAD is unsuffixed.** It is always populated, and it is the tax currency.
 - **`_USD` marks the original-currency variant**, populated only for
@@ -24,12 +24,12 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from domain import Column, Scope
+from domain import Column, Grain
 from domain.numeric import safe_div
 from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
-    from engine.types import ComputedRow, ReplayResult, ScopeMeasures
+    from engine.types import ComputedRow, GrainMeasures, ReplayResult
 
 # Source columns carried straight through from Txns.
 SOURCE_COLUMNS = [
@@ -46,28 +46,28 @@ SOURCE_COLUMNS = [
     str(Column.Txn.FEE),
 ]
 
-# Derived context that is not scope-specific.
+# Derived context that is not grain-specific.
 CONTEXT_COLUMNS = ["Symbol", "AcctType", "Impact", "FXRate", "FXDate", "Flags"]
 
-# Measures shared by every scope.
+# Measures shared by every grain.
 SHARED_COLUMNS = ["Proceeds", "Proceeds_USD", "Dividend", "Dividend_USD"]
 
 # The column a pool at each grain is named by.
-POOL_COLUMN: dict[Scope, str] = {
-    Scope.ACCOUNT: str(Column.Txn.ACCOUNT),
-    Scope.TYPE: "AcctType",
+POOL_COLUMN: dict[Grain, str] = {
+    Grain.ACCOUNT: str(Column.Txn.ACCOUNT),
+    Grain.TYPE: "AcctType",
 }
 
-# The prefix each scope's column family carries.
-SCOPE_PREFIX: dict[Scope, str] = {
-    Scope.ACCOUNT: "Acct",
-    Scope.TYPE: "Type",
-    Scope.FOLIO: "Folio",
+# The prefix each grain's column family carries.
+GRAIN_PREFIX: dict[Grain, str] = {
+    Grain.ACCOUNT: "Acct",
+    Grain.TYPE: "Type",
+    Grain.FOLIO: "Folio",
 }
 
-# Measure suffix -> the `ScopeMeasures` attribute behind it. CAD first, then the
+# Measure suffix -> the `GrainMeasures` attribute behind it. CAD first, then the
 # original-currency variant, matching how the CLI renders them side by side.
-SCOPE_MEASURES: list[tuple[str, str]] = [
+GRAIN_MEASURES: list[tuple[str, str]] = [
     ("Units", "units"),
     ("ACB", "acb_cad"),
     ("ACB_USD", "acb_usd"),
@@ -80,17 +80,17 @@ SCOPE_MEASURES: list[tuple[str, str]] = [
 ]
 
 
-def scope_column(scope: Scope, measure: str) -> str:
+def grain_column(grain: Grain, measure: str) -> str:
     """Name the column holding one measure at one pool grain.
 
     Args:
-        scope: The pool grain.
-        measure: A suffix from `SCOPE_MEASURES`, such as `"ACB"` or `"Avg_USD"`.
+        grain: The pool grain.
+        measure: A suffix from `GRAIN_MEASURES`, such as `"ACB"` or `"Avg_USD"`.
 
     Returns:
         The column name, for example `AcctACB` or `FolioAvg_USD`.
     """
-    return f"{SCOPE_PREFIX[scope]}{measure}"
+    return f"{GRAIN_PREFIX[grain]}{measure}"
 
 
 def _number(value: Decimal | None) -> float | None:
@@ -98,16 +98,16 @@ def _number(value: Decimal | None) -> float | None:
     return None if value is None else float(value)
 
 
-def _scope_cells(
+def _grain_cells(
     computed: ComputedRow,
-    scope: Scope,
-    measures: ScopeMeasures,
+    grain: Grain,
+    measures: GrainMeasures,
 ) -> dict[str, float | None]:
-    """Emit one scope's nine measures, blanking what does not apply."""
+    """Emit one grain's nine measures, blanking what does not apply."""
     tracked = computed.symbol is not None
     cells: dict[str, float | None] = {}
-    for suffix, attribute in SCOPE_MEASURES:
-        column = scope_column(scope, suffix)
+    for suffix, attribute in GRAIN_MEASURES:
+        column = grain_column(grain, suffix)
         if not tracked or (suffix.endswith("_USD") and not computed.is_usd):
             cells[column] = None
             continue
@@ -141,8 +141,8 @@ def _row_record(computed: ComputedRow) -> dict[str, object]:
         "Dividend": _number(computed.dividend_cad),
         "Dividend_USD": _number(computed.dividend_usd),
     }
-    for scope in Scope:
-        record.update(_scope_cells(computed, scope, computed.measures(scope)))
+    for grain in Grain:
+        record.update(_grain_cells(computed, grain, computed.measures(grain)))
     return record
 
 
@@ -151,11 +151,11 @@ def master_columns() -> list[str]:
 
     Returns:
         Source columns, then derived context, then the shared measures, then
-        each scope's nine-measure family.
+        each grain's nine-measure family.
     """
     columns = [*SOURCE_COLUMNS, *CONTEXT_COLUMNS, *SHARED_COLUMNS]
-    for scope in Scope:
-        columns.extend(scope_column(scope, suffix) for suffix, _ in SCOPE_MEASURES)
+    for grain in Grain:
+        columns.extend(grain_column(grain, suffix) for suffix, _ in GRAIN_MEASURES)
     return columns
 
 
@@ -186,7 +186,7 @@ def master_frame(result: ReplayResult) -> pd.DataFrame:
 
     Returns:
         A DataFrame indexed by `TxnId`, strictly 1:1 with `Txns`, holding the
-        source columns alongside every derived and per-scope measure.
+        source columns alongside every derived and per-grain measure.
     """
     columns = master_columns()
     if not result.rows:
@@ -201,7 +201,7 @@ def master_frame(result: ReplayResult) -> pd.DataFrame:
 
 
 def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    """Collapse the master frame to one row per symbol, all three scopes.
+    """Collapse the master frame to one row per symbol, all three grains.
 
     The final state of each pool is the last row that touched it, in trade-date
     order.
@@ -231,13 +231,13 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
 def acb_summary_frames_by_pool(
     frame: pd.DataFrame,
-    scope: Scope,
+    grain: Grain,
 ) -> dict[str, pd.DataFrame]:
     """Summarise every pool at one grain in a single pass over the frame.
 
     Args:
         frame: A master frame.
-        scope: The pool grain to split by. Portfolio grain has a single pool and
+        grain: The pool grain to split by. Folio grain has a single pool and
             is not a split, so it is rejected.
 
     Returns:
@@ -245,13 +245,13 @@ def acb_summary_frames_by_pool(
         have produced for it. Pools whose rows track no symbol are absent.
 
     Raises:
-        ValueError: If asked to split at portfolio grain.
+        ValueError: If asked to split at folio grain.
     """
-    if scope is Scope.FOLIO:
-        msg = "Portfolio grain is a single pool; use acb_summary_frame instead."
+    if grain is Grain.FOLIO:
+        msg = "Folio grain is a single pool; use acb_summary_frame instead."
         raise ValueError(msg)
 
-    column = POOL_COLUMN[scope]
+    column = POOL_COLUMN[grain]
     if frame.empty or "Symbol" not in frame.columns or column not in frame.columns:
         return {}
 
@@ -302,27 +302,27 @@ def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _summary_record(symbol: object, last: pd.Series) -> dict[str, object]:
-    """Read one symbol's closing position off the last row that touched it."""
+    """Read one symbol's closing holding off the last row that touched it."""
     record: dict[str, object] = {"Symbol": symbol}
-    for scope in Scope:
+    for grain in Grain:
         for suffix in ("Units", "ACB", "ACB_USD", "Gain", "Gain_USD"):
-            column = scope_column(scope, suffix)
+            column = grain_column(grain, suffix)
             record[column] = last[column]
         # Both averages are computed rather than carried
         for suffix in ("Avg", "Avg_USD"):
-            record[scope_column(scope, suffix)] = _average(
-                last[scope_column(scope, "Units")],
-                last[scope_column(scope, suffix.replace("Avg", "ACB"))],
+            record[grain_column(grain, suffix)] = _average(
+                last[grain_column(grain, "Units")],
+                last[grain_column(grain, suffix.replace("Avg", "ACB"))],
             )
     return record
 
 
 def _summary_columns() -> list[str]:
-    """List the per-scope columns the summary frame carries."""
+    """List the per-grain columns the summary frame carries."""
     columns: list[str] = []
-    for scope in Scope:
+    for grain in Grain:
         columns.extend(
-            scope_column(scope, suffix)
+            grain_column(grain, suffix)
             for suffix in (
                 "Units",
                 "ACB",

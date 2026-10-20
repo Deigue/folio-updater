@@ -12,7 +12,7 @@ It is a **reporter, never a fixer**. It opens the folio, reads it, and prints.
 ## Why it exists
 
 A cash account cannot be overdrawn, and you cannot sell shares you never bought. So when
-a replay of your own transactions produces a negative balance or a negative position, it
+a replay of your own transactions produces a negative balance or a negative holding, it
 has *proved* that a transaction is missing, and dated the proof. That is worth far more
 than a warning that something "looks unusual". It narrows a discrepancy from "somewhere
 in three years" to a single day, without opening a single broker statement.
@@ -44,7 +44,7 @@ Conversion arithmetic  ❌ 1 conversion does not add up
                                    is right.
 Currency consistency   ✅ no security is booked in more than one currency
 Split coverage         ✅ 4 splits, every account got one
-Income sanity          ✅ all income lands on a position held
+Income sanity          ✅ all income lands on a holding
 Fee conventions        ✅ 7 accounts agree with their own trades
 Settlement dates       ✅ every trade settles when it should
 Transfers              ⚠️  1 transfer leg has no counterpart
@@ -66,26 +66,26 @@ alone still exit zero.
 | Check                     | What it proves                                                                    |
 | ------------------------- | --------------------------------------------------------------------------------- |
 | **Account types**         | Every account resolves to a tax type. Nothing else means much until this passes.  |
-| **Unit balances**         | No position ever goes below zero. The check that finds the largest defects.       |
+| **Unit balances**         | No holding ever goes below zero. The check that finds the largest defects.        |
 | **Cash balances**         | No account is ever overdrawn.                                                     |
 | **Conversion arithmetic** | A currency conversion's amount, units and rate describe one event, so they agree. |
 | **Currency consistency**  | No security is booked in two currencies.                                          |
 | **Split coverage**        | Every account holding a security through a split has a split row for it.          |
-| **Income sanity**         | Dividends and returns of capital land on positions actually held.                 |
+| **Income sanity**         | Dividends and returns of capital land on holdings actually held.                  |
 | **Fee conventions**       | Every trade's amount reconciles against its price, units and commission.          |
 | **Settlement dates**      | No trade settles before it was made, or far outside its account's usual lag.      |
 | **Transfers**             | Every `TFR_OUT` has a matching `TFR_IN`, so the cost base can follow the units.   |
 
 ### Unit balances
 
-When a sale overdraws a position, the shortfall is measured at three levels at once, and the report says which:
+When a sale overdraws a holding, the shortfall is measured at three levels at once, and the report says which:
 
 - Short in **one account** but the account **type** still balances → *"The TFSA total is
   correct, so those units most likely moved from another account without being
   recorded."* Almost always an unrecorded transfer between your own accounts.
 - Short across the whole **account type** → a transfer that crossed account types, or a
   transaction that was never recorded at all.
-- Short across the whole **portfolio** → the units were never there.
+- Short across the whole **folio** → the units were never there.
 
 ### Cash balances
 

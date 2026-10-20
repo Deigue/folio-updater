@@ -65,7 +65,7 @@ class TransferPair:
             cost base removed from the out pool to the in pool.
         out_leg: The leg the units or cash left.
         in_leg: The leg they arrived on.
-        moves_units: True for a position transfer, False for a cash one.
+        moves_units: True for a in-kind transfer, False for a cash one.
     """
 
     pair_id: int
@@ -90,9 +90,9 @@ def _journal_fits(out_leg: TxnRow, in_leg: TxnRow) -> bool:
     return out_leg.settle_date == in_leg.settle_date
 
 
-def _position_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
-    """Rank a candidate in leg for a position transfer, or None if impossible."""
-    if not in_leg.is_position_transfer:
+def _in_kind_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
+    """Rank a candidate in leg for a in-kind transfer, or None if impossible."""
+    if not in_leg.is_in_kind_transfer:
         return None
     if abs(abs(out_leg.units) - abs(in_leg.units)) > UNIT_MATCH_TOLERANCE:
         return None
@@ -109,7 +109,7 @@ def _position_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
 
 def _cash_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
     """Rank a candidate in leg for a cash transfer, or None if impossible."""
-    if in_leg.is_position_transfer:
+    if in_leg.is_in_kind_transfer:
         return None
     if abs(abs(out_leg.amount) - abs(in_leg.amount)) > CASH_TOLERANCE:
         return None
@@ -146,7 +146,7 @@ def pair_transfers(
         start = bisect_left(in_dates, _shift(settle, -TRANSFER_WINDOW_DAYS))
         end = bisect_right(in_dates, _shift(settle, TRANSFER_WINDOW_DAYS))
         candidates = in_legs[start:end]
-        score_fn = _position_score if out_leg.is_position_transfer else _cash_score
+        score_fn = _in_kind_score if out_leg.is_in_kind_transfer else _cash_score
         best: tuple[int, int, int, TxnRow] | None = None
         for candidate in candidates:
             if candidate.txn_id in consumed:
@@ -168,7 +168,7 @@ def pair_transfers(
                 pair_id=next(ids),
                 out_leg=out_leg,
                 in_leg=best[3],
-                moves_units=out_leg.is_position_transfer,
+                moves_units=out_leg.is_in_kind_transfer,
             ),
         )
 

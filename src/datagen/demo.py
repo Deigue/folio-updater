@@ -1,13 +1,13 @@
-"""The demo folio: a realistic two-year portfolio built from real market history.
+"""The demo folio: two realistic years of activity built from real market history.
 
-Everything the demo needs lives in this one module, including a snapshot of
+Everything the demo needs lives in this one module, including a price history of
 real month-end closes, dividends and splits for every symbol it trades. The
-snapshot keeps generation offline and deterministic. Refresh it from Yahoo
+price history keeps generation offline and deterministic. Refresh it from Yahoo
 Finance with:
 
     uv run python -m datagen.demo --refresh
 
-The snapshot stores what Yahoo serves: closes and dividends adjusted for every
+The price history stores what Yahoo serves: closes and dividends adjusted for every
 split since, as if today's share count had always applied. A price or a
 dividend on a given day is un-adjusted when it is read, so a trade before a
 split books the price the market actually showed that day.
@@ -101,11 +101,11 @@ SYMBOLS: tuple[str, ...] = (
 USDCAD = "USDCAD"
 # Toronto-listed US dollar lines, and the Canadian dollar line each mirrors.
 # Yahoo quotes DLR-U.TO live but serves almost no history for it; since both
-# lines hold the same US dollars, the snapshot falls back to the CAD line's
+# lines hold the same US dollars, the price history falls back to the CAD line's
 # closes converted at the month's rate whenever Yahoo's history is short.
 _USD_LINES: dict[str, str] = {"DLR.U.TO": "DLR.TO"}
 # Real renames: the old symbol, the new one, and the first day under the new
-# name. Yahoo files the whole history under the new symbol, so the snapshot
+# name. Yahoo files the whole history under the new symbol, so the price history
 # holds it there.
 RENAMES: tuple[tuple[str, str, date], ...] = (("SQ", "XYZ", date(2025, 1, 21)),)
 
@@ -121,8 +121,8 @@ _DEMO_ACCOUNT = re.compile(r"^MOCK\d*-")
 
 _CENT = Decimal("0.01")
 _RATE_PLACES = Decimal("0.0001")
-_SNAPSHOT_START = "# -- SNAPSHOT START "
-_SNAPSHOT_END = "# -- SNAPSHOT END "
+_HISTORY_START = "# -- PRICE HISTORY START "
+_HISTORY_END = "# -- PRICE HISTORY END "
 _LINE_LIMIT = 88
 
 
@@ -130,11 +130,11 @@ class DemoScenarioError(ValueError):
     """The demo's own data cannot produce a valid folio."""
 
 
-# -- SNAPSHOT READING ---------------------------------------------------------
+# -- PRICE HISTORY READING ----------------------------------------------------
 
 
 def _parse_events(text: str) -> list[tuple[date, Decimal]]:
-    """Read a `YYYY-MM-DD:value` list from the snapshot."""
+    """Read a `YYYY-MM-DD:value` list from the price history."""
     events: list[tuple[date, Decimal]] = []
     for token in text.split():
         day, _, value = token.partition(":")
@@ -188,7 +188,7 @@ def split_factor(symbol: str, on: date) -> Decimal:
 
 
 def splits(symbol: str) -> list[tuple[date, Decimal]]:
-    """Every split of a symbol in the snapshot, as (date, new per old)."""
+    """Every split of a symbol in the price history, as (date, new per old)."""
     return list(_splits().get(symbol, []))
 
 
@@ -200,19 +200,19 @@ def price_on(symbol: str, on: date) -> Decimal:
 
     Args:
         symbol: Folio symbol, or `USDCAD` for the exchange rate.
-        on: Any day the snapshot covers.
+        on: Any day the price history covers.
 
     Returns:
         The price to the cent, or the rate to four places.
 
     Raises:
-        DemoScenarioError: If the snapshot does not cover the symbol or day.
+        DemoScenarioError: If the price history does not cover the symbol or day.
     """
     closes = _closes().get(symbol)
     first = date.fromisoformat(f"{_FIRST_MONTH}-01")
     index = (on.year - first.year) * 12 + on.month - first.month
     if closes is None or not 0 < index < len(closes):
-        msg = f"The demo snapshot has no price for {symbol} on {on}"
+        msg = f"The demo price history has no price for {symbol} on {on}"
         raise DemoScenarioError(msg)
     days_in_month = calendar.monthrange(on.year, on.month)[1]
     before, after = closes[index - 1], closes[index]
@@ -571,7 +571,7 @@ class _Simulation:
         self._add(account, Currency.CAD, cash)
 
     def withdraw(self, day: date, account: _Account, amount: int) -> None:
-        """Take money out of the portfolio."""
+        """Take money out of the folio."""
         cash = Decimal(amount)
         self._add(account, Currency.CAD, -cash)
         self._emit(day, Action.WITHDRAWAL, account, Currency.CAD, amount=-cash)
@@ -692,17 +692,17 @@ class _Simulation:
         units: int | None = None,
         expect: str | None = None,
     ) -> None:
-        """Sell some units, or the whole position, checking the outcome is as meant.
+        """Sell some units, or the whole holding, checking the outcome is as meant.
 
         Args:
             day: Trade date.
             account: Who sells.
             symbol: What is sold.
-            units: How many; the whole position when None.
+            units: How many; the whole holding when None.
             expect: "gain" or "loss" when the script means to show one.
 
         Raises:
-            DemoScenarioError: When the position is short of `units`, or the
+            DemoScenarioError: When the holding is short of `units`, or the
                 sale does not come out as `expect` says.
         """
         key = (account.name, symbol)
@@ -801,7 +801,7 @@ class _Simulation:
         self.at(day + timedelta(days=1), "sell", account, "DLR.U.TO", rank=_ARRIVAL)
 
     def transfer_all(self, day: date, source: _Account, target: _Account) -> None:
-        """Move an account's every position and its cash to another, in kind.
+        """Move an account's every holding and its cash to another, in kind.
 
         The out legs leave today; the in legs arrive three days later, the way
         an institutional transfer between brokers lands.
@@ -836,7 +836,7 @@ class _Simulation:
         units: int,
         value: Decimal,
     ) -> None:
-        """Land one leg of a transfer: a position and its cost base, or cash."""
+        """Land one leg of a transfer: a holding and its cost base, or cash."""
         if symbol is None:
             self._add(target, Currency.CAD, value)
             self._emit(day, Action.TFR_IN, target, Currency.CAD, amount=value)
@@ -915,7 +915,7 @@ def _script(sim: _Simulation) -> None:
     at(date(2025, 3, 5), "buy", RRSP, "NFLX", units=1)
     at(date(2025, 4, 11), "buy", PERSONAL, "NFLX", units=1)
 
-    # Taxable sales: a position closed at a loss, a partial sale and a close-out
+    # Taxable sales: a holding closed at a loss, a partial sale and a close-out
     # at a gain. US dollar sales carry the currency's own gain or loss too.
     at(date(2025, 2, 25), "buy", PERSONAL, "INTC", units=50)
     at(date(2025, 4, 29), "sell", PERSONAL, "INTC", expect="loss")
@@ -973,7 +973,7 @@ _GAMBIT_KEEP = {2: 2_000, 4: 2_000, 6: 2_000, 8: 2_000, 10: 2_000, 12: 5_000}
 
 
 def _background(sim: _Simulation) -> None:
-    """Fill every month with the steady activity a real portfolio has."""
+    """Fill every month with the steady activity a real folio has."""
     turns = dict.fromkeys(_ROUTINES, 0)
     background = {"rank": _BACKGROUND}
     for month in _months(date(2024, 11, 1)):
@@ -1055,7 +1055,7 @@ class DemoFolio:
                     console_warning(
                         "Transaction data already exists in the database: "
                         f'"{config.db_path}". Back up or delete this file first '
-                        "if you want to generate a fresh demo portfolio.",
+                        "if you want to generate a fresh demo folio.",
                     )
                     return False
 
@@ -1145,7 +1145,7 @@ def ensure_data_exists() -> bool:
     return DemoFolio().ensure()
 
 
-# -- SNAPSHOT REFRESH ---------------------------------------------------------
+# -- PRICE HISTORY REFRESH ----------------------------------------------------
 
 
 def _number(value: float, places: int) -> str:  # pragma: no cover
@@ -1155,7 +1155,7 @@ def _number(value: float, places: int) -> str:  # pragma: no cover
 
 
 def _wrapped(name: str, tokens: list[str]) -> list[str]:  # pragma: no cover
-    """Render one snapshot entry as ruff-stable, line-limited source."""
+    """Render one price history entry as ruff-stable, line-limited source."""
     one_line = f'    "{name}": "{" ".join(tokens)}",'
     if len(one_line) <= _LINE_LIMIT:
         return [one_line]
@@ -1178,7 +1178,7 @@ def _render_mapping(  # pragma: no cover
     name: str,
     entries: dict[str, list[str]],
 ) -> list[str]:
-    """Render a `name: dict[str, str] = {...}` snapshot table."""
+    """Render a `name: dict[str, str] = {...}` price history table."""
     lines = [f"{name}: dict[str, str] = {{"]
     for symbol, tokens in entries.items():
         lines.extend(_wrapped(symbol, tokens))
@@ -1196,8 +1196,8 @@ def _window_events(series: object, places: int) -> list[str]:  # pragma: no cove
     return tokens
 
 
-def refresh_snapshot(target: Path | None = None) -> None:  # pragma: no cover
-    """Fetch the snapshot from Yahoo Finance and rewrite it in this file.
+def refresh_price_history(target: Path | None = None) -> None:  # pragma: no cover
+    """Fetch the price history from Yahoo Finance and rewrite it in this file.
 
     Args:
         target: The file to rewrite, this module unless a test says otherwise.
@@ -1252,7 +1252,7 @@ def refresh_snapshot(target: Path | None = None) -> None:  # pragma: no cover
         ]
 
     lines = [
-        f'_SNAPSHOT_AS_OF = "{date.today().isoformat()}"',  # noqa: DTZ011
+        f'_HISTORY_AS_OF = "{date.today().isoformat()}"',  # noqa: DTZ011
         f'_FIRST_MONTH = "{_FIRST_MONTH}"',
         *_render_mapping("_CLOSES", closes),
         *_render_mapping("_DIVIDENDS", dividend_events),
@@ -1260,7 +1260,7 @@ def refresh_snapshot(target: Path | None = None) -> None:  # pragma: no cover
     ]
     source = target.read_text(encoding="utf-8")
     block = re.compile(
-        rf"(^{re.escape(_SNAPSHOT_START)}[^\n]*\n)(.*?)(^{re.escape(_SNAPSHOT_END)})",
+        rf"(^{re.escape(_HISTORY_START)}[^\n]*\n)(.*?)(^{re.escape(_HISTORY_END)})",
         re.MULTILINE | re.DOTALL,
     )
     body = "\n".join(lines) + "\n"
@@ -1270,7 +1270,7 @@ def refresh_snapshot(target: Path | None = None) -> None:  # pragma: no cover
         newline="\n",
     )
     print(  # noqa: T201
-        f"Snapshot written: {len(closes)} series, splits {split_events}, "
+        f"Price history written: {len(closes)} series, splits {split_events}, "
         f"derived from their CAD line: {derived or 'none'}",
     )
 
@@ -1281,14 +1281,14 @@ def main() -> None:
     parser.add_argument(
         "--refresh",
         action="store_true",
-        help="Refetch the price snapshot from Yahoo Finance",
+        help="Refetch the price history from Yahoo Finance",
     )
     if parser.parse_args().refresh:
-        refresh_snapshot()
+        refresh_price_history()
 
 
-# -- SNAPSHOT START (generated by `--refresh`; do not edit by hand) -----------
-_SNAPSHOT_AS_OF = "2026-10-04"
+# -- PRICE HISTORY START (generated by `--refresh`; do not edit by hand) ------
+_HISTORY_AS_OF = "2026-10-04"
 _FIRST_MONTH = "2024-09"
 _CLOSES: dict[str, str] = {
     "AAPL": (
@@ -1494,9 +1494,9 @@ _SPLITS: dict[str, str] = {
     "NFLX": "2025-11-17:10",
     "SCHD": "2024-10-11:3",
 }
-# -- SNAPSHOT END -------------------------------------------------------------
+# -- PRICE HISTORY END --------------------------------------------------------
 
 
-# The snapshot above has to exist before the tools run.
+# The price history above has to exist before the tools run.
 if __name__ == "__main__":
     main()

@@ -111,7 +111,7 @@ class ActionValidationRules:
             ],
         },
         # A transfer carries either cash or units, so neither is required on its
-        # own: a cash transfer has Amount and no Ticker, a position transfer has
+        # own: a cash transfer has Amount and no Ticker, a in-kind transfer has
         # Ticker and Units and no Amount.
         Action.TFR_IN: {
             "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],

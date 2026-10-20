@@ -68,7 +68,7 @@ def price(value: Decimal | None) -> str:
 
 
 def units(value: Decimal | None) -> str:
-    """Render a share count, dropping the zeros a whole position does not need."""
+    """Render a unit count, dropping the zeros whole units do not need."""
     if value is None:
         return EM_DASH
     text = f"{float(value):,.{UNIT_PRECISION}f}"
@@ -154,7 +154,7 @@ def currency_tint(currency: Currency, text: str) -> str:
 
 
 def weight(value: Decimal | None) -> str:
-    """Render a position's weight, flagged once it concentrates its pool."""
+    """Render a holding's weight, flagged once it concentrates its pool."""
     text = percent(value)
     if value is None:
         return text

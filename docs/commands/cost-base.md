@@ -27,7 +27,7 @@ CRA-relevant figures live. `--type tfsa`, `--type rrsp` and so on switch tax typ
 folio acb NVDA                        # non-registered pool
 folio acb NVDA --type tfsa            # every TFSA pooled together
 folio acb NVDA --account IBKR-TFSA    # one broker account
-folio acb NVDA --type all             # portfolio-wide
+folio acb NVDA --type all             # the folio pool
 ```
 
 ## Options
@@ -71,7 +71,7 @@ folio acb --summary --type tfsa       # ... pooled across every TFSA
 folio acb --summary --account WS-TFSA # ... in one account
 ```
 
-**Open positions sort first**, alphabetical within each group, with closed ones
+**Open holdings sort first**, alphabetical within each group, with closed ones
 underneath.
 
 The `USD` columns will only appear if the pool contains USD-denominated holdings.
@@ -165,7 +165,7 @@ is recorded.
 | `DUPLICATE_SPLIT`          | Two split rows for the same ticker in the same account       |
 | `SPLIT_WITHOUT_POSITION`   | A split against a pool holding nothing                       |
 | `ROC_EXCEEDS_ACB`          | Return of capital drove the cost base below zero             |
-| `INCOME_WITHOUT_POSITION`  | A dividend or return of capital with no position held        |
+| `INCOME_WITHOUT_POSITION`  | A dividend or return of capital with no holding              |
 | `SETTLE_BEFORE_TRADE`      | A trade that settles before it was made                      |
 | `AMBIGUOUS_FEE_CONVENTION` | A trade matching neither fee convention                      |
 | `FXT_AMOUNT_INCONSISTENT`  | A conversion whose `Amount` and `Units * Price` disagree     |
@@ -177,7 +177,7 @@ is recorded.
 printed a table.
 
 > [!IMPORTANT]
-> **`SUPERFICIAL_LOSS_SUSPECT` is a warning only: the cost base and gain figures are
+> **`SUPERFICIAL_LOSS_SUSPECT` is a flag only: the cost base and gain figures are
 > *not* adjusted for it.** By CRA rule, a superficial loss should be denied and added
 > back to the cost base of the shares that caused it. This engine deliberately does not
 > do that: it tracks cost base the same way your broker does, matching Units, ACB and
@@ -190,8 +190,8 @@ Two of these are deliberately narrower than they first appear:
 - **`SETTLE_BEFORE_TRADE` judges trades only.** This diagnostic code is only applicable
   to trade type transactions like `BUY` and `SELL`
 - **`INCOME_WITHOUT_POSITION` allows a 60-day tail.** A distribution is earned
-  on its ex-date and paid weeks later, during which the position could be sold out. The
-  finding is income against a pool that never held the symbol, or has not held it in months.
+  on its ex-date and paid weeks later, during which the holding could be sold out. The
+  diagnostic is income against a pool that never held the symbol, or has not held it in months.
 
 ## Caching
 
