@@ -87,6 +87,11 @@ FEE_MAJORITY_SHARE = 0.6
 # superficial-loss candidate. Just a flag.
 SUPERFICIAL_LOSS_DAYS = 30
 
+# Where a sale's loss is checked for being superficial: the taxable accounts,
+# where CRA would deny it, and unresolved accounts, which get every diagnostic
+# any account could. An unresolved account still counts in no tax figure.
+SUPERFICIAL_LOSS_TYPES = TAXABLE_ACCOUNT_TYPES | {AccountType.UNKNOWN}
+
 # Order actions share a trade date in. The date is the finest resolution the folio
 # records, so several rows routinely land on one and their true sequence is not
 # recoverable. This prioritization makes things deterministic and avoid cost base
@@ -1502,8 +1507,9 @@ class _Replay:
 
         The CRA superficial-loss window spans from 30 days before
         the sale to 30 days after it (inclusive of the sale date). Restricted
-        to taxable accounts, the only place the rule has any consequence, but
-        the triggering buy may be in any account.
+        to taxable accounts, the only place the rule has any consequence, and
+        unresolved ones, which might turn out taxable. The triggering buy may be
+        in any account.
         """
         buys: dict[str, list[date]] = {}
         for computed in self.result.rows:
@@ -1520,7 +1526,7 @@ class _Replay:
             if row.action is not Action.SELL or not computed.symbol:
                 continue
             acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-            if acct_type not in TAXABLE_ACCOUNT_TYPES or _sale_gain(computed) >= ZERO:
+            if acct_type not in SUPERFICIAL_LOSS_TYPES or _sale_gain(computed) >= ZERO:
                 continue
             sold_on = date.fromisoformat(row.txn_date)
             window_start = sold_on - timedelta(days=SUPERFICIAL_LOSS_DAYS)

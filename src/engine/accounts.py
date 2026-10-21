@@ -12,7 +12,6 @@ from functools import cache
 from app import get_config
 from domain import (
     ACCOUNT_TYPE_ALIASES,
-    TAXABLE_ACCOUNT_TYPES,
     AccountType,
     FeeConvention,
 )
@@ -118,15 +117,3 @@ def fee_convention_for(account: str) -> FeeConvention:
         ships as `AUTO` so the convention is detected from the rows themselves.
     """
     return get_config().fee_convention_for(account)
-
-
-def is_taxable(account: str) -> bool:
-    """Whether dispositions in this account are taxable.
-
-    Args:
-        account: The account name as stored on the transaction.
-
-    Returns:
-        True for non-registered, margin and corporate accounts.
-    """
-    return resolve_account_type(account) in TAXABLE_ACCOUNT_TYPES

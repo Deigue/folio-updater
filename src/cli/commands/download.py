@@ -14,8 +14,8 @@ import typer
 
 from app import bootstrap, get_config
 from app.logging_setup import get_import_logger
-from db import get_connection, get_max_value
-from domain import TORONTO_TZ, Column, Table
+from db import get_broker_latest_txn_date, get_connection
+from domain import TORONTO_TZ
 from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 from term import (
@@ -361,32 +361,23 @@ def download_ws_statement(from_date: str) -> list[Path]:
     return [config.statements_path / name for name in exported_files]
 
 
-def latest_txn_date(broker: str, account: str | None = None) -> str | None:
+def latest_txn_date(broker: str) -> str | None:
     """Return the date of a broker's latest stored transaction.
 
-    A download resumes from this date, inclusive, so the day itself always
-    arrives a second time.
+    This is the broker's overlap day: a download restarts on it, inclusive, so
+    its rows always arrive a second time.
 
     Args:
         broker: Broker key as it appears in account names (`ibkr`, `ws`).
-        account: Look at this one account instead of every account of the broker.
 
     Returns:
         The date as YYYY-MM-DD, or None when the broker has no transactions.
     """
-    if account:
-        condition = f"Account = '{account}'"
-    else:
-        condition = f"UPPER(Account) LIKE UPPER('%{broker}%')"
     with get_connection() as conn:
-        return get_max_value(conn, Table.TXNS, Column.Txn.TXN_DATE, condition)
+        return get_broker_latest_txn_date(conn, broker)
 
 
-def _resolve_from_date(
-    from_date_str: str | None,
-    broker: str,
-    account_override: str | None = None,
-) -> str:
+def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
     """Resolve the from date, using fallbacks if not specified.
 
     Fallback to latest trade date from broker, or first of current month.
@@ -394,7 +385,6 @@ def _resolve_from_date(
     Args:
         from_date_str (str | None): The from date string provided by user.
         broker (str): The broker identifier.
-        account_override (str | None): Optional account to filter transactions.
 
     Returns:
         str: The resolved from date in YYYYMMDD format.
@@ -404,7 +394,7 @@ def _resolve_from_date(
 
     # Fallback handling
     try:
-        latest_date_str = latest_txn_date(broker, account_override)
+        latest_date_str = latest_txn_date(broker)
         if latest_date_str:
             latest_date = datetime.strptime(
                 latest_date_str,

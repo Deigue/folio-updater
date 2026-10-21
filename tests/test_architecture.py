@@ -29,7 +29,7 @@ LAYERS: dict[str, int] = {
     "ingest": 8,  # source rows to transactions
     "importers": 9,  # reading workbooks
     "exporters": 10,  # writing workbooks
-    "datagen": 11,  # demo and mock folios
+    "datagen": 11,  # the demo folio
     "ui": 12,  # rendering reports
     "cli": 13,  # argument parsing and wiring
 }

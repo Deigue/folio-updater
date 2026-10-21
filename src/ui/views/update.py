@@ -2,8 +2,8 @@
 
 Every stage prints its own output as it runs. This is the condensed account
 printed last: what changed in the folio, what needs a human (with the command
-for each), what is left for a later run, and, when a stage stopped the run,
-how to get going again.
+for each), what a later run resolves on its own, what was expected and needs
+nothing, and, when a stage stopped the run, how to get going again.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from term import console_print, console_rule, get_symbol
 from term.console import console_panel
 from ui.format import safe_str
 from ui.views.transactions import TransactionDisplay
-from ui.vocabulary import THEME_EXCLUDED, THEME_SUCCESS
+from ui.vocabulary import THEME_REMOVED, THEME_SUCCESS
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -53,7 +53,8 @@ def show_update_report(report: UpdateReport) -> None:
     console_rule("Update Report", style=_REPORT_STYLE)
     _show_changes(report)
     _show_concerns(report.concerns)
-    _show_pending(report.pending)
+    _show_notes("Pending, a later update resolves these", report.pending)
+    _show_notes("Expected, nothing to do", report.expected)
     _show_outcome(report)
 
 
@@ -137,16 +138,16 @@ def _show_concern_rows(concern: Concern) -> None:
             for row in rows.to_dict("records")
         ],
         max_rows=len(rows),
-        theme=THEME_EXCLUDED,
+        theme=THEME_REMOVED,
     )
 
 
-def _show_pending(pending: list[str]) -> None:
-    """Print what was expected and needs nothing now."""
-    if not pending:
+def _show_notes(title: str, lines: list[str]) -> None:
+    """Print one section of notes that need nothing from the user now."""
+    if not lines:
         return
-    console_rule("Expected, nothing to do", style="dim")
-    for line in pending:
+    console_rule(title, style="dim")
+    for line in lines:
         console_print(f"[dim]  {escape(line)}[/dim]")
 
 

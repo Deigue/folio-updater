@@ -57,8 +57,8 @@ def _format_one(action: str, amount: str, units: str) -> pd.Series:
             },
         ],
     )
-    formatted_df, excluded_df = TransactionFormatter.format_and_validate(df)
-    assert excluded_df.empty, f"{action} unexpectedly rejected"
+    formatted_df, invalid_df = TransactionFormatter.format_and_validate(df)
+    assert invalid_df.empty, f"{action} unexpectedly rejected"
     return formatted_df.iloc[0]
 
 

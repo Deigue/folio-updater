@@ -177,9 +177,12 @@ contribution_room:
 Entirely optional: without it, `folio dash` still reports what was contributed each
 year, just with no limit to compare against.
 
+Only `TFSA`, `RRSP` and `FHSA` carry room. An RESP limit is lifetime and per
+beneficiary rather than per year, so an `RESP` entry is ignored with a warning.
+
 An RRSP contribution made in the first 60 days of a year counts toward the year
 before, the way CRA's deduction limit statement reports it (a deadline that falls on a
-weekend moves to the Monday after). TFSA, FHSA and RESP contributions count in the
+weekend moves to the Monday after). TFSA and FHSA contributions count in the
 calendar year they were made.
 
 Only `CONTRIBUTION` and `WITHDRAWAL` rows count toward it. `TFR_IN` and `TFR_OUT`

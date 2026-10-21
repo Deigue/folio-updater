@@ -176,7 +176,7 @@ each incoming or outgoing transfer that is your own money, its *deposit share*. 
 know "how much of the money we put in, exists in this pool"; to compare against its
 current-day state, in order to gauge the real performance of its holdings.
 
-The `Room` line appears only for registered pools, and only once
+The `Room` line appears only for TFSA, RRSP and FHSA pools, and only once
 [`contribution_room`](../configuration.md#contribution-room) is configured. It is
 keyed by account type and year, because a CRA limit covers every account of that
 type at once.

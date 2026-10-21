@@ -64,6 +64,12 @@ TAXABLE_ACCOUNT_TYPES = frozenset(
     {AccountType.NON_REGISTERED, AccountType.MARGIN, AccountType.CORPORATE},
 )
 
+# Account types with a CRA contribution limit set per year. An RESP limit is
+# lifetime and per beneficiary instead, so it has no room year to report against.
+ROOM_BEARING_TYPES = frozenset(
+    {AccountType.TFSA, AccountType.RRSP, AccountType.FHSA},
+)
+
 # Names a broker or a user might give an account that mean an AccountType
 ACCOUNT_TYPE_ALIASES: dict[str, AccountType] = {
     "NONREG": AccountType.NON_REGISTERED,

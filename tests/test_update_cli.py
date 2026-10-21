@@ -177,7 +177,9 @@ def test_clean_run_goes_through_every_stage(
         assert (config.processed_path / WS_FILE).exists()
         assert_in_output("New transactions (2)", result)
         assert_in_output("statement download failed", result)
-        assert_in_output("only warned: folio check", result)
+        # No later run clears a warning, so it is expected rather than pending.
+        expected = result.plain_output.partition("Expected, nothing to do")[2]
+        assert "only warned: folio check" in expected
         assert_in_output("Folio workbook:", result)
         assert_in_output("Update finished with", result)
 

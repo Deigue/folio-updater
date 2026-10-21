@@ -11,7 +11,7 @@ against genuine mock data.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, tzinfo
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -39,6 +39,17 @@ def stub_db_lookups() -> Generator[None, Any]:
         return_value=(MOCK_TICKERS, MOCK_ACCOUNTS, MOCK_COLUMNS),
     ):
         yield
+
+
+def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
+    """Make the parser read `today` as the current date."""
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            return datetime(today.year, today.month, today.day, tzinfo=tz)
+
+    monkeypatch.setattr(query_parser, "datetime", _FrozenDateTime)
 
 
 class TestQueryParser:
@@ -356,11 +367,14 @@ class TestQueryParser:
         assert query.filters[1].operator == "<="
         assert query.filters[1].value == "2021-12-31"
 
-    def test_parse_between_october_and_now_rolls_back_a_year(self) -> None:
+    def test_parse_between_october_and_now_rolls_back_a_year(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test 'between X and now' rolls the start back if X hasn't happened yet."""
+        _freeze_today(monkeypatch, date(2025, 3, 1))
         query = parse_query_terms(["between", "october", "13", "and", "now"])
-        assert len(query.filters) == 2
-        assert query.filters[0].value <= query.filters[1].value
+        assert [f.value for f in query.filters] == ["2024-10-13", "2025-03-01"]
 
     def test_parse_from_to_months(self) -> None:
         """Test 'from MONTH to MONTH' resolves to full calendar months."""
@@ -458,14 +472,7 @@ class TestQueryParser:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test 'last month' rolls back into December of the prior year in January."""
-
-        class _FrozenDateTime(datetime):
-            @classmethod
-            def now(cls, tz: tzinfo | None = None) -> datetime:
-                return datetime(2025, 1, 15, tzinfo=tz)
-
-        monkeypatch.setattr(query_parser, "datetime", _FrozenDateTime)
-
+        _freeze_today(monkeypatch, date(2025, 1, 15))
         query = parse_query_terms(["last", "month"])
         assert len(query.filters) == 2
         assert query.filters[0].value == "2024-12-01"

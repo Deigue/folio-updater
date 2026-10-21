@@ -9,10 +9,11 @@ import pandas as pd
 from domain import Action, CheckStatus, Column, SettlementOutcome
 from engine.checks import CheckFinding, CheckResult
 from engine.update_review import (
+    ImportReview,
     add_command,
+    before_overlap_day,
     header_rows,
     odd_merges,
-    old_db_dupes,
     review_checks,
     review_import,
     review_late_cancellations,
@@ -107,7 +108,7 @@ def _txn(
 
 def _results(
     *,
-    excluded: pd.DataFrame | None = None,
+    invalid: pd.DataFrame | None = None,
     intra: pd.DataFrame | None = None,
     db: pd.DataFrame | None = None,
     final: pd.DataFrame | None = None,
@@ -117,7 +118,7 @@ def _results(
     """Build import results whose tally adds up, from the parts given."""
     empty = pd.DataFrame()
     results = ImportResults(
-        excluded_df=empty if excluded is None else excluded,
+        invalid_df=empty if invalid is None else invalid,
         intra_rejected_df=empty if intra is None else intra,
         db_rejected_df=empty if db is None else db,
         final_df=empty if final is None else final,
@@ -128,7 +129,7 @@ def _results(
     read = (
         results.imported_count()
         + results.cancelled_count()
-        + results.excluded_count()
+        + results.invalid_count()
         + results.intra_rejected_count()
         + results.db_rejected_count()
         + results.merge_candidates()
@@ -196,27 +197,27 @@ class TestAddCommand:
 class TestImportReview:
     """Concerns raised from one file's import results."""
 
-    def test_header_rows_are_noise(self) -> None:
+    def test_header_rows_are_expected(self) -> None:
         """Repeated header lines are counted, never raised as concerns."""
-        excluded = pd.DataFrame([HEADER_ROW, HEADER_ROW])
-        concerns, noise = review_import("trades.csv", _results(excluded=excluded), None)
-        assert concerns == []
-        assert noise == ["trades.csv: 2 repeated header row(s)"]
+        invalid = pd.DataFrame([HEADER_ROW, HEADER_ROW])
+        review = review_import("trades.csv", _results(invalid=invalid), None)
+        assert review.concerns == ()
+        assert review.expected == ("trades.csv: 2 repeated header row(s)",)
 
     def test_header_mask_spares_real_rows(self) -> None:
         """A row with real values is not mistaken for a header."""
-        excluded = pd.DataFrame([HEADER_ROW, MISSING_AMOUNT_ROW])
-        mask = header_rows(excluded, SOURCE_COLUMNS)
+        invalid = pd.DataFrame([HEADER_ROW, MISSING_AMOUNT_ROW])
+        mask = header_rows(invalid, SOURCE_COLUMNS)
         assert mask.tolist() == [True, False]
 
     def test_header_mask_of_nothing(self) -> None:
-        """No exclusions means no header rows."""
+        """No invalid rows means no header rows."""
         assert header_rows(pd.DataFrame(), SOURCE_COLUMNS).empty
 
-    def test_real_exclusion_is_a_concern(self) -> None:
-        """An excluded transaction is raised, with its reason and the add for it."""
-        excluded = pd.DataFrame([HEADER_ROW, BARE_WITHDRAWAL_ROW])
-        concerns, _ = review_import("ws.csv", _results(excluded=excluded), None)
+    def test_real_invalid_row_is_a_concern(self) -> None:
+        """A genuinely invalid row is raised, with its reason and the add for it."""
+        invalid = pd.DataFrame([HEADER_ROW, BARE_WITHDRAWAL_ROW])
+        concerns = review_import("ws.csv", _results(invalid=invalid), None).concerns
         assert len(concerns) == 1
         concern = concerns[0]
         assert concern.stage is UpdateStage.IMPORT
@@ -226,68 +227,63 @@ class TestImportReview:
         assert "-c <currency> -m <amount>" in concern.commands[0]
         assert concern.commands[0].startswith("folio add -t WITHDRAWAL")
 
-    def test_unpaid_dividend_is_expected(self) -> None:
-        """A dividend listed before it pays is noted, not raised."""
-        excluded = pd.DataFrame([MISSING_AMOUNT_ROW])
-        concerns, noise = review_import("ws.csv", _results(excluded=excluded), None)
-        assert concerns == []
+    def test_unpaid_dividend_is_pending(self) -> None:
+        """A dividend listed before it pays waits on a future download (statement)."""
+        invalid = pd.DataFrame([MISSING_AMOUNT_ROW])
+        review = review_import("ws.csv", _results(invalid=invalid), None)
+        assert review.concerns == ()
+        assert review.expected == ()
         unpaid = f"2026-09-15 DIVIDEND {TSX_TICKER} CAD {ACCOUNT}"
-        assert noise == [f"Dividend announced, not paid yet: {unpaid}"]
+        assert review.pending == (f"Dividend announced, not paid yet: {unpaid}",)
 
     def test_paired_cancellation_is_expected(self) -> None:
         """A cancellation that voided its row in the file is noted, not raised."""
         event = CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW)
-        concerns, noise = review_import("cash.csv", _results(cancels=[event]), None)
-        assert concerns == []
+        review = review_import("cash.csv", _results(cancels=[event]), None)
+        assert review.concerns == ()
         voided = f"2026-09-07 Deposits/Withdrawals 13000 CAD {ACCOUNT}"
-        assert noise == [f"cash.csv: cancelled by the broker, both left out: {voided}"]
+        assert review.expected == (
+            f"cash.csv: cancelled by the broker, both left out: {voided}",
+        )
 
     def test_intra_duplicates_are_a_concern(self) -> None:
-        """Every dropped copy gets a forced add."""
+        """Every rejected copy gets a forced add."""
         intra = pd.DataFrame([_txn("2026-09-02", Action.FXT, -100.0)] * 2)
-        concerns, _ = review_import("trades.csv", _results(intra=intra), None)
+        concerns = review_import("trades.csv", _results(intra=intra), None).concerns
         assert len(concerns) == 1
         assert len(concerns[0].commands) == 2
         assert all(c.endswith("--force") for c in concerns[0].commands)
 
-    def test_resume_day_duplicates_are_noise(self) -> None:
-        """Duplicates on or after the resume day are expected."""
+    def test_overlap_day_duplicates_are_expected(self) -> None:
+        """Duplicates on or after the overlap day are expected."""
         dupes = pd.DataFrame([_txn("2026-09-02", Action.BUY, -50.0)])
-        concerns, noise = review_import(
-            "trades.csv",
-            _results(db=dupes),
-            "2026-09-02",
-        )
-        assert concerns == []
-        assert noise == ["trades.csv: 1 row(s) re-sent for the resume day"]
+        review = review_import("trades.csv", _results(db=dupes), "2026-09-02")
+        assert review.concerns == ()
+        assert review.expected == ("trades.csv: 1 row(s) re-sent for the overlap day",)
 
     def test_older_duplicates_are_a_concern(self) -> None:
-        """A duplicate from before the resume day means an overlapping file."""
+        """A duplicate from before the overlap day means an overlapping file."""
         dupes = pd.DataFrame(
             [
                 _txn("2026-08-01", Action.BUY, -50.0),
                 _txn("2026-09-02", Action.BUY, -60.0),
             ],
         )
-        concerns, noise = review_import(
-            "trades.csv",
-            _results(db=dupes),
-            "2026-09-02",
-        )
-        assert len(concerns) == 1
-        assert len(concerns[0].rows) == 1
-        assert len(noise) == 1
+        review = review_import("trades.csv", _results(db=dupes), "2026-09-02")
+        assert len(review.concerns) == 1
+        assert len(review.concerns[0].rows) == 1
+        assert len(review.expected) == 1
 
-    def test_without_resume_date_all_duplicates_are_old(self) -> None:
+    def test_without_an_overlap_day_all_duplicates_are_old(self) -> None:
         """A file that is not a broker download has no expected overlap."""
         dupes = pd.DataFrame([_txn("2026-09-02", Action.BUY, -50.0)])
-        assert len(old_db_dupes(dupes, None)) == 1
+        assert len(before_overlap_day(dupes, None)) == 1
 
     def test_tally_mismatch_is_a_concern(self) -> None:
         """Rows unaccounted for by any stage are raised."""
         results = _results(final=pd.DataFrame([_txn("2026-09-02", Action.BUY, -1.0)]))
         results.final_df = pd.DataFrame()
-        concerns, _ = review_import("trades.csv", results, None)
+        concerns = review_import("trades.csv", results, None).concerns
         assert [c.title for c in concerns] == [
             "Import tally does not add up for trades.csv",
         ]
@@ -295,7 +291,9 @@ class TestImportReview:
     def test_clean_import_raises_nothing(self) -> None:
         """An import with nothing unusual reports nothing."""
         final = pd.DataFrame([_txn("2026-09-02", Action.BUY, -1.0)])
-        assert review_import("trades.csv", _results(final=final), None) == ([], [])
+        assert (
+            review_import("trades.csv", _results(final=final), None) == ImportReview()
+        )
 
 
 class TestMerges:
@@ -322,7 +320,7 @@ class TestMerges:
     def test_odd_merge_is_a_concern(self) -> None:
         """The concern lists every source row and a query to find it."""
         event = _merge(-1.5, [("Dividends", 1.0), ("Withholding Tax", -2.5)])
-        concerns, _ = review_import("cash.csv", _results(merges=[event]), None)
+        concerns = review_import("cash.csv", _results(merges=[event]), None).concerns
         assert len(concerns) == 1
         assert len(concerns[0].rows) == 2
         assert concerns[0].commands == (f"folio query {TICKER} 2026-09-10",)

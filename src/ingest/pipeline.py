@@ -55,7 +55,7 @@ def prepare_transactions(
     transformed_df, merge_events, transform_events, cancel_events = (
         TransactionTransformer.transform(mapped_df)
     )
-    formatted_df, excluded_df = TransactionFormatter.format_and_validate(transformed_df)
+    formatted_df, invalid_df = TransactionFormatter.format_and_validate(transformed_df)
     intra_approved_df = TransactionFilter.filter_intra_import_duplicates(formatted_df)
     db_approved_df = TransactionFilter.filter_db_duplicates(intra_approved_df)
     cleaned_df = TransactionMapper.remove_approval_column(db_approved_df)
@@ -82,7 +82,7 @@ def prepare_transactions(
         read_df=read_df,
         mapped_df=mapped_df,
         transformed_df=transformed_df,
-        excluded_df=excluded_df,
+        invalid_df=invalid_df,
         intra_approved_df=intra_approved_df,
         intra_rejected_df=intra_rejected_df,
         db_approved_df=db_approved_df,

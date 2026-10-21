@@ -293,10 +293,10 @@ class TransactionFormatter:
         """
         self.original_df = df
         self.formatted_df = df.copy()
-        self.exclusions: list[int] = []
+        self.invalid_labels: list[int] = []
         self.rejection_reasons: dict[int, list[str]] = {}
         self.config = get_config()
-        self.excluded_df = pd.DataFrame()
+        self.invalid_df = pd.DataFrame()
 
     @staticmethod
     def format_and_validate(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -306,14 +306,15 @@ class TransactionFormatter:
             df: DataFrame with transaction data
 
         Returns:
-            Tuple of (formatted_df, excluded_df)
+            Tuple of (formatted_df, invalid_df), the invalid rows carrying
+            their rejection reasons.
         """
         if df.empty:  # pragma: no cover
             return df, pd.DataFrame()
 
         formatter = TransactionFormatter(df)
         formatter._process()
-        return formatter.formatted_df, formatter.excluded_df
+        return formatter.formatted_df, formatter.invalid_df
 
     def _process(self) -> None:
         """Process the transaction data through all formatting steps."""
@@ -323,38 +324,32 @@ class TransactionFormatter:
         self._format_currencies()
         self._format_rule_columns()
         self._normalize_signs()
-        self._finalize_exclusions()
+        self._reject_invalid_rows()
         self._log_formatting_changes(original_df)
         self._calculate_settlement_dates()
 
-    def _finalize_exclusions(self) -> None:
-        """Remove excluded rows and log rejection details."""
-        if self.exclusions:
-            excluded_indices = set(self.exclusions)
-            self.excluded_df = self.original_df.loc[list(excluded_indices)].copy()
-            if not self.excluded_df.empty:
+    def _reject_invalid_rows(self) -> None:
+        """Reject the invalid rows, logging each with its reasons."""
+        if self.invalid_labels:
+            labels = set(self.invalid_labels)
+            self.invalid_df = self.original_df.loc[list(labels)].copy()
+            if not self.invalid_df.empty:
                 reasons_list = []
-                for idx in self.excluded_df.index:
+                for idx in self.invalid_df.index:
                     reasons = self.rejection_reasons.get(idx, ["Unknown"])
                     reasons_list.append("; ".join(reasons))
-                self.excluded_df = self.excluded_df.assign(
+                self.invalid_df = self.invalid_df.assign(
                     **{str(Column.REJECTION_REASON): reasons_list},
                 )
 
-            self.formatted_df = self.formatted_df[
-                ~self.formatted_df.index.isin(excluded_indices)
-            ]
+            self.formatted_df = self.formatted_df[~self.formatted_df.index.isin(labels)]
 
             if not import_logger.isEnabledFor(logging.WARNING):  # pragma: no cover
                 return
 
-            excluded_count = len(excluded_indices)
-            import_logger.warning(
-                "EXCLUDE %d transactions (invalid formatting)",
-                excluded_count,
-            )
+            import_logger.warning("REJECT %d invalid row(s)", len(labels))
 
-            for idx in sorted(excluded_indices):
+            for idx in sorted(labels):
                 if idx < len(self.original_df):
                     row = self.original_df.iloc[idx]
                     reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
@@ -485,7 +480,7 @@ class TransactionFormatter:
     ) -> None:
         """Book missing and invalid rows against the audit trail."""
         if required:
-            self.exclusions.extend(missing)
+            self.invalid_labels.extend(missing)
             for label in missing:
                 self.rejection_reasons.setdefault(label, []).append(
                     f"MISSING {column}",
@@ -498,7 +493,7 @@ class TransactionFormatter:
             return
 
         reason = f"INVALID {column}" if required else f"{NON_NUMERIC} {column}"
-        self.exclusions.extend(label for label, _ in invalid)
+        self.invalid_labels.extend(label for label, _ in invalid)
         for label, _ in invalid:
             self.rejection_reasons.setdefault(label, []).append(reason)
 

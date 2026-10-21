@@ -12,7 +12,6 @@ import pytest
 from domain import AccountType, Action, Column, Currency, Grain
 from engine.cache import build
 from engine.flows import (
-    ROOM_BEARING_TYPES,
     Flows,
     Room,
     build_flows,
@@ -1033,12 +1032,25 @@ def test_room_states_how_much_of_its_limit_is_used(
     assert room.full is full
 
 
-def test_a_non_registered_pool_has_no_room_row(temp_ctx: TempContext) -> None:
+@pytest.mark.parametrize(
+    ("account", "account_type"),
+    [
+        # Unbounded, so a total against no limit would be meaningless.
+        ("WS-PERSONAL", AccountType.NON_REGISTERED),
+        # Bounded, but for life and per beneficiary rather than per year.
+        ("WS-RESP", AccountType.RESP),
+    ],
+)
+def test_a_pool_without_yearly_room_has_no_room_row(
+    temp_ctx: TempContext,
+    account: str,
+    account_type: AccountType,
+) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         seed_transaction(
             action="CONTRIBUTION",
-            account="WS-PERSONAL",
+            account=account,
             ticker=None,
             currency="CAD",
             amount="5000",
@@ -1046,15 +1058,8 @@ def test_a_non_registered_pool_has_no_room_row(temp_ctx: TempContext) -> None:
             units=None,
         )
 
-        flows = _flows(
-            Grain.TYPE,
-            str(AccountType.NON_REGISTERED),
-            AccountType.NON_REGISTERED,
-            {},
-            2025,
-        )
+        flows = _flows(Grain.TYPE, str(account_type), account_type, {}, 2025)
 
-        # An unbounded total would be meaningless, so the row is omitted.
         assert flows.room is None
 
 
@@ -1073,13 +1078,6 @@ def test_the_folio_grain_has_no_room_row(temp_ctx: TempContext) -> None:
 
         # Room belongs to one account type; a whole-folio view spans several.
         assert _flows().room is None
-
-
-def test_only_registered_types_bear_room() -> None:
-    assert AccountType.TFSA in ROOM_BEARING_TYPES
-    assert AccountType.RRSP in ROOM_BEARING_TYPES
-    assert AccountType.NON_REGISTERED not in ROOM_BEARING_TYPES
-    assert AccountType.MARGIN not in ROOM_BEARING_TYPES
 
 
 def test_an_account_grain_sees_only_its_own_cash(temp_ctx: TempContext) -> None:
@@ -1248,6 +1246,20 @@ def test_room_history_lists_newest_year_first_then_type() -> None:
         (2025, AccountType.TFSA),
         (2024, AccountType.TFSA),
     ]
+
+
+def test_room_history_leaves_out_resp_contributions() -> None:
+    history = room_history(
+        {
+            AccountType.TFSA: {2025: Decimal(7000)},
+            AccountType.RESP: {2025: Decimal(2500)},
+        },
+        {},
+        {},
+        through=2026,
+    )
+
+    assert [room.account_type for room in history] == [AccountType.TFSA]
 
 
 def test_room_history_shows_a_configured_year_nothing_went_into() -> None:

@@ -1258,7 +1258,20 @@ def test_superficial_loss_suspect_buy_precedes_sale() -> None:
     assert WarningCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
 
 
-def test_superficial_loss_not_flagged_in_a_registered_account() -> None:
+@pytest.mark.parametrize(
+    ("account", "account_type", "flagged"),
+    [
+        ("IBKR-TFSA", AccountType.TFSA, False),
+        # Unresolved: checked as strictly as a taxable account would be.
+        ("IBKR-U1234567", AccountType.UNKNOWN, True),
+    ],
+)
+def test_superficial_loss_is_flagged_by_account_type(
+    account: str,
+    account_type: AccountType,
+    *,
+    flagged: bool,
+) -> None:
     result = run(
         [
             make_row(
@@ -1268,7 +1281,7 @@ def test_superficial_loss_not_flagged_in_a_registered_account() -> None:
                 amount="-1000",
                 units="100",
                 price="10",
-                account="IBKR-TFSA",
+                account=account,
             ),
             make_row(
                 2,
@@ -1277,7 +1290,7 @@ def test_superficial_loss_not_flagged_in_a_registered_account() -> None:
                 amount="700",
                 units="-100",
                 price="7",
-                account="IBKR-TFSA",
+                account=account,
             ),
             make_row(
                 3,
@@ -1286,12 +1299,12 @@ def test_superficial_loss_not_flagged_in_a_registered_account() -> None:
                 amount="-720",
                 units="100",
                 price="7.20",
-                account="IBKR-TFSA",
+                account=account,
             ),
         ],
-        types={"IBKR-TFSA": AccountType.TFSA},
+        types={account: account_type},
     )
-    assert WarningCode.SUPERFICIAL_LOSS_SUSPECT not in codes(result)
+    assert (WarningCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)) is flagged
 
 
 def test_flags_include_codes_raised_after_the_row_was_emitted() -> None:

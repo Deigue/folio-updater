@@ -32,7 +32,7 @@ class Block:
     They know their exact dimensions and can be arranged by TilingLayout.
 
     Attributes:
-        name: Display name for the block (e.g., "Merged", "Excluded").
+        name: Display name for the block (e.g., "Merged", "Invalid").
         key: Single character key for interactive expansion.
         panel: The Rich renderable (typically a Table) to display.
         total: Total number of items in the underlying data.

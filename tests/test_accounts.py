@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from domain import AccountType, FeeConvention
-from engine.accounts import fee_convention_for, is_taxable, resolve_account_type
+from engine.accounts import fee_convention_for, resolve_account_type
 
 if TYPE_CHECKING:
     from .test_types import TempContext
@@ -82,21 +82,6 @@ def test_the_cache_does_not_leak_between_configs(temp_ctx: TempContext) -> None:
         assert resolve_account_type("IBKR-TFSA") is AccountType.TFSA
     with temp_ctx({"accounts": {"map": {"IBKR-TFSA": "RRSP"}}}):
         assert resolve_account_type("IBKR-TFSA") is AccountType.RRSP
-
-
-@pytest.mark.parametrize(
-    ("account", "expected"),
-    [
-        ("IBKR-PERSONAL", True),
-        ("WS-PERSONAL", True),
-        ("IBKR-TFSA", False),
-        ("IBKR-RRSP", False),
-        ("MYSTERY", False),
-    ],
-)
-def test_is_taxable(temp_ctx: TempContext, account: str, *, expected: bool) -> None:
-    with temp_ctx():
-        assert is_taxable(account) is expected
 
 
 def test_fee_convention_defaults_to_auto(temp_ctx: TempContext) -> None:

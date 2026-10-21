@@ -1,6 +1,6 @@
 """Engine for folio-updater."""
 
-from engine.accounts import fee_convention_for, is_taxable, resolve_account_type
+from engine.accounts import fee_convention_for, resolve_account_type
 from engine.frames import acb_summary_frame, ledger_frame
 from engine.fx_rates import Conversion, FxRates, load_fx_rates
 from engine.replay import ReplayConfig, replay
@@ -30,7 +30,6 @@ __all__ = [
     "TxnRow",
     "acb_summary_frame",
     "fee_convention_for",
-    "is_taxable",
     "ledger_frame",
     "load_fx_rates",
     "load_txn_rows",

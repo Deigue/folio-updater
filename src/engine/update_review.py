@@ -9,6 +9,7 @@ the commands required to fix them.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -99,51 +100,51 @@ def add_command(row: pd.Series, *, force: bool = False) -> str:
 # -- IMPORT ---------------------------------------------------------------------
 
 
-def header_rows(excluded: pd.DataFrame, source_columns: Iterable[str]) -> pd.Series:
-    """Mark excluded rows that are repeated header lines from the source file.
+def header_rows(invalid: pd.DataFrame, source_columns: Iterable[str]) -> pd.Series:
+    """Mark invalid rows that are repeated header lines from the source file.
 
     Args:
-        excluded: Rows the formatter excluded.
+        invalid: Rows the formatter rejected as invalid.
         source_columns: Column names of the file as read.
 
     Returns:
-        A boolean mask over `excluded`, True for header rows.
+        A boolean mask over `invalid`, True for header rows.
     """
-    if excluded.empty:
+    if invalid.empty:
         return pd.Series(dtype=bool)
     names = {str(name).strip() for name in source_columns}
-    essentials = _essentials(excluded)
+    essentials = _essentials(invalid)
 
     def is_header(row: pd.Series) -> bool:
         values = [str(row[c]).strip() for c in essentials if _present(row[c])]
         return bool(values) and all(value in names for value in values)
 
-    return excluded.apply(is_header, axis=1).astype(bool)
+    return invalid.apply(is_header, axis=1).astype(bool)
 
 
-def upcoming_dividends(excluded: pd.DataFrame) -> pd.Series:
-    """Mark excluded dividends that carry no amount yet.
+def upcoming_dividends(invalid: pd.DataFrame) -> pd.Series:
+    """Mark invalid dividends that carry no amount yet.
 
     A broker can list a dividend once its ex-dividend date passes, before the
-    payment lands, with no amount (Wealthsimple does). The import rightly turns
-    it away; the paid dividend arrives in a later download.
+    payment lands, with no amount (Wealthsimple does). The import rightly rejects
+    it; the paid dividend arrives in a later download.
 
     Args:
-        excluded: Rows the formatter excluded.
+        invalid: Rows the formatter rejected as invalid.
 
     Returns:
-        A boolean mask over `excluded`, True for announced, unpaid dividends.
+        A boolean mask over `invalid`, True for announced, unpaid dividends.
     """
     amounts = pd.to_numeric(
-        excluded.get(Column.Txn.AMOUNT, pd.Series(index=excluded.index)),
+        invalid.get(Column.Txn.AMOUNT, pd.Series(index=invalid.index)),
         errors="coerce",
     )
-    dividend = excluded[Column.Txn.ACTION].astype(str).str.upper() == Action.DIVIDEND
+    dividend = invalid[Column.Txn.ACTION].astype(str).str.upper() == Action.DIVIDEND
     return dividend & (amounts.isna() | (amounts == 0))
 
 
 def _reasons(rows: pd.DataFrame) -> tuple[str, ...]:
-    """Say why each excluded row was turned away, one line per row."""
+    """Say why each invalid row was rejected, one line per row."""
     return tuple(
         f"{_row_summary(row)}: {row[Column.REJECTION_REASON]}"
         for row in rows.to_dict("records")
@@ -193,91 +194,113 @@ def odd_merges(events: Iterable[MergeEvent]) -> list[MergeEvent]:
     return odd
 
 
-def old_db_dupes(rejected: pd.DataFrame, since: str | None) -> pd.DataFrame:
-    """Return database duplicates dated before the broker's resume date.
+def before_overlap_day(rejected: pd.DataFrame, overlap_day: str | None) -> pd.DataFrame:
+    """Return database duplicates dated before the broker's overlap day.
 
-    A download restarts on the day of the broker's latest stored transaction,
-    so that day always arrives twice and is rightly rejected. A duplicate from
-    any earlier day means an old or overlapping file was imported.
+    A download restarts on the overlap day, the broker's latest stored trade
+    date, so that day always arrives twice and is rightly rejected. A duplicate
+    from any earlier day means an old or overlapping file was imported.
 
     Args:
         rejected: Rows rejected as already in the database.
-        since: The broker's latest stored trade date before this run, or
+        overlap_day: The broker's latest stored trade date before this run, or
             None when the file is not a broker download.
 
     Returns:
-        The rejected rows that are not explained by the resume day.
+        The rejected rows that are not explained by the overlap day.
     """
-    if rejected.empty or since is None:
+    if rejected.empty or overlap_day is None:
         return rejected
     dates = rejected[Column.Txn.TXN_DATE].astype(str)
-    return rejected[dates < since]
+    return rejected[dates < overlap_day]
 
 
-# A review of one part of an import: its concerns, and notes on expected noise.
-_Review = tuple[list[Concern], list[str]]
+@dataclass(frozen=True)
+class ImportReview:
+    """What one import, or one part of it, leaves for the update report.
+
+    Attributes:
+        concerns: Cocerns that need to be reviewed by hand.
+        pending: One-line notes on what a later update resolves on its own.
+        expected: One-line notes on what was expected and needs nothing.
+    """
+
+    concerns: tuple[Concern, ...] = ()
+    pending: tuple[str, ...] = ()
+    expected: tuple[str, ...] = ()
 
 
 def review_import(
     filename: str,
     results: ImportResults,
-    since: str | None,
-) -> _Review:
+    overlap_day: str | None,
+) -> ImportReview:
     """Review one file's import.
 
     Args:
         filename: The file imported.
         results: What the import pipeline produced.
-        since: The broker's latest stored trade date before this run.
+        overlap_day: The broker's latest stored trade date before this run, or
+            None when the file is not a broker download.
 
     Returns:
-        The concerns, and one-line notes for what was expected noise.
+        The concerns, and the pending and expected notes, in the order found.
     """
-    concerns: list[Concern] = []
-    noise: list[str] = []
-    for part_concerns, part_noise in (
+    parts = (
         _review_cancellations(filename, results.cancel_events),
-        _review_excluded(filename, results),
-        _review_intra_dupes(filename, results.intra_rejected_df),
-        _review_db_dupes(filename, results.db_rejected_df, since),
+        _review_invalid(filename, results),
+        _review_intra_duplicates(filename, results.intra_rejected_df),
+        _review_db_duplicates(filename, results.db_rejected_df, overlap_day),
         _review_merges(filename, results.merge_events),
         _review_tally(filename, results),
-    ):
-        concerns.extend(part_concerns)
-        noise.extend(part_noise)
-    return concerns, noise
-
-
-def _review_cancellations(filename: str, events: Iterable[CancelEvent]) -> _Review:
-    """Note each cancellation that voided a row in the same file."""
-    return [], [
-        f"{filename}: cancelled by the broker, both left out: "
-        f"{_row_summary(event.cancelled)}"
-        for event in events
-        if event.cancelled is not None
-    ]
-
-
-def _review_excluded(filename: str, results: ImportResults) -> _Review:
-    """Split exclusions into header lines, unpaid dividends and real rows."""
-    excluded = results.excluded_df
-    if excluded.empty:
-        return [], []
-    noise: list[str] = []
-    headers = header_rows(excluded, results.read_df.columns)
-    if headers.any():
-        noise.append(f"{filename}: {int(headers.sum())} repeated header row(s)")
-    unpaid = upcoming_dividends(excluded) & ~headers
-    noise.extend(
-        f"Dividend announced, not paid yet: {_row_summary(row)}"
-        for row in excluded[unpaid].to_dict("records")
     )
-    real = excluded[~headers & ~unpaid]
+    return ImportReview(
+        concerns=tuple(concern for part in parts for concern in part.concerns),
+        pending=tuple(line for part in parts for line in part.pending),
+        expected=tuple(line for part in parts for line in part.expected),
+    )
+
+
+def _review_cancellations(
+    filename: str,
+    events: Iterable[CancelEvent],
+) -> ImportReview:
+    """Note each cancellation that voided a row in the same file."""
+    return ImportReview(
+        expected=tuple(
+            f"{filename}: cancelled by the broker, both left out: "
+            f"{_row_summary(event.cancelled)}"
+            for event in events
+            if event.cancelled is not None
+        ),
+    )
+
+
+def _review_invalid(filename: str, results: ImportResults) -> ImportReview:
+    """Split invalid rows into header lines, unpaid dividends and real rows.
+
+    An unpaid dividend is pending: a later download brings it paid.
+    """
+    invalid = results.invalid_df
+    if invalid.empty:
+        return ImportReview()
+    headers = header_rows(invalid, results.read_df.columns)
+    expected = (
+        (f"{filename}: {int(headers.sum())} repeated header row(s)",)
+        if headers.any()
+        else ()
+    )
+    unpaid = upcoming_dividends(invalid) & ~headers
+    pending = tuple(
+        f"Dividend announced, not paid yet: {_row_summary(row)}"
+        for row in invalid[unpaid].to_dict("records")
+    )
+    real = invalid[~headers & ~unpaid]
     if real.empty:
-        return [], noise
+        return ImportReview(pending=pending, expected=expected)
     concern = Concern(
         stage=UpdateStage.IMPORT,
-        title=f"{len(real)} row(s) excluded from {filename}",
+        title=f"{len(real)} invalid row(s) rejected from {filename}",
         why=(
             "These rows failed validation and are not in the folio. If one is "
             "genuine, add it by hand, or fix the source and re-import it. A bare "
@@ -287,60 +310,62 @@ def _review_excluded(filename: str, results: ImportResults) -> _Review:
         details=_reasons(real),
         commands=tuple(add_command(row) for _, row in real.iterrows()),
     )
-    return [concern], noise
+    return ImportReview(concerns=(concern,), pending=pending, expected=expected)
 
 
-def _review_intra_dupes(filename: str, intra: pd.DataFrame) -> _Review:
-    """Raise rows dropped for repeating within the file."""
+def _review_intra_duplicates(filename: str, intra: pd.DataFrame) -> ImportReview:
+    """Raise rows rejected for repeating within the file."""
     if intra.empty:
-        return [], []
+        return ImportReview()
     concern = Concern(
         stage=UpdateStage.IMPORT,
-        title=f"{len(intra)} identical row(s) dropped from {filename}",
+        title=f"{len(intra)} identical row(s) rejected from {filename}",
         why=(
-            "Rows that repeat within one file are all dropped, every copy. If "
+            "Rows that repeat within one file are all rejected, every copy. If "
             "they were separate fills of the same order, add each back."
         ),
         rows=intra,
         commands=tuple(add_command(row, force=True) for _, row in intra.iterrows()),
     )
-    return [concern], []
+    return ImportReview(concerns=(concern,))
 
 
-def _review_db_dupes(
+def _review_db_duplicates(
     filename: str,
-    db_dupes: pd.DataFrame,
-    since: str | None,
-) -> _Review:
-    """Note duplicates of the resume day; raise older ones."""
-    if db_dupes.empty:
-        return [], []
-    old = old_db_dupes(db_dupes, since)
-    expected = len(db_dupes) - len(old)
-    noise = [f"{filename}: {expected} row(s) re-sent for the resume day"] * bool(
-        expected,
+    duplicates: pd.DataFrame,
+    overlap_day: str | None,
+) -> ImportReview:
+    """Note duplicates from the overlap day; raise older ones."""
+    if duplicates.empty:
+        return ImportReview()
+    old = before_overlap_day(duplicates, overlap_day)
+    overlapping = len(duplicates) - len(old)
+    expected = (
+        (f"{filename}: {overlapping} row(s) re-sent for the overlap day",)
+        if overlapping
+        else ()
     )
     if old.empty:
-        return [], noise
+        return ImportReview(expected=expected)
     concern = Concern(
         stage=UpdateStage.IMPORT,
         title=f"{len(old)} older row(s) in {filename} already in the folio",
         why=(
             "These predate the broker's latest stored transaction, so the file "
-            "overlaps an earlier import. They were skipped. Only a genuine "
+            "overlaps an earlier import. They were rejected. Only a genuine "
             "repeat trade needs adding back."
         ),
         rows=old,
         commands=tuple(add_command(row, force=True) for _, row in old.iterrows()),
     )
-    return [concern], noise
+    return ImportReview(concerns=(concern,), expected=expected)
 
 
-def _review_merges(filename: str, events: Iterable[MergeEvent]) -> _Review:
+def _review_merges(filename: str, events: Iterable[MergeEvent]) -> ImportReview:
     """Raise merges whose shape suggests the wrong rows were combined."""
     odd = odd_merges(events)
     if not odd:
-        return [], []
+        return ImportReview()
     concern = Concern(
         stage=UpdateStage.IMPORT,
         title=f"{len(odd)} unusual merge(s) in {filename}",
@@ -356,13 +381,13 @@ def _review_merges(filename: str, events: Iterable[MergeEvent]) -> _Review:
             for e in odd
         ),
     )
-    return [concern], []
+    return ImportReview(concerns=(concern,))
 
 
-def _review_tally(filename: str, results: ImportResults) -> _Review:
+def _review_tally(filename: str, results: ImportResults) -> ImportReview:
     """Raise an import whose rows do not add up stage by stage."""
     if results.tally_matches():
-        return [], []
+        return ImportReview()
     concern = Concern(
         stage=UpdateStage.IMPORT,
         title=f"Import tally does not add up for {filename}",
@@ -372,7 +397,7 @@ def _review_tally(filename: str, results: ImportResults) -> _Review:
             "to find the rows that went astray."
         ),
     )
-    return [concern], []
+    return ImportReview(concerns=(concern,))
 
 
 def review_late_cancellations(

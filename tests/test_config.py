@@ -11,6 +11,7 @@ from app import bootstrap
 from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
+from .helpers.console import capture_output
 from .test_types import TempContext
 
 logger = logging.getLogger(__name__)
@@ -198,7 +199,7 @@ def test_contribution_room_drops_what_it_cannot_resolve(
         "TFSA": {2026: 7000},
         "NOTATYPE": {2026: 1000},  # not an account type
         "RRSP": "not a mapping",  # not a year mapping
-        "RESP": {"nineteen": 500},  # not a year
+        "FHSA": {"nineteen": 500},  # not a year
     }
     with temp_ctx(contribution_room=room) as ctx:
         configured = ctx.config.contribution_room
@@ -206,6 +207,18 @@ def test_contribution_room_drops_what_it_cannot_resolve(
         # A typo costs the room row, never the whole command.
         assert set(configured) == {AccountType.TFSA}
         assert configured[AccountType.TFSA] == {2026: Decimal(7000)}
+
+
+def test_contribution_room_ignores_a_resp_with_a_warning(
+    temp_ctx: TempContext,
+) -> None:
+    room = {"TFSA": {2026: 7000}, "RESP": {2026: 2500}}
+    with capture_output() as captured, temp_ctx(contribution_room=room) as ctx:
+        configured = ctx.config.contribution_room
+
+    # An RESP limit is lifetime and per beneficiary, so no room year fits it.
+    assert set(configured) == {AccountType.TFSA}
+    assert "ignoring RESP" in captured.get_text()
 
 
 def test_contribution_room_defaults_to_nothing_configured(

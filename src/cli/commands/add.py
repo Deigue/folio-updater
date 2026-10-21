@@ -206,7 +206,7 @@ def _build_dataframe(
 def _show_rejections(results: ImportResults) -> None:
     """Report why the transaction failed validation."""
     console_error("Transaction was rejected:")
-    for _, row in results.excluded_df.iterrows():
+    for _, row in results.invalid_df.iterrows():
         reason = row.get(Column.REJECTION_REASON, "Unknown reason")
         console_error(f"  {reason}")
 
@@ -338,7 +338,7 @@ def add_transaction(  # noqa: PLR0917
 
     results = _prepare(fields, approve_duplicate=force)
 
-    if not results.excluded_df.empty:
+    if not results.invalid_df.empty:
         _show_rejections(results)
         raise typer.Exit(1)
 

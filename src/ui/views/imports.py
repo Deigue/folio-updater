@@ -1,6 +1,6 @@
 """Rendering what an import did.
 
-The audit view reports: what was read, merged, transformed, excluded and rejected.
+The audit view reports: what was read, cancelled, merged, transformed and rejected.
 Panels are measured into blocks and tiled, and each can be expanded by keypress.
 """
 
@@ -26,8 +26,8 @@ from ui.views.transactions import TransactionDisplay, page_transactions
 from ui.vocabulary import (
     SNUG_PADDING,
     THEME_DUPES,
-    THEME_EXCLUDED,
     THEME_MERGED,
+    THEME_REMOVED,
     THEME_SUCCESS,
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
@@ -38,8 +38,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from models import CancelEvent, ImportResults, SettlementMatch
 
-# Minimum columns always shown for exclusions
-EXCLUSION_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
+# Minimum columns always shown for invalid rows
+INVALID_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
 
 
 class ImportDisplay:
@@ -147,7 +147,7 @@ class ImportDisplay:
                 f"{get_symbol('warning')}[yellow]ambiguous "
                 f"({match.candidates})[/yellow]"
             )
-        return f"{get_symbol('warning')}[{THEME_EXCLUDED}]no match[/{THEME_EXCLUDED}]"
+        return f"{get_symbol('warning')}[{THEME_REMOVED}]no match[/{THEME_REMOVED}]"
 
     def show_import_audit(
         self,
@@ -180,8 +180,7 @@ class ImportDisplay:
         Color scheme:
         - Read: green (adds transactions)
         - Merged: X red (removed) → Y green (added)
-        - Excluded: red (removed)
-        - Dupes Rejected: red (removed)
+        - Rejected: red (removed), as invalid rows and both kinds of duplicate
         - Imported: green if matches tally, red with yellow tally if mismatch
         """
         parts: list[str] = []
@@ -202,19 +201,17 @@ class ImportDisplay:
                 f"[green]{merged_into}[/green]",
             )
 
-        excluded = results.excluded_count()
-        if excluded > 0:
-            parts.append(f"[bold]Excluded:[/bold] [red]{excluded}[/red]")
-
-        intra = results.intra_rejected_count()
-        db = results.db_rejected_count()
-        if intra > 0 or db > 0:
-            dupe_parts = []
-            if intra > 0:
-                dupe_parts.append(f"[red]{intra}[/red] intra")
-            if db > 0:
-                dupe_parts.append(f"[red]{db}[/red] db")
-            parts.append(f"[bold]Dupes Rejected:[/bold] {', '.join(dupe_parts)}")
+        rejected = [
+            f"[red]{count}[/red] {label}"
+            for count, label in (
+                (results.invalid_count(), "invalid"),
+                (results.intra_rejected_count(), "intra"),
+                (results.db_rejected_count(), "db"),
+            )
+            if count > 0
+        ]
+        if rejected:
+            parts.append(f"[bold]Rejected:[/bold] {', '.join(rejected)}")
 
         # Import summary with color coding
         imported = results.imported_count()
@@ -297,22 +294,22 @@ class ImportDisplay:
                 ),
             )
 
-        if not results.excluded_df.empty:
-            total = len(results.excluded_df)
+        if not results.invalid_df.empty:
+            total = len(results.invalid_df)
             shown = min(total, max_rows)
-            panel = self._build_excluded_panel(
-                results.excluded_df.head(shown),
+            panel = self._build_invalid_panel(
+                results.invalid_df.head(shown),
                 total,
             )
             blocks.append(
                 Block.create(
-                    name="Excluded",
-                    key="e",
+                    name="Invalid",
+                    key="n",
                     panel=panel,
                     total=total,
                     shown=shown,
-                    data_type="excluded",
-                    data=results.excluded_df,
+                    data_type="invalid",
+                    data=results.invalid_df,
                 ),
             )
 
@@ -321,11 +318,11 @@ class ImportDisplay:
             shown = min(total, max_rows)
             panel = self._build_dupes_panel(
                 results.intra_rejected_df.head(shown),
-                f"Intra Dupes ({total})",
+                f"Intra Duplicates ({total})",
             )
             blocks.append(
                 Block.create(
-                    name="Intra Dupes",
+                    name="Intra Duplicates",
                     key="i",
                     panel=panel,
                     total=total,
@@ -340,11 +337,11 @@ class ImportDisplay:
             shown = min(total, max_rows)
             panel = self._build_dupes_panel(
                 results.db_rejected_df.head(shown),
-                f"DB Dupes ({total})",
+                f"DB Duplicates ({total})",
             )
             blocks.append(
                 Block.create(
-                    name="DB Dupes",
+                    name="DB Duplicates",
                     key="d",
                     panel=panel,
                     total=total,
@@ -447,7 +444,7 @@ class ImportDisplay:
         table = Table(
             title=f"Cancelled ({len(events)})",
             show_header=False,
-            border_style=THEME_EXCLUDED,
+            border_style=THEME_REMOVED,
             expand=False,
             box=None,
             padding=SNUG_PADDING,
@@ -509,26 +506,26 @@ class ImportDisplay:
 
         return table
 
-    def _build_excluded_panel(
+    def _build_invalid_panel(
         self,
         df: pd.DataFrame,
         total: int,
     ) -> Table:
-        """Build a table for excluded transactions.
+        """Build a table for invalid rows.
 
         Shows TxnDate, Action, Amount always, plus columns referenced in reason.
-        Only show essential columns that are relevant to the exclusion reason.
+        Only show essential columns that are relevant to the rejection reason.
         """
         table = Table(
-            title=f"Excluded ({total})",
+            title=f"Invalid ({total})",
             show_header=True,
             header_style="bold",
-            border_style=THEME_EXCLUDED,
+            border_style=THEME_REMOVED,
             expand=False,
             padding=SNUG_PADDING,
         )
 
-        cols_to_show: list[str] = [str(c) for c in EXCLUSION_BASE_COLUMNS]
+        cols_to_show: list[str] = [str(c) for c in INVALID_BASE_COLUMNS]
 
         if Column.REJECTION_REASON in df.columns:
             for reason in df[Column.REJECTION_REASON].dropna().unique():
@@ -665,7 +662,7 @@ class ImportDisplay:
             console_print("\n[dim]Press any key to return...[/dim]")
             getch()
 
-        elif block.data_type in ("excluded", "dupes", "dataframe"):
+        elif block.data_type in ("invalid", "dupes", "dataframe"):
             rows = available_height(table=True, pages=True)
             page_transactions(
                 block.data,

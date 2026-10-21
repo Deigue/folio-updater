@@ -1,4 +1,4 @@
-"""Dropping rows the folio already holds.
+"""Rejecting duplicates of rows the folio already holds.
 
 The last pipeline stage, and the only one that reads the database. Rows are
 keyed on TXN_ESSENTIALS and checked both against each other (intra) and against what
@@ -179,7 +179,7 @@ class TransactionFilter:
         # Log rejected duplicates
         if rejected_mask.any():
             rejected_count = rejected_mask.sum()
-            msg = f"SKIP {rejected_count} {duplicate_type} duplicates"
+            msg = f"REJECT {rejected_count} {duplicate_type} duplicates"
             import_logger.warning(msg)
 
             if import_logger.isEnabledFor(logging.WARNING):

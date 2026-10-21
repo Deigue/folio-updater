@@ -17,8 +17,9 @@ import yaml
 
 from config.optional_fields import OptionalFieldsConfig
 from config.transforms import TransformsConfig
-from domain import AccountType, Column, FeeConvention
+from domain import ROOM_BEARING_TYPES, AccountType, Column, FeeConvention
 from domain.numeric import dec
+from term import console_warning
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -661,7 +662,10 @@ class Config:
         """Validate `contribution_room`, dropping anything unresolvable.
 
         Keys are account types, then calendar years. A type the engine does not
-        know, or a year that is not a number, is skipped.
+        know, or a year that is not a number, is skipped. A known type without
+        yearly room (an RESP's limit is lifetime and per beneficiary) is skipped
+        with a warning, since the user meant it and would otherwise never learn
+        that it is ignored.
         """
         room = settings.get("contribution_room")
         if not isinstance(room, dict):
@@ -674,6 +678,12 @@ class Config:
             try:
                 account_type = AccountType(str(name).strip().upper())
             except ValueError:
+                continue
+            if account_type not in ROOM_BEARING_TYPES:
+                console_warning(
+                    f"contribution_room: ignoring {account_type}, which has no "
+                    "yearly contribution room (only TFSA, RRSP and FHSA do).",
+                )
                 continue
             limits = Config._room_years(years)
             if limits:

@@ -393,11 +393,11 @@ def _validate(edited: pd.DataFrame) -> pd.DataFrame:
     Returns:
         The formatted rows.
     """
-    formatted, excluded = TransactionFormatter.format_and_validate(edited)
+    formatted, invalid = TransactionFormatter.format_and_validate(edited)
 
-    if not excluded.empty:
+    if not invalid.empty:
         console_error("The edit would produce invalid transaction(s):")
-        for _, row in excluded.iterrows():
+        for _, row in invalid.iterrows():
             txn_id = row.get(Column.Txn.TXN_ID, "?")
             reason = row.get(Column.REJECTION_REASON, "Unknown reason")
             console_error(f"  TxnId {txn_id}: {reason}")

@@ -169,17 +169,38 @@ def get_max_value(
     connection: sqlite3.Connection,
     table_name: str,
     column_name: str,
-    condition: str | None = None,
 ) -> str | None:
-    """Return the maximum value in a column, optionally filtered by a condition."""
+    """Return the maximum value in a column."""
     query = f'SELECT MAX("{column_name}") FROM "{table_name}"'
-    if condition:
-        query += f" WHERE {condition}"
     try:
         result = connection.execute(query).fetchone()
         return result[0] if result and result[0] else None
     except sqlite3.OperationalError:
         return None
+
+
+def get_broker_latest_txn_date(
+    connection: sqlite3.Connection,
+    broker: str,
+) -> str | None:
+    """Return the latest trade date among the accounts whose name holds `broker`.
+
+    Args:
+        connection: The database connection.
+        broker: Broker key as it appears in account names, in any case.
+
+    Returns:
+        The date as YYYY-MM-DD, or None when the broker has no transactions.
+    """
+    query = (
+        f'SELECT MAX("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}" '
+        f'WHERE UPPER("{Column.Txn.ACCOUNT}") LIKE UPPER(?)'
+    )
+    try:
+        result = connection.execute(query, (f"%{broker}%",)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    return result[0] if result and result[0] else None
 
 
 def get_min_value(

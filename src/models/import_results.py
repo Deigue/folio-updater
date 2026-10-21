@@ -74,7 +74,7 @@ class ImportResults:
     read_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     mapped_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     transformed_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    excluded_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    invalid_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     intra_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     intra_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     db_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
@@ -97,9 +97,9 @@ class ImportResults:
         """Return number of source rows read from source file."""
         return len(self.read_df)
 
-    def excluded_count(self) -> int:
-        """Return number of transactions excluded by formatter validation."""
-        return len(self.excluded_df)
+    def invalid_count(self) -> int:
+        """Return number of invalid rows rejected by formatter validation."""
+        return len(self.invalid_df)
 
     def intra_rejected_count(self) -> int:
         """Return number of intra-import duplicates rejected."""
@@ -125,7 +125,7 @@ class ImportResults:
         """Return how many rows should have been imported, by tallying each stage.
 
         Rows read, less cancelled rows, less the net shrink from merges, less
-        exclusions and both kinds of rejected duplicate. Anything other than
+        invalid rows and both kinds of rejected duplicate. Anything other than
         `imported_count` means rows went missing (or appeared) somewhere the
         audit does not account for.
         """
@@ -134,7 +134,7 @@ class ImportResults:
             self.read_count()
             - self.cancelled_count()
             + merge_delta
-            - self.excluded_count()
+            - self.invalid_count()
             - self.intra_rejected_count()
             - self.db_rejected_count()
         )

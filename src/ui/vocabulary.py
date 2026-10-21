@@ -11,7 +11,7 @@ from domain import AccountType, Action, Column, Currency
 
 THEME_MERGED = "bright_blue"  # Merged panels - informational
 THEME_TRANSFORMS = "medium_purple3"  # Transforms - modification
-THEME_EXCLUDED = "dark_red"  # Excluded/rejected - removal
+THEME_REMOVED = "dark_red"  # Rejected or cancelled rows - removal
 THEME_DUPES = "dark_red"  # Duplicates - removal
 THEME_SUCCESS = "green4"  # Import summary, imported - success
 

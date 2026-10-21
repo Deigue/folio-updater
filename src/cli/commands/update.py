@@ -93,7 +93,7 @@ def run_update(*, resume: bool = False) -> None:
     today = datetime.now(TORONTO_TZ).date()
     report = UpdateReport()
     first_new_id = _max_txn_id()
-    since = {IBKR: latest_txn_date(IBKR), WS: latest_txn_date(WS)}
+    overlap_days = {IBKR: latest_txn_date(IBKR), WS: latest_txn_date(WS)}
 
     if resume:
         console_info("Resuming: skipping downloads, importing what is waiting.")
@@ -101,7 +101,7 @@ def run_update(*, resume: bool = False) -> None:
         _download_stage(config, report)
 
     if not report.failed:
-        _import_stage(config, report, since)
+        _import_stage(config, report, overlap_days)
 
     if not report.failed:
         _statement_stage(config, report, today)
@@ -248,14 +248,15 @@ def _broker_of(filename: str) -> str | None:
 def _import_stage(
     config: Config,
     report: UpdateReport,
-    since: dict[str, str | None],
+    overlap_days: dict[str, str | None],
 ) -> None:
     """Import every waiting file and review each one.
 
     Args:
         config: The application configuration.
         report: Where concerns, notes and a failure are recorded.
-        since: Each broker's latest stored trade date before the run.
+        overlap_days: Each broker's overlap day: its latest stored trade date
+            before the run.
     """
     console_rule("Import", style=_UPDATE_RULE)
     if pending_import_files(config.imports_path) and not confirm_demo_replacement():
@@ -280,13 +281,14 @@ def _import_stage(
         if outcome.results is None:
             continue
         broker = _broker_of(outcome.path.name)
-        concerns, noise = review_import(
+        review = review_import(
             outcome.path.name,
             outcome.results,
-            since.get(broker) if broker else None,
+            overlap_days.get(broker) if broker else None,
         )
-        report.concerns.extend(concerns)
-        report.pending.extend(noise)
+        report.concerns.extend(review.concerns)
+        report.pending.extend(review.pending)
+        report.expected.extend(review.expected)
 
     _review_late_cancellations(outcomes, report)
 
@@ -359,7 +361,7 @@ def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
         (
             (
                 "Rows that arrive again from a report that did import are "
-                "skipped as duplicates. Then run:"
+                "rejected as duplicates. Then run:"
             ),
             "folio update --resume",
         ),
@@ -515,7 +517,7 @@ def _check_stage(report: UpdateReport) -> None:
     concerns, warned = review_checks(results)
     report.concerns.extend(concerns)
     if warned:
-        report.pending.append(f"{warned} check(s) only warned: folio check")
+        report.expected.append(f"{warned} check(s) only warned: folio check")
 
 
 def _generate_stage(report: UpdateReport) -> None:

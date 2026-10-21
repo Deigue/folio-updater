@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from domain import AccountType, Action, Column, Currency, Grain
+from domain import ROOM_BEARING_TYPES, AccountType, Action, Column, Currency, Grain
 from domain.numeric import ZERO, dec, q2
 
 if TYPE_CHECKING:
@@ -29,16 +29,6 @@ FOLIO_POOL = "FOLIO"
 # year's room, which is how CRA's deduction limit statement reports it.
 RRSP_WINDOW_DAYS = 60
 _SATURDAY = 5
-
-# Account types that carry a CRA contribution limit worth reporting against.
-ROOM_BEARING_TYPES = frozenset(
-    {
-        AccountType.TFSA,
-        AccountType.RRSP,
-        AccountType.RESP,
-        AccountType.FHSA,
-    },
-)
 
 
 @dataclass(frozen=True)

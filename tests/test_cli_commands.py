@@ -13,7 +13,6 @@ from rich.progress import Progress
 from typer.testing import CliRunner
 
 from cli.commands import import_data
-from cli.commands.download import _resolve_from_date
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
@@ -39,7 +38,7 @@ from .helpers.cli import (
     assert_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import ACCOUNT, TSX_TICKER, TXN_DATE, seed_transaction
+from .helpers.seed import TSX_TICKER, TXN_DATE, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -723,15 +722,7 @@ def _setup_ibkr_test_scenario(
 ) -> None:
     """Set up IBKR-specific test scenario configurations."""
     if setup_action == "setup_db":
-        seed_transaction()
-        monkeypatch.setattr(
-            "cli.commands.download._resolve_from_date",
-            lambda from_date_str, broker: _resolve_from_date(
-                from_date_str,
-                broker,
-                account_override=ACCOUNT,
-            ),
-        )
+        seed_transaction(account="IBKR-TFSA")
     elif setup_action == "setup_token_prompt":
 
         def mock_get_token(_self: object) -> str:

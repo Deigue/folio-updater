@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Changed
 
 - `folio demo` builds a realistic two-year demo portfolio using real-market history.
+- `folio update` reports what a later update would resolve on its own (pending)
+- Contribution Room covers only TFSA, RRSP and FHSA types.
 
 ### Deprecated
 
