@@ -36,8 +36,14 @@ jobs:
       - name: ruff check
         run: uv run ruff check
 
+      # pyproject.toml also points ty at ../ws-api-python, a sibling checkout
+      # that only exists locally, and ty refuses a missing path (a -c override
+      # adds to extra-paths rather than replacing it). An empty stand-in lets
+      # ws-api resolve from the installed package instead.
       - name: ty check
-        run: uv run ty check
+        run: |
+          New-Item -ItemType Directory -Force ..\ws-api-python | Out-Null
+          uv run ty check
 
       - name: pytest
         run: uv run pytest
