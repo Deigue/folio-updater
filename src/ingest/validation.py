@@ -242,7 +242,7 @@ def _negate_decimal(value: str) -> str:
     """Flip the sign of a numeric value, preserving its decimal precision."""
     try:
         return format(-Decimal(value), "f")
-    except (ValueError, TypeError, InvalidOperation):  # pragma: no cover
+    except (ValueError, TypeError, InvalidOperation):
         return value
 
 

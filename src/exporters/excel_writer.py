@@ -66,7 +66,7 @@ def sheet_name(name: str, taken: Collection[str] = ()) -> str:
         candidate = f"{cleaned[: _NAME_LIMIT - len(marker)]}{marker}"
         if candidate not in taken:
             return candidate
-    return cleaned[: _NAME_LIMIT - 4] + "~999"  # pragma: no cover - 98 clashes
+    return cleaned[: _NAME_LIMIT - 4] + "~999"
 
 
 def write_workbook(path: Path, tables: Sequence[Table]) -> None:
@@ -92,7 +92,8 @@ def write_workbook(path: Path, tables: Sequence[Table]) -> None:
     for table, name in zip(tables, taken, strict=True):
         write_sheet(workbook.create_sheet(name), table, names)
 
-    if not taken:  # pragma: no cover - callers always pass at least one table
+    # Callers always pass at least one table
+    if not taken:
         workbook.create_sheet(_FALLBACK_NAME)
     _show_a_visible_sheet(workbook)
     workbook.save(path)

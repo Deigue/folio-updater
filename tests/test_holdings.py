@@ -22,10 +22,10 @@ from engine.holdings import (
     _dividends_by_symbol,
     _filtered_out,
     _holding,
-    base_currency,
     held_symbols,
     sort_holdings,
     summarize_closed,
+    totals_currency,
 )
 from services.quotes_service import Quote
 
@@ -716,7 +716,7 @@ def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
 ) -> None:
     """The native view's grand total is CAD, dividends included.
 
-    Every other base-currency figure is read off the frame's CAD columns, so a
+    Every other totals-currency figure is read off the frame's CAD columns, so a
     USD holding's dividends have to be as well. Summing the native USD figure
     into a CAD total silently understated it by the whole FX rate.
     """
@@ -1210,11 +1210,11 @@ def test_the_base_figures_are_cad_even_in_native_mode(
 
         usd = next(h for h in holdings.holdings if h.symbol == "USDCO")
         # Market value converts at today's rate: 1,200 USD * 1.25.
-        assert usd.market_value_base == Decimal(1500)
+        assert usd.market_value_totals == Decimal(1500)
         # Book value is read off the frame at its own historical rate, never
         # reconverted, because that is the figure CRA taxes.
-        assert usd.book_value_base == Decimal(1250)
-        assert usd.unrealized_base == Decimal(250)
+        assert usd.book_value_totals == Decimal(1250)
+        assert usd.unrealized_totals == Decimal(250)
 
 
 def test_native_totals_are_grouped_by_currency(temp_ctx: TempContext) -> None:
@@ -1240,7 +1240,7 @@ def test_native_totals_are_grouped_by_currency(temp_ctx: TempContext) -> None:
         assert usd.market == Decimal(1200)  # USD, not converted
 
         # The grand total is the one converted figure: 1,500 CAD + 1,200 USD.
-        assert holdings.base_currency is Currency.CAD
+        assert holdings.totals_currency is Currency.CAD
         assert holdings.total_market == Decimal(3000)
 
 
@@ -1285,7 +1285,7 @@ def test_the_folio_share_survives_the_usd_filter(temp_ctx: TempContext) -> None:
         (held,) = holdings.holdings
         assert held.symbol == "USDCO"
         # The row itself is USD, as asked.
-        assert held.market_value_base == Decimal(1200)
+        assert held.market_value_totals == Decimal(1200)
         # Its share of everything owned is not.
         assert held.market_value_cad == Decimal(1500)
         assert held.weight_in_folio == Decimal("0.5")
@@ -1344,7 +1344,7 @@ def test_a_groups_own_ratios_stay_in_its_own_currency(
         assert usd.total_pnl_pct == Decimal("0.2")
 
 
-def test_the_pools_ratios_are_taken_in_the_base_currency(
+def test_the_pools_ratios_are_taken_in_the_totals_currency(
     temp_ctx: TempContext,
 ) -> None:
     """Book 2,250 CAD, unrealized 750 CAD, and only the USD holding moved."""
@@ -1425,8 +1425,8 @@ def test_forcing_usd_totals_in_usd(temp_ctx: TempContext) -> None:
 
         # The CAD holding is dropped, so nothing is left to convert and the
         # total belongs in USD alongside the rows.
-        assert base_currency(Currency.USD) is Currency.USD
-        assert holdings.base_currency is Currency.USD
+        assert totals_currency(Currency.USD) is Currency.USD
+        assert holdings.totals_currency is Currency.USD
         assert holdings.total_market == Decimal(1200)
 
 

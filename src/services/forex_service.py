@@ -14,6 +14,7 @@ import pandas as pd
 import requests
 
 from db import (
+    append_rows,
     create_fx_table,
     get_connection,
     get_max_value,
@@ -148,16 +149,10 @@ class ForexService:
         with get_connection() as conn:
             if get_tables(conn).count(Table.FX) == 0:
                 create_fx_table()
-            rows_inserted = fx_df.to_sql(
-                Table.FX,
-                conn,
-                if_exists="append",
-                index=False,
-                method="multi",
-            )
+            rows_inserted = append_rows(conn, Table.FX, fx_df)
 
-        logger.debug("Inserted %d FX records into database", len(fx_df))
-        return len(fx_df) if rows_inserted is None else rows_inserted
+        logger.debug("Inserted %d FX records into database", rows_inserted)
+        return rows_inserted
 
     @staticmethod
     def _extract_observations_csv(response_text: str) -> str:

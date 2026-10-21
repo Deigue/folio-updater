@@ -22,7 +22,7 @@ from ui.vocabulary import (
     UNIT_PRECISION,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Container, Sequence
 
     from rich.console import JustifyMethod

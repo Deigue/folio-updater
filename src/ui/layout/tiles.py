@@ -17,7 +17,7 @@ from rich.measure import Measurement
 from term.console import active_console
 from term.size import terminal_size
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from rich.console import RenderableType
 
 # Gap between columns when using horizontal layout (Rich Columns default).

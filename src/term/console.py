@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-def _supports_unicode() -> bool:  # pragma: no cover
+def _supports_unicode() -> bool:
     """Check if the current console supports Unicode characters.
 
     Returns:

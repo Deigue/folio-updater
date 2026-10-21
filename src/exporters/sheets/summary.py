@@ -178,14 +178,14 @@ def _headline(folio: Panel) -> Block:
     """Read the folio's headline figures into a block."""
     holdings = folio.holdings
     flows = folio.flows
-    base = str(holdings.base_currency)
+    totals = str(holdings.totals_currency)
     lines = [
-        Line("Market value", holdings.total_market, Fmt.MONEY, base),
-        Line("Book value", holdings.total_book, Fmt.MONEY, base),
-        Line("Unrealized", holdings.total_unrealized, Fmt.MONEY_SIGNED, base),
-        Line("Realized", holdings.total_realized, Fmt.MONEY_SIGNED, base),
-        Line("Dividends", holdings.total_dividends, Fmt.MONEY, base),
-        Line("Total gain", holdings.total_pnl, Fmt.MONEY_SIGNED, base),
+        Line("Market value", holdings.total_market, Fmt.MONEY, totals),
+        Line("Book value", holdings.total_book, Fmt.MONEY, totals),
+        Line("Unrealized", holdings.total_unrealized, Fmt.MONEY_SIGNED, totals),
+        Line("Realized", holdings.total_realized, Fmt.MONEY_SIGNED, totals),
+        Line("Dividends", holdings.total_dividends, Fmt.MONEY, totals),
+        Line("Total gain", holdings.total_pnl, Fmt.MONEY_SIGNED, totals),
         Line(
             "Total return",
             holdings.return_on(flows.net_deposit_denominator),
@@ -225,7 +225,7 @@ def _pool(pool: Panel) -> Link:
 
 
 def _performance_cells(pool: Panel) -> dict[str, object]:
-    """Read one pool's totals, in the base currency every pool shares."""
+    """Read one pool's totals, in the totals currency every pool shares."""
     holdings = pool.holdings
     return {
         "Pool": _pool(pool),

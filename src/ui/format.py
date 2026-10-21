@@ -14,7 +14,7 @@ import pandas as pd
 
 from term.console import supports_unicode
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Container, Sequence
 
 

@@ -375,7 +375,7 @@ class IBKRService:
                     )
                     time.sleep(POLL_INTERVAL_SECONDS)
 
-        msg = (  # pragma: no cover
+        msg = (
             f"Statement not ready after {MAX_POLL_ATTEMPTS} attempts. "
             f"You can retry later with reference code: {reference_code}"
         )

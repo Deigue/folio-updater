@@ -281,7 +281,7 @@ class WealthsimpleService:
         persist = self._persist_session_callback()
         try:
             return WealthsimpleAPI.from_token(session, persist, username)
-        except ws_api.WSApiException as e:  # pragma: no cover
+        except ws_api.WSApiException as e:
             if _token_expired(e):
                 return self._refresh_session(session, username)
             logger.warning(

@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from engine.cache import CachedFrame
-    from engine.holdings import ValuationCurrency
+    from engine.holdings import DisplayCurrency
     from engine.ticker import SymbolHoldings
     from exporters.table import Table
 
@@ -357,7 +357,7 @@ def _positions(
     """
     result = replay_result(cached)
 
-    def valued(currency: ValuationCurrency) -> SymbolHoldings | None:
+    def valued(currency: DisplayCurrency) -> SymbolHoldings | None:
         valuation = FolioValuation.build(
             cached.frame,
             result,

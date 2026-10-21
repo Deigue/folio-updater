@@ -33,7 +33,7 @@ from ui.vocabulary import (
     TRANSACTION_COLORS,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     import pandas as pd
 
     from models import CancelEvent, ImportResults, SettlementMatch

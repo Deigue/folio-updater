@@ -21,7 +21,7 @@ from ui.views.transactions import TransactionDisplay
 from ui.vocabulary import THEME_REMOVED, THEME_SUCCESS
 from ui.widgets import show_data_table
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from pathlib import Path
 
     from models import Concern, UpdateReport

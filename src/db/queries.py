@@ -13,7 +13,7 @@ from app import get_config
 from domain import Column, Table
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Sequence
 
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -98,6 +98,7 @@ def get_rows(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,
     *,
+    columns: Sequence[str] | None = None,
     where: str | None = None,
     params: list | tuple | None = None,
     order_by: str | None = None,
@@ -108,6 +109,7 @@ def get_rows(  # noqa: PLR0913
     Args:
         connection: The database connection.
         table_name: The name of the table to query.
+        columns: The columns to read, every one when omitted.
         where: An optional SQL WHERE clause (e.g., "id = ? AND name LIKE ?").
         params: An optional list or tuple of parameters to substitute into the
             `where` clause.
@@ -117,7 +119,8 @@ def get_rows(  # noqa: PLR0913
     Returns:
         A pandas DataFrame containing the query results.
     """
-    query = f'SELECT * FROM "{table_name}"'
+    selected = ", ".join(f'"{col}"' for col in columns) if columns else "*"
+    query = f'SELECT {selected} FROM "{table_name}"'
     if where:
         query += f" WHERE {where}"
     if order_by:
@@ -470,6 +473,32 @@ def insert_or_replace_many(
         return 0
     else:
         return cursor.rowcount
+
+
+def append_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    frame: pd.DataFrame,
+) -> int:
+    """Append a frame's rows to a table, never overwriting one already there.
+
+    Unlike `insert_or_replace_many`, a row that clashes with a unique key is
+    refused rather than replacing the stored one: that refusal is how the Txns
+    table rejects a duplicate.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to append to
+        frame: The rows, keyed by column name.
+
+    Returns:
+        Number of rows written.
+
+    Raises:
+        sqlite3.IntegrityError: If a row breaks a constraint of the table.
+    """
+    written = frame.to_sql(table_name, connection, if_exists="append", index=False)
+    return len(frame) if written is None else written
 
 
 def replace_rows(

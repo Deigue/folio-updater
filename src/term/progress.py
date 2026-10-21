@@ -16,7 +16,7 @@ from rich.progress import (
 
 from term.console import active_console, override_console
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Generator
 
 

@@ -38,7 +38,7 @@ from ui.vocabulary import (
     TIGHT_PADDING,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     import re
     from collections.abc import Sequence
 

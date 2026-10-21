@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from rich.text import Text
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Sequence
 
 # A cell filled from the floor in eighths, empty to full.

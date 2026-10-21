@@ -54,7 +54,7 @@ from ui.vocabulary import (
     WEIGHT_BAR_WIDTH,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Callable, Collection, Sequence
 
     from rich.console import RenderableType
@@ -386,13 +386,13 @@ def _grand_total_cells(
     specs: Sequence[_ColumnSpec],
     flows: Flows | None = None,
 ) -> list[str]:
-    """Total across every currency, converted into the base currency."""
-    base = holdings.base_currency
+    """Total across every currency, converted into the totals currency."""
+    totals = holdings.totals_currency
     deposited = _net_deposits(flows)
     whole = percent(Decimal(1)) if holdings.total_market else ""
     cells = {
         "Symbol": "[bold]Total[/bold]",
-        "Units": currency_tint(base, f"({base})"),
+        "Units": currency_tint(totals, f"({totals})"),
         "Wt%": whole,
         # How much of everything owned this whole grain accounts for
         "Folio%": percent(holdings.total_weight_in_folio),
@@ -710,7 +710,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
         notes.append(
             f"[dim]Total% is blank: it measures the pool against its net "
             f"deposits, and {holdings.excluded} CAD holding(s) are hidden by "
-            f"--currency {holdings.base_currency}. Drop the flag to see "
+            f"--currency {holdings.totals_currency}. Drop the flag to see "
             f"it.[/dim]",
         )
     # A single-currency pool that isn't CAD still gets its `Total%` promoted to
@@ -733,7 +733,7 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
     )
     if holdings.fx_rate is not None and converts:
         if holdings.mixed_currency:
-            what = f"Total ({holdings.base_currency}) converted"
+            what = f"Total ({holdings.totals_currency}) converted"
         elif single_promoted:
             what = "Total% (CAD) converted"
         else:

@@ -10,7 +10,7 @@ from term.console import console_panel, console_print
 from ui.format import safe_str
 from ui.layout.fit import fit_table
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Sequence
 
 

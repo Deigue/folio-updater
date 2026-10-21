@@ -40,11 +40,11 @@ from ui.views.dash import show_by_type, show_dashboard
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.holdings import ValuationCurrency
+    from engine.holdings import DisplayCurrency
     from engine.panels import Panel
 
 
-def _resolve_currency(requested: str | None) -> ValuationCurrency:
+def _resolve_currency(requested: str | None) -> DisplayCurrency:
     """Read the `--currency` argument.
 
     Defaults to `native`, which keeps every holding in the currency it trades

@@ -290,10 +290,10 @@ def _total_cells(
     holdings: HoldingSet,
     net_deposits: Decimal | None,
 ) -> dict[str, object]:
-    """Total across every currency, converted into the base currency."""
+    """Total across every currency, converted into the totals currency."""
     return {
         "Symbol": "Total",
-        "$": f"({holdings.base_currency})",
+        "$": f"({holdings.totals_currency})",
         "PnL": holdings.total_day_pnl,
         "PnL%": holdings.total_day_pnl_pct,
         "Unreal": holdings.total_unrealized,
@@ -345,7 +345,7 @@ def _notes(holdings: HoldingSet) -> list[str]:
         notes.append(
             f"Total% is blank: it measures the pool against its net deposits, "
             f"and {holdings.excluded} CAD holding(s) are hidden by the "
-            f"{holdings.base_currency} currency filter.",
+            f"{holdings.totals_currency} currency filter.",
         )
     converts = holdings.mixed_currency or holdings.display_currency is Currency.CAD
     if holdings.fx_rate is not None and converts:

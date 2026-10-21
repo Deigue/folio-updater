@@ -158,7 +158,11 @@ def symbol_holdings(
     lines.sort(
         key=lambda line: (
             line.holding.closed,
-            -(line.holding.market_value_base or line.holding.book_value_base or ZERO),
+            -(
+                line.holding.market_value_totals
+                or line.holding.book_value_totals
+                or ZERO
+            ),
         ),
     )
 

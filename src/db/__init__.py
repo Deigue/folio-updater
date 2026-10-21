@@ -9,6 +9,7 @@ from db.backup import backup_folio, backup_scope
 from db.helpers import txn_count
 from db.queries import (
     add_column_to_table,
+    append_rows,
     delete_rows,
     drop_table,
     get_alias_edges,
@@ -37,6 +38,7 @@ from db.schema import (
 
 __all__ = [
     "add_column_to_table",
+    "append_rows",
     "backup",
     "backup_folio",
     "backup_scope",

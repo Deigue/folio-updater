@@ -21,7 +21,7 @@ from ui.layout.paging import page_frame
 from ui.vocabulary import TRANSACTION_COLORS
 from ui.widgets import show_data_table
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Container, Hashable
     from typing import Any
 

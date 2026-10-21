@@ -11,6 +11,7 @@ import pandas as pd
 
 from app.logging_setup import audit_footer, get_import_logger
 from db import (
+    append_rows,
     backup_folio,
     get_connection,
     get_rows,
@@ -131,7 +132,7 @@ def insert_transactions(
         backup_folio()
         with get_connection() as conn:
             try:
-                prepared_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+                append_rows(conn, Table.TXNS, prepared_df)
             except sqlite3.IntegrityError:
                 _analyze_and_insert_rows(conn, prepared_df)
 
@@ -163,13 +164,7 @@ def _analyze_and_insert_rows(
 
     try:
         for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
-            row_df = pd.DataFrame([row])
-            row_df.to_sql(
-                Table.TXNS,
-                conn,
-                if_exists="append",
-                index=False,
-            )
+            append_rows(conn, Table.TXNS, pd.DataFrame([row]))
             success_msg = f"{success}Row {idx}/{total_rows}: SUCCESS"
             import_logger.info(success_msg)
 

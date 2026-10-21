@@ -8,7 +8,7 @@ from term.console import active_console, console_print
 from term.keys import getch
 from term.size import available_height, is_test_environment
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from collections.abc import Callable
 
 

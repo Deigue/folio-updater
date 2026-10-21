@@ -40,7 +40,7 @@ def terminal_size() -> tuple[int, int]:
     """
     try:
         term_size = active_console().size
-    except (AttributeError, OSError):  # pragma: no cover
+    except (AttributeError, OSError):
         return 80, 24  # Sensible fallback defaults
     else:
         return term_size.width, term_size.height

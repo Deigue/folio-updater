@@ -119,7 +119,7 @@ def test_a_symbol_the_folio_never_traded_has_no_holdings(
         assert symbol_holdings(_valuation(), "NEVERHELD") is None
 
 
-def test_a_holding_the_valuation_currency_hides_is_not_returned(
+def test_a_holding_the_display_currency_hides_is_not_returned(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():

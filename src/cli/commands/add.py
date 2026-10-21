@@ -21,7 +21,12 @@ from app import bootstrap, get_config
 from app.logging_setup import get_import_logger
 from cli.commands.common import audit_footer, backup_folio, export_to_parquet
 from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_connection, get_last_insert_rowid, get_rows
+from db.queries import (
+    append_rows,
+    get_connection,
+    get_last_insert_rowid,
+    get_rows,
+)
 from domain import (
     SUPPORTED_CURRENCIES,
     TORONTO_TZ,
@@ -262,7 +267,7 @@ def _insert_transaction(final_df: pd.DataFrame) -> int:
     backup_folio()
     with get_connection() as conn:
         try:
-            final_df.to_sql(Table.TXNS, conn, if_exists="append", index=False)
+            append_rows(conn, Table.TXNS, final_df)
         except sqlite3.IntegrityError as e:
             console_error(f"Database rejected the transaction: {e}")
             import_logger.error("ADD FAILED: %s", e)  # noqa: TRY400

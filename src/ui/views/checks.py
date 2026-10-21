@@ -17,7 +17,7 @@ from term import (
 )
 from term.console import active_console
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from engine.checks import CheckResult
 
 _HEADING_WIDTH = 23

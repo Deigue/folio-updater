@@ -8,7 +8,6 @@ is already stored.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -16,7 +15,7 @@ import pandas as pd
 from app import get_config
 from app.logging_setup import get_import_logger
 from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_connection
+from db.queries import get_connection, get_rows
 from domain import TXN_ESSENTIALS, Table
 
 if TYPE_CHECKING:
@@ -194,28 +193,9 @@ class TransactionFilter:
     def _get_db_transaction_keys() -> set[str]:
         """Get synthetic keys for all existing transactions in the database.
 
-        Args:
-            conn: Database connection.
-
         Returns:
             Set of synthetic keys for existing transactions.
         """
         with get_connection() as conn:
-            try:
-                # Build the query to select essential columns.
-                essential_cols = ", ".join(f'"{col}"' for col in TXN_ESSENTIALS)
-                query = f'SELECT {essential_cols} FROM "{Table.TXNS}"'
-                existing_df = pd.read_sql_query(query, conn)
-                if existing_df.empty:  # pragma: no cover
-                    return set()
-
-                existing_keys_series = generate_keys(existing_df)
-                existing_keys: set[str] = set(existing_keys_series)
-            except (sqlite3.Error, pd.errors.DatabaseError):
-                import_logger.debug(
-                    "Table '%s' does not exist yet, no existing transactions to check.",
-                    Table.TXNS,
-                )
-                return set()
-            else:
-                return existing_keys
+            existing_df = get_rows(conn, Table.TXNS, columns=TXN_ESSENTIALS)
+        return set(generate_keys(existing_df))

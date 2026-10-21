@@ -32,7 +32,7 @@ from ui.vocabulary import (
     WEIGHT_WARN_AT,
 )
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from decimal import Decimal
 
     from domain import Currency

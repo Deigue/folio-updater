@@ -265,7 +265,7 @@ def is_blank(value: object) -> bool:
     try:
         # A cell is `object`, which the stubs' overloads do not cover.
         return bool(pd.isna(value))  # ty: ignore[no-matching-overload]
-    except (TypeError, ValueError):  # pragma: no cover - only arrays reach here
+    except (TypeError, ValueError):  # only arrays reach here
         return False
 
 

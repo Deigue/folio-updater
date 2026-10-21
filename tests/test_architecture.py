@@ -118,3 +118,30 @@ def test_no_module_imports_form_a_cycle() -> None:
         walk(node, [node], {node})
 
     assert not cycles, "Import cycle:\n  " + "\n  ".join(sorted(set(cycles)))
+
+
+# The calls that put SQL on a connection, read a table into pandas or write one out
+_SQL_CALLS = frozenset({"execute", "executemany", "executescript", "cursor", "to_sql"})
+
+
+def _called_name(call: ast.Call) -> str | None:
+    """Name the function a call reaches, as in `conn.execute()` or `read_sql()`."""
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    return None
+
+
+def test_sql_stays_in_the_db_package() -> None:
+    """Only `src/db` talks to SQLite: everything else goes through its helpers."""
+    violations = [
+        f"{path.relative_to(SRC).as_posix()}:{node.lineno} calls {name}()"
+        for path in SRC.rglob("*.py")
+        if path.relative_to(SRC).parts[0] != "db"
+        for node in ast.walk(_tree(path))
+        if isinstance(node, ast.Call)
+        and (name := _called_name(node))
+        and (name in _SQL_CALLS or name.startswith("read_sql"))
+    ]
+    assert not violations, "SQL outside src/db:\n  " + "\n  ".join(violations)

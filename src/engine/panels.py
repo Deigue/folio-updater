@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.flows import Flows, Room
-    from engine.holdings import HoldingSet, ValuationCurrency
+    from engine.holdings import DisplayCurrency, HoldingSet
     from engine.types import ReplayResult
     from services.quotes_service import Quote
 
@@ -91,7 +91,7 @@ def account_type_of(view: PoolView) -> AccountType | None:
     if view.grain is Grain.TYPE:
         try:
             return AccountType(view.pool)
-        except ValueError:  # pragma: no cover - callers resolve the type first
+        except ValueError:  # callers resolve the type first
             return None
     if view.grain is Grain.ACCOUNT:
         return resolve_account_type(view.pool)
@@ -125,7 +125,7 @@ class FolioValuation:
 
     positions: FolioHoldings
     result: ReplayResult
-    currency: ValuationCurrency
+    currency: DisplayCurrency
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
     withdrawals: Mapping[AccountType, Mapping[int, Decimal]]
     quotes: dict[str, Quote]
@@ -137,7 +137,7 @@ class FolioValuation:
         frame: pd.DataFrame,
         result: ReplayResult,
         *,
-        currency: ValuationCurrency = Currency.CAD,
+        currency: DisplayCurrency = Currency.CAD,
         refresh: bool = False,
         offline: bool = False,
     ) -> FolioValuation:

@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from engine.fx_rates import FxRates
     from services.quotes_service import Quote
 
-# The currency the figures are *computed* in
-ValuationCurrency = Currency | Literal["native"]
+# The currency a report shows its figures in
+DisplayCurrency = Currency | Literal["native"]
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,8 @@ class Holding:
         weight_in_folio: Market value as a share of the whole folio.
         priced: Whether a usable price was found.
         flags: Diagnostics the replay raised against this symbol in this pool.
+        book_value_totals: `book_value` in the totals currency, and likewise
+            for the other `_totals` fields. These are what a pool sums.
         closed: Whether this holding has zero units in this pool.
     """
 
@@ -90,13 +92,13 @@ class Holding:
     weight_in_folio: Decimal | None = None
     priced: bool = False
     flags: tuple[WarningCode, ...] = ()
-    book_value_base: Decimal = ZERO
-    market_value_base: Decimal | None = None
-    day_pnl_base: Decimal | None = None
-    unrealized_base: Decimal | None = None
-    realized_base: Decimal = ZERO
-    dividends_base: Decimal = ZERO
-    total_pnl_base: Decimal | None = None
+    book_value_totals: Decimal = ZERO
+    market_value_totals: Decimal | None = None
+    day_pnl_totals: Decimal | None = None
+    unrealized_totals: Decimal | None = None
+    realized_totals: Decimal = ZERO
+    dividends_totals: Decimal = ZERO
+    total_pnl_totals: Decimal | None = None
     total_pnl_cad: Decimal | None = None
     market_value_cad: Decimal | None = None
     closed: bool = False
@@ -204,7 +206,7 @@ class CurrencyTotals:
 class HoldingSet:
     """Every holding in one pool, with the totals they roll up to.
 
-    The totals are in `base_currency`, never in a holding's own: adding a USD
+    The totals are in `totals_currency`, never in a holding's own: adding a USD
     market value to a CAD one without converting would be nonsense. The
     per-currency subtotals in `by_currency` are the native ones.
 
@@ -213,9 +215,9 @@ class HoldingSet:
         grain: The grain the pool was read at.
         pool: The pool key, empty at folio grain.
         display_currency: The currency the figures are expressed in.
-        base_currency: The currency the totals and ratios are expressed in.
+        totals_currency: The currency the totals and ratios are expressed in.
         by_currency: Subtotals per currency group, each in its own currency.
-        total_book: Cost base across every open holding, in `base_currency`.
+        total_book: Cost base across every open holding, in `totals_currency`.
         total_market: Market value across the **priced** holdings only.
         total_day_pnl: Day gain across the priced holdings.
         total_unrealized: Unrealized gain across the priced holdings.
@@ -232,9 +234,9 @@ class HoldingSet:
     holdings: list[Holding]
     grain: Grain
     pool: str
-    display_currency: ValuationCurrency
+    display_currency: DisplayCurrency
     closed: tuple[Holding, ...] = ()
-    base_currency: Currency = Currency.CAD
+    totals_currency: Currency = Currency.CAD
     by_currency: tuple[CurrencyTotals, ...] = ()
     total_book: Decimal = ZERO
     total_market: Decimal | None = None
@@ -470,7 +472,7 @@ class FolioHoldings:
         *,
         grain: Grain,
         pool: str | None = None,
-        currency: ValuationCurrency = Currency.CAD,
+        currency: DisplayCurrency = Currency.CAD,
         folio_market: Decimal | None = None,
         sort: str | None = None,
         reverse: bool = False,
@@ -498,9 +500,7 @@ class FolioHoldings:
         flags = derived.flags
         income = derived.income
         rate, rate_date = _latest_rate(fx)
-        base = base_currency(currency)
-
-        priced_base = ZERO
+        priced_totals = ZERO
         excluded = 0
         partial: list[Holding] = []
         closed: list[Holding] = []
@@ -518,10 +518,10 @@ class FolioHoldings:
                 closed.append(holding)
                 continue
             partial.append(holding)
-            if holding.market_value_base is not None:
-                priced_base += holding.market_value_base
+            if holding.market_value_totals is not None:
+                priced_totals += holding.market_value_totals
 
-        holdings = _with_weights(partial, priced_base, folio_market)
+        holdings = _with_weights(partial, priced_totals, folio_market)
         if sort is None:
             holdings.sort(key=_by_value, reverse=True)
         else:
@@ -530,37 +530,39 @@ class FolioHoldings:
 
         unpriced = tuple(h.symbol for h in holdings if not h.priced)
         any_priced = any(h.priced for h in holdings)
-        closed_pnl = sum((h.realized_base + h.dividends_base for h in closed), ZERO)
+        closed_pnl = sum((h.realized_totals + h.dividends_totals for h in closed), ZERO)
         return HoldingSet(
             holdings=holdings,
             closed=tuple(closed),
             grain=grain,
             pool=pool or "",
             display_currency=currency,
-            base_currency=base,
+            totals_currency=totals_currency(currency),
             by_currency=_by_currency(holdings, closed),
-            total_book=sum((h.book_value_base for h in holdings), ZERO),
-            total_market=priced_base if any_priced else None,
+            total_book=sum((h.book_value_totals for h in holdings), ZERO),
+            total_market=priced_totals if any_priced else None,
             total_day_pnl=(
-                _sum_optional(h.day_pnl_base for h in holdings) if any_priced else None
+                _sum_optional(h.day_pnl_totals for h in holdings)
+                if any_priced
+                else None
             ),
             total_unrealized=(
-                _sum_optional(h.unrealized_base for h in holdings)
+                _sum_optional(h.unrealized_totals for h in holdings)
                 if any_priced
                 else None
             ),
             total_realized=(
-                sum((h.realized_base for h in holdings), ZERO)
-                + sum((h.realized_base for h in closed), ZERO)
+                sum((h.realized_totals for h in holdings), ZERO)
+                + sum((h.realized_totals for h in closed), ZERO)
             ),
             total_dividends=(
-                sum((h.dividends_base for h in holdings), ZERO)
-                + sum((h.dividends_base for h in closed), ZERO)
+                sum((h.dividends_totals for h in holdings), ZERO)
+                + sum((h.dividends_totals for h in closed), ZERO)
             ),
             excluded=excluded,
             total_pnl_cad=_total_pnl_cad(holdings, closed, any_priced=any_priced),
             total_pnl=_total_pnl(
-                _sum_optional(h.total_pnl_base for h in holdings),
+                _sum_optional(h.total_pnl_totals for h in holdings),
                 has_open=bool(holdings),
                 closed_pnl=closed_pnl,
                 any_priced=any_priced,
@@ -571,11 +573,11 @@ class FolioHoldings:
         )
 
 
-def base_currency(currency: ValuationCurrency) -> Currency:
+def totals_currency(currency: DisplayCurrency) -> Currency:
     """Name the currency totals and ratios will be expressed in.
 
     Args:
-        currency: The requested valuation currency.
+        currency: The requested display currency.
 
     Returns:
         The currency to total and take ratios in.
@@ -661,7 +663,7 @@ def _total_pnl_cad(
 ) -> Decimal | None:
     """Total what the pool earned in CAD, or None when part of it is unknown.
 
-    Unlike the base total, this one refuses to be partial. It exists only as the
+    Unlike `total_pnl`, this one refuses to be partial. It exists only as the
     numerator of a return against net deposits, and a sum quietly missing a
     holding would state a ratio based off an incomplete top half.
 
@@ -673,7 +675,7 @@ def _total_pnl_cad(
     Returns:
         The CAD total, or None when it cannot be stated in full.
     """
-    valued = [h for h in holdings if h.total_pnl_base is not None]
+    valued = [h for h in holdings if h.total_pnl_totals is not None]
     if any(h.total_pnl_cad is None for h in (*valued, *closed)):
         return None
     return _total_pnl(
@@ -708,7 +710,7 @@ class _Context:
     income: Mapping[str, tuple[Decimal, Decimal]]
     grain: Grain
     pool: str
-    currency: ValuationCurrency
+    currency: DisplayCurrency
     fx: FxRates
 
 
@@ -728,17 +730,17 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         # The USD columns are blank by design for a CAD-denominated holding
         return None
 
-    common = base_currency(ctx.currency)
+    totals = totals_currency(ctx.currency)
     book, avg = _cost(record, grain, shown, native)
-    # The base book value is read off the frame, never converted
-    book_base, _ = _cost(record, grain, common, native)
+    # The totals-currency book value is read off the frame, never converted
+    book_totals, _ = _cost(record, grain, totals, native)
 
     # Realized gains and dividends are history, not valuation, so both are read
     # in whichever currency the frame already holds them in. Neither is ever
     # converted at today's rate.
     realized = _realized(record, grain, shown, native)
-    realized_base = _realized(record, grain, common, native)
-    dividends, dividends_base = _income(ctx.income, symbol, shown, common, native)
+    realized_totals = _realized(record, grain, totals, native)
+    dividends, dividends_totals = _income(ctx.income, symbol, shown, totals, native)
 
     if closed:
         return Holding(
@@ -751,12 +753,12 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             book_value=book,
             realized=realized,
             dividends=dividends,
-            book_value_base=book_base,
-            realized_base=realized_base,
-            dividends_base=dividends_base,
+            book_value_totals=book_totals,
+            realized_totals=realized_totals,
+            dividends_totals=dividends_totals,
             total_pnl_cad=(
-                realized_base + dividends_base
-                if common is Currency.CAD
+                realized_totals + dividends_totals
+                if totals is Currency.CAD
                 else _cad_earned(record, ctx, symbol, native, held)
             ),
             flags=ctx.flags.get(symbol, ()),
@@ -765,7 +767,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
 
     quote = ctx.quotes.get(symbol)
     price, prev_close = _converted_price(quote, shown, ctx.fx)
-    price_base, prev_base = _converted_price(quote, common, ctx.fx)
+    price_totals, prev_totals = _converted_price(quote, totals, ctx.fx)
 
     started = Holding(
         symbol=symbol,
@@ -778,9 +780,9 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         book_value=book,
         realized=realized,
         dividends=dividends,
-        book_value_base=book_base,
-        realized_base=realized_base,
-        dividends_base=dividends_base,
+        book_value_totals=book_totals,
+        realized_totals=realized_totals,
+        dividends_totals=dividends_totals,
         flags=ctx.flags.get(symbol, ()),
     )
     if price is None:
@@ -789,13 +791,17 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     change = None if prev_close is None else price - prev_close
     market_value = price * held
     unrealized = market_value - book
-    market_base = None if price_base is None else price_base * held
-    change_base = (
-        None if price_base is None or prev_base is None else (price_base - prev_base)
+    market_totals = None if price_totals is None else price_totals * held
+    change_totals = (
+        None
+        if price_totals is None or prev_totals is None
+        else (price_totals - prev_totals)
     )
     total = unrealized + realized + dividends
-    total_base = (
-        None if market_base is None else (market_base - book_base) + realized_base
+    gain_totals = (
+        None
+        if market_totals is None
+        else (market_totals - book_totals) + realized_totals
     )
     return replace(
         started,
@@ -814,20 +820,24 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         total_pnl=total,
         total_pnl_pct=safe_div(total, book) if book else None,
         priced=True,
-        market_value_base=market_base,
+        market_value_totals=market_totals,
         market_value_cad=(
-            market_base
-            if common is Currency.CAD
+            market_totals
+            if totals is Currency.CAD
             else _market_in_cad(quote, held, ctx.fx)
         ),
-        day_pnl_base=None if change_base is None else change_base * held,
-        unrealized_base=None if market_base is None else market_base - book_base,
-        total_pnl_base=None if total_base is None else total_base + dividends_base,
+        day_pnl_totals=None if change_totals is None else change_totals * held,
+        unrealized_totals=None
+        if market_totals is None
+        else market_totals - book_totals,
+        total_pnl_totals=None
+        if gain_totals is None
+        else gain_totals + dividends_totals,
         total_pnl_cad=(
             None
-            if total_base is None
-            else total_base + dividends_base
-            if common is Currency.CAD
+            if gain_totals is None
+            else gain_totals + dividends_totals
+            if totals is Currency.CAD
             else _cad_earned(record, ctx, symbol, native, held)
         ),
     )
@@ -840,7 +850,7 @@ def _market_in_cad(
 ) -> Decimal | None:
     """Value one open holding in CAD, ignoring the display currency.
 
-    Only reached when `-c USD` has made the base currency USD. `weight_in_folio`
+    Only reached when `-c USD` has made the totals currency USD. `weight_in_folio`
     is a share of the whole folio, and the folio spans both currencies,
     so the ratio has to be taken in the one currency every holding can be
     expressed in.
@@ -866,7 +876,7 @@ def _cad_earned(
 ) -> Decimal | None:
     """Read everything one holding earned, in CAD, ignoring the display currency.
 
-    Only reached when `-c USD` has made the base currency USD. Every other
+    Only reached when `-c USD` has made the totals currency USD. Every other
     figure on the row is then USD by request, but the deposit-based return
     divides by net *CAD* deposits, so its numerator has to be read from the
     frame's CAD columns rather than converted back at today's rate. Realized
@@ -928,7 +938,7 @@ def _with_weights(
     jumping 8%. Dividing by the holding's own value instead would cancel the
     units and collapse the column into `change_pct`.
 
-    **All three are taken on the base-currency figures**, whatever currency the
+    **All three are taken on the totals-currency figures**, whatever currency the
     row itself is reported in. A weight answers "how much of what I own is
     this", which spans currencies by definition, so a USD holding's 5% and a CAD
     holding's 5% have to mean the same thing.
@@ -940,15 +950,15 @@ def _with_weights(
     folio_total = folio_market if folio_market is not None else pool_cad
     pool_prior = sum(
         (
-            holding.market_value_base - (holding.day_pnl_base or ZERO)
+            holding.market_value_totals - (holding.day_pnl_totals or ZERO)
             for holding in holdings
-            if holding.market_value_base is not None
+            if holding.market_value_totals is not None
         ),
         ZERO,
     )
     filled: list[Holding] = []
     for holding in holdings:
-        if holding.market_value_base is None:
+        if holding.market_value_totals is None:
             filled.append(holding)
             continue
         filled.append(
@@ -956,10 +966,10 @@ def _with_weights(
                 holding,
                 day_pnl_pct=(
                     None
-                    if holding.day_pnl_base is None
-                    else safe_div(holding.day_pnl_base, pool_prior)
+                    if holding.day_pnl_totals is None
+                    else safe_div(holding.day_pnl_totals, pool_prior)
                 ),
-                weight_in_pool=safe_div(holding.market_value_base, pool_market),
+                weight_in_pool=safe_div(holding.market_value_totals, pool_market),
                 weight_in_folio=(
                     None
                     if holding.market_value_cad is None
@@ -1006,13 +1016,13 @@ def _income(
     dividends: Mapping[str, tuple[Decimal, Decimal]],
     symbol: str,
     shown: Currency,
-    base: Currency,
+    totals: Currency,
     native: Currency,
 ) -> tuple[Decimal, Decimal]:
-    """Read one security's dividends, in the row's currency and in the base currency."""
+    """Read one security's dividends, in the row's currency and the totals currency."""
     cad, usd = dividends.get(symbol, (ZERO, ZERO))
     return (usd if _suffix(shown, native) else cad), (
-        usd if _suffix(base, native) else cad
+        usd if _suffix(totals, native) else cad
     )
 
 
@@ -1169,8 +1179,8 @@ _SORT_KEYS: dict[str, tuple[str, bool]] = {
     "dividends": ("dividends", False),
     "total": ("total_pnl", False),
     "total%": ("total_pnl_pct", False),
-    "book": ("book_value_base", False),
-    "market": ("market_value_base", False),
+    "book": ("book_value_totals", False),
+    "market": ("market_value_totals", False),
     "wt%": ("weight_in_pool", False),
     "folio%": ("weight_in_folio", False),
 }
@@ -1232,9 +1242,9 @@ def sort_holdings(
 def _by_value(holding: Holding) -> tuple[int, Decimal]:
     """Return sort key for the provided holding.
 
-    Ordered on the base-currency figure so a mixed-currency pool sorts by what
+    Ordered on the totals-currency figure so a mixed-currency pool sorts by what
     each holding is actually worth, not by the size of its own currency unit.
     """
-    if holding.market_value_base is None:
+    if holding.market_value_totals is None:
         return (0, ZERO)
-    return (1, holding.market_value_base)
+    return (1, holding.market_value_totals)
