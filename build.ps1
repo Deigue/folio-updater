@@ -15,74 +15,11 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Testing executable..." -ForegroundColor Yellow
-Write-Host "  Testing --help..." -ForegroundColor Cyan
-$testOutput = & .\dist\folio\folio.exe --help 2>&1
+# Same checks as the release workflow; cleans up after itself
+& .\scripts\smoke_test.ps1 -Dist dist\folio
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Basic help test failed!" -ForegroundColor Red
-    Write-Host $testOutput
+    Write-Host "Smoke test failed!" -ForegroundColor Red
     exit 1
-}
-
-Write-Host "  Testing version command..." -ForegroundColor Cyan
-$versionOutput = & .\dist\folio\folio.exe version 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Version test failed!" -ForegroundColor Red
-    Write-Host $versionOutput
-    exit 1
-}
-
-Write-Host "  Testing demo (subcommand) help command..." -ForegroundColor Cyan
-$testOutput = & .\dist\folio\folio.exe demo --help 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Demo help test failed!" -ForegroundColor Red
-    Write-Host $testOutput
-    exit 1
-}
-
-Write-Host "  Testing demo creation..." -ForegroundColor Cyan
-$demoOutput = & .\dist\folio\folio.exe demo 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Demo creation failed!" -ForegroundColor Red
-    Write-Host $demoOutput
-    exit 1
-}
-
-# Verify demo files were created in the executable's directory
-if (!(Test-Path "dist\folio\data\folio.db")) {
-    Write-Host "Demo did not create database file!" -ForegroundColor Red
-    exit 1
-}
-
-if (!(Test-Path "dist\folio\config.yaml")) {
-    Write-Host "Demo did not create config file!" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host "  Testing settle-info command..." -ForegroundColor Cyan
-$settleInfoOutput = & .\dist\folio\folio.exe settle-info 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Settle-info test failed!" -ForegroundColor Red
-    Write-Host $settleInfoOutput
-    exit 1
-}
-
-Write-Host "  ✅ All tests passed!" -ForegroundColor Green
-
-# Clean up test artifacts before packaging
-Write-Host "Cleaning up test artifacts..." -ForegroundColor Yellow
-$testArtifacts = @(
-    "dist\folio\data",
-    "dist\folio\backups", 
-    "dist\folio\logs",
-    "dist\folio\config.yaml"
-)
-
-foreach ($artifact in $testArtifacts) {
-    if (Test-Path $artifact) {
-        Write-Host "  Removing $artifact" -ForegroundColor DarkYellow
-        Remove-Item -Path $artifact -Recurse -Force -ErrorAction SilentlyContinue
-    }
 }
 
 # Copy basic docs

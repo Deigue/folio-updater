@@ -85,11 +85,13 @@ def page_frame(
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
         return
 
-    # Printed once here for the single-page and test-environment paths below.
+    # Printed once here for the single-page and unpaged paths below.
     if badge:
         console_print(badge)
 
-    if is_test_environment():
+    # Nobody can answer the n/p/q prompt when output is piped or redirected
+    # (a script, CI, `> file`), and getch would wait on the console forever.
+    if is_test_environment() or not active_console().is_interactive:
         render(0, total_rows)
         return
 

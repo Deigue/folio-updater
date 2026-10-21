@@ -43,37 +43,9 @@ jobs:
           Copy-Item README.md dist\folio\
           Copy-Item LICENSE.md dist\folio\ -ErrorAction SilentlyContinue
 
-      - name: Test executable basic functionality
-        run: |
-          dist\folio\folio.exe --help
-          dist\folio\folio.exe version
-
-      - name: Test executable demo command
-        run: |
-          dist\folio\folio.exe demo --help
-          dist\folio\folio.exe demo
-          if (!(Test-Path "dist\folio\data\folio.db")) { throw "Demo did not create database" }
-          if (!(Test-Path "dist\folio\config.yaml")) { throw "Demo did not create config file" }
-
-      - name: Test settle-info command
-        run: |
-          dist\folio\folio.exe settle-info
-
-      - name: Clean up test artifacts
-        run: |
-          Write-Host "Cleaning up test artifacts before packaging..."
-          $testArtifacts = @(
-            "dist\folio\data",
-            "dist\folio\backups", 
-            "dist\folio\logs",
-            "dist\folio\config.yaml"
-          )
-          foreach ($artifact in $testArtifacts) {
-            if (Test-Path $artifact) {
-              Write-Host "Removing $artifact"
-              Remove-Item -Path $artifact -Recurse -Force -ErrorAction SilentlyContinue
-            }
-          }
+      # Same checks as build.ps1; removes what they write before packaging
+      - name: Smoke test executable
+        run: .\scripts\smoke_test.ps1 -Dist dist\folio
 
       - name: Calculate sizes
         id: sizes

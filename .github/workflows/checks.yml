@@ -1,0 +1,43 @@
+name: Checks
+
+# The same three commands as the pre-commit hooks and the Zed tasks.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: Lint and test
+    # Windows, like the release build and the machine the folio runs on.
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          # The release build's Python, so CI tests what ships.
+          python-version: '3.13'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --all-groups --locked
+
+      - name: ruff check
+        run: uv run ruff check
+
+      - name: ty check
+        run: uv run ty check
+
+      - name: pytest
+        run: uv run pytest

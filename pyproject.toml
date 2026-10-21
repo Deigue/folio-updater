@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.8.15"
+version = "0.8.16"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
@@ -168,6 +168,7 @@ dev = [
     "ipykernel>=6.29.5",
     "nbstripout>=0.8.1",
     "pandas-stubs>=2.0.3",
+    "pre-commit>=4.7.0",
     "pyinstaller>=6.16.0",
     "ruff>=0.16.2",
     "ty>=0.0.69",

@@ -1,0 +1,36 @@
+# Local hooks only: each runs the same command as its Zed task, through uv, so a
+# hook and the editor never disagree about tool versions or config.
+#
+# Set up once per clone:  uv run pre-commit install
+# Run by hand:            uv run pre-commit run --all-files
+#
+# Every hook checks the whole project rather than the staged files and is skipped when
+# a commit touches no Python, notebook or project file. CI runs the same three commands.
+
+default_install_hook_types: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff check
+        entry: uv run ruff check
+        language: system
+        pass_filenames: false
+        files: \.(py|pyi|ipynb)$|^(pyproject\.toml|uv\.lock)$
+
+      - id: ty
+        name: ty check
+        entry: uv run ty check
+        language: system
+        pass_filenames: false
+        files: \.(py|pyi)$|^(pyproject\.toml|uv\.lock)$
+
+      # The full suite takes about 12s: conftest.py runs it on 4 xdist workers.
+      # Anything under tests/ counts, since fixtures include data files.
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        files: \.(py|pyi)$|^tests/|^(pyproject\.toml|uv\.lock)$
