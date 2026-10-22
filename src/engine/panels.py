@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 
     from engine.flows import Flows, Room
     from engine.holdings import DisplayCurrency, HoldingSet
-    from engine.types import ReplayResult
+    from engine.ledger import Ledger
     from services.quotes_service import Quote
 
 
@@ -114,7 +114,7 @@ class FolioValuation:
 
     Attributes:
         positions: The frame and quotes, with each pool's rollups memoized.
-        result: The replay the cash totals are read from.
+        ledger: The ledger the holdings and cash totals are read from.
         currency: The currency figures are expressed in, or `native`.
         contributions: Every type's per-year contributions, for the room line.
         withdrawals: Every type's per-year withdrawals, for the room history.
@@ -124,7 +124,7 @@ class FolioValuation:
     """
 
     positions: FolioHoldings
-    result: ReplayResult
+    ledger: Ledger
     currency: DisplayCurrency
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
     withdrawals: Mapping[AccountType, Mapping[int, Decimal]]
@@ -134,8 +134,7 @@ class FolioValuation:
     @classmethod
     def build(
         cls,
-        frame: pd.DataFrame,
-        result: ReplayResult,
+        ledger: Ledger,
         *,
         currency: DisplayCurrency = Currency.CAD,
         refresh: bool = False,
@@ -144,8 +143,7 @@ class FolioValuation:
         """Price the whole folio once, ready to report any pool of it.
 
         Args:
-            frame: The replayed ledger.
-            result: The replay behind it, which carries the cash totals.
+            ledger: The ledger to value.
             currency: The currency to express figures in, or `native`.
             refresh: Refetch every quote regardless of its age.
             offline: Never touch the network; use whatever is cached.
@@ -153,12 +151,13 @@ class FolioValuation:
         Returns:
             The valuation, with every open holding priced.
         """
+        frame = ledger.frame
         positions = FolioHoldings(frame, {}, load_fx_rates())
         quotes = _quotes(positions, refresh=refresh, offline=offline)
         positions.price(quotes)
         return cls(
             positions=positions,
-            result=result,
+            ledger=ledger,
             currency=currency,
             contributions=contributions_by_type_year(frame),
             withdrawals=withdrawals_by_type_year(frame),
@@ -210,7 +209,7 @@ class FolioValuation:
             reverse=reverse,
         )
         flows = build_flows(
-            self.result,
+            self.ledger,
             grain=view.grain,
             pool=view.pool,
             label=view.label,

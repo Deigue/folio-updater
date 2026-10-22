@@ -14,8 +14,8 @@ from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import get_alias_edges, get_connection, get_distinct_set, get_rows
 from domain import AccountType, Action, CheckStatus, Column, Table
-from engine import cache
 from engine.checks import run_checks
+from engine.ledger import open_ledger
 
 from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import (
@@ -155,7 +155,7 @@ def test_the_demo_shows_every_feature_it_exists_to_show(
         with get_connection() as conn:
             txns = get_rows(conn, Table.TXNS)
             renames = get_alias_edges(conn)
-        features = _showcase(txns, cache.build().frame, renames)
+        features = _showcase(txns, open_ledger().frame, renames)
 
     assert [name for name, shown in features.items() if not shown] == []
 
@@ -168,11 +168,10 @@ def test_the_demo_replays_clean(temp_ctx: TempContext) -> None:
     """
     with temp_ctx():
         ensure_data_exists()
-        result = cache.build().result
-        assert result is not None
-        checks = run_checks(result, get_config())
+        ledger = open_ledger()
+        checks = run_checks(ledger, get_config())
 
-    assert [str(warning) for warning in result.warnings] == []
+    assert [str(diagnostic) for diagnostic in ledger.diagnostics] == []
     assert [
         f"{check.slug}: {check.summary}"
         for check in checks

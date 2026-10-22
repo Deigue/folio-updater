@@ -7,17 +7,14 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import get_config
 from app.logging_setup import audit_footer
 from cli.selection import Selection, select_transactions
-from db import backup_folio, get_connection, get_max_value, txn_count
-from domain import ACCOUNT_TYPE_ALIASES, AccountType, Column, Grain, Table
-from engine.cache import CachedFrame, build, load_or_build
-from engine.fx_rates import FxRateUnavailableError
+from db import backup_folio, txn_count
+from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
+from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
-from services import ForexService
-from term import announce, console_error, console_success, console_warning
+from term import console_error, console_success, console_warning
 from term.progress import ProgressDisplay
 from ui.format import format_freshness, freshness_line
 
@@ -25,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import datetime
 
-    from engine.types import ReplayResult
+    from engine.ledger import Ledger
     from services.quotes_service import Quote
 
 logger = logging.getLogger(__name__)
@@ -36,12 +33,10 @@ __all__ = [
     "audit_footer",
     "backup_folio",
     "cache_badge",
-    "ensure_fx_coverage",
     "freshness_note",
-    "load_folio",
     "parse_account_type",
     "quote_age",
-    "replay_result",
+    "require_ledger",
     "resolve_pool",
     "txn_count",
 ]
@@ -58,43 +53,31 @@ FIX_UNCONVERTIBLE = (
 )
 
 
-def load_folio(*, refresh: bool = False) -> CachedFrame:
-    """Replay the folio, or say why it cannot be replayed.
+def require_ledger(
+    *,
+    refresh: bool = False,
+    priced: bool = False,
+    offline: bool = False,
+) -> Ledger:
+    """Open the ledger, or say why it cannot be opened and stop.
 
     Args:
-        refresh: Rebuild the cost-base cache even if it looks current.
+        refresh: Replay even if the saved ledger is current.
+        priced: The report prices the folio, so it needs today's FX rate.
+        offline: Never touch the network.
 
     Returns:
-        The replayed ledger.
+        The ledger.
 
     Raises:
         typer.Exit: If a stored transaction is in a currency the engine cannot
             convert.
     """
     try:
-        return load_or_build(refresh=refresh)
-    except FxRateUnavailableError as error:
+        return open_ledger(refresh=refresh, priced=priced, offline=offline)
+    except LedgerUnavailableError as error:
         console_error(f"{error} {FIX_UNCONVERTIBLE}")
         raise typer.Exit(1) from error
-
-
-def replay_result(cached: CachedFrame) -> ReplayResult:
-    """Take the replay behind a cached frame, replaying afresh if it was not kept.
-
-    Args:
-        cached: The loaded ledger.
-
-    Returns:
-        The replay.
-
-    Raises:
-        typer.Exit: If the folio could not be replayed.
-    """
-    result = cached.result or build().result
-    if result is None:  # pragma: no cover - `build` always replays
-        console_error("Could not replay the folio.")
-        raise typer.Exit(1)
-    return result
 
 
 def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
@@ -169,32 +152,6 @@ def freshness_note(
     empty = not any(quote.fetched_at for quote in quotes.values())
     aged = "nothing cached" if empty else format_freshness(quote_at)
     return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
-
-
-def ensure_fx_coverage(*, through_today: bool = False) -> None:
-    """Top up FX rates before a replay, when config allows it.
-
-    Bounded by the folio's own settlement dates rather than by today: a folio that
-    already has a rate for every date it needs must not reach for the network
-    on every invocation just because the calendar has moved on.
-
-    Args:
-        through_today: Cover every rate published up to the latest the
-            Bank of Canada has.
-    """
-    if not get_config().auto_getfx:
-        return
-    earliest = ForexService.get_earliest_transaction_date()
-    if earliest is None:
-        return
-    latest = None
-    if not through_today:
-        with get_connection() as conn:
-            latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
-    try:
-        ForexService.ensure_coverage(earliest, latest)
-    except (OSError, ValueError, KeyError):
-        announce.warning("Could not refresh FX rates; using what is stored")
 
 
 def parse_account_type(value: str) -> AccountType | None:

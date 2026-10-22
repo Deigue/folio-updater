@@ -20,7 +20,8 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from engine.types import CashState, ReplayResult
+    from engine.ledger import Ledger
+    from engine.types import CashState
 
 # The pool key the replay credits folio-grain movements to.
 FOLIO_POOL = "FOLIO"
@@ -175,7 +176,7 @@ class Flows:
 
 
 def build_flows(  # noqa: PLR0913
-    result: ReplayResult,
+    ledger: Ledger,
     *,
     grain: Grain,
     pool: str | None,
@@ -185,11 +186,10 @@ def build_flows(  # noqa: PLR0913
     room: Mapping[AccountType, Mapping[int, Decimal]] | None = None,
     year: int | None = None,
 ) -> Flows:
-    """Collect one pool's cash and income totals out of a replay.
+    """Collect one pool's cash and income totals out of the ledger.
 
     Args:
-        result: A completed replay. Its `cash` totals survive a cache round
-            trip intact, which is why they are read from here.
+        ledger: The ledger, whose cash carries every pool's flows.
         grain: The pool grain to read at.
         pool: The account name or account type. Ignored at folio grain,
             where the replay credits the literal `FOLIO` key.
@@ -208,7 +208,7 @@ def build_flows(  # noqa: PLR0913
     key = FOLIO_POOL if grain is Grain.FOLIO else (pool or "")
     states = {
         currency: state
-        for (cash_grain, name, currency), state in result.cash.items()
+        for (cash_grain, name, currency), state in ledger.cash.items()
         if cash_grain is grain and name == key
     }
 

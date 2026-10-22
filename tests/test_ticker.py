@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from domain import Currency, PriceRange, QuoteStatus
-from engine.cache import build
+from engine.ledger import open_ledger
 from engine.panels import FolioValuation, type_view
 from engine.performance import RangeMove, price_moves
 from engine.ticker import (
@@ -50,9 +50,7 @@ def _seed_two_types() -> None:
 
 
 def _valuation() -> FolioValuation:
-    cached = build()
-    assert cached.result is not None
-    return FolioValuation.build(cached.frame, cached.result, currency="native")
+    return FolioValuation.build(open_ledger(), currency="native")
 
 
 def test_the_total_is_the_folio_grain_not_the_sum_of_the_lines(
@@ -125,15 +123,8 @@ def test_a_holding_the_display_currency_hides_is_not_returned(
     with temp_ctx():
         seed_fx(FX)
         seed_transaction(ticker="CADCO.TO", currency="CAD", amount="-200", units="10")
-        cached = build()
-        assert cached.result is not None
-
         # A CAD holding has no USD figures to show.
-        in_usd = FolioValuation.build(
-            cached.frame,
-            cached.result,
-            currency=Currency.USD,
-        )
+        in_usd = FolioValuation.build(open_ledger(), currency=Currency.USD)
 
         assert symbol_holdings(in_usd, "CADCO.TO") is None
 
@@ -287,13 +278,7 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
 ) -> None:
     with temp_ctx():
         _seed_two_types()
-        cached = build()
-        assert cached.result is not None
-        valuation = FolioValuation.build(
-            cached.frame,
-            cached.result,
-            currency=Currency.CAD,
-        )
+        valuation = FolioValuation.build(open_ledger(), currency=Currency.CAD)
         panel = valuation.panel(type_view("TFSA"))
         quote = Quote(symbol="TESTTKR", ysymbol="TESTTKR", status=QuoteStatus.OK)
         unheld = Quote(symbol="OTHER", ysymbol="OTHER", status=QuoteStatus.OK)

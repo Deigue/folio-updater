@@ -16,12 +16,7 @@ import typer
 from ws_api import WSApiException
 
 from app import bootstrap, get_config
-from cli.commands.common import (
-    ensure_fx_coverage,
-    export_to_parquet,
-    load_folio,
-    replay_result,
-)
+from cli.commands.common import export_to_parquet, require_ledger
 from cli.commands.dash import show_dash
 from cli.commands.download import (
     download_ibkr,
@@ -511,8 +506,7 @@ def _review_transfers(report: UpdateReport) -> None:
 def _check_stage(report: UpdateReport) -> None:
     """Run the health checks and raise every failure."""
     console_rule("Check", style=_UPDATE_RULE)
-    ensure_fx_coverage()
-    results = run_checks(replay_result(load_folio()), get_config())
+    results = run_checks(require_ledger(), get_config())
     print_report(results, only=None)
     concerns, warned = review_checks(results)
     report.concerns.extend(concerns)

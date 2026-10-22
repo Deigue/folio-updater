@@ -18,10 +18,8 @@ import typer
 from app import bootstrap
 from cli.commands.common import (
     cache_badge,
-    ensure_fx_coverage,
     freshness_note,
-    load_folio,
-    replay_result,
+    require_ledger,
     resolve_pool,
 )
 from domain import Currency
@@ -141,32 +139,26 @@ def show_dash(
         console_error(str(UnknownSortError(sort)))
         raise typer.Exit(1)
 
-    if not offline:
-        # Quotes are today's, so the rate that converts them has to be too.
-        ensure_fx_coverage(through_today=True)
-
-    cached = load_folio(refresh=refresh)
-    if cached.frame.empty:
+    # Quotes are today's, so the rate that converts them has to be too.
+    ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
+    if ledger.frame.empty:
         console_warning("No transactions to build a dashboard from.")
         return
-
-    result = replay_result(cached)
 
     # One valuation for the whole invocation: every panel below reads its
     # rollups from here, and the quotes are fetched once rather than per panel.
     valuation = FolioValuation.build(
-        cached.frame,
-        result,
+        ledger,
         currency=shown,
         refresh=refresh,
         offline=offline,
     )
     badge = cache_badge(
         valuation.quotes,
-        computed_at=cached.computed_at,
+        computed_at=ledger.computed_at,
         offline=offline,
     )
-    note = freshness_note(cached.computed_at, valuation.quotes)
+    note = freshness_note(ledger.computed_at, valuation.quotes)
 
     if by_type:
         panels = valuation.panels(

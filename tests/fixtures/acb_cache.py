@@ -1,9 +1,12 @@
-"""Keep the cost-base cache in memory instead of on disk.
+"""Keep the saved ledger in memory instead of on disk.
 
-`engine.cache` persists the ledger as Parquet plus a JSON sidecar. Every
-command that reads the cost base (`dash`, `acb`, `check`, `quotes`) writes that
-pair whenever the cache is cold, and under test the cache is cold in every
+`engine.ledger` saves the ledger as two Parquet files plus a JSON meta. Every
+command that opens the ledger (`dash`, `acb`, `check`, `quotes`) writes them
+whenever the saved ledger is cold, and under test it is cold in every
 `temp_ctx`, so the write lands once per test, which is extremely expensive.
+
+Only the file reads and writes are swapped: deciding whether the saved ledger is
+current, and laying it out and restoring it, run for real.
 
 Tests that assert on the files themselves carry the `real_acb_cache` marker to opt in.
 """
@@ -11,18 +14,12 @@ Tests that assert on the files themselves carry the `real_acb_cache` marker to o
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
 
-from domain import TORONTO_TZ
-from engine import cache as acb_cache
-from engine.cache import CachedFrame
-from engine.frames import index_by_txn_id
-from engine.snapshot import decode as decode_replay
-from engine.snapshot import encode as encode_replay
+from engine import ledger as saved_ledger
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -30,72 +27,89 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from engine.types import ReplayResult
 
-
-class _MemoryCache:
-    """Stand-in for the Parquet file and its `.meta.json` sidecar."""
+class _MemoryFiles:
+    """Stand-in for the saved ledger's files, keeping only the latest save."""
 
     def __init__(self) -> None:
-        """Start with nothing cached, the way a fresh `temp_ctx` does."""
+        """Start with nothing saved, the way a fresh `temp_ctx` does."""
         self._entries: dict[str, dict[str, Any]] = {}
 
-    def read(self, parquet: Path) -> CachedFrame | None:
-        """Return the cached frame when the inputs it was built from are unchanged.
+    def read_meta(self, parquet: Path) -> dict[str, Any] | None:
+        """Return the saved meta, or None when nothing was saved.
 
         Args:
-            parquet: The path the real cache would have been written to, used
-                only as the key.
+            parquet: The path the real ledger would have been saved beside,
+                used only as the key.
 
         Returns:
-            The cached frame, or None on a miss or stale inputs.
+            The meta, parsed back from JSON exactly as the real file would be.
         """
         entry = self._entries.get(str(parquet))
-        # The real staleness check, so a test sees exactly when the folio replays.
-        if entry is None or not acb_cache._is_current(entry["inputs"]):  # noqa: SLF001
-            return None
-        snapshot = entry["replay"]
-        return CachedFrame(
-            # The real path loses the index to Parquet and restores it here.
-            frame=index_by_txn_id(entry["frame"].copy()),
-            computed_at=entry["computed_at"],
-            result=decode_replay(json.loads(snapshot)) if snapshot else None,
-        )
+        return None if entry is None else json.loads(entry["meta"])
 
-    def write(
+    def read_frame(self, parquet: Path, save: str) -> pd.DataFrame:
+        """Return a copy of the saved ledger frame.
+
+        Only the latest save is kept, and the meta read always names it.
+
+        Args:
+            parquet: The path the real ledger would have used, as the key.
+            save: The save the meta names.
+
+        Returns:
+            A copy, so no caller can change what is saved.
+        """
+        entry = self._entries[str(parquet)]
+        assert entry["save"] == save
+        return entry["frame"].copy()
+
+    def read_diagnostics(self, parquet: Path, save: str) -> pd.DataFrame:
+        """Return a copy of the saved diagnostics.
+
+        Args:
+            parquet: The path the real ledger would have used, as the key.
+            save: The save the meta named when the ledger was read.
+
+        Returns:
+            A copy, so no caller can change what is saved.
+        """
+        entry = self._entries[str(parquet)]
+        assert entry["save"] == save
+        return entry["diagnostics"].copy()
+
+    def write_files(
         self,
         parquet: Path,
         frame: pd.DataFrame,
-        inputs: dict[str, object],
-        result: ReplayResult | None = None,
+        diagnostics: pd.DataFrame,
+        meta: dict[str, Any],
     ) -> None:
-        """Store a freshly built frame with the inputs it was built from.
+        """Keep the files a save would have written, replacing the last save.
 
         Args:
-            parquet: The path the real cache would have used, as the key.
-            frame: The ledger to keep.
-            inputs: What the frame was built from, as the real cache saves it.
-            result: The replay behind the frame, snapshotted the way the real
-                cache snapshots it.
+            parquet: The path the real ledger would have used, as the key.
+            frame: The ledger frame.
+            diagnostics: The diagnostics with the rows they tag.
+            meta: The inputs, save, computed time, cash and row counts.
         """
-        snapshot = encode_replay(result) if result is not None else None
         self._entries[str(parquet)] = {
-            "inputs": json.loads(json.dumps(inputs)),
-            "computed_at": datetime.now(TORONTO_TZ),
-            # Serialised and parsed back, so a snapshot that cannot survive the
-            # trip fails here exactly as it would through the sidecar.
-            "replay": json.dumps(snapshot) if snapshot is not None else None,
+            "save": meta["save"],
             "frame": frame.copy(),
+            "diagnostics": diagnostics.copy(),
+            # Serialised, so a meta that cannot survive the trip fails here
+            # exactly as it would through the real file.
+            "meta": json.dumps(meta),
         }
 
     def clear(self) -> None:
-        """Drop everything, so no frame outlives the test that built it."""
+        """Drop everything, so no ledger outlives the test that saved it."""
         self._entries.clear()
 
 
 @pytest.fixture(autouse=True)
 def memory_acb_cache(request: pytest.FixtureRequest) -> Generator[None]:
-    """Swap the cost-base cache's disk round trip for an in-memory one.
+    """Swap the saved ledger's disk round trip for an in-memory one.
 
     Args:
         request: Used to honour the `real_acb_cache` marker.
@@ -107,10 +121,16 @@ def memory_acb_cache(request: pytest.FixtureRequest) -> Generator[None]:
         yield
         return
 
-    store = _MemoryCache()
+    files = _MemoryFiles()
     with (
-        patch.object(acb_cache, "_read_cache", side_effect=store.read),
-        patch.object(acb_cache, "_write_cache", side_effect=store.write),
+        patch.object(saved_ledger, "_read_meta", side_effect=files.read_meta),
+        patch.object(saved_ledger, "_read_frame", side_effect=files.read_frame),
+        patch.object(
+            saved_ledger,
+            "_read_diagnostics",
+            side_effect=files.read_diagnostics,
+        ),
+        patch.object(saved_ledger, "_write_files", side_effect=files.write_files),
     ):
         yield
-    store.clear()
+    files.clear()

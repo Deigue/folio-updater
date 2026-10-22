@@ -5,9 +5,9 @@ plain language. It is a **reporter, never a fixer**: it opens the folio, reads
 it, and prints. Where a fix has an obvious command it names it, but the user
 runs that themselves.
 
-The replay is always freshly computed rather than read from the cost-base
-cache, because a cached frame carries no diagnostics: they live on
-the replay result the cache deliberately discards.
+The diagnostics are read off the ledger, which carries them whether it was
+replayed now or reused from disk, so a check on an unchanged folio replays
+nothing.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import ensure_fx_coverage, load_folio, replay_result
+from cli.commands.common import require_ledger
 from domain import CheckStatus
 from engine.checks import CHECK_SLUGS, UnknownCheckError, run_checks, validate_slugs
 from term import console_error
@@ -71,12 +71,10 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
             console_error(str(error))
             raise typer.Exit(1) from error
 
-    ensure_fx_coverage()
-    cached = load_folio()
-    result = replay_result(cached)
+    ledger = require_ledger()
 
     try:
-        results = run_checks(result, get_config())
+        results = run_checks(ledger, get_config())
     except UnknownCheckError as error:
         console_error(f"{error} Fix the `checks.disabled` list in config.yaml.")
         raise typer.Exit(1) from error

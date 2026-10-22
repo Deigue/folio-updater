@@ -10,10 +10,9 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import load_folio
-from engine.cache import load_or_build
-from engine.fx_rates import FxRateUnavailableError
+from cli.commands.common import require_ledger
 from engine.holdings import held_symbols
+from engine.ledger import LedgerUnavailableError, open_ledger
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
@@ -62,7 +61,7 @@ def manage_quotes(
 
 def _held(wanted: Sequence[str]) -> list[str]:
     """Every symbol the folio holds, narrowed to the ones asked for."""
-    held = held_symbols(load_folio().frame)
+    held = held_symbols(require_ledger().frame)
     if not wanted:
         return held
     return [symbol for symbol in held if symbol in wanted]
@@ -110,8 +109,8 @@ def _held_now() -> set[str] | None:
     folio just leaves the `Held` column out.
     """
     try:
-        return set(held_symbols(load_or_build().frame))
-    except FxRateUnavailableError:
+        return set(held_symbols(open_ledger().frame))
+    except LedgerUnavailableError:
         return None
 
 

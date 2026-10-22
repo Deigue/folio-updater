@@ -18,10 +18,8 @@ import typer
 from app import bootstrap
 from cli.commands.common import (
     cache_badge,
-    ensure_fx_coverage,
     freshness_note,
-    load_folio,
-    replay_result,
+    require_ledger,
     resolve_pool,
 )
 from domain import Currency, Grain
@@ -45,8 +43,8 @@ from ui.views.ticker import show_matrix, show_ticker
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.cache import CachedFrame
     from engine.holdings import DisplayCurrency
+    from engine.ledger import Ledger
     from engine.ticker import SymbolHoldings
     from exporters.table import Table
 
@@ -154,11 +152,9 @@ def _report_one(
         fundamentals=True,
     )[canonical]
 
-    if not offline:
-        # The quote is today's, so the rate converting it has to be too.
-        ensure_fx_coverage(through_today=True)
-    cached = load_folio(refresh=refresh)
-    traded = not cached.frame.empty and canonical in set(cached.frame["Symbol"])
+    # The quote is today's, so the rate converting it has to be too.
+    ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
+    traded = not ledger.frame.empty and canonical in set(ledger.frame["Symbol"])
     if not traded and not quote.priced:
         if offline:
             console_error(
@@ -182,7 +178,7 @@ def _report_one(
     positions: list[SymbolHoldings] = []
     if traded:
         positions = _positions(
-            cached,
+            ledger,
             canonical,
             choice,
             by_account=by_account,
@@ -191,7 +187,7 @@ def _report_one(
 
     aliases = [name for name in resolver.family(canonical) if name != canonical]
     if export:
-        note = freshness_note(cached.computed_at, {canonical: quote})
+        note = freshness_note(ledger.computed_at, {canonical: quote})
         table = ticker_table(
             quote,
             moves,
@@ -211,7 +207,7 @@ def _report_one(
         by_account=by_account,
         badge=cache_badge(
             {canonical: quote},
-            computed_at=cached.computed_at,
+            computed_at=ledger.computed_at,
             offline=offline,
             with_acb=traded,
         ),
@@ -239,15 +235,12 @@ def _report_matrix(
     """
     resolver = load_symbol_resolver()
     view = resolve_pool(account, account_type)
-    if not offline:
-        ensure_fx_coverage(through_today=True)
-    cached = load_folio(refresh=refresh)
+    ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
 
     panel = None
-    if not cached.frame.empty:
+    if not ledger.frame.empty:
         valuation = FolioValuation.build(
-            cached.frame,
-            replay_result(cached),
+            ledger,
             currency=Currency.CAD,
             refresh=refresh,
             offline=offline,
@@ -270,7 +263,7 @@ def _report_matrix(
         refresh=refresh and bool(symbols),
         offline=offline,
     )
-    traded = set() if cached.frame.empty else set(cached.frame["Symbol"])
+    traded = set() if ledger.frame.empty else set(ledger.frame["Symbol"])
     unknown = [
         name for name in wanted if not quotes[name].priced and name not in traded
     ]
@@ -290,7 +283,7 @@ def _report_matrix(
 
     pool_weight = view.grain is not Grain.FOLIO
     if export:
-        note = freshness_note(cached.computed_at, priced)
+        note = freshness_note(ledger.computed_at, priced)
         table = performance_table(
             rows,
             name=f"Performance - {view.label}",
@@ -306,7 +299,7 @@ def _report_matrix(
         pool_weight=pool_weight,
         badge=cache_badge(
             {name: quotes[name] for name in wanted},
-            computed_at=cached.computed_at,
+            computed_at=ledger.computed_at,
             offline=offline,
             with_acb=panel is not None,
         ),
@@ -342,7 +335,7 @@ def _currency_choice(requested: str | None) -> CurrencyChoice:
 
 
 def _positions(
-    cached: CachedFrame,
+    ledger: Ledger,
     symbol: str,
     choice: CurrencyChoice,
     *,
@@ -355,12 +348,10 @@ def _positions(
     trades in: a CAD security has nothing to show in USD, so any choice shows
     it in CAD, once.
     """
-    result = replay_result(cached)
 
     def valued(currency: DisplayCurrency) -> SymbolHoldings | None:
         valuation = FolioValuation.build(
-            cached.frame,
-            result,
+            ledger,
             currency=currency,
             offline=offline,
         )

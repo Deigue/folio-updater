@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import ensure_fx_coverage, load_folio, resolve_pool
+from cli.commands.common import require_ledger, resolve_pool
 from domain import Column, Grain
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from exporters.sheets import (
@@ -221,9 +221,8 @@ def show_acb(  # noqa: PLR0917
         )
         raise typer.Exit(1)
 
-    ensure_fx_coverage()
-    cached = load_folio(refresh=refresh)
-    if cached.frame.empty:
+    ledger = require_ledger(refresh=refresh)
+    if ledger.frame.empty:
         console_warning("No transactions to compute a cost base from.")
         return
 
@@ -233,7 +232,7 @@ def show_acb(  # noqa: PLR0917
         date_from, date_to = f"{year}-01-01", f"{year}-12-31"
 
     rows = _filter_rows(
-        cached.frame,
+        ledger.frame,
         view,
         canonical,
         date_from=date_from,
@@ -243,11 +242,11 @@ def show_acb(  # noqa: PLR0917
 
     try:
         if summary:
-            show_summary(rows, view, currency, cached)
+            show_summary(rows, view, currency, ledger)
         elif rows.empty:
             console_warning(f"No {canonical} transactions in the {view.label} pool.")
         else:
-            show_buildup(rows, view, canonical or "", currency, cached)
+            show_buildup(rows, view, canonical or "", currency, ledger)
     except NoUsdFiguresError as error:
         console_error(str(error))
         raise typer.Exit(1) from error
@@ -259,6 +258,6 @@ def show_acb(  # noqa: PLR0917
             export,
             symbol=canonical,
             currency=currency,
-            badge=f"Cost base {format_freshness(cached.computed_at)}.",
+            badge=f"Cost base {format_freshness(ledger.computed_at)}.",
             summary=summary,
         )

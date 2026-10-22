@@ -9,20 +9,24 @@ from __future__ import annotations
 import json
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import pytest
 
 from cli.main import app
+from db import get_connection, get_rows, insert_or_replace_many
 from domain import (
     AccountType,
     Action,
     CheckStatus,
+    Column,
     Currency,
     FeeConvention,
+    Table,
     WarningCode,
 )
-from engine.cache import load_or_build
 from engine.checks import (
     CHECK_SLUGS,
     CheckFinding,
@@ -33,6 +37,7 @@ from engine.checks import (
     validate_slugs,
 )
 from engine.fx_rates import FxRates
+from engine.ledger import Ledger, open_ledger
 from engine.replay import ReplayConfig, detect_fee_signs, replay
 from engine.types import TxnRow
 from services.symbols import SymbolResolver
@@ -43,7 +48,7 @@ from .helpers.console import capture_output
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from engine.types import ReplayResult
+    from collections.abc import Callable
 
     from .test_types import TempContext
 
@@ -108,7 +113,7 @@ def make_row(
     )
 
 
-def replay_of(rows: list[TxnRow]) -> ReplayResult:
+def ledger_of(rows: list[TxnRow]) -> Ledger:
     """Replay rows with explicit account facts, so no config is involved."""
     accounts = {row.account for row in rows}
     cfg = ReplayConfig(
@@ -120,7 +125,7 @@ def replay_of(rows: list[TxnRow]) -> ReplayResult:
         symbols=SymbolResolver([]),
         fee_signs=detect_fee_signs(rows),
     )
-    return replay(rows, FLAT_FX, cfg)
+    return Ledger.from_replay(replay(rows, FLAT_FX, cfg))
 
 
 def check(
@@ -129,7 +134,7 @@ def check(
     config: ChecksConfig | None = None,
 ) -> CheckResult:
     """Run one named check over a set of rows."""
-    results = run_checks(replay_of(rows), config or StubConfig())
+    results = run_checks(ledger_of(rows), config or StubConfig())
     return next(result for result in results if result.slug == slug)
 
 
@@ -178,14 +183,14 @@ def clean_folio() -> list[TxnRow]:
 
 
 def test_a_correct_folio_passes_every_check() -> None:
-    results = run_checks(replay_of(clean_folio()), StubConfig())
+    results = run_checks(ledger_of(clean_folio()), StubConfig())
     failing = [result.slug for result in results if result.status is not CheckStatus.OK]
     assert failing == []
     assert {result.slug for result in results} == set(CHECK_SLUGS)
 
 
 def test_every_check_reports_a_summary_even_when_it_passes() -> None:
-    for result in run_checks(replay_of(clean_folio()), StubConfig()):
+    for result in run_checks(ledger_of(clean_folio()), StubConfig()):
         assert result.summary
         assert result.findings == ()
 
@@ -200,7 +205,7 @@ def test_an_unrecognised_account_name_is_reported() -> None:
         fee_conventions={"IBKR-PERSONAL": FeeConvention.AUTO},
         symbols=SymbolResolver([]),
     )
-    results = run_checks(replay(rows, FLAT_FX, cfg), StubConfig())
+    results = run_checks(Ledger.from_replay(replay(rows, FLAT_FX, cfg)), StubConfig())
     result = next(item for item in results if item.slug == "account-types")
     assert result.status is CheckStatus.FAIL
     assert "accounts.map" in details(result)
@@ -871,7 +876,7 @@ def test_a_fee_included_amount_reconciles() -> None:
 
 def test_a_disabled_check_does_not_run() -> None:
     results = run_checks(
-        replay_of(oversold_in_one_account()),
+        ledger_of(oversold_in_one_account()),
         StubConfig(disabled=["unit-balances"]),
     )
     assert "unit-balances" not in {result.slug for result in results}
@@ -933,7 +938,7 @@ def test_a_retired_account_ending_at_zero_is_not_reported() -> None:
 
 def test_an_unknown_disabled_slug_is_rejected() -> None:
     with pytest.raises(UnknownCheckError, match="unit-balence"):
-        run_checks(replay_of(clean_folio()), StubConfig(disabled=["unit-balence"]))
+        run_checks(ledger_of(clean_folio()), StubConfig(disabled=["unit-balence"]))
 
 
 def test_validate_slugs_accepts_every_real_check() -> None:
@@ -1147,28 +1152,45 @@ def test_a_cached_run_reports_exactly_what_a_fresh_one_does(
     assert json.loads(first.plain_output) == json.loads(second.plain_output)
 
 
-def test_the_cache_carries_the_diagnostics(temp_ctx: TempContext) -> None:
+# More diagnosed rows than a saved ledger once held: past that it replayed again.
+MANY_DIAGNOSED = 5_001
+
+
+@pytest.mark.real_acb_cache
+@pytest.mark.parametrize(
+    "sales",
+    [pytest.param(1, id="one"), pytest.param(MANY_DIAGNOSED, id="many")],
+)
+def test_a_reused_ledger_carries_every_diagnosed_row(
+    temp_ctx: TempContext,
+    sales: int,
+) -> None:
     with temp_ctx():
         seed_oversold_folio()
-        built = load_or_build()
-        assert not built.from_cache
-        cached = load_or_build()
-        assert cached.from_cache
-        assert cached.result is not None
-        assert [w.code for w in cached.result.warnings] == [
-            w.code for w in (built.result.warnings if built.result else [])
-        ]
+        with get_connection() as conn:
+            sale = get_rows(conn, Table.TXNS).drop(columns=Column.Txn.TXN_ID)
+            copies = sale.astype(object).where(sale.notna(), None)
+            insert_or_replace_many(
+                conn,
+                Table.TXNS,
+                copies.to_dict("records") * (sales - 1),
+            )
+        replayed = open_ledger()
+        reused = open_ledger()
+
+        assert replayed.computed_at is None
+        assert reused.computed_at is not None
+        assert len(reused.diagnosed_rows) == sales
+        assert reused.diagnosed_rows == replayed.diagnosed_rows
+        assert reused.diagnostics == replayed.diagnostics
 
 
-def test_editing_the_folio_invalidates_the_cached_diagnostics(
-    temp_ctx: TempContext,
-) -> None:
-    """A fingerprint change must drop the warnings along with the figures."""
+def test_editing_the_folio_replays_the_diagnostics(temp_ctx: TempContext) -> None:
+    """A change to the transactions drops the diagnostics along with the figures."""
     with temp_ctx():
         seed_clean_folio()
-        assert load_or_build().result is not None
-        assert load_or_build().from_cache
-        # A new transaction moves the fingerprint.
+        assert open_ledger().computed_at is None
+        assert open_ledger().diagnostics == ()
         seed_transaction(
             action="SELL",
             date="2025-08-15",
@@ -1180,24 +1202,35 @@ def test_editing_the_folio_invalidates_the_cached_diagnostics(
             price="12",
             units="-9999",
         )
-        rebuilt = load_or_build()
-        assert not rebuilt.from_cache
-        assert rebuilt.result is not None
-        assert WarningCode.OVERSELL in {w.code for w in rebuilt.result.warnings}
+        replayed = open_ledger()
+        assert replayed.computed_at is None
+        assert WarningCode.OVERSELL in {w.code for w in replayed.diagnostics}
 
 
 @pytest.mark.real_acb_cache
-def test_check_still_works_when_the_cache_holds_no_snapshot(
+def _unknown_code(path: Path) -> None:
+    """Rewrite saved diagnostics with a code no release knows."""
+    saved = pd.read_parquet(path, engine="fastparquet")
+    saved["code"] = "NO_SUCH_CODE"
+    saved.to_parquet(path, engine="fastparquet", index=False, object_encoding="utf8")
+
+
+@pytest.mark.real_acb_cache
+@pytest.mark.parametrize(
+    "spoil",
+    [pytest.param(Path.unlink, id="gone"), pytest.param(_unknown_code, id="unknown")],
+)
+def test_check_replays_when_the_saved_diagnostics_are_unreadable(
     temp_ctx: TempContext,
+    spoil: Callable[[Path], object],
 ) -> None:
-    """An older cache has no diagnostics in it; replaying is the fallback."""
     with temp_ctx() as ctx:
         seed_oversold_folio()
-        run_cli_with_config(ctx.config, app, ["check"])
-        meta_path = ctx.config.acb_parquet.with_suffix(".meta.json")
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        del meta["replay"]
-        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+        open_ledger()
+        (saved,) = ctx.config.acb_parquet.parent.glob("acb.*.diagnostics.parquet")
+        spoil(saved)
+        # Diagnostics are read only when asked for, so opening still reuses.
+        assert open_ledger().computed_at is not None
         result = run_cli_with_config(ctx.config, app, ["check"])
     assert result.exit_code == 1
     assert_in_output("Unit balances", result)

@@ -195,10 +195,11 @@ Two of these are deliberately narrower than they first appear:
 
 ## Caching
 
-The replay is written to `data/acb.parquet` with a fingerprint of the transactions table
-and the config keys that affect the arithmetic. Any `add`, `edit`, `delete` or `import`
-moves the fingerprint and the next run rebuilds automatically. Every table says which it
-was:
+The ledger is saved in `data/`: `acb.meta.json` and the two Parquet files it names. It is
+reused only while nothing the replay reads has changed: the transactions, the ticker
+aliases, the FX rates up to the latest settlement date, and the `accounts` config. Any
+change to those, whichever command or tool makes it, and the next run replays
+automatically. Every table says which it was:
 
 ```text
 computed just now

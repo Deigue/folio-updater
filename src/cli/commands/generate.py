@@ -16,15 +16,9 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import (
-    FIX_UNCONVERTIBLE,
-    ensure_fx_coverage,
-    freshness_note,
-    replay_result,
-)
+from cli.commands.common import FIX_UNCONVERTIBLE, freshness_note
 from db.backup import rolling_backup
-from engine.cache import load_or_build
-from engine.fx_rates import FxRateUnavailableError
+from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, FolioValuation
 from engine.performance import fetch_moves
 from exporters.folio_workbook import (
@@ -88,13 +82,10 @@ def write_folio(
     Raises:
         typer.Exit: If the target names a format that cannot hold a workbook.
     """
-    if not offline:
-        # Quotes are today's, so the rate that converts them has to be too.
-        ensure_fx_coverage(through_today=True)
-
     try:
-        cached = load_or_build(refresh=refresh)
-    except FxRateUnavailableError as error:
+        # Quotes are today's, so the rate that converts them has to be too.
+        ledger = open_ledger(refresh=refresh, priced=True, offline=offline)
+    except LedgerUnavailableError as error:
         # The stored tables are still worth having: a workbook of the raw
         # transactions is what `generate` wrote before it could value anything.
         console_warning(
@@ -106,20 +97,17 @@ def write_folio(
         written = _write(target, folio_tables(FolioSources.read(None), sections))
         return WrittenFolio(written)
 
-    if cached.frame.empty:
+    if ledger.frame.empty:
         console_warning("No transactions to generate a workbook from.")
         return None
 
-    result = replay_result(cached)
-
     valuation = FolioValuation.build(
-        cached.frame,
-        result,
+        ledger,
         currency=_VALUATION,
         refresh=refresh,
         offline=offline,
     )
-    note = freshness_note(cached.computed_at, valuation.quotes)
+    note = freshness_note(ledger.computed_at, valuation.quotes)
     moves = {}
     if Section.PERF in sections:
         moves = fetch_moves(

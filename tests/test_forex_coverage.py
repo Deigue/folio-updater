@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -11,13 +12,14 @@ import pytest
 from cli.main import app
 from db import create_txns_table
 from domain import TORONTO_TZ, Column
+from engine.ledger import open_ledger
 from services import ForexService
 
 from .helpers.cli import assert_cli_success, run_cli_with_config
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from unittest.mock import MagicMock
 
     from .test_types import TempContext
@@ -189,3 +191,88 @@ def test_getfx_backfills_rates_older_than_the_ones_held(
         assert boc_fetch.call_args.args == (oldest_txn,)
         assert ForexService.get_earliest_fx_date_from_db() == oldest_txn
     assert_cli_success(result)
+
+
+# --- opening the ledger ---------------------------------------------------------
+
+# One trade: its trade date starts the top-up, its settlement date can end it.
+TRADED = "2025-08-15"
+SETTLED = "2025-08-18"
+
+
+@pytest.fixture
+def top_up() -> Generator[MagicMock]:
+    """Stand in for the Bank of Canada top-up, which is external.
+
+    Yields:
+        The mock standing in for `ForexService.ensure_coverage`.
+    """
+    with patch.object(ForexService, "ensure_coverage", return_value=0) as fake:
+        yield fake
+
+
+def _seed_trade() -> None:
+    """Seed one USD trade, with a stored rate to convert it at."""
+    seed_fx({"2025-08-14": "1.35"})
+    seed_transaction(date=TRADED, settle_date=SETTLED)
+
+
+@pytest.mark.parametrize(
+    ("priced", "end"),
+    [
+        pytest.param(True, None, id="priced, through today"),
+        pytest.param(False, SETTLED, id="unpriced, through the latest settlement"),
+    ],
+)
+def test_opening_the_ledger_tops_up_fx_as_far_as_the_report_needs(
+    temp_ctx: TempContext,
+    top_up: MagicMock,
+    *,
+    priced: bool,
+    end: str | None,
+) -> None:
+    with temp_ctx():
+        _seed_trade()
+        open_ledger(priced=priced)
+    top_up.assert_called_once_with(TRADED, end)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "offline", "traded"),
+    [
+        pytest.param({}, True, True, id="offline"),
+        pytest.param(
+            {"cost_basis": {"auto_getfx": False}},
+            False,
+            True,
+            id="auto_getfx off",
+        ),
+        pytest.param({}, False, False, id="empty folio"),
+    ],
+)
+def test_opening_the_ledger_skips_the_fx_fetch(
+    temp_ctx: TempContext,
+    top_up: MagicMock,
+    overrides: dict[str, Any],
+    *,
+    offline: bool,
+    traded: bool,
+) -> None:
+    with temp_ctx(overrides):
+        if traded:
+            _seed_trade()
+        open_ledger(priced=True, offline=offline)
+    top_up.assert_not_called()
+
+
+def test_a_failed_fx_download_only_warns(
+    temp_ctx: TempContext,
+    top_up: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    top_up.side_effect = OSError("unreachable")
+    with temp_ctx(), caplog.at_level("WARNING"):
+        _seed_trade()
+        ledger = open_ledger()
+    assert "Could not refresh FX rates; using what is stored" in caplog.text
+    assert list(ledger.frame[Column.Txn.SETTLE_DATE]) == [SETTLED]

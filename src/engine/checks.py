@@ -21,10 +21,11 @@ from domain.numeric import ZERO, q2
 from engine.replay import DENOMINATED_ACTIONS
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from decimal import Decimal
 
-    from engine.types import ComputedRow, ReplayResult, ReplayWarning
+    from engine.ledger import Ledger
+    from engine.types import ComputedRow, ReplayWarning
 
 
 class ChecksConfig(Protocol):
@@ -121,18 +122,16 @@ def _joined(names: Sequence[str]) -> str:
 
 
 class _Folio:
-    """The replay state (folio state), indexed for the checks."""
+    """The ledger's diagnostics, cash and row counts, indexed for the checks."""
 
-    def __init__(self, result: ReplayResult, config: ChecksConfig) -> None:
-        self.result = result
-        self.rows: dict[int, ComputedRow] = {
-            computed.row.txn_id: computed for computed in result.rows
-        }
+    def __init__(self, ledger: Ledger, config: ChecksConfig) -> None:
+        self.ledger = ledger
+        self.rows: Mapping[int, ComputedRow] = ledger.diagnosed_rows
         self._ignored_tickers = set(config.checks_ignore_tickers)
         self._ignored_accounts = set(config.checks_ignore_accounts)
         self.accounts = sorted(
             account
-            for account in result.totals.accounts()
+            for account in ledger.totals.accounts()
             if not self._account_ignored(account)
         )
         self._by_code: dict[WarningCode, list[ReplayWarning]] = {}
@@ -141,7 +140,7 @@ class _Folio:
         # time makes the whole check quadratic in its own diagnostics, which
         # bites hardest on exactly the badly-broken folio that raises the most.
         self._fired: set[tuple[WarningCode, Grain | None, int | None]] = set()
-        for warning in result.warnings:
+        for warning in ledger.diagnostics:
             if self._suppressed(warning):
                 continue
             self._by_code.setdefault(warning.code, []).append(warning)
@@ -193,7 +192,7 @@ class _Folio:
 
     def counting(self, *actions: Action) -> int:
         """How many surviving rows carry one of these actions."""
-        return self.result.totals.counting(
+        return self.ledger.totals.counting(
             actions,
             self._ignored_accounts,
             self._ignored_tickers,
@@ -211,7 +210,7 @@ class _Folio:
         Returns:
             `(currency, row count)` commonest first.
         """
-        tally = self.result.totals.currencies_for(symbol, DENOMINATED_ACTIONS)
+        tally = self.ledger.totals.currencies_for(symbol, DENOMINATED_ACTIONS)
         return sorted(
             ((str(currency), count) for currency, count in tally.items()),
             key=lambda pair: (-pair[1], pair[0]),
@@ -219,7 +218,7 @@ class _Folio:
 
     def cash(self, account: str, currency: Currency) -> Decimal:
         """Cash state of an account for the given currency."""
-        state = self.result.cash.get((Grain.ACCOUNT, account, currency))
+        state = self.ledger.cash.get((Grain.ACCOUNT, account, currency))
         return state.cash if state else ZERO
 
 
@@ -694,11 +693,11 @@ def validate_slugs(slugs: Iterable[str]) -> None:
             raise UnknownCheckError(slug, CHECK_SLUGS)
 
 
-def run_checks(result: ReplayResult, config: ChecksConfig) -> list[CheckResult]:
-    """Run every enabled check over the provided replay.
+def run_checks(ledger: Ledger, config: ChecksConfig) -> list[CheckResult]:
+    """Run every enabled check over the ledger's diagnostics.
 
     Args:
-        result: The replay to check.
+        ledger: The ledger to check.
         config: Supplies `check` related configurations.
 
     Returns:
@@ -709,5 +708,5 @@ def run_checks(result: ReplayResult, config: ChecksConfig) -> list[CheckResult]:
     """
     disabled = set(config.checks_disabled)
     validate_slugs(disabled)
-    folio = _Folio(result, config)
+    folio = _Folio(ledger, config)
     return [run(folio) for slug, run in _CHECKS if slug not in disabled]

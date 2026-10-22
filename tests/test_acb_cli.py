@@ -6,6 +6,7 @@ import csv
 import json
 import shutil
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -24,8 +25,8 @@ from db import (
     update_rows,
 )
 from domain import Column, Grain, QuoteStatus, Table
-from engine.cache import load_or_build
 from engine.frames import grain_column
+from engine.ledger import open_ledger
 from term import supports_unicode
 from ui.views.acb import (
     _FALL,
@@ -48,6 +49,8 @@ from .helpers.seed import TICKER, seed_fx, seed_transaction
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
+
+    from app import AppContext
 
     from .test_types import TempContext
 
@@ -510,7 +513,7 @@ def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
     assert_in_output("cached", second)
 
 
-# --- cache -------------------------------------------------------------------
+# --- saved ledger --------------------------------------------------------------
 
 
 # The saved ledger's one USD trade settles on 2025-08-18, so that is the latest
@@ -518,6 +521,14 @@ def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
 CUTOFF = "2025-08-18"
 
 type Change = Callable[[int], object]
+
+
+def _replays() -> bool:
+    """Open the ledger, saying whether it was replayed rather than reused.
+
+    Offline, so only the change under test moves the stored FX rates.
+    """
+    return open_ledger(offline=True).computed_at is None
 
 
 @pytest.fixture
@@ -538,7 +549,7 @@ def saved_txn_id(temp_ctx: TempContext, tmp_path: Path) -> Generator[int]:
             settle_date=CUTOFF,
             account="IBKR-PERSONAL",
         )
-        assert not load_or_build().from_cache
+        assert _replays()
         yield txn_id
 
 
@@ -670,7 +681,7 @@ def test_the_saved_ledger_is_reused_until_a_replay_input_changes(
     replays: bool,
 ) -> None:
     change(saved_txn_id)
-    assert load_or_build().from_cache is not replays
+    assert _replays() is replays
 
 
 @pytest.mark.real_acb_cache
@@ -680,8 +691,8 @@ def test_a_ledger_saved_before_change_tokens_replays_once(
     """A folio from before change tokens has no triggers, tokens or new meta."""
     with temp_ctx() as ctx:
         seed_cad_holding()
-        load_or_build()
-        assert load_or_build().from_cache
+        assert _replays()
+        assert not _replays()
 
         meta_path = ctx.config.acb_parquet.with_suffix(".meta.json")
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -692,20 +703,101 @@ def test_a_ledger_saved_before_change_tokens_replays_once(
                 conn.execute(f'DROP TRIGGER "{trigger}"')
             drop_table(conn, Table.REVISIONS)
 
-        assert not load_or_build().from_cache
-        assert load_or_build().from_cache
+        assert _replays()
+        assert not _replays()
         # The upgrade put the triggers back, so an edit is seen again.
         seed_cad_holding()
-        assert not load_or_build().from_cache
+        assert _replays()
 
 
-def test_refresh_replays_a_valid_cache(temp_ctx: TempContext) -> None:
+def test_refresh_replays_a_current_saved_ledger(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_cad_holding()
+        assert _replays()
+        assert not _replays()
+        assert open_ledger(refresh=True, offline=True).computed_at is None
+
+
+def _saved_files(ctx: AppContext) -> list[str]:
+    """Name every file the saved ledger is kept in."""
+    return sorted(path.name for path in ctx.config.acb_parquet.parent.glob("acb*"))
+
+
+@pytest.mark.real_acb_cache
+def test_each_save_removes_the_files_no_meta_names(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        # A ledger saved in an older format.
+        ctx.config.acb_parquet.write_bytes(b"")
+        seed_cad_holding()
+        assert _replays()
+        assert open_ledger(refresh=True, offline=True).computed_at is None
+
+        meta = json.loads(ctx.config.acb_parquet.with_suffix(".meta.json").read_text())
+        save = meta["save"]
+        assert _saved_files(ctx) == [
+            f"acb.{save}.diagnostics.parquet",
+            f"acb.{save}.parquet",
+            "acb.meta.json",
+        ]
+
+
+@pytest.mark.real_acb_cache
+def test_a_meta_naming_removed_files_replays(temp_ctx: TempContext) -> None:
+    """Two saves at once: the meta landing last may name files the other removed."""
     with temp_ctx() as ctx:
         seed_cad_holding()
-        load_or_build()
-        assert load_or_build().from_cache
-        assert not load_or_build(refresh=True).from_cache
-        assert ctx is not None
+        assert _replays()
+        meta_path = ctx.config.acb_parquet.with_suffix(".meta.json")
+        first = meta_path.read_text(encoding="utf-8")
+        assert open_ledger(refresh=True, offline=True).computed_at is None
+
+        meta_path.write_text(first, encoding="utf-8")
+        assert _replays()
+        assert not _replays()
+
+
+@pytest.mark.real_acb_cache
+def test_an_undecodable_saved_ledger_replays(temp_ctx: TempContext) -> None:
+    """A value no release knows, in a meta whose inputs still match."""
+    with temp_ctx() as ctx:
+        seed_cad_holding()
+        assert _replays()
+        meta_path = ctx.config.acb_parquet.with_suffix(".meta.json")
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["cash"][0]["grain"] = "NO_SUCH_GRAIN"
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+
+        assert _replays()
+        assert not _replays()
+
+
+@pytest.mark.real_acb_cache
+def test_an_interrupted_save_leaves_the_last_whole_one(temp_ctx: TempContext) -> None:
+    """The save stopped part way: its files go, and the one before still stands."""
+    with temp_ctx() as ctx:
+        seed_cad_holding()
+        assert _replays()
+        files = _saved_files(ctx)
+        computed_at = open_ledger(offline=True).computed_at
+        assert computed_at is not None
+
+        write = pd.DataFrame.to_parquet
+        written: list[object] = []
+
+        def interrupted(frame: pd.DataFrame, *args: object, **kwargs: object) -> None:
+            if written:
+                raise KeyboardInterrupt
+            written.append(write(frame, *args, **kwargs))  # ty: ignore[no-matching-overload]
+
+        with (
+            patch.object(pd.DataFrame, "to_parquet", interrupted),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            open_ledger(refresh=True, offline=True)
+
+        assert written
+        assert _saved_files(ctx) == files
+        assert open_ledger(offline=True).computed_at == computed_at
 
 
 # --- folio symbol --------------------------------------------------------------

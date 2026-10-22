@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Container, Hashable
     from typing import Any
 
-    from engine.cache import CachedFrame
+    from engine.ledger import Ledger
 
 # Column families the buildup renders, as (header, ledger measure).
 _MEASURE_COLUMNS: list[tuple[str, str]] = [
@@ -442,7 +442,7 @@ def show_summary(
     rows: pd.DataFrame,
     view: AcbView,
     currency: str,
-    cached: CachedFrame,
+    ledger: Ledger,
 ) -> None:
     """Print one row per symbol, all three grains side by side."""
     summary = acb_summary_frame(rows)
@@ -460,7 +460,7 @@ def show_summary(
         _summary_record(record, view, show_cad=show_cad, show_usd=show_usd)
         for record in _open_holdings_first(summary, view).to_dict("records")
     ]
-    console_print(freshness_badge(cached.computed_at))
+    console_print(freshness_badge(ledger.computed_at))
     show_data_table(
         records,
         title=f"ACB summary - {view.label}",
@@ -475,7 +475,7 @@ def show_buildup(
     view: AcbView,
     symbol: str,
     currency: str,
-    cached: CachedFrame,
+    ledger: Ledger,
 ) -> None:
     """Print the per-transaction buildup for one symbol.
 
@@ -509,7 +509,7 @@ def show_buildup(
             ),
         )
 
-    badge = freshness_badge(cached.computed_at)
+    badge = freshness_badge(ledger.computed_at)
     page_frame(
         len(ordered),
         title,

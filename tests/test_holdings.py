@@ -11,7 +11,6 @@ import pytest
 
 from domain import Currency, Grain, QuoteStatus
 from domain.numeric import ZERO, dec
-from engine.cache import build
 from engine.fx_rates import FxRates, load_fx_rates
 from engine.holdings import (
     FolioHoldings,
@@ -27,6 +26,7 @@ from engine.holdings import (
     summarize_closed,
     totals_currency,
 )
+from engine.ledger import open_ledger
 from services.quotes_service import Quote
 
 from .helpers.seed import seed_fx, seed_transaction
@@ -69,7 +69,7 @@ def _quote(
 
 def _frame() -> pd.DataFrame:
     """Replay whatever has been seeded and hand back the ledger."""
-    return build().frame
+    return open_ledger().frame
 
 
 def test_market_value_and_unrealized_are_exact(temp_ctx: TempContext) -> None:

@@ -1,18 +1,25 @@
-"""Tests for persisting a replay alongside the cached ledger.
+"""Tests for saving what the ledger frame does not carry.
 
-The property that matters is that a cache hit and a fresh replay are
+The property that matters is that a reused ledger and a fresh replay are
 indistinguishable to a reader.
 """
 
 from __future__ import annotations
 
+import json
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from domain import AccountType, Action, Currency, FeeConvention, Grain
+from domain import AccountType, Action, Currency, FeeConvention, Grain, WarningCode
 from engine.fx_rates import FxRates
+from engine.ledger import Diagnosis, Ledger
 from engine.replay import ReplayConfig, detect_fee_signs, replay
-from engine.snapshot import MAX_SNAPSHOT_ROWS, SCHEMA_VERSION, decode, encode
+from engine.snapshot import (
+    decode_cash_and_totals,
+    decode_diagnostics,
+    encode_cash_and_totals,
+    encode_diagnostics,
+)
 from engine.types import ReplayResult, TxnRow
 from services.symbols import SymbolResolver
 
@@ -68,166 +75,129 @@ def replay_of(rows: Sequence[TxnRow]) -> ReplayResult:
     )
 
 
-def diagnosed_folio() -> ReplayResult:
-    """Build a folio with an oversell, so the snapshot has something to carry."""
-    return replay_of(
-        [
-            make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),
-            make_row(
-                2,
-                "2024-01-03",
-                Action.BUY,
-                amount="-1000",
-                units="100",
-                price="10",
-            ),
-            make_row(
-                3,
-                "2024-03-01",
-                Action.SELL,
-                amount="6000",
-                units="-500",
-                price="12",
-            ),
-        ],
-    )
-
-
-def snapshot_of(result: ReplayResult) -> dict[str, Any]:
-    """Encode a replay, insisting it was small enough to store."""
-    payload = encode(result)
-    assert payload is not None
-    return payload
-
-
-def round_trip(result: ReplayResult) -> ReplayResult:
-    """Encode a replay and read it straight back."""
-    restored = decode(snapshot_of(result))
-    assert restored is not None
-    return restored
-
-
-def test_a_snapshot_round_trips_every_diagnostic() -> None:
-    original = diagnosed_folio()
-    restored = round_trip(original)
-    assert [w.code for w in restored.warnings] == [w.code for w in original.warnings]
-    assert [w.detail for w in restored.warnings] == [
-        w.detail for w in original.warnings
+def oversold_rows() -> list[TxnRow]:
+    """Build a folio with an oversell, so there is a diagnosed row to carry."""
+    return [
+        make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),
+        make_row(
+            2,
+            "2024-01-03",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+        ),
+        make_row(
+            3,
+            "2024-03-01",
+            Action.SELL,
+            amount="6000",
+            units="-500",
+            price="12",
+        ),
     ]
-    assert [w.value for w in restored.warnings] == [w.value for w in original.warnings]
-    assert [w.grain for w in restored.warnings] == [w.grain for w in original.warnings]
 
 
-def test_a_snapshot_round_trips_cash_exactly() -> None:
-    original = diagnosed_folio()
-    restored = round_trip(original)
-    assert restored.cash.keys() == original.cash.keys()
-    for key, state in original.cash.items():
-        assert restored.cash[key] == state
+def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
+    """Lay a replay out as the ledger, then save and restore what the frame lacks.
+
+    Returns:
+        The ledger as replayed, and as read back.
+    """
+    ledger = Ledger.from_replay(result)
+    diagnostics, rows = decode_diagnostics(
+        encode_diagnostics(ledger.diagnostics, ledger.diagnosed_rows),
+    )
+    # Through JSON, as the meta file stores them.
+    saved = json.loads(json.dumps(encode_cash_and_totals(ledger.cash, ledger.totals)))
+    cash, totals = decode_cash_and_totals(saved)
+    diagnosis = Diagnosis(diagnostics=tuple(diagnostics), rows=rows)
+    restored = Ledger(
+        frame=ledger.frame,
+        cash=cash,
+        totals=totals,
+        load_diagnosis=lambda: diagnosis,
+    )
+    return ledger, restored
 
 
-def test_a_snapshot_round_trips_the_row_counts() -> None:
-    original = diagnosed_folio()
-    restored = round_trip(original)
+def test_every_diagnostic_round_trips_exactly() -> None:
+    """Including one about a pool, which tags no transaction."""
+    original, restored = round_trip(replay_of(oversold_rows()))
+    untagged = {d.code for d in original.diagnostics if d.txn_id is None}
+    assert WarningCode.NEGATIVE_FINAL_POSITION in untagged
+    assert restored.diagnostics == original.diagnostics
+
+
+def test_cash_round_trips_exactly() -> None:
+    original, restored = round_trip(replay_of(oversold_rows()))
+    assert original.cash
+    assert restored.cash == original.cash
+
+
+def test_the_row_counts_round_trip() -> None:
+    original, restored = round_trip(replay_of(oversold_rows()))
     assert restored.totals.rows == original.totals.rows
     assert restored.totals.accounts() == original.totals.accounts()
 
 
 def test_money_survives_the_round_trip_to_the_last_digit() -> None:
-    """Stored as text, never as a JSON number: a float would round this off."""
+    """Stored as text, never as a number: a float would round this off."""
     exact = "1234.12345678901234567890"
-    original = replay_of(
-        [
-            make_row(
-                1,
-                "2024-01-03",
-                Action.BUY,
-                amount=f"-{exact}",
-                units="100",
-                price="10",
-            ),
-            make_row(
-                2,
-                "2024-03-01",
-                Action.SELL,
-                amount="6000",
-                units="-500",
-                price="12",
-            ),
-        ],
+    _, restored = round_trip(
+        replay_of(
+            [
+                make_row(
+                    1,
+                    "2024-03-01",
+                    Action.SELL,
+                    amount=exact,
+                    units="-500",
+                    price="12",
+                ),
+            ],
+        ),
     )
-    restored = round_trip(original)
-    kept = {row.row.txn_id: row for row in restored.rows}
-    assert kept[1].row.amount == D(f"-{exact}")
-    assert str(kept[1].row.amount) == f"-{exact}"
+    assert str(restored.diagnosed_rows[1].row.amount) == exact
 
 
-def test_a_snapshot_carries_only_the_rows_a_diagnostic_points_at() -> None:
+def test_only_the_rows_a_diagnostic_points_at_are_kept() -> None:
     """The whole point: it stays small however long the ledger grows."""
-    original = diagnosed_folio()
-    payload = snapshot_of(original)
-    assert len(original.rows) == 3
+    result = replay_of(oversold_rows())
+    original, restored = round_trip(result)
+    assert len(result.rows) == 3
     # Only the oversold SELL is diagnosed.
-    assert [row["txn_id"] for row in payload["rows"]] == [3]
+    assert list(original.diagnosed_rows) == [3]
+    assert list(restored.diagnosed_rows) == [3]
+
+
+def test_a_row_is_saved_once_however_many_diagnostics_tag_it() -> None:
+    """An oversell is diagnosed at every grain, but its row is written once."""
+    ledger = Ledger.from_replay(replay_of(oversold_rows()))
+    tagging = [d for d in ledger.diagnostics if d.txn_id == 3]
+    saved = encode_diagnostics(ledger.diagnostics, ledger.diagnosed_rows)
+    assert len(tagging) > 1
+    assert saved["row_action"].notna().sum() == 1
 
 
 def test_the_diagnosed_rows_round_trip_whole() -> None:
     """Including the per-grain measures, so no reader gets a half-built row."""
-    original = diagnosed_folio()
-    restored = round_trip(original)
-    source = {row.row.txn_id: row for row in original.rows}
-    for row in restored.rows:
-        assert row == source[row.row.txn_id]
+    original, restored = round_trip(replay_of(oversold_rows()))
+    assert restored.diagnosed_rows == original.diagnosed_rows
 
 
-def test_a_snapshot_from_another_version_is_refused() -> None:
-    payload = snapshot_of(diagnosed_folio())
-    payload["schema"] = SCHEMA_VERSION + 1
-    assert decode(payload) is None
-
-
-def test_a_folio_with_too_many_findings_is_not_snapshotted() -> None:
-    """Past the cap the reader replays, which is slower but always correct."""
-    rows = [
-        make_row(
-            i,
-            "2024-03-01",
-            Action.SELL,
-            amount="600",
-            units="-50",
-            price="12",
-            ticker=f"S{i}",
-        )
-        for i in range(1, MAX_SNAPSHOT_ROWS + 2)
-    ]
-    assert encode(replay_of(rows)) is None
-
-
-def test_a_clean_folio_snapshots_to_almost_nothing() -> None:
-    original = replay_of(
-        [
-            make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),
-            make_row(
-                2,
-                "2024-01-03",
-                Action.BUY,
-                amount="-1000",
-                units="100",
-                price="10",
-            ),
-        ],
-    )
-    payload = snapshot_of(original)
-    assert payload["rows"] == []
-    assert payload["warnings"] == []
+def test_a_clean_folio_saves_cash_and_counts_but_no_diagnostics() -> None:
+    _, restored = round_trip(replay_of(oversold_rows()[:2]))
+    assert restored.diagnostics == ()
+    assert restored.diagnosed_rows == {}
     # The cash totals and row counts still come across, which is what a report
     # needs even when nothing is wrong.
-    assert payload["cash"]
-    assert payload["totals"]
+    assert restored.cash
+    assert restored.totals.rows
 
 
 def test_totals_count_rows_by_shape() -> None:
-    result = diagnosed_folio()
+    result = replay_of(oversold_rows())
     assert result.totals.counting([Action.BUY]) == 1
     assert result.totals.counting([Action.BUY, Action.SELL]) == 2
     assert result.totals.counting([Action.SPLIT]) == 0
@@ -235,7 +205,7 @@ def test_totals_count_rows_by_shape() -> None:
 
 
 def test_totals_respect_the_suppression_lists() -> None:
-    result = diagnosed_folio()
+    result = replay_of(oversold_rows())
     assert result.totals.counting([Action.BUY], {"IBKR-PERSONAL"}) == 0
     assert result.totals.counting([Action.BUY], (), {"RY.TO"}) == 0
 
@@ -271,18 +241,19 @@ def test_totals_split_a_security_by_currency() -> None:
 
 def test_cash_keys_survive_a_pool_named_after_a_grain() -> None:
     """Grain, pool and currency stay three separate fields, never one string."""
-    original = replay_of(
-        [
-            make_row(
-                1,
-                "2024-01-02",
-                Action.CONTRIBUTION,
-                amount="10000",
-                ticker=None,
-                account="FOLIO",
-            ),
-        ],
+    _, restored = round_trip(
+        replay_of(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.CONTRIBUTION,
+                    amount="10000",
+                    ticker=None,
+                    account="FOLIO",
+                ),
+            ],
+        ),
     )
-    restored = round_trip(original)
     assert (Grain.ACCOUNT, "FOLIO", Currency.CAD) in restored.cash
     assert (Grain.FOLIO, "FOLIO", Currency.CAD) in restored.cash

@@ -10,7 +10,6 @@ import pandas as pd
 import pytest
 
 from domain import AccountType, Action, Column, Currency, Grain
-from engine.cache import build
 from engine.flows import (
     Flows,
     Room,
@@ -20,6 +19,7 @@ from engine.flows import (
     room_year,
     withdrawals_by_type_year,
 )
+from engine.ledger import open_ledger
 
 from .helpers.seed import seed_fx, seed_transaction
 
@@ -43,14 +43,13 @@ def _flows(
     year: int | None = None,
 ) -> Flows:
     """Replay whatever was seeded and read one pool's flows."""
-    cached = build()
-    assert cached.result is not None
+    ledger = open_ledger()
     return build_flows(
-        cached.result,
+        ledger,
         grain=grain,
         pool=pool,
         label=pool or "Portfolio",
-        contributions=contributions_by_type_year(cached.frame),
+        contributions=contributions_by_type_year(ledger.frame),
         account_type=account_type,
         room=room,
         year=year,
@@ -881,51 +880,9 @@ def test_contributions_split_by_calendar_year(temp_ctx: TempContext) -> None:
                 date=date,
             )
 
-        cached = build()
-        by_year = contributions_by_type_year(cached.frame)[AccountType.TFSA]
+        by_year = contributions_by_type_year(open_ledger().frame)[AccountType.TFSA]
 
         assert by_year == {2024: Decimal(3000), 2025: Decimal(7000)}
-
-
-def test_the_year_split_reads_the_frame_not_the_replay_rows(
-    temp_ctx: TempContext,
-) -> None:
-    """A cache hit rebuilds the replay from a snapshot holding only diagnosed rows.
-
-    Walking `ReplayResult.rows` would therefore miss most contributions on a
-    cached run, so the split must come off the ledger, which is always
-    1:1 with `Txns`.
-    """
-    with temp_ctx():
-        seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="7000",
-            price=None,
-            units=None,
-        )
-
-        cached = build()
-        assert cached.result is not None
-        # Simulate the shape a cache hit produces: no rows carried at all.
-        cached.result.rows = []
-
-        flows = build_flows(
-            cached.result,
-            grain=Grain.TYPE,
-            pool=str(AccountType.TFSA),
-            label="TFSA",
-            contributions=contributions_by_type_year(cached.frame),
-            account_type=AccountType.TFSA,
-            room={AccountType.TFSA: {2025: Decimal(7000)}},
-            year=2025,
-        )
-
-        assert flows.room is not None
-        assert flows.room.used == Decimal(7000)
 
 
 def test_room_reports_used_against_the_configured_limit(
@@ -1182,7 +1139,7 @@ def test_withdrawals_split_by_year_and_leave_transfers_out(
 
         # A transfer to another account the holder owns gives no room back, so
         # only the withdrawal counts, and as the positive sum it took out.
-        assert withdrawals_by_type_year(build().frame) == {
+        assert withdrawals_by_type_year(open_ledger().frame) == {
             AccountType.TFSA: {2025: Decimal(1200)},
         }
 
@@ -1644,7 +1601,7 @@ def test_one_scan_keeps_each_types_contributions_apart(
     with temp_ctx():
         _seed_contributions_across_types()
 
-        every = contributions_by_type_year(build().frame)
+        every = contributions_by_type_year(open_ledger().frame)
 
         assert every[AccountType.TFSA] == {2025: Decimal(1500)}
         assert every[AccountType.RRSP] == {2025: Decimal(2000)}
@@ -1671,6 +1628,6 @@ def test_a_type_never_contributed_to_is_absent(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _seed_contributions_across_types()
 
-        every = contributions_by_type_year(build().frame)
+        every = contributions_by_type_year(open_ledger().frame)
 
         assert AccountType.FHSA not in every
