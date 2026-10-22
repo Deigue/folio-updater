@@ -40,10 +40,20 @@ def get_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:
     return [row[1] for row in cursor.fetchall()]
 
 
+def _schema_names(connection: sqlite3.Connection, kind: str) -> list[str]:
+    """Return the names of every schema object of one kind, such as `table`."""
+    cursor = connection.execute("SELECT name FROM sqlite_master WHERE type=?", (kind,))
+    return [row[0] for row in cursor.fetchall()]
+
+
 def get_tables(connection: sqlite3.Connection) -> list[str]:
     """Return list of table names in the database."""
-    cursor = connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    return [row[0] for row in cursor.fetchall()]
+    return _schema_names(connection, "table")
+
+
+def get_triggers(connection: sqlite3.Connection) -> list[str]:
+    """Return list of trigger names in the database."""
+    return _schema_names(connection, "trigger")
 
 
 def _as_float(value: str) -> float | None:
@@ -282,27 +292,80 @@ def get_alias_edges(
     ]
 
 
-def get_txns_fingerprint(connection: sqlite3.Connection) -> str:
-    """Summarise the transactions table cheaply enough to run on every command.
+def change_token_statement(table_name: str) -> str:
+    """Build the statement that gives a table a fresh change token.
 
-    Any add, edit, delete or import moves at least one of these aggregates, so
-    comparing the result against a cached one is a sound staleness check without
-    reading the rows themselves.
+    The token is random rather than counted, so a backup restored over a newer
+    folio can never collide with a token the newer folio already used. The
+    statement binds no parameters, so a trigger body can carry it.
+
+    Args:
+        table_name: The watched table whose token moves.
+
+    Returns:
+        One SQL statement, without a trailing semicolon.
+    """
+    return (
+        f'INSERT OR REPLACE INTO "{Table.REVISIONS}" '
+        f'("{Column.Revision.TABLE_NAME}", "{Column.Revision.TOKEN}") '
+        f"VALUES ('{table_name}', hex(randomblob(16)))"
+    )
+
+
+def refresh_change_token(connection: sqlite3.Connection, table_name: str) -> None:
+    """Give a watched table a fresh change token, as one of its writes would."""
+    connection.execute(change_token_statement(table_name))
+    connection.commit()
+
+
+def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:
+    """Return the change token of every watched table that exists.
+
+    A dropped table keeps its row in `Revisions`, so the join leaves it out:
+    a folio whose transactions were dropped must not match a ledger built from
+    them.
 
     Args:
         connection: The database connection.
 
     Returns:
-        A pipe-joined digest of row count, max TxnId, summed Amount and Units,
-        and max TxnDate. `"empty"` when the table does not exist.
+        Table name to token. Empty when no table has a token yet.
     """
     query = (
-        f'SELECT COUNT(*), MAX("{Column.Txn.TXN_ID}"), '
-        f'TOTAL("{Column.Txn.AMOUNT}"), TOTAL("{Column.Txn.UNITS}"), '
-        f'MAX("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}"'
+        f'SELECT "{Column.Revision.TABLE_NAME}", "{Column.Revision.TOKEN}" '
+        f'FROM "{Table.REVISIONS}" WHERE "{Column.Revision.TABLE_NAME}" IN '
+        "(SELECT name FROM sqlite_master WHERE type='table')"
     )
     try:
-        result = connection.execute(query).fetchone()
+        rows = connection.execute(query).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    return {str(table): str(token) for table, token in rows}
+
+
+def get_fx_summary(connection: sqlite3.Connection, cutoff: str | None) -> str:
+    """Summarise the FX rates a conversion dated on or before `cutoff` can use.
+
+    A conversion takes the latest rate on or before its date, or the earliest
+    rate held when its date precedes them all. Rates dated after the cutoff
+    therefore change no conversion and are left out, except the earliest one.
+
+    Args:
+        connection: The database connection.
+        cutoff: The latest date anything converts at, in YYYY-MM-DD form, or
+            None when nothing converts.
+
+    Returns:
+        A pipe-joined digest of the count, summed USDCAD rate and latest date
+        of those rates. `"empty"` when the table does not exist.
+    """
+    query = (
+        f'SELECT COUNT(*), TOTAL("{Column.FX.FXUSDCAD}"), MAX("{Column.FX.DATE}") '
+        f'FROM "{Table.FX}" WHERE "{Column.FX.DATE}" <= ? OR "{Column.FX.DATE}" = '
+        f'(SELECT MIN("{Column.FX.DATE}") FROM "{Table.FX}")'
+    )
+    try:
+        result = connection.execute(query, (cutoff,)).fetchone()
     except sqlite3.OperationalError:
         return "empty"
     return "|".join("" if value is None else str(value) for value in result)

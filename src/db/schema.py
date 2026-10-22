@@ -10,7 +10,16 @@ import logging
 import sqlite3
 
 from db.backup import backup_folio
-from db.queries import drop_table, get_columns, get_connection, get_tables
+from db.queries import (
+    change_token_statement,
+    drop_table,
+    get_columns,
+    get_connection,
+    get_revisions,
+    get_tables,
+    get_triggers,
+    refresh_change_token,
+)
 from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
 
 logger = logging.getLogger(__name__)
@@ -145,6 +154,16 @@ ALIASES_COLUMN_DEFINITIONS = [
     ),
 ]
 
+REVISIONS_COLUMN_DEFINITIONS = [
+    ColumnDefinition(Column.Revision.TABLE_NAME, "TEXT", "PRIMARY KEY"),
+    ColumnDefinition(Column.Revision.TOKEN, "TEXT", "NOT NULL"),
+]
+
+# Every write to these tables moves that table's change token, which is how the
+# saved ledger knows whether it was built from the folio as it stands.
+WATCHED_TABLES = (Table.TXNS, Table.TICKER_ALIASES)
+_WRITE_EVENTS = ("INSERT", "UPDATE", "DELETE")
+
 QUOTES_COLUMN_DEFINITIONS = [
     ColumnDefinition(
         Column.Quote.SYMBOL,
@@ -233,6 +252,7 @@ def create_txns_table() -> None:
     """
     columns_def = [col_def.to_sql() for col_def in TXN_COLUMN_DEFINITIONS]
     _create_table(Table.TXNS, columns_def)
+    _watch(Table.TXNS)
 
 
 def create_fx_table() -> None:
@@ -264,6 +284,7 @@ def create_ticker_aliases_table() -> None:
     """
     columns_def = [col_def.to_sql() for col_def in ALIASES_COLUMN_DEFINITIONS]
     _create_table(Table.TICKER_ALIASES, columns_def)
+    _watch(Table.TICKER_ALIASES)
 
 
 QUOTE_HISTORY_COLUMN_DEFINITIONS = [
@@ -333,6 +354,47 @@ def create_quotes_table() -> None:
 
     columns_def = [col_def.to_sql() for col_def in QUOTES_COLUMN_DEFINITIONS]
     _create_table(Table.QUOTES, columns_def)
+
+
+def ensure_change_tokens() -> None:
+    """Give each watched table the folio holds its triggers and a change token.
+
+    This is how a folio from before change tokens upgrades. When nothing is
+    missing it only reads the schema and the tokens, over a few connections.
+    """
+    with get_connection() as conn:
+        tables = get_tables(conn)
+    for table in WATCHED_TABLES:
+        if table in tables:
+            _watch(table)
+
+
+def _watch(table: Table) -> None:
+    """Make every write to an existing table move its change token.
+
+    Dropping a table drops its triggers, so a table missing any is new,
+    recreated, or from before tokens existed. No saved ledger can be trusted
+    against it, so it gets a fresh token as well as its triggers.
+
+    Args:
+        table: One of `WATCHED_TABLES`, already created.
+    """
+    names = {event: f"{table}_{event.lower()}_revises" for event in _WRITE_EVENTS}
+    with get_connection() as conn:
+        watched = set(names.values()) <= set(get_triggers(conn))
+        if watched and table in get_revisions(conn):
+            return
+
+    columns_def = [col_def.to_sql() for col_def in REVISIONS_COLUMN_DEFINITIONS]
+    _create_table(Table.REVISIONS, columns_def)
+    with get_connection() as conn:
+        for event, name in names.items():
+            conn.execute(
+                f'CREATE TRIGGER IF NOT EXISTS "{name}" AFTER {event} ON "{table}" '
+                f"BEGIN {change_token_statement(table)}; END",
+            )
+        refresh_change_token(conn, table)
+    logger.debug("WATCH table '%s' for changes", table)
 
 
 def _create_table(table_name: str, columns_def: list[str]) -> None:

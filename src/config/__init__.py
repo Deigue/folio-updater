@@ -318,6 +318,11 @@ class Config:
         return self._settings["sheets"]["fx"]
 
     @property
+    def account_settings(self) -> dict[str, Any]:
+        """The whole validated `accounts` block, for detecting any change to it."""
+        return self._settings["accounts"]
+
+    @property
     def account_map(self) -> dict[str, dict[str, Any]]:
         """Per-account overrides.
 

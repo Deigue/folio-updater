@@ -1,8 +1,13 @@
 """Cache the ledger so repeated cost-base commands stay instant.
 
-Invalidation is automatic: `add`, `edit`, `delete` and `import`
-all move the transactions fingerprint, and a change to the config keys that
-affect the arithmetic moves the config hash.
+The saved ledger is reused only when every input the replay reads is unchanged:
+
+- the transactions and ticker aliases, through the change tokens the database
+  moves on every write to them;
+- the FX rates a conversion could use, summarised up to the latest date the
+  folio converts at, saved with the ledger;
+- the whole `accounts` section of the config;
+- the format the ledger and its snapshot were saved in.
 """
 
 from __future__ import annotations
@@ -17,11 +22,13 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from db.queries import get_connection, get_txns_fingerprint
+from db.queries import get_connection, get_fx_summary, get_revisions
+from db.schema import ensure_change_tokens
 from domain import TORONTO_TZ
 from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import load_fx_rates
 from engine.replay import ReplayConfig, replay
+from engine.snapshot import SCHEMA_VERSION
 from engine.snapshot import decode as decode_replay
 from engine.snapshot import encode as encode_replay
 from engine.types import load_txn_rows
@@ -60,38 +67,40 @@ class CachedFrame:
 
 
 def _meta_path(parquet: Path) -> Path:
-    """Where the fingerprint for a cached frame is stored."""
+    """Where a cached frame's inputs and replay snapshot are stored."""
     return parquet.with_suffix(".meta.json")
 
 
-def _config_hash() -> str:
-    """Hash the config keys that change the arithmetic.
-
-    Only `accounts.map` and `accounts.defaults` qualify: they decide an
-    account's type and where its commissions sit.
-    """
-    config = get_config()
-    payload = json.dumps(
-        {
-            "map": {str(k): str(v) for k, v in sorted(config.account_types.items())},
-            "defaults": str(config.account_fee_default),
-            "naming": config.account_naming_convention,
-        },
-        sort_keys=True,
-    )
+def _accounts_hash() -> str:
+    """Hash the `accounts` config section, which decides types and fee placement."""
+    payload = json.dumps(get_config().account_settings, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
-def fingerprint() -> str:
-    """Summarise the inputs a replay depends on.
-
-    Returns:
-        A digest of the transactions table and the config keys that affect the
-        arithmetic. Any change to either produces a different string.
-    """
+def _inputs() -> dict[str, object]:
+    """Describe every replay input but the FX rates."""
     with get_connection() as conn:
-        txns = get_txns_fingerprint(conn)
-    return f"{txns}#{_config_hash()}"
+        tokens = get_revisions(conn)
+    return {"format": SCHEMA_VERSION, "tokens": tokens, "accounts": _accounts_hash()}
+
+
+def _fx_inputs(cutoff: str | None) -> dict[str, object]:
+    """Describe the FX rates a replay converting up to `cutoff` can use."""
+    with get_connection() as conn:
+        summary = get_fx_summary(conn, cutoff)
+    return {"fx_cutoff": cutoff, "fx": summary}
+
+
+def _is_current(saved: object) -> bool:
+    """Whether a saved ledger's inputs still describe the folio.
+
+    An unchanged transactions token means an unchanged cutoff, so checking the
+    rates at the saved cutoff is exact. A meta from before these inputs were
+    saved is never current.
+    """
+    if not isinstance(saved, dict):
+        return False
+    return saved == _inputs() | _fx_inputs(saved.get("fx_cutoff"))
 
 
 def build() -> CachedFrame:
@@ -100,14 +109,21 @@ def build() -> CachedFrame:
     Returns:
         A freshly computed `CachedFrame`, carrying the replay result.
     """
+    return _build()[0]
+
+
+def _build() -> tuple[CachedFrame, dict[str, object]]:
+    """Run a replay, describing its inputs as they stood when each was read."""
+    inputs = _inputs()
     rows = load_txn_rows()
+    inputs |= _fx_inputs(max((row.fx_date for row in rows), default=None))
     resolver = load_symbol_resolver()
     result = replay(rows, load_fx_rates(), ReplayConfig.build(rows, resolver))
-    return CachedFrame(frame=ledger_frame(result), result=result)
+    return CachedFrame(frame=ledger_frame(result), result=result), inputs
 
 
-def _read_cache(parquet: Path, expected: str) -> CachedFrame | None:
-    """Read the cached frame when its fingerprint still matches."""
+def _read_cache(parquet: Path) -> CachedFrame | None:
+    """Read the cached frame when the inputs it was built from are unchanged."""
     meta_path = _meta_path(parquet)
     if not parquet.exists() or not meta_path.exists():
         return None
@@ -116,7 +132,7 @@ def _read_cache(parquet: Path, expected: str) -> CachedFrame | None:
     except (OSError, ValueError):
         logger.debug("Unreadable cost-base cache metadata; rebuilding")
         return None
-    if meta.get("fingerprint") != expected:
+    if not _is_current(meta.get("inputs")):
         logger.debug("Cost-base cache is stale; rebuilding")
         return None
     try:
@@ -137,14 +153,14 @@ def _read_cache(parquet: Path, expected: str) -> CachedFrame | None:
 def _write_cache(
     parquet: Path,
     frame: pd.DataFrame,
-    expected: str,
+    inputs: dict[str, object],
     result: ReplayResult | None = None,
 ) -> None:
-    """Persist a freshly built frame alongside its fingerprint."""
+    """Persist a freshly built frame alongside the inputs it was built from."""
     try:
         frame.to_parquet(parquet, engine="fastparquet", index=False)
         meta: dict[str, object] = {
-            "fingerprint": expected,
+            "inputs": inputs,
             "computed_at": datetime.now(TORONTO_TZ).isoformat(),
         }
         snapshot = encode_replay(result) if result is not None else None
@@ -166,13 +182,15 @@ def load_or_build(*, refresh: bool = False) -> CachedFrame:
         means this invocation built it.
     """
     parquet = get_config().acb_parquet
-    expected = fingerprint()
+    # Opening the ledger is what upgrades a folio from before change tokens: its
+    # tables get them here, so the first command after the upgrade replays.
+    ensure_change_tokens()
 
     if not refresh:
-        cached: CachedFrame | None = _read_cache(parquet, expected)
+        cached: CachedFrame | None = _read_cache(parquet)
         if cached is not None:
             return cached
 
-    built: CachedFrame = build()
-    _write_cache(parquet, built.frame, expected, built.result)
+    built, inputs = _build()
+    _write_cache(parquet, built.frame, inputs, built.result)
     return built

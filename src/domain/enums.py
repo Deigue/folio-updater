@@ -189,6 +189,7 @@ class Table(StrEnum):
     TICKER_ALIASES = "TickerAliases"
     QUOTES = "Quotes"
     QUOTE_HISTORY = "QuoteHistory"
+    REVISIONS = "Revisions"
 
 
 class Column(StrEnum):
@@ -279,3 +280,9 @@ class Column(StrEnum):
         DATE = "Date"
         CLOSE = "Close"
         FETCHED_AT = "FetchedAt"  # When this symbol's history was last fetched
+
+    class Revision(StrEnum):
+        """A watched table's change token, moved by every write to that table."""
+
+        TABLE_NAME = "TableName"
+        TOKEN = "Token"  # noqa: S105 - a column name, not a secret

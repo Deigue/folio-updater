@@ -3,14 +3,28 @@
 from __future__ import annotations
 
 import csv
+import json
+import shutil
 from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
+import yaml
 
+from app import get_config, initialize_app
 from cli.main import app
-from domain import Column, Grain
-from engine.cache import fingerprint, load_or_build
+from db import (
+    create_quotes_table,
+    create_ticker_aliases_table,
+    delete_rows,
+    drop_table,
+    get_connection,
+    get_triggers,
+    insert_or_replace,
+    update_rows,
+)
+from domain import Column, Grain, QuoteStatus, Table
+from engine.cache import load_or_build
 from engine.frames import grain_column
 from term import supports_unicode
 from ui.views.acb import (
@@ -29,9 +43,10 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.seed import TICKER, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
     from .test_types import TempContext
@@ -498,56 +513,199 @@ def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
 # --- cache -------------------------------------------------------------------
 
 
+# The saved ledger's one USD trade settles on 2025-08-18, so that is the latest
+# date anything converts at: the FX cutoff.
+CUTOFF = "2025-08-18"
+
+type Change = Callable[[int], object]
+
+
+@pytest.fixture
+def saved_txn_id(temp_ctx: TempContext, tmp_path: Path) -> Generator[int]:
+    """Build and save the ledger of a one-trade USD folio.
+
+    Yields:
+        The TxnId of the trade.
+    """
+    with temp_ctx():
+        # The changes reach the folio through `get_config()`: never the real one.
+        assert get_config().config_path.is_relative_to(tmp_path)
+        assert get_config().db_path.is_relative_to(tmp_path)
+        seed_fx({"2025-08-14": "1.3500"})
+        create_ticker_aliases_table()
+        txn_id = seed_transaction(
+            date="2025-08-15",
+            settle_date=CUTOFF,
+            account="IBKR-PERSONAL",
+        )
+        assert not load_or_build().from_cache
+        yield txn_id
+
+
+def _set(column: str, value: str) -> Change:
+    """Edit one column of the trade, the way `folio edit --set` does."""
+
+    def change(txn_id: int) -> None:
+        with get_connection() as conn:
+            update_rows(
+                conn,
+                Table.TXNS,
+                [{Column.Txn.TXN_ID: txn_id, column: value}],
+                [Column.Txn.TXN_ID],
+                [column],
+            )
+
+    return change
+
+
+def _configure(section: str, value: dict[str, object]) -> Change:
+    """Replace one config section on disk and reload it."""
+
+    def change(_: int) -> None:
+        config = get_config()
+        path = config.config_path
+        settings = yaml.safe_load(path.read_text(encoding="utf-8"))
+        settings[section] = value
+        path.write_text(yaml.safe_dump(settings), encoding="utf-8")
+        initialize_app(config.project_root)
+
+    return change
+
+
+def _write_quote(*_: object) -> None:
+    create_quotes_table()
+    with get_connection() as conn:
+        insert_or_replace(
+            conn,
+            Table.QUOTES,
+            {
+                Column.Quote.SYMBOL: TICKER,
+                Column.Quote.YSYMBOL: TICKER,
+                Column.Quote.PRICE: 151.5,
+                Column.Quote.STATUS: QuoteStatus.OK,
+            },
+        )
+
+
+def _add_alias(*_: object) -> None:
+    with get_connection() as conn:
+        insert_or_replace(
+            conn,
+            Table.TICKER_ALIASES,
+            {
+                Column.Aliases.OLD_TICKER: TICKER,
+                Column.Aliases.NEW_TICKER: "MSFT",
+                Column.Aliases.EFFECTIVE_DATE: "2025-09-01",
+            },
+        )
+
+
+def _add_transaction(*_: object) -> None:
+    seed_transaction(date="2025-08-15", settle_date=CUTOFF, account="IBKR-PERSONAL")
+
+
+def _delete_transaction(txn_id: int) -> None:
+    with get_connection() as conn:
+        delete_rows(conn, Table.TXNS, f'"{Column.Txn.TXN_ID}" = ?', (txn_id,))
+
+
+def _restore_backup_over_an_edit(txn_id: int) -> None:
+    db_path = get_config().db_path
+    backup = db_path.with_name("backup.db")
+    shutil.copy2(db_path, backup)
+    _set(Column.Txn.TICKER, "MSFT")(txn_id)
+    shutil.copy2(backup, db_path)
+
+
+@pytest.mark.parametrize(
+    ("change", "replays"),
+    [
+        pytest.param(lambda *_: None, False, id="nothing changed"),
+        pytest.param(_write_quote, False, id="quotes refreshed"),
+        pytest.param(
+            _configure("quotes", {"ttl_minutes": 60}),
+            False,
+            id="config outside accounts",
+        ),
+        pytest.param(
+            lambda *_: seed_fx({"2025-08-19": "1.3800"}),
+            False,
+            id="FX rate after the cutoff",
+        ),
+        pytest.param(_restore_backup_over_an_edit, False, id="backup restored"),
+        pytest.param(
+            _set(Column.Txn.SETTLE_DATE, "2025-08-15"),
+            True,
+            id="settlement date",
+        ),
+        pytest.param(_add_transaction, True, id="transaction added"),
+        pytest.param(_delete_transaction, True, id="transaction deleted"),
+        pytest.param(_set(Column.Txn.TICKER, "MSFT"), True, id="ticker"),
+        pytest.param(_set(Column.Txn.ACCOUNT, "IBKR-TFSA"), True, id="account"),
+        pytest.param(_add_alias, True, id="alias added"),
+        pytest.param(
+            _configure(
+                "accounts",
+                {"map": {"IBKR-PERSONAL": {"amount_includes_fees": "false"}}},
+            ),
+            True,
+            id="per-account fee override",
+        ),
+        pytest.param(
+            lambda *_: seed_fx({CUTOFF: "1.3700"}),
+            True,
+            id="FX rate on the cutoff",
+        ),
+        pytest.param(
+            lambda *_: seed_fx({"2025-08-15": "1.3600"}),
+            True,
+            id="FX gap filled before the cutoff",
+        ),
+    ],
+)
+def test_the_saved_ledger_is_reused_until_a_replay_input_changes(
+    saved_txn_id: int,
+    change: Change,
+    *,
+    replays: bool,
+) -> None:
+    change(saved_txn_id)
+    assert load_or_build().from_cache is not replays
+
+
 @pytest.mark.real_acb_cache
-def test_cache_hit_and_invalidation(temp_ctx: TempContext) -> None:
+def test_a_ledger_saved_before_change_tokens_replays_once(
+    temp_ctx: TempContext,
+) -> None:
+    """A folio from before change tokens has no triggers, tokens or new meta."""
     with temp_ctx() as ctx:
         seed_cad_holding()
-        built = load_or_build()
-        assert built.computed_at is None
-        assert built.result is not None
+        load_or_build()
+        assert load_or_build().from_cache
 
-        cached = load_or_build()
-        assert cached.from_cache
-        assert len(cached.frame) == len(built.frame)
+        meta_path = ctx.config.acb_parquet.with_suffix(".meta.json")
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["fingerprint"] = meta.pop("inputs")
+        meta_path.write_text(json.dumps(meta), encoding="utf-8")
+        with get_connection() as conn:
+            for trigger in get_triggers(conn):
+                conn.execute(f'DROP TRIGGER "{trigger}"')
+            drop_table(conn, Table.REVISIONS)
 
-        # A new transaction moves the fingerprint.
-        before = fingerprint()
-        seed_transaction(
-            action="BUY",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-            account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker="RY.TO",
-            amount="-200",
-            price="20",
-            units="10",
-        )
-        assert fingerprint() != before
-        rebuilt = load_or_build()
-        assert not rebuilt.from_cache
-        assert len(rebuilt.frame) == len(built.frame) + 1
-        assert ctx.config.acb_parquet.exists()
+        assert not load_or_build().from_cache
+        assert load_or_build().from_cache
+        # The upgrade put the triggers back, so an edit is seen again.
+        seed_cad_holding()
+        assert not load_or_build().from_cache
 
 
-def test_refresh_rebuilds_a_valid_cache(temp_ctx: TempContext) -> None:
+def test_refresh_replays_a_valid_cache(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_cad_holding()
         load_or_build()
         assert load_or_build().from_cache
         assert not load_or_build(refresh=True).from_cache
         assert ctx is not None
-
-
-def test_config_change_invalidates_the_cache(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        plain = fingerprint()
-        assert ctx is not None
-    overrides = {"accounts": {"map": {"IBKR-PERSONAL": "CORPORATE"}}}
-    with temp_ctx(overrides):
-        seed_cad_holding()
-        assert fingerprint() != plain
 
 
 # --- folio symbol --------------------------------------------------------------

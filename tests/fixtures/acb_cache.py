@@ -40,19 +40,19 @@ class _MemoryCache:
         """Start with nothing cached, the way a fresh `temp_ctx` does."""
         self._entries: dict[str, dict[str, Any]] = {}
 
-    def read(self, parquet: Path, expected: str) -> CachedFrame | None:
-        """Return the cached frame when its fingerprint still matches.
+    def read(self, parquet: Path) -> CachedFrame | None:
+        """Return the cached frame when the inputs it was built from are unchanged.
 
         Args:
             parquet: The path the real cache would have been written to, used
                 only as the key.
-            expected: The fingerprint the caller requires.
 
         Returns:
-            The cached frame, or None on a miss or a stale fingerprint.
+            The cached frame, or None on a miss or stale inputs.
         """
         entry = self._entries.get(str(parquet))
-        if entry is None or entry["fingerprint"] != expected:
+        # The real staleness check, so a test sees exactly when the folio replays.
+        if entry is None or not acb_cache._is_current(entry["inputs"]):  # noqa: SLF001
             return None
         snapshot = entry["replay"]
         return CachedFrame(
@@ -66,21 +66,21 @@ class _MemoryCache:
         self,
         parquet: Path,
         frame: pd.DataFrame,
-        expected: str,
+        inputs: dict[str, object],
         result: ReplayResult | None = None,
     ) -> None:
-        """Store a freshly built frame under its fingerprint.
+        """Store a freshly built frame with the inputs it was built from.
 
         Args:
             parquet: The path the real cache would have used, as the key.
             frame: The ledger to keep.
-            expected: The fingerprint the frame was built at.
+            inputs: What the frame was built from, as the real cache saves it.
             result: The replay behind the frame, snapshotted the way the real
                 cache snapshots it.
         """
         snapshot = encode_replay(result) if result is not None else None
         self._entries[str(parquet)] = {
-            "fingerprint": expected,
+            "inputs": json.loads(json.dumps(inputs)),
             "computed_at": datetime.now(TORONTO_TZ),
             # Serialised and parsed back, so a snapshot that cannot survive the
             # trip fails here exactly as it would through the sidecar.
