@@ -13,15 +13,21 @@
     "reveal": "always"
   },
   {
+    "label": "ruff format --check",
+    "command": "uv",
+    "args": ["run", "ruff", "format", "--check"],
+    "reveal": "always"
+  },
+  {
     "label": "ty check",
     "command": "uv",
     "args": ["run", "ty", "check"],
     "reveal": "always"
   },
   {
-    // Zed has no dependsOn, so this chains both in one shell line (PowerShell)
+    // Zed has no dependsOn, so this chains all three in one shell line (PowerShell)
     "label": "lint (ruff + ty)",
-    "command": "uv run ruff check; uv run ty check",
+    "command": "uv run ruff check; uv run ruff format --check; uv run ty check",
     "reveal": "always"
   },
   {

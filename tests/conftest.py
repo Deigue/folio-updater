@@ -298,6 +298,9 @@ def temp_ctx(tmp_path: Path) -> TempContext:
         # Get a fresh instance after the reset_app_context fixture has run
         app_ctx = AppContext.get_instance()
         app_ctx.initialize(tmp_path)
+        # A config resolved anywhere else would point the test at the real folio.
+        assert app_ctx.config.config_path.is_relative_to(tmp_path)
+        assert app_ctx.config.db_path.is_relative_to(tmp_path)
 
         try:
             yield app_ctx

@@ -114,7 +114,7 @@ def _encode_diagnostic(diagnostic: ReplayWarning) -> dict[str, str | None]:
 
 
 def _decode_diagnostic(record: Mapping[Hashable, Any]) -> ReplayWarning:
-    """Rebuild one diagnostic."""
+    """Restore one diagnostic."""
     return ReplayWarning(
         code=WarningCode(record["code"]),
         txn_id=None if record["txn_id"] is None else int(record["txn_id"]),
@@ -164,14 +164,14 @@ def _encode_row(computed: ComputedRow) -> dict[str, str | None]:
 
 
 def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
-    """Rebuild one grain's nine figures."""
+    """Restore one grain's nine figures."""
     return GrainMeasures(
         **{name: Decimal(record[f"row_{grain}_{name}"]) for name in _MEASURE_FIELDS},
     )
 
 
 def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> ComputedRow:
-    """Rebuild one computed row exactly as the replay produced it."""
+    """Restore one computed row exactly as the replay produced it."""
     flags = record["row_flags"]
     return ComputedRow(
         row=TxnRow(
@@ -240,7 +240,7 @@ def encode_diagnostics(
 def decode_diagnostics(
     frame: pd.DataFrame,
 ) -> tuple[list[ReplayWarning], dict[int, ComputedRow]]:
-    """Rebuild the diagnostics and the rows they tag from `encode_diagnostics`.
+    """Restore the diagnostics and the rows they tag from `encode_diagnostics`.
 
     Args:
         frame: The saved records.
@@ -295,7 +295,7 @@ def encode_cash_and_totals(
 def decode_cash_and_totals(
     payload: Mapping[str, Any],
 ) -> tuple[dict[CashKey, CashState], ReplayTotals]:
-    """Rebuild each pool's cash and the row counts from `encode_cash_and_totals`.
+    """Restore each pool's cash and the row counts from `encode_cash_and_totals`.
 
     Args:
         payload: The saved `cash` and `totals` entries.

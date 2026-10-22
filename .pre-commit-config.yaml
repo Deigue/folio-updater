@@ -5,7 +5,7 @@
 # Run by hand:            uv run pre-commit run --all-files
 #
 # Every hook checks the whole project rather than the staged files and is skipped when
-# a commit touches no Python, notebook or project file. CI runs the same three commands.
+# a commit touches no Python, notebook or project file. CI runs the same four commands.
 
 default_install_hook_types: [pre-commit]
 
@@ -15,6 +15,13 @@ repos:
       - id: ruff
         name: ruff check
         entry: uv run ruff check
+        language: system
+        pass_filenames: false
+        files: \.(py|pyi|ipynb)$|^(pyproject\.toml|uv\.lock)$
+
+      - id: ruff-format
+        name: ruff format --check
+        entry: uv run ruff format --check
         language: system
         pass_filenames: false
         files: \.(py|pyi|ipynb)$|^(pyproject\.toml|uv\.lock)$

@@ -115,6 +115,10 @@ exclude = [
     "*.spec", # PyInstaller specs: injected globals, not project code
 ]
 
+[tool.ruff.format]
+# Edits made on Windows can write CRLF; the format check then fails on them.
+line-ending = "lf"
+
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = [
     "T201",

@@ -55,6 +55,17 @@
             "problemMatcher": []
         },
         {
+            "label": "ruff format --check",
+            "type": "process",
+            "command": "uv",
+            "args": ["run", "ruff", "format", "--check"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "ty check",
             "type": "process",
             "command": "uv",
@@ -67,7 +78,7 @@
         },
         {
             "label": "lint (ruff + ty)",
-            "dependsOn": ["ruff check", "ty check"],
+            "dependsOn": ["ruff check", "ruff format --check", "ty check"],
             "dependsOrder": "sequence",
             "group": {
                 "kind": "test",

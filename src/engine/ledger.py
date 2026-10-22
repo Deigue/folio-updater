@@ -316,7 +316,7 @@ def _restore(
     frame: pd.DataFrame,
     meta: Mapping[str, Any],
 ) -> Ledger:
-    """Rebuild a ledger from its saved form, leaving the diagnostics on disk."""
+    """Restore a ledger from its saved form, leaving the diagnostics on disk."""
     cash, totals = decode_cash_and_totals(meta)
 
     def load_diagnosis() -> Diagnosis:

@@ -189,8 +189,7 @@ def confirm_demo_replacement() -> bool:
         return True
 
     console_warning(
-        "This folio is the demo folio; importing would mix your "
-        "transactions into it.",
+        "This folio is the demo folio; importing would mix your transactions into it.",
     )
     try:
         replace = typer.confirm(

@@ -532,16 +532,13 @@ def _replays() -> bool:
 
 
 @pytest.fixture
-def saved_txn_id(temp_ctx: TempContext, tmp_path: Path) -> Generator[int]:
+def saved_txn_id(temp_ctx: TempContext) -> Generator[int]:
     """Build and save the ledger of a one-trade USD folio.
 
     Yields:
         The TxnId of the trade.
     """
     with temp_ctx():
-        # The changes reach the folio through `get_config()`: never the real one.
-        assert get_config().config_path.is_relative_to(tmp_path)
-        assert get_config().db_path.is_relative_to(tmp_path)
         seed_fx({"2025-08-14": "1.3500"})
         create_ticker_aliases_table()
         txn_id = seed_transaction(

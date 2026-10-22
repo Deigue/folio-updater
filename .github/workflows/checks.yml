@@ -1,6 +1,6 @@
 name: Checks
 
-# The same three commands as the pre-commit hooks and the Zed tasks.
+# The same four commands as the pre-commit hooks and the Zed tasks.
 on:
   push:
     branches: [master]
@@ -35,6 +35,9 @@ jobs:
 
       - name: ruff check
         run: uv run ruff check
+
+      - name: ruff format --check
+        run: uv run ruff format --check
 
       # pyproject.toml also points ty at ../ws-api-python, a sibling checkout
       # that only exists locally, and ty refuses a missing path (a -c override

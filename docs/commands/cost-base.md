@@ -40,7 +40,7 @@ folio acb NVDA --type all             # the folio pool
 | `--all`           | Include `DIVIDEND` and `FCH` rows, which never touch cost base |
 | `-s/--summary`    | One row per symbol instead of a per-transaction buildup        |
 | `-e/--export PATH`| Write the report to a `.xlsx`, `.csv` or `.parquet` file       |
-| `-r/--refresh`    | Rebuild the cache before reporting                             |
+| `-r/--refresh`    | Replay the folio before reporting, ignoring the saved ledger   |
 
 `SYMBOL` may be omitted only with `--summary` or `--export`.
 
@@ -206,7 +206,7 @@ computed just now
 cached 15m ago
 ```
 
-`--refresh` forces a rebuild.
+`--refresh` forces a replay.
 
 ## FX coverage
 
