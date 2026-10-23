@@ -1,28 +1,26 @@
 """Tests for the smart query parser.
 
 These exercise pure parsing logic: term -> ParsedQuery(filters/sorts/limit/text).
-`parse_query_terms` consults the database only for reference lookups (distinct
-tickers, distinct accounts, live Txns columns), so those are stubbed with fixed
-values here. That keeps these tests about parsing rather than about data setup,
-and avoids provisioning a sqlite db + parquet files for every case. The real
-lookup path stays covered by the CLI query tests in test_query.py, which run
-against genuine mock data.
+`parse_query_terms` is handed vocabulary (the tickers, accounts and Txns
+columns a bare term may name), so a fixed one stands in for the folio here. That
+isolates the tests about parsing.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, tzinfo
-from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cli import query_parser
-from cli.query_parser import parse_query_terms
+from cli.query_parser import QueryVocabulary, get_valid_column_names
 from domain import TORONTO_TZ, Column
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Sequence
+
+    from cli.query_parser import ParsedQuery
 
 # Stand-ins for what a folio holds, so the parser has known names to recognize.
 MOCK_TICKERS = {"TESTTKR", "OTHER", "CADCO.TO"}
@@ -33,15 +31,16 @@ MOCK_COLUMNS = [
 ]
 
 
-@pytest.fixture(autouse=True)
-def stub_db_lookups() -> Generator[None, Any]:
-    """Serve the parser's reference lookups from fixed values instead of sqlite."""
-    with patch.object(
-        query_parser,
-        "_get_db_lookup_values",
-        return_value=(MOCK_TICKERS, MOCK_ACCOUNTS, MOCK_COLUMNS),
-    ):
-        yield
+VOCABULARY = QueryVocabulary(
+    columns=get_valid_column_names(MOCK_COLUMNS),
+    tickers=MOCK_TICKERS,
+    accounts=MOCK_ACCOUNTS,
+)
+
+
+def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
+    """Parse terms against the fixed vocabulary instead of a folio."""
+    return query_parser.parse_query_terms(terms, VOCABULARY)
 
 
 def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
@@ -265,6 +264,12 @@ class TestQueryParser:
         query = parse_query_terms(["UNKNOWN_TERM"])
         assert len(query.text_searches) == 1
         assert query.text_searches[0] == "UNKNOWN_TERM"
+
+    def test_an_operator_that_is_not_one_is_a_text_search(self) -> None:
+        """`~=` is no filter: it must not select every row by matching nothing."""
+        query = parse_query_terms(["Description~=RECEIPTS"])
+        assert query.filters == []
+        assert query.text_searches == ["Description~=RECEIPTS"]
 
     def test_parse_combined_query(self) -> None:
         """Test parsing a complex combined query."""

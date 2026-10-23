@@ -414,3 +414,18 @@ class TestSelectionDescribe:
 
             assert described.startswith("query: ")
             assert "BUY" in described
+
+    def test_describes_the_sorts_and_limits_of_a_query(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """The audit log names how the matched rows were ordered and capped."""
+        with temp_ctx():
+            ensure_data_exists()
+
+            described = select_transactions(
+                ["BUY", "sort:-Amount", "last", "3"],
+            ).describe()
+
+            assert "sort:Amount(DESC)" in described
+            assert "limit:-3" in described

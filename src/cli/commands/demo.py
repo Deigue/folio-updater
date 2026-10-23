@@ -12,11 +12,9 @@ from cli.commands.generate import write_folio
 from datagen import ensure_data_exists
 from term import console_error, console_info, console_success
 from term.progress import ProgressDisplay
+from ui.vocabulary import SPINNER_DEMO
 
-app = typer.Typer()
 
-
-@app.command(name="")
 def create_folio() -> None:
     """Create a demo folio from real market history.
 
@@ -26,7 +24,7 @@ def create_folio() -> None:
     bootstrap.reload_config()
 
     try:
-        with ProgressDisplay.spinner("sea_green3") as progress:
+        with ProgressDisplay.spinner(SPINNER_DEMO) as progress:
             progress.add_task("Building the demo folio...", total=None)
             created = ensure_data_exists()
     except (OSError, ValueError, KeyError) as e:
@@ -44,7 +42,3 @@ def create_folio() -> None:
         raise typer.Exit(1)
     console_success("Demo folio created successfully!")
     console_info("Check your database path for the generated folio database.")
-
-
-if __name__ == "__main__":
-    app()

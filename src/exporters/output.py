@@ -11,10 +11,14 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    import pandas as pd
+
     from exporters.table import Table
 
 WORKBOOK_SUFFIX = ".xlsx"
 CSV_SUFFIX = ".csv"
+# The one format that stays a raw dump: it is read by programs, not people.
+PARQUET_SUFFIX = ".parquet"
 
 SUPPORTED = (WORKBOOK_SUFFIX, CSV_SUFFIX)
 
@@ -86,3 +90,13 @@ def write_export(path: Path, tables: Sequence[Table]) -> Path:
 
     write_workbook(target, tables)
     return target
+
+
+def write_frame_parquet(path: Path, frame: pd.DataFrame) -> None:
+    """Write a frame as it is, at full precision, for a reader that is a program.
+
+    Args:
+        path: Where to write.
+        frame: The rows, with no table arrangement applied.
+    """
+    frame.to_parquet(path, engine="fastparquet", index=False)

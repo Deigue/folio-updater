@@ -11,18 +11,16 @@ from app import bootstrap
 from exporters import ParquetExporter
 from term import console_error, console_success, console_warning
 from term.progress import ProgressDisplay
+from ui.vocabulary import SPINNER_FX
 
-app = typer.Typer()
 
-
-@app.command(name="")
 def update_fx_rates() -> None:
     """Update foreign exchange rates in the folio."""
     bootstrap.reload_config()
 
     try:
         exporter = ParquetExporter()
-        with ProgressDisplay.spinner("cyan") as progress:
+        with ProgressDisplay.spinner(SPINNER_FX) as progress:
             progress.add_task("Updating FX rates...", total=None)
             result = exporter.export_forex()
 
@@ -34,7 +32,3 @@ def update_fx_rates() -> None:
     except (OSError, ValueError, KeyError) as e:
         console_error(f"Error updating FX rates: {e}")
         raise typer.Exit(1) from e
-
-
-if __name__ == "__main__":
-    app()

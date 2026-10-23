@@ -18,8 +18,9 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from app.logging_setup import get_import_logger
-from cli.commands.common import audit_footer, backup_folio, export_to_parquet
+from app.logging_setup import audit_footer, get_import_logger
+from cli.commands.common import export_to_parquet
+from db import backup_folio
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import (
     append_rows,
@@ -231,9 +232,6 @@ def _find_existing_duplicates(prepared_df: pd.DataFrame) -> pd.DataFrame:
     with get_connection() as conn:
         existing = get_rows(conn, Table.TXNS)
 
-    if existing.empty:  # pragma: no cover
-        return existing
-
     new_key = generate_keys(prepared_df).iloc[0]
     existing_keys = generate_keys(existing)
     return existing[existing_keys == new_key]
@@ -352,10 +350,6 @@ def add_transaction(  # noqa: PLR0917
             console_info("Transaction not added.")
             return
         results = _prepare(fields, approve_duplicate=True)
-
-    if results.final_df.empty:  # pragma: no cover
-        console_error("Transaction could not be prepared for insertion.")
-        raise typer.Exit(1)
 
     display = TransactionDisplay()
     if dry_run:

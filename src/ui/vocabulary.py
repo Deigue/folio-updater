@@ -29,6 +29,27 @@ TRANSACTION_COLORS = {
     Action.TFR_OUT: "red",
 }
 
+# --- Command progress --------------------------------------------------------
+
+# Spinner colours, one per kind of work a command waits on.
+SPINNER_IMPORT = "green"
+SPINNER_PARQUET = "green"
+SPINNER_DEMO = "sea_green3"
+SPINNER_FX = "cyan"
+SPINNER_GENERATE = "yellow"
+SPINNER_IBKR = "red"
+SPINNER_WEALTHSIMPLE = "dark_goldenrod"
+SPINNER_STATEMENT = "dark_violet"
+
+# Rules that open a section of a long command.
+RULE_UPDATE = "bright_blue"
+RULE_STATEMENT = "medium_purple3"
+
+# Status cells in a summary table.
+STATUS_FAILED = "red"
+STATUS_SUCCESS = "green"
+STATUS_NO_DATA = "yellow"
+
 # --- Dashboard palette ------------------------------------------------------
 
 # Sign colours

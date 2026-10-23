@@ -19,7 +19,7 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import require_ledger
 from domain import CheckStatus
-from engine.checks import CHECK_SLUGS, UnknownCheckError, run_checks, validate_slugs
+from engine.checks import UnknownCheckError, run_checks, validate_slugs
 from term import console_error
 from ui.views.checks import emit_json, print_report
 
@@ -89,6 +89,3 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
 
     if any(result.status is CheckStatus.FAIL for result in results):
         raise typer.Exit(1)
-
-
-__all__ = ["CHECK_SLUGS", "run_folio_checks"]

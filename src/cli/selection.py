@@ -21,7 +21,12 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app.app_context import get_config
-from cli.query_parser import ParsedQuery, parse_query_terms
+from cli.query_parser import (
+    ParsedQuery,
+    QueryVocabulary,
+    get_valid_column_names,
+    parse_query_terms,
+)
 from config.optional_fields import FieldType
 from db.queries import (
     build_comparison_clause,
@@ -29,16 +34,20 @@ from db.queries import (
     get_alias_edges,
     get_columns,
     get_connection,
+    get_distinct_set,
     get_rows,
 )
 from domain import Column, Table
 from services.symbols import SymbolResolver
-from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
+
+
+class SelectionError(Exception):
+    """A query the folio could not run."""
 
 
 class SelectionMode(StrEnum):
@@ -90,9 +99,9 @@ class Selection:
 
     def describe(self) -> str:
         """Describe the selection for an audit log header."""
-        if self.mode is SelectionMode.IDS:
+        if self.mode is SelectionMode.IDS or self.query is None:
             return f"TxnIds {' '.join(str(i) for i in self.requested_ids)}"
-        return f"query: {self.query!r}"
+        return f"query: {self.query.describe()}"
 
 
 def get_ticker_family(connection: sqlite3.Connection, ticker: str) -> list[str]:
@@ -108,18 +117,18 @@ def get_ticker_family(connection: sqlite3.Connection, ticker: str) -> list[str]:
     return SymbolResolver(get_alias_edges(connection)).family(ticker)
 
 
-def _get_optional_columns(
-    conn: sqlite3.Connection,
-    field_type: FieldType,
-) -> list[str]:
-    """Get configured optional columns of one type that are live on Txns."""
-    live_columns = set(get_columns(conn, Table.TXNS))
-    optional_fields = get_config().optional_fields
-    return [
-        name
-        for name, field_def in optional_fields.get_all_fields().items()
-        if field_def.field_type == field_type and name in live_columns
-    ]
+def load_vocabulary() -> QueryVocabulary:
+    """Read the names the folio holds, so a bare query term can be recognised.
+
+    Returns:
+        The live Txns columns, and the tickers and accounts in use.
+    """
+    with get_connection() as conn:
+        return QueryVocabulary(
+            columns=get_valid_column_names(get_columns(conn, Table.TXNS)),
+            tickers=get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER),
+            accounts=get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT),
+        )
 
 
 def _get_text_numeric_columns(conn: sqlite3.Connection) -> set[str]:
@@ -134,8 +143,10 @@ def _get_text_numeric_columns(conn: sqlite3.Connection) -> set[str]:
     Returns:
         Names of the live Txns columns that hold numbers as text.
     """
-    columns = set(_get_optional_columns(conn, FieldType.NUMERIC))
-    if str(Column.Txn.FEE) in set(get_columns(conn, Table.TXNS)):
+    live_columns = get_columns(conn, Table.TXNS)
+    optional_fields = get_config().optional_fields
+    columns = set(optional_fields.columns_of_type(FieldType.NUMERIC, live_columns))
+    if str(Column.Txn.FEE) in live_columns:
         columns.add(str(Column.Txn.FEE))
     return columns
 
@@ -147,7 +158,10 @@ def build_where_clause(
     """Build the WHERE clause and parameters for the transaction query."""
     where_clauses: list[str] = []
     params: list[str | int | float] = []
-    optional_text_columns = _get_optional_columns(conn, FieldType.STRING)
+    optional_text_columns = get_config().optional_fields.columns_of_type(
+        FieldType.STRING,
+        get_columns(conn, Table.TXNS),
+    )
     numeric_columns = _get_text_numeric_columns(conn)
 
     # Process each filter
@@ -260,6 +274,9 @@ def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
 
     Returns:
         A DataFrame with matching transactions.
+
+    Raises:
+        SelectionError: If the folio could not run the query.
     """
     try:
         with get_connection() as conn:
@@ -286,10 +303,10 @@ def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
                 order_by=order_by_clause,
                 limit=query.start_limit,
             )
-    except (sqlite3.OperationalError, pd.errors.DatabaseError):
+    except (sqlite3.OperationalError, pd.errors.DatabaseError) as error:
         logger.exception("Error querying transactions")
-        announce.error("Could not run the query; see the log for details.")
-        return pd.DataFrame()
+        msg = "Could not run the query; see the log for details."
+        raise SelectionError(msg) from error
 
 
 def _parse_txn_ids(terms: Sequence[str]) -> tuple[int, ...] | None:
@@ -337,6 +354,9 @@ def select_transactions(terms: Sequence[str]) -> Selection:
 
     Returns:
         A Selection describing the matched rows and how they were found.
+
+    Raises:
+        SelectionError: If the folio could not run the query.
     """
     txn_ids = _parse_txn_ids(terms)
     if txn_ids is not None:
@@ -350,7 +370,7 @@ def select_transactions(terms: Sequence[str]) -> Selection:
             missing_ids=tuple(i for i in txn_ids if i not in found),
         )
 
-    query: ParsedQuery = parse_query_terms(terms)
+    query: ParsedQuery = parse_query_terms(terms, load_vocabulary())
     return Selection(
         transactions=get_transactions_by_filters(query),
         mode=SelectionMode.QUERY,

@@ -5,15 +5,15 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, get_args
 
 from dateparser.date import DateDataParser
 
-from db import get_columns, get_connection, get_distinct_set
-from domain import TORONTO_TZ, Action, Column, Currency, Table
+from domain import TORONTO_TZ, Action, Column, Currency
+from services.price_history import months_back
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 # Constants for date parsing
 _DECEMBER_MONTH = 12
@@ -36,16 +36,22 @@ _MONTH_NUMBERS = {
 _MONTH_NAMES = set(_MONTH_NUMBERS)
 
 
+FilterOperator = Literal[":", "~", ">", "<", ">=", "<="]
+SortDirection = Literal["asc", "desc"]
+
+_OPERATORS: dict[str, FilterOperator] = {op: op for op in get_args(FilterOperator)}
+
+
 @dataclass
 class QueryFilter:
     """Represents a single filter in a query."""
 
     column: str
-    operator: str  # ":", "~", ">", "<", ">=", "<="
+    operator: FilterOperator
     value: str
 
-    def __repr__(self) -> str:
-        """Return string representation of the filter."""
+    def describe(self) -> str:
+        """Return the filter the way a person would read it."""
         if self.operator == ":":
             return f'{self.column}="{self.value}"'
         return f"{self.column}{self.operator}{self.value}"
@@ -56,10 +62,10 @@ class QuerySort:
     """Represents a sort specification in a query."""
 
     column: str
-    direction: str  # "asc" or "desc"
+    direction: SortDirection
 
-    def __repr__(self) -> str:
-        """Return string representation of the sort."""
+    def describe(self) -> str:
+        """Return the sort the way a person would read it."""
         direction_str = "DESC" if self.direction == "desc" else "ASC"
         return f"sort:{self.column}({direction_str})"
 
@@ -75,30 +81,38 @@ class ParsedQuery:
     end_limit: int | None = None
     named_limiter: bool = False
 
-    def __repr__(self) -> str:
-        """Return string representation of the parsed query."""
-        query: list[str] = [repr(f) for f in self.filters]
+    def describe(self) -> str:
+        """Return the query the way a person would read it, for messages and logs."""
+        query: list[str] = [f.describe() for f in self.filters]
         query.extend(f'text~"{search}"' for search in self.text_searches)
-        query.extend(repr(s) for s in self.sorts)
+        query.extend(s.describe() for s in self.sorts)
         if self.start_limit is not None:
             query.append(f"limit:{self.start_limit}")
         if self.end_limit is not None:
             query.append(f"limit:-{self.end_limit}")
-        if not query:
-            return "Querying all transactions (no filters applied)."
         return "Filters: " + ", ".join(query)
 
 
-def _get_db_lookup_values() -> tuple[set[str], set[str], list[str]]:
-    """Fetch distinct tickers, accounts, and live Txns columns from the database."""
-    with get_connection() as conn:
-        db_tickers = get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER)
-        db_accounts = get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT)
-        live_columns = get_columns(conn, Table.TXNS)
-    return db_tickers, db_accounts, live_columns
+@dataclass(frozen=True)
+class QueryVocabulary:
+    """Vocabulary from the database for the queries to use.
+
+    Attributes:
+        columns: Column aliases (lowercase) mapped to actual column names.
+        tickers: Tickers the folio holds.
+        accounts: Accounts the folio holds.
+        actions: Every action a bare term can name.
+        currencies: Every currency a bare term can name.
+    """
+
+    columns: Mapping[str, str]
+    tickers: set[str]
+    accounts: set[str]
+    actions: frozenset[str] = frozenset(action.value for action in Action)
+    currencies: frozenset[str] = frozenset(currency.value for currency in Currency)
 
 
-def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
+def parse_query_terms(terms: Sequence[str], vocabulary: QueryVocabulary) -> ParsedQuery:
     """Parse a list of query terms into a structured query.
 
     Multi-stage parsing process:
@@ -108,16 +122,13 @@ def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
 
     Args:
         terms: A sequence of strings from the CLI.
+        vocabulary: The columns, tickers and accounts a bare term may name.
 
     Returns:
         A ParsedQuery object with parsed filters, text searches, and sorts.
     """
     query = ParsedQuery()
     remaining_terms: list[str] = []
-    action_values = {action.value for action in Action}
-    currency_values = {currency.value for currency in Currency}
-    db_tickers, db_accounts, live_columns = _get_db_lookup_values()
-    valid_columns = get_valid_column_names(live_columns)
 
     # Stage 1: Try to parse natural language dates from all terms
     terms_list = list(terms)
@@ -141,15 +152,7 @@ def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
 
     # Stage 2: Parse remaining terms for explicit filters, sorts, keywords
     for term in remaining_terms:
-        if _process_term_for_filters(
-            term,
-            query,
-            valid_columns,
-            action_values,
-            currency_values,
-            db_tickers,
-            db_accounts,
-        ):
+        if _process_term_for_filters(term, query, vocabulary):
             continue
 
         # Stage 3: Default: treat as text search
@@ -158,38 +161,34 @@ def parse_query_terms(terms: Sequence[str]) -> ParsedQuery:
     return query
 
 
-def _process_term_for_filters(  # noqa: PLR0917
+def _process_term_for_filters(
     term: str,
     query: ParsedQuery,
-    valid_columns: dict[str, str],
-    action_values: set[str],
-    currency_values: set[str],
-    db_tickers: set[str],
-    db_accounts: set[str],
+    vocabulary: QueryVocabulary,
 ) -> bool:
     """Process a single term, checking for explicit filters, sorts, keywords, etc."""
     processed = False
     # Try explicit filter syntax (column:value, column~value, etc.)
     if (
         _try_parse_limit(term, query)
-        or _try_parse_explicit_filter(term, query, valid_columns)
-        or _try_parse_sort(term, query, valid_columns)
+        or _try_parse_explicit_filter(term, query, vocabulary.columns)
+        or _try_parse_sort(term, query, vocabulary.columns)
         or _try_parse_date_filter(term, query)
     ):
         processed = True
     else:
         # Check for KNOWN keywords
         term_upper = term.upper()
-        if term_upper in action_values:
+        if term_upper in vocabulary.actions:
             query.filters.append(QueryFilter(Column.Txn.ACTION, ":", term_upper))
             processed = True
-        elif term_upper in currency_values:
+        elif term_upper in vocabulary.currencies:
             query.filters.append(QueryFilter(Column.Txn.CURRENCY, ":", term_upper))
             processed = True
-        elif term_upper in db_tickers:
+        elif term_upper in vocabulary.tickers:
             query.filters.append(QueryFilter(Column.Txn.TICKER, ":", term_upper))
             processed = True
-        elif term in db_accounts:
+        elif term in vocabulary.accounts:
             query.filters.append(QueryFilter(Column.Txn.ACCOUNT, ":", term))
             processed = True
     return processed
@@ -206,8 +205,6 @@ def _try_parse_natural_language_date(
         terms: List of all terms
         start_index: Index of current term to start parsing from
         query: Query to add filters to
-        db_tickers: Set of known tickers (to avoid false matches)
-        db_accounts: Set of known accounts (to avoid false matches)
 
     Returns:
         Number of terms consumed if successful, None otherwise.
@@ -521,10 +518,10 @@ def _try_parse_calendar_phrase(
 
      e.g. 'august 10 2024', '10 august 2024', 'august 2024', '2024 august'.
 
-    A specific day becomes an exact-date filter
-    Month/year patterns becomes a full-month range.
+    A specific day becomes an exact-date filter.
+    Month/year patterns become a full-month range.
     A bare month word is left unmatched.
-    A "year" granularity cant occur here: anchor requries month tokens.
+    A "year" granularity can't occur here: the anchor requires month tokens.
     """
     if not _has_calendar_anchor(terms, start_index):
         return None
@@ -781,27 +778,11 @@ def _get_last_week_range() -> tuple[str, str]:
 def _get_last_month_range() -> tuple[str, str]:
     """Get date range for last month."""
     today = datetime.now(TORONTO_TZ).date()
-
-    if today.month == 1:
-        first_day_of_prev = today.replace(year=today.year - 1, month=12, day=1)
-    else:
-        first_day_of_prev = today.replace(month=today.month - 1, day=1)
-
-    # Calculate last day of previous month
-    if first_day_of_prev.month == _DECEMBER_MONTH:
-        next_month_first = first_day_of_prev.replace(
-            year=first_day_of_prev.year + 1,
-            month=1,
-            day=1,
-        )
-    else:
-        next_month_first = first_day_of_prev.replace(
-            month=first_day_of_prev.month + 1,
-            day=1,
-        )
-
-    last_day_of_prev = next_month_first - timedelta(days=1)
-
+    first_day_of_prev = months_back(today.replace(day=1), 1)
+    last_day_of_prev = _last_day_of_month(
+        first_day_of_prev.year,
+        first_day_of_prev.month,
+    )
     return (
         first_day_of_prev.strftime("%Y-%m-%d"),
         last_day_of_prev.strftime("%Y-%m-%d"),
@@ -834,7 +815,7 @@ def _try_parse_limit(term: str, query: ParsedQuery) -> bool:
 def _try_parse_explicit_filter(
     term: str,
     query: ParsedQuery,
-    valid_columns: dict[str, str],
+    valid_columns: Mapping[str, str],
 ) -> bool:
     """Try to parse an explicit filter (column:value, column~value, etc.).
 
@@ -851,11 +832,12 @@ def _try_parse_explicit_filter(
     if not match:
         return False
 
-    column_input, operator, value = match.groups()
+    column_input, operator_text, value = match.groups()
     column_input_lower = column_input.lower()
 
     # Map column alias to actual column name
-    if column_input_lower not in valid_columns:
+    operator = _OPERATORS.get(operator_text)
+    if column_input_lower not in valid_columns or operator is None:
         return False
 
     actual_column = valid_columns[column_input_lower]
@@ -867,7 +849,7 @@ def _try_parse_explicit_filter(
 def _try_parse_sort(
     term: str,
     query: ParsedQuery,
-    valid_columns: dict[str, str],
+    valid_columns: Mapping[str, str],
 ) -> bool:
     """Try to parse a sort specification.
 
@@ -922,7 +904,9 @@ def _try_parse_date_filter(term: str, query: ParsedQuery) -> bool:
     comparison_match = re.match(r"^(>|>=|<|<=)(\d{4}(?:-\d{2}(?:-\d{2})?)?)$", term)
     if comparison_match:
         operator, date_str = comparison_match.groups()
-        query.filters.append(QueryFilter(Column.Txn.TXN_DATE, operator, date_str))
+        query.filters.append(
+            QueryFilter(Column.Txn.TXN_DATE, _OPERATORS[operator], date_str),
+        )
         return True
 
     # Pattern for bare YYYY-MM (no operator) -> full-month range

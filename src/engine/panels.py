@@ -75,6 +75,11 @@ class Panel:
         """Whether the pool still has an open holding."""
         return bool(self.holdings.holdings)
 
+    @property
+    def open_symbols(self) -> list[str]:
+        """Symbols of the open holdings, in the order the pool lists them."""
+        return [holding.symbol for holding in self.holdings.holdings]
+
 
 def account_type_of(view: PoolView) -> AccountType | None:
     """Name the account type a pool is, when it is exactly one.

@@ -42,7 +42,7 @@ class CliTestResult:
 def run_cli_with_config(
     config: Config,
     command_app: Typer,
-    args: list[str] | None = None,
+    args: list[str],
     user_input: str | None = None,
     width: int = DEFAULT_WIDTH,
 ) -> CliTestResult:
@@ -51,7 +51,7 @@ def run_cli_with_config(
     Args:
         config: The Config object to use for the test.
         command_app: The Typer app to run.
-        args: Optional list of command arguments.
+        args: The command and its arguments.
         user_input: Optional stdin text to answer interactive prompts, with each
             response terminated by a newline.
         width: Terminal width to render at. Pass `UNCONSTRAINED_WIDTH` for a
@@ -60,9 +60,6 @@ def run_cli_with_config(
     Returns:
         A CliTestResult object with execution details.
     """
-    if args is None:
-        args = []
-
     # Mock bootstrap.reload_config to return our test config
     with (
         patch("app.bootstrap.reload_config") as mock_reload,

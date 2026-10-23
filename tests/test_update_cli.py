@@ -133,13 +133,21 @@ def test_an_update_over_the_demo_stops_until_you_replace_it(
     assert kept
 
 
+@pytest.mark.parametrize(
+    ("statement_error", "named"),
+    [(OFFLINE, OFFLINE), ("", "WealthsimpleServiceError")],
+    ids=["with-a-message", "without-a-message"],
+)
 def test_clean_run_goes_through_every_stage(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
+    statement_error: str,
+    named: str,
 ) -> None:
     """Downloads that succeed carry on through every stage to the workbook.
 
-    The statement download failing is a concern, not a stop.
+    The statement download failing is a concern, not a stop, and names what
+    failed even when the error has nothing to say for itself.
     """
     with temp_ctx() as ctx:
         config = ctx.config
@@ -161,7 +169,7 @@ def test_clean_run_goes_through_every_stage(
             create_transaction_data(config.imports_path / WS_FILE)
 
         def offline_statement(_month_start: str) -> list[Path]:
-            raise WealthsimpleServiceError(OFFLINE)
+            raise WealthsimpleServiceError(statement_error)
 
         monkeypatch.setattr("cli.commands.update.download_ibkr", ibkr)
         monkeypatch.setattr("cli.commands.update.download_wealthsimple", wealthsimple)
@@ -177,6 +185,7 @@ def test_clean_run_goes_through_every_stage(
         assert (config.processed_path / WS_FILE).exists()
         assert_in_output("New transactions (2)", result)
         assert_in_output("statement download failed", result)
+        assert_in_output(f"{named}. Its settlement dates stay", result)
         # No later run clears a warning, so it is expected rather than pending.
         expected = result.plain_output.partition("Expected, nothing to do")[2]
         assert "only warned: folio check" in expected

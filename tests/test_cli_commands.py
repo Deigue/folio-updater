@@ -12,7 +12,6 @@ from pandas.testing import assert_frame_equal
 from rich.progress import Progress
 from typer.testing import CliRunner
 
-from cli.commands import import_data
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
@@ -150,7 +149,7 @@ def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
-        cli_result = run_cli_with_config(config, import_data.app)
+        cli_result = run_cli_with_config(config, cli_app, ["import"])
         assert cli_result.exit_code == 1
         assert_in_output("No supported files found", cli_result)
 
@@ -164,8 +163,8 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         create_transaction_data(test_file)
         cli_result = run_cli_with_config(
             config,
-            import_data.app,
-            ["--file", str(test_file)],
+            cli_app,
+            ["import", "--file", str(test_file)],
         )
         assert_cli_success(cli_result)
         # Verify via stdout keywords, core functionality is tested elsewhere.
@@ -197,8 +196,8 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         create_transaction_data(file2)
         cli_result = run_cli_with_config(
             config,
-            import_data.app,
-            ["--dir", str(import_dir)],
+            cli_app,
+            ["import", "--dir", str(import_dir)],
         )
         assert_cli_success(cli_result)
         assert_in_output("Found 2 files to import", cli_result)

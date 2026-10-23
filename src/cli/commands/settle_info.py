@@ -24,37 +24,22 @@ from term import (
     console_rule,
     console_success,
     console_warning,
-    get_symbol,
 )
 from term.progress import ProgressDisplay
 from ui.views.imports import ImportDisplay
 from ui.views.transactions import page_transactions
-from ui.widgets import show_data_table, show_stats_panel
+from ui.vocabulary import RULE_STATEMENT, SPINNER_STATEMENT
+from ui.widgets import show_stats_panel
 
 if TYPE_CHECKING:
     from models import StatementImportResult
 
 
 def settlement_info(
-    file: str | None = typer.Option(
-        None,
-        "-f",
-        "--file",
-        help="Path to monthly statement file to import for settlement updates",
-    ),
+    file: str | None = None,
     *,
-    import_flag: bool = typer.Option(
-        False,
-        "-i",
-        "--import",
-        help="Import statement files to update settlement dates",
-    ),
-    verbose: bool = typer.Option(
-        False,
-        "-v",
-        "--verbose",
-        help="List every statement row weighed, matched or not",
-    ),
+    import_flag: bool = False,
+    verbose: bool = False,
 ) -> None:
     """Show settlement date information for transactions in the database.
 
@@ -62,6 +47,9 @@ def settlement_info(
         file: Optional path to monthly statement file to import for settlement updates
         import_flag: Whether to import statement files for settlement updates
         verbose: Whether to list each statement row and how it was resolved
+
+    Raises:
+        typer.Exit: On an unusable request.
     """
     bootstrap.reload_config()
     if file and not import_flag:
@@ -107,7 +95,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
         r.settlement_updates > 0 or r.transfers_created() > 0 for r in results
     )
     if changed:
-        with ProgressDisplay.spinner(color="dark_violet") as progress:
+        with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
@@ -129,7 +117,7 @@ def import_single_statement(
     Returns:
         What the statement changed.
     """
-    with ProgressDisplay.spinner(color="dark_violet") as progress:
+    with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
         progress.add_task(f"Importing {statement_path.name}...", total=None)
         result = import_statements(statement_path)
 
@@ -231,22 +219,6 @@ def _report_settlement_matching(
         )
 
 
-def _statement_status(result: StatementImportResult) -> str:
-    """Label one statement's row in the summary table.
-
-    Args:
-        result: What the statement import produced.
-
-    Returns:
-        The status cell, symbol included.
-    """
-    if result.settlement_updates > 0 or result.transfers_created() > 0:
-        return f"{get_symbol('success')}Success"
-    if result.settlement_already_settled() and not result.settlement_unplaced():
-        return f"{get_symbol('info')}Up to date"
-    return f"{get_symbol('warning')}No updates"
-
-
 def _import_statements_from_directory(
     *,
     verbose: bool = False,
@@ -280,32 +252,14 @@ def _import_statements_from_directory(
         f'Found {len(statement_files)} statement file(s) in "{statements_dir}"',
     )
 
-    results: list[StatementImportResult] = []
-    summary_rows = []
-
+    imported: list[tuple[str, StatementImportResult]] = []
     for statement_file in statement_files:
         result = import_single_statement(statement_file, verbose=verbose)
-        results.append(result)
         archive_statement(statement_file)
-        summary_rows.append(
-            {
-                "File": statement_file.name,
-                "Settle Updates": result.settlement_updates,
-                "Unplaced": len(result.settlement_unplaced()),
-                "Transfers": result.transfers_created(),
-                "Rejected": result.transfers_rejected,
-                "Status": _statement_status(result),
-            },
-        )
+        imported.append((statement_file.name, result))
 
-    # Show summary table
-    if summary_rows:
-        console_rule(style="medium_purple3")
-        show_data_table(
-            summary_rows,
-            title="Statement Import Summary",
-            max_rows=20,
-        )
+    ImportDisplay().show_statements_summary(imported)
+    results = [result for _, result in imported]
 
     total_updates = sum(r.settlement_updates for r in results)
     total_transfers = sum(r.transfers_created() for r in results)
@@ -319,7 +273,7 @@ def _import_statements_from_directory(
 def _display_settlement_statistics(*, import_flag: bool = False) -> None:
     """Display settlement date statistics for transactions."""
     if import_flag:
-        console_rule(style="medium_purple3")
+        console_rule(style=RULE_STATEMENT)
 
     try:
         with get_connection() as conn:

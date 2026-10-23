@@ -14,14 +14,13 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from app.logging_setup import get_import_logger
+from app.logging_setup import audit_footer, get_import_logger
 from cli.commands.common import (
-    audit_footer,
-    backup_folio,
     confirm_selection,
     export_to_parquet,
     resolve_selection,
 )
+from db import backup_folio
 from db.helpers import format_transaction_summary
 from db.queries import delete_rows, get_connection
 from domain import Column, Table

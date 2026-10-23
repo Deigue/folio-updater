@@ -124,15 +124,8 @@ def manage_symbols(
         )
         raise typer.Exit(1)
 
-    add_alias_arg_count = 3
     bootstrap.reload_config()
     if add:
-        if len(add) != add_alias_arg_count:
-            console_error(
-                "[italic]--add[/italic] requires three arguments: "
-                "<OLD_TICKER> <NEW_TICKER> <YYYY-MM-DD>",
-            )
-            raise typer.Exit(1)
         add_alias(old_ticker=add[0], new_ticker=add[1], effective_date=add[2])
     elif list_all:
         list_aliases()

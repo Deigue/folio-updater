@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
 
 
 class FieldType(Enum):
@@ -124,6 +128,26 @@ class OptionalFieldsConfig:
             Dictionary mapping resolved column names to OptionalField instances
         """
         return self._fields.copy()
+
+    def columns_of_type(
+        self,
+        field_type: FieldType,
+        live_columns: Collection[str],
+    ) -> list[str]:
+        """List the configured columns of one type that a table really has.
+
+        Args:
+            field_type: The type to keep.
+            live_columns: The columns the table currently holds.
+
+        Returns:
+            Their names, in the order they were configured.
+        """
+        return [
+            name
+            for name, field in self._fields.items()
+            if field.field_type == field_type and name in live_columns
+        ]
 
     def has_field(self, name: str) -> bool:  # pragma: no cover
         """Check if a field is configured as optional.

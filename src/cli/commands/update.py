@@ -17,7 +17,7 @@ from ws_api import WSApiException
 
 from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet, require_ledger
-from cli.commands.dash import show_dash
+from cli.commands.dash import show_types
 from cli.commands.download import (
     download_ibkr,
     download_wealthsimple,
@@ -34,6 +34,7 @@ from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
 from domain import TORONTO_TZ, Column, SettlementOutcome, Table
 from engine.checks import run_checks
+from engine.panels import FolioValuation
 from engine.update_review import (
     review_checks,
     review_import,
@@ -52,6 +53,7 @@ from term import console_info, console_rule
 from term.progress import ProgressDisplay
 from ui.views.checks import print_report
 from ui.views.update import show_update_report, show_workbook_link
+from ui.vocabulary import RULE_UPDATE, SPINNER_STATEMENT
 
 if TYPE_CHECKING:
     from datetime import date
@@ -59,8 +61,8 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from cli.commands.import_data import FileImport
     from config import Config
+    from models import FileImport
 
 # Broker keys as they appear in account names and download file names.
 IBKR = "ibkr"
@@ -71,7 +73,6 @@ _DOWNLOAD_ERRORS = (IBKRServiceError, WealthsimpleServiceError, WSApiException, 
 _STATEMENT_SUFFIXES = (".csv", ".xlsx")
 # Download files carry their range: ibkr_TradeConfirmation_20260807_20260902.csv
 _FILE_RANGE = re.compile(r"_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})")
-_UPDATE_RULE = "bright_blue"
 
 
 def run_update(*, resume: bool = False) -> None:
@@ -107,8 +108,7 @@ def run_update(*, resume: bool = False) -> None:
         _review_transfers(report)
         _check_stage(report)
         _generate_stage(report)
-        console_rule("Dashboard", style=_UPDATE_RULE)
-        show_dash(by_type=True)
+        _dashboard_stage()
         if report.workbook is not None:
             show_workbook_link(report.workbook)
 
@@ -127,7 +127,7 @@ def _download_stage(config: Config, report: UpdateReport) -> None:
         config: The application configuration.
         report: Where a failure is recorded.
     """
-    console_rule("Download", style=_UPDATE_RULE)
+    console_rule("Download", style=RULE_UPDATE)
     before = set(pending_import_files(config.imports_path))
     try:
         failed = _download_all(config)
@@ -253,7 +253,7 @@ def _import_stage(
         overlap_days: Each broker's overlap day: its latest stored trade date
             before the run.
     """
-    console_rule("Import", style=_UPDATE_RULE)
+    console_rule("Import", style=RULE_UPDATE)
     if pending_import_files(config.imports_path) and not confirm_demo_replacement():
         report.failure = HardFailure(
             stage=UpdateStage.IMPORT,
@@ -408,7 +408,7 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
         report: Where confirmations, concerns and notes are recorded.
         today: The date the run happens on.
     """
-    console_rule("Statements", style=_UPDATE_RULE)
+    console_rule("Statements", style=RULE_UPDATE)
     calculated = _calculated_ws()
     months = statement_months(calculated[Column.Txn.SETTLE_DATE], today)
     if not months:  # pragma: no cover
@@ -438,7 +438,7 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
             changed |= result.settlement_updates > 0 or result.transfers_created() > 0
 
     if changed:
-        with ProgressDisplay.spinner(color="dark_violet") as progress:
+        with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             ParquetExporter().export_all()
 
@@ -475,7 +475,7 @@ def _fetch_statement(month: str, report: UpdateReport) -> list[Path]:
                 stage=UpdateStage.STATEMENTS,
                 title=f"{month} statement download failed",
                 why=(
-                    f"{error or type(error).__name__}. Its settlement dates stay "
+                    f"{str(error) or type(error).__name__}. Its settlement dates stay "
                     "calculated until the statement is imported."
                 ),
                 commands=("folio update --resume",),
@@ -505,7 +505,7 @@ def _review_transfers(report: UpdateReport) -> None:
 
 def _check_stage(report: UpdateReport) -> None:
     """Run the health checks and raise every failure."""
-    console_rule("Check", style=_UPDATE_RULE)
+    console_rule("Check", style=RULE_UPDATE)
     results = run_checks(require_ledger(), get_config())
     print_report(results, only=None)
     concerns, warned = review_checks(results)
@@ -516,13 +516,21 @@ def _check_stage(report: UpdateReport) -> None:
 
 def _generate_stage(report: UpdateReport) -> None:
     """Write the workbook and raise any holding it could not price."""
-    console_rule("Generate", style=_UPDATE_RULE)
+    console_rule("Generate", style=RULE_UPDATE)
     written = write_folio()
     if written is None:  # pragma: no cover
         return
     report.workbook = written.path
     if (concern := review_unpriced(written.unpriced)) is not None:
         report.concerns.append(concern)
+
+
+def _dashboard_stage() -> None:
+    """Show every account type's dashboard, valued in the currency it trades in."""
+    console_rule("Dashboard", style=RULE_UPDATE)
+    ledger = require_ledger(priced=True)
+    if not ledger.frame.empty:
+        show_types(FolioValuation.build(ledger, currency="native"))
 
 
 # -- FOLIO STATE ----------------------------------------------------------------

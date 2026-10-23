@@ -8,11 +8,14 @@ log files.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from domain import SettlementOutcome
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass
@@ -213,3 +216,23 @@ class StatementImportResult:
         return [
             match for match in self.settlement_matches if match.outcome not in settled
         ]
+
+
+@dataclass(frozen=True)
+class FileImport:
+    """Single file import's details.
+
+    Attributes:
+        path: The file, where it was when the import ran.
+        results: The import's audit, or None when the import failed.
+        error: Why the import failed, or None when it succeeded.
+    """
+
+    path: Path
+    results: ImportResults | None = None
+    error: str | None = None
+
+    @property
+    def imported(self) -> int:
+        """Return how many transactions the file added."""
+        return self.results.imported_count() if self.results else 0

@@ -11,16 +11,16 @@ move over every range in a column, so each range can be read down.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 import typer
 
 from app import bootstrap
 from cli.commands.common import (
-    cache_badge,
-    freshness_note,
+    parse_currency_choice,
     require_ledger,
     resolve_pool,
+    write_or_exit,
 )
 from domain import Column, Currency, Grain
 from engine.panels import FolioValuation
@@ -33,11 +33,11 @@ from engine.ticker import (
     sort_performance,
     symbol_holdings,
 )
-from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from exporters.sheets import performance_table, ticker_table
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
+from ui.format import cache_badge, freshness_note
 from ui.views.ticker import show_matrix, show_ticker
 
 if TYPE_CHECKING:
@@ -49,7 +49,6 @@ if TYPE_CHECKING:
     from exporters.table import Table
 
 CurrencyChoice = Literal["native", "CAD", "USD", "both"]
-_CHOICES: tuple[CurrencyChoice, ...] = ("native", "CAD", "USD", "both")
 
 
 def report_ticker(
@@ -140,7 +139,10 @@ def _report_one(
     Raises:
         typer.Exit: On an unusable request, or a symbol nobody knows.
     """
-    choice = _currency_choice(currency)
+    choice: CurrencyChoice = parse_currency_choice(
+        currency,
+        get_args(CurrencyChoice),
+    )
 
     resolver = load_symbol_resolver()
     canonical = resolver.canonical(symbol)
@@ -252,8 +254,7 @@ def _report_matrix(
     if symbols:
         wanted = list(dict.fromkeys(resolver.canonical(name) for name in symbols))
     else:
-        held = panel.holdings.holdings if panel is not None else []
-        wanted = [holding.symbol for holding in held]
+        wanted = panel.open_symbols if panel is not None else []
     if not wanted:
         console_warning(f"No open holdings in {view.label} to compare.")
         return
@@ -300,7 +301,7 @@ def _report_matrix(
         title=view.label,
         pool_weight=pool_weight,
         badge=cache_badge(
-            {name: quotes[name] for name in wanted},
+            priced,
             computed_at=ledger.computed_at,
             offline=offline,
             with_acb=panel is not None,
@@ -314,26 +315,8 @@ def _export(table: Table, path: str) -> None:
     Raises:
         typer.Exit: If the path names a format that cannot hold the sheet.
     """
-    try:
-        written = write_export(Path(path), [table])
-    except (UnsupportedExportError, SingleSheetError) as error:
-        console_error(str(error))
-        raise typer.Exit(1) from error
+    written = write_or_exit(Path(path), [table])
     console_info(f"Exported {table.name} to {written}")
-
-
-def _currency_choice(requested: str | None) -> CurrencyChoice:
-    """Read the `--currency` argument.
-
-    Raises:
-        typer.Exit: If it is not a choice this command offers.
-    """
-    wanted = (requested or "native").strip().lower()
-    for choice in _CHOICES:
-        if choice.lower() == wanted:
-            return choice
-    console_error(f"Unknown currency '{requested}'. Use native, CAD, USD or both.")
-    raise typer.Exit(1)
 
 
 def _positions(

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 
+import typer
+
 from app import bootstrap
-from cli.selection import select_transactions
-from term import announce
+from cli.selection import SelectionError, select_transactions
+from term import announce, console_error
 from ui.views.transactions import page_transactions
 
 logger = logging.getLogger(__name__)
@@ -17,10 +19,17 @@ def query_transactions(terms: list[str]) -> None:
 
     Args:
         terms: TxnIds, or query terms using the `folio query` syntax.
+
+    Raises:
+        typer.Exit: If the query could not run.
     """
     bootstrap.reload_config()
     announce.info(f"Resolving selection terms: {terms}")
-    selection = select_transactions(terms)
+    try:
+        selection = select_transactions(terms)
+    except SelectionError as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
     announce.info(f"{selection.describe()}")
 
     if selection.missing_ids:

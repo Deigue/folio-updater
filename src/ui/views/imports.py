@@ -17,14 +17,24 @@ from domain import (
     SettlementOutcome,
     TransactionContext,
 )
-from term.console import active_console, console_panel, console_print, get_symbol
+from term.console import (
+    active_console,
+    console_panel,
+    console_print,
+    console_rule,
+    get_symbol,
+)
 from term.keys import getch
 from term.size import available_height
 from ui.format import safe_str
 from ui.layout.tiles import Block, TilingLayout
 from ui.views.transactions import TransactionDisplay, page_transactions
 from ui.vocabulary import (
+    RULE_STATEMENT,
     SNUG_PADDING,
+    STATUS_FAILED,
+    STATUS_NO_DATA,
+    STATUS_SUCCESS,
     THEME_DUPES,
     THEME_MERGED,
     THEME_REMOVED,
@@ -32,11 +42,20 @@ from ui.vocabulary import (
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
 )
+from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import pandas as pd
 
-    from models import CancelEvent, ImportResults, SettlementMatch
+    from models import (
+        CancelEvent,
+        FileImport,
+        ImportResults,
+        SettlementMatch,
+        StatementImportResult,
+    )
 
 # Minimum columns always shown for invalid rows
 INVALID_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
@@ -79,6 +98,71 @@ class ImportDisplay:
             f"[bright_white]{imported_count}[/bright_white] transactions imported "
             f"([dim]{total_count} total in database[/dim])",
         )
+
+    def show_files_summary(self, outcomes: Sequence[FileImport]) -> None:
+        """Tabulate what every file of a directory import did.
+
+        Args:
+            outcomes: One entry per file, in the order imported.
+        """
+        console_rule("Import Summary", style=THEME_SUCCESS)
+        show_data_table(
+            [
+                {
+                    "File": outcome.path.name,
+                    "Transactions": outcome.imported,
+                    "Status": self._file_status(outcome),
+                }
+                for outcome in outcomes
+            ],
+            title="Import Summary",
+            max_rows=20,
+            theme=THEME_SUCCESS,
+        )
+
+    @staticmethod
+    def _file_status(outcome: FileImport) -> str:
+        """Label one file's row in the import summary."""
+        if outcome.error is not None:
+            return f"[{STATUS_FAILED}]Failed[/{STATUS_FAILED}]"
+        if outcome.imported > 0:
+            return f"[{STATUS_SUCCESS}]Success[/{STATUS_SUCCESS}]"
+        return f"[{STATUS_NO_DATA}]No data[/{STATUS_NO_DATA}]"
+
+    def show_statements_summary(
+        self,
+        statements: Sequence[tuple[str, StatementImportResult]],
+    ) -> None:
+        """Tabulate what every statement of a directory import changed.
+
+        Args:
+            statements: Each statement's file name and what importing it did.
+        """
+        console_rule(style=RULE_STATEMENT)
+        show_data_table(
+            [
+                {
+                    "File": name,
+                    "Settle Updates": result.settlement_updates,
+                    "Unplaced": len(result.settlement_unplaced()),
+                    "Transfers": result.transfers_created(),
+                    "Rejected": result.transfers_rejected,
+                    "Status": self._statement_status(result),
+                }
+                for name, result in statements
+            ],
+            title="Statement Import Summary",
+            max_rows=20,
+        )
+
+    @staticmethod
+    def _statement_status(result: StatementImportResult) -> str:
+        """Label one statement's row in the summary table, symbol included."""
+        if result.settlement_updates > 0 or result.transfers_created() > 0:
+            return f"{get_symbol('success')}Success"
+        if result.settlement_already_settled() and not result.settlement_unplaced():
+            return f"{get_symbol('info')}Up to date"
+        return f"{get_symbol('warning')}No updates"
 
     def show_settlement_detail(
         self,

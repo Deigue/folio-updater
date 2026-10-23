@@ -11,6 +11,7 @@ import pytest
 
 from cli.main import app as cli_app
 from cli.query_parser import parse_query_terms
+from cli.selection import load_vocabulary
 from datagen import ensure_data_exists
 from db import add_column_to_table, get_connection, get_row_count
 from domain import Column, Table
@@ -52,7 +53,7 @@ class TestQueryParserAgainstLiveSchema:
             ensure_data_exists()
             with get_connection() as conn:
                 add_column_to_table(conn, Table.TXNS, "Description", "TEXT")
-            query = parse_query_terms(["Description~RECEIPTS"])
+            query = parse_query_terms(["Description~RECEIPTS"], load_vocabulary())
             assert len(query.filters) == 1
             assert query.filters[0].column == "Description"
             assert query.filters[0].operator == "~"

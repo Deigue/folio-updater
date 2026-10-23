@@ -17,22 +17,18 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import (
-    cache_badge,
-    freshness_note,
+    parse_currency_choice,
     require_ledger,
     resolve_pool,
+    write_or_exit,
 )
 from domain import Currency
 from engine.holdings import SORT_NAMES, UnknownSortError
 from engine.panels import FolioValuation, type_view
-from exporters.output import (
-    CSV_SUFFIX,
-    SingleSheetError,
-    UnsupportedExportError,
-    write_export,
-)
+from exporters.output import CSV_SUFFIX
 from exporters.sheets import panel_table, pooled_dashboard_table
 from term import console_error, console_info, console_warning
+from ui.format import cache_badge, freshness_note
 from ui.views.dash import show_by_type, show_dashboard
 
 if TYPE_CHECKING:
@@ -40,6 +36,8 @@ if TYPE_CHECKING:
 
     from engine.holdings import DisplayCurrency
     from engine.panels import Panel
+
+_CURRENCIES = ("native", "CAD", "USD")
 
 
 def _resolve_currency(requested: str | None) -> DisplayCurrency:
@@ -53,16 +51,8 @@ def _resolve_currency(requested: str | None) -> DisplayCurrency:
     Raises:
         typer.Exit: If the argument is not a currency the app can value in.
     """
-    choice = (requested or "native").strip().upper()
-    if choice == "NATIVE":
-        return "native"
-    try:
-        return Currency(choice)
-    except ValueError:
-        console_error(
-            f"Unknown currency '{requested}'. Use CAD, USD or native.",
-        )
-        raise typer.Exit(1) from None
+    choice = parse_currency_choice(requested, _CURRENCIES)
+    return "native" if choice == "native" else Currency(choice)
 
 
 def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
@@ -86,13 +76,67 @@ def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
     else:
         tables = [panel_table(panel, notes=[badge]) for panel in panels]
 
-    try:
-        written = write_export(target, tables)
-    except (UnsupportedExportError, SingleSheetError) as error:
-        console_error(str(error))
-        raise typer.Exit(1) from error
+    written = write_or_exit(target, tables)
     count = sum(len(table.data_rows) for table in tables)
     console_info(f"Exported {count} holding(s) to {written}")
+
+
+def _badge(valuation: FolioValuation, *, offline: bool) -> str:
+    """Disclose how old both caches behind the dashboard are."""
+    return cache_badge(
+        valuation.quotes,
+        computed_at=valuation.ledger.computed_at,
+        offline=offline,
+    )
+
+
+def _note(valuation: FolioValuation) -> str:
+    """Say, as plain text for a sheet's notes, how old both caches are."""
+    return freshness_note(valuation.ledger.computed_at, valuation.quotes)
+
+
+def show_types(
+    valuation: FolioValuation,
+    *,
+    sort: str | None = None,
+    reverse: bool = False,
+    wide: bool = False,
+    show_closed: bool = False,
+    export: str | None = None,
+    offline: bool = False,
+) -> None:
+    """Tile one panel per account type, or export them.
+
+    Args:
+        valuation: The folio priced once, which every panel reads its rollups from.
+        sort: Order by this column instead of by market value.
+        reverse: Flip the sort's natural direction.
+        wide: Show the wide-only columns.
+        show_closed: Break the aggregate "Closed" row open into one row per
+            closed holding.
+        export: Write the valued holdings to this path instead of printing.
+        offline: Whether the network was kept out of it, which is said.
+
+    Raises:
+        typer.Exit: If the export path names a format that cannot be written.
+    """
+    panels = valuation.panels(
+        [type_view(name) for name in valuation.account_types()],
+        sort=sort,
+        reverse=reverse,
+    )
+    if not panels:
+        console_warning("No open holdings in any account type.")
+        return
+    if export:
+        _export(panels, export, _note(valuation))
+        return
+    show_by_type(
+        [(panel.holdings, panel.flows, panel.view.label) for panel in panels],
+        wide=wide,
+        show_closed=show_closed,
+        badge=_badge(valuation, offline=offline),
+    )
 
 
 def show_dash(
@@ -153,30 +197,15 @@ def show_dash(
         refresh=refresh,
         offline=offline,
     )
-    badge = cache_badge(
-        valuation.quotes,
-        computed_at=ledger.computed_at,
-        offline=offline,
-    )
-    note = freshness_note(ledger.computed_at, valuation.quotes)
-
     if by_type:
-        panels = valuation.panels(
-            [type_view(name) for name in valuation.account_types()],
+        show_types(
+            valuation,
             sort=sort,
             reverse=reverse,
-        )
-        if not panels:
-            console_warning("No open holdings in any account type.")
-            return
-        if export:
-            _export(panels, export, note)
-            return
-        show_by_type(
-            [(panel.holdings, panel.flows, panel.view.label) for panel in panels],
             wide=wide,
             show_closed=show_closed,
-            badge=badge,
+            export=export,
+            offline=offline,
         )
         return
 
@@ -187,7 +216,7 @@ def show_dash(
     )
 
     if export:
-        _export([panel], export, note)
+        _export([panel], export, _note(valuation))
         return
 
     show_dashboard(
@@ -196,5 +225,5 @@ def show_dash(
         panel.view.label,
         wide=wide,
         show_closed=show_closed,
-        badge=badge,
+        badge=_badge(valuation, offline=offline),
     )

@@ -7,39 +7,25 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app.logging_setup import audit_footer
-from cli.selection import Selection, select_transactions
-from db import backup_folio, txn_count
+from cli.selection import Selection, SelectionError, select_transactions
+from db import txn_count
 from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
+from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from term import console_error, console_success, console_warning
 from term.progress import ProgressDisplay
-from ui.format import format_freshness, freshness_line
+from ui.vocabulary import SPINNER_PARQUET
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-    from datetime import datetime
+    from collections.abc import Sequence
+    from pathlib import Path
 
     from engine.ledger import Ledger
-    from services.quotes_service import Quote
+    from exporters.table import Table
 
 logger = logging.getLogger(__name__)
-
-# Re-exported for existing CLI callers
-__all__ = [
-    "PoolView",
-    "audit_footer",
-    "backup_folio",
-    "cache_badge",
-    "freshness_note",
-    "parse_account_type",
-    "quote_age",
-    "require_ledger",
-    "resolve_pool",
-    "txn_count",
-]
 
 BULK_WARNING_ROWS = 25
 BULK_WARNING_SHARE = 0.5
@@ -78,80 +64,6 @@ def require_ledger(
     except LedgerUnavailableError as error:
         console_error(f"{error} {FIX_UNCONVERTIBLE}")
         raise typer.Exit(1) from error
-
-
-def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
-    """Age the quote cache as a whole: its oldest row wins.
-
-    Args:
-        quotes: The quotes a report was priced with.
-
-    Returns:
-        When the oldest quote was fetched (None if every one is from this
-        invocation), and whether any of them is past its TTL.
-    """
-    fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
-    stale = any(quote.is_stale for quote in quotes.values())
-    if not fetched:
-        return None, stale
-    return min(fetched), stale
-
-
-# Labels for the two caches a priced report ages.
-_ACB_LABEL = "acb"
-_QUOTES_LABEL = "quotes"
-
-
-def cache_badge(
-    quotes: Mapping[str, Quote],
-    *,
-    computed_at: datetime | None = None,
-    offline: bool = False,
-    with_acb: bool = True,
-) -> str:
-    """Compose the freshness line for a priced report.
-
-    Args:
-        quotes: The quotes the report was priced with.
-        computed_at: When the cost base was computed, or None if just now.
-        offline: Whether the network was kept out of it, which is said.
-        with_acb: Age the cost base too. A report that read no folio leaves it
-            out rather than claim a cost base it never used.
-
-    Returns:
-        A Rich-markup line for cache-freshness status.
-    """
-    quote_at, stale = quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    parts = [(_QUOTES_LABEL, quote_at)]
-    if with_acb:
-        parts.insert(0, (_ACB_LABEL, computed_at))
-    line = freshness_line(
-        parts,
-        warn={_QUOTES_LABEL} if stale and not empty else set(),
-        missing={_QUOTES_LABEL} if empty else set(),
-    )
-    return f"{line} [dim](offline)[/dim]" if offline else line
-
-
-def freshness_note(
-    computed_at: datetime | None,
-    quotes: Mapping[str, Quote],
-) -> str:
-    """Say how old both caches are (cost base cache + quotes cache date).
-
-    Args:
-        computed_at: When the cost base was computed, or None if just now.
-        quotes: The quotes the sheet was priced with.
-
-    Returns:
-        One sentence, such as `Cost base computed just now; quotes cached 15m
-        ago.`
-    """
-    quote_at, _ = quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    aged = "nothing cached" if empty else format_freshness(quote_at)
-    return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
 
 
 def parse_account_type(value: str) -> AccountType | None:
@@ -195,9 +107,7 @@ def resolve_pool(
             account type is not one the engine knows.
     """
     if account and account_type:
-        console_error(
-            "Use --account or --type, not both: a dashboard shows one pool.",
-        )
+        console_error("Use --account or --type, not both.")
         raise typer.Exit(1)
 
     if account:
@@ -216,10 +126,55 @@ def resolve_pool(
     return PoolView(Grain.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
 
 
+def write_or_exit(path: Path, tables: Sequence[Table]) -> Path:
+    """Write tables to the format the path asks for, or say why not and stop.
+
+    Args:
+        path: Where to write. A path with no suffix becomes a workbook.
+        tables: The tables, in the order their sheets should appear.
+
+    Returns:
+        The path actually written.
+
+    Raises:
+        typer.Exit: If the path names a format that cannot hold the tables.
+    """
+    try:
+        return write_export(path, tables)
+    except (UnsupportedExportError, SingleSheetError) as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
+
+
+def parse_currency_choice[Choice: str](
+    requested: str | None,
+    choices: tuple[Choice, ...],
+) -> Choice:
+    """Read a `--currency` argument against the choices a command offers.
+
+    Args:
+        requested: The argument, in any case, or None when it was not given.
+        choices: What the command accepts. The first is the default.
+
+    Returns:
+        The matching choice, spelt as listed.
+
+    Raises:
+        typer.Exit: If the argument is not one of the choices.
+    """
+    wanted = (requested or choices[0]).strip().lower()
+    for choice in choices:
+        if choice.lower() == wanted:
+            return choice
+    listed = f"{', '.join(choices[:-1])} or {choices[-1]}"
+    console_error(f"Unknown currency '{requested}'. Use {listed}.")
+    raise typer.Exit(1)
+
+
 def export_to_parquet() -> None:
     """Export transactions to Parquet so generated folios stay in sync."""
     try:
-        with ProgressDisplay.spinner("green") as progress:
+        with ProgressDisplay.spinner(SPINNER_PARQUET) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             exporter = ParquetExporter()
             exported = exporter.export_transactions()
@@ -236,13 +191,18 @@ def resolve_selection(terms: Sequence[str], *, verb: str) -> Selection:
         verb: Selection action e.g. "delete" or "edit".
 
     Raises:
-        typer.Exit: If a requested TxnId does not exist, nothing matched, or
-            the selection has no bounds and would sweep the whole folio.
+        typer.Exit: If the query could not run, a requested TxnId does not
+            exist, nothing matched, or the selection has no bounds and would
+            sweep the whole folio.
 
     Returns:
         The resolved Selection, guaranteed non-empty.
     """
-    selection = select_transactions(terms)
+    try:
+        selection = select_transactions(terms)
+    except SelectionError as error:
+        console_error(str(error))
+        raise typer.Exit(1) from error
 
     if selection.missing_ids:
         missing = ", ".join(str(txn_id) for txn_id in selection.missing_ids)
@@ -257,7 +217,7 @@ def resolve_selection(terms: Sequence[str], *, verb: str) -> Selection:
         raise typer.Exit(1)
 
     if selection.transactions.empty:
-        console_error(f"No transactions matched: {selection.query!r}")
+        console_error(f"No transactions matched: {selection.describe()}")
         raise typer.Exit(1)
 
     return selection

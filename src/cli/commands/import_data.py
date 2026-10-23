@@ -1,12 +1,11 @@
 """Import command for the folio CLI.
 
-Handles importing transactions from files with processed/review folder management.
+Imports transactions from files, moving each one to the processed folder.
 """
 
 from __future__ import annotations
 
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -15,7 +14,7 @@ from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet
 from datagen import DemoFolio, is_demo_folio
 from importers import import_transactions
-from models import ImportResults
+from models import FileImport, ImportResults
 from term import (
     console_error,
     console_info,
@@ -25,61 +24,28 @@ from term import (
 )
 from term.progress import ProgressDisplay
 from ui.views.imports import ImportDisplay
-from ui.vocabulary import THEME_SUCCESS
-from ui.widgets import show_data_table
-
-app = typer.Typer()
+from ui.vocabulary import SPINNER_IMPORT
 
 SUPPORTED_EXTENSIONS = frozenset({".xlsx", ".xls", ".csv"})
 
 
-@dataclass(frozen=True)
-class FileImport:
-    """Single file import's details.
-
-    Attributes:
-        path: The file, where it was when the import ran.
-        results: The import's audit, or None when the import failed.
-        error: Why the import failed, or None when it succeeded.
-    """
-
-    path: Path
-    results: ImportResults | None = None
-    error: str | None = None
-
-    @property
-    def imported(self) -> int:
-        """Return how many transactions the file added."""
-        return self.results.imported_count() if self.results else 0
-
-
-@app.command(name="")
 def import_transaction_files(
-    file: str | None = typer.Option(
-        None,
-        "-f",
-        "--file",
-        help="Specific file to import",
-    ),
-    directory: str | None = typer.Option(
-        None,
-        "-d",
-        "--dir",
-        help="Directory with files to import",
-    ),
+    file: str | None = None,
+    directory: str | None = None,
     *,
-    verbose: bool = typer.Option(
-        False,
-        "-v",
-        "--verbose",
-        help="Display the final imported transactions",
-    ),
+    verbose: bool = False,
 ) -> None:
     """Import transactions into the folio.
 
     Default behavior: Import all files from the default import directory.
-    --file: Import specific file.
-    --dir: Import all files from specified directory.
+
+    Args:
+        file: Import this specific file.
+        directory: Import all files from this directory.
+        verbose: Display the final imported transactions.
+
+    Raises:
+        typer.Exit: On an unusable request.
     """
     config = bootstrap.reload_config()
 
@@ -145,7 +111,7 @@ def import_file(
     """
     display = ImportDisplay()
 
-    with ProgressDisplay.spinner("green") as progress:
+    with ProgressDisplay.spinner(SPINNER_IMPORT) as progress:
         progress.add_task(f"Importing {file_path.name}...", total=None)
 
         try:
@@ -268,30 +234,8 @@ def import_directory(
             import_file(file_path, verbose=verbose, interactive=interactive),
         )
 
-    console_rule("Import Summary", style=THEME_SUCCESS)
-    show_data_table(
-        [
-            {
-                "File": outcome.path.name,
-                "Transactions": outcome.imported,
-                "Status": _import_status(outcome),
-            }
-            for outcome in outcomes
-        ],
-        title="Import Summary",
-        max_rows=20,
-        theme=THEME_SUCCESS,
-    )
+    ImportDisplay().show_files_summary(outcomes)
     return outcomes
-
-
-def _import_status(outcome: FileImport) -> str:
-    """Label one file's row in the import summary."""
-    if outcome.error is not None:  # pragma: no cover
-        return "[red]Failed[/red]"
-    if outcome.imported > 0:
-        return "[green]Success[/green]"
-    return "[yellow]No data[/yellow]"  # pragma: no cover
 
 
 def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> None:
@@ -309,7 +253,3 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
         export_to_parquet()
     else:
         console_warning("No transactions imported")
-
-
-if __name__ == "__main__":
-    app()

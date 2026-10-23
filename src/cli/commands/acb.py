@@ -13,9 +13,9 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import require_ledger, resolve_pool
-from domain import Column, Grain
-from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from cli.commands.common import require_ledger, resolve_pool, write_or_exit
+from domain import Column, Grain, Impact
+from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import (
     acb_buildup_table,
     acb_summary_table,
@@ -30,13 +30,6 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from exporters.table import Table
-
-# Income rows are hidden unless `--all` asks for them: a dividend never touches
-# the cost base, so it is noise in a buildup.
-INCOME_IMPACT = "INCOME"
-
-# The one format that stays a raw dump: it is read by programs, not people.
-PARQUET_SUFFIX = ".parquet"
 
 
 def resolve_view(
@@ -85,7 +78,8 @@ def _filter_rows(
     if symbol is not None:
         rows = rows[rows[Column.Ledger.SYMBOL] == symbol]
     if not show_all:
-        rows = rows[rows[Column.Ledger.IMPACT] != INCOME_IMPACT]
+        # A dividend never touches the cost base, so it is noise in a buildup.
+        rows = rows[rows[Column.Ledger.IMPACT] != Impact.INCOME]
     if date_from:
         rows = rows[rows[str(Column.Txn.TXN_DATE)] >= date_from]
     if date_to:
@@ -160,7 +154,7 @@ def _export(
     """
     target = Path(path)
     if target.suffix.lower() == PARQUET_SUFFIX:
-        rows.to_parquet(target, engine="fastparquet", index=False)
+        write_frame_parquet(target, rows)
         console_info(f"Exported {len(rows)} row(s) to {target}")
         return
 
@@ -172,11 +166,7 @@ def _export(
         badge=badge,
         summary=summary,
     )
-    try:
-        written = write_export(target, [table])
-    except (UnsupportedExportError, SingleSheetError) as error:
-        console_error(str(error))
-        raise typer.Exit(1) from error
+    written = write_or_exit(target, [table])
     console_info(f"Exported {len(table.rows)} row(s) to {written}")
 
 

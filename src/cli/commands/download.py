@@ -16,71 +16,53 @@ from app import bootstrap, get_config
 from app.logging_setup import get_import_logger
 from db import get_broker_latest_txn_date, get_connection
 from domain import TORONTO_TZ
-from models.wealthsimple import ActivityFeedItem
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from services.price_history import months_back
 from term import (
     announce,
     console_error,
     console_info,
-    console_print,
-    console_rule,
     console_success,
     console_warning,
 )
 from term.progress import ProgressDisplay
-from ui.vocabulary import DOWNLOAD_DROP_ORDER
-from ui.widgets import show_data_table
+from ui.views.downloads import show_activities_preview
+from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
 
 if TYPE_CHECKING:
+    from datetime import date
     from pathlib import Path
 
     from config import Config
-    from models.wealthsimple.activity_feed_item import ActivityFeedItem
 
-app = typer.Typer()
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 
 
-@app.command(name="")
 def download_statements(
-    broker: str = typer.Option(
-        "ibkr",
-        "-b",
-        "--broker",
-        help="Broker to download from (default: 'ibkr')",
-    ),
-    from_date: str | None = typer.Option(
-        None,
-        "-f",
-        "--from",
-        help="Date in YYYY-MM-DD format (default: latest transaction from broker)",
-    ),
-    to_date: str | None = typer.Option(
-        None,
-        "-t",
-        "--to",
-        help="Date in YYYY-MM-DD format (default: today)",
-    ),
+    broker: str = "ibkr",
+    from_date: str | None = None,
+    to_date: str | None = None,
     *,
-    credentials: bool = typer.Option(
-        default=False,
-        help="Reset credentials for the broker",
-    ),
-    statement: bool = typer.Option(
-        default=False,
-        help="Download monthly statement using from date (Wealthsimple only)",
-    ),
-    reference_code: str | None = typer.Option(
-        None,
-        "-r",
-        "--reference",
-        help="Reference code to retry download for IBKR",
-    ),
+    credentials: bool = False,
+    statement: bool = False,
+    reference_code: str | None = None,
 ) -> None:
-    """Download transactions from broker and save as CSV file."""
+    """Download transactions from broker and save as CSV file.
+
+    Args:
+        broker: Broker to download from.
+        from_date: From date in YYYY-MM-DD format, or None for the latest stored.
+        to_date: To date in YYYY-MM-DD format, or None for today.
+        credentials: Reset the broker's stored credentials instead.
+        statement: Download the monthly statement of `from_date` (Wealthsimple).
+        reference_code: Retry one earlier IBKR request by its reference code.
+
+    Raises:
+        typer.Exit: On an unusable request.
+    """
     config = bootstrap.reload_config()
     if broker not in SUPPORTED_BROKERS:
         console_error(
@@ -130,7 +112,7 @@ def download_ibkr(
     with IBKRService() as ibkr:
         _ensure_ibkr_token(ibkr)
 
-        with ProgressDisplay.spinner("red") as progress:
+        with ProgressDisplay.spinner(SPINNER_IBKR) as progress:
             task = progress.add_task("Downloading...", total=None)
 
             if reference_code:
@@ -244,7 +226,7 @@ def download_wealthsimple(
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
     ws.ensure_authenticated()
 
-    with ProgressDisplay.spinner("dark_goldenrod") as progress:
+    with ProgressDisplay.spinner(SPINNER_WEALTHSIMPLE) as progress:
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
             tzinfo=TORONTO_TZ,
         )
@@ -256,7 +238,7 @@ def download_wealthsimple(
         account_ids = [a.id for a in accounts]
 
         progress.update(task, description="Downloading transactions...")
-        activities: list[ActivityFeedItem] = ws.get_activities(
+        activities = ws.get_activities(
             account_ids,
             from_dt,
             to_dt,
@@ -266,46 +248,12 @@ def download_wealthsimple(
     console_info(f"Retrieved {len(activities)} transactions")
 
     if len(activities) > 0:
-        # Display sample of retrieved activities
-        description_max_length = 30
-        sample_data = [
-            {
-                "Date": act.occurred_at.strftime("%Y-%m-%d"),
-                "Action": act.type,
-                "Ticker": act.asset_symbol or "",
-                "Amount": float(act.amount) if act.amount else 0,
-                "Currency": act.currency,
-                "Account": next(
-                    (
-                        a.nickname or a.account_type or a.id
-                        for a in accounts
-                        if a.id == act.account_id
-                    ),
-                    act.account_id[:8] + "..." if act.account_id else "",
-                ),
-                "Description": (
-                    (act.description[:description_max_length] + "...")
-                    if (
-                        act.description is not None
-                        and len(act.description) > description_max_length
-                    )
-                    else (act.description if act.description is not None else "")
-                ),
-            }
-            for act in activities[:10]
-        ]
-
-        show_data_table(
-            sample_data,
-            title=f"Downloaded Transactions Preview ({len(activities)} total)",
-            max_rows=10,
-            drop_order=DOWNLOAD_DROP_ORDER,
-        )
+        show_activities_preview(activities, accounts)
 
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
         ws.export_activities_to_csv(activities, csv_name)
 
-        console_success(f'File saved: "{get_config().imports_path}\\{csv_name}"')
+        console_success(f'File saved: "{get_config().imports_path / csv_name}"')
         console_info("To import these files, run:")
         console_info("  folio import")
     else:
@@ -316,7 +264,7 @@ def download_ws_statement(from_date: str) -> list[Path]:
     """Retrieve wealthsimple monthly statement.
 
     Args:
-        from_date (str | None): From date string in YYYY-MM-DD format.
+        from_date: From date string in YYYY-MM-DD format.
             Example: '2024-05-01' for May 2024 statement.
 
     Returns:
@@ -326,7 +274,7 @@ def download_ws_statement(from_date: str) -> list[Path]:
     ws = WealthsimpleService()
     ws.ensure_authenticated()
 
-    with ProgressDisplay.spinner("dark_goldenrod") as progress:
+    with ProgressDisplay.spinner(SPINNER_WEALTHSIMPLE) as progress:
         task = progress.add_task("Retrieving accounts...", total=None)
         accounts = ws.get_accounts()
 
@@ -410,9 +358,9 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
         console_warning(f"Warning: Could not determine latest trade date: {e}")
 
     current_date = datetime.now(tz=TORONTO_TZ)
-    fallback_date = current_date.replace(day=1)
+    fallback_date: date = current_date.replace(day=1)
     if fallback_date == current_date:  # pragma: no cover
-        fallback_date = _get_previous_month(fallback_date)
+        fallback_date = months_back(fallback_date, 1)
     resolved_date = fallback_date.strftime("%Y%m%d")
     formatted_date = fallback_date.strftime("%Y-%m-%d")
     console_info(f"from_date: Using fallback date: {formatted_date}")
@@ -471,36 +419,3 @@ def _format_date_for_api(date_str: str) -> str:
     except ValueError as e:
         console_error(f"Error: Invalid date format. Use YYYY-MM-DD: {e}")
         raise typer.Exit(1) from e
-
-
-def _get_previous_month(dt: datetime) -> datetime:  # pragma: no cover
-    """Return a datetime object set to the first day of the previous month."""
-    year = dt.year
-    month = dt.month
-    if month == 1:
-        year -= 1
-        month = 12
-    else:
-        month -= 1
-    return dt.replace(year=year, month=month, day=1)
-
-
-def _print_activity_feed_item(activity: ActivityFeedItem) -> None:  # pragma: no cover
-    """Print a formatted activity feed item.
-
-    Args:
-        activity: The activity feed item to print.
-    """
-    console_print(f"Date: {activity.occurred_at.isoformat()}")
-    console_print(f"Account ID: {activity.account_id}")
-    console_print(f"Type: {activity.type} ({activity.sub_type})")
-    console_print(f"Asset: {activity.asset_symbol}")
-    console_print(f"Units: {activity.asset_quantity}")
-    console_print(f"Amount: {activity.amount} {activity.currency}")
-    console_print(f"Status: {activity.status}")
-    console_print(f"Description: {activity.description}")
-    console_rule()
-
-
-if __name__ == "__main__":
-    app()

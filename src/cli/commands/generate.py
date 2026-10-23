@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import FIX_UNCONVERTIBLE, freshness_note
+from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
 from db.backup import rolling_backup
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, FolioValuation
@@ -29,10 +29,11 @@ from exporters.folio_workbook import (
     folio_tables,
     parse_sections,
 )
-from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_success, console_warning
 from term.progress import ProgressDisplay
+from ui.format import freshness_note
+from ui.vocabulary import SPINNER_GENERATE
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -140,15 +141,11 @@ def _write(target: Path | None, tables: Sequence[Table]) -> Path:
     """
     config = get_config()
     path = target or config.folio_path
-    with ProgressDisplay.spinner("yellow") as progress:
+    with ProgressDisplay.spinner(SPINNER_GENERATE) as progress:
         progress.add_task("Writing the workbook...", total=None)
         if path == config.folio_path and path.exists():
             rolling_backup(path)
-        try:
-            written = write_export(path, tables)
-        except (UnsupportedExportError, SingleSheetError) as error:
-            console_error(str(error))
-            raise typer.Exit(1) from error
+        written = write_or_exit(path, tables)
 
     console_success(f"Wrote {len(tables)} sheets to {written}")
     console_info(", ".join(table.name for table in tables))

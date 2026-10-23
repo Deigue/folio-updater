@@ -18,16 +18,15 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from app.logging_setup import get_import_logger
+from app.logging_setup import audit_footer, get_import_logger
 from cli.commands.common import (
-    audit_footer,
-    backup_folio,
     confirm_selection,
     export_to_parquet,
     resolve_selection,
 )
 from cli.query_parser import get_valid_column_names
 from config.optional_fields import FieldType
+from db import backup_folio
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_columns, get_connection, get_rows, update_rows
 from domain import Column, Table
@@ -70,26 +69,38 @@ SETTLEMENT_INPUTS = (
 
 
 @dataclass(frozen=True)
-class SetOperation:
-    """A single `--set` instruction, resolved against the Txns table.
+class Assign:
+    """A `--set Field=VALUE` instruction: every row gets the literal.
 
     Attributes:
-        column: The real column name, e.g. "$" for a `--set Currency=CAD`.
+        column: The real column name, e.g. "Currency" for `--set currency=CAD`.
         raw: The original CLI text, used in error messages.
-        operator: Arithmetic operator, or None for a literal assignment.
-        literal: The literal value, or None for an arithmetic operation.
-        operand: The arithmetic operand, or None for a literal assignment.
+        literal: The value to store.
     """
 
     column: str
     raw: str
-    operator: str | None = None
-    literal: str | None = None
-    operand: Decimal | None = None
+    literal: str
 
-    def describe(self) -> str:
-        """Describe the operation the way the user wrote it."""
-        return self.raw
+
+@dataclass(frozen=True)
+class Arithmetic:
+    """A `--set Field*=N` instruction: each row's value is worked out from its own.
+
+    Attributes:
+        column: The real column name.
+        raw: The original CLI text, used in error messages.
+        operator: One of `ARITHMETIC_OPERATORS`.
+        operand: The number applied to each row's current value.
+    """
+
+    column: str
+    raw: str
+    operator: str
+    operand: Decimal
+
+
+SetOperation = Assign | Arithmetic
 
 
 def _live_columns() -> list[str]:
@@ -100,26 +111,20 @@ def _live_columns() -> list[str]:
 
 def _numeric_columns(live_columns: list[str]) -> set[str]:
     """Columns that hold numbers, including configured optional fields."""
-    numeric: set[str] = set(NUMERIC_COLUMNS)
     optional_fields = get_config().optional_fields
-    numeric.update(
-        name
-        for name, field in optional_fields.get_all_fields().items()
-        if field.field_type == FieldType.NUMERIC and name in live_columns
-    )
-    return numeric
+    return {
+        *NUMERIC_COLUMNS,
+        *optional_fields.columns_of_type(FieldType.NUMERIC, live_columns),
+    }
 
 
 def _date_columns(live_columns: list[str]) -> set[str]:
     """Columns that hold dates, including configured optional fields."""
-    dates: set[str] = set(DATE_COLUMNS)
     optional_fields = get_config().optional_fields
-    dates.update(
-        name
-        for name, field in optional_fields.get_all_fields().items()
-        if field.field_type == FieldType.DATE and name in live_columns
-    )
-    return dates
+    return {
+        *DATE_COLUMNS,
+        *optional_fields.columns_of_type(FieldType.DATE, live_columns),
+    }
 
 
 def _split_set_value(item: str) -> tuple[str, str, str | None]:
@@ -244,7 +249,7 @@ def _parse_set_options(values: list[str]) -> list[SetOperation]:
                 console_error(f"Cannot divide {column} by zero.")
                 raise typer.Exit(1)
             operations.append(
-                SetOperation(
+                Arithmetic(
                     column=column,
                     raw=item,
                     operator=operator,
@@ -259,12 +264,12 @@ def _parse_set_options(values: list[str]) -> list[SetOperation]:
             console_error(f"'{value}' in '{item}' is not a valid date.")
             raise typer.Exit(1)
 
-        operations.append(SetOperation(column=column, raw=item, literal=value))
+        operations.append(Assign(column=column, raw=item, literal=value))
 
     return operations
 
 
-def _apply_arithmetic(current: Any, operation: SetOperation, txn_id: int) -> str:
+def _apply_arithmetic(current: Any, operation: Arithmetic, txn_id: int) -> str:
     """Apply an arithmetic `--set` to a row's current value.
 
     Kept in Decimal from end to end so that, for example, 17.52 multiplied by
@@ -284,7 +289,7 @@ def _apply_arithmetic(current: Any, operation: SetOperation, txn_id: int) -> str
     text = "" if current is None or pd.isna(current) else str(current).strip()
     if not text:
         console_error(
-            f"Cannot apply '{operation.describe()}' on TxnId {txn_id}: "
+            f"Cannot apply '{operation.raw}' on TxnId {txn_id}: "
             f"current value is empty.",
         )
         raise typer.Exit(1)
@@ -293,16 +298,12 @@ def _apply_arithmetic(current: Any, operation: SetOperation, txn_id: int) -> str
         value = Decimal(text)
     except (InvalidOperation, ValueError):
         console_error(
-            f"Cannot apply '{operation.describe()}' on TxnId {txn_id}: "
+            f"Cannot apply '{operation.raw}' on TxnId {txn_id}: "
             f"'{text}' is not a number.",
         )
         raise typer.Exit(1) from None
 
-    # An operator is only ever set together with its operand, per _parse_set_options.
     operand = operation.operand
-    if operand is None:
-        msg = f"'{operation.describe()}' has no operand."
-        raise TypeError(msg)
     if operation.operator == "*":
         result = value * operand
     elif operation.operator == "+":
@@ -333,7 +334,7 @@ def _build_edited(
     """
     edited = selected.reset_index(drop=True).copy()
     for operation in operations:
-        if operation.operator is None:
+        if isinstance(operation, Assign):
             edited[operation.column] = operation.literal
             continue
         edited[operation.column] = [
@@ -520,7 +521,7 @@ def _log_edit(  # noqa: PLR0917
         operations: The `SET` operations the user gave.
         updated: Rows the database actually wrote.
     """
-    sets = ", ".join(operation.describe() for operation in operations)
+    sets = ", ".join(operation.raw for operation in operations)
     import_logger.info("EDIT TXN (manual, %s) SET %s", selection.describe(), sets)
 
     for position in range(len(after)):
