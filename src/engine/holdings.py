@@ -166,6 +166,8 @@ class CurrencyTotals:
         day_pnl_pct: The group's share of the pool's day move.
         weight_in_pool: Market value as a share of the displayed pool.
         weight_in_folio: Market value as a share of the whole folio.
+        members: The open holdings in the group, in the pool's order.
+        closed_members: The closed holdings in the group.
     """
 
     currency: Currency
@@ -180,6 +182,13 @@ class CurrencyTotals:
     day_pnl_pct: Decimal | None = None
     weight_in_pool: Decimal | None = None
     weight_in_folio: Decimal | None = None
+    members: tuple[Holding, ...] = ()
+    closed_members: tuple[Holding, ...] = ()
+
+    @property
+    def closed_totals(self) -> ClosedTotals:
+        """What the group's closed holdings earned between them."""
+        return summarize_closed(self.closed_members)
 
     @property
     def unrealized_pct(self) -> Decimal | None:
@@ -651,6 +660,8 @@ def _by_currency(
                 weight_in_folio=_sum_ratios(
                     member.weight_in_folio for member in members
                 ),
+                members=tuple(members),
+                closed_members=tuple(closed_members),
             ),
         )
     return tuple(groups)

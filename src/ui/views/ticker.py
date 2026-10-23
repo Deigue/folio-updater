@@ -39,12 +39,16 @@ from ui.layout.fit import fit
 from ui.layout.tiles import COLUMN_GAP, Block, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
+    CHART_GUIDE,
     FLAT,
     GAIN,
     GRAND_TOTAL_ROW_STYLE,
     LOSS,
+    MAGNITUDES,
     REFERENCE_STYLE,
     RETURN_STRONG_AT,
+    TABLE_BORDER,
+    TABLE_HEADER,
 )
 
 if TYPE_CHECKING:
@@ -78,13 +82,7 @@ _CHART_FRAME = 4
 _ENDS_ONLY = 2
 # A move this many times the anchor reads as a multiple, not a percentage.
 _MULTIPLE_FROM = Decimal(10)
-_CHART_STYLE = ChartStyle(up=GAIN, down=LOSS, level=FLAT, guide="grey35")
-_MAGNITUDES = (
-    (Decimal(10) ** 12, "T"),
-    (Decimal(10) ** 9, "B"),
-    (Decimal(10) ** 6, "M"),
-    (Decimal(10) ** 3, "K"),
-)
+_CHART_STYLE = ChartStyle(up=GAIN, down=LOSS, level=FLAT, guide=CHART_GUIDE)
 
 _POOL_DROP_ORDER = ("Weight", "Book", "Unreal%", "Total%", "Divs", "Realized")
 
@@ -177,7 +175,7 @@ def _header(quote: Quote, aliases: Sequence[str]) -> Panel:
         title_align="left",
         subtitle=" · ".join(described) or None,
         subtitle_align="right",
-        border_style="bright_blue",
+        border_style=TABLE_BORDER,
         expand=False,
     )
 
@@ -225,7 +223,7 @@ def _fundamentals(quote: Quote) -> RichTable | None:
     table = RichTable(
         title="Fundamentals",
         show_header=False,
-        border_style="bright_blue",
+        border_style=TABLE_BORDER,
         title_justify="left",
         width=_FUNDAMENTALS_WIDTH,
     )
@@ -280,10 +278,11 @@ def _magnitude(value: Decimal | None) -> str | None:
     """Abbreviate a large figure: 3.81T, 35.2B, 27.0M."""
     if value is None:
         return None
-    for size, suffix in _MAGNITUDES:
-        if abs(value) >= size:
-            return f"{float(value / size):,.2f}{suffix}"
-    return f"{float(value):,.0f}"
+    number = float(value)
+    for size, suffix in MAGNITUDES:
+        if abs(number) >= size:
+            return f"{number / size:,.2f}{suffix}"
+    return f"{number:,.0f}"
 
 
 def _ratio(value: Decimal | None) -> str | None:
@@ -308,7 +307,7 @@ def _chart_grid(
     moves: Mapping[PriceRange, RangeMove | None],
     room: int,
 ) -> RichTable:
-    """Print every range out as a small chart, as many to a row as `room` can fit."""
+    """Lay every range out as a small chart, as many to a row as `room` can fit."""
     per_row, points = 1, _CHART_MIN_POINTS
     for count in _CHARTS_PER_ROW:
         points = min(_CHART_MAX_POINTS, _points_across(room, count))
@@ -378,7 +377,7 @@ def _move_ratio(move: RangeMove) -> str:
     if move.change_pct is None:
         return ""
     return graded(
-        f"{float(move.change_pct) * 100:+,.2f}%",
+        percent(move.change_pct, plus=True),
         move.change_pct,
         RETURN_STRONG_AT,
     )
@@ -390,7 +389,7 @@ def _chart_panel(title: Text, body: Text) -> Panel:
         body,
         title=title,
         title_align="left",
-        border_style="grey35",
+        border_style=CHART_GUIDE,
         expand=False,
         padding=(0, 1),
     )
@@ -428,8 +427,8 @@ def _pool_table(position: SymbolHoldings, *, by_account: bool) -> RichTable:
     table = RichTable(
         title=f"{position.symbol} held · {position.currency}",
         title_justify="left",
-        border_style="bright_blue",
-        header_style="bold bright_white",
+        border_style=TABLE_BORDER,
+        header_style=TABLE_HEADER,
     )
     headers = (
         "Pool",
@@ -598,8 +597,8 @@ def show_matrix(
     table = RichTable(
         title=f"Performance · {title} · market value in CAD",
         title_justify="left",
-        border_style="bright_blue",
-        header_style="bold bright_white",
+        border_style=TABLE_BORDER,
+        header_style=TABLE_HEADER,
     )
     table.add_column("Symbol", no_wrap=True)
     for header in ("Last", "Market", *(("Wt%",) if pool_weight else ()), "Folio%"):

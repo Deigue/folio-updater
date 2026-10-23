@@ -357,6 +357,8 @@ def test_a_closed_holding_still_counts_toward_totals(temp_ctx: TempContext) -> N
         assert len(holdings.by_currency) == 1
         group = holdings.by_currency[0]
         assert group.count == 0
+        assert [h.symbol for h in group.closed_members] == ["AAA"]
+        assert group.closed_totals.total == Decimal(240)
         assert group.realized == Decimal(200)
         assert group.dividends == Decimal(40)
         # Nothing is still open, so there is no cost base to take a return

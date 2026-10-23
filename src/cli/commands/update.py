@@ -33,7 +33,7 @@ from cli.commands.import_data import (
 from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
 from domain import TORONTO_TZ, Column, SettlementOutcome, Table
-from engine.checks import run_checks
+from engine.checks import CheckReport, run_checks
 from engine.panels import FolioValuation
 from engine.update_review import (
     review_checks,
@@ -507,7 +507,7 @@ def _check_stage(report: UpdateReport) -> None:
     """Run the health checks and raise every failure."""
     console_rule("Check", style=RULE_UPDATE)
     results = run_checks(require_ledger(), get_config())
-    print_report(results, only=None)
+    print_report(CheckReport(tuple(results)), only=None)
     concerns, warned = review_checks(results)
     report.concerns.extend(concerns)
     if warned:

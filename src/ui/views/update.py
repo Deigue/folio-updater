@@ -16,9 +16,8 @@ from domain import Column, SettlementOutcome, TransactionContext
 from models import UpdateStage
 from term import console_print, console_rule, get_symbol
 from term.console import console_panel
-from ui.format import safe_str
-from ui.views.transactions import TransactionDisplay
-from ui.vocabulary import THEME_REMOVED, THEME_SUCCESS
+from ui.transaction_table import show_transactions
+from ui.vocabulary import RULE_UPDATE, SETTLEMENT_HEADER, THEME_REMOVED, THEME_SUCCESS
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
 
     from models import Concern, UpdateReport
 
-_REPORT_STYLE = "bright_blue"
 _CONCERN_STYLE = "yellow"
 
 
@@ -50,7 +48,7 @@ def show_update_report(report: UpdateReport) -> None:
         report: What the run did and what it raised.
     """
     console_print("")
-    console_rule("Update Report", style=_REPORT_STYLE)
+    console_rule("Update Report", style=RULE_UPDATE)
     _show_changes(report)
     _show_concerns(report.concerns)
     _show_notes("Pending, a later update resolves these", report.pending)
@@ -64,7 +62,7 @@ def _show_changes(report: UpdateReport) -> None:
     if report.new_txns.empty:
         console_print(f"{get_symbol('info')}No new transactions.")
     else:
-        TransactionDisplay().transactions_table(
+        show_transactions(
             report.new_txns,
             f"New transactions ({len(report.new_txns)})",
             max_rows=len(report.new_txns),
@@ -78,9 +76,9 @@ def _show_changes(report: UpdateReport) -> None:
         show_data_table(
             [
                 {
-                    "TxnId": match.txn_id,
+                    str(Column.Txn.TXN_ID): match.txn_id,
                     str(Column.Txn.TXN_DATE): match.txn_date,
-                    "Settles": match.settle_date,
+                    SETTLEMENT_HEADER: match.settle_date,
                     str(Column.Txn.ACTION): match.action,
                     str(Column.Txn.TICKER): match.ticker,
                     str(Column.Txn.ACCOUNT): match.account or "",
@@ -130,11 +128,11 @@ def _show_concern_rows(concern: Concern) -> None:
             if concern.stage is UpdateStage.STATEMENTS
             else TransactionContext.IMPORT
         )
-        TransactionDisplay().transactions_table(rows, None, len(rows), context)
+        show_transactions(rows, None, len(rows), context)
         return
     show_data_table(
         [
-            {str(k): safe_str(v) for k, v in row.items()}
+            {str(k): escape(v) if isinstance(v, str) else v for k, v in row.items()}
             for row in rows.to_dict("records")
         ],
         max_rows=len(rows),

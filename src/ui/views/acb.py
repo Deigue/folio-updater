@@ -17,8 +17,19 @@ from engine.frames import acb_summary_frame, grain_column
 from term import console_print, console_warning, supports_unicode
 from ui.format import freshness_badge
 from ui.layout.fit import fit_table
-from ui.layout.paging import page_frame
-from ui.vocabulary import TRANSACTION_COLORS
+from ui.layout.paging import page_frame, page_title
+from ui.vocabulary import (
+    GAIN,
+    LOSS,
+    MONEY_PRECISION,
+    PRICE_PRECISION,
+    RATE_PRECISION,
+    SUPERFICIAL_LOSS_BG,
+    TABLE_BORDER,
+    TABLE_HEADER,
+    TRANSACTION_COLORS,
+    UNIT_PRECISION,
+)
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
@@ -27,13 +38,8 @@ if TYPE_CHECKING:
 
     from engine.ledger import Ledger
 
-# Column families the buildup renders, as (header, ledger measure).
-_MEASURE_COLUMNS: list[tuple[str, str]] = [
-    ("Delta", "Delta"),
-    ("ACB", "ACB"),
-    ("Avg", "Avg"),
-    ("Gain", "Gain"),
-]
+# Column families the buildup renders, by ledger measure (also the header).
+_MEASURES = ("Delta", "ACB", "Avg", "Gain")
 
 _BUILDUP_DROP_ORDER = (
     "TxnId",
@@ -56,13 +62,7 @@ _SUMMARY_DROP_ORDER = ("Gain\nUSD", "ACB\nUSD", "Avg\nUSD")
 _MOVING_MEASURES = ("Units", "Avg", "Avg_USD")
 
 _RISE, _FALL = ("▲", "▼") if supports_unicode() else ("^", "v")
-_SUPERFICIAL_LOSS_BG = "#4a1414"
 _SUPERFICIAL_LOSS_GLYPH = " ⚠" if supports_unicode() else " !"
-
-_MONEY_PRECISION = 2
-_AVG_PRECISION = 4
-_UNIT_PRECISION = 6
-_RATE_PRECISION = 4
 
 
 class AcbView(NamedTuple):
@@ -152,7 +152,7 @@ def _format(value: float | None, precision: int, *, blank_zero: bool = False) ->
 
 def _units(value: float | None, *, blank_zero: bool = False) -> str:
     """Render a unit count, dropping the zeros whole units do not need."""
-    text = _format(value, _UNIT_PRECISION, blank_zero=blank_zero)
+    text = _format(value, UNIT_PRECISION, blank_zero=blank_zero)
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
@@ -160,7 +160,7 @@ def _signed(text: str, value: float | None) -> str:
     """Colour a rendered cell by the sign of the number behind it."""
     if not text or value is None or pd.isna(value) or float(value) == 0:
         return text
-    colour = "green" if float(value) > 0 else "red"
+    colour = GAIN if float(value) > 0 else LOSS
     return f"[{colour}]{text}[/{colour}]"
 
 
@@ -206,7 +206,7 @@ def _by_direction(text: str, direction: int | None) -> str:
     """
     if not text or not direction:
         return text
-    colour = "green" if direction > 0 else "red"
+    colour = GAIN if direction > 0 else LOSS
     return f"[{colour}]{text}[/{colour}]"
 
 
@@ -223,14 +223,14 @@ def _build_table(
     table = RichTable(
         title=title,
         show_header=True,
-        header_style="bold bright_white",
-        border_style="bright_blue",
+        header_style=TABLE_HEADER,
+        border_style=TABLE_BORDER,
     )
     for name in ("Settle", "TxnId", "Action"):
         table.add_column(name, no_wrap=True)
     for name in ("Units", "Held", "Price", "Amount", "Fee"):
         table.add_column(name, justify="right")
-    for header, _measure in _MEASURE_COLUMNS:
+    for header in _MEASURES:
         if show_cad:
             table.add_column(header, justify="right")
         if show_usd:
@@ -257,7 +257,7 @@ def _measure_cell(
     superficial_loss: bool = False,
 ) -> str:
     """Render one per-grain measure, coloured or annotated as that measure wants."""
-    precision = _AVG_PRECISION if measure.startswith("Avg") else _MONEY_PRECISION
+    precision = PRICE_PRECISION if measure.startswith("Avg") else MONEY_PRECISION
     value = row[column]
     # A zero delta or gain says nothing: blank it to zero.
     # A zero ACB or average is a real, closed holding.
@@ -266,7 +266,7 @@ def _measure_cell(
         cell = _signed(text, value)
         if measure.startswith("Gain") and superficial_loss and cell:
             cell += _SUPERFICIAL_LOSS_GLYPH
-            return f"[on {_SUPERFICIAL_LOSS_BG}]{cell}[/on {_SUPERFICIAL_LOSS_BG}]"
+            return f"[on {SUPERFICIAL_LOSS_BG}]{cell}[/on {SUPERFICIAL_LOSS_BG}]"
         return cell
     if measure.startswith("Avg") and text:
         direction = moves.get((measure, int(row[str(Column.Txn.TXN_ID)])))
@@ -279,8 +279,8 @@ def _arrow(direction: int | None) -> str:
     if not direction:
         return ""
     if direction > 0:
-        return f"[green]{_RISE}[/green]"
-    return f"[red]{_FALL}[/red]"
+        return f"[{GAIN}]{_RISE}[/{GAIN}]"
+    return f"[{LOSS}]{_FALL}[/{LOSS}]"
 
 
 def _render_row(
@@ -307,11 +307,11 @@ def _render_row(
             _units(row[grain_column(view.grain, "Units")]),
             moves.get(("Units", int(row[str(Column.Txn.TXN_ID)]))),
         ),
-        _format(row[str(Column.Txn.PRICE)], _MONEY_PRECISION, blank_zero=True),
-        _format(row[str(Column.Txn.AMOUNT)], _MONEY_PRECISION, blank_zero=True),
-        _format(row[str(Column.Txn.FEE)], _MONEY_PRECISION, blank_zero=True),
+        _format(row[str(Column.Txn.PRICE)], MONEY_PRECISION, blank_zero=True),
+        _format(row[str(Column.Txn.AMOUNT)], MONEY_PRECISION, blank_zero=True),
+        _format(row[str(Column.Txn.FEE)], MONEY_PRECISION, blank_zero=True),
     ]
-    for _header, measure in _MEASURE_COLUMNS:
+    for measure in _MEASURES:
         if show_cad:
             cells.append(
                 _measure_cell(
@@ -334,9 +334,9 @@ def _render_row(
                 ),
             )
     if show_cad:
-        cells.append(_format(row["Proceeds"], _MONEY_PRECISION))
+        cells.append(_format(row["Proceeds"], MONEY_PRECISION))
     if show_usd:
-        cells.append(_format(row["FXRate"], _RATE_PRECISION))
+        cells.append(_format(row["FXRate"], RATE_PRECISION))
     cells.append(str(row["Flags"] or ""))
     return cells
 
@@ -427,9 +427,9 @@ def _summary_record(
         "Units": _units(record[grain_column(view.grain, "Units")], blank_zero=True),
     }
     for measure, precision in (
-        ("ACB", _MONEY_PRECISION),
-        ("Avg", _AVG_PRECISION),
-        ("Gain", _MONEY_PRECISION),
+        ("ACB", MONEY_PRECISION),
+        ("Avg", PRICE_PRECISION),
+        ("Gain", MONEY_PRECISION),
     ):
         if show_cad:
             cells[measure] = cell(measure, precision)
@@ -497,12 +497,11 @@ def show_buildup(
 
     def render(start: int, end: int) -> None:
         page = ordered.iloc[start:end]
-        page_title = title if start == 0 and end == len(ordered) else None
         console_print(
             _build_table(
                 page,
                 view,
-                page_title,
+                page_title(title, start, end, len(ordered)),
                 moves,
                 show_cad=show_cad,
                 show_usd=show_usd,

@@ -39,7 +39,7 @@ from domain import (
 from ingest import ActionValidationRules, prepare_transactions
 from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
-from ui.views.transactions import TransactionDisplay
+from ui.transaction_table import show_transactions
 
 if TYPE_CHECKING:
     from models import ImportResults
@@ -245,7 +245,7 @@ def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
         f"This transaction matches {count} existing transaction(s) in the folio:",
     )
     if not matches.empty:
-        TransactionDisplay().transactions_table(matches, max_rows=len(matches))
+        show_transactions(matches, max_rows=len(matches))
 
     return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
@@ -351,10 +351,9 @@ def add_transaction(  # noqa: PLR0917
             return
         results = _prepare(fields, approve_duplicate=True)
 
-    display = TransactionDisplay()
     if dry_run:
         console_info("Dry run - nothing was written to the folio.")
-        display.transactions_table(results.final_df, title="Would Add")
+        show_transactions(results.final_df, title="Would Add")
         return
 
     txn_id = _insert_transaction(results.final_df)
@@ -362,6 +361,6 @@ def add_transaction(  # noqa: PLR0917
 
     console_success(f"Added transaction (TxnId {txn_id})")
     added = results.final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})
-    display.transactions_table(added, title="Added Transaction")
+    show_transactions(added, title="Added Transaction")
 
     export_to_parquet()

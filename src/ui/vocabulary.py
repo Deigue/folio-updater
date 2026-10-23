@@ -15,6 +15,13 @@ THEME_REMOVED = "dark_red"  # Rejected or cancelled rows - removal
 THEME_DUPES = "dark_red"  # Duplicates - removal
 THEME_SUCCESS = "green4"  # Import summary, imported - success
 
+# Table chrome, shared by every table a report draws.
+TABLE_HEADER = "bold bright_white"
+TABLE_BORDER = "bright_blue"
+
+# A settlement date the folio worked out rather than read from a statement.
+CALCULATED_SETTLEMENT = "orange3"
+
 TRANSACTION_COLORS = {
     Action.BUY: "bright_red",
     Action.SELL: "bright_green",
@@ -83,6 +90,9 @@ CURRENCY_COLORS = {
     Currency.USD: "dark_turquoise",
 }
 
+SUPERFICIAL_LOSS_BG = "#4a1414"  # behind a gain flagged as a suspect superficial loss
+CHART_GUIDE = "grey35"  # chart frames and the level line
+
 # Flows panel
 FLOW_COLORS = {
     "Contributions": TRANSACTION_COLORS[Action.CONTRIBUTION],
@@ -118,6 +128,7 @@ ACCOUNT_TYPE_COLORS = {
 MONEY_PRECISION = 2
 PRICE_PRECISION = 4
 UNIT_PRECISION = 6
+RATE_PRECISION = 4
 
 # --- Table padding -----------------------------------------------------------
 
@@ -127,6 +138,8 @@ SNUG_PADDING = (0, 1, 0, 0)
 TIGHT_PADDING = (0, 0)
 
 # --- Shorthands ----------------------------------------------------
+
+SETTLEMENT_HEADER = "Settles"
 
 SHORT_HEADERS = {
     "TxnId": "Id",
@@ -139,7 +152,7 @@ SHORT_HEADERS = {
     "Description": "Desc.",
     "Currency": "$",
     "Transactions": "Txns",
-    "Settle Updates": "Settles",
+    "Settle Updates": SETTLEMENT_HEADER,
     "Transfers": "Txfs",
     "Rejected": "Rej.",
     "Rejection_Reason": "Reason",
@@ -222,6 +235,7 @@ CENTLESS_EXEMPT_HEADERS = with_short_forms(
 
 # Thresholds the magnitude rung abbreviates at, largest first.
 MAGNITUDES: tuple[tuple[float, str], ...] = (
+    (1_000_000_000_000, "T"),
     (1_000_000_000, "B"),
     (1_000_000, "M"),
     (1_000, "K"),

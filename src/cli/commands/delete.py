@@ -25,7 +25,7 @@ from db.helpers import format_transaction_summary
 from db.queries import delete_rows, get_connection
 from domain import Column, Table
 from term import console_error, console_info, console_success
-from ui.views.transactions import page_transactions
+from ui.transaction_table import page_transactions
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

@@ -12,12 +12,10 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table as RichTable
 
-from domain import Currency, WarningCode
+from domain import Currency, Grain, WarningCode
 from domain.numeric import ZERO, q2
-from engine.holdings import summarize_closed
 from term import console_print
 from ui.cells import (
-    EM_DASH,
     UNICODE,
     WARN_GLYPH,
     currency_tint,
@@ -33,7 +31,7 @@ from ui.cells import (
     weight,
 )
 from ui.layout.bars import hbar, meter
-from ui.layout.fit import fit, fit_table
+from ui.layout.fit import fit
 from ui.layout.tiles import Block, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
@@ -49,20 +47,21 @@ from ui.vocabulary import (
     ROOM_OVER,
     ROOM_PARTIAL,
     SUBTOTAL_ROW_STYLE,
+    TABLE_BORDER,
+    TABLE_HEADER,
     WEIGHT_BAR_FULL,
     WEIGHT_BAR_STYLE,
     WEIGHT_BAR_WIDTH,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Collection, Sequence
+    from collections.abc import Callable, Sequence
 
     from rich.console import RenderableType
     from rich.table import JustifyMethod
 
     from engine.flows import Flows, Room
-    from engine.holdings import CurrencyTotals, Holding, HoldingSet
-    from services.quotes_service import Quote
+    from engine.holdings import ClosedTotals, CurrencyTotals, Holding, HoldingSet
     from ui.layout.fit import FitResult
 
 
@@ -76,7 +75,7 @@ _UNITS_SUSPECT = frozenset(
 
 
 @dataclass(frozen=True)
-class _ColumnSpec:
+class _HoldingColumn:
     """How one dashboard column is rendered.
 
     Attributes:
@@ -118,38 +117,38 @@ def _symbol_cell(holding: Holding) -> str:
 # Every column the dashboard can show, in display order. `--wide` adds the ones
 # marked `wide_only`; everything else is always offered, then conceded by
 # `fit_table` if the terminal is too narrow to hold it.
-_HOLDING_COLUMNS: tuple[_ColumnSpec, ...] = (
-    _ColumnSpec("Symbol", _symbol_cell, justify="left"),
-    _ColumnSpec(
+_HOLDING_COLUMNS: tuple[_HoldingColumn, ...] = (
+    _HoldingColumn("Symbol", _symbol_cell, justify="left"),
+    _HoldingColumn(
         "Name",
         lambda h: h.name or "",
         justify="left",
         wide_only=True,
     ),
-    _ColumnSpec("Units", lambda h: units(h.units), muted=True),
-    _ColumnSpec("Avg", lambda h: price(h.avg_cost), muted=True),
-    _ColumnSpec("Last", lambda h: price(h.price)),
-    _ColumnSpec("Change", lambda h: signed(price(h.change), h.change)),
-    _ColumnSpec("Change%", lambda h: day_move(h.change_pct)),
-    _ColumnSpec("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl)),
-    _ColumnSpec("PnL%", lambda h: day_move(h.day_pnl_pct)),
-    _ColumnSpec("Unreal", lambda h: signed(money(h.unrealized), h.unrealized)),
-    _ColumnSpec("Unreal%", lambda h: lifetime_return(h.unrealized_pct)),
+    _HoldingColumn("Units", lambda h: units(h.units), muted=True),
+    _HoldingColumn("Avg", lambda h: price(h.avg_cost), muted=True),
+    _HoldingColumn("Last", lambda h: price(h.price)),
+    _HoldingColumn("Change", lambda h: signed(price(h.change), h.change)),
+    _HoldingColumn("Change%", lambda h: day_move(h.change_pct)),
+    _HoldingColumn("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl)),
+    _HoldingColumn("PnL%", lambda h: day_move(h.day_pnl_pct)),
+    _HoldingColumn("Unreal", lambda h: signed(money(h.unrealized), h.unrealized)),
+    _HoldingColumn("Unreal%", lambda h: lifetime_return(h.unrealized_pct)),
     # Realized and Divs blank their zeros
-    _ColumnSpec(
+    _HoldingColumn(
         "Realized",
         lambda h: signed(money(h.realized, blank_zero=True), h.realized),
     ),
-    _ColumnSpec("Divs", lambda h: income(h.dividends)),
-    _ColumnSpec("Total", lambda h: signed(money(h.total_pnl), h.total_pnl)),
-    _ColumnSpec("Total%", lambda h: lifetime_return(h.total_pnl_pct)),
-    _ColumnSpec("Book", lambda h: money(h.book_value), muted=True),
-    _ColumnSpec("Market", lambda h: money(h.market_value)),
-    _ColumnSpec("Wt%", lambda h: weight(h.weight_in_pool)),
+    _HoldingColumn("Divs", lambda h: income(h.dividends)),
+    _HoldingColumn("Total", lambda h: signed(money(h.total_pnl), h.total_pnl)),
+    _HoldingColumn("Total%", lambda h: lifetime_return(h.total_pnl_pct)),
+    _HoldingColumn("Book", lambda h: money(h.book_value), muted=True),
+    _HoldingColumn("Market", lambda h: money(h.market_value)),
+    _HoldingColumn("Wt%", lambda h: weight(h.weight_in_pool)),
     # The bar has a column of its own so every `Wt%` figure, totals included,
     # stays right-aligned. Totals rows leave it blank.
-    _ColumnSpec("Weight", _weight_bar, justify="left", wide_only=True),
-    _ColumnSpec("Folio%", lambda h: weight(h.weight_in_folio)),
+    _HoldingColumn("Weight", _weight_bar, justify="left", wide_only=True),
+    _HoldingColumn("Folio%", lambda h: weight(h.weight_in_folio)),
 )
 
 # Column drop order as terminals get too narrow.
@@ -167,13 +166,13 @@ _DASH_DROP_ORDER = (
 )
 
 
-def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_ColumnSpec, ...]:
+def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_HoldingColumn, ...]:
     """Choose which columns this table offers before any conceding."""
     # `Folio%` is only worth a column when the table is part of the folio rather
     # than all of it, since it is otherwise the same number as `Wt%`. A narrowed
     # grain is the usual way that happens, and `-c USD` is the other: it hides
     # the CAD holdings, so even the folio-wide table is then a part.
-    partial = holdings.grain.name != "FOLIO" or holdings.excluded > 0
+    partial = holdings.grain is not Grain.FOLIO or holdings.excluded > 0
     return tuple(
         spec
         for spec in _HOLDING_COLUMNS
@@ -215,8 +214,8 @@ def holdings_table(
     table = RichTable(
         title=title,
         show_header=True,
-        header_style="bold bright_white",
-        border_style="bright_blue",
+        header_style=TABLE_HEADER,
+        border_style=TABLE_BORDER,
     )
     for spec in specs:
         table.add_column(
@@ -227,17 +226,15 @@ def holdings_table(
 
     deposited = _net_deposits(flows)
     for group in holdings.by_currency:
-        members = [h for h in holdings.holdings if h.currency is group.currency]
-        for holding in members:
+        for holding in group.members:
             table.add_row(*[spec.render(holding) for spec in specs])
 
-        closed_members = [h for h in holdings.closed if h.currency is group.currency]
-        if closed_members:
+        if group.closed_members:
             if show_closed:
-                for holding in closed_members:
+                for holding in group.closed_members:
                     table.add_row(*_closed_cells(holding, specs))
             else:
-                table.add_row(*_closed_summary_cells(closed_members, specs))
+                table.add_row(*_closed_summary_cells(group.closed_totals, specs))
 
         # A rule above each total says "this row is a different kind of thing"
         # in one line rather than a blank one, keeping the table short.
@@ -262,7 +259,7 @@ def holdings_table(
     return fit(table, _DASH_DROP_ORDER)
 
 
-def _closed_cells(holding: Holding, specs: Sequence[_ColumnSpec]) -> list[str]:
+def _closed_cells(holding: Holding, specs: Sequence[_HoldingColumn]) -> list[str]:
     """Render one closed holding, blanking every column that no longer applies."""
     total = holding.closed_total
     cells = {
@@ -278,11 +275,10 @@ def _closed_cells(holding: Holding, specs: Sequence[_ColumnSpec]) -> list[str]:
 
 
 def _closed_summary_cells(
-    closed: Sequence[Holding],
-    specs: Sequence[_ColumnSpec],
+    totals: ClosedTotals,
+    specs: Sequence[_HoldingColumn],
 ) -> list[str]:
     """Aggregate every closed holding in one currency group into one row."""
-    totals = summarize_closed(closed)
     total = totals.total
     cells = {
         "Symbol": f"[bold dim]Closed ({totals.count})[/bold dim]",
@@ -342,7 +338,7 @@ def _subtotal_return(
 
 def _subtotal_cells(
     group: CurrencyTotals,
-    specs: Sequence[_ColumnSpec],
+    specs: Sequence[_HoldingColumn],
     total: _Return,
 ) -> list[str]:
     """Subtotal one currency group, in that group's own currency.
@@ -383,7 +379,7 @@ def _subtotal_cells(
 
 def _grand_total_cells(
     holdings: HoldingSet,
-    specs: Sequence[_ColumnSpec],
+    specs: Sequence[_HoldingColumn],
     flows: Flows | None = None,
 ) -> list[str]:
     """Total across every currency, converted into the totals currency."""
@@ -466,7 +462,7 @@ def flows_panel(flows: Flows, title: str | None = None) -> Panel:
     return Panel(
         Group(*body),
         title=_panel_title(flows, title),
-        border_style="red" if flows.negative_currencies else "bright_blue",
+        border_style="red" if flows.negative_currencies else TABLE_BORDER,
         expand=False,
     )
 
@@ -474,10 +470,15 @@ def flows_panel(flows: Flows, title: str | None = None) -> Panel:
 def _panel_title(flows: Flows, title: str | None) -> str:
     """Name the panel, accented by the pool's account type when it has one."""
     name = title or flows.label
+    accent = _accent(flows)
+    return style(name, f"bold {accent}") if accent else name
+
+
+def _accent(flows: Flows) -> str | None:
+    """Pick the colour of the pool's account type, if it has one."""
     if flows.account_type is None:
-        return name
-    accent = ACCOUNT_TYPE_COLORS.get(flows.account_type)
-    return style(name, f"bold {accent}" if accent else None)
+        return None
+    return ACCOUNT_TYPE_COLORS.get(flows.account_type)
 
 
 # The first measure past capital, where the income section begins.
@@ -637,11 +638,10 @@ def show_by_type(
     # heading to say whose it is.
     for block in layout.all_blocks:
         holdings, flows, title = block.data
-        accent = ""
-        if flows.account_type is not None:
-            accent = ACCOUNT_TYPE_COLORS.get(flows.account_type, "")
         console_print("")
-        console_print(Rule(_panel_title(flows, title), align="left", style=accent))
+        console_print(
+            Rule(_panel_title(flows, title), align="left", style=_accent(flows) or ""),
+        )
         _print_holdings(holdings, flows, wide=wide, show_closed=show_closed)
 
 
@@ -751,80 +751,3 @@ def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
             f"known to be wrong. Run `folio check`.[/red]",
         )
     return notes
-
-
-def quotes_table(
-    quotes: Sequence[Quote],
-    held: Collection[str] | None = None,
-) -> RichTable:
-    """Render the quote cache with each row's age.
-
-    Args:
-        quotes: The cached quotes to show.
-        held: The symbols the folio holds, so a quote kept for a sold holding
-            or a symbol only looked up stands out. None leaves the column out.
-
-    Returns:
-        The fitted table.
-    """
-    table = RichTable(
-        title="Cached Quotes",
-        show_header=True,
-        header_style="bold bright_white",
-        border_style="bright_blue",
-    )
-    table.add_column("Symbol", no_wrap=True)
-    if held is not None:
-        table.add_column("Held", no_wrap=True)
-    table.add_column("Yahoo", no_wrap=True)
-    table.add_column("Name")
-    table.add_column("Price", justify="right")
-    table.add_column("Prev", justify="right")
-    table.add_column("$", no_wrap=True)
-    table.add_column("Age", justify="right", no_wrap=True)
-    table.add_column("Status", no_wrap=True)
-
-    for quote in sorted(quotes, key=lambda q: q.symbol):
-        owned = [] if held is None else [_held(quote.symbol in held)]
-        table.add_row(
-            quote.symbol,
-            *owned,
-            quote.ysymbol,
-            quote.name or "",
-            signed(price(quote.price), quote.day_change),
-            price(quote.prev_close),
-            str(quote.currency) if quote.currency else "",
-            _age(quote),
-            _status(quote),
-        )
-    return fit_table(table, ("Name", "Prev", "Yahoo"))
-
-
-def _held(owned: bool) -> str:  # noqa: FBT001 - one flag, read as a cell
-    """Say whether the folio holds a cached symbol, dimming the ones it does not."""
-    return "yes" if owned else "[dim]no[/dim]"
-
-
-def _age(quote: Quote) -> str:
-    """Render how long ago a quote was fetched, highlighting a stale one."""
-    age = quote.age
-    if age is None:
-        return EM_DASH
-    seconds = int(age.total_seconds())
-    if seconds < 60:  # noqa: PLR2004 - a minute, in seconds
-        text = "just now"
-    elif seconds < 3600:  # noqa: PLR2004 - an hour, in seconds
-        text = f"{seconds // 60}m"
-    elif seconds < 86400:  # noqa: PLR2004 - a day, in seconds
-        text = f"{seconds // 3600}h"
-    else:
-        text = f"{seconds // 86400}d"
-    return f"[yellow]{text}[/yellow]" if quote.is_stale else text
-
-
-def _status(quote: Quote) -> str:
-    """Colour a quote's status by whether it is usable."""
-    text = str(quote.status)
-    if quote.priced:
-        return f"[green]{text}[/green]"
-    return f"[red]{text}[/red]"

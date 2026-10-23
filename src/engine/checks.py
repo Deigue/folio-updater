@@ -13,7 +13,8 @@ grain, grain, code) never reaches them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Protocol
 
 from domain import Action, CheckStatus, Currency, Grain, WarningCode
@@ -80,6 +81,41 @@ class CheckResult:
     status: CheckStatus
     summary: str
     findings: tuple[CheckFinding, ...] = ()
+
+
+@dataclass(frozen=True)
+class CheckReport:
+    """Every check that ran, with the tallies a report or a script reads.
+
+    Attributes:
+        results: One result per check that ran.
+    """
+
+    results: tuple[CheckResult, ...]
+
+    @property
+    def failed(self) -> tuple[CheckResult, ...]:
+        """The checks that found something wrong."""
+        return tuple(r for r in self.results if r.status is CheckStatus.FAIL)
+
+    @property
+    def warned(self) -> tuple[CheckResult, ...]:
+        """The checks that found something worth a look."""
+        return tuple(r for r in self.results if r.status is CheckStatus.WARN)
+
+    def to_json(self) -> str:
+        """Serialise the report for a script to read."""
+        return json.dumps(
+            {
+                "checks": [
+                    {**asdict(result), "status": str(result.status)}
+                    for result in self.results
+                ],
+                "failed": len(self.failed),
+                "warnings": len(self.warned),
+            },
+            indent=2,
+        )
 
 
 class UnknownCheckError(ValueError):

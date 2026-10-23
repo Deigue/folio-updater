@@ -26,8 +26,13 @@ from term import (
     console_warning,
 )
 from term.progress import ProgressDisplay
-from ui.views.imports import ImportDisplay
-from ui.views.transactions import page_transactions
+from ui.transaction_table import page_transactions
+from ui.views.imports import (
+    show_import_audit,
+    show_import_summary,
+    show_settlement_detail,
+    show_statements_summary,
+)
 from ui.vocabulary import RULE_STATEMENT, SPINNER_STATEMENT
 from ui.widgets import show_stats_panel
 
@@ -137,9 +142,8 @@ def import_single_statement(
     _report_settlement_matching(statement_path.name, result, verbose=verbose)
 
     if result.transfer_results and result.transfers_created() > 0:
-        display = ImportDisplay()
-        display.show_import_summary(statement_path.name, result.transfer_results)
-        display.show_import_audit(
+        show_import_summary(statement_path.name, result.transfer_results)
+        show_import_audit(
             result.transfer_results,
             verbose=True,
             interactive=interactive,
@@ -207,7 +211,7 @@ def _report_settlement_matching(
         verbose: Whether to list every candidate row, matched or not.
     """
     if verbose:
-        ImportDisplay().show_settlement_detail(filename, result.settlement_matches)
+        show_settlement_detail(filename, result.settlement_matches)
         return
 
     unplaced = result.settlement_unplaced()
@@ -258,7 +262,7 @@ def _import_statements_from_directory(
         archive_statement(statement_file)
         imported.append((statement_file.name, result))
 
-    ImportDisplay().show_statements_summary(imported)
+    show_statements_summary(imported)
     results = [result for _, result in imported]
 
     total_updates = sum(r.settlement_updates for r in results)

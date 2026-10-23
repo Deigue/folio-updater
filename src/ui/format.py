@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from term.console import supports_unicode
+from ui.cells import WARN_GLYPH
 
 if TYPE_CHECKING:
     from collections.abc import Container, Mapping, Sequence
@@ -92,16 +93,22 @@ def format_freshness(computed_at: datetime | None) -> str:
     elapsed = max((now - computed_at).total_seconds(), 0)
     if elapsed < _JUST_NOW:
         return "cached just now"
-    if elapsed < _ONE_HOUR:
-        return f"cached {int(elapsed // 60)}m ago"
-    if elapsed < _ONE_DAY:
-        return f"cached {int(elapsed // _ONE_HOUR)}h ago"
-    return f"cached {int(elapsed // _ONE_DAY)}d ago"
+    return f"cached {short_age(elapsed)} ago"
+
+
+def short_age(seconds: float) -> str:
+    """Render an elapsed time at its largest unit: `just now`, `4m`, `3h`, `2d`."""
+    if seconds < _JUST_NOW:
+        return "just now"
+    if seconds < _ONE_HOUR:
+        return f"{int(seconds // 60)}m"
+    if seconds < _ONE_DAY:
+        return f"{int(seconds // _ONE_HOUR)}h"
+    return f"{int(seconds // _ONE_DAY)}d"
 
 
 # Freshness icons
 _FRESH_ICON, _CACHED_ICON = ("●", "⏱") if supports_unicode() else ("*", "~")
-_WARN_ICON = "⚠" if supports_unicode() else "!"
 
 
 def freshness_badge(computed_at: datetime | None) -> str:
@@ -165,7 +172,7 @@ def _one_freshness(
     text = "nothing cached" if empty else format_freshness(computed_at)
     phrase = f"{label} {text}" if label else text
     if warned or empty:
-        return f"[red]{_WARN_ICON}[/red] [yellow]{phrase}[/yellow]"
+        return f"[red]{WARN_GLYPH}[/red] [yellow]{phrase}[/yellow]"
     if computed_at is None:
         return f"[green]{_FRESH_ICON}[/green] [dim]{phrase}[/dim]"
     return f"[yellow]{_CACHED_ICON}[/yellow] [dim]{phrase}[/dim]"

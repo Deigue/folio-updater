@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import textwrap
-from dataclasses import asdict
 from typing import TYPE_CHECKING
+
+from rich.markup import escape
 
 from domain import CheckStatus
 from term import (
@@ -18,7 +18,7 @@ from term import (
 from term.console import active_console
 
 if TYPE_CHECKING:
-    from engine.checks import CheckResult
+    from engine.checks import CheckReport, CheckResult
 
 _HEADING_WIDTH = 23
 _MIN_WRAP = 40
@@ -35,7 +35,7 @@ def _heading(result: CheckResult) -> str:
     symbol, colour = _STYLES[result.status]
     return (
         f"[bold]{result.name:<{_HEADING_WIDTH}}[/bold]"
-        f"{get_symbol(symbol)}[{colour}]{result.summary}[/{colour}]"
+        f"{get_symbol(symbol)}[{colour}]{escape(result.summary)}[/{colour}]"
     )
 
 
@@ -49,26 +49,26 @@ def _print_findings(result: CheckResult) -> None:
 
     for finding in result.findings:
         padded = finding.subject if stacked else f"{finding.subject:<{width}}"
-        subject = f"{' ' * _HEADING_WIDTH}[bold]{padded}[/bold]"
+        subject = f"{' ' * _HEADING_WIDTH}[bold]{escape(padded)}[/bold]"
         if stacked:
             console_print(subject)
         pending = not stacked
         for line in finding.detail.splitlines() or [""]:
             for piece in textwrap.wrap(line, room) or [""]:
                 if pending:
-                    console_print(f"{subject}  {piece}")
+                    console_print(f"{subject}  {escape(piece)}")
                     pending = False
                 else:
-                    console_print(f"{indent}{piece}")
+                    console_print(f"{indent}{escape(piece)}")
 
 
-def _print_summary(results: list[CheckResult]) -> None:
+def _print_summary(report: CheckReport) -> None:
     """Print the closing tally, and point at `--only` when there is detail."""
-    failed = [item for item in results if item.status is CheckStatus.FAIL]
-    warned = [item for item in results if item.status is CheckStatus.WARN]
+    failed = report.failed
+    warned = report.warned
 
     if not failed and not warned:
-        console_success(f"All {len(results)} checks pass. Nothing looks wrong.")
+        console_success(f"All {len(report.results)} checks pass. Nothing looks wrong.")
         return
 
     parts = []
@@ -85,10 +85,10 @@ def _print_summary(results: list[CheckResult]) -> None:
         console_warning(message)
 
 
-def print_report(results: list[CheckResult], only: str | None) -> None:
+def print_report(report: CheckReport, only: str | None) -> None:
     """Print the report: one line per check, and detail under the ones that failed."""
     console_print("")
-    for result in results:
+    for result in report.results:
         console_print(_heading(result))
         # Show succeeding checks only if `--only` is set.
         if result.findings and (
@@ -96,24 +96,12 @@ def print_report(results: list[CheckResult], only: str | None) -> None:
         ):
             _print_findings(result)
     if only is None:
-        _print_summary(results)
+        _print_summary(report)
 
 
-def emit_json(results: list[CheckResult]) -> None:
-    """Print the results as JSON, for a script that wants to read them.
+def emit_json(report: CheckReport) -> None:
+    """Print the report as JSON, for a script that wants to read it.
 
     Printed straight with a simple `console.print` so it can be consumed.
     """
-    payload = json.dumps(
-        {
-            "checks": [
-                {**asdict(result), "status": str(result.status)} for result in results
-            ],
-            "failed": sum(1 for result in results if result.status is CheckStatus.FAIL),
-            "warnings": sum(
-                1 for result in results if result.status is CheckStatus.WARN
-            ),
-        },
-        indent=2,
-    )
-    active_console().print(payload, markup=False, soft_wrap=True)
+    active_console().print(report.to_json(), markup=False, soft_wrap=True)

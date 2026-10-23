@@ -16,7 +16,7 @@ from engine.ledger import LedgerUnavailableError, open_ledger
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
-from ui.views.dash import quotes_table
+from ui.views.quotes import quotes_table
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

@@ -32,7 +32,7 @@ from db.queries import get_columns, get_connection, get_rows, update_rows
 from domain import Column, Table
 from ingest.validation import TransactionFormatter, parse_date
 from term import console_error, console_info, console_success, console_warning
-from ui.views.transactions import TransactionDisplay, page_changes
+from ui.transaction_table import page_changes, show_transactions
 
 if TYPE_CHECKING:
     from cli.selection import Selection
@@ -561,7 +561,7 @@ def _confirm_conflicts(conflicts: pd.DataFrame, *, internal: bool) -> bool:
         console_warning(
             f"This edit matches {len(conflicts)} existing transaction(s) in the folio:",
         )
-        TransactionDisplay().transactions_table(conflicts, max_rows=len(conflicts))
+        show_transactions(conflicts, max_rows=len(conflicts))
 
     return typer.confirm(
         "Apply anyway and create duplicate transaction(s)?",

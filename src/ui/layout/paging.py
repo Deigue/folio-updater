@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from term.console import active_console, console_print
 from term.keys import getch
 from term.size import available_height, is_test_environment
+from ui.vocabulary import TABLE_BORDER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -129,6 +130,24 @@ def page_frame(
     active_console().rule("End of Transactions", style="dim")
 
 
+def page_title(title: str, start: int, end: int, total: int) -> str | None:
+    """Give the title to a table that is not paged, and none to a page of a longer one.
+
+    The pager's rule already names a page, so only a table shown whole carries
+    the title itself.
+
+    Args:
+        title: The display's title.
+        start: First row of the page being drawn.
+        end: One past its last row.
+        total: Rows in the whole display.
+
+    Returns:
+        The title when the page holds every row, otherwise None.
+    """
+    return title if start == 0 and end == total else None
+
+
 def _render_one_page(  # noqa: PLR0917
     current_page: int,
     total_pages: int,
@@ -149,7 +168,7 @@ def _render_one_page(  # noqa: PLR0917
     active_console().clear()
     active_console().rule(
         f"{title} - Page {current_page + 1}/{total_pages}",
-        style="bright_blue",
+        style=TABLE_BORDER,
     )
     if badge:
         console_print(badge)
@@ -159,9 +178,6 @@ def _render_one_page(  # noqa: PLR0917
     active_console().print(
         f"[dim]Showing transactions {start_idx + 1}-{end_idx} of {total_rows}[/dim]",
     )
-
-    if current_page == 0 and total_pages == 1:
-        return current_page, True  # Only one page, no navigation needed
 
     prompt = _get_pagination_prompt(current_page, total_pages)
     active_console().print(f"\n{prompt}")

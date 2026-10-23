@@ -18,8 +18,7 @@ import typer
 
 from app import bootstrap, get_config
 from cli.commands.common import require_ledger
-from domain import CheckStatus
-from engine.checks import UnknownCheckError, run_checks, validate_slugs
+from engine.checks import CheckReport, UnknownCheckError, run_checks, validate_slugs
 from term import console_error
 from ui.views.checks import emit_json, print_report
 
@@ -82,10 +81,11 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
     if only is not None:
         results = _only(results, only)
 
+    report = CheckReport(tuple(results))
     if as_json:
-        emit_json(results)
+        emit_json(report)
     else:
-        print_report(results, only=only)
+        print_report(report, only=only)
 
-    if any(result.status is CheckStatus.FAIL for result in results):
+    if report.failed:
         raise typer.Exit(1)

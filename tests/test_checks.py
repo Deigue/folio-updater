@@ -30,6 +30,7 @@ from domain import (
 from engine.checks import (
     CHECK_SLUGS,
     CheckFinding,
+    CheckReport,
     CheckResult,
     ChecksConfig,
     UnknownCheckError,
@@ -1051,6 +1052,30 @@ def test_json_output_is_machine_readable(temp_ctx: TempContext) -> None:
     assert payload["failed"] >= 1
     slugs = {entry["slug"] for entry in payload["checks"]}
     assert slugs == set(CHECK_SLUGS)
+
+
+def test_a_report_tallies_its_failures_and_warnings() -> None:
+    results = tuple(
+        CheckResult(
+            name=status.name,
+            slug=status.name.lower(),
+            status=status,
+            summary="",
+        )
+        for status in (
+            CheckStatus.OK,
+            CheckStatus.WARN,
+            CheckStatus.FAIL,
+            CheckStatus.FAIL,
+        )
+    )
+    report = CheckReport(results)
+
+    payload = json.loads(report.to_json())
+    assert (payload["failed"], payload["warnings"]) == (2, 1)
+    assert [check["status"] for check in payload["checks"]] == [
+        str(result.status) for result in results
+    ]
 
 
 def test_a_folio_with_only_warnings_still_exits_zero(temp_ctx: TempContext) -> None:

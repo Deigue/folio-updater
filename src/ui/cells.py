@@ -75,11 +75,12 @@ def units(value: Decimal | None) -> str:
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
-def percent(value: Decimal | None) -> str:
-    """Render a ratio as a percentage."""
+def percent(value: Decimal | None, *, plus: bool = False) -> str:
+    """Render a ratio as a percentage, with a leading `+` on a gain if asked."""
     if value is None:
         return EM_DASH
-    return f"{float(value) * 100:,.{PERCENT_PRECISION}f}%"
+    flag = "+" if plus else ""
+    return f"{float(value) * 100:{flag},.{PERCENT_PRECISION}f}%"
 
 
 def style(text: str, style: str | None) -> str:

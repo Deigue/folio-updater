@@ -9,6 +9,7 @@ from rich.table import Table
 from term.console import console_panel, console_print
 from ui.format import safe_str
 from ui.layout.fit import fit_table
+from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -19,10 +20,12 @@ def show_data_table(
     title: str | None = None,
     max_rows: int = 50,
     *,
-    theme: str = "bright_blue",
+    theme: str = TABLE_BORDER,
     drop_order: Sequence[str] = (),
 ) -> None:
     """Display generic data in a Rich table.
+
+    Cells are Rich markup: a caller passing text it did not write escapes it.
 
     Args:
         data: List of dictionaries containing data to display
@@ -42,19 +45,17 @@ def show_data_table(
     table = Table(
         title=title,
         show_header=True,
-        header_style="bold bright_white",
+        header_style=TABLE_HEADER,
         border_style=theme,
         expand=False,
     )
 
     # Add columns based on first row keys
-    if display_data:
-        for key in display_data[0]:
-            table.add_column(str(key), no_wrap=True)
+    for key in display_data[0]:
+        table.add_column(str(key), no_wrap=True)
 
-        # Add rows
-        for row in display_data:
-            table.add_row(*[safe_str(value) for value in row.values()])
+    for row in display_data:
+        table.add_row(*[safe_str(value) for value in row.values()])
 
     console_print(fit_table(table, drop_order))
 
@@ -74,4 +75,4 @@ def show_stats_panel(stats: dict[str, int | str]) -> None:
         f"[bold]{key}:[/bold] [bright_white]{value}[/bright_white]"
         for key, value in stats.items()
     )
-    console_panel(stats_text, title="Stats", style="bright_blue", expand=False)
+    console_panel(stats_text, title="Stats", style=TABLE_BORDER, expand=False)

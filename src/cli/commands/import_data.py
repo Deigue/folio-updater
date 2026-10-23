@@ -23,7 +23,7 @@ from term import (
     console_warning,
 )
 from term.progress import ProgressDisplay
-from ui.views.imports import ImportDisplay
+from ui.views.imports import show_files_summary, show_import_audit, show_import_summary
 from ui.vocabulary import SPINNER_IMPORT
 
 SUPPORTED_EXTENSIONS = frozenset({".xlsx", ".xls", ".csv"})
@@ -109,8 +109,6 @@ def import_file(
     Returns:
         The file's results, or the error that stopped it.
     """
-    display = ImportDisplay()
-
     with ProgressDisplay.spinner(SPINNER_IMPORT) as progress:
         progress.add_task(f"Importing {file_path.name}...", total=None)
 
@@ -134,8 +132,8 @@ def import_file(
             console_error(error)
             return FileImport(file_path, error=error)
 
-        display.show_import_summary(file_path.name, results)
-        display.show_import_audit(results, verbose=verbose, interactive=interactive)
+        show_import_summary(file_path.name, results)
+        show_import_audit(results, verbose=verbose, interactive=interactive)
 
     _move_file(file_path)
     return FileImport(file_path, results=results)
@@ -234,7 +232,7 @@ def import_directory(
             import_file(file_path, verbose=verbose, interactive=interactive),
         )
 
-    ImportDisplay().show_files_summary(outcomes)
+    show_files_summary(outcomes)
     return outcomes
 
 

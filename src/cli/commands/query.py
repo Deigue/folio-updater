@@ -9,7 +9,7 @@ import typer
 from app import bootstrap
 from cli.selection import SelectionError, select_transactions
 from term import announce, console_error
-from ui.views.transactions import page_transactions
+from ui.transaction_table import page_transactions
 
 logger = logging.getLogger(__name__)
 

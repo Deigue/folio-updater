@@ -210,7 +210,7 @@ def _to_whole(match: re.Match[str]) -> str:
 
 
 def _use_magnitudes(table: Table) -> None:
-    """Abbreviate large money figures to K, M or B.
+    """Abbreviate large money figures to K, M, B or T.
 
     The last thing tried before whole columns start disappearing: losing the
     scale of a number is worse than losing its cents, but better than losing
@@ -225,7 +225,7 @@ def _use_magnitudes(table: Table) -> None:
 
 
 def _to_magnitude(match: re.Match[str]) -> str:
-    """Re-render one number found inside a cell as K, M or B."""
+    """Re-render one number found inside a cell as K, M, B or T."""
     text = match.group()
     value = float(text.replace(",", ""))
     for limit, suffix in MAGNITUDES:
