@@ -30,7 +30,7 @@ from engine.types import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Hashable, Mapping, Sequence
+    from collections.abc import Callable, Hashable, Mapping, Sequence
 
     from engine.types import CashKey
 
@@ -44,43 +44,26 @@ _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMea
 # The three per-grain measure sets a computed row carries, by attribute.
 _GRAINS = ("acct", "type", "folio")
 
-_DIAGNOSTIC_COLUMNS = (
-    "code",
-    "txn_id",
-    "grain",
-    "pool",
-    "detail",
-    "account",
-    "symbol",
-    "currency",
-    "as_of",
-    "value",
+# Every column below is read off the dataclasses, so a field added to
+# `ReplayWarning`, `TxnRow` or `ComputedRow` is saved with no edit here. Only a
+# field that must come back as something other than text needs a decoder.
+_DIAGNOSTIC_COLUMNS = tuple(field.name for field in fields(ReplayWarning))
+
+# The transaction's own columns (its id is the key), then the derived scalars
+# of the computed row beside it. The per-grain measures and the flags follow.
+_TXN_FIELDS = tuple(field.name for field in fields(TxnRow) if field.name != "txn_id")
+_DERIVED_FIELDS = tuple(
+    field.name
+    for field in fields(ComputedRow)
+    if field.name not in {"row", "flags", *_GRAINS}
 )
 
 # Prefixed, since a diagnostic and its row both name an account, symbol and currency.
 _ROW_COLUMNS = tuple(
     f"row_{name}"
     for name in (
-        "txn_date",
-        "settle_date",
-        "action",
-        "amount",
-        "currency",
-        "price",
-        "units",
-        "fee",
-        "ticker",
-        "account",
-        "description",
-        "symbol",
-        "acct_type",
-        "impact",
-        "fx_rate",
-        "fx_date",
-        "proceeds_cad",
-        "proceeds_usd",
-        "dividend_cad",
-        "dividend_usd",
+        *_TXN_FIELDS,
+        *_DERIVED_FIELDS,
         *(f"{grain}_{name}" for grain in _GRAINS for name in _MEASURE_FIELDS),
         "flags",
     )
@@ -97,62 +80,61 @@ def _number(value: Any) -> Decimal | None:  # noqa: ANN401 - reading untyped sto
     return None if value is None else Decimal(str(value))
 
 
+def _same(value: Any) -> Any:  # noqa: ANN401 - a field read back as it was stored
+    """Hand a stored value back unchanged."""
+    return value
+
+
+def _optional(convert: Callable[[Any], Any]) -> Callable[[Any], Any]:
+    """Wrap a decoder so that a blank stays None."""
+    return lambda value: convert(value) if value else None
+
+
+# How the fields that are not plain text come back from storage.
+_DIAGNOSTIC_DECODERS: dict[str, Callable[[Any], Any]] = {
+    "code": WarningCode,
+    "txn_id": _optional(int),
+    "grain": _optional(Grain),
+    "currency": _optional(Currency),
+    "value": _number,
+}
+_ROW_DECODERS: dict[str, Callable[[Any], Any]] = {
+    "action": Action,
+    "amount": Decimal,
+    "currency": Currency,
+    "price": Decimal,
+    "units": Decimal,
+    "fee": Decimal,
+    "acct_type": AccountType,
+    "impact": Impact,
+    "fx_rate": _number,
+    "proceeds_cad": _number,
+    "proceeds_usd": _number,
+    "dividend_cad": _number,
+    "dividend_usd": _number,
+}
+
+
 def _encode_diagnostic(diagnostic: ReplayWarning) -> dict[str, str | None]:
     """Flatten one diagnostic."""
-    return {
-        "code": str(diagnostic.code),
-        "txn_id": _text(diagnostic.txn_id),
-        "grain": _text(diagnostic.grain),
-        "pool": diagnostic.pool,
-        "detail": diagnostic.detail,
-        "account": diagnostic.account,
-        "symbol": diagnostic.symbol,
-        "currency": _text(diagnostic.currency),
-        "as_of": diagnostic.as_of,
-        "value": _text(diagnostic.value),
-    }
+    return {name: _text(getattr(diagnostic, name)) for name in _DIAGNOSTIC_COLUMNS}
 
 
 def _decode_diagnostic(record: Mapping[Hashable, Any]) -> ReplayWarning:
     """Restore one diagnostic."""
     return ReplayWarning(
-        code=WarningCode(record["code"]),
-        txn_id=None if record["txn_id"] is None else int(record["txn_id"]),
-        grain=Grain(record["grain"]) if record["grain"] else None,
-        pool=record["pool"],
-        detail=record["detail"],
-        account=record["account"],
-        symbol=record["symbol"],
-        currency=Currency(record["currency"]) if record["currency"] else None,
-        as_of=record["as_of"],
-        value=_number(record["value"]),
+        **{
+            name: _DIAGNOSTIC_DECODERS.get(name, _same)(record[name])
+            for name in _DIAGNOSTIC_COLUMNS
+        },
     )
 
 
 def _encode_row(computed: ComputedRow) -> dict[str, str | None]:
     """Flatten one computed row, money included, losing nothing."""
-    row = computed.row
     values = [
-        row.txn_date,
-        row.settle_date,
-        row.action,
-        row.amount,
-        row.currency,
-        row.price,
-        row.units,
-        row.fee,
-        row.ticker,
-        row.account,
-        row.description,
-        computed.symbol,
-        computed.acct_type,
-        computed.impact,
-        computed.fx_rate,
-        computed.fx_date,
-        computed.proceeds_cad,
-        computed.proceeds_usd,
-        computed.dividend_cad,
-        computed.dividend_usd,
+        *(getattr(computed.row, name) for name in _TXN_FIELDS),
+        *(getattr(computed, name) for name in _DERIVED_FIELDS),
         *(
             getattr(getattr(computed, grain), name)
             for grain in _GRAINS
@@ -173,30 +155,13 @@ def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
 def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> ComputedRow:
     """Restore one computed row exactly as the replay produced it."""
     flags = record["row_flags"]
+    stored = {
+        name: _ROW_DECODERS.get(name, _same)(record[f"row_{name}"])
+        for name in (*_TXN_FIELDS, *_DERIVED_FIELDS)
+    }
     return ComputedRow(
-        row=TxnRow(
-            txn_id=txn_id,
-            txn_date=record["row_txn_date"],
-            settle_date=record["row_settle_date"],
-            action=Action(record["row_action"]),
-            amount=Decimal(record["row_amount"]),
-            currency=Currency(record["row_currency"]),
-            price=Decimal(record["row_price"]),
-            units=Decimal(record["row_units"]),
-            fee=Decimal(record["row_fee"]),
-            ticker=record["row_ticker"],
-            account=record["row_account"],
-            description=record["row_description"],
-        ),
-        symbol=record["row_symbol"],
-        acct_type=AccountType(record["row_acct_type"]),
-        impact=Impact(record["row_impact"]),
-        fx_rate=_number(record["row_fx_rate"]),
-        fx_date=record["row_fx_date"],
-        proceeds_cad=_number(record["row_proceeds_cad"]),
-        proceeds_usd=_number(record["row_proceeds_usd"]),
-        dividend_cad=_number(record["row_dividend_cad"]),
-        dividend_usd=_number(record["row_dividend_usd"]),
+        row=TxnRow(txn_id=txn_id, **{name: stored[name] for name in _TXN_FIELDS}),
+        **{name: stored[name] for name in _DERIVED_FIELDS},
         acct=_read_measures(record, "acct"),
         type=_read_measures(record, "type"),
         folio=_read_measures(record, "folio"),

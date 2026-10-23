@@ -22,7 +22,7 @@ from cli.commands.common import (
     require_ledger,
     resolve_pool,
 )
-from domain import Currency, Grain
+from domain import Column, Currency, Grain
 from engine.panels import FolioValuation
 from engine.performance import fetch_moves
 from engine.ticker import (
@@ -154,7 +154,9 @@ def _report_one(
 
     # The quote is today's, so the rate converting it has to be too.
     ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
-    traded = not ledger.frame.empty and canonical in set(ledger.frame["Symbol"])
+    traded = not ledger.frame.empty and canonical in set(
+        ledger.frame[Column.Ledger.SYMBOL],
+    )
     if not traded and not quote.priced:
         if offline:
             console_error(
@@ -263,7 +265,7 @@ def _report_matrix(
         refresh=refresh and bool(symbols),
         offline=offline,
     )
-    traded = set() if ledger.frame.empty else set(ledger.frame["Symbol"])
+    traded = set() if ledger.frame.empty else set(ledger.frame[Column.Ledger.SYMBOL])
     unknown = [
         name for name in wanted if not quotes[name].priced and name not in traded
     ]

@@ -39,13 +39,13 @@ def dec(value: object) -> Decimal:
     return _from_text(str(value).strip())
 
 
-# Text a nullable cell arrives as when it holds nothing.
-_MISSING_TEXT = frozenset({"nan", "none", "<na>", "nat"})
+# Lowercased text a nullable cell arrives as when it holds nothing.
+MISSING_TEXT = frozenset({"nan", "none", "<na>", "nat"})
 
 
 def _from_text(text: str) -> Decimal:
     """Parse a stored TEXT number, treating anything unusable as ZERO."""
-    if not text or text.lower() in _MISSING_TEXT:
+    if not text or text.lower() in MISSING_TEXT:
         return ZERO
     try:
         parsed = Decimal(text)

@@ -11,8 +11,17 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
-from domain import ROOM_BEARING_TYPES, AccountType, Action, Column, Currency, Grain
+from domain import (
+    ROOM_BEARING_TYPES,
+    WEEKDAYS,
+    AccountType,
+    Action,
+    Column,
+    Currency,
+    Grain,
+)
 from domain.numeric import ZERO, dec, q2
+from engine.replay import FOLIO_POOL
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -23,13 +32,9 @@ if TYPE_CHECKING:
     from engine.ledger import Ledger
     from engine.types import CashState
 
-# The pool key the replay credits folio-grain movements to.
-FOLIO_POOL = "FOLIO"
-
 # An RRSP contribution made up to 60 days after a year ends counts toward that
 # year's room, which is how CRA's deduction limit statement reports it.
 RRSP_WINDOW_DAYS = 60
-_SATURDAY = 5
 
 
 @dataclass(frozen=True)
@@ -319,7 +324,7 @@ def _by_type_year(
     rows = frame[frame[str(Column.Txn.ACTION)] == str(action)]
     totals: dict[AccountType, dict[int, Decimal]] = {}
     for name, stamp, amount in zip(
-        rows["AcctType"].to_numpy(),
+        rows[Column.Ledger.ACCT_TYPE].to_numpy(),
         rows[str(Column.Txn.TXN_DATE)].to_numpy(),
         rows[str(Column.Txn.AMOUNT)].to_numpy(),
         strict=True,
@@ -392,7 +397,7 @@ def room_year(account_type: AccountType, day: date) -> int:
     if account_type is not AccountType.RRSP:
         return day.year
     deadline = date(day.year - 1, 12, 31) + timedelta(days=RRSP_WINDOW_DAYS)
-    while deadline.weekday() >= _SATURDAY:
+    while deadline.weekday() >= WEEKDAYS:
         deadline += timedelta(days=1)
     return day.year - 1 if day <= deadline else day.year
 

@@ -8,17 +8,13 @@ from typing import TYPE_CHECKING, cast
 import numpy as np
 import pandas as pd
 
-from app.logging_setup import get_import_logger
-from domain import TORONTO_TZ, Action, Column, Currency
+from domain import TORONTO_TZ, WEEKDAYS, Action, Column, Currency
 
 if TYPE_CHECKING:
     from datetime import date
 
     import pandas_market_calendars as mcal
 
-import_logger = get_import_logger()
-
-WEEKDAYS_IN_WEEK: int = 5
 DATE_FORMAT: str = "%Y-%m-%d"
 DATE_PATTERN: str = r"^\d{4}-\d{2}-\d{2}$"
 _EMPTY_SCHEDULE: pd.DatetimeIndex = pd.DatetimeIndex([])
@@ -142,7 +138,7 @@ class SettlementCalculator:
                     settlement_days,
                     currency,
                 )
-            calculated[row] = is_calculated
+            calculated[row] = int(is_calculated)
 
         df[Column.Txn.SETTLE_DATE] = settle_dates
         df[Column.Txn.SETTLE_CALCULATED] = calculated
@@ -216,10 +212,10 @@ class SettlementCalculator:
 
         while days_added < settlement_days:
             current_date = current_date + pd.DateOffset(days=1)
-            if current_date.weekday() < WEEKDAYS_IN_WEEK:
+            if current_date.weekday() < WEEKDAYS:
                 days_added += 1
 
-        return current_date.strftime("%Y-%m-%d")
+        return current_date.strftime(DATE_FORMAT)
 
     def get_calendar_schedule(
         self,
@@ -271,7 +267,7 @@ class SettlementCalculator:
         action: Action,
         currency: Currency,
         txn_date: date,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, bool]:
         """Get number of settlement days for a transaction.
 
         Args:
@@ -280,19 +276,19 @@ class SettlementCalculator:
             txn_date: Trade date
 
         Returns:
-            Tuple of (settlement days, 0/1 for calculated or not)
+            Tuple of (settlement days, whether the date is calculated)
         """
         if action in SAME_DAY_SETTLE_ACTIONS:
-            return 0, 0
+            return 0, False
 
         if action in BUSINESS_DAY_SETTLE_ACTIONS:
             # Check if T+1 is effective for this currency and date
             effective_date = T_PLUS_1_EFFECTIVE_DATES.get(currency)
             if effective_date and txn_date >= effective_date:
-                return 1, 1  # T+1 settlement
-            return 2, 1  # T+2 settlement
+                return 1, True  # T+1 settlement
+            return 2, True  # T+2 settlement
 
-        return 0, 0  # pragma: no cover
+        return 0, False  # pragma: no cover
 
 
 # Global instance for use throughout the application

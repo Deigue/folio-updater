@@ -19,7 +19,7 @@ from domain import (
     Table,
     WarningCode,
 )
-from domain.numeric import ZERO, dec
+from domain.numeric import MISSING_TEXT, ZERO, dec
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Container
@@ -368,7 +368,7 @@ def _text(value: object) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
-    return None if not text or text.lower() in {"nan", "none", "<na>"} else text
+    return None if not text or text.lower() in MISSING_TEXT else text
 
 
 def _action(value: object) -> Action | None:
@@ -401,10 +401,9 @@ def to_txn_rows(frame: pd.DataFrame) -> list[TxnRow]:
         if action is None:
             continue
         txn_date = str(record.get(Column.Txn.TXN_DATE) or "")
-        settle_raw = record.get(Column.Txn.SETTLE_DATE)
-        settle_date = str(settle_raw) if settle_raw and str(settle_raw) != "nan" else ""
+        settle_date = _text(record.get(Column.Txn.SETTLE_DATE)) or ""
         ticker = _text(record.get(Column.Txn.TICKER))
-        description = _text(record.get("Description"))
+        description = _text(record.get(Column.Txn.DESCRIPTION))
         rows.append(
             TxnRow(
                 txn_id=int(record[Column.Txn.TXN_ID]),

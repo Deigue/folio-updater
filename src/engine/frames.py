@@ -47,15 +47,27 @@ SOURCE_COLUMNS = [
 ]
 
 # Derived context that is not grain-specific.
-CONTEXT_COLUMNS = ["Symbol", "AcctType", "Impact", "FXRate", "FXDate", "Flags"]
+CONTEXT_COLUMNS = [
+    str(Column.Ledger.SYMBOL),
+    str(Column.Ledger.ACCT_TYPE),
+    str(Column.Ledger.IMPACT),
+    str(Column.Ledger.FX_RATE),
+    str(Column.Ledger.FX_DATE),
+    str(Column.Ledger.FLAGS),
+]
 
 # Measures shared by every grain.
-SHARED_COLUMNS = ["Proceeds", "Proceeds_USD", "Dividend", "Dividend_USD"]
+SHARED_COLUMNS = [
+    str(Column.Ledger.PROCEEDS),
+    str(Column.Ledger.PROCEEDS_USD),
+    str(Column.Ledger.DIVIDEND),
+    str(Column.Ledger.DIVIDEND_USD),
+]
 
 # The column a pool at each grain is named by.
 POOL_COLUMN: dict[Grain, str] = {
     Grain.ACCOUNT: str(Column.Txn.ACCOUNT),
-    Grain.TYPE: "AcctType",
+    Grain.TYPE: str(Column.Ledger.ACCT_TYPE),
 }
 
 # The prefix each grain's column family carries.
@@ -91,6 +103,18 @@ def grain_column(grain: Grain, measure: str) -> str:
         The column name, for example `AcctACB` or `FolioAvg_USD`.
     """
     return f"{GRAIN_PREFIX[grain]}{measure}"
+
+
+# The measures a summary carries: each grain measure that is a state, not a change.
+_SUMMARY_SUFFIXES = tuple(
+    suffix for suffix, _ in GRAIN_MEASURES if not suffix.startswith("Delta")
+)
+
+# A summary frame's columns: the symbol, then each grain's summary measures.
+_SUMMARY_COLUMNS = [
+    str(Column.Ledger.SYMBOL),
+    *(grain_column(grain, suffix) for grain in Grain for suffix in _SUMMARY_SUFFIXES),
+]
 
 
 def _number(value: Decimal | None) -> float | None:
@@ -130,16 +154,16 @@ def _row_record(computed: ComputedRow) -> dict[str, object]:
         str(Column.Txn.PRICE): float(row.price),
         str(Column.Txn.UNITS): float(row.units),
         str(Column.Txn.FEE): float(row.fee),
-        "Symbol": computed.symbol,
-        "AcctType": str(computed.acct_type),
-        "Impact": str(computed.impact),
-        "FXRate": _number(computed.fx_rate),
-        "FXDate": computed.fx_date,
-        "Flags": ",".join(str(code) for code in computed.flags),
-        "Proceeds": _number(computed.proceeds_cad),
-        "Proceeds_USD": _number(computed.proceeds_usd),
-        "Dividend": _number(computed.dividend_cad),
-        "Dividend_USD": _number(computed.dividend_usd),
+        str(Column.Ledger.SYMBOL): computed.symbol,
+        str(Column.Ledger.ACCT_TYPE): str(computed.acct_type),
+        str(Column.Ledger.IMPACT): str(computed.impact),
+        str(Column.Ledger.FX_RATE): _number(computed.fx_rate),
+        str(Column.Ledger.FX_DATE): computed.fx_date,
+        str(Column.Ledger.FLAGS): ",".join(str(code) for code in computed.flags),
+        str(Column.Ledger.PROCEEDS): _number(computed.proceeds_cad),
+        str(Column.Ledger.PROCEEDS_USD): _number(computed.proceeds_usd),
+        str(Column.Ledger.DIVIDEND): _number(computed.dividend_cad),
+        str(Column.Ledger.DIVIDEND_USD): _number(computed.dividend_usd),
     }
     for grain in Grain:
         record.update(_grain_cells(computed, grain, computed.measures(grain)))
@@ -213,20 +237,21 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
         One row per symbol carrying units, cost base, average cost and realized
         gain at all three grains, sorted by symbol.
     """
-    if frame.empty or "Symbol" not in frame.columns:
-        return pd.DataFrame(columns=["Symbol", *_summary_columns()])
+    if frame.empty or Column.Ledger.SYMBOL not in frame.columns:
+        return pd.DataFrame(columns=_SUMMARY_COLUMNS)
 
-    # TxnId is both the index and a column on the ledger, so drop the
-    # index to avoid ambiguity for sort_values and groupby.
-    tracked = frame[frame["Symbol"].notna()].reset_index(drop=True)
+    tracked = _tracked(frame)
     if tracked.empty:
-        return pd.DataFrame(columns=["Symbol", *_summary_columns()])
+        return pd.DataFrame(columns=_SUMMARY_COLUMNS)
 
     records = [
         _summary_record(symbol, rows.iloc[-1])
-        for symbol, rows in replay_ordered(tracked).groupby("Symbol", sort=True)
+        for symbol, rows in replay_ordered(tracked).groupby(
+            str(Column.Ledger.SYMBOL),
+            sort=True,
+        )
     ]
-    return pd.DataFrame(records, columns=["Symbol", *_summary_columns()])
+    return pd.DataFrame(records, columns=_SUMMARY_COLUMNS)
 
 
 def acb_summary_frames_by_pool(
@@ -252,28 +277,39 @@ def acb_summary_frames_by_pool(
         raise ValueError(msg)
 
     column = POOL_COLUMN[grain]
-    if frame.empty or "Symbol" not in frame.columns or column not in frame.columns:
+    if (
+        frame.empty
+        or Column.Ledger.SYMBOL not in frame.columns
+        or column not in frame.columns
+    ):
         return {}
 
-    # frame where symbols are not missing
-    tracked = frame[frame["Symbol"].notna()].reset_index(drop=True)
+    tracked = _tracked(frame)
     if tracked.empty:
         return {}
 
     grouped: dict[str, list[dict[str, object]]] = {}
     for (pool, symbol), rows in replay_ordered(tracked).groupby(
-        [column, "Symbol"],
+        [column, str(Column.Ledger.SYMBOL)],
         sort=True,
     ):
         grouped.setdefault(str(pool), []).append(
             _summary_record(symbol, rows.iloc[-1]),
         )
 
-    columns = ["Symbol", *_summary_columns()]
     return {
-        pool: pd.DataFrame(records, columns=columns)
+        pool: pd.DataFrame(records, columns=_SUMMARY_COLUMNS)
         for pool, records in grouped.items()
     }
+
+
+def _tracked(frame: pd.DataFrame) -> pd.DataFrame:
+    """Keep the rows that track a symbol, with the index dropped.
+
+    TxnId is both the index and a column on the ledger, so the index goes to
+    avoid ambiguity for `sort_values` and `groupby`.
+    """
+    return frame[frame[Column.Ledger.SYMBOL].notna()].reset_index(drop=True)
 
 
 _RANK = "_intraday_rank"
@@ -303,37 +339,19 @@ def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
 
 def _summary_record(symbol: object, last: pd.Series) -> dict[str, object]:
     """Read one symbol's closing holding off the last row that touched it."""
-    record: dict[str, object] = {"Symbol": symbol}
+    record: dict[str, object] = {str(Column.Ledger.SYMBOL): symbol}
     for grain in Grain:
-        for suffix in ("Units", "ACB", "ACB_USD", "Gain", "Gain_USD"):
+        for suffix in _SUMMARY_SUFFIXES:
             column = grain_column(grain, suffix)
-            record[column] = last[column]
-        # Both averages are computed rather than carried
-        for suffix in ("Avg", "Avg_USD"):
-            record[grain_column(grain, suffix)] = _average(
-                last[grain_column(grain, "Units")],
-                last[grain_column(grain, suffix.replace("Avg", "ACB"))],
-            )
+            if suffix.startswith("Avg"):
+                # Both averages are computed rather than carried
+                record[column] = _average(
+                    last[grain_column(grain, "Units")],
+                    last[grain_column(grain, suffix.replace("Avg", "ACB"))],
+                )
+            else:
+                record[column] = last[column]
     return record
-
-
-def _summary_columns() -> list[str]:
-    """List the per-grain columns the summary frame carries."""
-    columns: list[str] = []
-    for grain in Grain:
-        columns.extend(
-            grain_column(grain, suffix)
-            for suffix in (
-                "Units",
-                "ACB",
-                "ACB_USD",
-                "Avg",
-                "Avg_USD",
-                "Gain",
-                "Gain_USD",
-            )
-        )
-    return columns
 
 
 def _average(units: float | None, acb: float | None) -> float | None:

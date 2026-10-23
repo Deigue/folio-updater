@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from db.queries import get_connection, get_rows
 from domain import Column, Currency, Table
-from domain.numeric import ZERO, dec, safe_div
+from domain.numeric import ONE, ZERO, dec, safe_div
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -88,7 +88,7 @@ class FxRates:
             The converted value alongside the rate that produced it.
         """
         if frm is Currency.CAD:
-            return Conversion(amount, dec(1), on)
+            return Conversion(amount, ONE, on)
         rate_date, rate, warning = self._lookup(on, frm)
         return Conversion(amount * rate, rate, rate_date, warning)
 
@@ -106,7 +106,7 @@ class FxRates:
             Decimal precision rather than reading the stored reciprocal.
         """
         if to is Currency.CAD:
-            return Conversion(amount, dec(1), on)
+            return Conversion(amount, ONE, on)
         rate_date, rate, warning = self._lookup(on, to)
         return Conversion(safe_div(amount, rate), rate, rate_date, warning)
 

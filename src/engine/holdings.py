@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
-from domain import Currency, Grain, WarningCode
+from domain import Column, Currency, Grain, WarningCode
 from domain.numeric import ZERO, dec, safe_div
 from engine.frames import (
     POOL_COLUMN,
@@ -354,7 +354,9 @@ def _open_symbols(summary: pd.DataFrame) -> list[str]:
         return []
     column = grain_column(Grain.FOLIO, "Units")
     open_positions = summary[summary[column].fillna(0) != 0]
-    return sorted({str(symbol) for symbol in open_positions["Symbol"] if symbol})
+    return sorted(
+        {str(symbol) for symbol in open_positions[Column.Ledger.SYMBOL] if symbol},
+    )
 
 
 @dataclass(frozen=True)
@@ -364,6 +366,15 @@ class _Rollups:
     summary: pd.DataFrame
     flags: dict[str, tuple[WarningCode, ...]]
     income: dict[str, tuple[Decimal, Decimal]]
+
+
+def _rollup(rows: pd.DataFrame, summary: pd.DataFrame) -> _Rollups:
+    """Derive one pool's flag and income rollups to sit beside its summary."""
+    return _Rollups(
+        summary=summary,
+        flags=_flags_by_symbol(rows),
+        income=_dividends_by_symbol(rows),
+    )
 
 
 class FolioHoldings:
@@ -412,11 +423,7 @@ class FolioHoldings:
         held = self._rollups.get(key)
         if held is None:
             rows = grain_rows(self.frame, grain, pool)
-            held = _Rollups(
-                summary=acb_summary_frame(rows),
-                flags=_flags_by_symbol(rows),
-                income=_dividends_by_symbol(rows),
-            )
+            held = _rollup(rows, acb_summary_frame(rows))
             self._rollups[key] = held
         return held
 
@@ -437,11 +444,7 @@ class FolioHoldings:
             if key in self._rollups:
                 continue
             rows = grain_rows(self.frame, grain, pool)
-            self._rollups[key] = _Rollups(
-                summary=summary,
-                flags=_flags_by_symbol(rows),
-                income=_dividends_by_symbol(rows),
-            )
+            self._rollups[key] = _rollup(rows, summary)
 
     def held_symbols(self) -> list[str]:
         """Every symbol the folio still holds anywhere, at folio grain.
@@ -494,20 +497,21 @@ class FolioHoldings:
             UnknownSortError: If `sort` is not a sortable measure.
         """
         derived = self.rollups(grain, pool)
-        quotes = self.quotes
-        fx = self.fx
-        summary = derived.summary
-        flags = derived.flags
-        income = derived.income
-        rate, rate_date = _latest_rate(fx)
+        rate, rate_date = _latest_rate(self.fx)
         priced_totals = ZERO
         excluded = 0
         partial: list[Holding] = []
         closed: list[Holding] = []
-        context = _Context(quotes, flags, income, grain, pool or "", currency, fx)
+        context = _Context.build(
+            self,
+            derived,
+            grain=grain,
+            pool=pool or "",
+            currency=currency,
+        )
         # Only `-c USD` ever hides a holding, so only it has to keep count.
         filtering = currency is Currency.USD
-        for record in summary.to_dict("records"):
+        for record in derived.summary.to_dict("records"):
             holding = _holding(record, context)
             if holding is None:
                 # Count if we excluded anything due to currency filtering.
@@ -606,10 +610,7 @@ def _by_currency(
         members = seen.get(currency, [])
         closed_members = closed_seen.get(currency, [])
         priced = any(member.priced for member in members)
-        closed_pnl = sum(
-            (m.realized + m.dividends for m in closed_members),
-            ZERO,
-        )
+        closed_pnl = sum((m.closed_total for m in closed_members), ZERO)
         groups.append(
             CurrencyTotals(
                 currency=currency,
@@ -713,15 +714,36 @@ class _Context:
     currency: DisplayCurrency
     fx: FxRates
 
+    @classmethod
+    def build(
+        cls,
+        folio: FolioHoldings,
+        derived: _Rollups,
+        *,
+        grain: Grain,
+        pool: str,
+        currency: DisplayCurrency,
+    ) -> _Context:
+        """Gather the context from the folio and one pool's rollups."""
+        return cls(
+            quotes=folio.quotes,
+            flags=derived.flags,
+            income=derived.income,
+            grain=grain,
+            pool=pool,
+            currency=currency,
+            fx=folio.fx,
+        )
+
 
 def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     """Value one summary row, or None when it is not a holding to show."""
-    symbol = record.get("Symbol")
+    symbol = record.get(Column.Ledger.SYMBOL)
     if not isinstance(symbol, str) or not symbol:
         return None
 
     grain = ctx.grain
-    held = _measure(record.get(grain_column(grain, "Units")))
+    held = dec(record.get(grain_column(grain, "Units")))
     closed = held == ZERO
 
     native = _native_currency(record, grain)
@@ -756,11 +778,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             book_value_totals=book_totals,
             realized_totals=realized_totals,
             dividends_totals=dividends_totals,
-            total_pnl_cad=(
-                realized_totals + dividends_totals
-                if totals is Currency.CAD
-                else _cad_earned(record, ctx, symbol, native, held)
-            ),
+            total_pnl_cad=_cad_earned(record, ctx, symbol, native, held),
             flags=ctx.flags.get(symbol, ()),
             closed=True,
         )
@@ -836,8 +854,6 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         total_pnl_cad=(
             None
             if gain_totals is None
-            else gain_totals + dividends_totals
-            if totals is Currency.CAD
             else _cad_earned(record, ctx, symbol, native, held)
         ),
     )
@@ -876,8 +892,8 @@ def _cad_earned(
 ) -> Decimal | None:
     """Read everything one holding earned, in CAD, ignoring the display currency.
 
-    Only reached when `-c USD` has made the totals currency USD. Every other
-    figure on the row is then USD by request, but the deposit-based return
+    Under `-c USD` every other figure on the row is USD by request, but the
+    deposit-based return
     divides by net *CAD* deposits, so its numerator has to be read from the
     frame's CAD columns rather than converted back at today's rate. Realized
     gains and dividends therefore keep the historical rates they were booked
@@ -916,7 +932,7 @@ def _filtered_out(record: Mapping[Any, Any], grain: Grain) -> int:
     Returns:
         1 when the filter dropped a real holding, 0 otherwise.
     """
-    symbol = record.get("Symbol")
+    symbol = record.get(Column.Ledger.SYMBOL)
     if not isinstance(symbol, str) or not symbol:
         # Not a holding at all, so nothing was hidden.
         return 0
@@ -997,8 +1013,8 @@ def _cost(
 ) -> tuple[Decimal, Decimal]:
     """Read book value and average cost in the currency being displayed."""
     suffix = _suffix(shown, native)
-    book = _measure(record.get(grain_column(grain, f"ACB{suffix}")))
-    avg = _measure(record.get(grain_column(grain, f"Avg{suffix}")))
+    book = dec(record.get(grain_column(grain, f"ACB{suffix}")))
+    avg = dec(record.get(grain_column(grain, f"Avg{suffix}")))
     return book, avg
 
 
@@ -1009,7 +1025,7 @@ def _realized(
     native: Currency,
 ) -> Decimal:
     """Read the cumulative realized gain in the currency being displayed."""
-    return _measure(record.get(grain_column(grain, f"Gain{_suffix(shown, native)}")))
+    return dec(record.get(grain_column(grain, f"Gain{_suffix(shown, native)}")))
 
 
 def _income(
@@ -1039,21 +1055,23 @@ def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal
         Each symbol mapped to `(CAD, USD)` totals. The USD figure is blank for
         a CAD-denominated holding, matching the frame's own convention.
     """
-    if rows.empty or "Dividend" not in rows.columns:
+    if rows.empty or Column.Ledger.DIVIDEND not in rows.columns:
         return {}
     # Filter `paying` to only rows with actual dividends first.
-    paying = rows[rows["Dividend"].notna() | rows["Dividend_USD"].notna()]
+    paying = rows[
+        rows[Column.Ledger.DIVIDEND].notna() | rows[Column.Ledger.DIVIDEND_USD].notna()
+    ]
     totals: dict[str, tuple[Decimal, Decimal]] = {}
     for symbol, cad, usd in zip(
-        paying["Symbol"].to_numpy(),
-        paying["Dividend"].to_numpy(),
-        paying["Dividend_USD"].to_numpy(),
+        paying[Column.Ledger.SYMBOL].to_numpy(),
+        paying[Column.Ledger.DIVIDEND].to_numpy(),
+        paying[Column.Ledger.DIVIDEND_USD].to_numpy(),
         strict=True,
     ):
         if not isinstance(symbol, str) or not symbol:
             continue
         running = totals.get(symbol, (ZERO, ZERO))
-        totals[symbol] = (running[0] + _measure(cad), running[1] + _measure(usd))
+        totals[symbol] = (running[0] + dec(cad), running[1] + dec(usd))
     return totals
 
 
@@ -1102,12 +1120,12 @@ def _native_currency(record: Mapping[str, object], grain: Grain) -> Currency:
 
 def _flags_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[WarningCode, ...]]:
     """Roll the frame's `Flags` column up per symbol, within this pool."""
-    if rows.empty or "Flags" not in rows.columns:
+    if rows.empty or Column.Ledger.FLAGS not in rows.columns:
         return {}
     grouped: dict[str, dict[WarningCode, None]] = {}
     for symbol, flags in zip(
-        rows["Symbol"].to_numpy(),
-        rows["Flags"].to_numpy(),
+        rows[Column.Ledger.SYMBOL].to_numpy(),
+        rows[Column.Ledger.FLAGS].to_numpy(),
         strict=True,
     ):
         if not isinstance(symbol, str) or not flags or pd.isna(flags):
@@ -1134,13 +1152,6 @@ def _today(fx: FxRates) -> str:
     """Pick the date to value at: the latest rate held, which `as_of` carries back."""
     _, last = fx.coverage
     return last or "9999-12-31"
-
-
-def _measure(value: Any) -> Decimal:  # noqa: ANN401 - a frame cell is untyped
-    """Read one measure off the frame as a Decimal, treating a blank as zero."""
-    if value is None or (not isinstance(value, str) and pd.isna(value)):
-        return ZERO
-    return dec(value)
 
 
 def _sum_optional(values: Iterable[Decimal | None]) -> Decimal:

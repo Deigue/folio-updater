@@ -21,7 +21,7 @@ from domain.numeric import ZERO, q2
 from engine.replay import DENOMINATED_ACTIONS
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from decimal import Decimal
 
     from engine.ledger import Ledger
@@ -182,6 +182,28 @@ class _Folio:
             warnings.extend(self._by_code.get(code, []))
         return warnings
 
+    def tagged(
+        self,
+        *codes: WarningCode,
+        grain: Grain | None = None,
+    ) -> Iterator[tuple[ReplayWarning, ComputedRow]]:
+        """Pair each surviving diagnostic with the transaction it tags.
+
+        Args:
+            *codes: The diagnostic codes to read.
+            grain: Keep only diagnostics at this pool grain.
+
+        Yields:
+            Each diagnostic with its transaction, in the order a reader scans
+            them. These codes always tag a transaction, so none is skipped in
+            practice.
+        """
+        warnings = self.having(*codes)
+        if grain is not None:
+            warnings = [warning for warning in warnings if warning.grain is grain]
+        pairs = ((warning, self.row_of(warning)) for warning in _ordered(warnings))
+        yield from ((warning, row) for warning, row in pairs if row is not None)
+
     def at(self, grain: Grain, *codes: WarningCode) -> list[ReplayWarning]:
         """Every surviving diagnostic at one pool grain."""
         return [warning for warning in self.having(*codes) if warning.grain is grain]
@@ -230,24 +252,33 @@ def _ordered(warnings: Iterable[ReplayWarning]) -> list[ReplayWarning]:
     )
 
 
-def _result(  # noqa: PLR0913, PLR0917 - one call per check, all reading as prose
-    name: str,
-    slug: str,
-    findings: list[CheckFinding],
-    passed: str,
-    failed: str,
-    status: CheckStatus = CheckStatus.FAIL,
-) -> CheckResult:
-    """Assemble one check's outcome, choosing its summary from the findings."""
-    if not findings:
-        return CheckResult(name, slug, CheckStatus.OK, passed)
-    return CheckResult(name, slug, status, failed, tuple(findings))
+@dataclass(frozen=True)
+class _Outcome:
+    """What one check concluded, before `_CHECKS` gives it a name and a slug.
+
+    Attributes:
+        findings: The detail lines, empty when the check passed.
+        passed: The summary printed when there are no findings.
+        failed: The summary printed when there are some.
+        status: The status of a check that has findings.
+    """
+
+    findings: list[CheckFinding]
+    passed: str
+    failed: str
+    status: CheckStatus = CheckStatus.FAIL
+
+    def to_result(self, name: str, slug: str) -> CheckResult:
+        """Assemble the check's result, choosing its summary from the findings."""
+        if not self.findings:
+            return CheckResult(name, slug, CheckStatus.OK, self.passed)
+        return CheckResult(name, slug, self.status, self.failed, tuple(self.findings))
 
 
 # --- CHECK FUNCTIONS ---------------------------------------------------------
 
 
-def _check_account_types(folio: _Folio) -> CheckResult:
+def _check_account_types(folio: _Folio) -> _Outcome:
     """Every account has to resolve to an account type before anything else counts."""
     findings = [
         CheckFinding(
@@ -260,22 +291,17 @@ def _check_account_types(folio: _Folio) -> CheckResult:
         )
         for warning in _ordered(folio.having(WarningCode.UNKNOWN_ACCOUNT_TYPE))
     ]
-    return _result(
-        "Account types",
-        "account-types",
+    return _Outcome(
         findings,
         f"{_plural(len(folio.accounts), 'account')}, all types inferred",
         f"{_plural(len(findings), 'account has', 'accounts have')} no type",
     )
 
 
-def _check_fee_conventions(folio: _Folio) -> CheckResult:
+def _check_fee_conventions(folio: _Folio) -> _Outcome:
     """Report trades whose amount reconciles against neither fee convention."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.AMBIGUOUS_FEE_CONVENTION)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for _warning, computed in folio.tagged(WarningCode.AMBIGUOUS_FEE_CONVENTION):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -290,9 +316,7 @@ def _check_fee_conventions(folio: _Folio) -> CheckResult:
                 txn_ids=(row.txn_id,),
             ),
         )
-    return _result(
-        "Fee conventions",
-        "fee-conventions",
+    return _Outcome(
         findings,
         f"{_plural(len(folio.accounts), 'account')} agree with their own trades",
         f"{_plural(len(findings), 'trade does', 'trades do')} not add up",
@@ -323,14 +347,11 @@ def _shortfall_reason(folio: _Folio, warning: ReplayWarning) -> str:
     )
 
 
-def _check_unit_balances(folio: _Folio) -> CheckResult:
+def _check_unit_balances(folio: _Folio) -> _Outcome:
     """Report holdings that go negative: the proof that a row is missing."""
     findings = []
     explained: set[tuple[str | None, str | None]] = set()
-    for warning in _ordered(folio.at(Grain.ACCOUNT, WarningCode.OVERSELL)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - OVERSELL always tags a sale
-            continue
+    for warning, computed in folio.tagged(WarningCode.OVERSELL, grain=Grain.ACCOUNT):
         row = computed.row
         held = warning.value if warning.value is not None else ZERO
         sold = abs(row.units)
@@ -368,16 +389,14 @@ def _check_unit_balances(folio: _Folio) -> CheckResult:
         )
 
     subjects = {finding.subject for finding in findings}
-    return _result(
-        "Unit balances",
-        "unit-balances",
+    return _Outcome(
         findings,
         "every holding stays above zero",
         f"{_plural(len(subjects), 'security', 'securities')} never balance",
     )
 
 
-def _check_cash_balances(folio: _Folio) -> CheckResult:
+def _check_cash_balances(folio: _Folio) -> _Outcome:
     """Report the first date each account's cash crosses below zero."""
     findings = []
     for warning in _ordered(folio.having(WarningCode.CASH_NEGATIVE)):
@@ -404,16 +423,14 @@ def _check_cash_balances(folio: _Folio) -> CheckResult:
                 txn_ids=(warning.txn_id,) if warning.txn_id else (),
             ),
         )
-    return _result(
-        "Cash balances",
-        "cash-balances",
+    return _Outcome(
         findings,
         "no account ever goes below zero",
         f"{_plural(len(findings), 'account goes', 'accounts go')} negative",
     )
 
 
-def _check_split_coverage(folio: _Folio) -> CheckResult:
+def _check_split_coverage(folio: _Folio) -> _Outcome:
     """Report splits missing from an account that held the security.
 
     A split reaches only its own account, so a missing row is silent forever.
@@ -457,22 +474,17 @@ def _check_split_coverage(folio: _Folio) -> CheckResult:
     else:
         failed = f"{_plural(len(findings), 'split is', 'splits are')} recorded wrong"
 
-    return _result(
-        "Split coverage",
-        "split-coverage",
+    return _Outcome(
         findings,
         f"{_plural(folio.counting(Action.SPLIT), 'split')}, every account got one",
         failed,
     )
 
 
-def _check_income_sanity(folio: _Folio) -> CheckResult:
+def _check_income_sanity(folio: _Folio) -> _Outcome:
     """Income arriving where nothing is held usually means the holding is missing."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.INCOME_WITHOUT_POSITION)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for warning, computed in folio.tagged(WarningCode.INCOME_WITHOUT_POSITION):
         row = computed.row
         paid = "a return of capital" if row.action is Action.ROC else "a dividend"
         findings.append(
@@ -500,9 +512,7 @@ def _check_income_sanity(folio: _Folio) -> CheckResult:
                 txn_ids=(warning.txn_id,) if warning.txn_id else (),
             ),
         )
-    return _result(
-        "Income sanity",
-        "income-sanity",
+    return _Outcome(
         findings,
         "all income lands on a holding",
         f"{_plural(len(findings), 'income row needs', 'income rows need')} a look",
@@ -510,13 +520,10 @@ def _check_income_sanity(folio: _Folio) -> CheckResult:
     )
 
 
-def _check_conversion_arithmetic(folio: _Folio) -> CheckResult:
+def _check_conversion_arithmetic(folio: _Folio) -> _Outcome:
     """Report conversions whose amount, units and rate disagree."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.FXT_AMOUNT_INCONSISTENT)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for _warning, computed in folio.tagged(WarningCode.FXT_AMOUNT_INCONSISTENT):
         row = computed.row
         # The engine compares magnitudes, so the implied figure is shown with
         # the recorded amount's sign.
@@ -533,16 +540,14 @@ def _check_conversion_arithmetic(folio: _Folio) -> CheckResult:
                 txn_ids=(row.txn_id,),
             ),
         )
-    return _result(
-        "Conversion arithmetic",
-        "conversion-arithmetic",
+    return _Outcome(
         findings,
         f"{_plural(folio.counting(Action.FXT), 'conversion')} all add up",
         f"{_plural(len(findings), 'conversion does', 'conversions do')} not add up",
     )
 
 
-def _check_currency_consistency(folio: _Folio) -> CheckResult:
+def _check_currency_consistency(folio: _Folio) -> _Outcome:
     """Report securities booked in more than one currency."""
     by_symbol: dict[str, list[ReplayWarning]] = {}
     for warning in folio.having(WarningCode.MIXED_CURRENCY):
@@ -566,9 +571,7 @@ def _check_currency_consistency(folio: _Folio) -> CheckResult:
                 txn_ids=tuple(w.txn_id for w in odd if w.txn_id is not None),
             ),
         )
-    return _result(
-        "Currency consistency",
-        "currency-consistency",
+    return _Outcome(
         findings,
         "no security is booked in more than one currency",
         f"{_plural(len(findings), 'security is', 'securities are')} booked in "
@@ -576,13 +579,10 @@ def _check_currency_consistency(folio: _Folio) -> CheckResult:
     )
 
 
-def _check_settlement_dates(folio: _Folio) -> CheckResult:
+def _check_settlement_dates(folio: _Folio) -> _Outcome:
     """Settlement lags are a broker habit, so a stray one is usually a typo."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.SETTLE_BEFORE_TRADE)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for _warning, computed in folio.tagged(WarningCode.SETTLE_BEFORE_TRADE):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -595,10 +595,7 @@ def _check_settlement_dates(folio: _Folio) -> CheckResult:
             ),
         )
 
-    for warning in _ordered(folio.having(WarningCode.SETTLE_LAG_OUTLIER)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for _warning, computed in folio.tagged(WarningCode.SETTLE_LAG_OUTLIER):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -611,9 +608,7 @@ def _check_settlement_dates(folio: _Folio) -> CheckResult:
                 txn_ids=(row.txn_id,),
             ),
         )
-    return _result(
-        "Settlement dates",
-        "settlement-dates",
+    return _Outcome(
         findings,
         "every trade settles when it should",
         _plural(len(findings), "settlement date needs", "settlement dates need")
@@ -622,13 +617,10 @@ def _check_settlement_dates(folio: _Folio) -> CheckResult:
     )
 
 
-def _check_transfers(folio: _Folio) -> CheckResult:
+def _check_transfers(folio: _Folio) -> _Outcome:
     """Report transfer legs with no matching counterpart."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.TRANSFER_UNPAIRED)):
-        computed = folio.row_of(warning)
-        if computed is None:  # pragma: no cover - the code always tags a row
-            continue
+    for _warning, computed in folio.tagged(WarningCode.TRANSFER_UNPAIRED):
         row = computed.row
         leaving = row.action is Action.TFR_OUT
         moved = (
@@ -648,9 +640,7 @@ def _check_transfers(folio: _Folio) -> CheckResult:
                 txn_ids=(row.txn_id,),
             ),
         )
-    return _result(
-        "Transfers",
-        "transfers",
+    return _Outcome(
         findings,
         f"{_plural(folio.counting(Action.TFR_IN, Action.TFR_OUT), 'transfer leg')} "
         f"all paired up",
@@ -663,20 +653,20 @@ def _check_transfers(folio: _Folio) -> CheckResult:
 # Printed in this order. Identity first, because an account with no type makes
 # every later check unreliable, then the checks that prove a row is missing,
 # then the ones that only ask for a second look.
-_CHECKS: tuple[tuple[str, Callable[[_Folio], CheckResult]], ...] = (
-    ("account-types", _check_account_types),
-    ("unit-balances", _check_unit_balances),
-    ("cash-balances", _check_cash_balances),
-    ("conversion-arithmetic", _check_conversion_arithmetic),
-    ("currency-consistency", _check_currency_consistency),
-    ("split-coverage", _check_split_coverage),
-    ("income-sanity", _check_income_sanity),
-    ("fee-conventions", _check_fee_conventions),
-    ("settlement-dates", _check_settlement_dates),
-    ("transfers", _check_transfers),
+_CHECKS: tuple[tuple[str, str, Callable[[_Folio], _Outcome]], ...] = (
+    ("account-types", "Account types", _check_account_types),
+    ("unit-balances", "Unit balances", _check_unit_balances),
+    ("cash-balances", "Cash balances", _check_cash_balances),
+    ("conversion-arithmetic", "Conversion arithmetic", _check_conversion_arithmetic),
+    ("currency-consistency", "Currency consistency", _check_currency_consistency),
+    ("split-coverage", "Split coverage", _check_split_coverage),
+    ("income-sanity", "Income sanity", _check_income_sanity),
+    ("fee-conventions", "Fee conventions", _check_fee_conventions),
+    ("settlement-dates", "Settlement dates", _check_settlement_dates),
+    ("transfers", "Transfers", _check_transfers),
 )
 
-CHECK_SLUGS: tuple[str, ...] = tuple(slug for slug, _run in _CHECKS)
+CHECK_SLUGS: tuple[str, ...] = tuple(slug for slug, _name, _run in _CHECKS)
 
 
 def validate_slugs(slugs: Iterable[str]) -> None:
@@ -709,4 +699,8 @@ def run_checks(ledger: Ledger, config: ChecksConfig) -> list[CheckResult]:
     disabled = set(config.checks_disabled)
     validate_slugs(disabled)
     folio = _Folio(ledger, config)
-    return [run(folio) for slug, run in _CHECKS if slug not in disabled]
+    return [
+        run(folio).to_result(name, slug)
+        for slug, name, run in _CHECKS
+        if slug not in disabled
+    ]

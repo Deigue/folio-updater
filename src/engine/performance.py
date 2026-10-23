@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain import PriceRange
+from domain.numeric import ONE
 from services.price_history import session_day
 from services.quotes_service import QuotesService
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import date
+    from decimal import Decimal
 
     from services.price_history import PricePoint, RangeHistory
     from services.quotes_service import Quote
@@ -44,7 +45,7 @@ class RangeMove:
     change_pct: Decimal | None
     points: tuple[Decimal, ...]
     start: str
-    fill: Decimal = Decimal(1)
+    fill: Decimal = ONE
 
     @property
     def multiple(self) -> Decimal | None:
@@ -107,7 +108,7 @@ def price_moves(
                 if session
                 else (stored or shaped).anchor.when
             ),
-            fill=shaped.fill if session else Decimal(1),
+            fill=shaped.fill if session else ONE,
         )
     return moves
 

@@ -4,7 +4,7 @@ The bottom layer. Nothing here imports from anywhere else in the codebase, so
 every other package is free to depend on it and no import cycle can start here.
 """
 
-from domain.constants import TORONTO_TZ, TXN_ESSENTIALS
+from domain.constants import TORONTO_TZ, TXN_ESSENTIALS, WEEKDAYS
 from domain.enums import (
     ACCOUNT_TYPE_ALIASES,
     ROOM_BEARING_TYPES,
@@ -34,6 +34,7 @@ __all__ = [
     "TAXABLE_ACCOUNT_TYPES",
     "TORONTO_TZ",
     "TXN_ESSENTIALS",
+    "WEEKDAYS",
     "AccountType",
     "Action",
     "CheckStatus",

@@ -81,11 +81,11 @@ def _filter_rows(
     if view.grain is Grain.ACCOUNT:
         rows = rows[rows[str(Column.Txn.ACCOUNT)] == view.pool]
     elif view.grain is Grain.TYPE:
-        rows = rows[rows["AcctType"] == view.pool]
+        rows = rows[rows[Column.Ledger.ACCT_TYPE] == view.pool]
     if symbol is not None:
-        rows = rows[rows["Symbol"] == symbol]
+        rows = rows[rows[Column.Ledger.SYMBOL] == symbol]
     if not show_all:
-        rows = rows[rows["Impact"] != INCOME_IMPACT]
+        rows = rows[rows[Column.Ledger.IMPACT] != INCOME_IMPACT]
     if date_from:
         rows = rows[rows[str(Column.Txn.TXN_DATE)] >= date_from]
     if date_to:

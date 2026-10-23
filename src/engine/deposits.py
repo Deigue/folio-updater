@@ -63,14 +63,7 @@ DEPOSIT_DUST = Decimal("0.005")
 def fraction_leaving(value_leaving: Decimal, basis_cad: Decimal) -> Decimal:
     """Return what share of a pool a leg removes, clamped to a usable range.
 
-    Args:
-        value_leaving: CAD value the leg takes out, non-negative.
-        basis_cad: The pool's cost base plus cash, before the leg is applied.
-
-    Returns:
-        A fraction in `[0, 1]`.
-
-    Guards against these scenario:
+    Guards against these scenarios:
 
     - **Empty pool.** Dividing by a zero pool basis is undefined, and nothing of
       value is leaving, so nothing is taken. Deposits may still be non-zero
@@ -83,6 +76,13 @@ def fraction_leaving(value_leaving: Decimal, basis_cad: Decimal) -> Decimal:
       existed. Clamping moves the whole pool and no more.
     - **Negative pool basis.** Would flip the sign and make a `TFR_OUT` *add*
       deposits.
+
+    Args:
+        value_leaving: CAD value the leg takes out, non-negative.
+        basis_cad: The pool's cost base plus cash, before the leg is applied.
+
+    Returns:
+        A fraction in `[0, 1]`.
     """
     if basis_cad <= ZERO or value_leaving <= ZERO:
         return ZERO

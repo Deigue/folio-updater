@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from models import CancelEvent, ImportResults, MergeEvent, SettlementMatch
 
 # Cash moves between two of the user's own accounts land a few days apart at most.
-TRANSFER_WINDOW_DAYS = 3
+LOOKALIKE_TRANSFER_DAYS = 3
 # How far back a late cancellation looks for the stored row it voids.
 CANCEL_WINDOW_DAYS = 31
 _AMOUNT_TOLERANCE = 0.01
@@ -478,7 +478,7 @@ def _cancelled_candidates(row: dict[str, object], txns: pd.DataFrame) -> pd.Data
 def transfer_like_pairs(
     txns: pd.DataFrame,
     new_ids: Iterable[int],
-    days: int = TRANSFER_WINDOW_DAYS,
+    days: int = LOOKALIKE_TRANSFER_DAYS,
 ) -> pd.DataFrame:
     """Find withdrawals and contributions that look like one transfer.
 

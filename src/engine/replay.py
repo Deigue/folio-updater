@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from domain import (
     TAXABLE_ACCOUNT_TYPES,
+    WEEKDAYS,
     AccountType,
     Action,
     Currency,
@@ -38,10 +39,10 @@ from domain import (
     Grain,
     WarningCode,
 )
-from domain.numeric import ZERO, q2, safe_div
+from domain.numeric import ONE, ZERO, q2, safe_div
 from engine.accounts import fee_convention_for, resolve_account_type
 from engine.deposits import DepositLedger, PoolId
-from engine.transfers import DUST_UNITS, pair_transfers
+from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, pair_transfers
 from engine.types import (
     CashKey,
     CashState,
@@ -62,8 +63,6 @@ if TYPE_CHECKING:
     from services.symbols import SymbolResolver
 
 logger = logging.getLogger(__name__)
-
-ONE = Decimal(1)
 
 # The folio pool has no natural name.
 FOLIO_POOL = "FOLIO"
@@ -141,8 +140,6 @@ SETTLE_LAG_TOLERANCE = 2
 # min trades below which no habit can be established for settle day lag.
 SETTLE_LAG_MIN_TRADES = 5
 
-_WEEKDAYS = 5
-
 # How long after a holding closes a dividend on it is still expected. A
 # dividend is earned on the ex-date and paid weeks later, so a sale can leave income
 # arriving against a pool holding nothing. This is normal behaviour and should be
@@ -192,9 +189,7 @@ def detect_fee_signs(rows: Sequence[TxnRow]) -> dict[str, Decimal]:
         if row.fee == ZERO:
             continue
         tally[row.account] = tally.get(row.account, 0) + (1 if row.fee > ZERO else -1)
-    return {
-        account: (Decimal(-1) if votes < 0 else ONE) for account, votes in tally.items()
-    }
+    return {account: (-ONE if votes < 0 else ONE) for account, votes in tally.items()}
 
 
 def _match_tolerance(units: Decimal) -> Decimal:
@@ -280,7 +275,8 @@ def detect_fee_conventions(
 
     Args:
         rows: All transactions.
-        signs: Per-account fee-sign multipliers
+        signs: Per-account fee-sign multipliers.
+
     Returns:
         One resolved convention per account. Accounts with no usable vote fall
         back to EXCLUDED.
@@ -288,7 +284,7 @@ def detect_fee_conventions(
     resolved_signs = dict(signs or detect_fee_signs(rows))
     votes: dict[str, Counter[FeeConvention]] = {}
     for row in rows:
-        if row.action not in (Action.BUY, Action.SELL) or row.fee == ZERO:
+        if row.action not in _TRADE_ACTIONS or row.fee == ZERO:
             continue
         if fee_convention_for(row.account) is not FeeConvention.AUTO:
             continue
@@ -482,21 +478,24 @@ class _Replay:
         """
         tracked: set[PoolId] = set()
         for pair in pairs:
-            out_type = self.cfg.account_types.get(
-                pair.out_leg.account,
-                AccountType.UNKNOWN,
-            )
-            in_type = self.cfg.account_types.get(
-                pair.in_leg.account,
-                AccountType.UNKNOWN,
-            )
             for grain in Grain:
-                out_pool = _pool_key(grain, pair.out_leg, out_type)
-                in_pool = _pool_key(grain, pair.in_leg, in_type)
+                out_pool, in_pool = self._leg_pools(pair, grain)
                 if out_pool != in_pool:
                     tracked.add((grain, out_pool))
                     tracked.add((grain, in_pool))
         return frozenset(tracked)
+
+    def _type_of(self, account: str) -> AccountType:
+        """Return an account's type, UNKNOWN when it was never resolved."""
+        return self.cfg.account_types.get(account, AccountType.UNKNOWN)
+
+    def _leg_pools(self, pair: TransferPair, grain: Grain) -> tuple[str, str]:
+        """Name the pools a pair's out leg and in leg sit in at one grain."""
+        out_leg, in_leg = pair.out_leg, pair.in_leg
+        return (
+            _pool_key(grain, out_leg, self._type_of(out_leg.account)),
+            _pool_key(grain, in_leg, self._type_of(in_leg.account)),
+        )
 
     def run(self) -> ReplayResult:
         """Walk the ledger and return everything it produced."""
@@ -626,7 +625,7 @@ class _Replay:
 
     def _apply(self, row: TxnRow) -> ComputedRow:
         """Apply one row to all three pools and emit a ledger row."""
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         symbol = (
             self.cfg.symbols.canonical(row.ticker, row.txn_date) if row.ticker else None
         )
@@ -682,7 +681,7 @@ class _Replay:
             )
         if row.action is Action.FXT:
             self._check_fxt(row)
-        elif row.action in (Action.TFR_IN, Action.TFR_OUT):
+        elif row.action in TRANSFER_ACTIONS:
             # Checked here rather than in the pool walk, to also capture cash transfers
             # that carry no ticker.
             if row.txn_id in self.unpaired:
@@ -727,7 +726,7 @@ class _Replay:
             self._apply_roc(row, grain, pool, symbol, state)
         elif row.action is Action.SPLIT:
             self._apply_split(row, grain, pool, symbol, state)
-        elif row.action in (Action.TFR_OUT, Action.TFR_IN):
+        elif row.action in TRANSFER_ACTIONS:
             self._apply_transfer(row, grain, state)
         elif (
             row.action is Action.DIVIDEND
@@ -1076,7 +1075,7 @@ class _Replay:
         dates would inflate the denominator for any transfer landing inside a
         settlement window.
         """
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         txn_id = row.txn_id
         for grain, deltas in self.acb_delta.items():
             delta = deltas.get(txn_id)
@@ -1093,7 +1092,7 @@ class _Replay:
         pool is measured against the pool as the leg found it, not against what
         is left after the leg has already taken its cash out.
         """
-        if row.action in (Action.TFR_IN, Action.TFR_OUT):
+        if row.action in TRANSFER_ACTIONS:
             self._transfer_deposits(row)
             return
         if not self.deposits.active:
@@ -1105,7 +1104,7 @@ class _Replay:
 
     def _move_deposits(self, row: TxnRow, amount: Decimal) -> None:
         """Apply a contribution or withdrawal to every grain that tracks it."""
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         for grain in self.deposits.grains:
             name = _pool_key(grain, row, acct_type)
             self.deposits.deposit(grain, name, row.currency, amount)
@@ -1125,9 +1124,10 @@ class _Replay:
             return
 
         pair = self.pair_by_id[pair_id]
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         for grain in self.deposits.grains:
-            if self._within_one_pool(pair, grain):
+            out_pool, in_pool = self._leg_pools(pair, grain)
+            if out_pool == in_pool:
                 continue
             name = _pool_key(grain, row, acct_type)
             self._record_moved_value(row, grain, name)
@@ -1138,19 +1138,6 @@ class _Replay:
                 self._take_deposits(pair_id, grain)
             if row.action is Action.TFR_IN:
                 self.deposits.give(grain, name, pair_id)
-
-    def _within_one_pool(self, pair: TransferPair, grain: Grain) -> bool:
-        """Whether both legs of a pair land in the same pool at one grain."""
-        out_type = self.cfg.account_types.get(
-            pair.out_leg.account,
-            AccountType.UNKNOWN,
-        )
-        in_type = self.cfg.account_types.get(pair.in_leg.account, AccountType.UNKNOWN)
-        return _pool_key(grain, pair.out_leg, out_type) == _pool_key(
-            grain,
-            pair.in_leg,
-            in_type,
-        )
 
     def _record_moved_value(self, row: TxnRow, grain: Grain, pool: str) -> None:
         """Note what a leg actually moved, for reconciliation against a statement."""
@@ -1165,7 +1152,7 @@ class _Replay:
     def _take_deposits(self, pair_id: int, grain: Grain) -> Deposits:
         """Remove the sending pool's share of its deposits for one pair."""
         out_leg = self.pair_by_id[pair_id].out_leg
-        acct_type = self.cfg.account_types.get(out_leg.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(out_leg.account)
         return self.deposits.take(
             grain,
             _pool_key(grain, out_leg, acct_type),
@@ -1207,7 +1194,7 @@ class _Replay:
         """
         if row.is_in_kind_transfer:
             return
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         for grain in Grain:
             name = _pool_key(grain, row, acct_type)
             state = self._cash(grain, name, row.currency)
@@ -1232,7 +1219,7 @@ class _Replay:
         fees: Decimal = ZERO,
     ) -> None:
         """Apply one cash movement to all three pool grains at once."""
-        acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
+        acct_type = self._type_of(row.account)
         # Pool basis follows cash in CAD. Converted at the row's own settlement-date
         # rate, the same one the cost base used
         basis = ZERO
@@ -1295,9 +1282,7 @@ class _Replay:
             )
         elif row.action is Action.FXT:
             self._apply_fxt_cash(row)
-        elif row.action in (Action.TFR_IN, Action.TFR_OUT) and not (
-            row.is_in_kind_transfer
-        ):
+        elif row.action in TRANSFER_ACTIONS and not (row.is_in_kind_transfer):
             # Real cash moves, but how much of it counts as the holder's own
             # money is not its face value -> left to `_apply_deposits` and its
             # proportional rule.
@@ -1359,8 +1344,7 @@ class _Replay:
         precision every other reading of a balance already uses.
         """
         for account in sorted({row.account for row in rows}):
-            acct_type = self.cfg.account_types.get(account, AccountType.UNKNOWN)
-            if acct_type is AccountType.MARGIN:
+            if self._type_of(account) is AccountType.MARGIN:
                 continue
             for currency in (Currency.CAD, Currency.USD):
                 if (account, currency) in self.reported_negative:
@@ -1525,8 +1509,10 @@ class _Replay:
             row = computed.row
             if row.action is not Action.SELL or not computed.symbol:
                 continue
-            acct_type = self.cfg.account_types.get(row.account, AccountType.UNKNOWN)
-            if acct_type not in SUPERFICIAL_LOSS_TYPES or _sale_gain(computed) >= ZERO:
+            if (
+                self._type_of(row.account) not in SUPERFICIAL_LOSS_TYPES
+                or _sale_gain(computed) >= ZERO
+            ):
                 continue
             sold_on = date.fromisoformat(row.txn_date)
             window_start = sold_on - timedelta(days=SUPERFICIAL_LOSS_DAYS)
@@ -1562,9 +1548,9 @@ def _business_days(start: str, end: str) -> int:
     tail = sum(
         1
         for offset in range(1, remainder + 1)
-        if (begin + timedelta(days=offset)).weekday() < _WEEKDAYS
+        if (begin + timedelta(days=offset)).weekday() < WEEKDAYS
     )
-    return weeks * _WEEKDAYS + tail
+    return weeks * WEEKDAYS + tail
 
 
 def _sale_gain(computed: ComputedRow) -> Decimal:
@@ -1579,9 +1565,10 @@ def replay(rows: Sequence[TxnRow], fx: FxRates, cfg: ReplayConfig) -> ReplayResu
     """Replay the ledger into units, cost base, gains and cash.
 
     Args:
-        rows: Every transaction to replay (TxnRows)
+        rows: Every transaction to replay (`TxnRow`s).
         fx: FX rates for currency conversion.
-        cfg: Replay configuration: Per-account types, fee conventions, symbol resolution
+        cfg: Replay configuration: per-account types, fee conventions and symbol
+            resolution.
 
     Returns:
         One ledger row per transaction, the diagnostics raised, and running cash

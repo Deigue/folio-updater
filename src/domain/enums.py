@@ -212,6 +212,21 @@ class Column(StrEnum):
         FEE = "Fee"
         SETTLE_DATE = "SettleDate"
         SETTLE_CALCULATED = "SettleCalculated"
+        DESCRIPTION = "Description"  # Optional: a folio may not carry the column
+
+    class Ledger(StrEnum):
+        """Derived columns of the ledger frame, beside the carried `Txn` ones."""
+
+        SYMBOL = "Symbol"  # The canonical symbol, blank for a row with no ticker
+        ACCT_TYPE = "AcctType"
+        IMPACT = "Impact"
+        FX_RATE = "FXRate"
+        FX_DATE = "FXDate"
+        FLAGS = "Flags"  # Comma-joined diagnostic codes raised against the row
+        PROCEEDS = "Proceeds"
+        PROCEEDS_USD = "Proceeds_USD"
+        DIVIDEND = "Dividend"
+        DIVIDEND_USD = "Dividend_USD"
 
     class Ticker(StrEnum):
         """Ticker columns."""

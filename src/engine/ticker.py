@@ -135,7 +135,7 @@ def symbol_holdings(
         valuation's currency hides it.
     """
     frame = valuation.frame
-    rows = frame[frame["Symbol"] == symbol]
+    rows = frame[frame[Column.Ledger.SYMBOL] == symbol]
     if rows.empty:
         return None
     folio = valuation.panel(FOLIO_VIEW)
@@ -147,7 +147,7 @@ def symbol_holdings(
         names = rows[str(Column.Txn.ACCOUNT)]
         views = [account_view(name) for name in sorted({str(n) for n in names})]
     else:
-        names = rows["AcctType"]
+        names = rows[Column.Ledger.ACCT_TYPE]
         views = [type_view(name) for name in sorted({str(n) for n in names})]
 
     lines = [

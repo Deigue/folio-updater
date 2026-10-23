@@ -30,13 +30,17 @@ if TYPE_CHECKING:
 
     from engine.types import TxnRow
 
+# Both legs of a transfer.
+TRANSFER_ACTIONS = (Action.TFR_IN, Action.TFR_OUT)
+
+# Tolerance for fractional leftovers to snap.
 DUST_UNITS = Decimal("1e-9")
 CASH_TOLERANCE = Decimal("0.01")
 
 # Institutional transfer window for settlement.
 TRANSFER_WINDOW_DAYS = 5
 
-# Tolerance for fractional leftovers to snap.
+# How far apart two legs' unit counts may sit and still be the same transfer.
 UNIT_MATCH_TOLERANCE = Decimal("0.0001")
 
 
@@ -76,10 +80,11 @@ class TransferPair:
 
 # Preference order for candidate matches, lowest first. A cross-account move of
 # the same symbol is the least ambiguous reading, a same-account pair can only
-# be a journal, which by definition changes the symbol.
-_SAME_SYMBOL_CROSS_ACCOUNT = 0
-_JOURNAL_SAME_ACCOUNT = 1
-_CROSS_ACCOUNT_ANY_SYMBOL = 2
+# be a journal, which by definition changes the symbol. A cash pair carries no
+# symbol, so it ranks as the plain cross-account reading.
+_CROSS_ACCOUNT = 0
+_JOURNAL = 1
+_CROSS_ACCOUNT_OTHER_SYMBOL = 2
 
 
 def _journal_fits(out_leg: TxnRow, in_leg: TxnRow) -> bool:
@@ -99,11 +104,11 @@ def _in_kind_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
     same_account = out_leg.account == in_leg.account
     same_symbol = out_leg.ticker == in_leg.ticker
     if same_symbol and not same_account:
-        return _SAME_SYMBOL_CROSS_ACCOUNT
+        return _CROSS_ACCOUNT
     if same_account and not same_symbol:
-        return _JOURNAL_SAME_ACCOUNT if _journal_fits(out_leg, in_leg) else None
+        return _JOURNAL if _journal_fits(out_leg, in_leg) else None
     if not same_account:
-        return _CROSS_ACCOUNT_ANY_SYMBOL
+        return _CROSS_ACCOUNT_OTHER_SYMBOL
     return None
 
 
@@ -114,9 +119,9 @@ def _cash_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
     if abs(abs(out_leg.amount) - abs(in_leg.amount)) > CASH_TOLERANCE:
         return None
     if out_leg.account != in_leg.account:
-        return _SAME_SYMBOL_CROSS_ACCOUNT
+        return _CROSS_ACCOUNT
     # Same account, so this is the cash side of a journal.
-    return _JOURNAL_SAME_ACCOUNT if _journal_fits(out_leg, in_leg) else None
+    return _JOURNAL if _journal_fits(out_leg, in_leg) else None
 
 
 def pair_transfers(
@@ -176,7 +181,7 @@ def pair_transfers(
     unpaired = [
         row
         for row in rows
-        if row.action in (Action.TFR_IN, Action.TFR_OUT) and row.txn_id not in matched
+        if row.action in TRANSFER_ACTIONS and row.txn_id not in matched
     ]
     unpaired.sort(key=lambda row: (row.settle_date, row.txn_id))
     return pairs, unpaired

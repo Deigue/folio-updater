@@ -8,6 +8,9 @@ from domain.enums import Column
 
 TORONTO_TZ = ZoneInfo("America/Toronto")
 
+# Weekdays in a week: Monday to Friday, the days a market is open.
+WEEKDAYS = 5
+
 
 # Internal transaction fields that are essential for processing
 TXN_ESSENTIALS: list[str] = [

@@ -17,7 +17,7 @@ from engine.flows import (
     withdrawals_by_type_year,
 )
 from engine.fx_rates import load_fx_rates
-from engine.holdings import FolioHoldings, grain_rows
+from engine.holdings import FolioHoldings
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 
@@ -221,11 +221,11 @@ class FolioValuation:
 
     def account_types(self) -> list[str]:
         """Every account type with a holding, in a stable order."""
-        return self._pools(Grain.TYPE, "AcctType")
+        return self._pools(Column.Ledger.ACCT_TYPE)
 
     def accounts(self) -> list[str]:
         """Every account with a holding, in a stable order."""
-        return self._pools(Grain.ACCOUNT, str(Column.Txn.ACCOUNT))
+        return self._pools(Column.Txn.ACCOUNT)
 
     def panels(
         self,
@@ -251,16 +251,9 @@ class FolioValuation:
         built = (self.panel(view, sort=sort, reverse=reverse) for view in views)
         return [panel for panel in built if panel.occupied]
 
-    def _pools(self, grain: Grain, column: str) -> list[str]:
-        """Name every pool at one grain that has rows of its own."""
-        frame = self.frame
-        if column not in frame.columns:  # pragma: no cover - always present
-            return []
-        return [
-            name
-            for name in sorted({str(value) for value in frame[column].dropna()})
-            if not grain_rows(frame, grain, name).empty
-        ]
+    def _pools(self, column: str) -> list[str]:
+        """Name every pool a column holds, in a stable order."""
+        return sorted({str(value) for value in self.frame[column].dropna()})
 
 
 def _quotes(

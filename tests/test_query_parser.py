@@ -27,7 +27,10 @@ if TYPE_CHECKING:
 # Stand-ins for what a folio holds, so the parser has known names to recognize.
 MOCK_TICKERS = {"TESTTKR", "OTHER", "CADCO.TO"}
 MOCK_ACCOUNTS = {"TEST-ACCOUNT", "TFSA", "RRSP"}
-MOCK_COLUMNS = [column.value for column in Column.Txn]
+# Description is optional per folio, and the tests treat it as unconfigured.
+MOCK_COLUMNS = [
+    column.value for column in Column.Txn if column is not Column.Txn.DESCRIPTION
+]
 
 
 @pytest.fixture(autouse=True)
