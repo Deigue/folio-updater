@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
-from db import create_txns_table, get_connection, get_rows, txn_count
+from db import create_txns_table, get_connection, get_rows, helpers, txn_count
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions, insert_transactions
+from ingest import prepare_transactions
 from models import ImportResults
 
 from .fixtures.dataframe_cache import register_test_dataframe
@@ -584,6 +585,34 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
         assert txn_count() == 0
         assert "Row 2/3: SUCCESS" in caplog.text
         assert "Row 3/3: FAILED" in caplog.text
+
+
+def test_only_the_final_frame_gains_the_columns_the_table_has(
+    temp_ctx: TempContext,
+) -> None:
+    """A table column the file lacks is added to `final_df`, not to the stage frames."""
+    with temp_ctx():
+        create_txns_table()
+        helpers.sync_txns_table_columns(_valid_rows().assign(Memo="note"))
+
+        results = prepare_transactions(_valid_rows(), map_headers=False)
+
+    assert "Memo" in results.final_df.columns
+    assert "Memo" not in results.db_approved_df.columns
+
+
+def test_a_fallback_account_is_not_written_into_the_source_frame(
+    temp_ctx: TempContext,
+) -> None:
+    """The account the file lacks is filled in for the import, not for `read_df`."""
+    with temp_ctx():
+        source = _valid_rows().drop(columns=[Column.Txn.ACCOUNT])
+
+        results = prepare_transactions(source, account="TEST-ACCOUNT")
+
+    assert Column.Txn.ACCOUNT not in results.read_df.columns
+    assert Column.Txn.ACCOUNT not in source.columns
+    assert results.final_df[Column.Txn.ACCOUNT].eq("TEST-ACCOUNT").all()
 
 
 def test_import_missing_essential_column(temp_ctx: TempContext) -> None:

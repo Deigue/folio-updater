@@ -1,9 +1,10 @@
 """Turning a source file's rows into transactions the folio will accept.
 
 `prepare_transactions` runs the whole pipeline. Map the source's headers onto
-canonical columns, validate and coerce the fields, apply the user's merge and
-transform rules, then drop anything already in the folio. Nothing here writes
-to the database; the caller does that with whatever is returned.
+canonical columns, apply the user's import rules (cancellation, merge, then
+transform), validate and coerce the fields, then reject anything already in the
+folio. The only writes are schema: tables are created and new optional columns
+added. The caller stores whatever is returned.
 """
 
 from ingest.pipeline import prepare_transactions

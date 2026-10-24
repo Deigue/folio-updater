@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -11,11 +13,20 @@ import pytest
 
 from app import get_config
 from cli.main import app as cli_app
-from datagen import ensure_data_exists
-from db import get_alias_edges, get_connection, get_distinct_set, get_rows
+from datagen import DemoFolio, DemoScenarioError, ensure_data_exists
+from datagen.demo import PERSONAL, START, USDCAD, _Simulation, price_on
+from datagen.history import _window_events
+from db import (
+    get_alias_edges,
+    get_connection,
+    get_distinct_set,
+    get_rows,
+)
 from domain import AccountType, Action, CheckStatus, Column, Table
 from engine.checks import run_checks
 from engine.ledger import open_ledger
+from exporters import ParquetExporter
+from services import ForexService
 
 from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import (
@@ -319,3 +330,87 @@ def test_a_directory_import_asks_before_touching_the_demo(
     assert result.exit_code == 1
     assert _PROMPT in result.stdout
     assert after == before
+
+
+# -- BUILDING THE DEMO --------------------------------------------------------
+
+# The autouse cache fixture swaps `DemoFolio.build` out for every test.
+_REAL_BUILD = DemoFolio.build
+
+
+def test_a_build_that_fails_part_way_leaves_the_folio_empty(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The demo rows are removed again, so the next `folio demo` is not refused."""
+
+    def disk_full(_self: ParquetExporter) -> None:
+        msg = "disk full"
+        raise OSError(msg)
+
+    with temp_ctx():
+        monkeypatch.setattr(ForexService, "ensure_coverage", lambda *_a, **_k: 0)
+        monkeypatch.setattr(ParquetExporter, "export_all", disk_full)
+
+        with pytest.raises(OSError, match="disk full"):
+            _REAL_BUILD(DemoFolio())
+
+        assert ensure_data_exists() is True
+
+
+# -- THE SIMULATION -----------------------------------------------------------
+
+
+def test_a_sale_scheduled_by_keyword_still_blacks_out_nearby_purchases() -> None:
+    """The superficial-loss guard reads the sale's arguments, not how it was spelled."""
+    sim = _Simulation()
+    sim.at(START, sim.contribute, PERSONAL, 10_000)
+    sim.at(date(2025, 1, 6), sim.buy, PERSONAL, "AAPL", units=10)
+    sim.at(date(2025, 2, 3), sim.sell, account=PERSONAL, symbol="AAPL")
+    sim.at(date(2025, 2, 10), sim.buy, PERSONAL, "AAPL", units=1)
+
+    with pytest.raises(DemoScenarioError, match="superficial loss"):
+        sim.run()
+
+
+def _cost(sim: _Simulation, symbol: str) -> Decimal:
+    """Read the cost base the simulation holds for the personal account."""
+    return sim._cost[(PERSONAL.name, symbol)]  # noqa: SLF001
+
+
+def test_a_partial_journal_moves_only_its_share_of_the_cost() -> None:
+    """The units left behind keep their cost, and a second journal adds to the first."""
+    sim = _Simulation()
+    day = date(2025, 3, 3)
+    sim.contribute(START, PERSONAL, 10_000)
+    sim.buy(day, PERSONAL, "DLR.TO", units=100)
+    cost = _cost(sim, "DLR.TO")
+    rate = price_on(USDCAD, day)
+
+    sim.journal(day, PERSONAL, 40)
+    assert _cost(sim, "DLR.TO") == cost * 60 / 100
+    assert _cost(sim, "DLR.U.TO") == cost * 40 / 100 / rate
+
+    sim.journal(day, PERSONAL, 60)
+    assert _cost(sim, "DLR.TO") == Decimal(0)
+    assert _cost(sim, "DLR.U.TO") == cost * 40 / 100 / rate + cost * 60 / 100 / rate
+
+
+# -- THE PRICE HISTORY TOOL ---------------------------------------------------
+
+
+def test_a_split_after_the_window_is_kept_for_the_price_history() -> None:
+    """Stored closes are adjusted for it, so reading them back has to know of it."""
+    series = pd.Series(
+        {
+            pd.Timestamp("2024-09-12", tz="America/New_York"): 4.0,
+            pd.Timestamp("2025-01-10", tz="America/New_York"): 3.0,
+            pd.Timestamp("2026-11-03", tz="America/New_York"): 2.0,
+        },
+    )
+
+    assert _window_events(series, 4) == ["2025-01-10:3"]
+    assert _window_events(series, 4, until=date.max) == [
+        "2025-01-10:3",
+        "2026-11-03:2",
+    ]

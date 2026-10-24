@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pandas as pd
+import pytest
 
 if TYPE_CHECKING:
     from .test_types import TempContext
@@ -72,7 +73,7 @@ class TestMergeGroups:
                 },
             )
 
-            result, _, _, _ = TransactionTransformer.transform(df)
+            result = TransactionTransformer.transform(df).df
             expected_rows = 2
             assert len(result) == expected_rows
 
@@ -111,7 +112,7 @@ class TestMergeGroups:
                 },
             )
 
-            result, _, _, _ = TransactionTransformer.transform(df)
+            result = TransactionTransformer.transform(df).df
             assert len(result) == 1
             assert result.iloc[0][Column.Txn.ACTION] == "Dividends"
 
@@ -133,5 +134,40 @@ class TestMergeGroups:
                 },
             )
 
-            result, _, _, _ = TransactionTransformer.transform(df)
+            result = TransactionTransformer.transform(df).df
             assert len(result) == len(df)
+
+    @pytest.mark.parametrize(
+        "changes",
+        [
+            pytest.param({"match_fields": ["TxnDate", "Nope"]}, id="match-field"),
+            pytest.param({"amount_field": "Nope"}, id="amount-field"),
+            pytest.param({"source_actions": ["Interest", "Fee"]}, id="no-rows"),
+            pytest.param(
+                {"source_actions": ["Dividends", "Withholding Tax", "Fee"]},
+                id="missing-action",
+            ),
+        ],
+    )
+    def test_a_rule_that_cannot_apply_leaves_the_rows(
+        self,
+        temp_ctx: TempContext,
+        changes: dict[str, object],
+    ) -> None:
+        """A merge rule naming a missing column or with nothing to merge is skipped."""
+        group = {**MERGE_CONFIG["transforms"]["merge_groups"][0], **changes}
+        with temp_ctx({"transforms": {"merge_groups": [group]}}):
+            df = pd.DataFrame(
+                {
+                    Column.Txn.TXN_DATE: ["2025-09-10", "2025-09-10"],
+                    Column.Txn.ACTION: ["Dividends", "Withholding Tax"],
+                    Column.Txn.AMOUNT: [26.88, -4.03],
+                    Column.Txn.TICKER: ["AAPL", "AAPL"],
+                    Column.Txn.ACCOUNT: ["MOCK", "MOCK"],
+                },
+            )
+
+            outcome = TransactionTransformer.transform(df)
+
+        assert outcome.df[Column.Txn.AMOUNT].tolist() == [26.88, -4.03]
+        assert outcome.merges == []

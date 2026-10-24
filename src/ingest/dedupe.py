@@ -52,8 +52,6 @@ class TransactionFilter:
             len(new_keys),
         )
         duplicates: set[str] = existing_keys & new_keys
-        if not duplicates:  # pragma: no cover
-            return txn_df
 
         is_duplicate: pd.Series[bool] = new_keys_series.isin(duplicates)
         approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(
@@ -108,6 +106,16 @@ class TransactionFilter:
         # Keep non-duplicates and approved duplicates
         keep_mask = ~duplicate_mask | approved_mask
         return txn_df[keep_mask].copy()
+
+    @staticmethod
+    def remove_approval_column(txn_df: pd.DataFrame) -> pd.DataFrame:
+        """Remove the duplicate approval column from the DataFrame if it exists."""
+        approval_column = get_config().duplicate_approval_column
+        if approval_column in txn_df.columns:
+            msg = f"Duplicate approval column found: {approval_column}"
+            import_logger.debug(msg)
+            return txn_df.drop(columns=[approval_column])
+        return txn_df
 
     @staticmethod
     def _process_duplicate_approval(

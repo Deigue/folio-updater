@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import pandas as pd
 
 from app.logging_setup import get_import_logger
@@ -16,7 +14,6 @@ from ingest.rules import TransactionTransformer
 from ingest.validation import TransactionFormatter
 from models import ImportResults
 
-logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 
@@ -48,47 +45,38 @@ def prepare_transactions(
     schema.create_ticker_aliases_table()
 
     read_df = df.copy()
-    if map_headers:
-        mapped_df = TransactionMapper.map_headers(read_df, account)
-    else:
-        mapped_df = read_df.copy()
-    transformed_df, merge_events, transform_events, cancel_events = (
-        TransactionTransformer.transform(mapped_df)
+    mapped_df = (
+        TransactionMapper.map_headers(read_df, account) if map_headers else read_df
     )
-    formatted_df, invalid_df = TransactionFormatter.format_and_validate(transformed_df)
+    ruled = TransactionTransformer.transform(mapped_df)
+    formatted_df, invalid_df = TransactionFormatter.format_and_validate(ruled.df)
     intra_approved_df = TransactionFilter.filter_intra_import_duplicates(formatted_df)
     db_approved_df = TransactionFilter.filter_db_duplicates(intra_approved_df)
-    cleaned_df = TransactionMapper.remove_approval_column(db_approved_df)
+    cleaned_df = TransactionFilter.remove_approval_column(db_approved_df)
     final_columns = helpers.sync_txns_table_columns(cleaned_df)
 
-    # Add any missing columns to the DataFrame
-    for col in final_columns:
-        if col not in cleaned_df.columns:
-            cleaned_df[col] = pd.NA
-    final_df = cleaned_df[final_columns]
-
-    # Calculate rejection DataFrames
-    intra_rejected_df = pd.DataFrame()
-    if len(formatted_df) > len(intra_approved_df):
-        intra_keys = formatted_df.index.difference(intra_approved_df.index)
-        intra_rejected_df = formatted_df.loc[intra_keys].copy()
-
-    db_rejected_df = pd.DataFrame()
-    if len(intra_approved_df) > len(db_approved_df):
-        db_keys = intra_approved_df.index.difference(db_approved_df.index)
-        db_rejected_df = intra_approved_df.loc[db_keys].copy()
+    # A new frame: the stage frames above must not gain the synced columns.
+    final_df = cleaned_df.reindex(
+        columns=final_columns,
+        fill_value=pd.NA,  # ty: ignore[invalid-argument-type]
+    )
 
     return ImportResults(
         read_df=read_df,
         mapped_df=mapped_df,
-        transformed_df=transformed_df,
+        transformed_df=ruled.df,
         invalid_df=invalid_df,
         intra_approved_df=intra_approved_df,
-        intra_rejected_df=intra_rejected_df,
+        intra_rejected_df=_rejected(formatted_df, intra_approved_df),
         db_approved_df=db_approved_df,
-        db_rejected_df=db_rejected_df,
+        db_rejected_df=_rejected(intra_approved_df, db_approved_df),
         final_df=final_df,
-        merge_events=merge_events,
-        cancel_events=cancel_events,
-        transform_events=transform_events,
+        merge_events=ruled.merges,
+        cancel_events=ruled.cancels,
+        transform_events=ruled.transforms,
     )
+
+
+def _rejected(before: pd.DataFrame, after: pd.DataFrame) -> pd.DataFrame:
+    """Return the rows a filter took out of `before`, leaving `after`."""
+    return before.loc[before.index.difference(after.index)].copy()

@@ -1,7 +1,7 @@
 """Mapping a source file's headers onto the folio's canonical columns.
 
 The first pipeline stage. Every broker names its columns differently, so this
-is where an exports headers are mapped.
+is where a source file's headers are mapped.
 """
 
 from __future__ import annotations
@@ -43,16 +43,18 @@ class TransactionMapper:
         header_ignore = config.header_ignore
         optional_fields = config.optional_fields
 
-        normalized_ignore = {TransactionMapper._normalize(col) for col in header_ignore}
+        normalized_ignore = {
+            TransactionMapper._header_key(col) for col in header_ignore
+        }
         norm_keywords: dict[str, set[str]] = {
-            internal: {TransactionMapper._normalize(kw) for kw in keywords}
+            internal: {TransactionMapper._header_key(kw) for kw in keywords}
             for internal, keywords in header_keywords.items()
         }
 
         # Add optional fields keywords to the mapping
         for field_name, field_config in optional_fields.get_all_fields().items():
             norm_keywords[field_name] = {
-                TransactionMapper._normalize(kw) for kw in field_config.keywords
+                TransactionMapper._header_key(kw) for kw in field_config.keywords
             }
 
         mapping, unmatched, ignored_columns = TransactionMapper._process_columns(
@@ -77,7 +79,7 @@ class TransactionMapper:
                 "FALLBACK account column using: %s",
                 account,
             )
-            df[Column.Txn.ACCOUNT] = account
+            df = df.assign(**{Column.Txn.ACCOUNT: account})
             unmatched.remove(Column.Txn.ACCOUNT)
 
         if unmatched:
@@ -93,17 +95,6 @@ class TransactionMapper:
             for summary in summaries:
                 import_logger.info(" + %s", summary)
         return df
-
-    @staticmethod
-    def remove_approval_column(txn_df: pd.DataFrame) -> pd.DataFrame:
-        """Remove the duplicate approval column from the DataFrame if it exists."""
-        config = get_config()
-        approval_column = config.duplicate_approval_column
-        if approval_column in txn_df.columns:
-            msg = f"Duplicate approval column found: {approval_column}"
-            import_logger.debug(msg)
-            return txn_df.drop(columns=[approval_column])
-        return txn_df
 
     @staticmethod
     def _process_columns(
@@ -126,7 +117,7 @@ class TransactionMapper:
         ignored_columns = []
 
         for column in columns:
-            normalized_column = TransactionMapper._normalize(column)
+            normalized_column = TransactionMapper._header_key(column)
 
             if TransactionMapper._should_ignore_column(
                 normalized_column,
@@ -181,23 +172,20 @@ class TransactionMapper:
         return True
 
     @staticmethod
-    def _normalize(name: str) -> str:
-        """Normalize string for the database.
+    def _header_key(name: object) -> str:
+        """Reduce a header to the form headers and keywords are compared in.
 
-        Normalizes the inputstring by converting to lowercase and removing
-        non-alphanumeric characters. (except $)
+        Lower-cases the text and removes everything but letters, digits and `$`.
 
         Args:
-            name: The input string to normalize
+            name: A header or keyword. A header cell holding a number or a date
+                is read as its text.
 
         Returns:
-            str: The normalized string, or empty string if applicable
+            The comparison key, empty when nothing is left.
 
         Example:
-            >>> _normalize("  Transaction Date  ")
+            >>> _header_key("  Transaction Date  ")
             'transactiondate'
         """
-        name = name.strip().lower()
-        if not name:  # pragma: no cover
-            return name
-        return re.sub(r"[^a-z0-9$]", "", name)
+        return re.sub(r"[^a-z0-9$]", "", str(name).strip().lower())

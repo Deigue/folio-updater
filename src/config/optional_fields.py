@@ -95,32 +95,6 @@ class OptionalFieldsConfig:
         """
         return self._keyword_map.get(header.lower())
 
-    def get_field(self, name: str) -> OptionalField | None:
-        """Get optional field by resolved column name.
-
-        Args:
-            name: The resolved column name
-        Returns:
-            OptionalField if found, None otherwise
-        """
-        return self._fields.get(name)
-
-    def get_field_by_header(
-        self,
-        header: str,
-    ) -> OptionalField | None:  # pragma: no cover
-        """Get optional field by header name.
-
-        Args:
-            header: The header name to resolve
-        Returns:
-            OptionalField if found, None otherwise
-        """
-        col = self.resolve_column(header)
-        if col:
-            return self.get_field(col)
-        return None
-
     def get_all_fields(self) -> dict[str, OptionalField]:  # pragma: no cover
         """Get all configured optional fields.
 
@@ -162,7 +136,3 @@ class OptionalFieldsConfig:
     def __len__(self) -> int:
         """Return number of configured optional fields."""
         return len(self._fields)
-
-    def __bool__(self) -> bool:
-        """Return True if any optional fields are configured."""
-        return bool(self._fields)

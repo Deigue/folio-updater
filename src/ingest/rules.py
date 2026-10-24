@@ -1,8 +1,9 @@
-"""Applying the user's merge and transform rules."""
+"""Applying the user's import rules: cancellation, merge, then transform."""
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -20,12 +21,28 @@ if TYPE_CHECKING:
 
     from config.transforms import CancelRule, MergeGroup, TransformRule
 
-logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 CONTAINS_PREFIX = "contains:"
 # A cancellation and the row it voids carry amounts that sum to zero.
 _CANCEL_TOLERANCE = 0.005
+
+
+@dataclass(frozen=True)
+class RuleOutcome:
+    """What the import rules did to a frame.
+
+    Attributes:
+        df: The rows left after every rule has run.
+        merges: One event per merged transaction.
+        transforms: One event per field a transform rule changed.
+        cancels: One event per cancellation row.
+    """
+
+    df: pd.DataFrame
+    merges: list[MergeEvent]
+    transforms: list[TransformEvent]
+    cancels: list[CancelEvent]
 
 
 class TransactionTransformer:
@@ -46,30 +63,20 @@ class TransactionTransformer:
         self._cancel_events: list[CancelEvent] = []
 
     @staticmethod
-    def transform(
-        df: pd.DataFrame,
-    ) -> tuple[
-        pd.DataFrame,
-        list[MergeEvent],
-        list[TransformEvent],
-        list[CancelEvent],
-    ]:
-        """Transform data returning detailed cancel, merge & transform events.
+    def transform(df: pd.DataFrame) -> RuleOutcome:
+        """Apply the import rules, recording a cancel, merge or transform event each.
 
         Args:
             df: DataFrame with mapped transaction data
 
         Returns:
-            (transformed_df, merge_events, transform_events, cancel_events)
-            merge_events: list of MergeEvent objects
-            transform_events: list of TransformEvent objects
-            cancel_events: list of CancelEvent objects
+            The transformed rows and the events the rules produced.
         """
         if df.empty:  # pragma: no cover
-            return df, [], [], []
+            return RuleOutcome(df, [], [], [])
         transformer = TransactionTransformer(df)
         transformer._apply_transforms()
-        return (
+        return RuleOutcome(
             transformer.df,
             transformer._merge_events,
             transformer._transform_events,
@@ -102,12 +109,8 @@ class TransactionTransformer:
         row = transformer.df.iloc[0]
         return {str(name): row[name] for name in transformer.df.columns}
 
-    def _apply_transforms(self) -> pd.DataFrame:
-        """Apply all transformation rules to the DataFrame.
-
-        Returns:
-            DataFrame with all applicable transformations applied
-        """
+    def _apply_transforms(self) -> None:
+        """Apply the cancellation, merge and transform rules to the DataFrame."""
         # Cancellations first, while actions still read as the broker wrote them
         if self.transforms and self.transforms.cancellations:
             for rule in self.transforms.cancellations:
@@ -128,13 +131,11 @@ class TransactionTransformer:
             import_logger.debug(
                 "No transformation rules configured, skipping transforms",
             )
-            return self.df
+            return
 
         for rule_index, rule in enumerate(self.transforms.rules):
             import_logger.debug("Applying transformation rule %d", rule_index + 1)
             self._apply_single_rule(rule)
-
-        return self.df
 
     def _apply_single_rule(self, rule: TransformRule) -> None:
         """Apply a single transformation rule to matching rows.
@@ -340,11 +341,11 @@ class TransactionTransformer:
         numeric_values = []
         for match_value in match_values:
             numeric_val = pd.to_numeric(match_value, errors="coerce")
-            if not pd.isna(numeric_val):  # pragma: no cover
+            if not pd.isna(numeric_val):
                 numeric_values.append(numeric_val)
 
         # Numeric comparison for cases where DataFrame has numbers
-        if numeric_values:  # pragma: no cover
+        if numeric_values:
             numeric_series = pd.to_numeric(series, errors="coerce")
             for numeric_value in numeric_values:
                 numeric_mask = numeric_series == numeric_value
@@ -352,7 +353,7 @@ class TransactionTransformer:
 
         # Combine all masks with OR logic
         combined_mask = masks[0]
-        for mask in masks[1:]:  # pragma: no cover
+        for mask in masks[1:]:
             combined_mask = combined_mask | mask
 
         return combined_mask
@@ -374,7 +375,7 @@ class TransactionTransformer:
         column_dtype = self.df[field_name].dtype
 
         # If column is numeric, try to convert the string to a number
-        if pd.api.types.is_numeric_dtype(column_dtype):  # pragma: no cover
+        if pd.api.types.is_numeric_dtype(column_dtype):
             try:
                 # Try integer conversion first
                 if column_dtype.kind in ["i", "u"]:
@@ -399,11 +400,11 @@ class TransactionTransformer:
         Args:
             group: MergeGroup configuration specifying how to merge transactions
         """
-        if not self._validate_merge_group_columns(group):  # pragma: no cover
+        if not self._validate_merge_group_columns(group):
             return
 
         matching_rows = self._get_matching_rows_for_merge(group)
-        if matching_rows.empty:  # pragma: no cover
+        if matching_rows.empty:
             return
 
         groups = matching_rows.groupby(group.match_fields, dropna=False)
@@ -453,7 +454,7 @@ class TransactionTransformer:
             True if all columns exist, False otherwise
         """
         missing_fields = [f for f in group.match_fields if f not in self.df.columns]
-        if missing_fields:  # pragma: no cover
+        if missing_fields:
             import_logger.warning(
                 "SKIP merge group '%s' (missing fields: %s)",
                 group.name,
@@ -461,7 +462,7 @@ class TransactionTransformer:
             )
             return False
 
-        if group.amount_field not in self.df.columns:  # pragma: no cover
+        if group.amount_field not in self.df.columns:
             import_logger.warning(
                 "SKIP merge group '%s' (missing amount field: %s)",
                 group.name,
@@ -486,7 +487,7 @@ class TransactionTransformer:
         action_mask = self.df[Column.Txn.ACTION].astype(str).isin(group.source_actions)
         matching_rows = self.df[action_mask].copy()
 
-        if matching_rows.empty:  # pragma: no cover
+        if matching_rows.empty:
             import_logger.debug(
                 "No rows match source actions %s for merge group '%s'",
                 group.source_actions,
@@ -527,7 +528,7 @@ class TransactionTransformer:
         has_all_actions = all(
             action in unique_actions for action in group.source_actions
         )
-        if not has_all_actions:  # pragma: no cover
+        if not has_all_actions:
             import_logger.debug(
                 "Group %s missing some source actions, skipping",
                 group_key,

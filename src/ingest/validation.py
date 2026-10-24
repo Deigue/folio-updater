@@ -1,9 +1,9 @@
 """Validating and coercing transaction fields.
 
-The second pipeline stage: numbers into a common decimal format, tickers and
-strings normalised, signs forced to match the action, and settlement dates
-filled where the source left them out. A row that cannot be made valid is
-rejected here with a reason.
+The third pipeline stage, after the import rules: numbers into a common decimal
+format, tickers and strings normalised, signs forced to match the action, and
+settlement dates filled where the source left them out. A row that cannot be
+made valid is rejected here with a reason.
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from db.helpers import format_transaction_summary
 from domain import SUPPORTED_CURRENCIES, TORONTO_TZ, Action, Column, Sign
 from engine.settlement import settlement_calculator
 
-logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 actions: list[str] = [action.value for action in Action]
 currencies: set[str] = {currency.value for currency in SUPPORTED_CURRENCIES}
@@ -111,7 +110,7 @@ class ActionValidationRules:
             ],
         },
         # A transfer carries either cash or units, so neither is required on its
-        # own: a cash transfer has Amount and no Ticker, a in-kind transfer has
+        # own: a cash transfer has Amount and no Ticker, an in-kind transfer has
         # Ticker and Units and no Amount.
         Action.TFR_IN: {
             "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],
@@ -497,6 +496,13 @@ class TransactionFormatter:
         for label, _ in invalid:
             self.rejection_reasons.setdefault(label, []).append(reason)
 
+    def _optional_columns(self, field_type: FieldType) -> list[str]:
+        """List the data's columns that the user configured as optional `field_type`."""
+        return self.config.optional_fields.columns_of_type(
+            field_type,
+            self.formatted_df.columns,
+        )
+
     def _format_dates(self) -> None:
         """Format date columns."""
         if Column.Txn.TXN_DATE in self.formatted_df.columns:
@@ -504,11 +510,8 @@ class TransactionFormatter:
         if Column.Txn.SETTLE_DATE in self.formatted_df.columns:
             self._format_date_column(Column.Txn.SETTLE_DATE, required=False)
 
-        if self.config.optional_fields:
-            for column in self.formatted_df.columns:
-                optional_field = self.config.optional_fields.get_field(column)
-                if optional_field and optional_field.field_type == FieldType.DATE:
-                    self._format_date_column(column, required=False)
+        for column in self._optional_columns(FieldType.DATE):
+            self._format_date_column(column, required=False)
 
     def _format_date_column(self, column: str, *, required: bool) -> None:
         """Format the date column."""
@@ -528,11 +531,8 @@ class TransactionFormatter:
         if Column.Txn.ACTION in self.formatted_df.columns:
             self._format_action_column(Column.Txn.ACTION, required=True)
 
-        if self.config.optional_fields:
-            for column in self.formatted_df.columns:
-                optional_field = self.config.optional_fields.get_field(column)
-                if optional_field and optional_field.field_type == FieldType.ACTION:
-                    self._format_action_column(column, required=False)
+        for column in self._optional_columns(FieldType.ACTION):
+            self._format_action_column(column, required=False)
 
     def _normalize_action(self, value: object) -> str | None:
         """Resolve an action alias (`bought`, `DIV`) to its canonical name."""
@@ -555,11 +555,8 @@ class TransactionFormatter:
         if Column.Txn.CURRENCY in self.formatted_df.columns:
             self._format_currency_column(Column.Txn.CURRENCY, required=True)
 
-        if self.config.optional_fields:
-            for column in self.formatted_df.columns:
-                optional_field = self.config.optional_fields.get_field(column)
-                if optional_field and optional_field.field_type == FieldType.CURRENCY:
-                    self._format_currency_column(column, required=False)
+        for column in self._optional_columns(FieldType.CURRENCY):
+            self._format_currency_column(column, required=False)
 
     def _normalize_currency(self, value: object) -> str | None:
         """Resolve a currency alias (`US$`, `canadian`) to its ISO code."""
@@ -589,11 +586,7 @@ class TransactionFormatter:
             if len(action_indices) == 0:  # pragma: no cover
                 continue
 
-            try:
-                rules = ActionValidationRules.get_rules_for_action(str(action_value))
-            except (KeyError, ValueError):
-                rules = ActionValidationRules.DEFAULT
-
+            rules = ActionValidationRules.get_rules_for_action(str(action_value))
             import_logger.debug(
                 "Processing %d rows with action %s using rules %s",
                 len(action_indices),
@@ -664,24 +657,16 @@ class TransactionFormatter:
             required=is_required,
         )
 
+        for column in self._optional_columns(FieldType.STRING):
+            self._format_string_for_rows(column, rows, required=False)
+
         numeric_fields: list[str] = [
             Column.Txn.AMOUNT,
             Column.Txn.PRICE,
             Column.Txn.UNITS,
             Column.Txn.FEE,
+            *self._optional_columns(FieldType.NUMERIC),
         ]
-
-        if self.config.optional_fields:
-            for column in self.formatted_df.columns:
-                optional_field = self.config.optional_fields.get_field(column)
-                if optional_field and optional_field.field_type == FieldType.NUMERIC:
-                    numeric_fields.append(column)
-                if optional_field and optional_field.field_type == FieldType.STRING:
-                    self._format_string_for_rows(
-                        column,
-                        rows,
-                        required=False,
-                    )
 
         for field in numeric_fields:
             if field in self.formatted_df.columns:
@@ -783,7 +768,7 @@ def parse_date(date_str: object) -> str | None:
 
     # Common date formats to try
     date_formats = [
-        "%Y-%m-%d",  # 2023-01-15
+        "%Y-%m-%d",  # unpadded 2023-1-5, which the fast path above misses
         "%m/%d/%Y",  # 01/15/2023
         "%d/%m/%Y",  # 15/01/2023
         "%m-%d-%Y",  # 01-15-2023
@@ -797,7 +782,7 @@ def parse_date(date_str: object) -> str | None:
         "%d %b %Y",  # 15 Jan 2023
     ]
 
-    for fmt in date_formats:  # pragma: no cover
+    for fmt in date_formats:
         try:
             parsed_date: datetime = datetime.strptime(date_str, fmt).replace(
                 tzinfo=TORONTO_TZ,

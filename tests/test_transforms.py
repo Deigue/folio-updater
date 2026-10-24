@@ -163,8 +163,24 @@ def test_transform_scenarios(
     """Test various transformation scenarios with parametrized data."""
     with temp_ctx(config):
         df = pd.DataFrame(test_data)
-        result, _, _, _ = TransactionTransformer.transform(df)
+        result = TransactionTransformer.transform(df).df
         assert validate(result)
+
+
+def test_a_numeric_condition_matches_by_value(temp_ctx: TempContext) -> None:
+    """A rule keyed on `Units` finds 10.0 from "10", and sets an integer column."""
+    config = {
+        "transforms": {
+            "rules": [
+                {"conditions": {"Units": ["10"]}, "actions": {"Lots": "3"}},
+            ],
+        },
+    }
+    with temp_ctx(config):
+        df = pd.DataFrame({Column.Txn.UNITS: [10.0, 5.0], "Lots": [1, 1]})
+        result = TransactionTransformer.transform(df).df
+
+    assert result["Lots"].tolist() == [3, 1]
 
 
 CANCEL_CONFIG = {
@@ -229,7 +245,8 @@ def test_cancellations(
 ) -> None:
     """A cancellation drops itself and the earliest matching row before it."""
     with temp_ctx(CANCEL_CONFIG):
-        result, _, _, cancels = TransactionTransformer.transform(_cash_rows(rows))
+        outcome = TransactionTransformer.transform(_cash_rows(rows))
+        result, cancels = outcome.df, outcome.cancels
 
     assert result[Column.Txn.TXN_DATE].tolist() == kept
     assert len(cancels) == 1
@@ -241,9 +258,10 @@ def test_cancellation_rule_needs_its_fields(temp_ctx: TempContext) -> None:
     """A rule naming a column the data lacks is skipped, leaving every row."""
     rows = _cash_rows([("2026-09-08", "-13000", "ACCT", "CANCELLATION")])
     with temp_ctx(CANCEL_CONFIG):
-        result, _, _, cancels = TransactionTransformer.transform(
+        outcome = TransactionTransformer.transform(
             rows.drop(columns=[Column.Txn.CURRENCY]),
         )
+        result, cancels = outcome.df, outcome.cancels
 
     assert len(result) == 1
     assert cancels == []
@@ -253,7 +271,8 @@ def test_no_cancellation_leaves_rows(temp_ctx: TempContext) -> None:
     """A file with no cancelling row passes through the rule untouched."""
     rows = _cash_rows([("2026-09-07", "13000", "ACCT", "DEPOSIT")])
     with temp_ctx(CANCEL_CONFIG):
-        result, _, _, cancels = TransactionTransformer.transform(rows)
+        outcome = TransactionTransformer.transform(rows)
+        result, cancels = outcome.df, outcome.cancels
 
     assert len(result) == 1
     assert cancels == []
