@@ -16,6 +16,7 @@ from engine.frames import (
 )
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheets.acb import MEASURE_FORMATS, USD, acb_notes, families, has_usd
+from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
 from exporters.table import Col, Fmt, Row, Table
 
 if TYPE_CHECKING:
@@ -23,14 +24,13 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+LEDGER_SHEET = "Ledger"
+
+# The stored columns read as they do on the `Txns` sheet; the rest are the
+# ledger's own.
 COLUMN_FORMATS: dict[str, Fmt] = {
+    **TXN_FORMATS,
     str(Column.Txn.TXN_ID): Fmt.ID,
-    str(Column.Txn.TXN_DATE): Fmt.DATE,
-    str(Column.Txn.SETTLE_DATE): Fmt.DATE,
-    str(Column.Txn.AMOUNT): Fmt.MONEY_SIGNED,
-    str(Column.Txn.PRICE): Fmt.PRICE,
-    str(Column.Txn.UNITS): Fmt.UNITS,
-    str(Column.Txn.FEE): Fmt.MONEY,
     "FXRate": Fmt.RATE,
     "FXDate": Fmt.DATE,
     "Proceeds": Fmt.MONEY,
@@ -40,17 +40,7 @@ COLUMN_FORMATS: dict[str, Fmt] = {
 }
 
 # Columns whose zero says nothing at all.
-QUIET_COLUMNS = frozenset(
-    {
-        str(Column.Txn.PRICE),
-        str(Column.Txn.UNITS),
-        str(Column.Txn.FEE),
-        "Proceeds",
-        "Proceeds_USD",
-        "Dividend",
-        "Dividend_USD",
-    },
-)
+QUIET_COLUMNS = TXN_QUIET | {"Proceeds", "Proceeds_USD", "Dividend", "Dividend_USD"}
 
 # What each pool grain's band of columns is called.
 GRAIN_BANDS: dict[Grain, str] = {
@@ -70,7 +60,8 @@ LEDGER_ORDER: tuple[str, ...] = (
     str(Column.Txn.UNITS),
     str(Column.Txn.PRICE),
     str(Column.Txn.AMOUNT),
-    # Everything past here scrolls away.
+    # The sheet freezes the columns above `TxnId`; everything from there on
+    # scrolls away.
     str(Column.Txn.TXN_ID),
     str(Column.Txn.SETTLE_DATE),
     # `Ticker` is what the broker wrote; `Symbol` above is what that resolves
@@ -89,14 +80,12 @@ LEDGER_ORDER: tuple[str, ...] = (
     "Flags",
 )
 
-PINNED_COLUMNS = 8
-
 
 def ledger_table(
     frame: pd.DataFrame,
     *,
     txns: pd.DataFrame | None = None,
-    name: str = "Ledger",
+    name: str = LEDGER_SHEET,
     currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Table:
@@ -156,7 +145,7 @@ def ledger_table(
         ),
         notes=(*notes, *acb_notes(frame)),
         tab_color=COST_BASE_TAB,
-        freeze=PINNED_COLUMNS,
+        freeze=keys.index(str(Column.Txn.TXN_ID)),
     )
 
 
@@ -166,8 +155,8 @@ def _with_stored_columns(
 ) -> tuple[pd.DataFrame, list[str]]:
     """Join the stored columns the ledger leaves out, keyed on `TxnId`.
 
-    The stored table is the left side, so a transaction the replay dropped is
-    still listed.
+    Every stored transaction is listed, so one the replay dropped still is, with
+    the columns it was stored with and none of the replay's.
 
     Returns:
         The joined rows, and the names of the columns the join added.
@@ -178,11 +167,9 @@ def _with_stored_columns(
         for column in txns.columns
         if column not in frame.columns and column != txn_id
     ]
-    joined = txns[[txn_id, *extra]].merge(
-        frame.reset_index(drop=True),
-        on=txn_id,
-        how="left",
-    )
+    # The frame's figures win; a transaction the replay dropped has none, so
+    # it keeps what was stored.
+    joined = frame.set_index(txn_id).combine_first(txns.set_index(txn_id)).reset_index()
     return joined, extra
 
 

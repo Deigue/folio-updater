@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 USD = "_USD"
+COST_BASE_SHEET = "Cost Base"
 
 # How each measure of a grain family reads, and at what precision.
 MEASURE_FORMATS: dict[str, Fmt] = {
@@ -51,10 +52,11 @@ def acb_buildup_table(
     currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Table:
-    """Symbol's cost-base buildup out as a table.
+    """Print a symbol's cost-base buildup as a table.
 
-    Written oldest first, so the running `Held`, `ACB` and `Avg` columns read as
-    the accumulation they are.
+    Listed by settlement date, the way adjustedcostbase.ca lists them. The cost
+    base itself was replayed in trade-date order, so the running `Held`, `ACB`
+    and `Avg` columns can step out of sequence where the two orders differ.
 
     Args:
         rows: The symbol's rows from the ledger.
@@ -166,7 +168,7 @@ COST_BASE_COLUMNS: tuple[Col, ...] = (
 def cost_base_table(
     frame: pd.DataFrame,
     *,
-    name: str = "Cost Base",
+    name: str = COST_BASE_SHEET,
     notes: Sequence[str] = (),
 ) -> Table:
     """List every pool's closing cost base, in the currency it is taxed in.

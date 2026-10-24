@@ -113,7 +113,7 @@ class Ledger:
 
     @classmethod
     def from_replay(cls, result: ReplayResult) -> Ledger:
-        """Lay out a completed replay as the ledger.
+        """Build the ledger from a completed replay.
 
         Args:
             result: The replay.

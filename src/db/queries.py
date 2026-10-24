@@ -564,6 +564,44 @@ def append_rows(
     return len(frame) if written is None else written
 
 
+def trial_insert_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    frame: pd.DataFrame,
+) -> list[sqlite3.IntegrityError | None]:
+    """Try a frame's rows one at a time, then undo every one of them.
+
+    Args:
+        connection: Database connection
+        table_name: Name of the table to try the rows against
+        frame: The rows, keyed by column name.
+
+    Returns:
+        One entry per row tried: None for a row that went in, the error for one
+        the table refused. It stops at the first refusal, so that is the last
+        entry.
+    """
+    columns = ", ".join(f'"{column}"' for column in frame.columns)
+    marks = ", ".join("?" for _ in frame.columns)
+    query = f'INSERT INTO "{table_name}" ({columns}) VALUES ({marks})'
+    values = frame.astype(object).where(frame.notna(), None)
+
+    outcomes: list[sqlite3.IntegrityError | None] = []
+    connection.execute("SAVEPOINT trial")
+    try:
+        for row in values.itertuples(index=False, name=None):
+            try:
+                connection.execute(query, row)
+            except sqlite3.IntegrityError as error:
+                outcomes.append(error)
+                break
+            outcomes.append(None)
+    finally:
+        connection.execute("ROLLBACK TO trial")
+        connection.execute("RELEASE trial")
+    return outcomes
+
+
 def replace_rows(
     connection: sqlite3.Connection,
     table_name: str,

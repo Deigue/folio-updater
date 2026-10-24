@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Column
+from domain import INTERNAL_COLUMNS, Column
 from exporters.excel_style import STORED_TAB
 from exporters.table import Col, Fmt, Row, Table, row_of
 
@@ -28,11 +28,10 @@ TXN_FORMATS: dict[str, Fmt] = {
     str(Column.Txn.SETTLE_CALCULATED): Fmt.ID,
 }
 
-_QUIET = frozenset(
+# Columns whose zero says nothing at all.
+TXN_QUIET = frozenset(
     {str(Column.Txn.PRICE), str(Column.Txn.UNITS), str(Column.Txn.FEE)},
 )
-
-_INTERNAL = frozenset({str(Column.Txn.TXN_ID)})
 
 FX_FORMATS: dict[str, Fmt] = {
     str(Column.FX.DATE): Fmt.DATE,
@@ -47,7 +46,7 @@ def transactions_table(
     *,
     hidden: bool = False,
 ) -> Table:
-    """Produce the stored transactions out, ready to be imported again.
+    """Print the stored transactions as a table, ready to be imported again.
 
     Args:
         txns: The `Txns` table, as read from the database.
@@ -60,11 +59,11 @@ def transactions_table(
         The table, one row per transaction, its heading on the first row, and
         nothing written below it that an importer could mistake for a row.
     """
-    keys = [column for column in txns.columns if column not in _INTERNAL]
+    keys = [column for column in txns.columns if column not in INTERNAL_COLUMNS]
     return Table(
         name=name,
         columns=tuple(
-            Col(key, TXN_FORMATS.get(key, Fmt.TEXT), quiet=key in _QUIET)
+            Col(key, TXN_FORMATS.get(key, Fmt.TEXT), quiet=key in TXN_QUIET)
             for key in keys
         ),
         rows=tuple(
@@ -76,7 +75,7 @@ def transactions_table(
 
 
 def fx_table(rates: pd.DataFrame, name: str) -> Table:
-    """Table for FX rates out, one row per date.
+    """Print the FX rates as a table, one row per date.
 
     Args:
         rates: The `FX` table, as read from the database.
@@ -104,7 +103,7 @@ _TRADING = "Trading"
 _FUND = "Fund"
 _REFERENCE = "Reference"
 
-# Laid out for a screen's width: what compares across tickers comes first, and
+# Arranged for a screen's width: what compares across tickers comes first, and
 # what only identifies one (its type, exchange, fetch dates, and the ticker as
 # the transactions spell it) waits at the right.
 TICKER_COLUMNS: tuple[Col, ...] = (

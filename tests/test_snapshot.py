@@ -99,7 +99,7 @@ def oversold_rows() -> list[TxnRow]:
 
 
 def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
-    """Lay a replay out as the ledger, then save and restore what the frame lacks.
+    """Build the ledger from a replay, then save and restore what the frame lacks.
 
     Returns:
         The ledger as replayed, and as read back.

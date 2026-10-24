@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from db import get_connection, get_distinct_values, get_rows
-from domain import Column, Table
+from domain import INTERNAL_COLUMNS, Column, Table
 from services import ForexService
 
 if TYPE_CHECKING:
@@ -25,7 +25,6 @@ class ParquetExporter:
     def __init__(self) -> None:
         """Initialize the parquet exporter."""
         config = get_config()
-        self.data_path = config.data_path
         self.txn_parquet = config.txn_parquet
         self.fx_parquet = config.fx_parquet
         self.tkr_parquet = config.tkr_parquet
@@ -120,7 +119,4 @@ class ParquetExporter:
 
     def _remove_internal_columns(self, txn_df: pd.DataFrame) -> pd.DataFrame:
         """Remove internal-use-only columns from the DataFrame."""
-        internal_cols = [
-            Column.Txn.TXN_ID,
-        ]
-        return txn_df.drop(columns=internal_cols, errors="ignore")
+        return txn_df.drop(columns=list(INTERNAL_COLUMNS), errors="ignore")

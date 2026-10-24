@@ -64,7 +64,7 @@ def dashboard_table(
     tab_color: str | None = None,
     notes: Sequence[str] = (),
 ) -> Table:
-    """Lay one pool's valued holdings out as a table.
+    """Print one pool's valued holdings as a table.
 
     Args:
         holdings: The pool's valued holdings and totals.
@@ -107,7 +107,7 @@ def _tab_color(view: PoolView) -> str | None:
 
 
 def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
-    """Lay one valued pool out as a sheet of its own, named and accented for it.
+    """Print one valued pool as a sheet of its own, named and accented for it.
 
     Args:
         panel: The pool, valued.
@@ -131,7 +131,7 @@ def pooled_dashboard_table(
     *,
     notes: Sequence[str] = (),
 ) -> Table:
-    """Lay several pools out as one table, each row naming the pool it is in.
+    """Print several pools as one table, each row naming the pool it is in.
 
     Args:
         panels: The pools, valued, in the order to list them.
@@ -166,7 +166,7 @@ def _pool_rows(
     pool: str | None = None,
     spacer: bool,
 ) -> list[Row]:
-    """Lay one pool out: its holdings, then what they total to."""
+    """List one pool's rows: its holdings, then what they total to."""
     rows = [
         row_of(columns, _named(cells, pool), role)
         for cells, role in _holding_cells(holdings)

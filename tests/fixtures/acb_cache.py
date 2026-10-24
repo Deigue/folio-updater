@@ -6,7 +6,7 @@ whenever the saved ledger is cold, and under test it is cold in every
 `temp_ctx`, so the write lands once per test, which is extremely expensive.
 
 Only the file reads and writes are swapped: deciding whether the saved ledger is
-current, and laying it out and restoring it, run for real.
+current, and replaying it and restoring it, run for real.
 
 Tests that assert on the files themselves carry the `real_acb_cache` marker to opt in.
 """

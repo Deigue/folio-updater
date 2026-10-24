@@ -139,11 +139,11 @@ class Table:
         freeze: How many leading columns stay put while the sheet is scrolled
             sideways. Enough of them that a row still says what it is once the
             figures being read have scrolled into view.
-        hidden: Keep the sheet out of the tab strip. Still accessible via right-click
+        hidden: Keep the sheet out of the tab strip. Still accessible via right-click.
         freeze_rows: Keep everything above the table's header in view while the
             sheet scrolls. Off for a sheet whose panels above are too tall to
             pin, which would leave little of the screen to scroll.
-        nav: A link written in the sheet's first row, above everything else
+        nav: A link written in the sheet's first row, above everything else.
         sections: Further tables written below this one on the same sheet, each
             under its own name. Only the first table is filtered and frozen. A
             CSV writes the first table alone.
@@ -179,7 +179,7 @@ class Table:
 
 DATA_ROLES = frozenset({Role.DATA, Role.MUTED, Role.CLOSED})
 
-# Decimals a reader should see, per role. A workbook displays a value at this
+# Decimals a reader should see, per format. A workbook displays a value at this
 # precision while the cell keeps every digit; a CSV, having nowhere to hide the
 # rest, rounds to it.
 DECIMALS: dict[Fmt, int] = {
@@ -205,13 +205,13 @@ COMPACT_STEPS: dict[Fmt, tuple[tuple[int, int, str], ...]] = {
     Fmt.COUNT: ((10**6, 10**6, "M"), (10**3, 10**3, "K"), (0, 1, "")),
 }
 
-# The roles whose values are numbers rather than text.
+# The formats whose values are numbers rather than text.
 NUMERIC: frozenset[Fmt] = frozenset(DECIMALS)
 
-# The roles rendered as a percentage of a ratio.
+# The formats rendered as a percentage of a ratio.
 PERCENTS: frozenset[Fmt] = frozenset({Fmt.PERCENT, Fmt.PERCENT_SIGNED})
 
-# The roles whose sign carries meaning, and is worth colouring.
+# The formats whose sign carries meaning, and is worth colouring.
 SIGNED: frozenset[Fmt] = frozenset(
     {Fmt.MONEY_SIGNED, Fmt.PRICE_SIGNED, Fmt.PERCENT_SIGNED},
 )
@@ -293,11 +293,9 @@ def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
     if isinstance(value, Link):
         value = value.text
     number = as_number(value)
-    if number is None:
-        return "" if is_blank(value) else str(value)
     decimals = DECIMALS.get(fmt)
-    if decimals is None:
-        return str(value)
+    if number is None or decimals is None:
+        return "" if is_blank(value) else str(value)
     if quiet and not number:
         return ""
     return _number(fmt, float(number), decimals)

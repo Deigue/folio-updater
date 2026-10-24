@@ -27,6 +27,7 @@ from db.queries import (
     get_triggers,
     insert_or_replace,
     insert_or_replace_many,
+    trial_insert_rows,
     update_rows,
 )
 from db.schema import (
@@ -66,6 +67,7 @@ __all__ = [
     "insert_or_replace_many",
     "queries",
     "schema",
+    "trial_insert_rows",
     "txn_count",
     "update_rows",
 ]

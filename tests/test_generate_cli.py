@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 from cli.main import app
 from db import drop_table, get_columns, get_connection, get_row_count
 from domain import Table
+from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
@@ -207,6 +208,13 @@ def test_generate_refuses_a_csv(temp_ctx: TempContext, tmp_path: Path) -> None:
         assert result.exit_code == 1
         assert_in_output("A CSV holds one table", result)
         assert not target.exists()
+
+
+def test_sheet_names_differing_only_in_case_are_told_apart() -> None:
+    """Excel matches sheet names without case, so the second would be the first."""
+    renamed = sheet_name("WS-TFSA", ["WS-tfsa"])
+
+    assert renamed.casefold() != "ws-tfsa"
 
 
 def test_an_unreplayable_folio_still_writes_its_stored_sheets(

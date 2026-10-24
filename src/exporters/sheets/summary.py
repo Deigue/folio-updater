@@ -1,6 +1,6 @@
 """The summary sheets: the whole folio at a glance, and every pool beside it.
 
-Every figure is read off the same panels the dashboard sheets are laid out
+Every figure is read off the same panels the dashboard sheets are printed
 from. Nothing is computed here, only arranged.
 """
 
@@ -25,7 +25,10 @@ GRAIN_NAMES: dict[Grain, str] = {
     Grain.ACCOUNT: "Account",
 }
 
-PERFORMANCE_COLUMNS: tuple[Col, ...] = (
+SUMMARY_SHEET = "Summary"
+FLOWS_SHEET = "Flows"
+
+POOL_COLUMNS: tuple[Col, ...] = (
     Col("Pool", width=18),
     Col("Grain", width=10),
     Col("Held", Fmt.ID),
@@ -80,11 +83,11 @@ def summary_table(
     folio: Panel,
     pools: Sequence[Panel],
     *,
-    name: str = "Summary",
+    name: str = SUMMARY_SHEET,
     notes: Sequence[str] = (),
     contents: Sequence[tuple[str, str]] = (),
 ) -> Table:
-    """Table for the folio's headline figures out, with every pool's beside them.
+    """Print the folio's headline figures as a table, with every pool's beside them.
 
     Each pool in the table links to that pool's own sheet, and a panel
     links everything else.
@@ -106,10 +109,8 @@ def summary_table(
         blocks.append(_contents(contents))
     return Table(
         name=name,
-        columns=PERFORMANCE_COLUMNS,
-        rows=tuple(
-            row_of(PERFORMANCE_COLUMNS, _performance_cells(pool)) for pool in pools
-        ),
+        columns=POOL_COLUMNS,
+        rows=tuple(row_of(POOL_COLUMNS, _pool_cells(pool)) for pool in pools),
         blocks=tuple(blocks),
         notes=tuple(notes),
         tab_color=OVERVIEW_TAB,
@@ -120,11 +121,11 @@ def summary_table(
 def flows_table(
     pools: Sequence[Panel],
     *,
-    name: str = "Flows",
+    name: str = FLOWS_SHEET,
     notes: Sequence[str] = (),
     history: Sequence[Room] = (),
 ) -> Table:
-    """Flows table representing cash that moved through every pool.
+    """Print the cash that moved through every pool as a table.
 
     Args:
         pools: Every pool to list, folio first.
@@ -199,6 +200,15 @@ def _headline(folio: Panel) -> Block:
             str(Currency.CAD),
         ),
     ]
+    # CAD is always listed; another currency only when the folio deposited in it.
+    lines.extend(
+        Line("Net Deposits", amount, Fmt.MONEY, str(currency))
+        for currency, amount in sorted(
+            flows.net_deposits.items(),
+            key=lambda item: str(item[0]),
+        )
+        if currency is not Currency.CAD
+    )
     lines.extend(
         Line("Cash", amount, Fmt.MONEY_SIGNED, str(currency))
         for currency, amount in sorted(
@@ -224,7 +234,7 @@ def _pool(pool: Panel) -> Link:
     return Link(pool.view.label, pool.view.label)
 
 
-def _performance_cells(pool: Panel) -> dict[str, object]:
+def _pool_cells(pool: Panel) -> dict[str, object]:
     """Read one pool's totals, in the totals currency every pool shares."""
     holdings = pool.holdings
     return {
@@ -291,7 +301,7 @@ def _history_cells(room: Room) -> dict[str, object]:
 
 
 def _currencies(flows: Flows) -> list[Currency]:
-    """Every currency the pool moved, CAD first."""
+    """Every currency the pool moved, CAD first (and CAD whenever it has room)."""
     seen = (
         set(flows.cash)
         | set(flows.contributions)
@@ -301,6 +311,10 @@ def _currencies(flows: Flows) -> list[Currency]:
         | set(flows.fees)
         | set(flows.realized)
     )
+    if flows.room is not None:
+        # The room is written on the CAD line, so a pool that moved only USD
+        # still gets one.
+        seen.add(Currency.CAD)
     return sorted(
         seen,
         key=lambda currency: (currency is not Currency.CAD, str(currency)),

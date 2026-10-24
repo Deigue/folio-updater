@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import sqlite3
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -15,6 +15,7 @@ from db import (
     backup_folio,
     get_connection,
     get_rows,
+    trial_insert_rows,
     txn_count,
     update_rows,
 )
@@ -29,7 +30,6 @@ from term import announce, get_symbol
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
 
 
@@ -37,27 +37,24 @@ def import_transactions(
     folio_path: Path,
     account: str | None = None,
     sheet: str | None = None,
-    *,
-    with_results: bool = False,
-) -> int | ImportResults:
-    """Import transactions from Excel files and map headers to internal fields.
-
-    Keeps TXN_ESSENTIALS first, then existing DB columns, then net new columns.
+) -> ImportResults:
+    """Read a source file and add the transactions that survive ingest to the folio.
 
     Args:
-        folio_path (Path): Path to the Excel file containing transactions.
+        folio_path (Path): Path to the Excel or CSV file containing transactions.
         account (str | None): Optional account identifier to use as fallback
-            when Account column is missing from the Excel file.
-        sheet (str | None): Optional sheet name to read from the Excel file.
-            If None, uses the first sheet in the Excel file.
-        with_results (bool): If True, return ImportResults instead of count.
+            when Account column is missing from the file.
+        sheet (str | None): Optional sheet name to read from an Excel file.
+            If None, uses the first sheet in the file.
 
     Returns:
-        Depending on with_results, returns ImportResults or count of imported
-        transactions.
-    """
-    is_csv: bool = folio_path.suffix.lower() == ".csv"
+        Every stage of the preparation, with the database counts before and
+        after filled in.
 
+    Raises:
+        ValueError: If the file cannot be read, such as an Excel file with no
+            sheet of that name.
+    """
     existing_count = txn_count()
 
     # Log import start with detailed info
@@ -65,43 +62,48 @@ def import_transactions(
     import_logger.info("EXISTING %d transactions in database", existing_count)
 
     try:
-        if is_csv:  # pragma: no cover
-            txns_df: pd.DataFrame = pd.read_csv(folio_path)
-        else:
-            if sheet is None:
-                with pd.ExcelFile(folio_path, engine="openpyxl") as xls:
-                    sheet = str(xls.sheet_names[0])
-            txns_df: pd.DataFrame = pd.read_excel(
-                folio_path,
-                sheet_name=sheet,
-            )
+        try:
+            txns_df = _read_source(folio_path, sheet)
+        except ValueError as error:
+            import_logger.warning('CANNOT READ "%s": %s', folio_path, error)
+            import_logger.info("DONE: 0 imported")
+            raise
 
+        where = f" from sheet '{sheet}'" if sheet else ""
+        import_logger.info("READ %d transactions%s", len(txns_df), where)
+
+        import_results = insert_transactions(txns_df, account)
+
+        import_logger.info("DONE: %d imported", import_results.imported_count())
+        _log_imported(import_results.final_df)
         import_logger.info(
-            "READ %d transactions from sheet '%s'",
-            len(txns_df),
-            sheet,
+            "TOTAL %d transactions in database",
+            import_results.final_db_count,
         )
-    except ValueError:
-        error_msg = f"No '{sheet}' sheet found in {folio_path}."
-        import_logger.warning(error_msg)
-        import_logger.info("DONE: 0 imported")
+    finally:
         audit_footer()
-        return 0
+    return import_results
 
-    import_results = insert_transactions(txns_df, account)
 
-    imported_count = len(import_results.final_df)
-    msg: str = f"DONE: {imported_count} imported"
-    import_logger.info(msg)
-    summaries = import_results.final_df.apply(format_transaction_summary, axis=1)
-    for summary in summaries:
+def _read_source(source: Path, sheet: str | None = None) -> pd.DataFrame:
+    """Read a CSV, or one sheet of an Excel file, into a frame.
+
+    Args:
+        source: The file to read.
+        sheet: The sheet to read, or None for the first. A CSV has no sheets.
+
+    Returns:
+        The rows, as the file holds them.
+    """
+    if source.suffix.lower() == ".csv":  # pragma: no cover
+        return pd.read_csv(source)
+    return pd.read_excel(source, sheet_name=0 if sheet is None else sheet)
+
+
+def _log_imported(imported: pd.DataFrame) -> None:
+    """Add a line to the audit log for each transaction that was imported."""
+    for summary in imported.apply(format_transaction_summary, axis=1):
         import_logger.info(" + %s", summary)
-    import_logger.info(
-        "TOTAL %d transactions in database",
-        import_results.final_db_count,
-    )
-    audit_footer()
-    return import_results if with_results else imported_count
 
 
 def insert_transactions(
@@ -123,6 +125,10 @@ def insert_transactions(
     Returns:
         Every stage of the preparation, with the database counts before and
         after filled in.
+
+    Raises:
+        sqlite3.IntegrityError: If the table refuses a row that ingest passed.
+            The audit log names the row, and none of the batch is stored.
     """
     existing_count = txn_count()
     import_results = prepare_transactions(txns_df, account, map_headers=map_headers)
@@ -134,47 +140,50 @@ def insert_transactions(
             try:
                 append_rows(conn, Table.TXNS, prepared_df)
             except sqlite3.IntegrityError:
-                _analyze_and_insert_rows(conn, prepared_df)
+                _log_refused_row(conn, prepared_df)
+                raise
 
     import_results.existing_count = existing_count
     import_results.final_db_count = txn_count()
     return import_results
 
 
-def _analyze_and_insert_rows(
-    conn: sqlite3.Connection,
-    prepared_df: pd.DataFrame,
-) -> None:  # pragma: no cover
-    """Analyze and insert rows one by one to identify problematic transactions.
+def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> None:
+    """Name, in the audit log, the transaction of a refused batch that breaks the table.
+
+    The rows are tried one at a time in a transaction that is rolled back, so
+    the first row the table refuses is found exactly, a row can still clash
+    with one before it in the batch, and nothing is left stored.
 
     Args:
-        conn: Database connection
-        prepared_df: DataFrame with prepared transaction data
-
-    Returns:
-        Final count of transactions in database
+        conn: Database connection.
+        prepared_df: The rows the table refused as a batch.
     """
     info = get_symbol("info")
     success = get_symbol("success")
     error = get_symbol("error")
-    analysis_header = f"{info}BULK INSERT FAILED - Analyzing transactions..."
-    import_logger.error(analysis_header)
+    import_logger.error("%sBULK INSERT FAILED - Analyzing transactions...", info)
 
     total_rows = len(prepared_df)
-
     try:
-        for idx, (_, row) in enumerate(prepared_df.iterrows(), 1):
-            append_rows(conn, Table.TXNS, pd.DataFrame([row]))
-            success_msg = f"{success}Row {idx}/{total_rows}: SUCCESS"
-            import_logger.info(success_msg)
-
-    except sqlite3.IntegrityError as row_error:
-        transaction_summary = format_transaction_summary(row)
-        error_msg = f"{error}Row {idx}/{total_rows}: FAILED - {row_error}"
-        transaction_msg = f"   {transaction_summary}"
-        import_logger.info(error_msg)
-        import_logger.info(transaction_msg)
-        raise
+        outcomes = trial_insert_rows(conn, Table.TXNS, prepared_df)
+    except sqlite3.Error:
+        # The batch's own error is what the caller raises; this is only a guide.
+        import_logger.exception("Could not try the rows one at a time")
+        return
+    for position, refusal in enumerate(outcomes, 1):
+        if refusal is None:
+            import_logger.info("%sRow %d/%d: SUCCESS", success, position, total_rows)
+            continue
+        import_logger.info(
+            "%sRow %d/%d: FAILED - %s",
+            error,
+            position,
+            total_rows,
+            refusal,
+        )
+        summary = format_transaction_summary(prepared_df.iloc[position - 1])
+        import_logger.info("   %s", summary)
 
 
 def import_statements(statement: Path) -> StatementImportResult:
@@ -200,12 +209,16 @@ def import_statements(statement: Path) -> StatementImportResult:
         StatementImportResult: Settlement dates updated and transfers created.
     """
     import_logger.info('IMPORT STATEMENT "%s"', statement)
-
     try:
-        if statement.suffix.lower() == ".csv":  # pragma: no cover
-            stmt_df = pd.read_csv(statement)
-        else:
-            stmt_df = pd.read_excel(statement, engine="openpyxl")
+        return _import_statement_rows(statement)
+    finally:
+        audit_footer()
+
+
+def _import_statement_rows(statement: Path) -> StatementImportResult:
+    """Read a statement and apply it, whether or not the file turns out usable."""
+    try:
+        stmt_df = _read_source(statement)
 
         if stmt_df.empty:
             announce.warning("Statement file is empty.", "importer")
@@ -245,7 +258,6 @@ def import_statements(statement: Path) -> StatementImportResult:
             transfer_results.imported_count() if transfer_results else 0,
             transfers_skipped,
         )
-        audit_footer()
         return StatementImportResult(
             settlement_updates=settlement_updates,
             transfer_results=transfer_results,
@@ -288,7 +300,7 @@ def _update_settlement_dates(
         existing_txns = all_txns[calculated]
         settled_txns = all_txns[~calculated]
 
-        if existing_txns.empty and settled_txns.empty:  # pragma: no cover
+        if all_txns.empty:  # pragma: no cover
             announce.info("No transactions found to settle", "importer")
             return 0, []
 
@@ -296,18 +308,18 @@ def _update_settlement_dates(
         results: list[SettlementMatch] = []
         for _, row in df.iterrows():
             try:
-                statement_data = _extract_statement_row_data(row, account)
-                if not statement_data:
+                statement_row = _extract_statement_row_data(row, account)
+                if statement_row is None:
                     continue
-                matches = _match_transactions(existing_txns, statement_data)
-                results.append(
-                    _resolve_statement_match(
-                        statement_data,
-                        matches,
-                        updates,
-                        settled_txns,
-                    ),
+                matches = _match_transactions(existing_txns, statement_row)
+                result, update = _resolve_statement_match(
+                    statement_row,
+                    matches,
+                    settled_txns,
                 )
+                results.append(result)
+                if update is not None:
+                    updates.append(update)
             except (ValueError, TypeError) as e:
                 announce.warning(f"Skipping invalid statement row: {e}", "importer")
                 continue
@@ -324,32 +336,31 @@ def _update_settlement_dates(
 
 
 def _resolve_statement_match(
-    statement_data: dict,
+    statement_row: _StatementRow,
     matches: pd.DataFrame,
-    updates: list[dict],
     settled_txns: pd.DataFrame,
-) -> SettlementMatch:
-    """Turn a row's candidate matches into an outcome, queuing an update for a hit.
+) -> tuple[SettlementMatch, dict | None]:
+    """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
-        statement_data: Fields extracted from the statement row.
+        statement_row: Fields extracted from the statement row.
         matches: Transactions with a calculated date that the row matched.
-        updates: Pending updates, appended to when exactly one row matched.
         settled_txns: Transactions whose settlement date is already set properly.
 
     Returns:
-        The outcome recorded for this statement row.
+        The outcome recorded for this statement row, and the update to apply
+        when exactly one transaction matched (None otherwise).
     """
     result = SettlementMatch(
         outcome=SettlementOutcome.UNMATCHED,
-        settle_date=statement_data["settlement_date"],
-        txn_date=statement_data["txn_date"],
-        action=statement_data["action"],
-        ticker=statement_data["ticker"],
-        currency=str(statement_data["currency"]),
-        amount=statement_data["amount"],
-        units=statement_data["units"],
-        account=statement_data["account"],
+        settle_date=statement_row.settlement_date,
+        txn_date=statement_row.txn_date,
+        action=statement_row.action,
+        ticker=statement_row.ticker,
+        currency=statement_row.currency,
+        amount=statement_row.amount,
+        units=statement_row.units,
+        account=statement_row.account,
         candidates=len(matches),
     )
 
@@ -357,15 +368,13 @@ def _resolve_statement_match(
         transaction_row = matches.iloc[0]
         result.txn_id = int(transaction_row[Column.Txn.TXN_ID])
         result.outcome = SettlementOutcome.MATCHED
-        updates.append(
-            {
-                Column.Txn.TXN_ID: result.txn_id,
-                Column.Txn.SETTLE_DATE: statement_data["settlement_date"],
-                Column.Txn.SETTLE_CALCULATED: 0,
-            },
-        )
+        update = {
+            Column.Txn.TXN_ID: result.txn_id,
+            Column.Txn.SETTLE_DATE: statement_row.settlement_date,
+            Column.Txn.SETTLE_CALCULATED: 0,
+        }
         import_logger.info("  * %s", format_transaction_summary(transaction_row))
-        return result
+        return result, update
 
     described = (
         f"{result.action} {result.ticker} on {result.txn_date} for {result.amount}"
@@ -377,9 +386,9 @@ def _resolve_statement_match(
             len(matches),
             described,
         )
-        return result
+        return result, None
 
-    already = _match_transactions(settled_txns, statement_data)
+    already = _match_transactions(settled_txns, statement_row)
     if len(already) == 1:
         result.outcome = SettlementOutcome.ALREADY_SETTLED
         result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
@@ -387,10 +396,38 @@ def _resolve_statement_match(
         import_logger.info("  = Already settled: %s", described)
     else:
         import_logger.warning("  ! No match for %s", described)
-    return result
+    return result, None
 
 
-def _extract_statement_row_data(row: pd.Series, account: str | None) -> dict | None:
+@dataclass(frozen=True)
+class _StatementRow:
+    """The fields of a statement row that settlement matching runs on.
+
+    Attributes:
+        settlement_date: Settlement date from the statement, as YYYY-MM-DD.
+        action: Statement action code, such as BUY or SELL.
+        ticker: Ticker spelled the way the folio stores it.
+        units: Units named in the description, when it names any.
+        txn_date: Trade date named in the description, as YYYY-MM-DD.
+        currency: Currency the row is denominated in.
+        account: Account the statement belongs to, or None when unknown.
+        amount: The amount, without its sign.
+    """
+
+    settlement_date: str
+    action: str
+    ticker: str
+    units: float | None
+    txn_date: str
+    currency: str
+    account: str | None
+    amount: float
+
+
+def _extract_statement_row_data(
+    row: pd.Series,
+    account: str | None,
+) -> _StatementRow | None:
     """Extract and validate data from a statement row.
 
     Args:
@@ -417,16 +454,16 @@ def _extract_statement_row_data(row: pd.Series, account: str | None) -> dict | N
     currency = row["currency"]
     ticker = _canonical_statement_ticker(ticker, action_str, currency)
 
-    return {
-        "settlement_date": settlement_date,
-        "action": action_str,
-        "ticker": ticker,
-        "units": units,
-        "txn_date": txn_date,
-        "currency": currency,
-        "account": account,
-        "amount": abs(float(row["amount"])),
-    }
+    return _StatementRow(
+        settlement_date=settlement_date,
+        action=action_str,
+        ticker=ticker,
+        units=units,
+        txn_date=txn_date,
+        currency=str(currency),
+        account=account,
+        amount=abs(float(row["amount"])),
+    )
 
 
 def _canonical_statement_ticker(
@@ -513,30 +550,31 @@ def _parse_transaction_description(
 
 def _match_transactions(
     existing_txns: pd.DataFrame,
-    statement_data: dict,
+    statement_row: _StatementRow,
 ) -> pd.DataFrame:
     """Find transactions matching the statement data.
 
     Args:
-        existing_txns: Transactions still carrying a calculated settlement date.
-        statement_data: Fields extracted from one statement row.
+        existing_txns: Transactions to look through, such as those still
+            carrying a calculated settlement date.
+        statement_row: Fields extracted from one statement row.
 
     Returns:
         Every transaction the row matches.
     """
     conditions = (
-        (existing_txns[Column.Txn.ACTION] == statement_data["action"])
-        & (existing_txns[Column.Txn.TXN_DATE] == statement_data["txn_date"])
-        & (existing_txns[Column.Txn.TICKER] == statement_data["ticker"])
-        & (existing_txns[Column.Txn.CURRENCY] == statement_data["currency"])
+        (existing_txns[Column.Txn.ACTION] == statement_row.action)
+        & (existing_txns[Column.Txn.TXN_DATE] == statement_row.txn_date)
+        & (existing_txns[Column.Txn.TICKER] == statement_row.ticker)
+        & (existing_txns[Column.Txn.CURRENCY] == statement_row.currency)
     )
 
-    if statement_data["account"]:
-        conditions &= existing_txns[Column.Txn.ACCOUNT] == statement_data["account"]
+    if statement_row.account:
+        conditions &= existing_txns[Column.Txn.ACCOUNT] == statement_row.account
 
     # Matching tolerance for numeric amounts
     amount_tolerance = 0.01
-    stmt_amount = statement_data["amount"]
+    stmt_amount = statement_row.amount
 
     def amount_matches(x: float) -> bool:
         return abs(abs(float(x)) - stmt_amount) < amount_tolerance
@@ -545,9 +583,9 @@ def _match_transactions(
     conditions &= amount_conditions
 
     # Units matching if available
-    if statement_data["units"] and statement_data["units"] > 0:
+    if statement_row.units and statement_row.units > 0:
         units_tolerance = 0.0001
-        stmt_units = statement_data["units"]
+        stmt_units = statement_row.units
 
         def units_matches(x: float) -> bool:
             return abs(abs(float(x)) - stmt_units) < units_tolerance
@@ -562,10 +600,7 @@ def _apply_settlement_updates_to_db(
     conn: sqlite3.Connection,
     updates: list[dict],
 ) -> int:
-    """Apply settlement date updates in batch and log audit trail."""
-    if not updates:  # pragma: no cover
-        return 0
-
+    """Back up the folio, then apply settlement date updates in one batch."""
     backup_folio()
     return update_rows(
         conn,
@@ -675,6 +710,5 @@ def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:
         "IMPORT %d transfer transaction(s) from statement",
         len(prepared_df),
     )
-    for summary in prepared_df.apply(format_transaction_summary, axis=1):
-        import_logger.info(" + %s", summary)
+    _log_imported(prepared_df)
     return import_results

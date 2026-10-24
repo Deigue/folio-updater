@@ -173,7 +173,7 @@ def encode_diagnostics(
     diagnostics: Sequence[ReplayWarning],
     rows: Mapping[int, ComputedRow],
 ) -> pd.DataFrame:
-    """Lay out diagnostics with the rows they tag, ready to save as Parquet.
+    """Pair diagnostics with the rows they tag, ready to save as Parquet.
 
     Args:
         diagnostics: Every diagnostic a replay raised, in the order raised.

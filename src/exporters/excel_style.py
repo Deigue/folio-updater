@@ -54,8 +54,12 @@ def quiet(number_format: str) -> str:
         number_format: The format the column would otherwise use.
 
     Returns:
-        The same format with an empty zero section.
+        The same format with an empty zero section. A conditional format
+        (`[>=1000]...`) comes back as it is: its last section is the catch-all
+        for every smaller value, not the zero, so blanking it would hide them.
     """
+    if number_format.startswith("["):
+        return number_format
     sections = number_format.split(";")
     if len(sections) >= _SECTIONS:
         return ";".join([*sections[:2], '""', *sections[_SECTIONS:]])
@@ -74,7 +78,6 @@ PAPER = "FFFFFF"
 HEADER_FILL = "1F3864"
 SUBTOTAL_FILL = "DCE6F1"
 TOTAL_FILL = "BDD7EE"
-BAND_FILL = "EDF2FA"
 CLOSED_FILL = "F2F2F2"
 
 # Rich names from `ui/vocabulary.py`, in their nearest web-colour hex.
@@ -137,8 +140,6 @@ ROW_FONTS: dict[Role, Font | None] = {
 
 # Bold rows keep their sign colour, so they need their own coloured font.
 BOLD_ROLES = frozenset({Role.SUBTOTAL, Role.TOTAL})
-
-TOTAL_BORDER = Border(top=Side(style="thin", color=HEADER_FILL))
 
 # Drawn down the first column of each band, so a sheet scrolled sideways still
 # shows where one family of columns ends and the next begins.

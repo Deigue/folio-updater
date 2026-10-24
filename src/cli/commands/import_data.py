@@ -14,7 +14,7 @@ from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet
 from datagen import DemoFolio, is_demo_folio
 from importers import import_transactions
-from models import FileImport, ImportResults
+from models import FileImport
 from term import (
     console_error,
     console_info,
@@ -115,22 +115,10 @@ def import_file(
         try:
             config = get_config()
             txn_sheet = config.txn_sheet
-            results = import_transactions(
-                file_path,
-                None,
-                txn_sheet,
-                with_results=True,
-            )
+            results = import_transactions(file_path, None, txn_sheet)
         except (OSError, ValueError, KeyError) as e:
             console_error(f"Error importing {file_path.name}: {e}")
             return FileImport(file_path, error=str(e))
-        if not isinstance(results, ImportResults):  # pragma: no cover
-            error = (
-                f"Could not read {file_path.name}: not a readable file, or no "
-                f"'{txn_sheet}' sheet (see importer.log)"
-            )
-            console_error(error)
-            return FileImport(file_path, error=error)
 
         show_import_summary(file_path.name, results)
         show_import_audit(results, verbose=verbose, interactive=interactive)

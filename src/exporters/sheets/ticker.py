@@ -37,6 +37,8 @@ _MATRIX_NOTE = (
 )
 _CRA = "CRA"
 
+PERFORMANCE_SHEET = "Performance"
+
 
 def ticker_table(  # noqa: PLR0913
     quote: Quote,
@@ -47,7 +49,7 @@ def ticker_table(  # noqa: PLR0913
     by_account: bool = False,
     notes: Sequence[str] = (),
 ) -> Table:
-    """Print one security out onto one sheet: quote, fundamentals, moves, holdings.
+    """Print one security on one sheet: quote, fundamentals, moves, holdings.
 
     Args:
         quote: Its live quote, fundamentals included.
@@ -97,7 +99,7 @@ def _first_buy_note(positions: Sequence[SymbolHoldings]) -> list[str]:
 def performance_table(
     rows: Sequence[PerformanceRow],
     *,
-    name: str = "Performance",
+    name: str = PERFORMANCE_SHEET,
     pool_weight: bool = False,
     notes: Sequence[str] = (),
 ) -> Table:
@@ -239,7 +241,7 @@ def _holdings_table(
     *,
     by_account: bool,
 ) -> Table:
-    """Lay out every pool's holding, with the folio-wide pooled figures.
+    """Print every pool's holding, with the folio-wide pooled figures.
 
     Args:
         position: The security across the folio, in one currency.

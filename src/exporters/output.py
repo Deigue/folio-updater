@@ -26,10 +26,9 @@ SUPPORTED = (WORKBOOK_SUFFIX, CSV_SUFFIX)
 class UnsupportedExportError(ValueError):
     """An export path naming a format this command cannot write."""
 
-    def __init__(self, suffix: str, supported: Sequence[str] = SUPPORTED) -> None:
+    def __init__(self, suffix: str) -> None:
         """Name the suffix that was asked for, and the ones that would work."""
-        self.suffix = suffix
-        listed = ", ".join(supported)
+        listed = ", ".join(SUPPORTED)
         super().__init__(f"Cannot export to '{suffix}' files. Use one of: {listed}.")
 
 

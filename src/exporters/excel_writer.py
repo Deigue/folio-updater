@@ -47,24 +47,26 @@ _FALLBACK_NAME = "Sheet"
 
 
 def sheet_name(name: str, taken: Collection[str] = ()) -> str:
-    """Make a grain's label legal, and unique within one workbook.
+    """Make a sheet name legal, and unique within one workbook.
 
     Args:
-        name: The label the report would like to use.
+        name: The name the table would like to use.
         taken: Names already given to other sheets.
 
     Returns:
-        A name Excel accepts, never empty and never a duplicate.
+        A name Excel accepts, never empty and never a duplicate. Excel compares
+        names without regard to case, so "WS-TFSA" is taken by "ws-tfsa".
     """
+    used = {other.casefold() for other in taken}
     cleaned = name.translate(_ILLEGAL).strip("'").strip() or _FALLBACK_NAME
     cleaned = cleaned[:_NAME_LIMIT]
-    if cleaned not in taken:
+    if cleaned.casefold() not in used:
         return cleaned
 
     for suffix in range(2, 100):
         marker = f"~{suffix}"
         candidate = f"{cleaned[: _NAME_LIMIT - len(marker)]}{marker}"
-        if candidate not in taken:
+        if candidate.casefold() not in used:
             return candidate
     return cleaned[: _NAME_LIMIT - 4] + "~999"
 
@@ -90,11 +92,8 @@ def write_workbook(path: Path, tables: Sequence[Table]) -> None:
         names.setdefault(table.name, name)
 
     for table, name in zip(tables, taken, strict=True):
-        write_sheet(workbook.create_sheet(name), table, names)
+        _write_sheet(workbook.create_sheet(name), table, names)
 
-    # Callers always pass at least one table
-    if not taken:
-        workbook.create_sheet(_FALLBACK_NAME)
     _show_a_visible_sheet(workbook)
     workbook.save(path)
 
@@ -117,12 +116,12 @@ def _show_a_visible_sheet(workbook: Workbook) -> None:
         sheet.sheet_view.tabSelected = index == visible[0]
 
 
-def write_sheet(
+def _write_sheet(
     worksheet: Worksheet,
     table: Table,
-    names: Mapping[str, str] | None = None,
+    names: Mapping[str, str],
 ) -> None:
-    """Lay one table out on one worksheet.
+    """Print one table on one worksheet.
 
     Args:
         worksheet: The sheet to write into, assumed empty.
@@ -131,19 +130,18 @@ def write_sheet(
             link can find its target. A link to anything missing from it is
             written as plain text.
     """
-    links = names or {}
     cursor = 1
     if table.nav is not None:
         nav = worksheet.cell(row=cursor, column=1, value=_value(table.nav))
-        _link(nav, table.nav, links)
+        _link(nav, table.nav, names)
         cursor += 1
-    cursor = _write_blocks(worksheet, table.blocks, links, cursor)
-    header_row, last_data_row, cursor = _write_grid(worksheet, table, cursor, links)
+    cursor = _write_blocks(worksheet, table.blocks, names, cursor)
+    header_row, last_data_row, cursor = _write_grid(worksheet, table, cursor, names)
 
     for section in table.sections:
         title = worksheet.cell(row=cursor + 1, column=1, value=section.name)
         title.font = style.TITLE_FONT
-        _, _, cursor = _write_grid(worksheet, section, cursor + 2, links)
+        _, _, cursor = _write_grid(worksheet, section, cursor + 2, names)
 
     _finish(worksheet, table, header_row, last_data_row)
     if table.hidden:
@@ -200,7 +198,7 @@ def _write_blocks(
     worksheet: Worksheet,
     blocks: Iterable[Block],
     links: Mapping[str, str],
-    start: int = 1,
+    start: int,
 ) -> int:
     """Write the labelled panels above the table, returning the next free row."""
     cursor = start
@@ -299,7 +297,7 @@ def _write_row(
     number: int,
     layout: _Layout,
 ) -> None:
-    """Write one line, styling each cell by its column's role and the row's."""
+    """Write one line, styling each cell by its column's format and the row's role."""
     edges = layout.edges
     fill = style.ROW_FILLS.get(row.role)
     font = style.ROW_FONTS.get(row.role)

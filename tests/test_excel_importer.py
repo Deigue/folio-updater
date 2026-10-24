@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import pytest
 
-from db import create_txns_table, get_connection, get_rows
+from db import create_txns_table, get_connection, get_rows, txn_count
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
-from importers import import_statements, import_transactions
+from importers import import_statements, import_transactions, insert_transactions
+from models import ImportResults
 
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
@@ -366,7 +368,10 @@ def test_import_scenarios(  # noqa: PLR0915
         account_fallback = (
             "FALLBACK-ACCOUNT" if scenario == "account_fallback" else "TEST-ACCOUNT"
         )
-        imported_count = import_transactions(temp_path, account_fallback)
+        imported_count = import_transactions(
+            temp_path,
+            account_fallback,
+        ).imported_count()
 
         # Verify count
         assert imported_count == expected_count, (
@@ -450,7 +455,11 @@ def test_import_duplicate_handling(
         register_test_dataframe(temp_path, df_with_dupes, txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
-        imported_count = import_transactions(temp_path, "TEST-ACCOUNT", txn_sheet)
+        imported_count = import_transactions(
+            temp_path,
+            "TEST-ACCOUNT",
+            txn_sheet,
+        ).imported_count()
         expected_count = len(default_df) - 1  # All rows except the duplicated one
         assert imported_count == expected_count
 
@@ -471,7 +480,11 @@ def test_import_duplicate_handling(
         register_test_dataframe(initial_path, initial_df, txn_sheet)
 
         config.db_path.unlink(missing_ok=True)
-        initial_count = import_transactions(initial_path, "TEST-ACCOUNT", txn_sheet)
+        initial_count = import_transactions(
+            initial_path,
+            "TEST-ACCOUNT",
+            txn_sheet,
+        ).imported_count()
         assert initial_count == 2
 
         # Try to import duplicate - should be rejected
@@ -493,7 +506,7 @@ def test_import_duplicate_handling(
             duplicate_path,
             "TEST-ACCOUNT",
             txn_sheet,
-        )
+        ).imported_count()
         assert no_approval_count == 1  # Only the DIVIDEND
 
         # Test 3: DB duplicate WITH approval
@@ -502,7 +515,11 @@ def test_import_duplicate_handling(
         approved_df = pd.DataFrame(duplicate_data_with_approval)
         approved_path = config.folio_path.parent / "approved_duplicates.xlsx"
         register_test_dataframe(approved_path, approved_df, txn_sheet)
-        approved_count = import_transactions(approved_path, "TEST-ACCOUNT", txn_sheet)
+        approved_count = import_transactions(
+            approved_path,
+            "TEST-ACCOUNT",
+            txn_sheet,
+        ).imported_count()
         assert approved_count == 1  # The approved duplicate
 
         # Test 4: Intra-file duplicate WITH approval
@@ -528,8 +545,45 @@ def test_import_duplicate_handling(
             intra_approval_path,
             "TEST-ACCOUNT",
             txn_sheet,
-        )
+        ).imported_count()
         assert intra_approval_count == 2
+
+
+def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A row ingest passed but the table's checks refuse takes none of its batch."""
+    caplog.set_level(logging.INFO, logger="importer")
+    monkeypatch.setattr(logging.getLogger("importer"), "propagate", True)
+    with temp_ctx():
+        create_txns_table()
+        rows = pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE: ["2024-01-02", "2024-01-03", "2024-01-04"],
+                Column.Txn.ACTION: ["BUY"] * 3,
+                Column.Txn.AMOUNT: [-100.0] * 3,
+                Column.Txn.CURRENCY: ["USD"] * 3,
+                Column.Txn.PRICE: [10.0] * 3,
+                Column.Txn.UNITS: [10.0] * 3,
+                # The table keeps tickers in upper case; the third is not.
+                Column.Txn.TICKER: ["MSFT", "MSFT", "msft"],
+                Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 3,
+            },
+        )
+        passed = ImportResults(final_df=rows)
+        monkeypatch.setattr(
+            "importers.excel_importer.prepare_transactions",
+            lambda *_args, **_kwargs: passed,
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            insert_transactions(rows)
+
+        assert txn_count() == 0
+        assert "Row 2/3: SUCCESS" in caplog.text
+        assert "Row 3/3: FAILED" in caplog.text
 
 
 def test_import_missing_essential_column(temp_ctx: TempContext) -> None:

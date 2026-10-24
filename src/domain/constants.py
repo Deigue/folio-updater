@@ -23,3 +23,7 @@ TXN_ESSENTIALS: list[str] = [
     Column.Txn.TICKER,  # Security ticker, such as a stock or ETF
     Column.Txn.ACCOUNT,  # Account alias where transaction occurred
 ]
+
+# Stored transaction fields that exist for the database alone, so a file meant
+# to be imported again leaves them out.
+INTERNAL_COLUMNS: tuple[str, ...] = (Column.Txn.TXN_ID,)

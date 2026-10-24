@@ -181,7 +181,7 @@ def _header(quote: Quote, aliases: Sequence[str]) -> Panel:
 
 
 def _fundamentals(quote: Quote) -> RichTable | None:
-    """Lay out every fundamental the provider reported, grouped, blanks left out."""
+    """Print every fundamental the provider reported, grouped, blanks left out."""
     facts = quote.fundamentals
     fund = facts.quote_type in _FUND_TYPES
     sections: list[tuple[str, list[tuple[str, str | None]]]] = [
@@ -307,7 +307,7 @@ def _chart_grid(
     moves: Mapping[PriceRange, RangeMove | None],
     room: int,
 ) -> RichTable:
-    """Lay every range out as a small chart, as many to a row as `room` can fit."""
+    """Print every range as a small chart, as many to a row as `room` can fit."""
     per_row, points = 1, _CHART_MIN_POINTS
     for count in _CHARTS_PER_ROW:
         points = min(_CHART_MAX_POINTS, _points_across(room, count))
@@ -422,7 +422,7 @@ def _block(name: str, panel: RenderableType) -> Block:
 
 
 def _pool_table(position: SymbolHoldings, *, by_account: bool) -> RichTable:
-    """Lay out every pool's holding, with the folio-wide total below."""
+    """Print every pool's holding, with the folio-wide total below."""
     share = "Acct%" if by_account else "Type%"
     table = RichTable(
         title=f"{position.symbol} held · {position.currency}",
