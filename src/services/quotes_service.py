@@ -8,11 +8,14 @@ to run without the package resolving at all.
 from __future__ import annotations
 
 import logging
+import socket
 import sqlite3
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 from app import get_config
@@ -50,6 +53,67 @@ _RATE_LIMIT_MARKERS = ("rate limit", "too many requests", "429")
 # Per-symbol fetches are network-bound, not CPU-bound, capped concurrent workers
 # so that a varied folio doesn't set off hundred connections.
 _MAX_FETCH_WORKERS = 8
+
+# The host every price, history and crumb request goes through.
+_PROVIDER_HOST = ("query1.finance.yahoo.com", 443)
+# A connection opens in well under a second or not at all: an unreachable
+# provider drops the handshake rather than refusing it.
+_PROBE_TIMEOUT_SECONDS = 5
+
+
+@cache
+def _provider_reachable() -> bool:
+    """Whether Yahoo Finance accepts a connection, asked once per process.
+
+    yfinance waits out a 30 second timeout on every request it cannot open, one
+    symbol at a time behind its cookie lock, and reports each as a symbol with
+    no price. Unreachable, a refresh would spend many minutes failing and then
+    negative-cache every symbol, so one quick connection settles it first.
+
+    Returns:
+        False when the connection could not be opened, which is said once.
+    """
+    try:
+        _connect_within(_PROVIDER_HOST, _PROBE_TIMEOUT_SECONDS)
+    except OSError as error:
+        announce.warning(
+            f"Yahoo Finance is unreachable ({error}); using cached quotes and history.",
+        )
+        return False
+    return True
+
+
+def _connect_within(address: tuple[str, int], seconds: float) -> None:
+    """Open and close one connection to a host, within a single time budget.
+
+    `socket.create_connection` gives every address a host resolves to the full
+    timeout, and Yahoo's resolves to half a dozen, so an unreachable provider
+    would cost their sum. Here each address gets only what time is left.
+
+    Args:
+        address: The host and port.
+        seconds: How long every attempt together may take.
+
+    Raises:
+        TimeoutError: If no address accepted a connection in time.
+    """
+    deadline = time.monotonic() + seconds
+    for family, kind, proto, _, target in socket.getaddrinfo(
+        *address,
+        type=socket.SOCK_STREAM,
+    ):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        with socket.socket(family, kind, proto) as sock:
+            sock.settimeout(remaining)
+            try:
+                sock.connect(target)
+            except OSError:
+                continue
+            return
+    msg = f"no connection to {address[0]} within {seconds:g}s"
+    raise TimeoutError(msg)
 
 
 def _run_concurrently[T](
@@ -417,6 +481,8 @@ class QuotesService:
         wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
         if not wanted:
             return RefreshResult()
+        if not _provider_reachable():
+            return RefreshResult(failed=len(wanted))
 
         known = dict(cached) if cached is not None else cls.cached(wanted)
         ysymbols = {symbol: resolver.yahoo_symbol(symbol) for symbol in wanted}
@@ -441,6 +507,13 @@ class QuotesService:
                     fallback_error,
                 )
                 return RefreshResult(failed=len(wanted))
+
+        if not prices and any(known[s].priced for s in wanted if s in known):
+            # yfinance reports a request it could not make as a symbol with no
+            # price. Symbols that priced before do not all vanish at once, so
+            # this is an outage, not a batch of delistings to negative-cache.
+            logger.warning("No quote came back; using what is cached")
+            return RefreshResult(failed=len(wanted))
 
         metadata = cls._collect_metadata(
             wanted,
@@ -604,7 +677,7 @@ class QuotesService:
             Each symbol the provider had bars for, mapped to its ranges.
         """
         wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
-        if offline or not wanted:
+        if offline or not wanted or not _provider_reachable():
             return {}
         ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in wanted}
         try:
@@ -630,6 +703,8 @@ class QuotesService:
         The fetch returns only symbols it found history for, so one the
         provider returned nothing for keeps whatever it had.
         """
+        if not _provider_reachable():
+            return {}
         ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in symbols}
         try:
             fetched = cls._fetch_history(list(ysymbols), today=today)

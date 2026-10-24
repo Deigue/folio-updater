@@ -20,6 +20,7 @@ from .helpers.seed import TSX_TICKER, seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
+    from unittest.mock import MagicMock
 
     from .test_types import TempContext
 
@@ -191,6 +192,41 @@ def test_clean_run_goes_through_every_stage(
         assert "only warned: folio check" in expected
         assert_in_output("Folio workbook:", result)
         assert_in_output("Update finished with", result)
+
+
+def test_offline_imports_what_waits_and_touches_no_network(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+    quotes_fetch: MagicMock,
+    boc_fetch: MagicMock,
+) -> None:
+    """Offline, nothing is downloaded or fetched, yet the run still finishes."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        seed_transaction(
+            account=WS_ACCOUNT,
+            ticker=f"{TSX_TICKER}.TO",
+            currency="CAD",
+        )  # a calculated date from a past month, with no statement on hand
+        create_transaction_data(config.imports_path / WS_FILE)
+        for download in (
+            "download_ibkr",
+            "download_wealthsimple",
+            "download_ws_statement",
+        ):
+            monkeypatch.setattr(f"cli.commands.update.{download}", _no_call)
+        # The rates a folio already holds are all an offline run can convert with.
+        run_cli_with_config(config, cli_app, ["getfx"])
+        boc_fetch.reset_mock()
+
+        result = run_cli_with_config(config, cli_app, ["update", "--offline"])
+
+        assert result.exit_code == 0
+        assert (config.processed_path / WS_FILE).exists()
+        assert config.folio_path.exists()
+        assert not quotes_fetch.called
+        assert not boc_fetch.called
+        assert_in_output("statement not fetched offline", result)
 
 
 def test_statement_on_hand_is_imported_not_fetched(

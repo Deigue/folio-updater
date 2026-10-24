@@ -171,11 +171,15 @@ def mock_quotes(
 ) -> Generator[None, Any]:
     """Keep the test suite off Yahoo Finance.
 
-    Patches the two network seams rather than `yfinance` itself, so a test can
-    still assert that the module was never imported.
+    Patches the network seams rather than `yfinance` itself, so a test can
+    still assert that the module was never imported. The reachability probe
+    says the provider is up even under `no_mock_quotes`, which stands in a
+    fake provider and must not open a real connection to check on it.
     """
+    probe = patch("services.quotes_service._provider_reachable", return_value=True)
     if request.node.get_closest_marker("no_mock_quotes"):
-        yield
+        with probe:
+            yield
         return
 
     def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
@@ -201,6 +205,7 @@ def mock_quotes(
         }
 
     with (
+        probe,
         patch.object(QuotesService, "_fetch_prices", side_effect=prices),
         patch.object(QuotesService, "_fetch_metadata", side_effect=metadata),
         patch.object(QuotesService, "_fetch_history", return_value={}),

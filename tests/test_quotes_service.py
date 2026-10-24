@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 import sys
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -23,9 +24,11 @@ from services.quotes_service import (
     QuotesService,
     RefreshResult,
     _attr,
+    _connect_within,
     _daily_closes,
     _is_rate_limited,
     _previous_close,
+    _provider_reachable,
     _run_concurrently,
     _write,
 )
@@ -159,6 +162,69 @@ def test_a_network_failure_keeps_the_cached_row(temp_ctx: TempContext) -> None:
         assert result.fetched == 0
         # The price survives: a dashboard still renders, marked stale.
         assert QuotesService.cached(["TESTTKR"])["TESTTKR"].price == 200
+
+
+def test_prices_that_all_vanish_at_once_are_an_outage(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        QuotesService.refresh(["TESTTKR"], RESOLVER)
+
+        # How yfinance reports requests it could not make: no price for anyone.
+        with patch.object(QuotesService, "_fetch_prices", return_value={}):
+            result = QuotesService.refresh(["TESTTKR"], RESOLVER)
+
+        assert result.failed == 1
+        cached = QuotesService.cached(["TESTTKR"])["TESTTKR"]
+        assert cached.status is QuoteStatus.OK, "an outage was negative-cached"
+        assert cached.price == 200
+
+
+def test_an_unreachable_provider_is_never_asked(
+    temp_ctx: TempContext,
+    quotes_fetch: MagicMock,
+) -> None:
+    with temp_ctx():
+        QuotesService.refresh(["TESTTKR"], RESOLVER)
+
+        with (
+            patch("services.quotes_service._provider_reachable", return_value=False),
+            patch.object(QuotesService, "_fetch_history") as history,
+            patch.object(QuotesService, "_fetch_intraday") as intraday,
+        ):
+            quotes = QuotesService.get_quotes(["TESTTKR"], RESOLVER, refresh=True)
+            assert QuotesService.history(["TESTTKR"], RESOLVER) == {}
+            assert QuotesService.intraday(["TESTTKR"], RESOLVER) == {}
+
+        assert quotes_fetch.call_count == 1, "the provider was asked while unreachable"
+        assert not history.called
+        assert not intraday.called
+        assert quotes["TESTTKR"].price == 200
+
+
+@pytest.mark.no_mock_quotes
+def test_reachability_is_asked_once_per_process() -> None:
+    _provider_reachable.cache_clear()
+    try:
+        with patch("services.quotes_service._connect_within") as connect:
+            assert _provider_reachable()
+            assert _provider_reachable()
+
+        assert connect.call_count == 1
+    finally:
+        _provider_reachable.cache_clear()
+
+
+def test_the_probe_connects_to_a_listening_host() -> None:
+    with socket.create_server(("127.0.0.1", 0)) as server:
+        _connect_within(server.getsockname()[:2], 5)
+
+
+def test_the_probe_gives_up_once_its_budget_is_spent() -> None:
+    # Every address shares one budget, so none is tried once it is gone.
+    with (
+        socket.create_server(("127.0.0.1", 0)) as server,
+        pytest.raises(TimeoutError, match="within 0s"),
+    ):
+        _connect_within(server.getsockname()[:2], 0)
 
 
 def test_throttling_falls_back_to_daily_closes(temp_ctx: TempContext) -> None:

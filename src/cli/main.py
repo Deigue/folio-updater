@@ -284,11 +284,16 @@ def update_cmd(
         "--resume",
         help="Skip downloading and continue from the files waiting to import",
     ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Import what is waiting and use cached data, never touching the network",
+    ),
 ) -> None:
     """Catch the folio up in one go and report what changed."""
     from cli.commands.update import run_update
 
-    run_update(resume=resume)
+    run_update(resume=resume, offline=offline)
 
 
 @app.command("symbol", help="Manage ticker aliases", no_args_is_help=True)

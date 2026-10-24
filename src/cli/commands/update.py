@@ -75,12 +75,15 @@ _STATEMENT_SUFFIXES = (".csv", ".xlsx")
 _FILE_RANGE = re.compile(r"_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})")
 
 
-def run_update(*, resume: bool = False) -> None:
+def run_update(*, resume: bool = False, offline: bool = False) -> None:
     """Catch the folio up and report what changed.
 
     Args:
         resume: Skip downloading and carry on from whatever waits in the
             imports folder, after a failed import was fixed.
+        offline: Never touch the network: skip downloading, import only the
+            files and statements already waiting, and value the folio from
+            cached quotes and rates.
 
     Raises:
         typer.Exit: With 1 when a stage stopped the run.
@@ -91,7 +94,9 @@ def run_update(*, resume: bool = False) -> None:
     first_new_id = _max_txn_id()
     overlap_days = {IBKR: latest_txn_date(IBKR), WS: latest_txn_date(WS)}
 
-    if resume:
+    if offline:
+        console_info("Offline: skipping downloads, importing what is waiting.")
+    elif resume:
         console_info("Resuming: skipping downloads, importing what is waiting.")
     else:
         _download_stage(config, report)
@@ -100,15 +105,15 @@ def run_update(*, resume: bool = False) -> None:
         _import_stage(config, report, overlap_days)
 
     if not report.failed:
-        _statement_stage(config, report, today)
+        _statement_stage(config, report, today, offline=offline)
 
     report.new_txns = _txns_since(first_new_id)
 
     if not report.failed:
         _review_transfers(report)
-        _check_stage(report)
-        _generate_stage(report)
-        _dashboard_stage()
+        _check_stage(report, offline=offline)
+        _generate_stage(report, offline=offline)
+        _dashboard_stage(offline=offline)
         if report.workbook is not None:
             show_workbook_link(report.workbook)
 
@@ -396,7 +401,13 @@ def _statement_files(config: Config, month: str) -> list[Path]:
     )
 
 
-def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
+def _statement_stage(
+    config: Config,
+    report: UpdateReport,
+    today: date,
+    *,
+    offline: bool,
+) -> None:
     """Confirm calculated settlement dates from every statement that can exist.
 
     A month's statement still waiting in the statements folder is imported
@@ -407,6 +418,7 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
         config: The application configuration.
         report: Where confirmations, concerns and notes are recorded.
         today: The date the run happens on.
+        offline: Import only the statements already waiting, fetching none.
     """
     console_rule("Statements", style=RULE_UPDATE)
     calculated = _calculated_ws()
@@ -417,7 +429,13 @@ def _statement_stage(config: Config, report: UpdateReport, today: date) -> None:
     changed = False
     imported: set[str] = set()
     for month in months:
-        files = _statement_files(config, month) or _fetch_statement(month, report)
+        files = _statement_files(config, month)
+        if not files and offline:
+            report.pending.append(
+                f"{month} statement not fetched offline; to fetch it: folio update",
+            )
+        elif not files:
+            files = _fetch_statement(month, report)
         if files:
             imported.add(month)
         for path in files:
@@ -503,10 +521,10 @@ def _review_transfers(report: UpdateReport) -> None:
         report.concerns.append(concern)
 
 
-def _check_stage(report: UpdateReport) -> None:
+def _check_stage(report: UpdateReport, *, offline: bool) -> None:
     """Run the health checks and raise every failure."""
     console_rule("Check", style=RULE_UPDATE)
-    results = run_checks(require_ledger(), get_config())
+    results = run_checks(require_ledger(offline=offline), get_config())
     print_report(CheckReport(tuple(results)), only=None)
     concerns, warned = review_checks(results)
     report.concerns.extend(concerns)
@@ -514,10 +532,10 @@ def _check_stage(report: UpdateReport) -> None:
         report.expected.append(f"{warned} check(s) only warned: folio check")
 
 
-def _generate_stage(report: UpdateReport) -> None:
+def _generate_stage(report: UpdateReport, *, offline: bool) -> None:
     """Write the workbook and raise any holding it could not price."""
     console_rule("Generate", style=RULE_UPDATE)
-    written = write_folio()
+    written = write_folio(offline=offline)
     if written is None:  # pragma: no cover
         return
     report.workbook = written.path
@@ -525,12 +543,15 @@ def _generate_stage(report: UpdateReport) -> None:
         report.concerns.append(concern)
 
 
-def _dashboard_stage() -> None:
+def _dashboard_stage(*, offline: bool) -> None:
     """Show every account type's dashboard, valued in the currency it trades in."""
     console_rule("Dashboard", style=RULE_UPDATE)
-    ledger = require_ledger(priced=True)
+    ledger = require_ledger(priced=True, offline=offline)
     if not ledger.frame.empty:
-        show_types(FolioValuation.build(ledger, currency="native"))
+        show_types(
+            FolioValuation.build(ledger, currency="native", offline=offline),
+            offline=offline,
+        )
 
 
 # -- FOLIO STATE ----------------------------------------------------------------
