@@ -30,7 +30,7 @@ class UpdateStage(StrEnum):
     GENERATE = "Generate"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class Concern:
     """One thing the run did that a human should confirm or correct.
 
@@ -66,7 +66,7 @@ class HardFailure:
     next_steps: tuple[str, ...] = ()
 
 
-@dataclass
+@dataclass(eq=False)
 class UpdateReport:
     """Everything a `folio update` run reports at the end.
 

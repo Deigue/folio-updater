@@ -8,8 +8,6 @@ from datetime import datetime
 from enum import Enum
 from typing import TypeVar
 
-import dateutil.parser
-
 T = TypeVar("T")
 
 
@@ -140,12 +138,36 @@ def to_class[T](c: type[T], x: object) -> dict:
 
 
 def from_datetime(x: str) -> datetime:
-    """Parse and return a datetime value from a string."""
+    """Parse an ISO 8601 date or timestamp, raising on anything else."""
     try:
-        return dateutil.parser.parse(x)
+        return datetime.fromisoformat(x)
     except (ValueError, TypeError) as e:
         msg = f"Failed to parse datetime: {x!r}\nCall stack:\n{get_last_3_frames()}"
         raise ValueError(msg) from e
+
+
+def from_datetime_required(obj: dict, key: str, owner: str) -> datetime:
+    """Parse a required date field, naming the field and its owner when absent.
+
+    Args:
+        obj: The payload dict holding the field.
+        key: The field's key in the payload.
+        owner: The model being built, for the error message.
+
+    Returns:
+        The parsed datetime.
+
+    Raises:
+        ValueError: If the field is missing or null, or is not an ISO 8601 date.
+    """
+    raw = obj.get(key)
+    if raw is None:
+        msg = (
+            f"Missing '{key}' field in {owner} dictionary\n"
+            f"Call stack:\n{get_last_3_frames()}"
+        )
+        raise ValueError(msg)
+    return from_datetime(raw)
 
 
 def from_datetime_optional(x: str | None) -> datetime | None:
@@ -155,7 +177,7 @@ def from_datetime_optional(x: str | None) -> datetime | None:
 
 def parse_obj[T](
     deserializer: Callable[[dict], T],
-    obj: dict | None,
+    obj: object,
     key: str | None = None,
     class_name: str = "",
 ) -> T:
@@ -176,7 +198,7 @@ def parse_obj[T](
     """
     # If key is provided, extract from parent dict
     if key is not None:
-        value_dict = obj.get(key) if obj else None
+        value_dict = obj.get(key) if isinstance(obj, dict) and obj else None
         if value_dict is None:
             msg = (
                 f"Missing '{key}' field in {class_name} dictionary\n"

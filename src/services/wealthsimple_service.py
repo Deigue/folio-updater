@@ -12,7 +12,7 @@ import json
 import logging
 import re
 import tempfile
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,7 +38,7 @@ from models.wealthsimple import (
 from services.symbols import normalize_canadian_ticker
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from datetime import datetime
 
     from config import Config
@@ -51,7 +51,7 @@ KEYRING_USERNAME_KEY = "default_username"
 INSTITUTIONAL_TRANSFER_TYPE = "INSTITUTIONAL_TRANSFER_INTENT"
 
 
-def _token_expired(error: ws_api.WSApiException) -> bool:  # pragma: no cover
+def _token_expired(error: ws_api.WSApiException) -> bool:
     """Report whether a request failed only because the access token expired.
 
     Args:
@@ -72,9 +72,7 @@ def _token_expired(error: ws_api.WSApiException) -> bool:  # pragma: no cover
     )
 
 
-def _statement_unpublished(
-    error: ws_api.WSApiException,
-) -> bool:  # pragma: no cover
+def _statement_unpublished(error: ws_api.WSApiException) -> bool:
     """Report whether a statement request failed only because it is not out yet.
 
     Args:
@@ -98,18 +96,6 @@ class WealthsimpleServiceError(Exception):
 
 class WealthsimpleAuthenticationError(WealthsimpleServiceError):
     """Raised when authentication fails."""
-
-
-class WealthsimpleAPIError(WealthsimpleServiceError):
-    """Raised when API returns an error."""
-
-
-class WealthsimpleTimeoutError(WealthsimpleServiceError):
-    """Raised when requests timeout."""
-
-
-class WealthsimpleDataError(WealthsimpleServiceError):
-    """Raised when data parsing/validation fails."""
 
 
 class WealthsimpleService:
@@ -295,7 +281,7 @@ class WealthsimpleService:
         self,
         session: WSAPISession,
         username: str,
-    ) -> WealthsimpleAPI | None:  # pragma: no cover
+    ) -> WealthsimpleAPI | None:
         """Refresh an expired access token from the stored refresh token.
 
         Clearing the access token sends the API client straight to its
@@ -374,11 +360,11 @@ class WealthsimpleService:
     ) -> None:  # pragma: no cover
         """Reset stored credentials and force re-authentication.
 
-        Args:
-            username: Specific username to reset. If None, uses stored username.
-
         This will clear the stored username and session data, forcing
         the user to re-enter credentials on next authentication.
+
+        Args:
+            username: Specific username to reset. If None, uses stored username.
         """
         if username is None:
             username = self._get_stored_username()
@@ -403,7 +389,7 @@ class WealthsimpleService:
         self._username = None
         self._session = None
         self._ws_api = None
-        logger.info("RESET credentials - will prompt again on next authentication.")
+        logger.info("RESET credentials: will prompt again on next authentication.")
 
     def ensure_authenticated(self) -> WealthsimpleAPI:
         """Ensure we have an authenticated API instance.
@@ -540,12 +526,15 @@ class WealthsimpleService:
         self,
         activities: list[ActivityFeedItem],
         csv_name: str,
+        accounts: list[Account],
     ) -> None:
         """Export activity feed items to a CSV file.
 
         Args:
             activities: List of activity feed items to export
             csv_name: Name of the output CSV file
+            accounts: The accounts the activities came from, which name each
+                row's Account
         """
         config = get_config()
         output_path: Path = config.imports_path / csv_name
@@ -562,7 +551,11 @@ class WealthsimpleService:
                 skipped,
                 "y" if skipped == 1 else "ies",
             )
-        rows = [self._convert_activity_to_csv_row(activity) for activity in importable]
+        account_names = {account.id: account.account_name for account in accounts}
+        rows = [
+            self._convert_activity_to_csv_row(activity, account_names)
+            for activity in importable
+        ]
 
         with output_path.open("w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
@@ -598,18 +591,24 @@ class WealthsimpleService:
             output_path,
         )
 
-    def _convert_activity_to_csv_row(self, activity: ActivityFeedItem) -> list[str]:
+    def _convert_activity_to_csv_row(
+        self,
+        activity: ActivityFeedItem,
+        account_names: Mapping[str, str],
+    ) -> list[str]:
         """Convert an ActivityFeedItem to a CSV row.
 
         Args:
             activity: The activity feed item to convert
+            account_names: Each downloaded account's id mapped to its name
 
         Returns:
             List of string values for CSV row
         """
         action = self._normalize_action(activity.type, activity.sub_type)
         ticker = normalize_canadian_ticker(activity.asset_symbol, activity.currency)
-        account = self._map_account_id(activity.account_id)
+        account_id = activity.account_id or ""
+        account = account_names.get(account_id, account_id)
         amount = self._normalize_amount(activity.amount, action, activity.amount_sign)
         units = self._normalize_units(activity.asset_quantity)
         price = self._get_price_string(activity.amount, activity.asset_quantity)
@@ -687,7 +686,7 @@ class WealthsimpleService:
             return Action.SPLIT
         if action == "INTERNAL_TRANSFER":
             return Action.WITHDRAWAL if sub_type == "SOURCE" else Action.CONTRIBUTION
-        # * Institutional transfers are handled by import_statements()
+        # Any other Wealthsimple type passes on raw, for ingest to resolve or reject.
         return action  # pragma: no cover
 
     @staticmethod
@@ -716,7 +715,7 @@ class WealthsimpleService:
                 amount_val = Decimal(str(normalized))
                 if amount_val > 0 and sign == "negative":
                     normalized = str(-amount_val)
-            except (ValueError, TypeError):
+            except InvalidOperation:
                 pass
 
         return normalized
@@ -736,7 +735,7 @@ class WealthsimpleService:
             try:
                 units_val = Decimal(str(normalized))
                 normalized = str(units_val.normalize())
-            except (ValueError, TypeError):
+            except InvalidOperation:
                 pass
 
         return normalized
@@ -759,9 +758,6 @@ class WealthsimpleService:
             Tuple of (split_from_ratio, split_to_ratio) as Decimals,
             or (None, None) if parsing fails.
         """
-        if not description:  # pragma: no cover
-            return None, None
-
         # Match pattern: "Subdivision: X -> Y shares" where X and Y can be floats
         pattern = r"(\d+(?:\.\d+)?)\s*->\s*(\d+(?:\.\d+)?)\s*shares"
         match = re.search(pattern, description)
@@ -807,27 +803,7 @@ class WealthsimpleService:
         return str(price_val) if price_val > 0 else ""
 
     @staticmethod
-    def _map_account_id(account_id: str | None) -> str:
-        """Map account_id to account name.
-
-        Args:
-            account_id: The account identifier
-
-        Returns:
-            Mapped account name
-        """
-        account: str = "UNKNOWN"
-        if not account_id:  # pragma: no cover
-            return account
-        account_lower = account_id.lower()
-        if "tfsa" in account_lower:
-            account = "WS-TFSA"
-        if "non-registered" in account_lower:
-            account = "WS-PERSONAL"
-        return account
-
-    @staticmethod
-    def _calculate_price(amount: str | None, units: str | None) -> Decimal:
+    def _calculate_price(amount: str, units: str) -> Decimal:
         """Calculate price per unit from amount and units.
 
         Args:
@@ -837,8 +813,6 @@ class WealthsimpleService:
         Returns:
             Price per unit
         """
-        if not amount or not units:  # pragma: no cover
-            return Decimal(0)
         try:
             amount_val = Decimal(str(amount)).copy_abs()
             units_val = Decimal(str(units)).copy_abs()
@@ -846,5 +820,5 @@ class WealthsimpleService:
                 return Decimal(0)
             price = amount_val / units_val
             return price.quantize(Decimal("0.01"))
-        except (ValueError, TypeError, ZeroDivisionError):
+        except InvalidOperation:
             return Decimal(0)

@@ -102,21 +102,36 @@ def write_folio(
         console_warning("No transactions to generate a workbook from.")
         return None
 
-    valuation = FolioValuation.build(
-        ledger,
-        currency=_VALUATION,
-        refresh=refresh,
-        offline=offline,
-    )
-    note = freshness_note(ledger.computed_at, valuation.quotes)
-    moves = {}
-    if Section.PERF in sections:
-        moves = fetch_moves(
-            valuation.quotes,
-            load_symbol_resolver(),
+    # Pricing the folio asks the quote provider over the network, which can
+    # take a few seconds with nothing else on screen.
+    with ProgressDisplay.spinner(SPINNER_GENERATE) as progress:
+        task = progress.add_task(
+            "Reading cached quotes..." if offline else "Fetching quotes...",
+            total=None,
+        )
+        valuation = FolioValuation.build(
+            ledger,
+            currency=_VALUATION,
             refresh=refresh,
             offline=offline,
         )
+        moves = {}
+        if Section.PERF in sections:
+            progress.update(
+                task,
+                description=(
+                    "Reading cached price history..."
+                    if offline
+                    else "Fetching price history..."
+                ),
+            )
+            moves = fetch_moves(
+                valuation.quotes,
+                load_symbol_resolver(),
+                refresh=refresh,
+                offline=offline,
+            )
+    note = freshness_note(ledger.computed_at, valuation.quotes)
     tables = folio_tables(
         FolioSources.read(valuation, moves=moves),
         sections,

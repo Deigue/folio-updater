@@ -73,6 +73,18 @@ def test_a_refresh_caches_what_it_fetched(temp_ctx: TempContext) -> None:
         assert cached.priced
 
 
+def test_a_symbol_spelled_in_two_cases_is_fetched_and_counted_once(
+    temp_ctx: TempContext,
+    quotes_fetch: MagicMock,
+) -> None:
+    with temp_ctx():
+        result = QuotesService.refresh(["testtkr", "TESTTKR"], RESOLVER)
+
+        assert result.fetched == 1
+        quotes_fetch.assert_called_once_with(["TESTTKR"])
+        assert list(QuotesService.cached()) == ["TESTTKR"]
+
+
 def test_metadata_lands_alongside_the_price(temp_ctx: TempContext) -> None:
     with temp_ctx():
         QuotesService.refresh(["TESTTKR"], RESOLVER)

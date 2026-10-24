@@ -55,7 +55,7 @@ def prepare_transactions(
     cleaned_df = TransactionFilter.remove_approval_column(db_approved_df)
     final_columns = helpers.sync_txns_table_columns(cleaned_df)
 
-    # A new frame: the stage frames above must not gain the synced columns.
+    # A new frame: the source and rejected frames must not gain the synced columns.
     final_df = cleaned_df.reindex(
         columns=final_columns,
         fill_value=pd.NA,  # ty: ignore[invalid-argument-type]
@@ -63,12 +63,8 @@ def prepare_transactions(
 
     return ImportResults(
         read_df=read_df,
-        mapped_df=mapped_df,
-        transformed_df=ruled.df,
         invalid_df=invalid_df,
-        intra_approved_df=intra_approved_df,
         intra_rejected_df=_rejected(formatted_df, intra_approved_df),
-        db_approved_df=db_approved_df,
         db_rejected_df=_rejected(intra_approved_df, db_approved_df),
         final_df=final_df,
         merge_events=ruled.merges,

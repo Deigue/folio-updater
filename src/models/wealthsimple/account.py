@@ -8,14 +8,13 @@ from domain import Currency
 from models.base import (
     SerializableModel,
     from_bool_optional,
-    from_datetime,
     from_datetime_optional,
+    from_datetime_required,
     from_enum,
     from_int,
     from_list,
     from_str,
     from_str_strict,
-    get_last_3_frames,
     parse_obj,
 )
 
@@ -252,41 +251,20 @@ class Account(SerializableModel):
     number: str | None
     description: str | None
 
+    @property
+    def account_name(self) -> str:
+        """The name folio records the account under: its nickname, else its id."""
+        return self.nickname or self.id
+
     @staticmethod
     def from_dict(obj: dict) -> "Account":
         """Create Account from a dictionary."""
-
-        def parse_account_owner(x: Any) -> AccountOwner:  # noqa: ANN401
-            if not isinstance(x, dict):
-                msg = (
-                    f"Expected dict in accountOwners list, "
-                    f"got {type(x).__name__}\n"
-                    f"Call stack:\n{get_last_3_frames()}"
-                )
-                raise TypeError(msg)
-            return AccountOwner.from_dict(x)
-
-        def parse_custodian_account(x: Any) -> CustodianAccount:  # noqa: ANN401
-            if not isinstance(x, dict):
-                msg = (
-                    f"Expected dict in custodianAccounts list, "
-                    f"got {type(x).__name__}\n"
-                    f"Call stack:\n{get_last_3_frames()}"
-                )
-                raise TypeError(msg)
-            return CustodianAccount.from_dict(x)
-
-        created_at_raw = obj.get("createdAt")
-        if created_at_raw is None:
-            msg = "Missing 'createdAt' field in Account dictionary"
-            raise ValueError(msg)
-
         return Account(
             id=from_str_strict(obj.get("id")),
             archived_at=from_datetime_optional(obj.get("archivedAt")),
             branch=from_str(obj.get("branch")),
             closed_at=from_datetime_optional(obj.get("closedAt")),
-            created_at=from_datetime(created_at_raw),
+            created_at=from_datetime_required(obj, "createdAt", "Account"),
             cache_expired_at=from_datetime_optional(obj.get("cacheExpiredAt")),
             currency=from_enum(Currency, obj.get("currency")),
             required_identity_verification=from_str(
@@ -302,7 +280,7 @@ class Account(SerializableModel):
             account_owner_configuration=from_str(obj.get("accountOwnerConfiguration")),
             account_features=from_list(lambda x: x, obj.get("accountFeatures") or []),
             account_owners=from_list(
-                parse_account_owner,
+                lambda x: parse_obj(AccountOwner.from_dict, x),
                 obj.get("accountOwners") or [],
             ),
             account_type=from_str(obj.get("type")),
@@ -310,7 +288,7 @@ class Account(SerializableModel):
             linked_account=from_str(obj.get("linkedAccount")),
             financials=parse_obj(AccountFinancials.from_dict, obj.get("financials")),
             custodian_accounts=from_list(
-                parse_custodian_account,
+                lambda x: parse_obj(CustodianAccount.from_dict, x),
                 obj.get("custodianAccounts") or [],
             ),
             number=from_str(obj.get("number")),

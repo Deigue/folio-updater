@@ -32,7 +32,13 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from app import get_config
-from db.queries import get_connection, get_fx_summary, get_max_value, get_revisions
+from db.queries import (
+    earliest_transaction_date,
+    get_connection,
+    get_fx_summary,
+    get_max_value,
+    get_revisions,
+)
 from db.schema import ensure_change_tokens
 from domain import TORONTO_TZ, Column, Table
 from engine.frames import index_by_txn_id, ledger_frame
@@ -203,12 +209,12 @@ def _top_up_fx(*, priced: bool) -> None:
     """Fetch the FX rates the folio lacks, when the config allows it."""
     if not get_config().auto_getfx:
         return
-    earliest = ForexService.get_earliest_transaction_date()
-    if earliest is None:
-        return
-    latest = None
-    if not priced:
-        with get_connection() as conn:
+    with get_connection() as conn:
+        earliest = earliest_transaction_date(conn)
+        if earliest is None:
+            return
+        latest = None
+        if not priced:
             latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
     try:
         ForexService.ensure_coverage(earliest, latest)

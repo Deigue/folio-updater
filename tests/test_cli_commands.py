@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+import ws_api
 from pandas.testing import assert_frame_equal
 from rich.progress import Progress
 from typer.testing import CliRunner
@@ -25,10 +26,12 @@ from tests.fixtures.ibkr_mocking import (
 )
 from tests.fixtures.wealthsimple_mocking import (
     WealthsimpleMockContext,
+    create_mock_activities,
     get_expected_statement_txn_csv,
     get_expected_wealthsimple_csv,
     get_mock_activities,
     get_mock_statement_transactions,
+    mock_account,
 )
 
 from .fixtures.test_data_factory import create_transaction_data
@@ -810,6 +813,162 @@ def _test_wealthsimple_scenario(
             ws_mock.assert_csv_written(expected_csv)
         else:
             ws_mock.assert_no_csv_written()
+
+
+def _download_wealthsimple_csv(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+    accounts: list[dict[str, Any]],
+    activities: list[dict[str, Any]],
+) -> str:
+    """Run a Wealthsimple download over the mock API and return the CSV it wrote."""
+    mock_activities = create_mock_activities(activities)
+    with (
+        temp_ctx() as ctx,
+        WealthsimpleMockContext(
+            monkeypatch,
+            mock_accounts=accounts,
+            mock_activities=mock_activities,
+        ) as ws_mock,
+    ):
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-b", "wealthsimple"],
+        )
+        assert_cli_success(cli_result)
+        (content,) = ws_mock.written_csvs.values()
+    return content
+
+
+def test_wealthsimple_download_names_each_account_by_its_nickname(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Any account type is recorded under its nickname, or its id without one."""
+    accounts = [
+        mock_account("test-tfsa-1", "WS-TFSA"),
+        mock_account("test-rrsp-1", "WS-RRSP", "ca_rrsp"),
+        mock_account("test-fhsa-1", None, "ca_fhsa"),
+    ]
+    contribution = {"type": "INTERNAL_TRANSFER", "sub_type": "DESTINATION"}
+    content = _download_wealthsimple_csv(
+        temp_ctx,
+        monkeypatch,
+        accounts,
+        [
+            {"account_id": "test-tfsa-1", **contribution},
+            {"account_id": "test-rrsp-1", **contribution},
+            {"account_id": "test-fhsa-1", **contribution},
+        ],
+    )
+
+    recorded = [row.split(",")[-1] for row in content.splitlines()[1:]]
+    assert recorded == ["WS-TFSA", "WS-RRSP", "test-fhsa-1"]
+
+
+def test_wealthsimple_download_passes_an_amount_and_units_it_cannot_read_through(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An odd amount or units does not stop the download: the row is written as sent."""
+    # The preview reads amounts as numbers, which is not what is under test.
+    monkeypatch.setattr(
+        "cli.commands.download.show_activities_preview",
+        lambda *_args: None,
+    )
+    content = _download_wealthsimple_csv(
+        temp_ctx,
+        monkeypatch,
+        [mock_account("test-tfsa-1", "WS-TFSA")],
+        [
+            {
+                "account_id": "test-tfsa-1",
+                "type": "DIY_BUY",
+                "amount": "n/a",
+                "asset_quantity": "two",
+                "asset_symbol": "SPY",
+            },
+        ],
+    )
+
+    row = content.splitlines()[1]
+    assert row == "2025-10-02,BUY,n/a,USD,,two,SPY,WS-TFSA"
+
+
+def test_wealthsimple_download_refreshes_an_expired_access_token(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stored session whose access token expired is renewed, not abandoned."""
+    expired = ws_api.WSApiException(
+        "Not Authorized",
+        response={"errors": [{"extensions": {"code": "UNAUTHENTICATED"}}]},
+    )
+    with (
+        temp_ctx() as ctx,
+        WealthsimpleMockContext(
+            monkeypatch,
+            mock_activities=get_mock_activities(),
+            token_error=expired,
+        ) as ws_mock,
+    ):
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-b", "wealthsimple"],
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output("Retrieved 6 transactions", cli_result)
+        # Refused with the stored token, then accepted once it was cleared.
+        assert ws_mock.token_attempts == ["stored-token", None]
+
+
+def test_wealthsimple_statement_not_published_yet_is_not_an_error(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Early in a month the statement is not out: each account is skipped."""
+    unpublished = ws_api.WSApiException(
+        "Statement not found",
+        response={"data": {"monthlyStatement": None}},
+    )
+    with (
+        temp_ctx() as ctx,
+        WealthsimpleMockContext(monkeypatch, statement_error=unpublished) as ws_mock,
+    ):
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output(
+            "No statement transactions found for account WS-TFSA",
+            cli_result,
+        )
+        assert_in_output("No statement transactions downloaded", cli_result)
+        ws_mock.assert_no_csv_written()
+
+
+def test_ibkr_download_waits_for_a_statement_that_is_not_ready(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A statement still being generated is asked for again until it arrives."""
+    mock_csv_data = get_default_mock_csv()
+    with (
+        temp_ctx({"brokers": {"ibkr": {"FlexReport": "abc123"}}}) as ctx,
+        IBKRMockContext(monkeypatch, mock_csv_data, not_ready_polls=2) as ibkr_mock,
+    ):
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["download"])
+
+        assert_cli_success(cli_result)
+        assert_in_output("FlexReport: 3 lines received", cli_result)
+        ibkr_mock.assert_csv_written(mock_csv_data)
+        assert ibkr_mock.statement_requests == 3
 
 
 def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:

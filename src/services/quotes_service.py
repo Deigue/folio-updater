@@ -50,8 +50,8 @@ SOURCE = "yfinance"
 NOT_FOUND_TTL_DAYS = 7
 _RATE_LIMIT_MARKERS = ("rate limit", "too many requests", "429")
 
-# Per-symbol fetches are network-bound, not CPU-bound, capped concurrent workers
-# so that a varied folio doesn't set off hundred connections.
+# Fetches are network-bound, so cap the workers: a large folio must not open a
+# hundred connections.
 _MAX_FETCH_WORKERS = 8
 
 # The host every price, history and crumb request goes through.
@@ -138,6 +138,19 @@ def _run_concurrently[T](
     return [result for result in results if result is not None]
 
 
+def _stored_in(column: Column.Quote, *, numeric: bool = True) -> dict[str, object]:
+    """Say where a `Fundamentals` field is stored, and whether it is a number.
+
+    Args:
+        column: The quotes table column that holds it.
+        numeric: True for a number, False for text.
+
+    Returns:
+        The field's metadata.
+    """
+    return {"column": column, "numeric": numeric}
+
+
 @dataclass(frozen=True)
 class Fundamentals:
     """Details from provider for a given security beyond its price.
@@ -165,51 +178,86 @@ class Fundamentals:
         fund_family: A fund's manager.
     """
 
-    quote_type: str | None = None
-    trailing_pe: Decimal | None = None
-    forward_pe: Decimal | None = None
-    eps: Decimal | None = None
-    beta: Decimal | None = None
-    dividend_rate: Decimal | None = None
-    dividend_yield: Decimal | None = None
-    last_dividend: Decimal | None = None
-    ex_dividend_date: str | None = None
-    earnings_date: str | None = None
-    high_52: Decimal | None = None
-    low_52: Decimal | None = None
-    avg_50: Decimal | None = None
-    avg_200: Decimal | None = None
-    volume: Decimal | None = None
-    avg_volume: Decimal | None = None
-    expense_ratio: Decimal | None = None
-    total_assets: Decimal | None = None
-    category: str | None = None
-    fund_family: str | None = None
-
-
-# Where each fundamental is stored, and whether it is a number or text.
-_FUNDAMENTAL_COLUMNS: dict[str, tuple[Column.Quote, bool]] = {
-    "quote_type": (Column.Quote.QUOTE_TYPE, False),
-    "trailing_pe": (Column.Quote.TRAILING_PE, True),
-    "forward_pe": (Column.Quote.FORWARD_PE, True),
-    "eps": (Column.Quote.EPS, True),
-    "beta": (Column.Quote.BETA, True),
-    "dividend_rate": (Column.Quote.DIVIDEND_RATE, True),
-    "dividend_yield": (Column.Quote.DIVIDEND_YIELD, True),
-    "last_dividend": (Column.Quote.LAST_DIVIDEND, True),
-    "ex_dividend_date": (Column.Quote.EX_DIVIDEND_DATE, False),
-    "earnings_date": (Column.Quote.EARNINGS_DATE, False),
-    "high_52": (Column.Quote.HIGH_52, True),
-    "low_52": (Column.Quote.LOW_52, True),
-    "avg_50": (Column.Quote.AVG_50, True),
-    "avg_200": (Column.Quote.AVG_200, True),
-    "volume": (Column.Quote.VOLUME, True),
-    "avg_volume": (Column.Quote.AVG_VOLUME, True),
-    "expense_ratio": (Column.Quote.EXPENSE_RATIO, True),
-    "total_assets": (Column.Quote.TOTAL_ASSETS, True),
-    "category": (Column.Quote.CATEGORY, False),
-    "fund_family": (Column.Quote.FUND_FAMILY, False),
-}
+    quote_type: str | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.QUOTE_TYPE, numeric=False),
+    )
+    trailing_pe: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.TRAILING_PE),
+    )
+    forward_pe: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.FORWARD_PE),
+    )
+    eps: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.EPS),
+    )
+    beta: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.BETA),
+    )
+    dividend_rate: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.DIVIDEND_RATE),
+    )
+    dividend_yield: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.DIVIDEND_YIELD),
+    )
+    last_dividend: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.LAST_DIVIDEND),
+    )
+    ex_dividend_date: str | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.EX_DIVIDEND_DATE, numeric=False),
+    )
+    earnings_date: str | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.EARNINGS_DATE, numeric=False),
+    )
+    high_52: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.HIGH_52),
+    )
+    low_52: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.LOW_52),
+    )
+    avg_50: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.AVG_50),
+    )
+    avg_200: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.AVG_200),
+    )
+    volume: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.VOLUME),
+    )
+    avg_volume: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.AVG_VOLUME),
+    )
+    expense_ratio: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.EXPENSE_RATIO),
+    )
+    total_assets: Decimal | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.TOTAL_ASSETS),
+    )
+    category: str | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.CATEGORY, numeric=False),
+    )
+    fund_family: str | None = field(
+        default=None,
+        metadata=_stored_in(Column.Quote.FUND_FAMILY, numeric=False),
+    )
 
 
 @dataclass(frozen=True)
@@ -220,7 +268,7 @@ class Quote:
         symbol: The folio's own canonical symbol.
         ysymbol: How the provider spells it.
         price: Price, in `currency`. None when unpriced.
-        prev_close: Previous close, which is what `change` is measured from.
+        prev_close: Previous close, which is what `day_change` is measured from.
         currency: The currency the price is quoted in.
         name: Short name from the provider.
         sector: Sector from the provider.
@@ -326,6 +374,11 @@ class RefreshResult:
     used_fallback: bool = False
 
 
+def _unique_upper(symbols: Iterable[str]) -> list[str]:
+    """Upper-case symbols, keeping the first of any that then repeat."""
+    return list(dict.fromkeys(symbol.upper() for symbol in symbols))
+
+
 def _is_rate_limited(error: Exception) -> bool:
     """Whether an exception reads as provider throttling."""
     message = str(error).lower()
@@ -362,7 +415,7 @@ def _moment(value: object) -> datetime | None:
 
 
 def _currency(value: object) -> Currency | None:
-    """Read a currency cell, or None when it unsupported by the app."""
+    """Read a currency cell, or None when the app does not support it."""
     text = _text(value)
     if text is None:
         return None
@@ -435,7 +488,7 @@ class QuotesService:
             be priced is still present, carrying `price = None`, so a caller
             can tell "unpriced" apart from "not asked for".
         """
-        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        wanted = _unique_upper(symbols)
         if not wanted:
             return {}
 
@@ -478,7 +531,7 @@ class QuotesService:
         Returns:
             A tally of what happened.
         """
-        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        wanted = _unique_upper(symbols)
         if not wanted:
             return RefreshResult()
         if not _provider_reachable():
@@ -490,7 +543,7 @@ class QuotesService:
         used_fallback = False
         try:
             prices = cls._fetch_prices(list(ysymbols.values()))
-        except Exception as error:  # noqa: BLE001 - provider raises freely
+        except Exception as error:  # noqa: BLE001 (provider raises freely)
             if not _is_rate_limited(error):
                 logger.warning(
                     "Could not fetch quotes (%s); using what is cached",
@@ -572,7 +625,7 @@ class QuotesService:
 
         try:
             return cls._fetch_metadata(due)
-        except Exception as error:  # noqa: BLE001 - metadata is best-effort
+        except Exception as error:  # noqa: BLE001 (metadata is best-effort)
             logger.debug("Could not fetch quote metadata: %s", error)
             return {}
 
@@ -641,7 +694,7 @@ class QuotesService:
             Each symbol with any history mapped to its ranges. A symbol the
             provider has no history for is absent.
         """
-        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        wanted = _unique_upper(symbols)
         if not wanted:
             return {}
         stored = _read_history(wanted)
@@ -666,7 +719,9 @@ class QuotesService:
         *,
         offline: bool = False,
     ) -> dict[str, dict[PriceRange, RangeHistory]]:
-        """Return the `2h` and `1d` ranges, live. These are never stored.
+        """Return the ranges drawn from live bars (`2h`, `1d`, `2d`, `1wk`).
+
+        These are never stored.
 
         Args:
             symbols: Canonical folio symbols.
@@ -676,13 +731,13 @@ class QuotesService:
         Returns:
             Each symbol the provider had bars for, mapped to its ranges.
         """
-        wanted = [symbol.upper() for symbol in dict.fromkeys(symbols)]
+        wanted = _unique_upper(symbols)
         if offline or not wanted or not _provider_reachable():
             return {}
         ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in wanted}
         try:
             fetched = cls._fetch_intraday(list(ysymbols))
-        except Exception as error:  # noqa: BLE001 - the provider raises freely
+        except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.debug("Could not fetch intraday bars: %s", error)
             return {}
         return {
@@ -708,7 +763,7 @@ class QuotesService:
         ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in symbols}
         try:
             fetched = cls._fetch_history(list(ysymbols), today=today)
-        except Exception as error:  # noqa: BLE001 - the provider raises freely
+        except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.warning(
                 "Could not fetch price history (%s); using what is kept",
                 error,
@@ -736,7 +791,7 @@ class QuotesService:
             Each provider symbol mapped to its raw price fields. A symbol the
             provider does not know is simply absent.
         """
-        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
 
         tickers = yf.Tickers(" ".join(ysymbols))
         now = datetime.now(UTC).isoformat()
@@ -771,7 +826,7 @@ class QuotesService:
         Returns:
             Each provider symbol mapped to its raw price fields.
         """
-        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
 
         frame = yf.download(
             list(ysymbols),
@@ -809,12 +864,12 @@ class QuotesService:
             Each provider symbol mapped to its metadata fields, the
             fundamentals keyed by their `Fundamentals` field names.
         """
-        import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
 
         def _describe(ysymbol: str) -> tuple[str, dict] | None:
             try:
                 info = yf.Ticker(ysymbol).info
-            except Exception as error:  # noqa: BLE001 - per-symbol scrape
+            except Exception as error:  # noqa: BLE001 (per-symbol scrape)
                 logger.debug("No metadata for %s: %s", ysymbol, error)
                 return None
             if not info:
@@ -945,7 +1000,7 @@ class QuotesService:
         return condensed
 
 
-def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 - pandas
+def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 (pandas)
     """Download a batch's bars over one window, grouped by symbol.
 
     Args:
@@ -955,7 +1010,7 @@ def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 - 
     Returns:
         The provider's frame, or None when it returned nothing.
     """
-    import yfinance as yf  # noqa: PLC0415 - heavy, and unused when offline
+    import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
 
     return yf.download(
         list(ysymbols),
@@ -1014,8 +1069,8 @@ def _epoch_date(value: object, zone: tzinfo = UTC) -> str | None:
 def _previous_close(fast: object) -> object | None:
     """Read the previous **regular session** close off a `fast_info`.
 
-    `previous_close` - groups a week of *pre/post-market* hourly bars by calendar
-    date and takes the last bar of the day before. (counting extended-hours)
+    `previous_close` groups a week of *pre/post-market* hourly bars by calendar
+    date and takes the last bar of the day before (counting extended-hours).
 
     `regular_market_previous_close` takes the second-last row of the daily bar
     series, which is the prior session's official close and what every quote
@@ -1038,12 +1093,12 @@ def _attr(source: object, name: str) -> object | None:
     """Read one attribute off a provider object without trusting it exists."""
     try:
         return getattr(source, name, None)
-    except Exception:  # noqa: BLE001 - fast_info computes lazily and can raise
+    except Exception:  # noqa: BLE001 (fast_info computes lazily and can raise)
         return None
 
 
 def _dated_closes(
-    frame: Any,  # noqa: ANN401 - a pandas frame from the provider
+    frame: Any,  # noqa: ANN401 (a pandas frame from the provider)
     ysymbol: str,
     *,
     intraday: bool = False,
@@ -1076,7 +1131,7 @@ def _dated_closes(
     return points
 
 
-def _close_column(frame: Any, ysymbol: str) -> Any:  # noqa: ANN401 - pandas
+def _close_column(frame: Any, ysymbol: str) -> Any:  # noqa: ANN401 (pandas)
     """Find one symbol's closes in a download, whatever shape it came in.
 
     Grouped by ticker, a download keys its columns by symbol and then field,
@@ -1203,8 +1258,8 @@ def _quote_from_record(symbol: str, record: Mapping[Hashable, Any]) -> Quote:
         status=resolved,
         fundamentals=_fundamentals(
             {
-                name: record.get(column)
-                for name, (column, _) in _FUNDAMENTAL_COLUMNS.items()
+                item.name: record.get(item.metadata["column"])
+                for item in fields(Fundamentals)
             },
         ),
     )
@@ -1228,12 +1283,12 @@ def _record(quote: Quote) -> dict[str, Any]:
         str(Column.Quote.SOURCE): SOURCE,
         str(Column.Quote.STATUS): str(quote.status),
         **{
-            str(column): (
-                _stored(getattr(quote.fundamentals, name))
-                if numeric
-                else getattr(quote.fundamentals, name)
+            str(item.metadata["column"]): (
+                _stored(getattr(quote.fundamentals, item.name))
+                if item.metadata["numeric"]
+                else getattr(quote.fundamentals, item.name)
             )
-            for name, (column, numeric) in _FUNDAMENTAL_COLUMNS.items()
+            for item in fields(Fundamentals)
         },
     }
 
@@ -1242,9 +1297,8 @@ def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
     """Read fundamentals out of a mapping keyed by their field names."""
     read: dict[str, Any] = {}
     for item in fields(Fundamentals):
-        _, numeric = _FUNDAMENTAL_COLUMNS[item.name]
         raw = values.get(item.name)
-        read[item.name] = _number(raw) if numeric else _text(raw)
+        read[item.name] = _number(raw) if item.metadata["numeric"] else _text(raw)
     return Fundamentals(**read)
 
 

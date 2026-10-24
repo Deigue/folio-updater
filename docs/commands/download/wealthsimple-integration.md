@@ -42,6 +42,21 @@ brokers:
 | **`user_agent`**       | HTTP User-Agent header for API requests. Default is a Firefox user agent. |
 | **`exclude_accounts`** | *(Optional)* List of account descriptions to exclude from downloads       |
 
+### Account Names
+
+Each Wealthsimple account is recorded in folio under its **nickname**. The same name
+is used in the activity rows, in the statement file names, and in every report.
+
+> [!IMPORTANT]
+> **Set each Wealthsimple account's nickname to the Account name you want to see in
+> folio** (for example `WS-TFSA` or `WS-PERSONAL`), in the Wealthsimple app, before you
+> download. Follow the `<BROKER>-<TYPE>` naming convention so folio can read the account
+> type from the name. Any account type works (TFSA, RRSP, FHSA, a second TFSA, ...), as
+> long as each has its own nickname.
+>
+> An account with no nickname is recorded under its Wealthsimple account id instead.
+> Renaming an account later does not rename transactions already in the folio.
+
 ## Usage
 
 ### Basic Download

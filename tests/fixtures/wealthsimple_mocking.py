@@ -1,6 +1,6 @@
 """Wealthsimple service mocking utilities for tests."""
 
-# ruff: noqa: ARG001, ARG002, ARG003
+# ruff: noqa: ARG001, ARG002
 from __future__ import annotations
 
 import difflib
@@ -13,6 +13,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from types import TracebackType
 
+    import ws_api
+
 
 class WealthsimpleMockContext:
     """Context manager for mocking Wealthsimple service interactions."""
@@ -22,6 +24,9 @@ class WealthsimpleMockContext:
         monkeypatch: pytest.MonkeyPatch,
         mock_accounts: list[dict[str, Any]] | None = None,
         mock_activities: list[dict[str, Any]] | None = None,
+        *,
+        token_error: ws_api.WSApiException | None = None,
+        statement_error: ws_api.WSApiException | None = None,
     ) -> None:
         """Initialize Wealthsimple mock context.
 
@@ -29,10 +34,16 @@ class WealthsimpleMockContext:
             monkeypatch: pytest monkeypatch fixture
             mock_accounts: List of account dictionaries to return from get_accounts
             mock_activities: List of activity dictionaries to return from get_activities
+            token_error: What a request made with the stored access token raises,
+                until the service clears the token to refresh it
+            statement_error: What a monthly statement request raises instead
         """
         self.monkeypatch = monkeypatch
         self.mock_accounts = mock_accounts or get_mock_accounts()
         self.mock_activities = mock_activities or []
+        self.token_error = token_error
+        self.statement_error = statement_error
+        self.token_attempts: list[str | None] = []
         self.written_csvs: dict[str, str] = {}
 
     def __enter__(self) -> Self:
@@ -50,7 +61,7 @@ class WealthsimpleMockContext:
     ) -> None:
         """Clean up mocks."""
 
-    def _setup_api_mocks(self) -> None:
+    def _setup_api_mocks(self) -> None:  # noqa: C901 (one nested class per seam)
         """Set up Wealthsimple API mocking at the ws-api level."""
         outer_self = self
 
@@ -68,6 +79,9 @@ class WealthsimpleMockContext:
                 username: str,
             ) -> MockWealthsimpleAPI:
                 """Mock from_token class method."""
+                outer_self.token_attempts.append(session.access_token)
+                if outer_self.token_error and session.access_token is not None:
+                    raise outer_self.token_error
                 persist_session_callback("session", username)
                 return cls()
 
@@ -92,6 +106,8 @@ class WealthsimpleMockContext:
                 period: str,
             ) -> list[Any]:
                 """Mock get_statement_transactions method."""
+                if outer_self.statement_error is not None:
+                    raise outer_self.statement_error
                 return outer_self.mock_activities
 
             def set_security_market_data_cache(
@@ -105,6 +121,7 @@ class WealthsimpleMockContext:
         class MockWSAPISession:
             def __init__(self, *_args: object, **_kwargs: object) -> None:
                 """Mock session initialization."""
+                self.access_token: str | None = "stored-token"  # noqa: S105
 
             @classmethod
             def from_json(cls, _json_str: str) -> MockWSAPISession:
@@ -191,7 +208,7 @@ class WealthsimpleMockContext:
         )
 
 
-def _create_mock_activities(
+def create_mock_activities(
     activities_data: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Create mock activity data from simplified dictionaries.
@@ -257,131 +274,73 @@ def _create_mock_activities(
     return mock_activities
 
 
+def mock_account(
+    account_id: str,
+    nickname: str | None,
+    account_type: str = "ca_tfsa",
+) -> dict[str, Any]:
+    """Build a mock Wealthsimple account payload.
+
+    Args:
+        account_id: The account's id, as activities refer to it
+        nickname: The nickname set on the account, or None when it has none
+        account_type: The account's Wealthsimple type
+
+    Returns:
+        A full account dictionary compatible with Account.from_dict
+    """
+    money = {"amount": "5000.00", "cents": 500000, "currency": "CAD"}
+    return {
+        "id": account_id,
+        "type": account_type,
+        "description": f"Test {account_type}",
+        "createdAt": "2023-01-01T00:00:00-05:00",
+        "currency": "CAD",
+        "supportedCurrencies": ["CAD", "USD"],
+        "nickname": nickname,
+        "status": "active",
+        "branch": "main",
+        "archivedAt": None,
+        "closedAt": None,
+        "cacheExpiredAt": None,
+        "requiredIdentityVerification": None,
+        "unifiedAccountType": "savings",
+        "accountOwnerConfiguration": None,
+        "accountFeatures": [],
+        "accountOwners": [],
+        "linkedAccount": None,
+        "financials": {
+            "currentCombined": {
+                "id": account_id,
+                "netLiquidationValue": money,
+                "netDeposits": money,
+                "simpleReturns": {
+                    "amount": money,
+                    "asOf": "2023-12-31",
+                    "rate": "100.0",
+                    "referenceDate": "2023-12-31",
+                },
+                "totalDeposits": money,
+                "totalWithdrawals": {"amount": "0.00", "cents": 0, "currency": "CAD"},
+            },
+        },
+        "custodianAccounts": [],
+        "number": "12345",
+        "__typename": "Account",
+    }
+
+
 def get_mock_accounts() -> list[dict[str, Any]]:
-    """Get mock account data for testing."""
+    """Get mock account data for testing: the accounts the activities belong to."""
     return [
-        {
-            "id": "test-account-1",
-            "type": "ca_tfsa",
-            "description": "Test TFSA",
-            "createdAt": "2023-01-01T00:00:00-05:00",
-            "currency": "CAD",
-            "supportedCurrencies": ["CAD", "USD"],
-            "nickname": "TFSA Account",
-            "status": "active",
-            "branch": "main",
-            "archivedAt": None,
-            "closedAt": None,
-            "cacheExpiredAt": None,
-            "requiredIdentityVerification": None,
-            "unifiedAccountType": "savings",
-            "accountOwnerConfiguration": None,
-            "accountFeatures": [],
-            "accountOwners": [],
-            "linkedAccount": None,
-            "financials": {
-                "currentCombined": {
-                    "id": "test-account-1",
-                    "netLiquidationValue": {
-                        "amount": "10000.00",
-                        "cents": 1000000,
-                        "currency": "CAD",
-                    },
-                    "netDeposits": {
-                        "amount": "5000.00",
-                        "cents": 500000,
-                        "currency": "CAD",
-                    },
-                    "simpleReturns": {
-                        "amount": {
-                            "amount": "5000.00",
-                            "cents": 500000,
-                            "currency": "CAD",
-                        },
-                        "asOf": "2023-12-31",
-                        "rate": "100.0",
-                        "referenceDate": "2023-12-31",
-                    },
-                    "totalDeposits": {
-                        "amount": "5000.00",
-                        "cents": 500000,
-                        "currency": "CAD",
-                    },
-                    "totalWithdrawals": {
-                        "amount": "0.00",
-                        "cents": 0,
-                        "currency": "CAD",
-                    },
-                },
-            },
-            "custodianAccounts": [],
-            "number": "12345",
-            "__typename": "Account",
-        },
-        {
-            "id": "test-account-2",
-            "type": "ca_rrsp",
-            "description": "Test RRSP",
-            "createdAt": "2023-01-01T00:00:00-05:00",
-            "currency": "CAD",
-            "supportedCurrencies": ["CAD"],
-            "nickname": "RRSP Account",
-            "status": "active",
-            "branch": "main",
-            "archivedAt": None,
-            "closedAt": None,
-            "cacheExpiredAt": None,
-            "requiredIdentityVerification": None,
-            "unifiedAccountType": "retirement",
-            "accountOwnerConfiguration": None,
-            "accountFeatures": [],
-            "accountOwners": [],
-            "linkedAccount": None,
-            "financials": {
-                "currentCombined": {
-                    "id": "test-account-2",
-                    "netLiquidationValue": {
-                        "amount": "50000.00",
-                        "cents": 5000000,
-                        "currency": "CAD",
-                    },
-                    "netDeposits": {
-                        "amount": "30000.00",
-                        "cents": 3000000,
-                        "currency": "CAD",
-                    },
-                    "simpleReturns": {
-                        "amount": {
-                            "amount": "20000.00",
-                            "cents": 2000000,
-                            "currency": "CAD",
-                        },
-                        "asOf": "2023-12-31",
-                        "rate": "66.7",
-                        "referenceDate": "2023-12-31",
-                    },
-                    "totalDeposits": {
-                        "amount": "30000.00",
-                        "cents": 3000000,
-                        "currency": "CAD",
-                    },
-                    "totalWithdrawals": {
-                        "amount": "0.00",
-                        "cents": 0,
-                        "currency": "CAD",
-                    },
-                },
-            },
-            "custodianAccounts": [],
-            "number": "67890",
-            "__typename": "Account",
-        },
+        mock_account("test-tfsa-1", "WS-TFSA"),
+        mock_account("test-non-registered-1", "WS-PERSONAL", "ca_non_registered"),
     ]
 
 
 def get_mock_activities() -> list[dict[str, Any]]:
     """Get mock activity data for testing."""
-    return _create_mock_activities(
+    return create_mock_activities(
         [
             # BUY activity to test DIY_BUY action normalization
             {

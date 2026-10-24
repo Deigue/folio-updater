@@ -192,6 +192,18 @@ def get_max_value(
         return None
 
 
+def earliest_transaction_date(connection: sqlite3.Connection) -> str | None:
+    """Return the earliest trade date among all stored transactions.
+
+    Args:
+        connection: The database connection.
+
+    Returns:
+        The date as YYYY-MM-DD, or None when the folio has no transactions.
+    """
+    return get_min_value(connection, Table.TXNS, Column.Txn.TXN_DATE)
+
+
 def get_broker_latest_txn_date(
     connection: sqlite3.Connection,
     broker: str,

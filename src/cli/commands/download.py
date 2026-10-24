@@ -251,7 +251,7 @@ def download_wealthsimple(
         show_activities_preview(activities, accounts)
 
         csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
-        ws.export_activities_to_csv(activities, csv_name)
+        ws.export_activities_to_csv(activities, csv_name, accounts)
 
         console_success(f'File saved: "{get_config().imports_path / csv_name}"')
         console_info("To import these files, run:")
@@ -284,16 +284,16 @@ def download_ws_statement(from_date: str) -> list[Path]:
         progress.update(task, description="Downloading monthly statements...")
         for account in accounts:
             statement_txns = ws.get_monthly_statement(account.id, from_date)
-            account_id = account.nickname or account.id
+            account_name = account.account_name
             if statement_txns:
                 # YYYY-MM-DD -> YYYYMM
                 date_for_filename = from_date.replace("-", "")[:6]
-                csv_name = f"ws_statement_{account_id}_{date_for_filename}.csv"
+                csv_name = f"ws_statement_{account_name}_{date_for_filename}.csv"
                 ws.export_statement_to_csv(statement_txns, csv_name)
                 total_transactions += len(statement_txns)
                 exported_files.append(csv_name)
             else:
-                msg = f"No statement transactions found for account {account_id}"
+                msg = f"No statement transactions found for account {account_name}"
                 console_warning(msg)
 
     config = get_config()

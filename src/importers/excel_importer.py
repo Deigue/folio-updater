@@ -123,14 +123,13 @@ def insert_transactions(
             False when they are already keyed by internal names.
 
     Returns:
-        Every stage of the preparation, with the database counts before and
-        after filled in.
+        Every stage of the preparation, with the folio's count after the
+        import filled in.
 
     Raises:
         sqlite3.IntegrityError: If the table refuses a row that ingest passed.
             The audit log names the row, and none of the batch is stored.
     """
-    existing_count = txn_count()
     import_results = prepare_transactions(txns_df, account, map_headers=map_headers)
     prepared_df = import_results.final_df
 
@@ -143,7 +142,6 @@ def insert_transactions(
                 _log_refused_row(conn, prepared_df)
                 raise
 
-    import_results.existing_count = existing_count
     import_results.final_db_count = txn_count()
     return import_results
 

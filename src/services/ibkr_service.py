@@ -45,6 +45,7 @@ RETRY_STATUS_FORCELIST = [429, 500, 502, 503, 504]
 INITIAL_WAIT_SECONDS = 5
 POLL_INTERVAL_SECONDS = 30
 MAX_POLL_ATTEMPTS = 10
+FLEX_VERSION = "3"
 
 
 class IBKRServiceError(Exception):
@@ -70,14 +71,14 @@ class DownloadRequest(NamedTuple):
     query_id: str
     from_date: str
     to_date: str
-    version: str = "3"
+    version: str = FLEX_VERSION
 
 
 class IBKRService:
     """Service for interacting with Interactive Brokers."""
 
     def __init__(self) -> None:
-        """Initialize the IBKR service with retry configuration."""
+        """Initialize the IBKR service."""
         self._session: requests.Session
 
     @staticmethod
@@ -96,7 +97,7 @@ class IBKRService:
         return current
 
     def __enter__(self) -> Self:
-        """Enter context manager - initialize session."""
+        """Enter context manager: open the session, with retries configured."""
         self._session = requests.Session()
         retry_strategy = Retry(
             total=MAX_RETRIES,
@@ -116,58 +117,64 @@ class IBKRService:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Exit context manager - close session."""
+        """Exit context manager: close the session."""
         self._session.close()
 
-    def _parse_xml_error(
-        self,
-        xml_content: str,
-        *,
-        for_statement: bool = False,
-    ) -> bool:
-        """Parse XML response and raise appropriate exception if error found.
+    @staticmethod
+    def _parse_xml(xml_content: str) -> ET.Element:
+        """Parse an XML response from the IBKR API.
 
         Args:
             xml_content: XML response content from IBKR API
-            for_statement: If True, handle "not ready" codes for statement retrieval
-
-        Raises:
-            IBKRAPIError: If the XML contains an error response
 
         Returns:
-            bool: True if no error found, False if statement not ready
+            The root element.
+
+        Raises:
+            IBKRAPIError: If the content is not XML
         """
         try:
-            root = ET.fromstring(xml_content)
-            status_elem = root.find("Status")
-
-            if (
-                status_elem is not None and status_elem.text == "Fail"
-            ):  # pragma: no cover
-                error_code_elem = root.find("ErrorCode")
-                error_msg_elem = root.find("ErrorMessage")
-
-                if error_code_elem is not None and error_msg_elem is not None:
-                    error_code = error_code_elem.text
-                    error_message = error_msg_elem.text
-
-                    # Special handling for "statement not ready" codes
-                    if for_statement and error_code in ("1003", "1019"):
-                        logger.debug(
-                            "Statement not ready yet (code %s): %s",
-                            error_code,
-                            error_message,
-                        )
-                        return False
-
-                    msg = f"IBKR API Error {error_code}: {error_message}"
-                    logger.error(msg)
-                    raise IBKRAPIError(msg)
-
+            return ET.fromstring(xml_content)
         except ET.ParseError as e:
             msg = f"Failed to parse XML response: {e}"
             logger.exception(msg)
             raise IBKRAPIError(msg) from e
+
+    @staticmethod
+    def _check_status(root: ET.Element, *, for_statement: bool = False) -> bool:
+        """Raise the appropriate exception if the response reports a failure.
+
+        Args:
+            root: The parsed XML response
+            for_statement: If True, handle "not ready" codes for statement retrieval
+
+        Raises:
+            IBKRAPIError: If the response reports an error
+
+        Returns:
+            bool: True if no error found, False if statement not ready
+        """
+        status_elem = root.find("Status")
+        if status_elem is not None and status_elem.text == "Fail":
+            error_code_elem = root.find("ErrorCode")
+            error_msg_elem = root.find("ErrorMessage")
+
+            if error_code_elem is not None and error_msg_elem is not None:
+                error_code = error_code_elem.text
+                error_message = error_msg_elem.text
+
+                # Special handling for "statement not ready" codes
+                if for_statement and error_code in ("1003", "1019"):
+                    logger.debug(
+                        "Statement not ready yet (code %s): %s",
+                        error_code,
+                        error_message,
+                    )
+                    return False
+
+                msg = f"IBKR API Error {error_code}: {error_message}"
+                logger.error(msg)
+                raise IBKRAPIError(msg)
 
         return True  # No error found
 
@@ -256,23 +263,15 @@ class IBKRService:
             logger.exception(msg)
             raise IBKRAPIError(msg) from e
 
-        # Parse XML response
-        try:
-            logger.debug("Send request response: %s", response.text)
-            self._parse_xml_error(response.text)
-            root = ET.fromstring(response.text)
-            reference_code_elem = root.find("ReferenceCode")
-            if (
-                reference_code_elem is None or not reference_code_elem.text
-            ):  # pragma: no cover
-                msg = f"No reference code found in response: {response.text}"
-                announce.error(msg)
-                raise IBKRAPIError(msg)
-
-        except ET.ParseError as e:
-            msg = f"Failed to parse XML response: {e}"
-            logger.exception(msg)
-            raise IBKRAPIError(msg) from e
+        logger.debug("Send request response: %s", response.text)
+        root = self._parse_xml(response.text)
+        self._check_status(root)
+        reference_code_elem = root.find("ReferenceCode")
+        if (
+            reference_code_elem is None or not reference_code_elem.text
+        ):  # pragma: no cover
+            msg = f"No reference code found in response: {response.text}"
+            raise IBKRAPIError(msg)
 
         reference_code = reference_code_elem.text
         logger.info("RECEIVED reference code: %s", reference_code)
@@ -289,13 +288,12 @@ class IBKRService:
 
         Raises:
             IBKRAPIError: If the API returns an error
-            IBKRTimeoutError: If statement is not ready after polling
         """
         token = self.get_token()
         params = {
             "t": token,
             "q": reference_code,
-            "v": "3",
+            "v": FLEX_VERSION,
         }
         url = f"{IBKR_GETSTATEMENT_URL}?{urlencode(params)}"
 
@@ -311,8 +309,11 @@ class IBKRService:
 
         # Check whether XML or CSV response
         content = response.text.strip()
-        if content.startswith("<"):  # pragma: no cover
-            is_ready = self._parse_xml_error(content, for_statement=True)
+        if content.startswith("<"):
+            is_ready = self._check_status(
+                self._parse_xml(content),
+                for_statement=True,
+            )
             if not is_ready:
                 return ""
 
@@ -333,7 +334,8 @@ class IBKRService:
         """Download a Flex statement.
 
         Args:
-            request: DownloadRequest with request parameters
+            request: DownloadRequest with request parameters, or the reference
+                code of an earlier request to resume
 
         Returns:
             str: CSV content of the statement
@@ -361,7 +363,7 @@ class IBKRService:
                 if statement_data:
                     return statement_data
 
-                if attempt < MAX_POLL_ATTEMPTS:  # pragma: no cover
+                if attempt < MAX_POLL_ATTEMPTS:
                     msg = (
                         f"POLL ({attempt}/{MAX_POLL_ATTEMPTS}): Statement not "
                         f"ready, waiting {POLL_INTERVAL_SECONDS} seconds..."
@@ -379,7 +381,6 @@ class IBKRService:
             f"Statement not ready after {MAX_POLL_ATTEMPTS} attempts. "
             f"You can retry later with reference code: {reference_code}"
         )
-        announce.error(msg)  # pragma: no cover
         raise IBKRTimeoutError(msg)
 
     def save_statement_as_csv(
@@ -391,7 +392,8 @@ class IBKRService:
 
         Args:
             csv_content: CSV content from get_statement
-            request: DownloadRequest containing all parameters
+            request: DownloadRequest containing all parameters, or the
+                reference code of an earlier request
 
         Returns:
             int: Number of lines saved (including header)
@@ -414,9 +416,6 @@ class IBKRService:
 
         try:
             lines = csv_content.strip().split("\n")
-            if not lines:  # pragma: no cover
-                logger.warning("No CSV content to save")
-                return 0
 
             with output_path.open("w", newline="", encoding="utf-8") as csvfile:
                 reader = csv.reader(lines)
@@ -435,10 +434,11 @@ class IBKRService:
         """Download a Flex query statement and save it as CSV.
 
         Args:
-            request: DownloadRequest containing all parameters
+            request: DownloadRequest containing all parameters, or the
+                reference code of an earlier request
 
         Returns:
-            int: Total numer of lines saved
+            int: Total number of lines saved
         """
         csv_content = self.download_statement_with_polling(request)
         return self.save_statement_as_csv(csv_content, request)

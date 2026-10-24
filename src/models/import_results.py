@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-@dataclass
+@dataclass(eq=False)
 class MergeEvent:
     """Represents a single merge operation.
 
@@ -66,21 +66,17 @@ class CancelEvent:
         return 1 if self.cancelled is None else 2
 
 
-@dataclass
+@dataclass(eq=False)
 class ImportResults:
     """Results for a transaction import operation.
 
-    DataFrames are captured at key pipeline stages for atomic tracking of import
+    DataFrames are captured at key pipeline stages for tracking of import
     operations. Summary metrics and events are also recorded.
     """
 
     read_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    mapped_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    transformed_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     invalid_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    intra_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     intra_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    db_approved_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     db_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     final_df: pd.DataFrame = field(default_factory=pd.DataFrame)
 
@@ -89,7 +85,6 @@ class ImportResults:
     cancel_events: list[CancelEvent] = field(default_factory=list)
 
     # Database counts
-    existing_count: int = 0
     final_db_count: int = 0
 
     def imported_count(self) -> int:
@@ -145,10 +140,6 @@ class ImportResults:
     def tally_matches(self) -> bool:
         """Return whether the imported rows match the stage-by-stage tally."""
         return self.imported_count() == self.expected_count()
-
-    def __int__(self) -> int:  # backwards compatibility if cast to int
-        """Return imported count when cast to int (for backwards compatibility)."""
-        return self.imported_count()
 
 
 @dataclass

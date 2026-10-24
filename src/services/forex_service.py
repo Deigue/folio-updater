@@ -16,6 +16,7 @@ import requests
 from db import (
     append_rows,
     create_fx_table,
+    earliest_transaction_date,
     get_connection,
     get_max_value,
     get_min_value,
@@ -26,6 +27,10 @@ from domain import TORONTO_TZ, Column, Table
 from term import announce
 
 logger = logging.getLogger(__name__)
+
+# The Bank of Canada's own column names.
+BOC_DATE_COLUMN = "date"
+BOC_USDCAD_COLUMN = "FXUSDCAD"
 
 
 class ForexService:
@@ -60,12 +65,8 @@ class ForexService:
             return None
 
     @staticmethod
-    def get_fx_rates_from_db(start_date: str | None = None) -> pd.DataFrame:
-        """Get FX rates from the database.
-
-        Args:
-            start_date: Optional start date to filter from (YYYY-MM-DD format).
-                       If None, returns all rates.
+    def get_fx_rates_from_db() -> pd.DataFrame:
+        """Get every FX rate held in the database.
 
         Returns:
             DataFrame with FX rates from database.
@@ -77,18 +78,7 @@ class ForexService:
                     logger.debug("FX table does not exist")
                     return pd.DataFrame()
 
-                where = None
-                params = None
-                if start_date:  # pragma: no cover
-                    where = f'"{Column.FX.DATE}" >= ?'
-                    params = [start_date]
-                df = get_rows(
-                    conn,
-                    Table.FX,
-                    where=where,
-                    params=params,
-                    order_by=Column.FX.DATE,
-                )
+                df = get_rows(conn, Table.FX, order_by=Column.FX.DATE)
 
                 logger.debug("Retrieved %d FX rates from database", len(df))
                 return df
@@ -114,7 +104,7 @@ class ForexService:
             response = requests.get(url, timeout=30)
             response.raise_for_status()
 
-            # Parse CSV response - Bank of Canada format has multiple sections
+            # Parse CSV response: the Bank of Canada format has multiple sections
             csv_text = cls._extract_observations_csv(response.text)
             if not csv_text:  # pragma: no cover
                 logger.warning("No observations data found in response")
@@ -173,7 +163,7 @@ class ForexService:
 
         # Find the start of observations section
         observations_start = None
-        for i, line in enumerate(lines):  # pragma: no break
+        for i, line in enumerate(lines):
             if '"OBSERVATIONS"' in line:
                 observations_start = i + 1  # Header is the next line
                 break
@@ -189,7 +179,7 @@ class ForexService:
         clean_lines = []
         for raw_line in observations_lines:
             cleaned_line = raw_line.strip()
-            if cleaned_line and cleaned_line != "\r":
+            if cleaned_line:
                 cleaned_line = cleaned_line.removeprefix("\ufeff")  # Remove BOM
                 clean_lines.append(cleaned_line)
 
@@ -207,25 +197,10 @@ class ForexService:
         """
         if raw_df.empty:  # pragma: no cover
             return pd.DataFrame()
-        date_col = None
-        usdcad_col = None
 
-        for col in raw_df.columns:  # pragma: no cover
-            if col.lower() in ["date", "datetime", "time"]:
-                date_col = col
-                break  # pragma: no cover
-
-        for col in raw_df.columns:  # pragma: no cover
-            if "usdcad" in col.lower() or "fxusdcad" in col.lower():
-                usdcad_col = col
-                break  # pragma: no cover
-
-        if date_col is None or usdcad_col is None:  # pragma: no cover
-            logger.error("Could not find required columns in BoC FX data")
-            logger.debug("Available columns: %s", list(raw_df.columns))
-            return pd.DataFrame()
-
-        fx_df = raw_df[[date_col, usdcad_col]].copy()
+        # The columns are fixed, so a KeyError here is a format change the
+        # caller reports.
+        fx_df = raw_df[[BOC_DATE_COLUMN, BOC_USDCAD_COLUMN]].copy()
         fx_df = fx_df.dropna()
         fx_df.columns = [Column.FX.DATE, Column.FX.FXUSDCAD]
 
@@ -246,30 +221,6 @@ class ForexService:
 
         logger.debug("Processed %d FX records from API", len(fx_df))
         return fx_df
-
-    @staticmethod
-    def get_earliest_transaction_date() -> str | None:
-        """Get the earliest trade date from the database.
-
-        Returns:
-            Earliest trade date in YYYY-MM-DD format, or None if no transactions.
-        """
-        try:
-            with get_connection() as conn:
-                tables = get_tables(conn)
-                if Table.TXNS not in tables:
-                    logger.debug("Txns table does not exist")
-                    return None
-
-                result = get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
-                if result:
-                    logger.debug("Earliest trade date: %s", result)
-                    return result
-                logger.debug("No transactions found in database")
-                return None
-        except sqlite3.Error as e:
-            logger.debug("Could not get earliest trade date: %s", e)
-            return None
 
     @staticmethod
     def effective_today() -> str:
@@ -312,7 +263,8 @@ class ForexService:
         Returns:
             The earliest trade date, or 30 days ago for an empty folio.
         """
-        earliest = cls.get_earliest_transaction_date()
+        with get_connection() as conn:
+            earliest = earliest_transaction_date(conn)
         if earliest is not None:
             return earliest
         fallback = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime("%Y-%m-%d")

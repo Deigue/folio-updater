@@ -590,7 +590,7 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
 def test_only_the_final_frame_gains_the_columns_the_table_has(
     temp_ctx: TempContext,
 ) -> None:
-    """A table column the file lacks is added to `final_df`, not to the stage frames."""
+    """A table column the file lacks is added to `final_df`, not to `read_df`."""
     with temp_ctx():
         create_txns_table()
         helpers.sync_txns_table_columns(_valid_rows().assign(Memo="note"))
@@ -598,7 +598,7 @@ def test_only_the_final_frame_gains_the_columns_the_table_has(
         results = prepare_transactions(_valid_rows(), map_headers=False)
 
     assert "Memo" in results.final_df.columns
-    assert "Memo" not in results.db_approved_df.columns
+    assert "Memo" not in results.read_df.columns
 
 
 def test_a_fallback_account_is_not_written_into_the_source_frame(

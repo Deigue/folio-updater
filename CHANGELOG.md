@@ -8,13 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- `folio update --offline` runs all steps offline (no downloads, no fx, no quotes)
+
 ### Changed
+
+- `folio generate` will probe yfinance for 5s, and fallback to cached quotes and 
+history when no answer received.
+- `folio generate` now shows while it is retrieving information from Yahoo Finance.
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+
+- Quote refreshes in which nothing is priced are treated as an outage instead of 
+negative-caching every symbol.
 
 ### Security
 

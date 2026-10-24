@@ -16,6 +16,15 @@ if TYPE_CHECKING:
 
 BUY_SELL_FIELD = "Buy/Sell"
 
+# What GetStatement answers while the statement is still being generated.
+STATEMENT_NOT_READY = (
+    "<FlexStatementResponse>"
+    "<Status>Fail</Status>"
+    "<ErrorCode>1019</ErrorCode>"
+    "<ErrorMessage>Statement generation in progress.</ErrorMessage>"
+    "</FlexStatementResponse>"
+)
+
 
 class IBKRMockContext:
     """Context manager for mocking IBKR service interactions."""
@@ -26,6 +35,7 @@ class IBKRMockContext:
         mock_csv_data: str,
         send_request_response: str = "ref123",
         send_request_status: str = "Success",
+        not_ready_polls: int = 0,
     ) -> None:
         """Initialize IBKR mock context.
 
@@ -34,11 +44,15 @@ class IBKRMockContext:
             mock_csv_data: CSV data to return from GetStatement
             send_request_response: Reference code to return from SendRequest
             send_request_status: Status to return from SendRequest
+            not_ready_polls: How many GetStatement requests are answered "not ready"
+                before the statement arrives
         """
         self.monkeypatch = monkeypatch
         self.mock_csv_data = mock_csv_data
         self.send_request_response = send_request_response
         self.send_request_status = send_request_status
+        self.not_ready_polls = not_ready_polls
+        self.statement_requests = 0
         self.written_csvs: dict[str, str] = {}
 
     def __enter__(self) -> Self:
@@ -77,7 +91,11 @@ class IBKRMockContext:
                     "</FlexStatementResponse>"
                 )
             elif "GetStatement" in url:
-                MockResponse.text = self.mock_csv_data
+                self.statement_requests += 1
+                waiting = self.statement_requests <= self.not_ready_polls
+                MockResponse.text = (
+                    STATEMENT_NOT_READY if waiting else self.mock_csv_data
+                )
             else:  # pragma: no cover
                 MockResponse.text = ""
             return MockResponse()

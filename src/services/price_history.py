@@ -22,28 +22,8 @@ if TYPE_CHECKING:
 # on a wide terminal; a narrower one draws fewer of them.
 CHART_POINTS = 60
 
-# The ranges read from daily, hourly, weekly and monthly closes, and stored.
-STORED_RANGES: tuple[PriceRange, ...] = (
-    PriceRange.DAYS_2,
-    PriceRange.WEEK_1,
-    PriceRange.MONTH_1,
-    PriceRange.MONTHS_6,
-    PriceRange.YTD,
-    PriceRange.YEAR_1,
-    PriceRange.YEARS_5,
-    PriceRange.ALL,
-)
-
-# The ranges drawn from live intraday bars when there are any. Never stored.
-INTRADAY_RANGES: tuple[PriceRange, ...] = (
-    PriceRange.HOURS_2,
-    PriceRange.DAY_1,
-    PriceRange.DAYS_2,
-    PriceRange.WEEK_1,
-)
-
-# Sessions back the `2d` anchor sits: the latest bar, the one before, then it.
-_TWO_SESSIONS = 3
+# Closes the `2d` range needs: the latest, the one before, and the anchor.
+_TWO_SESSION_CLOSES = 3
 
 # A regular North American session, on the exchange's own clock.
 SESSION_OPEN = time(9, 30)
@@ -110,8 +90,11 @@ def condense(
         reach, such as `5y` for a fund launched last year, is absent.
     """
     found: dict[PriceRange, RangeHistory] = {}
-    if len(daily) >= _TWO_SESSIONS:
-        found[PriceRange.DAYS_2] = _summary(PriceRange.DAYS_2, daily[-_TWO_SESSIONS:])
+    if len(daily) >= _TWO_SESSION_CLOSES:
+        found[PriceRange.DAYS_2] = _summary(
+            PriceRange.DAYS_2,
+            daily[-_TWO_SESSION_CLOSES:],
+        )
 
     month = _since(daily, months_back(today, 1).isoformat())
     if month:
