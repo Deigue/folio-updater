@@ -21,7 +21,7 @@ dependencies = [
     "rich>=13.0.0",
     "dateparser>=1.4.2",
     "requests>=2.32.5",
-    "yfinance>=0.2.66",
+    "yfinance>=1.7.0",
 ]
 
 [project.scripts]
