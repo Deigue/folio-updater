@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
 
-from domain.numeric import ZERO, dec, q2, q4, q6, safe_div
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from domain.numeric import ZERO, dec, q2, safe_div
 
 D = Decimal
 
@@ -46,20 +42,17 @@ def test_dec_avoids_binary_float_drift() -> None:
 
 
 @pytest.mark.parametrize(
-    ("quantiser", "value", "expected"),
+    ("value", "expected"),
     [
-        (q2, D("1.005"), D("1.00")),  # banker's rounding, the Decimal default
-        (q2, D("1.015"), D("1.02")),
-        (q4, D("10.733333333"), D("10.7333")),
-        (q6, D("0.3333333333"), D("0.333333")),
+        (D("1.005"), D("1.01")),  # a half cent rounds up, not to the even neighbour
+        (D("1.015"), D("1.02")),
+        (D("0.125"), D("0.13")),
+        (D("-0.125"), D("-0.13")),  # away from zero, so a debit rounds like a credit
+        (D("1.004"), D("1.00")),
     ],
 )
-def test_quantisers(
-    quantiser: Callable[[Decimal], Decimal],
-    value: Decimal,
-    expected: Decimal,
-) -> None:
-    assert quantiser(value) == expected
+def test_q2_rounds_a_half_cent_up(value: Decimal, expected: Decimal) -> None:
+    assert q2(value) == expected
 
 
 def test_safe_div() -> None:

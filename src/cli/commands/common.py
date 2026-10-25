@@ -15,7 +15,7 @@ from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from term import console_error, console_success, console_warning
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.vocabulary import SPINNER_PARQUET
 
 if TYPE_CHECKING:
@@ -174,7 +174,7 @@ def parse_currency_choice[Choice: str](
 def export_to_parquet() -> None:
     """Export transactions to Parquet so generated folios stay in sync."""
     try:
-        with ProgressDisplay.spinner(SPINNER_PARQUET) as progress:
+        with spinner(SPINNER_PARQUET) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             exporter = ParquetExporter()
             exported = exporter.export_transactions()

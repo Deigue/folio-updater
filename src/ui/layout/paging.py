@@ -6,11 +6,65 @@ from typing import TYPE_CHECKING
 
 from term.console import active_console, console_print
 from term.keys import getch
-from term.size import available_height, is_test_environment
+from term.size import terminal_size
 from ui.vocabulary import TABLE_BORDER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+# Lines used by the stats summary panel at the top.
+STATS_PANEL_LINES = 3
+
+# Lines used by the expansion prompt at the bottom.
+PROMPT_LINES = 2
+
+# Chrome for a bordered, headered table: top border, header text, header
+# separator, and bottom border (verified against Rich's actual output).
+TABLE_HEADER_HEIGHT = 4
+
+# Page progress display height (e.g., "Showing transactions 1-15 of 100").
+PAGE_PROGRESS_HEIGHT = 1
+
+# The console.rule() line printed above each page (title + page counter).
+PAGE_RULE_HEIGHT = 1
+
+# Slack kept below the terminal's last row. Without it, a page's last line
+# lands exactly on the final row; many terminals (VS Code's included) then
+# scroll by one on the next newline, which clips the top of the page, header
+# and all, out of view.
+SAFETY_MARGIN = 1
+
+# The fewest content lines a page is ever given, however cramped the terminal.
+MINIMUM_HEIGHT = 10
+
+
+def available_height(
+    *,
+    table: bool = False,
+    pages: bool = False,
+    reserved: int = 0,
+) -> int:
+    """Calculate available height for content after reserved UI elements.
+
+    Args:
+        table: Whether a bordered, headered table is being drawn.
+        pages: Whether this is the paged full-screen flow.
+        reserved: Additional lines to reserve, cache badge or header stacking
+
+    Returns:
+        The number of content lines that fit.
+    """
+    _, height = terminal_size()
+    if pages:
+        # Paged full-screen table: console.rule + progress line + prompt.
+        # No stats panel is shown in this flow.
+        reserved_lines = PAGE_RULE_HEIGHT + PAGE_PROGRESS_HEIGHT + PROMPT_LINES
+    else:
+        # Tiled audit-block view: stats panel + expansion prompt.
+        reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
+    reserved_lines += TABLE_HEADER_HEIGHT if table else 0
+    reserved_lines += SAFETY_MARGIN + reserved
+    return max(height - reserved_lines, MINIMUM_HEIGHT)
 
 
 def _get_pagination_prompt(current_page: int, total_pages: int) -> str:
@@ -92,7 +146,7 @@ def page_frame(
 
     # Nobody can answer the n/p/q prompt when output is piped or redirected
     # (a script, CI, `> file`), and getch would wait on the console forever.
-    if is_test_environment() or not active_console().is_interactive:
+    if not active_console().is_interactive:
         render(0, total_rows)
         return
 

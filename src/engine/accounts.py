@@ -22,10 +22,9 @@ logger = logging.getLogger(__name__)
 _TOKEN_SPLIT = re.compile(r"[-_\s]+")
 
 
-def _override_key() -> tuple[tuple[str, str], ...]:
+def _override_key() -> tuple[tuple[str, AccountType], ...]:
     """Snapshot every config input to resolution as a hashable cache key."""
-    configured = get_config().account_types
-    return tuple(sorted((name, str(value)) for name, value in configured.items()))
+    return tuple(sorted(get_config().account_types.items()))
 
 
 def resolve_account_type(account: str) -> AccountType:
@@ -53,14 +52,14 @@ def resolve_account_type(account: str) -> AccountType:
 @cache
 def _resolve_account_type(
     account: str,
-    overrides: tuple[tuple[str, str], ...],
+    overrides: tuple[tuple[str, AccountType], ...],
     *,
     naming: bool,
 ) -> AccountType:
     """Resolve a type against fixed config inputs."""
     override = dict(overrides).get(account) or dict(overrides).get(account.upper())
     if override is not None:
-        return AccountType(override)
+        return override
 
     if not naming:
         logger.debug("Naming convention disabled; %s is UNKNOWN", account)

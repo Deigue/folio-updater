@@ -313,7 +313,7 @@ def _stored(sources: FolioSources) -> list[Table]:
     return [
         transactions_table(sources.txns, config.txn_sheet, hidden=True),
         fx_table(sources.rates, config.fx_sheet),
-        traded_tickers_table(sources.tickers, sources.quotes, config.tkr_sheet),
+        traded_tickers_table(sources.tickers, sources.quotes, config.tickers_sheet),
     ]
 
 
@@ -322,7 +322,7 @@ def _describe(sheet: str) -> str:
     config = get_config()
     stored = {
         config.fx_sheet: "The Bank of Canada USDCAD rates behind every conversion",
-        config.tkr_sheet: "Every ticker traded, with its latest quote",
+        config.tickers_sheet: "Every ticker traded, with its latest quote",
     }
     return _DESCRIPTIONS.get(sheet) or stored.get(sheet, "")
 

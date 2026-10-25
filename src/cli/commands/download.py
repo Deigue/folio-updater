@@ -25,7 +25,7 @@ from term import (
     console_success,
     console_warning,
 )
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.views.downloads import show_activities_preview
 from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
 
@@ -112,7 +112,7 @@ def download_ibkr(
     with IBKRService() as ibkr:
         _ensure_ibkr_token(ibkr)
 
-        with ProgressDisplay.spinner(SPINNER_IBKR) as progress:
+        with spinner(SPINNER_IBKR) as progress:
             task = progress.add_task("Downloading...", total=None)
 
             if reference_code:
@@ -226,7 +226,7 @@ def download_wealthsimple(
     resolved_from_date: str = _resolve_from_date(from_date, "ws")
     ws.ensure_authenticated()
 
-    with ProgressDisplay.spinner(SPINNER_WEALTHSIMPLE) as progress:
+    with spinner(SPINNER_WEALTHSIMPLE) as progress:
         from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
             tzinfo=TORONTO_TZ,
         )
@@ -274,7 +274,7 @@ def download_ws_statement(from_date: str) -> list[Path]:
     ws = WealthsimpleService()
     ws.ensure_authenticated()
 
-    with ProgressDisplay.spinner(SPINNER_WEALTHSIMPLE) as progress:
+    with spinner(SPINNER_WEALTHSIMPLE) as progress:
         task = progress.add_task("Retrieving accounts...", total=None)
         accounts = ws.get_accounts()
 

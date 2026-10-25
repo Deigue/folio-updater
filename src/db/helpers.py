@@ -26,7 +26,7 @@ def txn_count() -> int:
 def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
     """Ensure the Txns table has all columns in txn_df, return final column order.
 
-    Arguments:
+    Args:
         txn_df: DataFrame with transaction data to be inserted into the database.
 
     Returns:

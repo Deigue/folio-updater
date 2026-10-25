@@ -23,9 +23,9 @@ SUPPORTED_CURRENCIES: tuple[Currency, ...] = (Currency.USD, Currency.CAD)
 class Action(StrEnum):
     """Transaction actions."""
 
-    BUY = "BUY"  # This represents buying a security
-    SELL = "SELL"  # This represents selling a security
-    DIVIDEND = "DIVIDEND"  # Acquired dividends from securities
+    BUY = "BUY"
+    SELL = "SELL"
+    DIVIDEND = "DIVIDEND"  # Income paid on a holding
     CONTRIBUTION = "CONTRIBUTION"  # New money into the folio, from outside it
     FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
     FXT = "FXT"  # Foreign Exchange Trades
@@ -171,14 +171,6 @@ class CheckStatus(StrEnum):
     OK = "OK"  # Nothing to report.
     WARN = "WARN"  # Probably fine, but worth seeing.
     FAIL = "FAIL"  # Wrong, and the folio should be corrected.
-
-
-class TransactionContext(StrEnum):
-    """Context for transaction display to control column visibility."""
-
-    IMPORT = "import"  # Import context: hide TxnId and SettleDate
-    SETTLEMENT = "settlement"  # Settlement context: show all columns including TxnId
-    GENERAL = "general"  # General context: show all columns
 
 
 class Table(StrEnum):

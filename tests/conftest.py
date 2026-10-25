@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 import yaml
+from rich.console import Console
 
 from app import AppContext, get_config
 from datagen import DemoFolio
@@ -22,6 +23,7 @@ from domain import TORONTO_TZ, Column, Currency
 from engine.settlement import settlement_calculator
 from services import ForexService
 from services.quotes_service import QuotesService
+from term.console import override_console
 
 from .fixtures.acb_cache import memory_acb_cache  # noqa: F401
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
@@ -54,6 +56,19 @@ def nondurable_sqlite() -> Generator[None, Any]:
         return conn
 
     with patch.object(sqlite3, "connect", connect):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def non_interactive_console() -> Generator[None, Any]:
+    """Keep every test off an interactive console, whatever pytest was given.
+
+    Rich fixes `is_interactive` when the console is built (and `TTY_INTERACTIVE`
+    can force it on), so `pytest -s` in a terminal would otherwise leave the
+    pager waiting on a keypress that never comes. Output still goes to whatever
+    `sys.stdout` is when it prints, so `capsys` and `CliRunner` keep capturing it.
+    """
+    with override_console(Console(force_terminal=False, force_interactive=False)):
         yield
 
 
@@ -440,7 +455,7 @@ def demo_from_cache(cached_demo: Path) -> Generator[None, Any]:
         for path in (
             config.db_path,
             config.txn_parquet,
-            config.tkr_parquet,
+            config.tickers_parquet,
             config.fx_parquet,
         ):
             shutil.copy2(cached_demo / path.name, path)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -13,7 +12,6 @@ if TYPE_CHECKING:
 class FieldType(Enum):
     """Supported optional field data types."""
 
-    # Existing data types we already use
     DATE = "date"
     NUMERIC = "numeric"
     CURRENCY = "currency"
@@ -21,13 +19,8 @@ class FieldType(Enum):
     STRING = "string"
 
 
-@dataclass
 class OptionalField:
     """Represents a single optional field configuration."""
-
-    name: str
-    keywords: list[str]
-    field_type: FieldType
 
     def __init__(self, name: str, keywords: list[str], field_type: FieldType) -> None:
         """Initialize an OptionalField.
@@ -48,8 +41,10 @@ class OptionalField:
         Args:
             name: Field name
             entry: Dict with 'keywords' and 'type'
+
         Returns:
             OptionalField instance
+
         Raises:
             ValueError: If type_str is not a valid FieldType
         """
@@ -77,25 +72,11 @@ class OptionalFieldsConfig:
             config_dict: Dictionary mapping resolved column names to config dicts
         """
         self._fields: dict[str, OptionalField] = {}
-        self._keyword_map: dict[str, str] = {}
         if config_dict:
             for name, entry in config_dict.items():
-                field = OptionalField.from_config_entry(name, entry)
-                self._fields[name] = field
-                for kw in field.keywords:
-                    self._keyword_map[kw] = name
+                self._fields[name] = OptionalField.from_config_entry(name, entry)
 
-    def resolve_column(self, header: str) -> str | None:  # pragma: no cover
-        """Resolve a header name to the logical column name.
-
-        Args:
-            header: The header name to resolve
-        Returns:
-            The resolved column name or None
-        """
-        return self._keyword_map.get(header.lower())
-
-    def get_all_fields(self) -> dict[str, OptionalField]:  # pragma: no cover
+    def get_all_fields(self) -> dict[str, OptionalField]:
         """Get all configured optional fields.
 
         Returns:
@@ -122,16 +103,6 @@ class OptionalFieldsConfig:
             for name, field in self._fields.items()
             if field.field_type == field_type and name in live_columns
         ]
-
-    def has_field(self, name: str) -> bool:  # pragma: no cover
-        """Check if a field is configured as optional.
-
-        Args:
-            name: The resolved column name
-        Returns:
-            True if field is configured, False otherwise
-        """
-        return name in self._fields
 
     def __len__(self) -> int:
         """Return number of configured optional fields."""

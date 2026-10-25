@@ -1,13 +1,17 @@
 """Tests for the config module."""
 
 import logging
+import os
+import time
 from decimal import Decimal
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 import yaml
 
 from app import bootstrap
+from app.logging_setup import SharedLogHandler
 from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
@@ -38,6 +42,63 @@ def test_default_config(tmp_path: Path, temp_ctx: TempContext) -> None:
         with Path.open(ctx.config.config_path) as f:
             config_yaml = yaml.safe_load(f)
             assert config_yaml == Config.DEFAULT_CONFIG
+
+
+def test_a_missing_absolute_data_folder_is_created(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+) -> None:
+    data = tmp_path / "elsewhere" / "data"
+    with temp_ctx({"data_path": str(data)}) as ctx:
+        assert ctx.config.data_path == data
+        assert data.is_dir()
+
+
+def test_a_rule_with_an_unquoted_yaml_boolean_is_ignored_with_a_warning(
+    temp_ctx: TempContext,
+) -> None:
+    """`Ticker: [ON]` is read as `[True]`, so the rule would never match."""
+    transforms = yaml.safe_load(
+        """
+rules:
+  - conditions: {Ticker: [ON]}
+    actions: {Ticker: ONSEMI}
+  - conditions: {Ticker: [MSFT]}
+    actions: {Ticker: ON}
+  - conditions: {Ticker: ["ON"]}
+    actions: {Ticker: ONSEMI}
+""",
+    )
+    with capture_output() as captured, temp_ctx(transforms=transforms) as ctx:
+        rules = ctx.config.transforms.rules
+
+    # Only the rule with both values quoted survives, rather than the boolean
+    # one being read as a ticker named `True`.
+    assert [(rule.conditions, rule.actions) for rule in rules] == [
+        ({"Ticker": ["ON"]}, {"Ticker": "ONSEMI"}),
+    ]
+    assert captured.get_text().count("holds a YAML boolean") == 2
+
+
+def test_a_log_rollover_another_process_blocks_is_skipped_quietly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows will not rename a log that another folio command holds open."""
+    log_file = tmp_path / "folio.log"
+    handler = SharedLogHandler(log_file, when="midnight", encoding="utf-8")
+
+    def held_open(*_args: object) -> NoReturn:
+        raise PermissionError
+
+    monkeypatch.setattr(os, "rename", held_open)
+    handler.rolloverAt = int(time.time()) - 1  # midnight has passed
+
+    handler.emit(logging.makeLogRecord({"msg": "still written"}))
+    handler.close()
+
+    assert handler.rolloverAt > time.time()
+    assert "still written" in log_file.read_text(encoding="utf-8")
 
 
 def test_backup_settings_are_read_from_config(temp_ctx: TempContext) -> None:
@@ -122,7 +183,7 @@ def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
             new_config: Config = bootstrap.reload_config(tmp_path)
             assert new_config.folio_path == good_folio
             assert new_config.log_level == "INFO"
-            assert new_config.tkr_sheet == "TKR"
+            assert new_config.tickers_sheet == "TKR"
             assert new_config.txn_sheet == "TXNS"
             assert new_config.header_keywords["TxnDate"] == ["settledate"]
             logger.debug("This message is colorized!")
@@ -298,6 +359,9 @@ ROOM = {"TFSA": {2025: 7000}}
     [
         pytest.param("contribution_room: {}\n", id="as-config-load-writes-it"),
         pytest.param("", id="absent"),
+        pytest.param("contribution_room: []\n", id="empty-list"),
+        pytest.param("contribution_room: false\n", id="false"),
+        pytest.param('contribution_room: ""  # fill in\n', id="empty-string"),
     ],
 )
 def test_a_missing_setting_is_written_around_the_users_comments(
@@ -315,6 +379,7 @@ def test_a_missing_setting_is_written_around_the_users_comments(
     text = config_path.read_text(encoding="utf-8")
     assert "# my folio\nlog_level: ERROR  # keep quiet\n" in text
     assert "# brokers\nbrokers: []" in text
+    assert text.count("contribution_room:") == 1
     assert Config.load(tmp_path).contribution_room == {
         AccountType.TFSA: {2025: Decimal(7000)},
     }

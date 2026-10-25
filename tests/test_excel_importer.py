@@ -587,6 +587,25 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
         assert "Row 3/3: FAILED" in caplog.text
 
 
+def test_the_table_refuses_a_currency_the_folio_does_not_support(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EUR is priced for quotes, but no write path may put it on a transaction."""
+    with temp_ctx():
+        create_txns_table()
+        rows = _valid_rows().assign(**{Column.Txn.CURRENCY: ["USD", "EUR", "USD"]})
+        monkeypatch.setattr(
+            "importers.excel_importer.prepare_transactions",
+            lambda *_args, **_kwargs: ImportResults(final_df=rows),
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            insert_transactions(rows)
+
+        assert txn_count() == 0
+
+
 def test_only_the_final_frame_gains_the_columns_the_table_has(
     temp_ctx: TempContext,
 ) -> None:

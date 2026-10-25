@@ -19,20 +19,14 @@ class AppContext:
     """AppContext manages the application's configuration through a singleton pattern.
 
     This class ensures a single, thread-safe instance of the application context,
-    providing lazy-loaded access to the configuration.
+    providing lazy-loaded access to the configuration. Get it through
+    `get_instance`, load a project root's config with `initialize`, and discard
+    the instance with `reset_singleton` (for testing only).
 
     Attributes:
         _instance: The singleton instance of AppContext.
         _lock: Thread lock for safe lazy initialization in multi-threaded environments.
-
-    Properties:
-        config: Returns the Config instance, loading it if necessary.
-
-    Methods:
-        __init__: Private constructor to prevent direct instantiation.
-        get_instance: Class method to get the singleton instance.
-        initialize: Initializes the context with a specific project root.
-        reset: Resets the context for testing by clearing cached config.
+        config: The Config instance, loading it if necessary.
     """
 
     _instance: AppContext | None = None

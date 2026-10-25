@@ -55,13 +55,13 @@ def test_data_creation(temp_ctx: TempContext) -> None:
 
         ensure_data_exists()
         assert config.txn_parquet.exists()
-        assert config.tkr_parquet.exists()
+        assert config.tickers_parquet.exists()
         # * forex is tested separately
 
         # The exported files mirror the database, whatever the demo holds.
         with get_connection() as conn:
             stored_tickers = get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER)
-        tickers_df = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
+        tickers_df = pd.read_parquet(config.tickers_parquet, engine="fastparquet")
         assert set(tickers_df.columns) == {Column.Ticker.TICKER}
         assert set(tickers_df[Column.Ticker.TICKER]) == stored_tickers
 

@@ -24,7 +24,7 @@ from urllib3.util.retry import Retry
 from app import get_config
 from domain import TORONTO_TZ
 from term import announce
-from term.progress import ProgressDisplay
+from term.progress import spinner
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -343,7 +343,7 @@ class IBKRService:
         Raises:
             IBKRTimeoutError: If statement is not ready after max attempts
         """
-        with ProgressDisplay.spinner("dark_orange3") as progress:
+        with spinner("dark_orange3") as progress:
             task = progress.add_task("Requesting statement...", total=None)
             if isinstance(request, str):
                 reference_code = request

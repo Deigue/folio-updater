@@ -22,7 +22,7 @@ from term import (
     console_success,
     console_warning,
 )
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.views.imports import show_files_summary, show_import_audit, show_import_summary
 from ui.vocabulary import SPINNER_IMPORT
 
@@ -109,7 +109,7 @@ def import_file(
     Returns:
         The file's results, or the error that stopped it.
     """
-    with ProgressDisplay.spinner(SPINNER_IMPORT) as progress:
+    with spinner(SPINNER_IMPORT) as progress:
         progress.add_task(f"Importing {file_path.name}...", total=None)
 
         try:

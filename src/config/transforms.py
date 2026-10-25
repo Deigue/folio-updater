@@ -5,6 +5,29 @@ from __future__ import annotations
 from typing import Any
 
 from domain import Column
+from term import console_warning
+
+
+def _refuse_boolean(field: str) -> dict[str, Any]:
+    """Warn that a rule field holds a YAML boolean, and give back no fields.
+
+    YAML reads an unquoted `ON`, `OFF`, `YES`, `NO`, `TRUE` or `FALSE` as a
+    boolean, so a ticker such as ON would match, or be written as, `True`. A
+    rule cannot lose the one field and still mean what was written, so the
+    caller drops the whole rule.
+
+    Args:
+        field: The rule field that held the boolean.
+
+    Returns:
+        An empty mapping, which every caller treats as an unusable rule.
+    """
+    console_warning(
+        f"transforms: ignoring a rule, because {field} holds a YAML boolean "
+        "(an unquoted ON, OFF, YES, NO, TRUE or FALSE). Quote the value "
+        '(for example "ON") to keep it as text.',
+    )
+    return {}
 
 
 class TransformRule:
@@ -284,6 +307,9 @@ class TransformsConfig:
             else:  # pragma: no cover
                 continue
 
+            if any(isinstance(v, bool) for v in values_list):
+                return _refuse_boolean(field)
+
             # Convert all values to strings (for consistent comparison)
             string_values = [
                 str(v) for v in values_list if isinstance(v, (str, int, float))
@@ -308,11 +334,13 @@ class TransformsConfig:
             if not isinstance(field, str):  # pragma: no cover
                 continue
 
+            if isinstance(value, bool):
+                return _refuse_boolean(field)
             if value is None:  # pragma: no cover
                 processed[field] = ""
             elif isinstance(value, (str, int, float)):
                 # Convert all values to strings for consistent storage
-                processed[field] = str(value) if value != "" else ""
+                processed[field] = str(value)
             # Skip invalid action values (dict, list, etc.)
 
         return processed
@@ -321,39 +349,6 @@ class TransformsConfig:
         """Return True if any rule, merge group or cancellation is configured."""
         return bool(self.rules or self.merge_groups or self.cancellations)
 
-    def __len__(self) -> int:
-        """Return the number of transformation rules."""
-        return len(self.rules)
-
     def __repr__(self) -> str:
         """Return string representation of the configuration."""
         return f"TransformsConfig(rules={self.rules})"
-
-    def __str__(self) -> str:
-        """Return a pretty-printed string representation of the configuration."""
-        if not self.rules and not self.merge_groups:
-            return "TransformsConfig(no rules or merge groups configured)"
-
-        result = ""
-
-        if self.rules:
-            result += f"TransformsConfig({len(self.rules)} rule(s)):\n"
-            for i, rule in enumerate(self.rules, 1):
-                result += f"    Rule {i}:\n"
-                result += f"      Conditions: {rule.conditions}\n"
-                result += f"      Actions: {rule.actions}\n"
-
-        if self.merge_groups:
-            if result:
-                result += "\n"
-            result += f"MergeGroups({len(self.merge_groups)} group(s)):\n"
-            for i, group in enumerate(self.merge_groups, 1):
-                result += f"    Group {i} - {group.name}:\n"
-                result += f"      Match Fields: {group.match_fields}\n"
-                result += f"      Source Actions: {group.source_actions}\n"
-                result += f"      Target Action: {group.target_action}\n"
-                result += f"      Amount Field: {group.amount_field}\n"
-                if group.operations:
-                    result += f"      Operations: {group.operations}\n"
-
-        return result.rstrip()  # Remove trailing newline

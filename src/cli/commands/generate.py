@@ -17,7 +17,7 @@ import typer
 
 from app import bootstrap, get_config
 from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
-from db.backup import rolling_backup
+from db.backup import backup_file
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, FolioValuation
 from engine.performance import fetch_moves
@@ -31,7 +31,7 @@ from exporters.folio_workbook import (
 )
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_success, console_warning
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.format import freshness_note
 from ui.vocabulary import SPINNER_GENERATE
 
@@ -104,7 +104,7 @@ def write_folio(
 
     # Pricing the folio asks the quote provider over the network, which can
     # take a few seconds with nothing else on screen.
-    with ProgressDisplay.spinner(SPINNER_GENERATE) as progress:
+    with spinner(SPINNER_GENERATE) as progress:
         task = progress.add_task(
             "Reading cached quotes..." if offline else "Fetching quotes...",
             total=None,
@@ -156,10 +156,10 @@ def _write(target: Path | None, tables: Sequence[Table]) -> Path:
     """
     config = get_config()
     path = target or config.folio_path
-    with ProgressDisplay.spinner(SPINNER_GENERATE) as progress:
+    with spinner(SPINNER_GENERATE) as progress:
         progress.add_task("Writing the workbook...", total=None)
         if path == config.folio_path and path.exists():
-            rolling_backup(path)
+            backup_file(path)
         written = write_or_exit(path, tables)
 
     console_success(f"Wrote {len(tables)} sheets to {written}")

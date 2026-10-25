@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import os
+from typing import TYPE_CHECKING, NoReturn
 
 from openpyxl import load_workbook
 
 from cli.main import app
 from db import drop_table, get_columns, get_connection, get_row_count
+from db.backup import backup_file
 from domain import Table
+from engine.ledger import LedgerUnavailableError
 from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
 
@@ -17,6 +20,8 @@ from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    import pytest
 
     from app.app_context import AppContext
 
@@ -182,6 +187,29 @@ def test_generating_over_the_folio_keeps_a_backup_of_the_last_one(
         assert len(kept) == 1
 
 
+def test_rotation_keeps_the_newest_backups_by_name_not_by_modified_time(
+    temp_ctx: TempContext,
+) -> None:
+    """A folio restored by hand has an old modified time, yet its backup is newest."""
+    backup = {"enabled": True, "path": "backups", "max_backups": 2}
+    with temp_ctx(backup=backup) as ctx:
+        config = ctx.config
+        config.folio_path.parent.mkdir(parents=True, exist_ok=True)
+        config.folio_path.write_bytes(b"restored")
+        os.utime(config.folio_path, (0, 0))
+        kept_dir = config.backup_path / "folio_xlsx"
+        kept_dir.mkdir(parents=True)
+        for stamp in ("20200101_000000", "20200102_000000"):
+            (kept_dir / f"folio_{stamp}.xlsx").write_bytes(b"earlier")
+
+        backup_file(config.folio_path)
+
+        names = sorted(path.name for path in kept_dir.glob("*.xlsx"))
+        assert len(names) == 2
+        assert names[0] == "folio_20200102_000000.xlsx"
+        assert names[1] > names[0]  # the backup just taken
+
+
 def test_only_refuses_a_section_that_does_not_exist(
     temp_ctx: TempContext,
     tmp_path: Path,
@@ -220,24 +248,21 @@ def test_sheet_names_differing_only_in_case_are_told_apart() -> None:
 def test_an_unreplayable_folio_still_writes_its_stored_sheets(
     temp_ctx: TempContext,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`generate` wrote the transactions before it could value anything.
 
     A folio the engine cannot replay must not lose that: it gets the stored
     sheets, and a warning saying why the rest are missing.
     """
+
+    def unreplayable(**_kwargs: object) -> NoReturn:
+        msg = "FX rates are empty, so USD cannot be converted."
+        raise LedgerUnavailableError(msg)
+
     with temp_ctx() as ctx:
         _seed_folio()
-        # Written straight to the table, the way a folio from before the
-        # currency gate might hold it: the engine converts USD and CAD only.
-        seed_transaction(
-            account="WS-PERSONAL",
-            ticker="EUROTKR",
-            currency="EUR",
-            amount="-500",
-            price="50",
-            units="10",
-        )
+        monkeypatch.setattr("cli.commands.generate.open_ledger", unreplayable)
         target = tmp_path / "folio.xlsx"
 
         result = _generate(ctx, target)

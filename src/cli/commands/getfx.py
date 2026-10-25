@@ -10,7 +10,7 @@ import typer
 from app import bootstrap
 from exporters import ParquetExporter
 from term import console_error, console_success, console_warning
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.vocabulary import SPINNER_FX
 
 
@@ -20,7 +20,7 @@ def update_fx_rates() -> None:
 
     try:
         exporter = ParquetExporter()
-        with ProgressDisplay.spinner(SPINNER_FX) as progress:
+        with spinner(SPINNER_FX) as progress:
             progress.add_task("Updating FX rates...", total=None)
             result = exporter.export_forex()
 

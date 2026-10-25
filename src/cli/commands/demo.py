@@ -11,7 +11,7 @@ from app import bootstrap
 from cli.commands.generate import write_folio
 from datagen import ensure_data_exists
 from term import console_error, console_info, console_success
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.vocabulary import SPINNER_DEMO
 
 
@@ -24,7 +24,7 @@ def create_folio() -> None:
     bootstrap.reload_config()
 
     try:
-        with ProgressDisplay.spinner(SPINNER_DEMO) as progress:
+        with spinner(SPINNER_DEMO) as progress:
             progress.add_task("Building the demo folio...", total=None)
             created = ensure_data_exists()
     except (OSError, ValueError, KeyError) as e:

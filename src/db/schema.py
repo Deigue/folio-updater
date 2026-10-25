@@ -20,7 +20,15 @@ from db.queries import (
     get_triggers,
     refresh_change_token,
 )
-from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
+from domain import (
+    SUPPORTED_CURRENCIES,
+    Action,
+    Column,
+    Currency,
+    PriceRange,
+    QuoteStatus,
+    Table,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +91,7 @@ TXN_COLUMN_DEFINITIONS = [
         "TEXT",
         (
             f'CHECK("{Column.Txn.CURRENCY}" IN '
-            f"({', '.join(repr(str(c)) for c in Currency)}))"
+            f"({', '.join(repr(str(c)) for c in SUPPORTED_CURRENCIES)}))"
         ),
     ),
     ColumnDefinition(Column.Txn.PRICE, NUMERIC_PRECISION),
@@ -244,14 +252,10 @@ def create_txns_table() -> None:
     approved duplicate transactions while maintaining application-level
     duplicate detection on TXN_ESSENTIALS.
 
-    Returns:
-        None
-
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
-    columns_def = [col_def.to_sql() for col_def in TXN_COLUMN_DEFINITIONS]
-    _create_table(Table.TXNS, columns_def)
+    _create_table(Table.TXNS, TXN_COLUMN_DEFINITIONS)
     _watch(Table.TXNS)
 
 
@@ -260,14 +264,10 @@ def create_fx_table() -> None:
 
     The table uses Date as the PRIMARY KEY to ensure uniqueness per date.
 
-    Returns:
-        None
-
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
-    columns_def = [col_def.to_sql() for col_def in FX_COLUMN_DEFINITIONS]
-    _create_table(Table.FX, columns_def)
+    _create_table(Table.FX, FX_COLUMN_DEFINITIONS)
 
 
 def create_ticker_aliases_table() -> None:
@@ -276,14 +276,10 @@ def create_ticker_aliases_table() -> None:
     The table uses OldTicker as the PRIMARY KEY to ensure a ticker can only be
     renamed once.
 
-    Returns:
-        None
-
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
-    columns_def = [col_def.to_sql() for col_def in ALIASES_COLUMN_DEFINITIONS]
-    _create_table(Table.TICKER_ALIASES, columns_def)
+    _create_table(Table.TICKER_ALIASES, ALIASES_COLUMN_DEFINITIONS)
     _watch(Table.TICKER_ALIASES)
 
 
@@ -311,13 +307,9 @@ def create_quote_history_table() -> None:
     points of its chart. A refresh replaces a symbol's rows rather than
     appending.
 
-    Returns:
-        None
-
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
     """
-    columns_def = [col_def.to_sql() for col_def in QUOTE_HISTORY_COLUMN_DEFINITIONS]
     key = ", ".join(
         f'"{column}"'
         for column in (
@@ -326,7 +318,11 @@ def create_quote_history_table() -> None:
             Column.QuoteHistory.SEQ,
         )
     )
-    _create_table(Table.QUOTE_HISTORY, [*columns_def, f"PRIMARY KEY ({key})"])
+    _create_table(
+        Table.QUOTE_HISTORY,
+        QUOTE_HISTORY_COLUMN_DEFINITIONS,
+        f"PRIMARY KEY ({key})",
+    )
 
 
 def create_quotes_table() -> None:
@@ -334,9 +330,6 @@ def create_quotes_table() -> None:
 
     The table uses the folio's own canonical Symbol as the PRIMARY KEY and holds
     one latest quote per symbol, so a refresh replaces rather than appends.
-
-    Returns:
-        None
 
     Raises:
         DatabaseError: If there's an issue with database connection or SQL execution
@@ -352,8 +345,7 @@ def create_quotes_table() -> None:
         with get_connection() as conn:
             drop_table(conn, Table.QUOTES)
 
-    columns_def = [col_def.to_sql() for col_def in QUOTES_COLUMN_DEFINITIONS]
-    _create_table(Table.QUOTES, columns_def)
+    _create_table(Table.QUOTES, QUOTES_COLUMN_DEFINITIONS)
 
 
 def ensure_change_tokens() -> None:
@@ -385,8 +377,7 @@ def _watch(table: Table) -> None:
         if watched and table in get_revisions(conn):
             return
 
-    columns_def = [col_def.to_sql() for col_def in REVISIONS_COLUMN_DEFINITIONS]
-    _create_table(Table.REVISIONS, columns_def)
+    _create_table(Table.REVISIONS, REVISIONS_COLUMN_DEFINITIONS)
     with get_connection() as conn:
         for event, name in names.items():
             conn.execute(
@@ -397,11 +388,16 @@ def _watch(table: Table) -> None:
     logger.debug("WATCH table '%s' for changes", table)
 
 
-def _create_table(table_name: str, columns_def: list[str]) -> None:
-    """Create a table with the given name and column definitions."""
+def _create_table(
+    table_name: str,
+    columns: list[ColumnDefinition],
+    *table_constraints: str,
+) -> None:
+    """Create a table with the given name, columns and table-level constraints."""
+    definitions = [column.to_sql() for column in columns] + list(table_constraints)
     sql = f"""
     CREATE TABLE IF NOT EXISTS "{table_name}" (
-        {", ".join(columns_def)}
+        {", ".join(definitions)}
     )
     """
     try:

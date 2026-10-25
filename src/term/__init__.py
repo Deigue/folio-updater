@@ -6,6 +6,7 @@ at the top and may not be imported by anything below it.
 """
 
 from term.console import (
+    StatusMark,
     console_error,
     console_info,
     console_panel,
@@ -18,6 +19,7 @@ from term.console import (
 )
 
 __all__ = [
+    "StatusMark",
     "console_error",
     "console_info",
     "console_panel",

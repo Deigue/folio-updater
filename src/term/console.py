@@ -6,13 +6,14 @@ Examples:
     console_success("Import completed successfully")
     console_error("Configuration file not found")
     console_info("Processing 150 transactions...")
-    console_warning("Some settlements dates are calculated")
+    console_warning("Some settlement dates are calculated")
 """
 
 from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
@@ -46,11 +47,21 @@ def _supports_unicode() -> bool:
 
 _UNICODE_SUPPORTED = _supports_unicode()
 
+
+class StatusMark(StrEnum):
+    """The status marks a line can open with."""
+
+    SUCCESS = "success"
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
+
+
 _SYMBOLS = {
-    "success": "✅ " if _UNICODE_SUPPORTED else "[OK] ",
-    "error": "❌ " if _UNICODE_SUPPORTED else "[ERROR] ",
-    "warning": "⚠  " if _UNICODE_SUPPORTED else "[WARN] ",
-    "info": "ℹ  " if _UNICODE_SUPPORTED else "[INFO] ",
+    StatusMark.SUCCESS: "✅ " if _UNICODE_SUPPORTED else "[OK] ",
+    StatusMark.ERROR: "❌ " if _UNICODE_SUPPORTED else "[ERROR] ",
+    StatusMark.WARNING: "⚠  " if _UNICODE_SUPPORTED else "[WARN] ",
+    StatusMark.INFO: "ℹ  " if _UNICODE_SUPPORTED else "[INFO] ",
 }
 
 # The default console. Callers reach it through `active_console()`
@@ -104,7 +115,7 @@ def console_success(message: str) -> None:
     Args:
         message: Success message to display to user
     """
-    symbol = _SYMBOLS["success"]
+    symbol = _SYMBOLS[StatusMark.SUCCESS]
     active_console().print(f"{symbol}[green]{message}[/green]")
 
 
@@ -114,7 +125,7 @@ def console_error(message: str) -> None:
     Args:
         message: Error message to display to user
     """
-    symbol = _SYMBOLS["error"]
+    symbol = _SYMBOLS[StatusMark.ERROR]
     active_console().print(f"{symbol}[red]{message}[/red]")
 
 
@@ -124,7 +135,7 @@ def console_warning(message: str) -> None:
     Args:
         message: Warning message to display to user
     """
-    symbol = _SYMBOLS["warning"]
+    symbol = _SYMBOLS[StatusMark.WARNING]
     active_console().print(f"{symbol}[yellow]{message}[/yellow]")
 
 
@@ -134,7 +145,7 @@ def console_info(message: str) -> None:
     Args:
         message: Info message to display to user
     """
-    symbol = _SYMBOLS["info"]
+    symbol = _SYMBOLS[StatusMark.INFO]
     active_console().print(f"{symbol}[cyan]{message}[/cyan]")
 
 
@@ -148,16 +159,16 @@ def supports_unicode() -> bool:
     return _UNICODE_SUPPORTED
 
 
-def get_symbol(symbol_type: str) -> str:
-    """Get a Unicode-safe symbol for the given type.
+def get_symbol(mark: StatusMark) -> str:
+    """Get a Unicode-safe symbol for the given mark.
 
     Args:
-        symbol_type: One of 'success', 'error', 'warning', 'info'
+        mark: Which status mark to get.
 
     Returns:
         Unicode symbol if supported, ASCII fallback otherwise
     """
-    return _SYMBOLS.get(symbol_type, "[?]")
+    return _SYMBOLS[mark]
 
 
 def console_print(message: Any, style: str = "") -> None:
@@ -168,7 +179,8 @@ def console_print(message: Any, style: str = "") -> None:
 
     Args:
         message: Message to display
-        style: Optional Rich markup style (e.g., "[bold]", "[red]", "[dim]")
+        style: Optional Rich style name (e.g., "bold", "red", "dim"). The
+            brackets are added here.
     """
     out_console = active_console()
     if style:

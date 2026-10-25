@@ -20,59 +20,67 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-class ProgressDisplay:
-    """Rich progress indicators for long-running operations."""
+@contextmanager
+def _live(progress: Progress) -> Generator[Progress]:
+    """Run `progress` with console output routed through it.
 
-    @staticmethod
-    @contextmanager
-    def spinner(
-        color: str = "white",
-        *,
-        transient: bool = True,
-    ) -> Generator[Progress]:
-        """Create a spinner progress indicator.
+    Messages printed meanwhile go through the progress console rather than
+    fighting it for the terminal.
 
-        Args:
-            color: Color for the spinner and text (e.g., 'blue', 'green', 'red')
-            transient: Whether to remove the progress when complete
+    Yields:
+        The running progress.
+    """
+    with progress, override_console(progress.console):
+        yield progress
 
-        Returns:
-            Progress instance configured with a spinner
-        """
-        progress = Progress(
-            SpinnerColumn(style=color),
-            TextColumn(f"[{color}]{{task.description}}[/{color}]"),
-            console=active_console(),
-            transient=transient,
-        )
 
-        with progress, override_console(progress.console):
-            yield progress
+@contextmanager
+def spinner(
+    color: str = "white",
+    *,
+    transient: bool = True,
+) -> Generator[Progress]:
+    """Create a spinner progress indicator.
 
-    @staticmethod
-    @contextmanager
-    def bar(
-        color: str = "white",
-        *,
-        transient: bool = False,
-    ) -> Generator[Progress]:
-        """Create a bar progress display.
+    Args:
+        color: Color for the spinner and text (e.g., 'blue', 'green', 'red')
+        transient: Whether to remove the progress when complete
 
-        Args:
-            color: Color for the progress bar.
-            transient: Whether to remove the progress when complete.
+    Yields:
+        Progress instance configured with a spinner.
+    """
+    progress = Progress(
+        SpinnerColumn(style=color),
+        TextColumn(f"[{color}]{{task.description}}[/{color}]"),
+        console=active_console(),
+        transient=transient,
+    )
+    with _live(progress):
+        yield progress
 
-        Yields:
-            Progress instance configured with a progress bar.
-        """
-        progress = Progress(
-            TextColumn(f"[{color}]{{task.description}}[/{color}]"),
-            BarColumn(complete_style=color),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-            console=active_console(),
-            transient=transient,
-        )
 
-        with progress, override_console(progress.console):
-            yield progress
+@contextmanager
+def bar(
+    color: str = "white",
+    *,
+    transient: bool = False,
+) -> Generator[Progress]:
+    """Create a bar progress display.
+
+    Args:
+        color: Color for the progress bar.
+        transient: Whether to remove the progress when complete.
+
+    Yields:
+        Progress instance configured with a progress bar.
+    """
+    progress = Progress(
+        TextColumn(f"[{color}]{{task.description}}[/{color}]"),
+        BarColumn(complete_style=color),
+        TaskProgressColumn(),
+        TimeRemainingColumn(),
+        console=active_console(),
+        transient=transient,
+    )
+    with _live(progress):
+        yield progress

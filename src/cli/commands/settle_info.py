@@ -15,7 +15,7 @@ import typer
 from app import bootstrap, get_config
 from datagen import is_demo_folio
 from db import get_connection, get_row_count, get_rows
-from domain import Column, Table, TransactionContext
+from domain import Column, Table
 from exporters import ParquetExporter
 from importers import import_statements
 from term import (
@@ -25,7 +25,7 @@ from term import (
     console_success,
     console_warning,
 )
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.transaction_table import page_transactions
 from ui.views.imports import (
     show_import_audit,
@@ -33,7 +33,7 @@ from ui.views.imports import (
     show_settlement_detail,
     show_statements_summary,
 )
-from ui.vocabulary import RULE_STATEMENT, SPINNER_STATEMENT
+from ui.vocabulary import RULE_STATEMENT, SPINNER_STATEMENT, TransactionContext
 from ui.widgets import show_stats_panel
 
 if TYPE_CHECKING:
@@ -100,7 +100,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
         r.settlement_updates > 0 or r.transfers_created() > 0 for r in results
     )
     if changed:
-        with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
+        with spinner(color=SPINNER_STATEMENT) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             parquet_exporter = ParquetExporter()
             parquet_exporter.export_all()
@@ -122,7 +122,7 @@ def import_single_statement(
     Returns:
         What the statement changed.
     """
-    with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
+    with spinner(color=SPINNER_STATEMENT) as progress:
         progress.add_task(f"Importing {statement_path.name}...", total=None)
         result = import_statements(statement_path)
 

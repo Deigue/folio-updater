@@ -24,7 +24,7 @@ try:
             return ""
 
 except ImportError:
-    # Unix/Linux/Mac - fallback to regular input for now
+    # Unix, Linux and Mac: fall back to regular input for now
     def getch() -> str:
         """Get input (fallback for non-Windows systems)."""
         return input().strip().lower()

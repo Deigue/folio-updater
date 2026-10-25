@@ -9,6 +9,7 @@ from rich.markup import escape
 
 from domain import CheckStatus
 from term import (
+    StatusMark,
     console_error,
     console_print,
     console_success,
@@ -23,10 +24,10 @@ if TYPE_CHECKING:
 _HEADING_WIDTH = 23
 _MIN_WRAP = 40
 
-_STYLES: dict[CheckStatus, tuple[str, str]] = {
-    CheckStatus.OK: ("success", "green"),
-    CheckStatus.WARN: ("warning", "yellow"),
-    CheckStatus.FAIL: ("error", "red"),
+_STYLES: dict[CheckStatus, tuple[StatusMark, str]] = {
+    CheckStatus.OK: (StatusMark.SUCCESS, "green"),
+    CheckStatus.WARN: (StatusMark.WARNING, "yellow"),
+    CheckStatus.FAIL: (StatusMark.ERROR, "red"),
 }
 
 

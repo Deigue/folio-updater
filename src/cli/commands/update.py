@@ -50,7 +50,7 @@ from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
 from services import IBKRServiceError, WealthsimpleServiceError
 from term import console_info, console_rule
-from term.progress import ProgressDisplay
+from term.progress import spinner
 from ui.views.checks import print_report
 from ui.views.update import show_update_report, show_workbook_link
 from ui.vocabulary import RULE_UPDATE, SPINNER_STATEMENT
@@ -456,7 +456,7 @@ def _statement_stage(
             changed |= result.settlement_updates > 0 or result.transfers_created() > 0
 
     if changed:
-        with ProgressDisplay.spinner(color=SPINNER_STATEMENT) as progress:
+        with spinner(color=SPINNER_STATEMENT) as progress:
             progress.add_task("Exporting to Parquet...", total=None)
             ParquetExporter().export_all()
 

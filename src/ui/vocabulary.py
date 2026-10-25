@@ -4,8 +4,18 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal
+from enum import StrEnum
 
 from domain import AccountType, Action, Column, Currency
+
+
+class TransactionContext(StrEnum):
+    """Which columns a transaction table shows, by where it is drawn."""
+
+    IMPORT = "import"  # Hide TxnId and SettleDate
+    SETTLEMENT = "settlement"  # Show every column, TxnId included
+    GENERAL = "general"  # Show every column
+
 
 # --- Panel border themes -----------------------------------------------------
 

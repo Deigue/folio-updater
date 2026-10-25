@@ -21,7 +21,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 @contextmanager
 def get_connection() -> Generator[sqlite3.Connection]:
-    """Return sqlite3.Connection. Ensure parent data folder exists."""
+    """Open the folio's SQLite file, closing it on exit."""
     db_path = get_config().db_path
     try:
         conn: sqlite3.Connection = sqlite3.connect(db_path)

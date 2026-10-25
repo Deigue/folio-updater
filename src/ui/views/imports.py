@@ -16,9 +16,9 @@ from domain import (
     Action,
     Column,
     SettlementOutcome,
-    TransactionContext,
 )
 from term.console import (
+    StatusMark,
     active_console,
     console_panel,
     console_print,
@@ -26,8 +26,8 @@ from term.console import (
     get_symbol,
 )
 from term.keys import getch
-from term.size import available_height
 from ui.format import safe_str
+from ui.layout.paging import available_height
 from ui.layout.tiles import Block, TilingLayout
 from ui.transaction_table import build_transactions_table, page_transactions
 from ui.vocabulary import (
@@ -44,6 +44,7 @@ from ui.vocabulary import (
     THEME_SUCCESS,
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
+    TransactionContext,
 )
 from ui.widgets import show_data_table
 
@@ -81,11 +82,11 @@ def show_import_summary(
     success = imported_count > 0
 
     if success:
-        icon = get_symbol("success")
+        icon = get_symbol(StatusMark.SUCCESS)
         color = "green"
         status = "SUCCESS"
     else:
-        icon = get_symbol("warning")
+        icon = get_symbol(StatusMark.WARNING)
         color = "yellow"
         status = "NO DATA"
 
@@ -157,10 +158,10 @@ def show_statements_summary(
 def _statement_status(result: StatementImportResult) -> str:
     """Label one statement's row in the summary table, symbol included."""
     if result.settlement_updates > 0 or result.transfers_created() > 0:
-        return f"{get_symbol('success')}Success"
+        return f"{get_symbol(StatusMark.SUCCESS)}Success"
     if result.settlement_already_settled() and not result.settlement_unplaced():
-        return f"{get_symbol('info')}Up to date"
-    return f"{get_symbol('warning')}No updates"
+        return f"{get_symbol(StatusMark.INFO)}Up to date"
+    return f"{get_symbol(StatusMark.WARNING)}No updates"
 
 
 def show_settlement_detail(
@@ -222,12 +223,20 @@ def _settlement_result_label(match: SettlementMatch) -> str:
         Markup for the Result cell.
     """
     if match.outcome is SettlementOutcome.MATCHED:
-        return f"{get_symbol('success')}[{THEME_SUCCESS}]matched[/{THEME_SUCCESS}]"
+        return (
+            f"{get_symbol(StatusMark.SUCCESS)}"
+            f"[{THEME_SUCCESS}]matched[/{THEME_SUCCESS}]"
+        )
     if match.outcome is SettlementOutcome.ALREADY_SETTLED:
-        return f"{get_symbol('info')}[dim]settled[/dim]"
+        return f"{get_symbol(StatusMark.INFO)}[dim]settled[/dim]"
     if match.outcome is SettlementOutcome.AMBIGUOUS:
-        return f"{get_symbol('warning')}[yellow]ambiguous ({match.candidates})[/yellow]"
-    return f"{get_symbol('warning')}[{THEME_REMOVED}]no match[/{THEME_REMOVED}]"
+        return (
+            f"{get_symbol(StatusMark.WARNING)}"
+            f"[yellow]ambiguous ({match.candidates})[/yellow]"
+        )
+    return (
+        f"{get_symbol(StatusMark.WARNING)}[{THEME_REMOVED}]no match[/{THEME_REMOVED}]"
+    )
 
 
 def show_import_audit(

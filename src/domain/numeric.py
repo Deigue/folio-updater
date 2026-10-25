@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import math
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 ZERO = Decimal(0)
 ONE = Decimal(1)
 
-# Quantisation exponents.
+# One cent, the exponent money is quantised to.
 _Q2 = Decimal("0.01")
-_Q4 = Decimal("0.0001")
-_Q6 = Decimal("0.000001")
 
 
 def dec(value: object) -> Decimal:
@@ -55,18 +53,8 @@ def _from_text(text: str) -> Decimal:
 
 
 def q2(value: Decimal) -> Decimal:
-    """Quantise to 2 decimal places, the display precision for money."""
-    return value.quantize(_Q2)
-
-
-def q4(value: Decimal) -> Decimal:
-    """Quantise to 4 decimal places, the display precision for average cost."""
-    return value.quantize(_Q4)
-
-
-def q6(value: Decimal) -> Decimal:
-    """Quantise to 6 decimal places, the display precision for units."""
-    return value.quantize(_Q6)
+    """Round money to the cent, a half cent going up as brokers and CRA forms do."""
+    return value.quantize(_Q2, rounding=ROUND_HALF_UP)
 
 
 def safe_div(numerator: Decimal, denominator: Decimal) -> Decimal:

@@ -24,11 +24,8 @@ logger = logging.getLogger(__name__)
 _scope: ContextVar[bool | None] = ContextVar("backup_scope", default=None)
 
 
-def rolling_backup(
-    file_path: Path,
-    max_backups: int | None = None,
-) -> None:
-    """Create rolling backups of a file.
+def backup_file(file_path: Path, max_backups: int | None = None) -> None:
+    """Copy a file into its rolling backups.
 
     Args:
         file_path: Path to the file to backup
@@ -38,58 +35,93 @@ def rolling_backup(
         FileNotFoundError: If the source file doesn't exist
         PermissionError: If unable to create backup files
     """
+    slot = _backup_slot(file_path, max_backups)
+    if slot is None:
+        return
+    subdir, timestamp, keep = slot
+
+    backup_path = subdir / f"{file_path.stem}_{timestamp}{file_path.suffix}"
+    shutil.copy2(file_path, backup_path)
+    msg = f"Backup created: {file_path} -> {backup_path}"
+    logger.debug(msg)
+    _rotate(subdir, file_path.stem, file_path.suffix, keep)
+
+
+def backup_database(max_backups: int | None = None) -> None:
+    """Copy the folio database into its rolling backups.
+
+    Each backup is named with the number of transactions it holds.
+
+    Args:
+        max_backups: Number of backup files to keep. If None, uses config setting.
+
+    Raises:
+        FileNotFoundError: If the database doesn't exist
+        sqlite3.Error: If SQLite cannot make the copy
+    """
+    db_path = get_config().db_path
+    slot = _backup_slot(db_path, max_backups)
+    if slot is None:
+        return
+    subdir, timestamp, keep = slot
+
+    backup_path = (
+        subdir / f"{db_path.stem}_{timestamp}_{get_txn_count()}{db_path.suffix}"
+    )
+    try:
+        # A connection used as a context manager only commits; it is never
+        # closed. On Windows that leaves both files locked until the
+        # connection is collected, so close them explicitly.
+        with (
+            closing(sqlite3.connect(db_path)) as source,
+            closing(sqlite3.connect(backup_path)) as backup,
+        ):
+            source.backup(backup)
+            logger.debug("SQLite backup completed: %s -> %s", db_path, backup_path)
+    except sqlite3.Error:
+        logger.exception("SQLite backup failed: %s", db_path)
+        raise
+    _rotate(subdir, db_path.stem, db_path.suffix, keep)
+
+
+def _backup_slot(
+    file_path: Path,
+    max_backups: int | None,
+) -> tuple[Path, str, int] | None:
+    """Work out where a backup of `file_path` goes, or None when backups are off.
+
+    Returns:
+        The file's backup folder (created), the timestamp to name this backup
+        with, and how many backups to keep.
+    """
     config = get_config()
     if not config.backup_enabled:
         logger.debug("Backups are disabled, skipping backup for: %s", file_path)
-        return
+        return None
 
     if not file_path.exists():
         raise FileNotFoundError
 
-    if max_backups is None:
-        max_backups = config.max_backups
-
-    backup_dir = config.backup_path
-    file_name = file_path.name
-    file_stem = file_path.stem
-    subdir = backup_dir / file_name.replace(".", "_")
+    subdir = config.backup_path / file_path.name.replace(".", "_")
     subdir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(TORONTO_TZ).strftime("%Y%m%d_%H%M%S")
+    keep = config.max_backups if max_backups is None else max_backups
+    return subdir, timestamp, keep
 
-    if file_path == config.db_path:
-        txn_count = get_txn_count()
-        backup_path = subdir / f"{file_stem}_{timestamp}_{txn_count}{file_path.suffix}"
 
-        try:
-            # A connection used as a context manager only commits; it is never
-            # closed. On Windows that leaves both files locked until the
-            # connection is collected, so close them explicitly.
-            with (
-                closing(sqlite3.connect(file_path)) as source,
-                closing(sqlite3.connect(backup_path)) as backup,
-            ):
-                source.backup(backup)
-                logger.debug(
-                    "SQLite backup completed: %s -> %s",
-                    file_path,
-                    backup_path,
-                )
-        except sqlite3.Error:
-            logger.exception("SQLite backup failed: %s", file_path)
-            raise
-    else:
-        backup_path = subdir / f"{file_stem}_{timestamp}{file_path.suffix}"
-        shutil.copy2(file_path, backup_path)
-        msg = f"Backup created: {file_path} -> {backup_path}"
-        logger.debug(msg)
+def _rotate(subdir: Path, stem: str, suffix: str, keep: int) -> None:
+    """Delete all but the newest `keep` backups of a file.
 
-    # Rotate backups
+    Newest is by the timestamp in the name. A file's modified time is its
+    source's (`copy2` keeps it), so a workbook restored by hand would sort as the
+    oldest and be the first one deleted.
+    """
     backups = sorted(
-        subdir.glob(f"{file_path.stem}_*{file_path.suffix}"),
-        key=lambda f: f.stat().st_mtime,
+        subdir.glob(f"{stem}_*{suffix}"),
+        key=lambda f: f.name,
         reverse=True,
     )
-    for old_backup in backups[max_backups:]:
+    for old_backup in backups[keep:]:
         logger.debug("Removing old backup: %s", old_backup)
         old_backup.unlink()
 
@@ -126,4 +158,4 @@ def backup_folio() -> None:
     if _scope.get() is not None:
         _scope.set(True)
     if get_txn_count() > 0:
-        rolling_backup(get_config().db_path)
+        backup_database()

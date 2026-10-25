@@ -27,7 +27,7 @@ class ParquetExporter:
         config = get_config()
         self.txn_parquet = config.txn_parquet
         self.fx_parquet = config.fx_parquet
-        self.tkr_parquet = config.tkr_parquet
+        self.tickers_parquet = config.tickers_parquet
 
     def export_transactions(self) -> int:
         """Export all transactions to Parquet file.
@@ -94,7 +94,7 @@ class ParquetExporter:
             return 0
 
         ticker_count = len(tickers_df)
-        tickers_df.to_parquet(self.tkr_parquet, engine="fastparquet", index=False)
+        tickers_df.to_parquet(self.tickers_parquet, engine="fastparquet", index=False)
         logger.debug("Exported %d tickers to Parquet", ticker_count)
         return ticker_count
 

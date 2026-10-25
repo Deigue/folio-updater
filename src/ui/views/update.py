@@ -12,12 +12,18 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape
 
-from domain import Column, SettlementOutcome, TransactionContext
+from domain import Column, SettlementOutcome
 from models import UpdateStage
-from term import console_print, console_rule, get_symbol
+from term import StatusMark, console_print, console_rule, get_symbol
 from term.console import console_panel
 from ui.transaction_table import show_transactions
-from ui.vocabulary import RULE_UPDATE, SETTLEMENT_HEADER, THEME_REMOVED, THEME_SUCCESS
+from ui.vocabulary import (
+    RULE_UPDATE,
+    SETTLEMENT_HEADER,
+    THEME_REMOVED,
+    THEME_SUCCESS,
+    TransactionContext,
+)
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
@@ -36,7 +42,7 @@ def show_workbook_link(path: Path) -> None:
     """
     console_print("")
     console_print(
-        f"{get_symbol('success')}Folio workbook: "
+        f"{get_symbol(StatusMark.SUCCESS)}Folio workbook: "
         f"[link={path.resolve().as_uri()}]{escape(str(path))}[/link]",
     )
 
@@ -60,7 +66,7 @@ def _show_changes(report: UpdateReport) -> None:
     """Print the transactions added and the settlement dates confirmed."""
     console_rule("What changed", style=THEME_SUCCESS)
     if report.new_txns.empty:
-        console_print(f"{get_symbol('info')}No new transactions.")
+        console_print(f"{get_symbol(StatusMark.INFO)}No new transactions.")
     else:
         show_transactions(
             report.new_txns,
@@ -90,7 +96,7 @@ def _show_changes(report: UpdateReport) -> None:
             theme=THEME_SUCCESS,
         )
     else:
-        console_print(f"{get_symbol('info')}No settlement dates confirmed.")
+        console_print(f"{get_symbol(StatusMark.INFO)}No settlement dates confirmed.")
 
 
 def _show_concerns(concerns: list[Concern]) -> None:
@@ -101,7 +107,7 @@ def _show_concerns(concerns: list[Concern]) -> None:
     for number, concern in enumerate(concerns, start=1):
         console_print("")
         console_print(
-            f"{get_symbol('warning')}[bold {_CONCERN_STYLE}]{number}. "
+            f"{get_symbol(StatusMark.WARNING)}[bold {_CONCERN_STYLE}]{number}. "
             f"{escape(f'[{concern.stage}]')} {escape(concern.title)}"
             f"[/bold {_CONCERN_STYLE}]",
         )
@@ -164,12 +170,12 @@ def _show_outcome(report: UpdateReport) -> None:
             console_print(_step_line(step))
     elif report.concerns:
         console_print(
-            f"{get_symbol('warning')}[{_CONCERN_STYLE}]Update finished with "
+            f"{get_symbol(StatusMark.WARNING)}[{_CONCERN_STYLE}]Update finished with "
             f"{len(report.concerns)} item(s) to look at above.[/{_CONCERN_STYLE}]",
         )
     else:
         console_print(
-            f"{get_symbol('success')}[green]Update finished, nothing needs a "
+            f"{get_symbol(StatusMark.SUCCESS)}[green]Update finished, nothing needs a "
             "look.[/green]",
         )
 

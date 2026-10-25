@@ -1157,7 +1157,7 @@ class DemoFolio:
             drop_table(conn, Table.TICKER_ALIASES)
         config = get_config()
         config.txn_parquet.unlink(missing_ok=True)
-        config.tkr_parquet.unlink(missing_ok=True)
+        config.tickers_parquet.unlink(missing_ok=True)
 
 
 def _is_demo_account(name: str) -> bool:

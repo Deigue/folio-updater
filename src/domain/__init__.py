@@ -23,7 +23,6 @@ from domain.enums import (
     SettlementOutcome,
     Sign,
     Table,
-    TransactionContext,
     WarningCode,
 )
 
@@ -49,6 +48,5 @@ __all__ = [
     "SettlementOutcome",
     "Sign",
     "Table",
-    "TransactionContext",
     "WarningCode",
 ]

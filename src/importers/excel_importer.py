@@ -25,7 +25,7 @@ from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
 from services.symbols import normalize_canadian_ticker
-from term import announce, get_symbol
+from term import StatusMark, announce, get_symbol
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -157,9 +157,9 @@ def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> Non
         conn: Database connection.
         prepared_df: The rows the table refused as a batch.
     """
-    info = get_symbol("info")
-    success = get_symbol("success")
-    error = get_symbol("error")
+    info = get_symbol(StatusMark.INFO)
+    success = get_symbol(StatusMark.SUCCESS)
+    error = get_symbol(StatusMark.ERROR)
     import_logger.error("%sBULK INSERT FAILED - Analyzing transactions...", info)
 
     total_rows = len(prepared_df)

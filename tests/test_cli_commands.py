@@ -82,13 +82,13 @@ def test_demo_command(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.txn_parquet.exists()
-        assert not config.tkr_parquet.exists()
+        assert not config.tickers_parquet.exists()
         # * forex tested separately
         cli_result = run_cli_with_config(config, cli_app, ["demo"])
         assert_cli_success(cli_result)
         assert_in_output("Demo folio created successfully!", cli_result)
         assert config.txn_parquet.exists()
-        assert config.tkr_parquet.exists()
+        assert config.tickers_parquet.exists()
 
 
 def test_demo_command_reports_existing_data(temp_ctx: TempContext) -> None:
@@ -243,7 +243,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         config = ctx.config
         ensure_data_exists()
         assert config.txn_parquet.exists()
-        assert config.tkr_parquet.exists()
+        assert config.tickers_parquet.exists()
         assert not config.folio_path.exists()
         cli_result = run_cli_with_config(config, cli_app, ["generate"])
         assert_cli_success(cli_result)
@@ -255,7 +255,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         transactions_parquet[Column.Txn.FEE] = pd.to_numeric(
             transactions_parquet[Column.Txn.FEE],
         )
-        tickers_parquet = pd.read_parquet(config.tkr_parquet, engine="fastparquet")
+        tickers_parquet = pd.read_parquet(config.tickers_parquet, engine="fastparquet")
         transactions_excel = pd.read_excel(
             config.folio_path,
             sheet_name=config.txn_sheet,
@@ -263,7 +263,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         # The link back to the Summary, then the column bands, then the header.
         tickers_excel = pd.read_excel(
             config.folio_path,
-            sheet_name=config.tkr_sheet,
+            sheet_name=config.tickers_sheet,
             header=2,
         )
         assert_frame_equal(

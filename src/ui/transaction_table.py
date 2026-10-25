@@ -9,7 +9,7 @@ import pandas as pd
 from rich.markup import escape
 from rich.table import Table
 
-from domain import Action, Column, TransactionContext
+from domain import Action, Column
 from term.console import console_print
 from ui.format import decimals, safe_str
 from ui.layout.fit import fit_table
@@ -25,6 +25,7 @@ from ui.vocabulary import (
     THEME_TRANSFORMS,
     TRANSACTION_COLORS,
     UNIT_PRECISION,
+    TransactionContext,
 )
 
 if TYPE_CHECKING:

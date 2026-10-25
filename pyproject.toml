@@ -50,7 +50,29 @@ branch = false
 # valid while `branch` stays false: sysmon does not support branch coverage.
 core = "sysmon"
 omit = [
-    '*/__init__.py',
+    # Barrels only re-export. src/config/__init__.py holds `Config`, so it is
+    # left out of this list and covered.
+    'src/__init__.py',
+    'src/app/__init__.py',
+    'src/cli/__init__.py',
+    'src/cli/commands/__init__.py',
+    'src/datagen/__init__.py',
+    'src/db/__init__.py',
+    'src/domain/__init__.py',
+    'src/engine/__init__.py',
+    'src/exporters/__init__.py',
+    'src/exporters/sheets/__init__.py',
+    'src/importers/__init__.py',
+    'src/ingest/__init__.py',
+    'src/models/__init__.py',
+    'src/models/wealthsimple/__init__.py',
+    'src/services/__init__.py',
+    'src/term/__init__.py',
+    'src/ui/__init__.py',
+    'src/ui/layout/__init__.py',
+    'src/ui/views/__init__.py',
+    'tests/__init__.py',
+    'tests/fixtures/__init__.py',
     # Harness wiring, not product code: picks the xdist worker count.
     'conftest.py',
     'tests/fixtures/dataframe_cache.py',
