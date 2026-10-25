@@ -2,9 +2,9 @@
 
 Tests for `edit` and `delete` need a known row to operate on.
 
-`seed_transaction` writes the same row straight to the Txns table, keeping only the one
-derived step a seeded row genuinely needs: settlement dates from the market calendars.
-Rows are byte-identical to what `folio add` produces.
+`seed_transaction` writes the row `folio add` would straight to the Txns table, keeping
+only the one derived step a seeded row genuinely needs: settlement dates from the
+market calendars. Rows are byte-identical to what `folio add` produces.
 """
 
 from __future__ import annotations
@@ -33,6 +33,11 @@ TICKER = "TESTTKR"
 # Mock symbols
 TSX_TICKER = "TSTKR"  # Toronto listed, so the importer spells it TSTKR.TO
 VENTURE_TICKER = "VNTKR"  # TSX Venture, needing a transform rule to correct
+
+# A Friday trade the broker's statement settles on the Monday, as T+1 does.
+STATEMENT_TRADE_DATE = "2026-04-10"
+STATEMENT_SETTLE_DATE = "2026-04-13"
+STATEMENT_PRICE = "42.25"
 
 # keep track of prepared columns by database, reseed only when needed.
 _prepared_txn_columns: dict[str, frozenset[str]] = {}
@@ -172,6 +177,40 @@ def seed_transaction(
         return get_last_insert_rowid(conn)
 
 
+def statement_buy(
+    *,
+    ticker: str = TSX_TICKER,
+    name: str = "Test Corp",
+    units: int = 1,
+    price: str = STATEMENT_PRICE,
+    traded: str = STATEMENT_TRADE_DATE,
+    settled: str = STATEMENT_SETTLE_DATE,
+) -> dict[str, object]:
+    """Build one Wealthsimple statement row for a CAD buy.
+
+    Args:
+        ticker: Base symbol, as the statement spells it (no exchange suffix).
+        name: Company name printed before the colon.
+        units: Whole shares bought.
+        price: Price per share, as the statement prints it.
+        traded: Trade date, which the description carries as "executed at".
+        settled: Statement date, which is when the buy settled.
+
+    Returns:
+        A row for the `pd.DataFrame` a statement file is registered from.
+    """
+    return {
+        "date": settled,
+        "amount": -round(units * float(price), 2),
+        "currency": "CAD",
+        "transaction": "BUY",
+        "description": (
+            f"{ticker} - {name}: Bought {units:.4f} shares at "
+            f"${price} per share (executed at {traded})"
+        ),
+    }
+
+
 def seed_fx(rows: dict[str, str]) -> None:
     """Write exact FX rates so a replay's conversions are predictable.
 
@@ -192,3 +231,71 @@ def seed_fx(rows: dict[str, str]) -> None:
                     Column.FX.FXCADUSD: str(round(1.0 / float(rate), 10)),
                 },
             )
+
+
+# Rates for every day the two-type folio below trades and settles on.
+TWO_TYPES_FX = {
+    "2025-08-14": "1.2500",
+    "2025-08-15": "1.2500",
+    "2025-08-18": "1.2500",
+    "2025-08-19": "1.2500",
+    "2025-08-20": "1.2500",
+}
+
+
+def seed_two_account_types() -> None:
+    """One USD holding in a TFSA and another in a non-registered account."""
+    seed_fx(TWO_TYPES_FX)
+    seed_cash("CONTRIBUTION", amount="10000", account="WS-TFSA", date="2025-08-14")
+    seed_transaction(
+        account="WS-TFSA",
+        ticker=TICKER,
+        amount="-1000",
+        price="100",
+        units="10",
+    )
+    seed_transaction(
+        account="WS-PERSONAL",
+        ticker="OTHER",
+        amount="-400",
+        price="40",
+        units="10",
+    )
+
+
+def seed_cash(
+    action: str,
+    *,
+    amount: str,
+    currency: str = Currency.CAD.value,
+    account: str = ACCOUNT,
+    date: str = TXN_DATE,
+    fee: str | None = None,
+    settle_date: str | None = None,
+) -> int:
+    """Insert a row that moves cash and carries no security.
+
+    Args:
+        action: Transaction action (CONTRIBUTION, WITHDRAWAL, FCH, ...).
+        amount: Total cash amount.
+        currency: Currency code.
+        account: Owning account name.
+        date: Trade date in YYYY-MM-DD form.
+        fee: Optional fee, as `seed_transaction` takes it.
+        settle_date: Explicit settlement date, as `seed_transaction` takes it.
+
+    Returns:
+        The TxnId assigned by SQLite.
+    """
+    return seed_transaction(
+        action=action,
+        date=date,
+        account=account,
+        currency=currency,
+        ticker=None,
+        amount=amount,
+        price=None,
+        units=None,
+        fee=fee,
+        settle_date=settle_date,
+    )

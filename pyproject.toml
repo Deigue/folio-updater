@@ -40,7 +40,7 @@ markers = [
     "no_mock_forex: Disable the mock_forex_data fixture for this test or module.",
     "no_mock_quotes: Disable the mock_quotes fixture for this test or module.",
     "real_parquet_export: Let mutating commands re-export Parquet for real.",
-    "real_acb_cache: Let the cost-base cache round-trip through real files.",
+    "real_saved_ledger: Let the saved ledger round-trip through real files.",
 ]
 
 [tool.coverage.run]

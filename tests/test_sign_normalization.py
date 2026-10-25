@@ -10,11 +10,11 @@ import pytest
 from domain import Action, Column, Currency, Sign
 from ingest.validation import ActionValidationRules, TransactionFormatter
 
-if TYPE_CHECKING:
-    from tests.test_types import TempContext
+from .helpers.seed import ACCOUNT, TXN_DATE
 
-# Inside the mock data range, so settlement calculation uses preloaded calendars.
-TXN_DATE = "2025-08-15"
+if TYPE_CHECKING:
+    from .helpers.context import TempContext
+
 AMOUNT_MAGNITUDE = 1502.50
 UNITS_MAGNITUDE = 10.0
 
@@ -53,7 +53,7 @@ def _format_one(action: str, amount: str, units: str) -> pd.Series:
                 Column.Txn.PRICE: "150.25",
                 Column.Txn.UNITS: units,
                 Column.Txn.TICKER: "AAPL",
-                Column.Txn.ACCOUNT: "TESTACCT",
+                Column.Txn.ACCOUNT: ACCOUNT,
             },
         ],
     )
@@ -141,4 +141,5 @@ class TestSignNormalization:
         """Zero has no direction, so it is never flipped."""
         with temp_ctx():
             row = _format_one(Action.BUY.value, "0", "10")
-            assert float(row[Column.Txn.AMOUNT]) == pytest.approx(0.0)
+            # Compared as text: a float equality cannot tell "-0" from "0".
+            assert row[Column.Txn.AMOUNT] == "0"

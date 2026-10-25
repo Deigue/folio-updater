@@ -28,7 +28,7 @@ from engine.ledger import open_ledger
 from exporters import ParquetExporter
 from services import ForexService
 
-from .fixtures.test_data_factory import create_transaction_data
+from .fixtures.data_factory import create_transaction_data
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
@@ -40,12 +40,12 @@ from .helpers.seed import seed_transaction
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def test_data_creation(temp_ctx: TempContext) -> None:
+def test_the_demo_exports_mirror_its_database(temp_ctx: TempContext) -> None:
     """The demo leaves its exported files mirroring the database it built."""
     with temp_ctx() as ctx:
         config = ctx.config
@@ -414,3 +414,29 @@ def test_a_split_after_the_window_is_kept_for_the_price_history() -> None:
         "2025-01-10:3",
         "2026-11-03:2",
     ]
+
+
+def test_demo_command(temp_ctx: TempContext) -> None:
+    """Test demo command through main CLI app."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        assert not config.txn_parquet.exists()
+        assert not config.tickers_parquet.exists()
+        # * forex tested separately
+        cli_result = run_cli_with_config(config, cli_app, ["demo"])
+        assert_cli_success(cli_result)
+        assert_in_output("Demo folio created successfully!", cli_result)
+        assert config.txn_parquet.exists()
+        assert config.tickers_parquet.exists()
+
+
+def test_demo_command_reports_existing_data(temp_ctx: TempContext) -> None:
+    """Warn instead of claiming success when transaction data already exists."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+        assert config.txn_parquet.exists()
+
+        cli_result = run_cli_with_config(config, cli_app, ["demo"])
+        assert_cli_success(cli_result)
+        assert_in_output("Demo folio not created due to existing data.", cli_result)

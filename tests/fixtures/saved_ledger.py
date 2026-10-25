@@ -8,7 +8,7 @@ whenever the saved ledger is cold, and under test it is cold in every
 Only the file reads and writes are swapped: deciding whether the saved ledger is
 current, and replaying it and restoring it, run for real.
 
-Tests that assert on the files themselves carry the `real_acb_cache` marker to opt in.
+Tests that assert on the files themselves opt in with the `real_saved_ledger` marker.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 import pytest
 
-from engine import ledger as saved_ledger
+from engine import ledger
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -102,35 +102,30 @@ class _MemoryFiles:
             "meta": json.dumps(meta),
         }
 
-    def clear(self) -> None:
-        """Drop everything, so no ledger outlives the test that saved it."""
-        self._entries.clear()
-
 
 @pytest.fixture(autouse=True)
-def memory_acb_cache(request: pytest.FixtureRequest) -> Generator[None]:
+def memory_saved_ledger(request: pytest.FixtureRequest) -> Generator[None]:
     """Swap the saved ledger's disk round trip for an in-memory one.
 
     Args:
-        request: Used to honour the `real_acb_cache` marker.
+        request: Used to honour the `real_saved_ledger` marker.
 
     Yields:
         None, for the duration of the test.
     """
-    if request.node.get_closest_marker("real_acb_cache"):
+    if request.node.get_closest_marker("real_saved_ledger"):
         yield
         return
 
     files = _MemoryFiles()
     with (
-        patch.object(saved_ledger, "_read_meta", side_effect=files.read_meta),
-        patch.object(saved_ledger, "_read_frame", side_effect=files.read_frame),
+        patch.object(ledger, "_read_meta", side_effect=files.read_meta),
+        patch.object(ledger, "_read_frame", side_effect=files.read_frame),
         patch.object(
-            saved_ledger,
+            ledger,
             "_read_diagnostics",
             side_effect=files.read_diagnostics,
         ),
-        patch.object(saved_ledger, "_write_files", side_effect=files.write_files),
+        patch.object(ledger, "_write_files", side_effect=files.write_files),
     ):
         yield
-    files.clear()

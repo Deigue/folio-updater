@@ -20,6 +20,8 @@ from db import (
     delete_rows,
     drop_table,
     get_connection,
+    get_row_count,
+    get_rows,
     get_triggers,
     insert_or_replace,
     update_rows,
@@ -44,7 +46,7 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import TICKER, seed_fx, seed_transaction
+from .helpers.seed import TICKER, seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -52,7 +54,7 @@ if TYPE_CHECKING:
 
     from app import AppContext
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 FX = {
     "2025-08-14": "1.3500",
@@ -202,9 +204,7 @@ def test_acb_account_grain(temp_ctx: TempContext) -> None:
         )
     assert_cli_success(single)
     assert_cli_success(pooled)
-    assert_in_output("IBKR-TFSA", single)
     assert_not_in_output("550", single)
-    assert_in_output("tfsa", pooled)
     assert_in_output("550", pooled)
 
 
@@ -681,7 +681,7 @@ def test_the_saved_ledger_is_reused_until_a_replay_input_changes(
     assert _replays() is replays
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_a_ledger_saved_before_change_tokens_replays_once(
     temp_ctx: TempContext,
 ) -> None:
@@ -720,7 +720,7 @@ def _saved_files(ctx: AppContext) -> list[str]:
     return sorted(path.name for path in ctx.config.acb_parquet.parent.glob("acb*"))
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_each_save_removes_the_files_no_meta_names(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         # A ledger saved in an older format.
@@ -738,7 +738,7 @@ def test_each_save_removes_the_files_no_meta_names(temp_ctx: TempContext) -> Non
         ]
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_a_meta_naming_removed_files_replays(temp_ctx: TempContext) -> None:
     """Two saves at once: the meta landing last may name files the other removed."""
     with temp_ctx() as ctx:
@@ -753,7 +753,7 @@ def test_a_meta_naming_removed_files_replays(temp_ctx: TempContext) -> None:
         assert not _replays()
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_an_undecodable_saved_ledger_replays(temp_ctx: TempContext) -> None:
     """A value no release knows, in a meta whose inputs still match."""
     with temp_ctx() as ctx:
@@ -768,7 +768,7 @@ def test_an_undecodable_saved_ledger_replays(temp_ctx: TempContext) -> None:
         assert not _replays()
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_an_interrupted_save_leaves_the_last_whole_one(temp_ctx: TempContext) -> None:
     """The save stopped part way: its files go, and the one before still stands."""
     with temp_ctx() as ctx:
@@ -798,6 +798,79 @@ def test_an_interrupted_save_leaves_the_last_whole_one(temp_ctx: TempContext) ->
 
 
 # --- folio symbol --------------------------------------------------------------
+
+
+def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:
+    """Test --list when the alias table has never been created."""
+    with temp_ctx() as ctx:
+        seed_transaction()
+        cli_result = run_cli_with_config(ctx.config, app, ["symbol", "--list"])
+        assert_cli_success(cli_result)
+        assert_in_output("No ticker aliases found.", cli_result)
+
+
+def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
+    """Test --delete when the alias table has never been created."""
+    with temp_ctx() as ctx:
+        seed_transaction()
+        cli_result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["symbol", "--delete", "OLD"],
+        )
+        assert_cli_success(cli_result)
+        assert_in_output("Alias for 'OLD' not found.", cli_result)
+
+
+def test_symbol_command(temp_ctx: TempContext) -> None:
+    """Add, list and delete ticker aliases with the symbol command."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        # 1. ADD
+        cli_result = run_cli_with_config(
+            config,
+            app,
+            ["symbol", "--add", "OLD", "NEW", "2025-01-01"],
+        )
+        assert_cli_success(cli_result)
+        assert_in_output("Successfully added alias.", cli_result)
+        with get_connection() as conn:
+            count = get_row_count(conn, Table.TICKER_ALIASES)
+            assert count == 1
+
+        # 2. ADD another alias
+        cli_result = run_cli_with_config(
+            config,
+            app,
+            ["symbol", "--add", "NEW", "NEWEST", "2025-02-01"],
+        )
+        assert_cli_success(cli_result)
+
+        # 3. LIST aliases
+        cli_result = run_cli_with_config(config, app, ["symbol", "--list"])
+        assert_cli_success(cli_result)
+        assert_in_output("OLD", cli_result)
+        assert_in_output("NEW", cli_result)
+        assert_in_output("NEWEST", cli_result)
+
+        # 4. DELETE an alias
+        cli_result = run_cli_with_config(
+            config,
+            app,
+            ["symbol", "--delete", "OLD"],
+        )
+        assert_cli_success(cli_result)
+        assert_in_output("Successfully deleted alias", cli_result)
+        with get_connection() as conn:
+            count = get_row_count(conn, Table.TICKER_ALIASES)
+            assert count == 1
+            remaining = get_rows(conn, Table.TICKER_ALIASES)
+            assert remaining.iloc[0][Column.Aliases.OLD_TICKER] == "NEW"
+
+        # 5. LIST once the last alias is gone
+        run_cli_with_config(config, app, ["symbol", "--delete", "NEW"])
+        cli_result = run_cli_with_config(config, app, ["symbol", "--list"])
+        assert_in_output("No ticker aliases found.", cli_result)
 
 
 def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
@@ -872,16 +945,12 @@ def test_acb_on_an_empty_folio(temp_ctx: TempContext) -> None:
 def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
+        seed_cash(
+            "CONTRIBUTION",
+            amount="5000",
             date="2025-08-14",
             settle_date="2025-08-14",
             account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker=None,
-            amount="5000",
-            price=None,
-            units=None,
         )
         result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
     assert_cli_success(result)

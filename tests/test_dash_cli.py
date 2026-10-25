@@ -18,55 +18,24 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.seed import (
+    TWO_TYPES_FX,
+    seed_cash,
+    seed_fx,
+    seed_transaction,
+    seed_two_account_types,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from .test_types import TempContext
-
-FX = {
-    "2025-08-14": "1.2500",
-    "2025-08-15": "1.2500",
-    "2025-08-18": "1.2500",
-    "2025-08-19": "1.2500",
-    "2025-08-20": "1.2500",
-}
-
-
-def _seed_two_types() -> None:
-    """One USD holding in a TFSA and another in a non-registered account."""
-    seed_fx(FX)
-    seed_transaction(
-        action="CONTRIBUTION",
-        account="WS-TFSA",
-        ticker=None,
-        currency="CAD",
-        amount="10000",
-        price=None,
-        units=None,
-        date="2025-08-14",
-    )
-    seed_transaction(
-        account="WS-TFSA",
-        ticker="TESTTKR",
-        amount="-1000",
-        price="100",
-        units="10",
-    )
-    seed_transaction(
-        account="WS-PERSONAL",
-        ticker="OTHER",
-        amount="-400",
-        price="40",
-        units="10",
-    )
+    from .helpers.context import TempContext
 
 
 def test_dash_renders_a_holding_and_a_total(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash"])
 
@@ -78,7 +47,7 @@ def test_dash_renders_a_holding_and_a_total(temp_ctx: TempContext) -> None:
 
 def test_dash_offline_still_renders_cost_base(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "--offline"])
 
@@ -91,7 +60,7 @@ def test_dash_offline_still_renders_cost_base(temp_ctx: TempContext) -> None:
 
 def test_dash_narrows_to_an_account_type(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "-t", "tfsa"])
 
@@ -102,7 +71,7 @@ def test_dash_narrows_to_an_account_type(temp_ctx: TempContext) -> None:
 
 def test_dash_type_all_is_the_whole_folio(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "-t", "all"])
 
@@ -113,7 +82,7 @@ def test_dash_type_all_is_the_whole_folio(temp_ctx: TempContext) -> None:
 
 def test_dash_narrows_to_one_account(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "-a", "WS-TFSA"])
 
@@ -132,11 +101,11 @@ _REFUSED_REQUESTS = [
     pytest.param(
         ["dash", "--currency", "JPY"],
         ["Unknown currency"],
-        id="uncovertible-currency",
+        id="unconvertible-currency",
     ),
     pytest.param(
         ["dash", "--by-type", "-t", "tfsa"],
-        ["--by-type"],
+        ["shows every type"],
         id="by-type-plus-a-narrowing-flag",
     ),
     pytest.param(
@@ -161,7 +130,7 @@ def test_an_unusable_request_is_refused(
 ) -> None:
     """Each of these fails on the arguments alone, whatever the folio holds."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, argv)
 
@@ -172,7 +141,7 @@ def test_an_unusable_request_is_refused(
 
 def test_by_type_renders_more_than_one_panel(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "--by-type"])
 
@@ -183,7 +152,7 @@ def test_by_type_renders_more_than_one_panel(temp_ctx: TempContext) -> None:
 
 def test_dash_reverses_a_sort(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(
             ctx.config,
@@ -202,7 +171,7 @@ def test_a_narrow_window_says_which_columns_are_hidden(
 ) -> None:
     """Printed above the table, so a reader paging a long report sees it."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash"], width=60)
 
@@ -216,7 +185,7 @@ def test_a_folio_that_never_sold_loses_the_realized_column(
 ) -> None:
     """Zeros blank themselves, so `_drop_blank` takes the column for free."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(
             ctx.config,
@@ -231,7 +200,7 @@ def test_a_folio_that_never_sold_loses_the_realized_column(
 
 def test_dash_show_closed_breaks_out_each_holding(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         seed_transaction(
             action="SELL",
             account="WS-TFSA",
@@ -256,7 +225,7 @@ def test_dash_show_closed_breaks_out_each_holding(temp_ctx: TempContext) -> None
 
 def test_dash_exports_a_file(temp_ctx: TempContext, tmp_path: Path) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         target = tmp_path / "holdings.csv"
 
         result = run_cli_with_config(
@@ -279,16 +248,13 @@ def _seed_mixed_currency() -> None:
     The USD book value is 1,000 USD, which is 1,250 CAD at the seeded rate of
     1.25, so the two figures tell native and converted apart unambiguously.
     """
-    seed_fx(FX)
+    seed_fx(TWO_TYPES_FX)
     for currency, amount in (("CAD", "10000"), ("USD", "10000")):
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency=currency,
+        seed_cash(
+            "CONTRIBUTION",
             amount=amount,
-            price=None,
-            units=None,
+            currency=currency,
+            account="WS-TFSA",
             date="2025-08-14",
         )
     seed_transaction(
@@ -320,20 +286,11 @@ def test_a_single_usd_folio_promotes_total_percent_and_discloses_it(
     page was touched.
     """
     with temp_ctx() as ctx:
-        seed_fx(FX)
+        seed_fx(TWO_TYPES_FX)
         # Funded in CAD (net deposits are tracked in CAD only, see
         # `_net_deposits`), then the whole balance bought a USD security, so
         # the account itself holds and prices everything in USD.
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="10000",
-            price=None,
-            units=None,
-            date="2025-08-14",
-        )
+        seed_cash("CONTRIBUTION", amount="10000", account="WS-TFSA", date="2025-08-14")
         seed_transaction(
             account="WS-TFSA",
             ticker="TESTTKR",
@@ -403,17 +360,8 @@ def test_forcing_usd_on_a_usd_only_pool_keeps_its_total_percent(
 ) -> None:
     """Nothing is hidden, so the return reads exactly as it does natively."""
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="10000",
-            price=None,
-            units=None,
-            date="2025-08-14",
-        )
+        seed_fx(TWO_TYPES_FX)
+        seed_cash("CONTRIBUTION", amount="10000", account="WS-TFSA", date="2025-08-14")
         seed_transaction(
             account="WS-TFSA",
             ticker="TESTTKR",
@@ -442,7 +390,7 @@ def test_dash_refuses_an_export_format_it_cannot_write(
     tmp_path: Path,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         target = tmp_path / "holdings.pdf"
 
         result = run_cli_with_config(
@@ -462,7 +410,7 @@ def test_by_type_exports_a_sheet_for_every_type(
 ) -> None:
     """`--by-type --export` used to print the dashboard and write nothing."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         target = tmp_path / "by-type.xlsx"
 
         result = run_cli_with_config(
@@ -478,7 +426,7 @@ def test_by_type_exports_a_sheet_for_every_type(
 def test_by_type_flattens_into_one_csv(temp_ctx: TempContext, tmp_path: Path) -> None:
     """A CSV holds one table, so the pools run together under a Pool column."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         target = tmp_path / "by-type.csv"
 
         result = run_cli_with_config(
@@ -499,7 +447,7 @@ def test_an_export_without_a_suffix_becomes_a_workbook(
     tmp_path: Path,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(
             ctx.config,
@@ -517,15 +465,12 @@ def test_an_exported_cell_keeps_its_full_precision(
 ) -> None:
     """Formats decide what is shown; the cell still holds every digit."""
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="USD",
+        seed_fx(TWO_TYPES_FX)
+        seed_cash(
+            "CONTRIBUTION",
             amount="10000",
-            price=None,
-            units=None,
+            currency="USD",
+            account="WS-TFSA",
             date="2025-08-14",
         )
         seed_transaction(
@@ -554,29 +499,25 @@ def test_an_exported_cell_keeps_its_full_precision(
 
 def test_dash_accepts_native_currency(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(
             ctx.config,
             app,
             ["dash", "--currency", "native"],
+            width=UNCONSTRAINED_WIDTH,
         )
 
         assert_cli_success(result)
-        assert_in_output("TESTTKR", result)
+        # TESTTKR's market value in USD, not the 2,720.00 it is worth in CAD.
+        assert_in_output("2,000.00", result)
+        assert_not_in_output("2,720.00", result)
 
 
 def test_by_type_says_so_when_nothing_is_held(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
+        seed_fx(TWO_TYPES_FX)
+        seed_cash("CONTRIBUTION", amount="1000")
 
         result = run_cli_with_config(ctx.config, app, ["dash", "--by-type"])
 
@@ -586,7 +527,7 @@ def test_by_type_says_so_when_nothing_is_held(temp_ctx: TempContext) -> None:
 
 def test_dash_says_so_when_a_pool_holds_nothing(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["dash", "-a", "NOSUCHACCT"])
 
@@ -596,7 +537,7 @@ def test_dash_says_so_when_a_pool_holds_nothing(temp_ctx: TempContext) -> None:
 
 def test_dash_reports_negative_cash_as_an_alert(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        seed_fx(FX)
+        seed_fx(TWO_TYPES_FX)
         # A buy with nothing funding it.
         seed_transaction(ticker="TESTTKR", currency="CAD", amount="-1000", units="10")
 
@@ -609,16 +550,8 @@ def test_dash_reports_negative_cash_as_an_alert(temp_ctx: TempContext) -> None:
 
 def test_dash_badges_a_pool_whose_units_are_wrong(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="10000",
-            price=None,
-            units=None,
-            date="2025-08-14",
-        )
+        seed_fx(TWO_TYPES_FX)
+        seed_cash("CONTRIBUTION", amount="10000", date="2025-08-14")
         seed_transaction(ticker="TESTTKR", amount="-1000", price="100", units="10")
         # Selling more than was ever held drives units negative.
         seed_transaction(
@@ -641,7 +574,7 @@ def test_refresh_returns_the_cost_base_to_freshly_computed(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         run_cli_with_config(ctx.config, app, ["dash"])
 
         refreshed = run_cli_with_config(ctx.config, app, ["dash", "--refresh"])
@@ -660,7 +593,7 @@ def test_dash_on_an_empty_folio_says_so(temp_ctx: TempContext) -> None:
 
 def test_quotes_list_renders_the_cache(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
         result = run_cli_with_config(ctx.config, app, ["quotes"])
@@ -674,7 +607,7 @@ def test_quotes_list_on_an_empty_cache_points_at_refresh(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["quotes"])
 
@@ -684,7 +617,7 @@ def test_quotes_list_on_an_empty_cache_points_at_refresh(
 
 def test_quotes_refresh_reports_what_it_fetched(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
@@ -694,7 +627,7 @@ def test_quotes_refresh_reports_what_it_fetched(temp_ctx: TempContext) -> None:
 
 def test_quotes_clear_empties_the_cache(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
         cleared = run_cli_with_config(ctx.config, app, ["quotes", "--clear"])
@@ -705,15 +638,8 @@ def test_quotes_clear_empties_the_cache(temp_ctx: TempContext) -> None:
 
 def test_quotes_refresh_with_nothing_held_says_so(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
+        seed_fx(TWO_TYPES_FX)
+        seed_cash("CONTRIBUTION", amount="1000")
 
         result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
@@ -726,7 +652,7 @@ def test_quotes_refresh_discloses_the_throttling_fallback(
 ) -> None:
     """A daily close is not an intraday price, so the run has to say so."""
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
         throttled = RefreshResult(fetched=2, used_fallback=True)
 
         with patch.object(QuotesService, "refresh", return_value=throttled):
@@ -739,7 +665,7 @@ def test_quotes_refresh_discloses_the_throttling_fallback(
 
 def test_quotes_can_be_narrowed_to_one_ticker(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(
             ctx.config,
@@ -757,7 +683,7 @@ def test_the_symbol_override_reaches_the_provider(
 ) -> None:
     """A configured override must survive the whole config-to-fetch path."""
     with temp_ctx(quotes={"symbol_overrides": {"TESTTKR": "CADCO.TO"}}) as ctx:
-        _seed_two_types()
+        seed_two_account_types()
 
         result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 

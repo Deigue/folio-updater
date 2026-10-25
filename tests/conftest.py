@@ -25,17 +25,14 @@ from services import ForexService
 from services.quotes_service import QuotesService
 from term.console import override_console
 
-from .fixtures.acb_cache import memory_acb_cache  # noqa: F401
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
+from .fixtures.saved_ledger import memory_saved_ledger  # noqa: F401
 from .helpers.seed import reset_seed_state
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
-    from .test_types import TempContext
-
-# Session-scoped caches
-_fx_cache: dict[str, pd.DataFrame] = {}
+    from .helpers.context import TempContext
 
 # Synthetic rates reach this far back from today, or back to the demo's start.
 FX_WINDOW_DAYS = 60
@@ -72,19 +69,24 @@ def non_interactive_console() -> Generator[None, Any]:
         yield
 
 
+@pytest.fixture
+def quiet_logging() -> Generator[None, Any]:
+    """Silence logging for a module whose commands log errors under `CliRunner`.
+
+    An error logged while the runner holds stdout reaches the live-log handler
+    after the runner has closed that stream ("I/O operation on closed file").
+    A module opts in with `pytestmark = pytest.mark.usefixtures("quiet_logging")`.
+    """
+    logging.disable(logging.CRITICAL)
+    yield
+    logging.disable(logging.NOTSET)
+
+
 @pytest.fixture(autouse=True)
 def reset_app_context() -> None:
     """Automatically reset AppContext before each test."""
     AppContext.reset_singleton()
     reset_seed_state()
-
-
-@pytest.fixture(autouse=True)
-def activate_dataframe_cache(
-    dataframe_cache_patching: None,  # noqa: F811
-) -> None:
-    """Globally activate DataFrame cache patching for all tests."""
-    # The fixture is only needed for activation
 
 
 # Command modules that re-export Parquet after mutating the folio. They bind
@@ -134,6 +136,23 @@ def mock_forex_data(
         side_effect=cached_fx_data,
     ):
         yield
+
+
+def _cached_prices(
+    cached_quote_data: dict[str, dict[str, Any]],
+    ysymbols: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Answer a price fetch from the cached quotes, as the provider would."""
+    return {
+        ysymbol: {
+            "price": cached_quote_data[ysymbol]["price"],
+            "prev_close": cached_quote_data[ysymbol]["prev_close"],
+            "currency": cached_quote_data[ysymbol]["currency"],
+            "quote_time": datetime.now(UTC).isoformat(),
+        }
+        for ysymbol in ysymbols
+        if ysymbol in cached_quote_data
+    }
 
 
 @pytest.fixture(scope="session")
@@ -198,16 +217,7 @@ def mock_quotes(
         return
 
     def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
-        return {
-            ysymbol: {
-                "price": cached_quote_data[ysymbol]["price"],
-                "prev_close": cached_quote_data[ysymbol]["prev_close"],
-                "currency": cached_quote_data[ysymbol]["currency"],
-                "quote_time": datetime.now(UTC).isoformat(),
-            }
-            for ysymbol in ysymbols
-            if ysymbol in cached_quote_data
-        }
+        return _cached_prices(cached_quote_data, ysymbols)
 
     def metadata(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
         return {
@@ -243,16 +253,7 @@ def quotes_fetch(
     """
 
     def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
-        return {
-            ysymbol: {
-                "price": cached_quote_data[ysymbol]["price"],
-                "prev_close": cached_quote_data[ysymbol]["prev_close"],
-                "currency": cached_quote_data[ysymbol]["currency"],
-                "quote_time": datetime.now(UTC).isoformat(),
-            }
-            for ysymbol in ysymbols
-            if ysymbol in cached_quote_data
-        }
+        return _cached_prices(cached_quote_data, ysymbols)
 
     with (
         patch.object(QuotesService, "_fetch_metadata", return_value={}),
@@ -279,6 +280,10 @@ def boc_fetch(
         side_effect=cached_fx_data,
     ) as fetch:
         yield fetch
+
+
+# What a temp context's commands leave behind, deleted when it exits.
+_ARTIFACT_SUFFIXES = (".xlsx", ".db", ".parquet", ".csv", ".meta.json")
 
 
 @pytest.fixture
@@ -325,12 +330,12 @@ def temp_ctx(tmp_path: Path) -> TempContext:
         try:
             yield app_ctx
         finally:
-            # Additional cleanup - reset the instance config
+            # The config.yaml this context wrote goes with it.
             config_path.unlink(missing_ok=True)
 
-            # Clean artifacts created by the demo folio
-            for pattern in ("*.xlsx", "*.db", "*.parquet", "*.csv", "*.meta.json"):
-                for file_path in tmp_path.rglob(pattern):
+            # Clean artifacts created by the demo folio, in one walk of tmp_path.
+            for file_path in tmp_path.rglob("*"):
+                if file_path.name.endswith(_ARTIFACT_SUFFIXES):
                     file_path.unlink(missing_ok=True)
 
             # The database this context seeded into has just been deleted, so
@@ -338,37 +343,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
             # reuses the same tmp_path.
             reset_seed_state()
 
-            _log_cleanup_status(tmp_path)
-
     return _temp_ctx
-
-
-def _log_cleanup_status(tmp_path: Path) -> None:  # pragma: no cover
-    """Log the cleanup status of the temporary directory."""
-    logger = logging.getLogger(__name__)
-    if not tmp_path.exists():
-        logger.info(
-            "\nTemporary directory %s does not exist (already cleaned by pytest).\n",
-            tmp_path,
-        )
-        return
-
-    total_size = 0
-    leftover_files = []
-    for file_path in tmp_path.rglob("*"):
-        if file_path.is_file():
-            size = file_path.stat().st_size
-            total_size += size
-            leftover_files.append((file_path, size))
-
-    if total_size != 0:
-        logger.debug(
-            "\nTemporary directory %s has leftover files (total size: %d bytes):\n",
-            tmp_path,
-            total_size,
-        )
-        for file_path, size in leftover_files:
-            logger.warning("  LEFTOVER FILE: %s (size: %d bytes)\n", file_path, size)
 
 
 @pytest.fixture(scope="session")
@@ -381,29 +356,25 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
         A callable taking an optional inclusive start date (YYYY-MM-DD) and
         returning the matching slice of the cached frame.
     """
-    cache_key = "fx_data_60days"
-    if cache_key not in _fx_cache:
-        end = pd.Timestamp(datetime.now(TORONTO_TZ).date())
-        start = min(
-            end - pd.Timedelta(days=FX_WINDOW_DAYS),
-            pd.Timestamp(START) - pd.Timedelta(days=14),
-        )
-        dates = pd.bdate_range(start, end)
-        # Generate mock forex dataframe
-        fx_df = pd.DataFrame(
-            {
-                Column.FX.DATE: dates.strftime("%Y-%m-%d"),
-                # A deterministic ripple through a plausible USD/CAD band.
-                Column.FX.FXUSDCAD: [
-                    round(1.35 + 0.005 * (i % 7), 10) for i in range(len(dates))
-                ],
-            },
-        )
-        fx_df[Column.FX.FXCADUSD] = (1.0 / fx_df[Column.FX.FXUSDCAD]).round(10)
-        _fx_cache[cache_key] = fx_df
+    end = pd.Timestamp(datetime.now(TORONTO_TZ).date())
+    start = min(
+        end - pd.Timedelta(days=FX_WINDOW_DAYS),
+        pd.Timestamp(START) - pd.Timedelta(days=14),
+    )
+    dates = pd.bdate_range(start, end)
+    fx_df = pd.DataFrame(
+        {
+            Column.FX.DATE: dates.strftime("%Y-%m-%d"),
+            # A deterministic ripple through a plausible USD/CAD band.
+            Column.FX.FXUSDCAD: [
+                round(1.35 + 0.005 * (i % 7), 10) for i in range(len(dates))
+            ],
+        },
+    )
+    fx_df[Column.FX.FXCADUSD] = (1.0 / fx_df[Column.FX.FXUSDCAD]).round(10)
 
     def get_fx_data(start_date: str | None = None) -> pd.DataFrame:
-        df = _fx_cache[cache_key].copy()
+        df = fx_df.copy()
         if start_date is not None:
             df = df[df[Column.FX.DATE] >= start_date]
         return df
@@ -415,7 +386,7 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
 def cached_demo(
     tmp_path_factory: pytest.TempPathFactory,
     cached_fx_data: Callable[[str | None], pd.DataFrame],
-    preload_settlement_schedules: None,  # noqa: ARG001 - built over its calendars
+    preload_settlement_schedules: None,  # noqa: ARG001 (built over its calendars)
 ) -> Path:
     """Build the real demo folio once per session, for tests to copy.
 
@@ -483,17 +454,11 @@ def preload_settlement_schedules() -> None:
     )
 
     # Pre-load schedules into instance cache
-    settlement_calculator.calendar_schedules[Currency.USD] = (
-        settlement_calculator.get_calendar_schedule(
-            Currency.USD,
-            buffer_start,
-            buffer_end,
+    for currency in (Currency.USD, Currency.CAD):
+        settlement_calculator.calendar_schedules[currency] = (
+            settlement_calculator.get_calendar_schedule(
+                currency,
+                buffer_start,
+                buffer_end,
+            )
         )
-    )
-    settlement_calculator.calendar_schedules[Currency.CAD] = (
-        settlement_calculator.get_calendar_schedule(
-            Currency.CAD,
-            buffer_start,
-            buffer_end,
-        )
-    )

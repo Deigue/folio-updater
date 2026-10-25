@@ -29,17 +29,12 @@ EXPECTED_SIGNS: dict[str, dict[str, int]] = {
 
 def _apply_expected_signs(imported_df: pd.DataFrame) -> pd.DataFrame:
     """Apply the expected per-action sign convention to expected test data."""
-    if Column.Txn.ACTION not in imported_df.columns:  # pragma: no cover
-        return imported_df
-
     for action, columns in EXPECTED_SIGNS.items():
         action_mask = imported_df[Column.Txn.ACTION] == action
         if not action_mask.any():
             continue
 
         for column, sign in columns.items():
-            if column not in imported_df.columns:  # pragma: no cover
-                continue
             values = imported_df.loc[action_mask, column]
             numeric = pd.to_numeric(values, errors="coerce")
             valid = numeric.notna() & (numeric != 0)
@@ -61,14 +56,10 @@ def _normalize_dataframes(
     table_df = table_df.mask(pd.isna(table_df), None)
 
     # Ensure numeric columns have the same dtype for comparison
-    numeric_cols = ["Amount", "Price", "Units"]
-    for col in numeric_cols:
+    for col in (Column.Txn.AMOUNT, Column.Txn.PRICE, Column.Txn.UNITS):
         if col in imported_df.columns and col in table_df.columns:
-            try:
-                imported_df[col] = imported_df[col].astype(float)
-                table_df[col] = table_df[col].astype(float)
-            except (ValueError, TypeError) as e:
-                logger.warning("Could not convert column '%s' to float: %s", col, e)
+            imported_df[col] = imported_df[col].astype(float)
+            table_df[col] = table_df[col].astype(float)
 
     # Expected Data Formatters
     if Column.Txn.TICKER in imported_df.columns:
@@ -101,7 +92,7 @@ def _verify_column_order(table_df: pd.DataFrame) -> None:
     actual_start = table_cols[: len(expected_start)]
 
     if actual_start != expected_start:
-        error_msg = (f"Expected: {expected_start}, Got start of table: {actual_start}",)
+        error_msg = f"Expected: {expected_start}, Got start of table: {actual_start}"
         raise AssertionError(error_msg)
 
 
@@ -146,10 +137,19 @@ def verify_db_contents(df: pd.DataFrame, last_n: int | None = None) -> None:
         try:
             pd_testing.assert_frame_equal(imported_df, table_df)
         except AssertionError as e:
-            logger.info("DataFrame mismatch between imported data and DB contents:")
-            logger.info("Imported DataFrame:")
-            logger.info("\n%s", imported_df.to_string(index=False))
-            logger.info("DB DataFrame:")
-            logger.info("\n%s", table_df.to_string(index=False))
+            # Wide enough to show every column, and only while it logs.
+            with pd.option_context(
+                "display.max_columns",
+                None,
+                "display.width",
+                200,
+                "display.max_colwidth",
+                None,
+            ):
+                logger.info("DataFrame mismatch between imported data and DB:")
+                logger.info("Imported DataFrame:")
+                logger.info("\n%s", imported_df.to_string(index=False))
+                logger.info("DB DataFrame:")
+                logger.info("\n%s", table_df.to_string(index=False))
             msg = f"DataFrames are not equal: {e}"
             raise AssertionError(msg) from e

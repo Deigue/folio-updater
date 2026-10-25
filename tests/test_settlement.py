@@ -1,4 +1,4 @@
-"""Optimized tests for settlement calculator - concise and comprehensive."""
+"""Tests for the settlement calculator."""
 
 from __future__ import annotations
 
@@ -14,6 +14,17 @@ from engine.settlement import SettlementCalculator
 calculator = SettlementCalculator()
 
 
+def _primed(target: SettlementCalculator) -> SettlementCalculator:
+    """Load the calendars covering every date this module uses into `target`."""
+    for currency in (Currency.USD, Currency.CAD):
+        target.calendar_schedules[currency] = target.get_calendar_schedule(
+            currency,
+            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
+            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
+        )
+    return target
+
+
 @pytest.fixture(scope="module", autouse=True)
 def prime_calendar_schedules() -> None:
     """Load market calendars once, covering every date this module uses.
@@ -24,17 +35,15 @@ def prime_calendar_schedules() -> None:
     order-dependent. Priming a range that spans the whole
     module removes the ordering assumption entirely.
     """
-    for currency in (Currency.USD, Currency.CAD):
-        calculator.calendar_schedules[currency] = calculator.get_calendar_schedule(
-            currency,
-            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
-            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
-        )
+    _primed(calculator)
+
+
+def test_an_empty_frame_comes_back_empty() -> None:
+    assert calculator.add_settlement_dates_to_dataframe(pd.DataFrame()).empty
 
 
 @pytest.mark.parametrize(
     (
-        "scenario",
         "txn_date",
         "action",
         "currency",
@@ -43,87 +52,80 @@ def prime_calendar_schedules() -> None:
         "expected_calculated",
     ),
     [
-        # Empty dataframe - special case
-        ("empty", None, None, None, None, None, None),
-        # Existing valid settlement date - preserve it
-        (
-            "valid_existing",
+        pytest.param(
             "2025-07-24",
             Action.BUY,
             Currency.USD,
             "2025-07-29",
             "2025-07-29",
             0,
+            id="valid_existing_is_kept",
         ),
-        # Invalid settlement date - recalculate
-        (
-            "invalid_existing",
+        pytest.param(
             "2025-07-24",
             Action.BUY,
             Currency.USD,
             "invalid-date",
             "2025-07-25",
             1,
+            id="invalid_existing_is_recalculated",
         ),
-        # No existing sameday settlement - calculated set 0
-        (
-            "no_existing_sameday",
+        pytest.param(
             "2025-07-24",
             Action.DIVIDEND,
             Currency.USD,
             None,
             "2025-07-24",
             0,
+            id="same_day_action_is_not_calculated",
         ),
-        # No existing business settlement - calculated set 1
-        (
-            "no_existing_business",
+        pytest.param(
             "2025-08-05",
             Action.BUY,
             Currency.USD,
             None,
             "2025-08-06",
             1,
+            id="business_day_action_is_calculated",
         ),
-        # Missing required data - should not crash
-        ("missing_data", None, Action.BUY, Currency.USD, None, pd.NA, 0),
-        # Non-standard currency (EUR)
-        (
-            "nonstandard_currency",
+        pytest.param(
+            None,
+            Action.BUY,
+            Currency.USD,
+            None,
+            pd.NA,
+            0,
+            id="missing_trade_date_does_not_crash",
+        ),
+        pytest.param(
             "2025-08-18",
             "BUY",
             "EUR",
             None,
             "2025-08-20",
             1,
+            id="nonstandard_currency",
         ),
-        # Unrecognized currency (GBP)
-        (
-            "unrecognized_currency",
+        pytest.param(
             "2025-08-18",
             "BUY",
             "GBP",
             None,
             "2025-08-20",
             1,
+            id="unrecognized_currency",
         ),
     ],
 )
 def test_settlement_scenarios(
-    scenario: str,
     txn_date: str | None,
-    action: str | None,
-    currency: str | None,
+    action: str,
+    currency: str,
     settle_date: str | None,
     expected_settle: str | None,
-    expected_calculated: int | None,
+    expected_calculated: int,
 ) -> None:
     """Test various settlement date calculation scenarios."""
-    if scenario == "empty":
-        result = calculator.add_settlement_dates_to_dataframe(pd.DataFrame())
-        assert result.empty
-        return
-
     df = pd.DataFrame(
         {
             Column.Txn.TXN_DATE: [txn_date if txn_date is not None else pd.NA],
@@ -194,13 +196,7 @@ def test_an_earlier_batch_widens_a_cached_calendar() -> None:
     batch following a newer one settled against the wrong trading days, and
     could even settle before it traded.
     """
-    fresh = SettlementCalculator()
-    for currency in (Currency.USD, Currency.CAD):
-        fresh.calendar_schedules[currency] = fresh.get_calendar_schedule(
-            currency,
-            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
-            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
-        )
+    fresh = _primed(SettlementCalculator())
     df = pd.DataFrame(
         {
             Column.Txn.TXN_DATE: ["2024-11-06", "2025-07-24"],

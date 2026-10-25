@@ -2,29 +2,28 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
 import ws_api
-from pandas.testing import assert_frame_equal
 from rich.progress import Progress
 from typer.testing import CliRunner
 
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import create_txns_table, drop_table, get_connection, get_row_count, get_rows
+from db import create_txns_table, get_connection, get_row_count, get_rows
 from domain import Column, Table
 from services.ibkr_service import IBKRAuthenticationError
 from term.console import active_console
-from tests.fixtures.dataframe_cache import register_test_dataframe
-from tests.fixtures.ibkr_mocking import (
+
+from .fixtures.data_factory import create_transaction_data
+from .fixtures.dataframe_cache import register_test_dataframe
+from .fixtures.ibkr_mocking import (
     IBKRMockContext,
     get_default_mock_csv,
 )
-from tests.fixtures.wealthsimple_mocking import (
+from .fixtures.wealthsimple_mocking import (
     WealthsimpleMockContext,
     create_mock_activities,
     get_expected_statement_txn_csv,
@@ -33,35 +32,35 @@ from tests.fixtures.wealthsimple_mocking import (
     get_mock_statement_transactions,
     mock_account,
 )
-
-from .fixtures.test_data_factory import create_transaction_data
 from .helpers.cli import (
+    UNCONSTRAINED_WIDTH,
     assert_cli_success,
     assert_in_output,
     run_cli_with_config,
 )
-from .helpers.seed import TSX_TICKER, TXN_DATE, seed_transaction
+from .helpers.seed import (
+    STATEMENT_PRICE,
+    STATEMENT_TRADE_DATE,
+    TSX_TICKER,
+    TXN_DATE,
+    seed_transaction,
+    statement_buy,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable
+    from pathlib import Path
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 runner = CliRunner()
 
 EXPECTED_TRANSACTION_COUNT = 2
 # A statement description names its symbol in at most five letters.
 STATEMENT_TICKER = "STMTK"
-TYPER_INVALID_COMMAND_EXIT_CODE = 2
 
 
-@pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> Generator[None, Any]:
-    """Suppress logging to avoid stream conflicts during CLI testing."""
-    # Temporarily disable all loggers to avoid stream conflicts
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
+pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
 @pytest.fixture(autouse=True)
@@ -75,59 +74,6 @@ def patch_progress(monkeypatch: pytest.MonkeyPatch) -> None:
         original_init(self, *args, **kwargs)
 
     monkeypatch.setattr(Progress, "__init__", new_init)
-
-
-def test_demo_command(temp_ctx: TempContext) -> None:
-    """Test demo command through main CLI app."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        assert not config.txn_parquet.exists()
-        assert not config.tickers_parquet.exists()
-        # * forex tested separately
-        cli_result = run_cli_with_config(config, cli_app, ["demo"])
-        assert_cli_success(cli_result)
-        assert_in_output("Demo folio created successfully!", cli_result)
-        assert config.txn_parquet.exists()
-        assert config.tickers_parquet.exists()
-
-
-def test_demo_command_reports_existing_data(temp_ctx: TempContext) -> None:
-    """Warn instead of claiming success when transaction data already exists."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        ensure_data_exists()
-        assert config.txn_parquet.exists()
-
-        cli_result = run_cli_with_config(config, cli_app, ["demo"])
-        assert_cli_success(cli_result)
-        assert_in_output("Demo folio not created due to existing data.", cli_result)
-
-
-@pytest.mark.no_mock_forex
-def test_getfx_command(
-    temp_ctx: TempContext,
-    cached_fx_data: Callable[[str | None], pd.DataFrame],
-) -> None:
-    """Test getfx command through main CLI app."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        ensure_data_exists()
-
-        # Drop the FX rates table to force fresh fetch
-        with get_connection() as conn:
-            drop_table(conn, Table.FX)
-
-        # Use cached FX data instead of real API call
-        with patch(
-            "services.forex_service.ForexService.get_fx_rates_from_boc",
-        ) as mock_fx:
-            mock_fx.return_value = cached_fx_data(None)
-            cli_result = run_cli_with_config(config, cli_app, ["getfx"])
-            assert_cli_success(cli_result)
-            assert_in_output("Successfully updated", cli_result)
-            with get_connection() as conn:
-                count = get_row_count(conn, Table.FX)
-                assert count > 0
 
 
 def test_import_command(temp_ctx: TempContext) -> None:
@@ -147,8 +93,8 @@ def test_import_command(temp_ctx: TempContext) -> None:
             assert count == EXPECTED_TRANSACTION_COUNT
 
 
-def test_import_command_missing_folio(temp_ctx: TempContext) -> None:
-    """Test import command when files don't exist."""
+def test_import_command_without_files_to_import(temp_ctx: TempContext) -> None:
+    """Nothing in the imports folder is refused, naming what it looked for."""
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
@@ -237,47 +183,6 @@ def test_importing_several_files_backs_the_folio_up_once(
     assert backups[0].endswith("_1.db")
 
 
-def test_generate_command(temp_ctx: TempContext) -> None:
-    """The workbook's source sheets hold what the database holds, and nothing more."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        ensure_data_exists()
-        assert config.txn_parquet.exists()
-        assert config.tickers_parquet.exists()
-        assert not config.folio_path.exists()
-        cli_result = run_cli_with_config(config, cli_app, ["generate"])
-        assert_cli_success(cli_result)
-        assert_in_output("sheets to", cli_result)
-        assert config.folio_path.exists()
-        transactions_parquet = pd.read_parquet(config.txn_parquet, engine="fastparquet")
-        # A column added after the table was made is stored as text, and the
-        # workbook writes it back as the number it holds.
-        transactions_parquet[Column.Txn.FEE] = pd.to_numeric(
-            transactions_parquet[Column.Txn.FEE],
-        )
-        tickers_parquet = pd.read_parquet(config.tickers_parquet, engine="fastparquet")
-        transactions_excel = pd.read_excel(
-            config.folio_path,
-            sheet_name=config.txn_sheet,
-        )
-        # The link back to the Summary, then the column bands, then the header.
-        tickers_excel = pd.read_excel(
-            config.folio_path,
-            sheet_name=config.tickers_sheet,
-            header=2,
-        )
-        assert_frame_equal(
-            transactions_parquet.reset_index(drop=True).fillna(pd.NA),
-            transactions_excel.reset_index(drop=True).fillna(pd.NA),
-        )
-        # The tickers sheet now carries what the quote cache knows of each one
-        # too, and keeps a renamed security's names together, but holds the same
-        # tickers.
-        assert sorted(tickers_parquet[Column.Ticker.TICKER]) == sorted(
-            tickers_excel[Column.Ticker.TICKER],
-        )
-
-
 def test_settle_info_command(temp_ctx: TempContext) -> None:
     """Test settle info command output."""
     with temp_ctx() as ctx:
@@ -301,60 +206,53 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
         assert_cli_success(cli_result)
 
 
-@pytest.mark.parametrize(
-    ("cli_args", "expected_output", "setup_type"),
-    [
-        (
-            ["--import", "-f", "test_statement.xlsx"],
-            'Updated 1 settlement dates from "test_statement.xlsx"',
-            "file",
-        ),
-        (
-            ["--import"],
-            "Matched 1 out of 1 candidates.",
-            "directory",
-        ),
-    ],
-)
-def test_settle_info_scenarios(
-    temp_ctx: TempContext,
-    cli_args: list[str],
-    expected_output: str,
-    setup_type: str,
-) -> None:
-    """Test various settle-info command scenarios."""
+def _seed_statement_buy() -> pd.DataFrame:
+    """Seed one buy, and return the statement row that settles it."""
+    seed_transaction(ticker=STATEMENT_TICKER, amount="-1502.50", units="10")
+    return pd.DataFrame(
+        [
+            {
+                "date": "2025-08-18",
+                "amount": -1502.50,
+                "currency": "USD",
+                "transaction": "BUY",
+                "description": f"{STATEMENT_TICKER} - 10 SHARES {TXN_DATE}",
+            },
+        ],
+    )
+
+
+def test_settle_info_import_reads_the_named_file(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
-        seed_transaction(ticker=STATEMENT_TICKER, amount="-1502.50", units="10")
-        statement_df = pd.DataFrame(
-            [
-                {
-                    "date": "2025-08-18",
-                    "amount": -1502.50,
-                    "currency": "USD",
-                    "transaction": "BUY",
-                    "description": f"{STATEMENT_TICKER} - 10 SHARES {TXN_DATE}",
-                },
-            ],
-        )
-
-        if setup_type == "directory":
-            new_cli_args = cli_args
-            config = ctx.config
-            statements_folder = config.statements_path
-            statement_file = statements_folder / "test_statement.xlsx"
-        else:
-            statement_file = ctx.config.project_root / "test_statement.xlsx"
-            new_cli_args = [cli_args[0], cli_args[1], str(statement_file)]
-
-        register_test_dataframe(statement_file, statement_df)
+        statement_file = ctx.config.project_root / "test_statement.xlsx"
+        register_test_dataframe(statement_file, _seed_statement_buy())
 
         cli_result = run_cli_with_config(
             ctx.config,
             cli_app,
-            ["settle-info", *new_cli_args],
+            ["settle-info", "--import", "-f", str(statement_file)],
         )
-        assert_in_output(expected_output, cli_result)
         assert_cli_success(cli_result)
+        assert_in_output(
+            'Updated 1 settlement dates from "test_statement.xlsx"',
+            cli_result,
+        )
+
+
+def test_settle_info_import_reads_the_statements_folder(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        statement_file = ctx.config.statements_path / "test_statement.xlsx"
+        register_test_dataframe(statement_file, _seed_statement_buy())
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--import"],
+        )
+        assert_cli_success(cli_result)
+        assert_in_output("Matched 1 out of 1 candidates.", cli_result)
 
 
 def test_settle_info_import_creates_and_displays_transfer(
@@ -441,39 +339,26 @@ def test_settle_info_verbose_lists_every_candidate_row(
         create_txns_table()
         seed_transaction(
             action="BUY",
-            date="2026-06-05",
+            date=STATEMENT_TRADE_DATE,
             account="WS-TFSA",
             currency="CAD",
             ticker=f"{TSX_TICKER}.TO",
-            amount="-61.50",
-            price="61.50",
+            amount=f"-{STATEMENT_PRICE}",
+            price=STATEMENT_PRICE,
             units="1",
         )
         statement_df = pd.DataFrame(
             [
-                {
-                    "date": "2026-06-08",
-                    "amount": -61.5,
-                    "currency": "CAD",
-                    "transaction": "BUY",
-                    "description": (
-                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
-                        "$61.50 per share (executed at 2026-06-05)"
-                    ),
-                },
-                {
-                    "date": "2026-06-30",
-                    "amount": -59.57,
-                    "currency": "CAD",
-                    "transaction": "BUY",
-                    "description": (
-                        f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
-                        "$59.57 per share (executed at 2026-06-29)"
-                    ),
-                },
+                statement_buy(),
+                # Nothing was bought on this day, so it matches no transaction.
+                statement_buy(
+                    price="47.80",
+                    traded="2026-04-21",
+                    settled="2026-04-22",
+                ),
             ],
         )
-        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202606.xlsx"
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
         register_test_dataframe(statement_file, statement_df)
 
         cli_result = run_cli_with_config(
@@ -500,35 +385,23 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
         create_txns_table()
         seed_transaction(
             action="BUY",
-            date="2026-06-05",
+            date=STATEMENT_TRADE_DATE,
             account="WS-TFSA",
             currency="CAD",
             ticker=f"{TSX_TICKER}.TO",
-            amount="-61.50",
-            price="61.50",
+            amount=f"-{STATEMENT_PRICE}",
+            price=STATEMENT_PRICE,
             units="1",
         )
         statements_dir = ctx.config.statements_path
 
-        def statement_row(amount: float, price: str) -> dict[str, Any]:
-            return {
-                "date": "2026-06-08",
-                "amount": amount,
-                "currency": "CAD",
-                "transaction": "BUY",
-                "description": (
-                    f"{TSX_TICKER} - Test Corp: Bought 1.0000 shares at "
-                    f"${price} per share (executed at 2026-06-05)"
-                ),
-            }
-
         register_test_dataframe(
-            statements_dir / "ws_statement_WS-TFSA_202606.xlsx",
-            pd.DataFrame([statement_row(-61.5, "61.50")]),
+            statements_dir / "ws_statement_WS-TFSA_202604.xlsx",
+            pd.DataFrame([statement_buy()]),
         )
         register_test_dataframe(
-            statements_dir / "ws_statement_WS-RRSP_202606.xlsx",
-            pd.DataFrame([statement_row(-99.99, "99.99")]),
+            statements_dir / "ws_statement_WS-RRSP_202604.xlsx",
+            pd.DataFrame([statement_buy(price="99.99")]),
         )
 
         first = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
@@ -537,39 +410,33 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
         assert_in_output("No updates", first)  # the RRSP statement matches nothing
 
         archive = ctx.config.statements_processed_path
-        tfsa = "ws_statement_WS-TFSA_202606.xlsx"
-        for name in (tfsa, "ws_statement_WS-RRSP_202606.xlsx"):
+        tfsa = "ws_statement_WS-TFSA_202604.xlsx"
+        for name in (tfsa, "ws_statement_WS-RRSP_202604.xlsx"):
             assert (archive / name).exists()
             assert not (statements_dir / name).exists()
 
         register_test_dataframe(
             statements_dir / tfsa,
-            pd.DataFrame([statement_row(-61.5, "61.50")]),
+            pd.DataFrame([statement_buy()]),
         )
         second = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
         assert_cli_success(second)
         assert_in_output("Found 1 statement file(s)", second)
         assert_in_output("Up to date", second)
         assert_in_output("are already settled", second)
-        assert (archive / "ws_statement_WS-TFSA_202606_1.xlsx").exists()
+        assert (archive / "ws_statement_WS-TFSA_202604_1.xlsx").exists()
 
 
 def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
     """No statement belongs to the demo: the way forward is your own import."""
     with temp_ctx() as ctx:
         ensure_data_exists()
-        statement = ctx.config.statements_path / "ws_statement_WS-TFSA_202606.xlsx"
+        statement = ctx.config.statements_path / "ws_statement_WS-TFSA_202604.xlsx"
         register_test_dataframe(
             statement,
             pd.DataFrame(
                 [
-                    {
-                        "date": "2026-06-08",
-                        "amount": -61.5,
-                        "currency": "CAD",
-                        "transaction": "BUY",
-                        "description": f"{TSX_TICKER} - 1 SHARES 2026-06-05",
-                    },
+                    statement_buy(),
                 ],
             ),
         )
@@ -598,11 +465,30 @@ def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
         assert_in_output("only works with", cli_result)
 
 
+def _seed_ibkr_trade(_monkeypatch: pytest.MonkeyPatch) -> None:
+    seed_transaction(account="IBKR-TFSA")
+
+
+def _prompt_for_a_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_token(_self: object) -> str:
+        msg = "No token found"
+        raise IBKRAuthenticationError(msg)
+
+    monkeypatch.setattr("services.ibkr_service.IBKRService.get_token", no_token)
+    monkeypatch.setattr("typer.prompt", lambda *_args, **_kwargs: "token-from-prompt")
+
+
+def _prompt_for_a_new_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("typer.prompt", lambda *_args, **_kwargs: "token-override")
+
+
+FLEX_REPORT = {"brokers": {"ibkr": {"FlexReport": "abc123"}}}
+
+
 @pytest.mark.parametrize(
-    ("scenario", "cli_args", "query_ids", "expected_output", "setup_action"),
+    ("cli_args", "query_ids", "setup", "expected_output", "writes_csv"),
     [
-        (
-            "default",
+        pytest.param(
             [],
             {
                 "brokers": {
@@ -612,207 +498,141 @@ def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
                     },
                 },
             },
+            None,
             "ActivityStatement: 3 lines received",
-            None,
+            True,
+            id="default",
         ),
-        (
-            "set_token",
+        pytest.param(
             [],
             None,
+            _prompt_for_a_missing_token,
             "Flex token stored securely",
-            "setup_token_prompt",
+            False,
+            id="set_token",
         ),
-        (
-            "reference_code",
+        pytest.param(
             ["-r", "ref123"],
-            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
-            "ref123: Received",
+            FLEX_REPORT,
             None,
+            "ref123: Received",
+            True,
+            id="reference_code",
         ),
-        (
-            "no_queries",
+        pytest.param(
             [],
+            None,
             None,
             "No transactions downloaded",
-            None,
+            False,
+            id="no_queries",
         ),
-        (
-            "custom_dates",
+        pytest.param(
             ["--from", "2025-10-01", "--to", "2025-10-21"],
-            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
-            "FlexReport: 3 lines received",
+            FLEX_REPORT,
             None,
+            "FlexReport: 3 lines received",
+            True,
+            id="custom_dates",
         ),
-        (
-            "db_date",
+        pytest.param(
             [],
-            {"brokers": {"ibkr": {"FlexReport": "abc123"}}},
+            FLEX_REPORT,
+            _seed_ibkr_trade,
             f"Using latest IBKR trade date: {TXN_DATE}",
-            "setup_db",
+            True,
+            id="db_date",
         ),
-        (
-            "credentials_ibkr",
+        pytest.param(
             ["--credentials"],
             None,
+            _prompt_for_a_new_token,
             "Setting new IBKR flex token",
-            "setup_token_override",
-        ),
-        (
-            "wealthsimple_default",
-            ["-b", "wealthsimple"],
-            None,
-            "Retrieved 6 transactions",
-            "setup_wealthsimple",
-        ),
-        (
-            "wealthsimple_custom_dates",
-            ["-b", "wealthsimple", "--from", "2025-10-01", "--to", "2025-10-21"],
-            None,
-            "Retrieved 6 transactions",
-            "setup_wealthsimple",
-        ),
-        (
-            "wealthsimple_no_transactions",
-            ["-b", "wealthsimple"],
-            None,
-            "No transactions downloaded",
-            "setup_wealthsimple_empty",
-        ),
-        (
-            "wealthsimple_statement",
-            ["-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
-            None,
-            "Retrieved 2 statement transactions",
-            "setup_wealthsimple_statement",
+            False,
+            id="credentials_ibkr",
         ),
     ],
 )
-def test_download_scenarios(
+def test_ibkr_download_scenarios(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
-    scenario: str,
     cli_args: list[str],
-    query_ids: dict,
+    query_ids: dict | None,
+    setup: Callable[[pytest.MonkeyPatch], None] | None,
     expected_output: str,
-    setup_action: str | None,
+    *,
+    writes_csv: bool,
 ) -> None:
-    """Test various download scenarios."""
-    if scenario.startswith("wealthsimple"):
-        _test_wealthsimple_scenario(
-            temp_ctx,
-            monkeypatch,
-            cli_args,
-            query_ids,
-            expected_output,
-            setup_action,
-        )
-    else:
-        _test_ibkr_scenario(
-            temp_ctx,
-            monkeypatch,
-            scenario,
-            cli_args,
-            query_ids,
-            expected_output,
-            setup_action,
-        )
-
-
-def _setup_ibkr_test_scenario(
-    setup_action: str | None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Set up IBKR-specific test scenario configurations."""
-    if setup_action == "setup_db":
-        seed_transaction(account="IBKR-TFSA")
-    elif setup_action == "setup_token_prompt":
-
-        def mock_get_token(_self: object) -> str:
-            msg = "No token found"
-            raise IBKRAuthenticationError(msg)
-
-        def mock_prompt(*_args: object, **_kwargs: object) -> str:
-            return "test_token_from_prompt"
-
-        monkeypatch.setattr(
-            "services.ibkr_service.IBKRService.get_token",
-            mock_get_token,
-        )
-        monkeypatch.setattr("typer.prompt", mock_prompt)
-    elif setup_action == "setup_token_override":
-
-        def mock_prompt(*_args: object, **_kwargs: object) -> str:
-            return "test_token_override"
-
-        monkeypatch.setattr("typer.prompt", mock_prompt)
-
-
-def _test_ibkr_scenario(
-    temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
-    scenario: str,
-    cli_args: list[str],
-    query_ids: dict,
-    expected_output: str,
-    setup_action: str | None,
-) -> None:
-    """Test IBKR download scenarios."""
-    if scenario in ["default", "custom_dates", "reference_code", "db_date"]:
-        mock_csv_data = get_default_mock_csv()
-    else:
-        mock_csv_data = ""
-
+    mock_csv_data = get_default_mock_csv() if writes_csv else ""
     with (
         temp_ctx(query_ids) as ctx,
         IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
     ):
-        _setup_ibkr_test_scenario(setup_action, monkeypatch)
+        if setup is not None:
+            setup(monkeypatch)
         cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
-
-        if scenario in ["set_token", "no_queries", "token_override"]:
-            ibkr_mock.assert_no_csv_written()
-        elif scenario in ["default", "custom_dates", "reference_code", "db_date"]:
+        if writes_csv:
             ibkr_mock.assert_csv_written(mock_csv_data)
+        else:
+            ibkr_mock.assert_no_csv_written()
 
 
-def _test_wealthsimple_scenario(
+@pytest.mark.parametrize(
+    ("cli_args", "activities", "expected_csv", "expected_output"),
+    [
+        pytest.param(
+            ["-b", "wealthsimple"],
+            get_mock_activities(),
+            get_expected_wealthsimple_csv(),
+            "Retrieved 6 transactions",
+            id="default",
+        ),
+        pytest.param(
+            ["-b", "wealthsimple", "--from", "2025-10-01", "--to", "2025-10-21"],
+            get_mock_activities(),
+            get_expected_wealthsimple_csv(),
+            "Retrieved 6 transactions",
+            id="custom_dates",
+        ),
+        pytest.param(
+            ["-b", "wealthsimple"],
+            [],
+            None,
+            "No transactions downloaded",
+            id="no_transactions",
+        ),
+        pytest.param(
+            ["-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
+            get_mock_statement_transactions(),
+            get_expected_statement_txn_csv(),
+            "Retrieved 2 statement transactions",
+            id="statement",
+        ),
+    ],
+)
+def test_wealthsimple_download_scenarios(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
     cli_args: list[str],
-    query_ids: dict,
+    activities: list[dict[str, Any]],
+    expected_csv: str | None,
     expected_output: str,
-    setup_action: str | None,
 ) -> None:
-    """Test Wealthsimple download scenarios."""
-    if setup_action == "setup_wealthsimple":
-        mock_activities = get_mock_activities()
-        expected_csv = get_expected_wealthsimple_csv()
-    elif setup_action == "setup_wealthsimple_empty":
-        mock_activities = []
-        expected_csv = ""
-    elif setup_action == "setup_wealthsimple_statement":
-        mock_activities = get_mock_statement_transactions()
-        expected_csv = get_expected_statement_txn_csv()
-
     with (
-        temp_ctx(query_ids) as ctx,
-        WealthsimpleMockContext(
-            monkeypatch,
-            mock_activities=mock_activities,
-        ) as ws_mock,
+        temp_ctx() as ctx,
+        WealthsimpleMockContext(monkeypatch, mock_activities=activities) as ws_mock,
     ):
         cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
-
-        if len(mock_activities) > 0:
-            ws_mock.assert_csv_written(expected_csv)
-        else:
+        if expected_csv is None:
             ws_mock.assert_no_csv_written()
+        else:
+            ws_mock.assert_csv_written(expected_csv)
 
 
 def _download_wealthsimple_csv(
@@ -971,89 +791,24 @@ def test_ibkr_download_waits_for_a_statement_that_is_not_ready(
         assert ibkr_mock.statement_requests == 3
 
 
-def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:
-    """Test --list when the alias table has never been created."""
+def test_version_command(tmp_path: Path, temp_ctx: TempContext) -> None:
+    """The paths reported are the folio's own, here the temp one."""
     with temp_ctx() as ctx:
-        seed_transaction()
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["symbol", "--list"])
-        assert_cli_success(cli_result)
-        assert_in_output("No ticker aliases found.", cli_result)
-
-
-def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
-    """Test --delete when the alias table has never been created."""
-    with temp_ctx() as ctx:
-        seed_transaction()
         cli_result = run_cli_with_config(
             ctx.config,
             cli_app,
-            ["symbol", "--delete", "OLD"],
+            ["version"],
+            width=UNCONSTRAINED_WIDTH,
         )
-        assert_cli_success(cli_result)
-        assert_in_output("Alias for 'OLD' not found.", cli_result)
-
-
-def test_symbol_command(temp_ctx: TempContext) -> None:
-    """Test management of ticker aliases with tickers command."""
-    with temp_ctx() as ctx:
-        config = ctx.config
-        # 1. ADD
-        cli_result = run_cli_with_config(
-            config,
-            cli_app,
-            ["symbol", "--add", "OLD", "NEW", "2025-01-01"],
-        )
-        assert_cli_success(cli_result)
-        assert_in_output("Successfully added alias.", cli_result)
-        with get_connection() as conn:
-            count = get_row_count(conn, Table.TICKER_ALIASES)
-            assert count == 1
-
-        # 2. ADD another alias
-        cli_result = run_cli_with_config(
-            config,
-            cli_app,
-            ["symbol", "--add", "NEW", "NEWEST", "2025-02-01"],
-        )
-        assert_cli_success(cli_result)
-
-        # 3. LIST aliases
-        cli_result = run_cli_with_config(config, cli_app, ["symbol", "--list"])
-        assert_cli_success(cli_result)
-        assert_in_output("OLD", cli_result)
-        assert_in_output("NEW", cli_result)
-        assert_in_output("NEWEST", cli_result)
-
-        # 4. DELETE an alias
-        cli_result = run_cli_with_config(
-            config,
-            cli_app,
-            ["symbol", "--delete", "OLD"],
-        )
-        assert_cli_success(cli_result)
-        assert_in_output("Successfully deleted alias", cli_result)
-        with get_connection() as conn:
-            count = get_row_count(conn, Table.TICKER_ALIASES)
-            assert count == 1
-            remaining = get_rows(conn, Table.TICKER_ALIASES)
-            assert remaining.iloc[0][Column.Aliases.OLD_TICKER] == "NEW"
-
-        # 5. LIST once the last alias is gone
-        run_cli_with_config(config, cli_app, ["symbol", "--delete", "NEW"])
-        cli_result = run_cli_with_config(config, cli_app, ["symbol", "--list"])
-        assert_in_output("No ticker aliases found.", cli_result)
-
-
-def test_version_command() -> None:
-    """Test version command output."""
-    cli_result = runner.invoke(cli_app, ["version"])
-    assert cli_result.exit_code == 0
-    assert "folio-updater version:" in cli_result.stdout
-    assert "application path:" in cli_result.stdout
-    assert "config path:" in cli_result.stdout
-    assert "folio path:" in cli_result.stdout
-    assert "data path:" in cli_result.stdout
-    assert "backup path:" in cli_result.stdout
+    assert_cli_success(cli_result)
+    assert_in_output("folio-updater version:", cli_result)
+    assert_in_output("application path:", cli_result)
+    assert_in_output(f"config path: {tmp_path / 'config.yaml'}", cli_result)
+    assert_in_output(f"folio path: {ctx.config.folio_path}", cli_result)
+    assert_in_output(f"data path: {ctx.config.data_path}", cli_result)
+    assert_in_output(f"backup path: {ctx.config.backup_path}", cli_result)
+    for path in (ctx.config.folio_path, ctx.config.data_path, ctx.config.backup_path):
+        assert path.is_relative_to(tmp_path)
 
 
 @pytest.mark.parametrize(

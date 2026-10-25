@@ -11,18 +11,18 @@ from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from services import WealthsimpleServiceError
 from services.wealthsimple_service import WealthsimpleAuthenticationError
-from tests.fixtures.dataframe_cache import register_test_dataframe
 
-from .fixtures.test_data_factory import create_transaction_data
+from .fixtures.data_factory import create_transaction_data
+from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
 from .helpers.folio import txn_total
-from .helpers.seed import TSX_TICKER, seed_transaction
+from .helpers.seed import TSX_TICKER, seed_cash, seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 IBKR_FILE = "ibkr_TradeConfirmation_20260901_20261003.csv"
 WS_ACCOUNT = "WS-TFSA"
@@ -153,15 +153,7 @@ def test_clean_run_goes_through_every_stage(
     with temp_ctx() as ctx:
         config = ctx.config
         seed_transaction(account=WS_ACCOUNT)  # a calculated date from a past month
-        seed_transaction(
-            action="TFR_OUT",
-            account=WS_ACCOUNT,
-            currency="CAD",
-            ticker=None,
-            amount="-100",
-            price=None,
-            units=None,
-        )
+        seed_cash("TFR_OUT", amount="-100", account=WS_ACCOUNT)
 
         def ibkr(*_args: object) -> list[str]:
             return []

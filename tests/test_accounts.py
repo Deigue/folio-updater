@@ -10,9 +10,9 @@ from domain import AccountType, FeeConvention
 from engine.accounts import fee_convention_for, resolve_account_type
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
-LIVE_ACCOUNTS = [
+ACCOUNT_NAMES = [
     ("IBKR-PERSONAL", AccountType.NON_REGISTERED),
     ("WS-PERSONAL", AccountType.NON_REGISTERED),
     ("IBKR-TFSA", AccountType.TFSA),
@@ -23,8 +23,8 @@ LIVE_ACCOUNTS = [
 ]
 
 
-@pytest.mark.parametrize(("account", "expected"), LIVE_ACCOUNTS)
-def test_live_accounts_resolve_without_config(
+@pytest.mark.parametrize(("account", "expected"), ACCOUNT_NAMES)
+def test_account_names_resolve_without_config(
     temp_ctx: TempContext,
     account: str,
     expected: AccountType,

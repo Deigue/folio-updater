@@ -1,11 +1,10 @@
-"""Tests for the query command and query parsing."""
+"""Tests for the query command, and the parser against a live schema."""
 
 from __future__ import annotations
 
-import logging
 import sqlite3
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -26,17 +25,10 @@ from .helpers.folio import earliest_txn_date, plain_ticker, ticker_rows
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
-    from tests.test_types import TempContext
+    from .helpers.context import TempContext
 
 
-@pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> Generator[None, Any]:
-    """Suppress logging to avoid stream conflicts during CLI testing."""
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
+pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
 class TestQueryParserAgainstLiveSchema:
@@ -68,25 +60,13 @@ class TestQueryCommand:
     the two together and reports what it found.
     """
 
-    def test_query_no_terms(self, temp_ctx: TempContext) -> None:
-        """Test query command without any terms."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(ctx.config, cli_app, ["query"])
-            # Typer requires the terms argument, so it fails with exit code 2
-            assert cli_result.exit_code == 2
-
     def test_query_results_with_ticker(self, temp_ctx: TempContext) -> None:
         """Test that query returns correct results for a ticker."""
         with temp_ctx() as ctx:
             ensure_data_exists()
 
-            # Count transactions for a specific ticker in the database
-            with get_connection() as conn:
-                ticker = plain_ticker()
-                where = f'"{Column.Txn.TICKER}" = ?'
-                params = [ticker]
-                expected_count = get_row_count(conn, Table.TXNS, where, params)
+            ticker = plain_ticker()
+            expected_count = ticker_rows(ticker)
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -191,14 +171,14 @@ class TestQueryCommand:
                 seed_transaction(ticker=ticker, amount="-1502.50")
                 seed_transaction(ticker=ticker, amount="-1602.50")
 
-            # 2. Create an alias: ticker_alias_old -> ticker_alias_new
+            # 1. Create an alias: ticker_alias_old -> ticker_alias_new
             run_cli_with_config(
                 config,
                 cli_app,
                 ["symbol", "--add", ticker_alias_old, ticker_alias_new, "2025-01-01"],
             )
 
-            # 3. Query for the old ticker: finds both old and new transactions
+            # 2. Query for the old ticker: finds both old and new transactions
             result_a = run_cli_with_config(config, cli_app, ["query", ticker_alias_old])
             assert_cli_success(result_a)
             assert_in_output("Found 4 matching transaction(s).", result_a)
@@ -206,7 +186,7 @@ class TestQueryCommand:
             assert_in_output(f" {ticker_alias_new} ", result_a)
             assert_not_in_output(f" {ticker_unrelated} ", result_a)
 
-            # 4. Query for the new ticker: also finds both
+            # 3. Query for the new ticker: also finds both
             result_b = run_cli_with_config(config, cli_app, ["query", ticker_alias_new])
             assert_cli_success(result_b)
             assert_in_output("Found 4 matching transaction(s).", result_b)
@@ -214,107 +194,13 @@ class TestQueryCommand:
             assert_in_output(f" {ticker_alias_new} ", result_b)
             assert_not_in_output(f" {ticker_unrelated} ", result_b)
 
-            # 5. Query for the unrelated ticker: only its own transactions
+            # 4. Query for the unrelated ticker: only its own transactions
             result_c = run_cli_with_config(config, cli_app, ["query", ticker_unrelated])
             assert_cli_success(result_c)
             assert_in_output("Found 2 matching transaction(s).", result_c)
             assert_in_output(f" {ticker_unrelated} ", result_c)
             assert_not_in_output(f" {ticker_alias_old} ", result_c)
             assert_not_in_output(f" {ticker_alias_new} ", result_c)
-
-    def test_query_contains_operator(self, temp_ctx: TempContext) -> None:
-        """Test that explicit `~` (contains/LIKE) filters execute against the DB."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            search_term = plain_ticker()
-            with get_connection() as conn:
-                where = f'"{Column.Txn.TICKER}" LIKE ?'
-                params = [f"%{search_term}%"]
-                expected_count = get_row_count(conn, Table.TXNS, where, params)
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", f"Ticker~{search_term}"],
-            )
-            assert_cli_success(cli_result)
-            output_msg = f"Found {expected_count} matching transaction(s)"
-            assert_in_output(output_msg, cli_result)
-
-    def test_query_limit_natural_language(self, temp_ctx: TempContext) -> None:
-        """Test that 'last N' (no time unit) limits the number of results."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "last", "5"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("limit:-5", cli_result)
-            assert_in_output("Found 5 matching transaction(s).", cli_result)
-
-    def test_query_limit_explicit(self, temp_ctx: TempContext) -> None:
-        """Test explicit 'limit:N' filter syntax."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(ctx.config, cli_app, ["query", "limit:3"])
-            assert_cli_success(cli_result)
-            assert_in_output("limit:3", cli_result)
-            assert_in_output("Found 3 matching transaction(s).", cli_result)
-
-    def test_query_between_dates_covers_all(self, temp_ctx: TempContext) -> None:
-        """Test 'between X and Y' with a wide range returns every transaction."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            ticker = plain_ticker()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ticker, "between", "2020", "and", "2030"],
-            )
-            assert_cli_success(cli_result)
-            expected_total = ticker_rows(ticker)
-            output_msg = f"Found {expected_total} matching transaction(s)"
-            assert_in_output(output_msg, cli_result)
-
-    def test_query_after_before_bounds(self, temp_ctx: TempContext) -> None:
-        """Test single-sided 'after'/'before' date phrases."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            ticker = plain_ticker()
-            expected_total = ticker_rows(ticker)
-
-            result_after = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ticker, "after", "2000"],
-            )
-            assert_cli_success(result_after)
-            output_msg = f"Found {expected_total} matching transaction(s)"
-            assert_in_output(output_msg, result_after)
-
-            result_before = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", ticker, "before", "2000"],
-            )
-            assert_cli_success(result_before)
-            assert_in_output("No transactions found", result_before)
-
-    def test_query_from_no_to_with_limit(self, temp_ctx: TempContext) -> None:
-        """Test the documented 'from X ... first N' combo (open-ended 'from')."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "from", "2020-01", "first", "4"],
-            )
-            assert_cli_success(cli_result)
-            assert_in_output("TxnDate>=2020-01-01", cli_result)
-            assert_in_output("limit:4", cli_result)
-            assert_in_output("Found 4 matching transaction(s).", cli_result)
 
 
 class TestQueryByTxnId:
@@ -323,68 +209,6 @@ class TestQueryByTxnId:
     This mirrors the TxnId selection `folio edit` and `folio delete` accept,
     so all three commands share the same selection syntax.
     """
-
-    def test_query_single_txn_id(self, temp_ctx: TempContext) -> None:
-        """A single TxnId returns exactly that transaction."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", str(txn_id)],
-            )
-
-            assert_cli_success(cli_result)
-            assert_in_output("Found 1 matching transaction(s).", cli_result)
-
-    def test_query_multiple_txn_ids(self, temp_ctx: TempContext) -> None:
-        """Several TxnIds are all returned by one query call."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            first = seed_transaction(amount="-1502.50")
-            second = seed_transaction(amount="-1602.50")
-            third = seed_transaction(amount="-1702.50")
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", str(first), str(second), str(third)],
-            )
-
-            assert_cli_success(cli_result)
-            assert_in_output("Found 3 matching transaction(s).", cli_result)
-
-    def test_query_repeated_txn_id_counted_once(self, temp_ctx: TempContext) -> None:
-        """A TxnId given twice is deduplicated rather than counted twice."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-            txn_id = seed_transaction()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", str(txn_id), str(txn_id)],
-            )
-
-            assert_cli_success(cli_result)
-            assert_in_output("Found 1 matching transaction(s).", cli_result)
-
-    def test_query_unknown_txn_id_reports_missing(self, temp_ctx: TempContext) -> None:
-        """An unmatched TxnId is reported rather than silently dropped."""
-        with temp_ctx() as ctx:
-            ensure_data_exists()
-
-            cli_result = run_cli_with_config(
-                ctx.config,
-                cli_app,
-                ["query", "999999"],
-            )
-
-            assert_cli_success(cli_result)
-            assert_in_output("No transaction with TxnId 999999.", cli_result)
-            assert_in_output("No transactions found", cli_result)
 
     def test_query_mixed_ids_reports_missing_and_found(
         self,

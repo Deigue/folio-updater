@@ -6,27 +6,17 @@ from typing import TYPE_CHECKING
 
 from cli.selection import SelectionMode, select_transactions
 from datagen import ensure_data_exists
-from db import add_column_to_table, get_connection, get_rows, update_rows
+from db import add_column_to_table, get_connection, update_rows
 from domain import Column, Table
 
+from .helpers.folio import txn_ids
 from .helpers.seed import ACCOUNT, TICKER, seed_transaction
 
 if TYPE_CHECKING:
-    from tests.test_types import TempContext
+    from .helpers.context import TempContext
 
 # Restricts a selection to the seeded rows, leaving the mock folio out of it.
 _SEEDED = f"account:{ACCOUNT}"
-
-
-def _all_txn_ids() -> list[int]:
-    """Get every TxnId currently in the database, ascending."""
-    with get_connection() as conn:
-        rows = get_rows(
-            conn,
-            Table.TXNS,
-            order_by=f'"{Column.Txn.TXN_ID}" ASC',
-        )
-    return [int(txn_id) for txn_id in rows[Column.Txn.TXN_ID]]
 
 
 class TestSelectionMode:
@@ -36,7 +26,7 @@ class TestSelectionMode:
         """A list of plain integers selects by TxnId."""
         with temp_ctx():
             ensure_data_exists()
-            ids = _all_txn_ids()[:3]
+            ids = txn_ids()[:3]
 
             selection = select_transactions([str(i) for i in ids])
 
@@ -59,7 +49,7 @@ class TestSelectionMode:
         """A repeated TxnId is requested once, in the order first given."""
         with temp_ctx():
             ensure_data_exists()
-            first, second = _all_txn_ids()[:2]
+            first, second = txn_ids()[:2]
 
             selection = select_transactions(
                 [str(second), str(first), str(second)],
@@ -72,7 +62,7 @@ class TestSelectionMode:
         """TxnIds with no matching row come back in missing_ids."""
         with temp_ctx():
             ensure_data_exists()
-            existing = _all_txn_ids()[0]
+            existing = txn_ids()[0]
 
             selection = select_transactions([str(existing), "999999"])
 
@@ -83,7 +73,7 @@ class TestSelectionMode:
         """Id selections come back in TxnId order regardless of input order."""
         with temp_ctx():
             ensure_data_exists()
-            first, second, third = _all_txn_ids()[:3]
+            first, second, third = txn_ids()[:3]
 
             selection = select_transactions(
                 [str(third), str(first), str(second)],
@@ -112,7 +102,7 @@ class TestTailLimit:
         """'sort:txnid last N' returns the N highest TxnIds, sorted ascending."""
         with temp_ctx():
             ensure_data_exists()
-            expected = _all_txn_ids()[-5:]
+            expected = txn_ids()[-5:]
 
             selection = select_transactions(["sort:txnid", "last", "5"])
 
@@ -125,7 +115,7 @@ class TestTailLimit:
         """'sort:-txnid last N' returns the N lowest TxnIds, sorted descending."""
         with temp_ctx():
             ensure_data_exists()
-            expected = list(reversed(_all_txn_ids()[:5]))
+            expected = list(reversed(txn_ids()[:5]))
 
             selection = select_transactions(["sort:-txnid", "last", "5"])
 
@@ -135,7 +125,7 @@ class TestTailLimit:
         """'sort:txnid first N' is unaffected: it still takes the head."""
         with temp_ctx():
             ensure_data_exists()
-            expected = _all_txn_ids()[:5]
+            expected = txn_ids()[:5]
 
             selection = select_transactions(["sort:txnid", "first", "5"])
 
@@ -239,6 +229,18 @@ class TestQueryResults:
 
             assert selection.txn_ids == [newer, older, zed]
 
+    def test_contains_matches_part_of_a_column(self, temp_ctx: TempContext) -> None:
+        """`Ticker~ALF` keeps every ticker holding ALF, and only those."""
+        with temp_ctx():
+            ensure_data_exists()
+            alpha = seed_transaction(ticker="ALFCO")
+            also = seed_transaction(ticker="BALFCO")
+            seed_transaction(ticker="ZEDCO")
+
+            selection = select_transactions([_SEEDED, "Ticker~ALF", "sort:Ticker"])
+
+            assert selection.txn_ids == [alpha, also]
+
     def test_text_search_matches_part_of_an_account_name(
         self,
         temp_ctx: TempContext,
@@ -292,7 +294,7 @@ class TestSelectionBounds:
         """An explicit id list is bounded by definition."""
         with temp_ctx():
             ensure_data_exists()
-            txn_id = _all_txn_ids()[0]
+            txn_id = txn_ids()[0]
 
             assert not select_transactions([str(txn_id)]).is_unbounded
 
@@ -399,7 +401,7 @@ class TestSelectionDescribe:
         """Id selections name the ids that were asked for."""
         with temp_ctx():
             ensure_data_exists()
-            first, second = _all_txn_ids()[:2]
+            first, second = txn_ids()[:2]
 
             described = select_transactions([str(first), str(second)]).describe()
 

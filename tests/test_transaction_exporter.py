@@ -5,18 +5,17 @@ import pandas as pd
 from datagen import ensure_data_exists
 from exporters import ParquetExporter
 
+from .helpers.context import TempContext
 from .helpers.dataframe import verify_db_contents
 from .helpers.folio import txn_total
-from .test_types import TempContext
 
 
 def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
-    """Test exporting transactions to Parquet with updates and duplicates."""
+    """The Parquet export holds every transaction the database holds."""
     with temp_ctx() as ctx:
         config = ctx.config
         ensure_data_exists()
 
-        # Test 1: Initial export from database to Parquet
         exporter = ParquetExporter()
         export_count: int = exporter.export_transactions()
         assert export_count == txn_total()

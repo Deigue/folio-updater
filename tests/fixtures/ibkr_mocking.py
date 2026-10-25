@@ -69,7 +69,7 @@ class IBKRMockContext:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Clean up mocks."""
+        """Undo nothing: monkeypatch restores every patch when the test ends."""
 
     def _setup_http_mocks(self) -> None:
         """Set up HTTP request mocking."""
@@ -80,7 +80,7 @@ class IBKRMockContext:
                 text = ""
 
                 def raise_for_status(self) -> None:
-                    # Mock implementation - no error handling needed for tests
+                    # Every mocked request succeeds.
                     return
 
             if "SendRequest" in url:
@@ -96,8 +96,6 @@ class IBKRMockContext:
                 MockResponse.text = (
                     STATEMENT_NOT_READY if waiting else self.mock_csv_data
                 )
-            else:  # pragma: no cover
-                MockResponse.text = ""
             return MockResponse()
 
         self.monkeypatch.setattr(requests.Session, "get", mock_get)
@@ -186,9 +184,6 @@ def create_mock_csv_data(rows: list[dict[str, str]]) -> str:
     Returns:
         Formatted CSV string with headers
     """
-    if not rows:  # pragma: no cover
-        return ""
-
     headers = list(rows[0].keys())
     output = io.StringIO()
     writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
@@ -202,21 +197,6 @@ def create_mock_csv_data(rows: list[dict[str, str]]) -> str:
 
 
 # Common test data
-DEFAULT_CSV_HEADERS = [
-    "SettleDate",
-    "TradeDate",
-    BUY_SELL_FIELD,
-    "Proceeds",
-    "CurrencyPrimary",
-    "Price",
-    "Quantity",
-    "Commission",
-    "AccountAlias",
-    "ClientAccountID",
-    "Symbol",
-    "OtherCommission",
-]
-
 DEFAULT_TRANSACTION_ROWS = [
     {
         "SettleDate": "2025-10-03",

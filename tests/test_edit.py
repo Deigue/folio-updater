@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import logging
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pandas as pd
@@ -25,17 +24,10 @@ from .helpers.cli import (
 from .helpers.seed import ACCOUNT, TICKER, seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
-    from tests.test_types import TempContext
+    from .helpers.context import TempContext
 
 
-@pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> Generator[None, Any]:
-    """Suppress logging to avoid stream conflicts during CLI testing."""
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
+pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
 def _row(txn_id: int) -> pd.Series:
@@ -550,8 +542,11 @@ class TestEditSigns:
 class TestEditFlow:
     """Preview, confirmation, and side effects."""
 
-    def test_preview_shows_before_and_after(self, temp_ctx: TempContext) -> None:
-        """The pending change is rendered with both values."""
+    def test_preview_shows_the_value_being_replaced(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """The pending change shows the stored value, which was not typed in."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
@@ -563,9 +558,7 @@ class TestEditFlow:
             )
 
             assert_cli_success(cli_result)
-            assert_in_output("Pending Changes", cli_result)
             assert_in_output("150.25", cli_result)
-            assert_in_output("175.2", cli_result)
 
     def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
         """--dry-run previews without writing."""

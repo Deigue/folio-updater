@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
 from .console import DEFAULT_WIDTH, UNCONSTRAINED_WIDTH, capture_output
@@ -85,12 +84,6 @@ def assert_cli_success(result: CliTestResult) -> None:
     Raises:
         AssertionError: If the command did not succeed.
     """
-    if result.exit_code != 0:  # pragma: no cover
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        print("PLAIN_OUTPUT:\n", result.plain_output)
-        if result.exception:
-            print("EXCEPTION:", str(result.exception))
     assert result.exit_code == 0, (
         f"CLI failed: {result.exit_code}\n"
         f"STDOUT:\n{result.stdout}\n"
@@ -110,15 +103,11 @@ def assert_in_output(expected_substring: str, cli_result: CliTestResult) -> None
     Raises:
         AssertionError: If the substring is not found.
     """
-    if expected_substring not in cli_result.plain_output:  # pragma: no cover
-        print("\n---EXPECTED SUBSTRING---")
-        print(expected_substring)
-        print("\n---ACTUAL PLAIN_OUTPUT---")
-        print(cli_result.plain_output)
-        print("---END PLAIN_OUTPUT---\n")
-        pytest.fail(
-            "Expected substring was not found in the command's plain text output.",  # ty: ignore[invalid-argument-type]
-        )
+    assert expected_substring in cli_result.plain_output, (
+        f"Expected substring was not found in the command's plain text output.\n"
+        f"---EXPECTED SUBSTRING---\n{expected_substring}\n"
+        f"---ACTUAL PLAIN_OUTPUT---\n{cli_result.plain_output}"
+    )
 
 
 def assert_not_in_output(
@@ -134,12 +123,8 @@ def assert_not_in_output(
     Raises:
         AssertionError: If the substring is found.
     """
-    if unexpected_substring in cli_result.plain_output:  # pragma: no cover
-        print("\n---UNEXPECTED SUBSTRING---")
-        print(unexpected_substring)
-        print("\n---ACTUAL PLAIN_OUTPUT---")
-        print(cli_result.plain_output)
-        print("---END PLAIN_OUTPUT---\n")
-        pytest.fail(
-            "Unexpected substring was found in the command's plain text output.",  # ty: ignore[invalid-argument-type]
-        )
+    assert unexpected_substring not in cli_result.plain_output, (
+        f"Unexpected substring was found in the command's plain text output.\n"
+        f"---UNEXPECTED SUBSTRING---\n{unexpected_substring}\n"
+        f"---ACTUAL PLAIN_OUTPUT---\n{cli_result.plain_output}"
+    )

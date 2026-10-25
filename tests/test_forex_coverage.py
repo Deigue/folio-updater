@@ -10,19 +10,20 @@ import pandas as pd
 import pytest
 
 from cli.main import app
-from db import create_txns_table
-from domain import TORONTO_TZ, Column
+from datagen import ensure_data_exists
+from db import create_txns_table, drop_table, get_connection, get_row_count
+from domain import TORONTO_TZ, Column, Table
 from engine.ledger import open_ledger
 from services import ForexService
 
-from .helpers.cli import assert_cli_success, run_cli_with_config
+from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from unittest.mock import MagicMock
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 
 @pytest.fixture
@@ -276,3 +277,17 @@ def test_a_failed_fx_download_only_warns(
         ledger = open_ledger()
     assert "Could not refresh FX rates; using what is stored" in caplog.text
     assert list(ledger.frame[Column.Txn.SETTLE_DATE]) == [SETTLED]
+
+
+def test_getfx_command_refills_the_fx_table(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        ensure_data_exists()
+        with get_connection() as conn:
+            drop_table(conn, Table.FX)
+
+        cli_result = run_cli_with_config(ctx.config, app, ["getfx"])
+
+        assert_cli_success(cli_result)
+        assert_in_output("Successfully updated", cli_result)
+        with get_connection() as conn:
+            assert get_row_count(conn, Table.FX) > 0

@@ -26,74 +26,19 @@ from engine.frames import (
 )
 from engine.fx_rates import FxRates
 from engine.replay import (
-    ReplayConfig,
     detect_fee_conventions,
     detect_fee_signs,
-    replay,
     resolve_trade_cash,
 )
 from engine.transfers import pair_transfers
 from engine.types import ReplayResult, TxnRow, to_txn_rows
-from services.symbols import SymbolResolver
+
+from .helpers.replay import make_row, run
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 D = Decimal
-
-FLAT_FX = FxRates(("2020-01-01",), (D("1.30"),))
-
-
-def make_row(
-    txn_id: int,
-    date: str,
-    action: Action,
-    *,
-    amount: str = "0",
-    units: str = "0",
-    price: str = "0",
-    fee: str = "0",
-    currency: str = "CAD",
-    ticker: str | None = "TEST",
-    account: str = "IBKR-PERSONAL",
-    settle_date: str | None = None,
-) -> TxnRow:
-    """Build one transaction with every money column already Decimal."""
-    return TxnRow(
-        txn_id=txn_id,
-        txn_date=date,
-        settle_date=settle_date or date,
-        action=action,
-        amount=D(amount),
-        currency=Currency(currency),
-        price=D(price),
-        units=D(units),
-        fee=D(fee),
-        ticker=ticker,
-        account=account,
-    )
-
-
-def run(
-    rows: list[TxnRow],
-    fx: FxRates = FLAT_FX,
-    types: dict[str, AccountType] | None = None,
-    conventions: dict[str, FeeConvention] | None = None,
-    aliases: list[tuple[str, str, str]] | None = None,
-) -> ReplayResult:
-    """Replay rows with explicit account facts, so no config is involved.
-
-    Fee signs are detected exactly as `ReplayConfig.build` detects them, since
-    which sign means "charged" is read from the rows rather than configured.
-    """
-    accounts = {row.account for row in rows}
-    cfg = ReplayConfig(
-        account_types=types or dict.fromkeys(accounts, AccountType.NON_REGISTERED),
-        fee_conventions=conventions or dict.fromkeys(accounts, FeeConvention.AUTO),
-        symbols=SymbolResolver(aliases or []),
-        fee_signs=detect_fee_signs(rows),
-    )
-    return replay(rows, fx, cfg)
 
 
 def codes(result: ReplayResult) -> set[WarningCode]:
@@ -993,9 +938,9 @@ def test_single_leg_fxt_books_the_fee_against_the_usd_leg() -> None:
                 1,
                 "2024-04-01",
                 Action.FXT,
-                amount="-13624",
+                amount="-12500",
                 units="10000",
-                price="1.3624",
+                price="1.25",
                 fee="2",
                 ticker=None,
                 account="IBKR-RRSP",
@@ -1003,7 +948,7 @@ def test_single_leg_fxt_books_the_fee_against_the_usd_leg() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
     assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)].cash == D("9998")
 
 
@@ -1037,16 +982,16 @@ def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
 
 
 def test_fxt_amount_inconsistent() -> None:
-    """Real row 1818: a large leg rounded to a clean number."""
+    """A large leg rounded to a clean number, a cent off the units times the rate."""
     result = run(
         [
             make_row(
                 1,
                 "2024-04-01",
                 Action.FXT,
-                amount="-13000",
-                units="9541.98",
-                price="1.3624",
+                amount="-10000",
+                units="7999.99",
+                price="1.25",
                 fee="2",
                 ticker=None,
                 account="IBKR-RRSP",
@@ -1056,7 +1001,7 @@ def test_fxt_amount_inconsistent() -> None:
     )
     assert WarningCode.FXT_AMOUNT_INCONSISTENT in codes(result)
     # The warning never substitutes a recomputed figure for what moved.
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13000")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-10000")
 
 
 # --- fee conventions -----------------------------------------------------------------
@@ -1457,7 +1402,7 @@ def test_decimal_precision_survives_replay() -> None:
 
 def test_alias_resolution_is_time_bounded() -> None:
     """A symbol reused after its rename date is a different security."""
-    aliases = [("SPLG", "SPYM", "2025-10-31")]
+    aliases = [("OLDCO", "NEWCO", "2025-06-16")]
     result = run(
         [
             make_row(
@@ -1467,7 +1412,7 @@ def test_alias_resolution_is_time_bounded() -> None:
                 amount="-1000",
                 units="100",
                 price="10",
-                ticker="SPLG",
+                ticker="OLDCO",
             ),
             make_row(
                 2,
@@ -1476,13 +1421,13 @@ def test_alias_resolution_is_time_bounded() -> None:
                 amount="-500",
                 units="50",
                 price="10",
-                ticker="SPLG",
+                ticker="OLDCO",
             ),
         ],
         aliases=aliases,
     )
-    assert result.rows[0].symbol == "SPYM"
-    assert result.rows[1].symbol == "SPLG"
+    assert result.rows[0].symbol == "NEWCO"
+    assert result.rows[1].symbol == "OLDCO"
     # Two different securities, so the second buy starts its own pool.
     assert result.rows[1].acct.acb_cad == D("500")
 
@@ -1521,7 +1466,7 @@ def test_roc_without_a_position_warns() -> None:
 
 
 def test_split_with_a_non_positive_ratio_is_skipped() -> None:
-    """Sign rules keep these out of the folio; the engine still must not divide."""
+    """A zero ratio passes the sign rules (zero has no sign), so must not divide."""
     result = run(
         [
             make_row(
@@ -2368,9 +2313,9 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
                 1,
                 "2024-04-01",
                 Action.FXT,
-                amount="-13624",
+                amount="-12500",
                 units="10000",
-                price="1.3624",
+                price="1.25",
                 fee="-2",
                 ticker=None,
                 account="IBKR-RRSP",
@@ -2391,7 +2336,7 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
     )
     usd = result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)]
     assert usd.cash == D("10000") - D("2") - D("1000.35")
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-13624")
+    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
 
 
 def test_fee_convention_detection_survives_negative_fees() -> None:
@@ -2640,3 +2585,58 @@ def test_splitting_an_untracked_frame_yields_nothing() -> None:
     )
     assert acb_summary_frames_by_pool(frame, Grain.TYPE) == {}
     assert acb_summary_frames_by_pool(pd.DataFrame(), Grain.TYPE) == {}
+
+
+# --- totals --------------------------------------------------------------------
+
+
+def _bought_and_sold() -> list[TxnRow]:
+    """Fund an account, buy into it, then sell some."""
+    return [
+        make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),
+        make_row(2, "2024-01-03", Action.BUY, amount="-1000", units="100", price="10"),
+        make_row(3, "2024-03-01", Action.SELL, amount="600", units="-50", price="12"),
+    ]
+
+
+def test_totals_count_rows_by_shape() -> None:
+    result = run(_bought_and_sold())
+    assert result.totals.counting([Action.BUY]) == 1
+    assert result.totals.counting([Action.BUY, Action.SELL]) == 2
+    assert result.totals.counting([Action.SPLIT]) == 0
+    assert result.totals.accounts() == {"IBKR-PERSONAL"}
+
+
+def test_totals_respect_the_suppression_lists() -> None:
+    result = run(_bought_and_sold())
+    assert result.totals.counting([Action.BUY], {"IBKR-PERSONAL"}) == 0
+    assert result.totals.counting([Action.BUY], (), {"TEST"}) == 0
+
+
+def test_totals_split_a_security_by_currency() -> None:
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-01-03",
+                Action.BUY,
+                amount="-1000",
+                units="10",
+                price="100",
+                currency="USD",
+                ticker="AAPL",
+            ),
+            make_row(
+                2,
+                "2024-02-03",
+                Action.BUY,
+                amount="-1100",
+                units="10",
+                price="110",
+                currency="CAD",
+                ticker="AAPL",
+            ),
+        ],
+    )
+    split = result.totals.currencies_for("AAPL", (Action.BUY,))
+    assert split == {Currency.USD: 1, Currency.CAD: 1}

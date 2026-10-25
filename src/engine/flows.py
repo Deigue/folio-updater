@@ -329,9 +329,8 @@ def _by_type_year(
         rows[str(Column.Txn.AMOUNT)].to_numpy(),
         strict=True,
     ):
-        day = _date_of(str(stamp))
-        if day is None:
-            continue
+        # The database holds every TxnDate as YYYY-MM-DD.
+        day = date.fromisoformat(str(stamp)[:10])
         try:
             account_type = AccountType(str(name))
         except ValueError:
@@ -400,11 +399,3 @@ def room_year(account_type: AccountType, day: date) -> int:
     while deadline.weekday() >= WEEKDAYS:
         deadline += timedelta(days=1)
     return day.year - 1 if day <= deadline else day.year
-
-
-def _date_of(text: str) -> date | None:
-    """Read a `YYYY-MM-DD` date, or None when it is not one."""
-    try:
-        return date.fromisoformat(text[:10])
-    except (TypeError, ValueError):
-        return None

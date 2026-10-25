@@ -1,11 +1,13 @@
 """Tests for the config module."""
 
+from __future__ import annotations
+
 import logging
 import os
 import time
 from decimal import Decimal
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import pytest
 import yaml
@@ -16,32 +18,17 @@ from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
 from .helpers.console import capture_output
-from .test_types import TempContext
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+    from .helpers.context import TempContext
 
 
-def test_default_config(tmp_path: Path, temp_ctx: TempContext) -> None:
-    # No yaml file exists, verify auto-creation logic
+def test_a_missing_config_is_created_with_the_defaults(tmp_path: Path) -> None:
     config = Config.load(tmp_path)
-    logger.debug("Auto-created config.yaml:\n%s", config)
     with Path.open(config.config_path) as f:
-        config_yaml = yaml.safe_load(f)
-        assert config_yaml == Config.DEFAULT_CONFIG
-    config.config_path.unlink()
-
-    # Load an empty config.yaml
-    with temp_ctx() as ctx:
-        assert ctx.config.config_path.exists()
-        logger.debug("Empty Configuration:\n%s", ctx.config)
-
-    # Load a default config.yaml
-    with temp_ctx(Config.DEFAULT_CONFIG) as ctx:
-        assert ctx.config.config_path.exists()
-        logger.debug("Default Configuration:\n%s", ctx.config)
-        with Path.open(ctx.config.config_path) as f:
-            config_yaml = yaml.safe_load(f)
-            assert config_yaml == Config.DEFAULT_CONFIG
+        assert yaml.safe_load(f) == Config.DEFAULT_CONFIG
 
 
 def test_a_missing_absolute_data_folder_is_created(
@@ -102,15 +89,9 @@ def test_a_log_rollover_another_process_blocks_is_skipped_quietly(
 
 
 def test_backup_settings_are_read_from_config(temp_ctx: TempContext) -> None:
-    # An explicit backup section is honoured as given.
     with temp_ctx({"backup": {"enabled": True, "max_backups": 3}}) as ctx:
         assert ctx.config.backup_enabled
         assert ctx.config.max_backups == 3
-
-    # Default: conftest disables backups for all, max_backups=50
-    with temp_ctx() as ctx:
-        assert not ctx.config.backup_enabled
-        assert ctx.config.max_backups == 50
 
 
 def test_relative_path_resolves(temp_ctx: TempContext) -> None:
@@ -126,13 +107,9 @@ def test_absolute_path_kept(tmp_path: Path, temp_ctx: TempContext) -> None:
         assert ctx.config.folio_path == absolute_path
 
 
-def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
-    # --- 1. Test problematic bootstrap  ---
-    # Point folio_path to a folder that doesn't exist.
-    bad_folio: Path = tmp_path / "nonexistent" / "bad.xlsx"
+def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
     with temp_ctx(
         {
-            "folio_path": str(bad_folio),
             "log_level": 3,
             "sheets": {"tickers": "Tickers", "txns": None, "unknown_sheet": "Nope"},
             "header_ignore": "notalist",
@@ -153,7 +130,7 @@ def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
     ) as ctx:
         config = ctx.config
         assert config.log_level == "ERROR"  # Defaults to ERROR on bad value
-        assert not config.header_keywords.__contains__("InvalidKeyword")
+        assert "InvalidKeyword" not in config.header_keywords
         assert config.header_ignore == []
         assert config.brokers == Config.DEFAULT_CONFIG["brokers"]
         assert config.txn_sheet == "Txns"
@@ -161,11 +138,46 @@ def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
         assert config.max_backups == 50  # A bool is not a backup count.
         assert config.duplicate_approval_column == "Duplicate"
         assert config.duplicate_approval_value == "1"
-        good_folio: Path = tmp_path / "good.xlsx"
-        # --- 2. Test reload_config updates config ---
-        config_yaml: Path = config.config_path
-        assert config_yaml.exists()
-        with Path.open(config_yaml, mode="w") as f:
+
+
+@pytest.fixture
+def project_logs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[Path]:
+    """Point `init_logging` at tmp_path, and take back every handler it adds.
+
+    `init_logging` writes beside the project root, not the configured one, so
+    without this a reload would log into the repo's own `logs/` for the rest of
+    the worker's run.
+
+    Yields:
+        The logs folder `init_logging` will write into.
+    """
+    monkeypatch.setattr(
+        Config,
+        "get_default_root_directory",
+        staticmethod(lambda: tmp_path),
+    )
+    loggers = [logging.getLogger(), logging.getLogger("importer")]
+    saved = [(lg, lg.level, lg.propagate, list(lg.handlers)) for lg in loggers]
+    yield tmp_path / "logs"
+    for lg, level, propagate, handlers in saved:
+        for handler in [h for h in lg.handlers if h not in handlers]:
+            lg.removeHandler(handler)
+            handler.close()
+        lg.setLevel(level)
+        lg.propagate = propagate
+
+
+def test_reload_config_reads_the_file_again(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+    project_logs: Path,
+) -> None:
+    good_folio = tmp_path / "good.xlsx"
+    with temp_ctx() as ctx:
+        with Path.open(ctx.config.config_path, mode="w") as f:
             yaml.safe_dump(
                 {
                     "folio_path": str(good_folio),
@@ -176,25 +188,16 @@ def test_bootstrap(tmp_path: Path, temp_ctx: TempContext) -> None:
                 f,
             )
 
-        root_logger: logging.Logger = logging.getLogger()
-        original_level: int = root_logger.level
-        original_handlers = list(root_logger.handlers)
-        try:
-            new_config: Config = bootstrap.reload_config(tmp_path)
-            assert new_config.folio_path == good_folio
-            assert new_config.log_level == "INFO"
-            assert new_config.tickers_sheet == "TKR"
-            assert new_config.txn_sheet == "TXNS"
-            assert new_config.header_keywords["TxnDate"] == ["settledate"]
-            logger.debug("This message is colorized!")
-        finally:
-            root_logger.setLevel(original_level)
-            for handler in root_logger.handlers:
-                if handler not in original_handlers:  # pragma: no cover
-                    root_logger.removeHandler(handler)
-            for handler in original_handlers:
-                if handler not in root_logger.handlers:
-                    root_logger.addHandler(handler)  # pragma: no cover
+        new_config: Config = bootstrap.reload_config(tmp_path)
+
+    assert new_config.folio_path == good_folio
+    assert new_config.tickers_sheet == "TKR"
+    assert new_config.txn_sheet == "TXNS"
+    assert new_config.header_keywords["TxnDate"] == ["settledate"]
+    # The new log level reaches the logs, which the reload sets up.
+    assert logging.getLogger().level == logging.INFO
+    assert (project_logs / "folio.log").exists()
+    assert (project_logs / "importer.log").exists()
 
 
 def test_cost_base_defaults(temp_ctx: TempContext) -> None:
@@ -224,7 +227,7 @@ def test_quotes_settings_are_read_from_config(temp_ctx: TempContext) -> None:
         "ttl_minutes": 5,
         "metadata_ttl_days": 90,
         "timeout_seconds": 45,
-        "symbol_overrides": {"TOI.TO": "TOI.V"},
+        "symbol_overrides": {"VNTKR.TO": "VNTKR.V"},
     }
     with temp_ctx(quotes=overrides) as ctx:
         config = ctx.config
@@ -232,7 +235,7 @@ def test_quotes_settings_are_read_from_config(temp_ctx: TempContext) -> None:
         assert config.quotes_metadata_ttl_days == 90
         assert config.quotes_timeout_seconds == 45
         # Keyed upper-case so a lookup never depends on YAML casing.
-        assert config.quotes_symbol_overrides == {"TOI.TO": "TOI.V"}
+        assert config.quotes_symbol_overrides == {"VNTKR.TO": "VNTKR.V"}
 
 
 @pytest.mark.parametrize("bad", [0, -5, "fifteen", None, True])
@@ -246,11 +249,11 @@ def test_a_nonsense_quote_ttl_keeps_the_default(
 
 
 def test_contribution_room_is_read_by_type_and_year(temp_ctx: TempContext) -> None:
-    room = {"TFSA": {2025: 7000, 2026: 7000}, "RRSP": {2026: 14880}}
+    room = {"TFSA": {2025: 7000, 2026: 7000}, "RRSP": {2026: 9500}}
     with temp_ctx(contribution_room=room) as ctx:
         configured = ctx.config.contribution_room
         assert configured[AccountType.TFSA][2026] == Decimal(7000)
-        assert configured[AccountType.RRSP][2026] == Decimal(14880)
+        assert configured[AccountType.RRSP][2026] == Decimal(9500)
 
 
 def test_contribution_room_drops_what_it_cannot_resolve(

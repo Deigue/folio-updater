@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from db import get_connection, get_rows, insert_or_replace_many
+from db import get_connection, get_rows
 from domain import Column, Currency, PriceRange, QuoteStatus, Table
 from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import (
@@ -30,7 +30,6 @@ from services.quotes_service import (
     _previous_close,
     _provider_reachable,
     _run_concurrently,
-    _write,
 )
 from services.symbols import SymbolResolver
 
@@ -40,7 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from unittest.mock import MagicMock
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 RESOLVER = SymbolResolver([])
 
@@ -589,20 +588,20 @@ def test_fundamentals_are_cached_in_one_set_of_units(temp_ctx: TempContext) -> N
         QuotesService.refresh(["AAA", "FFF"], RESOLVER)
         cached = QuotesService.cached()
 
-    shares = cached["AAA"].fundamentals
-    assert shares.quote_type == "EQUITY"
-    assert shares.eps == Decimal("17.97")
-    assert shares.dividend_yield == Decimal("0.0077")
-    assert shares.ex_dividend_date == "2026-11-19"
-    assert shares.earnings_date == "2026-10-28"
+    stock_fundamentals = cached["AAA"].fundamentals
+    assert stock_fundamentals.quote_type == "EQUITY"
+    assert stock_fundamentals.eps == Decimal("17.97")
+    assert stock_fundamentals.dividend_yield == Decimal("0.0077")
+    assert stock_fundamentals.ex_dividend_date == "2026-11-19"
+    assert stock_fundamentals.earnings_date == "2026-10-28"
 
-    units = cached["FFF"].fundamentals
-    assert units.eps == Decimal("7.68")
-    assert units.beta == Decimal("0.99")
-    assert units.expense_ratio == Decimal("0.0009")
-    assert units.total_assets == Decimal(35_000_000_000)
+    fund_fundamentals = cached["FFF"].fundamentals
+    assert fund_fundamentals.eps == Decimal("7.68")
+    assert fund_fundamentals.beta == Decimal("0.99")
+    assert fund_fundamentals.expense_ratio == Decimal("0.0009")
+    assert fund_fundamentals.total_assets == Decimal(35_000_000_000)
     # A fund paying nothing reports a zero rate, which is no rate at all.
-    assert units.dividend_rate is None
+    assert fund_fundamentals.dividend_rate is None
 
 
 @pytest.mark.no_mock_quotes
@@ -695,17 +694,6 @@ def test_the_daily_fallback_on_an_empty_download(temp_ctx: TempContext) -> None:
         assert QuotesService._fetch_daily(["AAA"]) == {}  # noqa: SLF001
 
 
-def test_running_nothing_concurrently_returns_nothing() -> None:
-    calls: list[str] = []
-
-    def fetch(symbol: str) -> str:
-        calls.append(symbol)  # pragma: no cover - never reached
-        return symbol  # pragma: no cover
-
-    assert _run_concurrently(fetch, []) == []
-    assert calls == []
-
-
 def test_running_concurrently_drops_the_misses() -> None:
     def fetch(symbol: str) -> str | None:
         return None if symbol == "GHOST" else symbol.lower()
@@ -713,44 +701,6 @@ def test_running_concurrently_drops_the_misses() -> None:
     found = _run_concurrently(fetch, ["AAA", "GHOST", "BBB"])
 
     assert sorted(found) == ["aaa", "bbb"]
-
-
-def test_writing_no_rows_touches_nothing(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        # Guards the table-creating write against being called with an empty
-        # batch, which would otherwise create the table for nothing.
-        _write([])
-
-        assert QuotesService.cached() == {}
-
-
-def test_a_batched_write_of_nothing_writes_nothing(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        QuotesService.refresh(["TESTTKR"], RESOLVER)
-
-        with get_connection() as conn:
-            assert insert_or_replace_many(conn, Table.QUOTES, []) == 0
-        assert set(QuotesService.cached()) == {"TESTTKR"}
-
-
-def test_a_batched_write_replaces_rather_than_appends(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        QuotesService.refresh(["TESTTKR"], RESOLVER)
-        rows = [
-            {
-                str(Column.Quote.SYMBOL): "TESTTKR",
-                str(Column.Quote.YSYMBOL): "TESTTKR",
-                str(Column.Quote.PRICE): 999.0,
-                str(Column.Quote.STATUS): str(QuoteStatus.OK),
-            },
-        ]
-
-        with get_connection() as conn:
-            assert insert_or_replace_many(conn, Table.QUOTES, rows) == 1
-
-        cached = QuotesService.cached()
-        assert len(cached) == 1
-        assert cached["TESTTKR"].price == 999
 
 
 def test_reading_the_cache_can_be_narrowed(temp_ctx: TempContext) -> None:

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pandas as pd
@@ -12,8 +11,7 @@ import pytest
 from cli.commands import delete as delete_module
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import get_connection, get_row_count, get_rows
-from domain import Column, Table
+from domain import Column
 
 from .helpers.cli import (
     assert_cli_success,
@@ -21,33 +19,14 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
+from .helpers.folio import ticker_rows, txn_ids, txn_total
 from .helpers.seed import TICKER, seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
-    from tests.test_types import TempContext
+    from .helpers.context import TempContext
 
 
-@pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> Generator[None, Any]:
-    """Suppress logging to avoid stream conflicts during CLI testing."""
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
-
-
-def _txn_count() -> int:
-    """Get the current number of transactions in the database."""
-    with get_connection() as conn:
-        return get_row_count(conn, Table.TXNS)
-
-
-def _txn_ids() -> list[int]:
-    """Get every TxnId currently in the database."""
-    with get_connection() as conn:
-        rows = get_rows(conn, Table.TXNS)
-    return [int(txn_id) for txn_id in rows[Column.Txn.TXN_ID]]
+pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
 class TestDeleteSelection:
@@ -58,7 +37,7 @@ class TestDeleteSelection:
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -67,8 +46,8 @@ class TestDeleteSelection:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before - 1
-            assert txn_id not in _txn_ids()
+            assert txn_total() == before - 1
+            assert txn_id not in txn_ids()
 
     def test_delete_multiple_txn_ids(self, temp_ctx: TempContext) -> None:
         """Several TxnIds are all deleted in one call."""
@@ -76,7 +55,7 @@ class TestDeleteSelection:
             ensure_data_exists()
             first = seed_transaction(amount="-1502.50")
             second = seed_transaction(amount="-1602.50")
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -85,8 +64,8 @@ class TestDeleteSelection:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before - 2
-            remaining = _txn_ids()
+            assert txn_total() == before - 2
+            remaining = txn_ids()
             assert first not in remaining
             assert second not in remaining
 
@@ -95,7 +74,7 @@ class TestDeleteSelection:
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -105,7 +84,7 @@ class TestDeleteSelection:
 
             assert_cli_success(cli_result)
             assert_in_output("Deleted 1 transaction(s)", cli_result)
-            assert _txn_count() == before - 1
+            assert txn_total() == before - 1
 
     def test_delete_by_query_terms(self, temp_ctx: TempContext) -> None:
         """Query terms select a batch the same way `folio query` would."""
@@ -113,7 +92,7 @@ class TestDeleteSelection:
             ensure_data_exists()
             seed_transaction(amount="-1502.50")
             seed_transaction(amount="-1602.50")
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -122,15 +101,8 @@ class TestDeleteSelection:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before - 2
-            with get_connection() as conn:
-                remaining = get_rows(
-                    conn,
-                    Table.TXNS,
-                    where=f'"{Column.Txn.TICKER}" = ?',
-                    params=[TICKER],
-                )
-            assert remaining.empty
+            assert txn_total() == before - 2
+            assert ticker_rows(TICKER) == 0
 
 
 class TestDeleteConfirmation:
@@ -158,7 +130,7 @@ class TestDeleteConfirmation:
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -169,15 +141,15 @@ class TestDeleteConfirmation:
 
             assert_cli_success(cli_result)
             assert_in_output("No transactions deleted.", cli_result)
-            assert _txn_count() == before
-            assert txn_id in _txn_ids()
+            assert txn_total() == before
+            assert txn_id in txn_ids()
 
     def test_confirming_deletes(self, temp_ctx: TempContext) -> None:
         """Answering yes deletes exactly the previewed transaction."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -187,8 +159,8 @@ class TestDeleteConfirmation:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before - 1
-            assert txn_id not in _txn_ids()
+            assert txn_total() == before - 1
+            assert txn_id not in txn_ids()
 
     def test_force_skips_the_prompt(self, temp_ctx: TempContext) -> None:
         """--force deletes without asking."""
@@ -204,14 +176,14 @@ class TestDeleteConfirmation:
 
             assert_cli_success(cli_result)
             assert "Delete 1 transaction(s)?" not in cli_result.stdout
-            assert txn_id not in _txn_ids()
+            assert txn_id not in txn_ids()
 
     def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
         """--dry-run previews without deleting or prompting."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -222,14 +194,14 @@ class TestDeleteConfirmation:
             assert_cli_success(cli_result)
             assert_in_output("Dry run - nothing was written to the folio.", cli_result)
             assert_not_in_output("Deleted", cli_result)
-            assert _txn_count() == before
-            assert txn_id in _txn_ids()
+            assert txn_total() == before
+            assert txn_id in txn_ids()
 
     def test_bulk_delete_warns_about_the_share(self, temp_ctx: TempContext) -> None:
         """A selection covering most of the folio warns before the prompt."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            total = _txn_count()
+            total = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -240,7 +212,7 @@ class TestDeleteConfirmation:
 
             assert_cli_success(cli_result)
             assert_in_output(f"This will delete {total} of {total}", cli_result)
-            assert _txn_count() == total
+            assert txn_total() == total
 
 
 class TestDeleteGuards:
@@ -250,7 +222,7 @@ class TestDeleteGuards:
         """An unknown TxnId is an error, not a silent no-op."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -260,7 +232,7 @@ class TestDeleteGuards:
 
             assert cli_result.exit_code == 1
             assert_in_output("No transaction with TxnId 999999.", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_partially_valid_id_list_deletes_nothing(
         self,
@@ -270,7 +242,7 @@ class TestDeleteGuards:
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -280,14 +252,14 @@ class TestDeleteGuards:
 
             assert cli_result.exit_code == 1
             assert_in_output("No transaction with TxnId 999999.", cli_result)
-            assert _txn_count() == before
-            assert txn_id in _txn_ids()
+            assert txn_total() == before
+            assert txn_id in txn_ids()
 
     def test_no_matches_fails(self, temp_ctx: TempContext) -> None:
         """Query terms matching nothing are an error."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -297,13 +269,13 @@ class TestDeleteGuards:
 
             assert cli_result.exit_code == 1
             assert_in_output("No transactions matched", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_unbounded_selection_is_refused(self, temp_ctx: TempContext) -> None:
         """A selection with no filters cannot wipe the folio."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -313,7 +285,7 @@ class TestDeleteGuards:
 
             assert cli_result.exit_code == 1
             assert_in_output("Refusing to delete every transaction", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_force_does_not_bypass_the_unbounded_guard(
         self,
@@ -322,7 +294,7 @@ class TestDeleteGuards:
         """--force skips the prompt, never the safety rail."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -332,13 +304,13 @@ class TestDeleteGuards:
 
             assert cli_result.exit_code == 1
             assert_in_output("Refusing to delete every transaction", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_limit_only_selection_is_allowed(self, temp_ctx: TempContext) -> None:
         """`limit:N` bounds a selection even without filters."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -347,11 +319,11 @@ class TestDeleteGuards:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before - 2
+            assert txn_total() == before - 2
 
 
 class TestDeleteSideEffects:
-    """Backup, parquet re-export and the audit log."""
+    """Parquet re-export and the audit log."""
 
     @pytest.mark.real_parquet_export
     def test_delete_exports_to_parquet(self, temp_ctx: TempContext) -> None:

@@ -748,11 +748,9 @@ class _Context:
 
 
 def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
-    """Value one summary row, or None when it is not a holding to show."""
-    symbol = record.get(Column.Ledger.SYMBOL)
-    if not isinstance(symbol, str) or not symbol:
-        return None
-
+    """Value one summary row, or None when a USD view hides a CAD holding."""
+    # Every summary row is one symbol's, as `acb_summary_frame` groups by it.
+    symbol = str(record[Column.Ledger.SYMBOL])
     grain = ctx.grain
     held = dec(record.get(grain_column(grain, "Units")))
     closed = held == ZERO
@@ -943,10 +941,6 @@ def _filtered_out(record: Mapping[Any, Any], grain: Grain) -> int:
     Returns:
         1 when the filter dropped a real holding, 0 otherwise.
     """
-    symbol = record.get(Column.Ledger.SYMBOL)
-    if not isinstance(symbol, str) or not symbol:
-        # Not a holding at all, so nothing was hidden.
-        return 0
     return int(_native_currency(record, grain) is not Currency.USD)
 
 
@@ -1079,8 +1073,7 @@ def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal
         paying[Column.Ledger.DIVIDEND_USD].to_numpy(),
         strict=True,
     ):
-        if not isinstance(symbol, str) or not symbol:
-            continue
+        # Only a DIVIDEND row carries one, and validation requires its Ticker.
         running = totals.get(symbol, (ZERO, ZERO))
         totals[symbol] = (running[0] + dec(cad), running[1] + dec(usd))
     return totals

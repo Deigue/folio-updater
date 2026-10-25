@@ -59,7 +59,7 @@ class WealthsimpleMockContext:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Clean up mocks."""
+        """Undo nothing: monkeypatch restores every patch when the test ends."""
 
     def _setup_api_mocks(self) -> None:  # noqa: C901 (one nested class per seam)
         """Set up Wealthsimple API mocking at the ws-api level."""
@@ -398,8 +398,8 @@ def get_mock_activities() -> list[dict[str, Any]]:
                 "description": "Transfer from bank account",
                 "amount_sign": "positive",
             },
-            # Institutional transfer: carries no amount and is skipped entirely
-            # from activities - it's only ever created from the statement.
+            # Institutional transfer: carries no amount, so activities skip it
+            # entirely. It's only ever created from the statement.
             {
                 "account_id": "test-tfsa-1",
                 "occurred_at": "2025-10-06T11:00:00-04:00",

@@ -15,7 +15,7 @@ import pytest
 
 from cli import query_parser
 from cli.query_parser import QueryVocabulary, get_valid_column_names
-from domain import TORONTO_TZ, Column
+from domain import Column
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -52,6 +52,18 @@ def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
             return datetime(today.year, today.month, today.day, tzinfo=tz)
 
     monkeypatch.setattr(query_parser, "datetime", _FrozenDateTime)
+
+
+@pytest.fixture
+def today(monkeypatch: pytest.MonkeyPatch) -> date:
+    """Freeze the parser's today on a mid-month Wednesday, and return it.
+
+    Read from the real clock, a relative-date test could straddle midnight and
+    compare one day's answer against the next day's expectation.
+    """
+    frozen = date(2025, 6, 18)
+    _freeze_today(monkeypatch, frozen)
+    return frozen
 
 
 class TestQueryParser:
@@ -327,25 +339,24 @@ class TestQueryParser:
         assert query.end_limit is None
         assert len(query.filters) == 2
 
-    def test_parse_n_units_ago(self) -> None:
+    def test_parse_n_units_ago(self, today: date) -> None:
         """Test 'N units ago' produces a date range anchored on the number."""
         query = parse_query_terms(["3", "weeks", "ago"])
         assert len(query.filters) == 2
         assert query.filters[0].operator == ">="
         assert query.filters[1].operator == "<="
-        today = datetime.now(TORONTO_TZ).date()
         expected_start = (today - timedelta(weeks=3)).strftime("%Y-%m-%d")
         assert query.filters[0].value == expected_start
         assert query.filters[1].value == today.strftime("%Y-%m-%d")
 
-    def test_parse_this_year(self) -> None:
+    def test_parse_this_year(self, today: date) -> None:
         """Test 'this year' produces a date range from Jan 1 to today."""
         query = parse_query_terms(["this", "year"])
         assert len(query.filters) == 2
-        today = datetime.now(TORONTO_TZ).date()
         assert query.filters[0].value == f"{today.year}-01-01"
         assert query.filters[1].value == today.strftime("%Y-%m-%d")
 
+    @pytest.mark.usefixtures("today")
     def test_parse_previous_is_alias_for_last(self) -> None:
         """Test 'previous month' behaves identically to 'last month'."""
         query_previous = parse_query_terms(["previous", "month"])
@@ -391,22 +402,20 @@ class TestQueryParser:
         assert query.filters[0].value.endswith("-01-01")
         assert query.filters[1].value.endswith("-06-30")
 
-    def test_parse_from_without_to_is_open_ended(self) -> None:
+    def test_parse_from_without_to_is_open_ended(self, today: date) -> None:
         """Test 'from X' with no trailing 'to Y' ranges through today."""
         query = parse_query_terms(["from", "2025-01"])
         assert len(query.filters) == 2
         assert query.filters[0].operator == ">="
         assert query.filters[0].value == "2025-01-01"
-        today = datetime.now(TORONTO_TZ).date()
         assert query.filters[1].value == today.strftime("%Y-%m-%d")
 
-    def test_parse_since_month_year_phrase(self) -> None:
+    def test_parse_since_month_year_phrase(self, today: date) -> None:
         """Test 'since MONTH YEAR' resolves via loose date parsing, not just digits."""
         query = parse_query_terms(["since", "july", "2023"])
         assert len(query.filters) == 2
         assert query.filters[0].operator == ">="
         assert query.filters[0].value == "2023-07-01"
-        today = datetime.now(TORONTO_TZ).date()
         assert query.filters[1].value == today.strftime("%Y-%m-%d")
 
     def test_parse_unconfigured_column_filter_falls_back_to_text_search(self) -> None:
@@ -421,10 +430,8 @@ class TestQueryParser:
         assert not query.filters
         assert query.text_searches == ["PRICE"]
 
-    def test_parse_single_word_exact_dates(self) -> None:
+    def test_parse_single_word_exact_dates(self, today: date) -> None:
         """Test yesterday/today/tomorrow each resolve to a single-day date range."""
-        today = datetime.now(TORONTO_TZ).date()
-
         for term, offset in (("yesterday", -1), ("today", 0), ("tomorrow", 1)):
             query = parse_query_terms([term])
             expected = (today + timedelta(days=offset)).strftime("%Y-%m-%d")
@@ -432,10 +439,8 @@ class TestQueryParser:
             assert query.filters[0].value == expected, term
             assert query.filters[1].value == expected, term
 
-    def test_parse_this_week_and_this_month(self) -> None:
+    def test_parse_this_week_and_this_month(self, today: date) -> None:
         """Test 'this week'/'this month' resolve to period-start through today."""
-        today = datetime.now(TORONTO_TZ).date()
-
         query_week = parse_query_terms(["this", "week"])
         week_start = today - timedelta(days=today.weekday())
         assert len(query_week.filters) == 2
@@ -449,10 +454,8 @@ class TestQueryParser:
         )
         assert query_month.filters[1].value == today.strftime("%Y-%m-%d")
 
-    def test_parse_last_day_and_last_week(self) -> None:
+    def test_parse_last_day_and_last_week(self, today: date) -> None:
         """Test 'last day'/'last week' (no leading number) resolve correctly."""
-        today = datetime.now(TORONTO_TZ).date()
-
         query_day = parse_query_terms(["last", "day"])
         yesterday = today - timedelta(days=1)
         assert len(query_day.filters) == 2
@@ -467,9 +470,8 @@ class TestQueryParser:
         assert query_week.filters[0].value == last_week_start.strftime("%Y-%m-%d")
         assert query_week.filters[1].value == last_week_end.strftime("%Y-%m-%d")
 
-    def test_parse_last_year(self) -> None:
+    def test_parse_last_year(self, today: date) -> None:
         """Test 'last year' (no leading number) resolves to the full prior year."""
-        today = datetime.now(TORONTO_TZ).date()
         query = parse_query_terms(["last", "year"])
         assert len(query.filters) == 2
         assert query.filters[0].value == f"{today.year - 1}-01-01"

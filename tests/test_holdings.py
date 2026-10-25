@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 import pytest
 
 from domain import Currency, Grain, QuoteStatus
@@ -17,10 +16,6 @@ from engine.holdings import (
     Holding,
     HoldingSet,
     UnknownSortError,
-    _Context,
-    _dividends_by_symbol,
-    _filtered_out,
-    _holding,
     held_symbols,
     sort_holdings,
     summarize_closed,
@@ -29,10 +24,14 @@ from engine.holdings import (
 from engine.ledger import open_ledger
 from services.quotes_service import Quote
 
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    import pandas as pd
+
+    from engine.holdings import DisplayCurrency
+
+    from .helpers.context import TempContext
 
 # A single rate for every date the tests use, so a conversion is one
 # multiplication and the expected values stay readable.
@@ -72,20 +71,28 @@ def _frame() -> pd.DataFrame:
     return open_ledger().frame
 
 
+def _value(
+    quotes: dict[str, Quote],
+    *,
+    grain: Grain = Grain.FOLIO,
+    currency: DisplayCurrency = Currency.CAD,
+    **options: Any,  # noqa: ANN401
+) -> HoldingSet:
+    """Value what has been seeded against `quotes`, at the stored FX rates."""
+    return FolioHoldings(_frame(), quotes, load_fx_rates()).holdings(
+        grain=grain,
+        currency=currency,
+        **options,
+    )
+
+
 def test_market_value_and_unrealized_are_exact(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         # 10 units at $100 USD, so book value is 1,000 USD = 1,250 CAD.
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "120", "110")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "120", "110")})
 
         held = holdings.holdings[0]
         assert held.units == 10
@@ -102,14 +109,7 @@ def test_the_day_move_comes_off_the_previous_close(temp_ctx: TempContext) -> Non
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "120", "110")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "120", "110")})
 
         held = holdings.holdings[0]
         # (120 - 110) * 1.25 = 12.50 CAD per unit.
@@ -136,16 +136,11 @@ def test_day_pnl_pct_divides_by_the_pool_not_the_holding(
         # SMALL: 1 unit, priced 100 -> market 125 CAD, day move +10/share.
         seed_transaction(ticker="SMALL", amount="-90", price="90", units="1")
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {
                 "BIG": _quote("BIG", "100", "99"),
                 "SMALL": _quote("SMALL", "100", "90"),
             },
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
         )
 
         by_symbol = {held.symbol: held for held in holdings.holdings}
@@ -265,10 +260,7 @@ def test_the_two_weights_match_on_the_folio_wide_view(
             "AAA": _quote("AAA", "100", "100"),
             "BBB": _quote("BBB", "100", "100"),
         }
-        holdings = FolioHoldings(_frame(), quotes, load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value(quotes)
 
         for held in holdings.holdings:
             assert held.weight_in_pool == held.weight_in_folio
@@ -287,14 +279,7 @@ def test_a_closed_holding_is_not_listed_as_open(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "120", "110")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "120", "110")})
 
         assert holdings.holdings == []
 
@@ -329,14 +314,7 @@ def test_a_closed_holding_still_counts_toward_totals(temp_ctx: TempContext) -> N
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
-            {},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({})
 
         assert holdings.holdings == []
         assert [h.symbol for h in holdings.closed] == ["AAA"]
@@ -412,14 +390,7 @@ def test_a_missing_quote_is_excluded_from_totals_not_counted_as_zero(
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
         seed_transaction(ticker="GHOST", amount="-500", price="50", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "100", "100")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "100", "100")})
 
         ghost = next(h for h in holdings.holdings if h.symbol == "GHOST")
         assert not ghost.priced
@@ -444,14 +415,7 @@ def test_a_quote_in_an_unconvertible_currency_reads_as_unpriced(
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
         euro = _quote("AAA", "120", "110", Currency.EUR)
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": euro},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": euro})
 
         # The FX table holds USDCAD only, so this cannot be valued. It must
         # degrade, not raise.
@@ -470,14 +434,7 @@ def test_a_not_found_quote_does_not_price_a_holding(temp_ctx: TempContext) -> No
             fetched_at=datetime.now(UTC),
             status=QuoteStatus.NOT_FOUND,
         )
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": missing},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": missing})
 
         assert not holdings.holdings[0].priced
 
@@ -492,10 +449,7 @@ def test_usd_display_drops_cad_denominated_holdings(temp_ctx: TempContext) -> No
             "USDCO": _quote("USDCO", "100", "100"),
             "CADCO": _quote("CADCO", "100", "100", Currency.CAD),
         }
-        holdings = FolioHoldings(_frame(), quotes, load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.USD,
-        )
+        holdings = _value(quotes, currency=Currency.USD)
 
         # The `_USD` columns are blank by design for a CAD holding, so there is
         # nothing honest to show for it.
@@ -512,10 +466,7 @@ def test_cad_display_keeps_both_denominations(temp_ctx: TempContext) -> None:
             "USDCO": _quote("USDCO", "100", "100"),
             "CADCO": _quote("CADCO", "100", "100", Currency.CAD),
         }
-        holdings = FolioHoldings(_frame(), quotes, load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value(quotes)
 
         assert len(holdings.holdings) == 2
 
@@ -537,14 +488,7 @@ def test_market_value_uses_todays_rate_while_book_value_keeps_its_own(
         )
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "100", "100")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "100", "100")})
 
         held = holdings.holdings[0]
         # Bought when USDCAD was 1.10, so the book value is frozen there.
@@ -559,14 +503,7 @@ def test_native_currency_leaves_each_holding_alone(temp_ctx: TempContext) -> Non
         seed_fx(FX_DATES)
         seed_transaction(ticker="USDCO", currency="USD", amount="-1000", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"USDCO": _quote("USDCO", "120", "110")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value({"USDCO": _quote("USDCO", "120", "110")}, currency="native")
 
         held = holdings.holdings[0]
         assert held.currency is Currency.USD
@@ -582,14 +519,7 @@ def test_a_zero_price_does_not_divide_by_zero(temp_ctx: TempContext) -> None:
 
         # `_number` reads a zero price as no price at all, which is the honest
         # reading: a security does not trade at zero.
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "0", "0")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({"AAA": _quote("AAA", "0", "0")})
 
         assert not holdings.holdings[0].priced
 
@@ -599,14 +529,7 @@ def test_an_all_unpriced_pool_reports_no_total(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", amount="-1000", price="100", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
-            {},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value({})
 
         # None, not zero: nothing was valued, so no total exists.
         assert holdings.total_market is None
@@ -696,14 +619,7 @@ def test_total_pnl_is_unrealized_plus_realized_plus_dividends(
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "120", "110")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value({"AAA": _quote("AAA", "120", "110")}, currency="native")
 
         held = holdings.holdings[0]
         assert held.unrealized == Decimal(200)  # 1,200 market - 1,000 book
@@ -748,14 +664,13 @@ def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
             units="10",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {
                 "AAA": _quote("AAA", "100", "100", Currency.CAD),
                 "USDCO": _quote("USDCO", "100", "100"),
             },
-            load_fx_rates(),
-        ).holdings(grain=Grain.FOLIO, currency="native")
+            currency="native",
+        )
 
         usd_group = next(
             group for group in holdings.by_currency if group.currency is Currency.USD
@@ -767,14 +682,12 @@ def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
         assert holdings.total_pnl == holdings.total_dividends
 
         # And matches what asking for CAD outright reports.
-        in_cad = FolioHoldings(
-            _frame(),
+        in_cad = _value(
             {
                 "AAA": _quote("AAA", "100", "100", Currency.CAD),
                 "USDCO": _quote("USDCO", "100", "100"),
             },
-            load_fx_rates(),
-        ).holdings(grain=Grain.FOLIO, currency=Currency.CAD)
+        )
         assert in_cad.total_dividends == holdings.total_dividends
 
 
@@ -799,14 +712,13 @@ def test_a_currency_filter_that_hides_holdings_refuses_a_deposit_return(
             units="10",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {
                 "AAA": _quote("AAA", "110", "110", Currency.CAD),
                 "USDCO": _quote("USDCO", "110", "110"),
             },
-            load_fx_rates(),
-        ).holdings(grain=Grain.FOLIO, currency=Currency.USD)
+            currency=Currency.USD,
+        )
 
         assert [h.symbol for h in holdings.holdings] == ["USDCO"]
         assert holdings.excluded == 1
@@ -885,10 +797,7 @@ def test_a_closed_holding_carries_its_cad_earnings_under_a_currency_filter(
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(_frame(), {}, load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.USD,
-        )
+        holdings = _value({}, currency=Currency.USD)
 
         closed = holdings.closed[0]
         assert closed.realized == Decimal(200)  # USD, as the row displays it
@@ -944,14 +853,7 @@ def test_realized_gains_reach_the_holding(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "150", "150")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value({"AAA": _quote("AAA", "150", "150")}, currency="native")
 
         held = holdings.holdings[0]
         assert held.realized == Decimal(250)
@@ -974,14 +876,7 @@ def test_an_unpriced_holding_reports_no_total(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        holdings = FolioHoldings(
-            _frame(),
-            {},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value({}, currency="native")
 
         held = holdings.holdings[0]
         # Dividends are history and stay knowable without a price...
@@ -1038,22 +933,14 @@ def _sortable() -> list[Holding]:
     seed_transaction(ticker="BIG", amount="-9000", price="90", units="100")
     seed_transaction(ticker="MID", amount="-2000", price="100", units="20")
     seed_transaction(ticker="AAA", amount="-100", price="50", units="2")
-    return (
-        FolioHoldings(
-            _frame(),
-            {
-                "BIG": _quote("BIG", "100", "99"),
-                "MID": _quote("MID", "80", "80"),
-                "AAA": _quote("AAA", "500", "400"),
-            },
-            load_fx_rates(),
-        )
-        .holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
-        .holdings
-    )
+    return _value(
+        {
+            "BIG": _quote("BIG", "100", "99"),
+            "MID": _quote("MID", "80", "80"),
+            "AAA": _quote("AAA", "500", "400"),
+        },
+        currency="native",
+    ).holdings
 
 
 def test_sorting_defaults_to_largest_first(temp_ctx: TempContext) -> None:
@@ -1108,18 +995,10 @@ def test_an_unpriced_holding_sinks_in_either_direction(
         seed_transaction(ticker="PRICED", amount="-1000", units="10")
         seed_transaction(ticker="GHOST", amount="-500", units="10")
 
-        holdings = (
-            FolioHoldings(
-                _frame(),
-                {"PRICED": _quote("PRICED", "100", "100")},
-                load_fx_rates(),
-            )
-            .holdings(
-                grain=Grain.FOLIO,
-                currency="native",
-            )
-            .holdings
-        )
+        holdings = _value(
+            {"PRICED": _quote("PRICED", "100", "100")},
+            currency="native",
+        ).holdings
 
         # A blank is not a zero, so it never leads an ascending sort.
         for reverse in (False, True):
@@ -1144,12 +1023,8 @@ def test_holdings_takes_a_sort(temp_ctx: TempContext) -> None:
         seed_transaction(ticker="BIG", amount="-9000", price="90", units="100")
         seed_transaction(ticker="AAA", amount="-100", price="50", units="2")
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {"BIG": _quote("BIG", "100", "99"), "AAA": _quote("AAA", "500", "400")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
             currency="native",
             sort="symbol",
         )
@@ -1179,10 +1054,7 @@ def test_native_keeps_each_holding_in_its_own_currency(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value(_mixed_quotes(), currency="native")
 
         by_symbol = {h.symbol: h for h in holdings.holdings}
         usd, cad = by_symbol["USDCO"], by_symbol["CADCO"]
@@ -1205,10 +1077,7 @@ def test_the_base_figures_are_cad_even_in_native_mode(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value(_mixed_quotes(), currency="native")
 
         usd = next(h for h in holdings.holdings if h.symbol == "USDCO")
         # Market value converts at today's rate: 1,200 USD * 1.25.
@@ -1223,10 +1092,7 @@ def test_native_totals_are_grouped_by_currency(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value(_mixed_quotes(), currency="native")
 
         assert holdings.mixed_currency
         # CAD first: a Canadian folio reads home-currency-first.
@@ -1258,10 +1124,7 @@ def test_weights_are_common_currency_even_when_rows_are_not(
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency="native",
-        )
+        holdings = _value(_mixed_quotes(), currency="native")
 
         for held in holdings.holdings:
             assert held.weight_in_pool == Decimal("0.5")
@@ -1308,10 +1171,7 @@ def test_the_folio_total_ignores_the_display_currency(temp_ctx: TempContext) -> 
 def _mixed_groups() -> HoldingSet:
     """Seed the two-currency folio and value it natively."""
     _mixed_folio()
-    return FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-        grain=Grain.FOLIO,
-        currency="native",
-    )
+    return _value(_mixed_quotes(), currency="native")
 
 
 def test_a_groups_weights_are_summed_from_its_members(
@@ -1388,12 +1248,8 @@ def test_a_single_currency_pool_is_not_mixed(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="CADCO", currency="CAD", amount="-1000", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {"CADCO": _quote("CADCO", "150", "150", Currency.CAD)},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
             currency="native",
         )
 
@@ -1406,10 +1262,7 @@ def test_forcing_cad_leaves_one_group(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
-        )
+        holdings = _value(_mixed_quotes())
 
         assert not holdings.mixed_currency
         assert [g.currency for g in holdings.by_currency] == [Currency.CAD]
@@ -1420,10 +1273,7 @@ def test_forcing_usd_totals_in_usd(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _mixed_folio()
 
-        holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates()).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.USD,
-        )
+        holdings = _value(_mixed_quotes(), currency=Currency.USD)
 
         # The CAD holding is dropped, so nothing is left to convert and the
         # total belongs in USD alongside the rows.
@@ -1442,12 +1292,8 @@ def test_a_usd_view_converts_a_cad_quote_back(temp_ctx: TempContext) -> None:
         seed_fx(FX_DATES)
         seed_transaction(ticker="AAA", currency="USD", amount="-1000", units="10")
 
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {"AAA": _quote("AAA", "125", "125", Currency.CAD)},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
             currency=Currency.USD,
         )
 
@@ -1456,62 +1302,13 @@ def test_a_usd_view_converts_a_cad_quote_back(temp_ctx: TempContext) -> None:
         assert holdings.holdings[0].market_value == Decimal(1000)
 
 
-def test_a_summary_row_without_a_symbol_is_not_a_holding(
-    temp_ctx: TempContext,
-) -> None:
-    """A row with nothing to identify it is skipped."""
-    with temp_ctx():
-        seed_fx(FX_DATES)
-        seed_transaction(ticker="AAA", amount="-1000", units="10")
-
-        context = _Context(
-            quotes={},
-            flags={},
-            income={},
-            grain=Grain.FOLIO,
-            pool="",
-            currency=Currency.CAD,
-            fx=load_fx_rates(),
-        )
-
-        assert _holding({"Symbol": None}, context) is None
-        assert _holding({"Symbol": ""}, context) is None
-        assert _holding({}, context) is None
-
-        # Nor is it a holding `-c USD` hid: it has no USD cost base, but then
-        # it has no cost base at all.
-        assert _filtered_out({"Symbol": None}, Grain.FOLIO) == 0
-        assert _filtered_out({}, Grain.FOLIO) == 0
-
-
-def test_an_empty_frame_holds_nothing() -> None:
-    empty = pd.DataFrame()
-
-    assert held_symbols(empty) == []
-    holdings = FolioHoldings(
-        empty,
-        {},
-        FxRates((), ()),
-    ).holdings(
-        grain=Grain.FOLIO,
-        currency=Currency.CAD,
-    )
-    assert holdings.holdings == []
-
-
 def test_a_frame_with_no_tracked_symbols_holds_nothing(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         # Cash only: nothing carries a security.
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            amount="1000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="1000", currency="USD")
 
         assert held_symbols(_frame()) == []
 
@@ -1525,15 +1322,7 @@ def test_an_empty_folio_yields_an_empty_holding_set(
         seed_fx(FX_DATES)
         seed_transaction(action="CONTRIBUTION", ticker=None, amount="1000", units=None)
 
-        holdings = FolioHoldings(
-            _frame(),
-            {},
-            load_fx_rates(),
-        ).holdings(
-            grain=grain,
-            pool="TESTACCT",
-            currency=Currency.CAD,
-        )
+        holdings = _value({}, grain=grain, pool="TESTACCT")
 
         assert holdings.holdings == []
         assert holdings.unpriced == ()
@@ -1651,28 +1440,11 @@ def test_a_security_that_paid_nothing_reads_as_zero_dividends(
     """The rollup skips non-income rows, so most securities are simply absent."""
     with temp_ctx():
         _two_type_folio()
-        holdings = FolioHoldings(
-            _frame(),
+        holdings = _value(
             {"AAA": _quote("AAA", "100", "100"), "BBB": _quote("BBB", "100", "100")},
-            load_fx_rates(),
-        ).holdings(
-            grain=Grain.FOLIO,
-            currency=Currency.CAD,
         )
 
         by_symbol = {held.symbol: held for held in holdings.holdings}
         # 40 USD at 1.25.
         assert by_symbol["AAA"].dividends == Decimal(50)
         assert by_symbol["BBB"].dividends == ZERO
-
-
-def test_a_dividend_row_carrying_no_symbol_is_skipped() -> None:
-    """Income has to belong to a security before it can be totalled to one."""
-    frame = pd.DataFrame(
-        [
-            {"Symbol": "AAA", "Dividend": 10.0, "Dividend_USD": None},
-            {"Symbol": None, "Dividend": 99.0, "Dividend_USD": None},
-        ],
-    )
-
-    assert _dividends_by_symbol(frame) == {"AAA": (Decimal(10), ZERO)}

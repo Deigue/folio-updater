@@ -871,7 +871,8 @@ class _Replay:
         stays byte-identical. `Amount` on a SPLIT row is junk.
         """
         if row.price <= ZERO or row.units <= ZERO:
-            # Sign rules keep these out of the folio; skip rather than divide.
+            # Sign rules flip a negative ratio, but a zero passes them (it has no
+            # sign to flip), so skip rather than divide by it.
             logger.debug("Skipping SPLIT %d: ratio is not positive", row.txn_id)
             return
 

@@ -48,7 +48,7 @@ def test_blank_columns_go_without_being_asked() -> None:
         result = fit(_table(["Symbol", "Realized", "Book"], ["AAA", "", "1,234.56"]))
 
     assert [str(c.header) for c in result.table.columns] == ["Symbol", "Book"]
-    # Dont need to tell caller a blank column dissapeared.
+    # No need to tell the caller a blank column disappeared.
     assert result.dropped == ()
 
 
@@ -69,60 +69,60 @@ def test_a_day_percentage_keeps_both_decimals() -> None:
     headers = ["Symbol", "Change%", "PnL%", "Book", "Market", "Unreal", "Total"]
     row = [
         "AAA",
-        "-0.03%",
-        "5.42%",
-        "88,520.56",
-        "128,225.31",
-        "39,704.75",
-        "40,556.85",
+        "-0.07%",
+        "6.18%",
+        "54,321.98",
+        "76,543.21",
+        "22,221.23",
+        "23,010.45",
     ]
 
     with capture_output(50):
         result = fit(_table(headers, row))
 
     rendered = _rendered(result.table, 50)
-    assert "-0.03%" in rendered, "a day move lost the decimal that carries it"
-    assert "5.42%" in rendered
+    assert "-0.07%" in rendered, "a day move lost the decimal that carries it"
+    assert "6.18%" in rendered
 
 
 def test_a_cumulative_percentage_gives_up_its_second_decimal() -> None:
     headers = ["Symbol", "Unreal%", "Total%", "Book", "Market", "Unreal", "Total"]
     row = [
         "AAA",
-        "44.85%",
-        "45.82%",
-        "88,520.56",
-        "128,225.31",
-        "39,704.75",
-        "4,055.85",
+        "27.38%",
+        "28.45%",
+        "54,321.98",
+        "76,543.21",
+        "22,221.23",
+        "2,301.05",
     ]
 
     with capture_output(50):
         result = fit(_table(headers, row))
 
     rendered = _rendered(result.table, 50)
-    # 44.9% says everything 44.85% did about a holding kept for years.
-    assert "44.9%" in rendered
-    assert "44.85%" not in rendered
+    # 27.4% says everything 27.38% did about a holding kept for years.
+    assert "27.4%" in rendered
+    assert "27.38%" not in rendered
 
 
 def test_money_gives_up_its_cents_before_a_column_goes() -> None:
     headers = ["Symbol", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "88,520.56", "128,225.31", "39,704.75", "40,556.85"]
+    row = ["AAA", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
 
     with capture_output(42):
         result = fit(_table(headers, row), drop_order=("Total",))
 
     rendered = _rendered(result.table, 42)
-    assert "88,521" in rendered
-    assert "88,520.56" not in rendered
+    assert "54,322" in rendered
+    assert "54,321.98" not in rendered
     # Every column survived: cents were enough to pay for the fit.
     assert result.dropped == ()
 
 
 def test_money_gives_up_its_scale_before_a_column_goes() -> None:
     headers = ["Symbol", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "88,520.56", "128,225.31", "39,704.75", "40,556.85"]
+    row = ["AAA", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
 
     with capture_output(30):
         result = fit(_table(headers, row), drop_order=("Total",))
@@ -133,21 +133,21 @@ def test_money_gives_up_its_scale_before_a_column_goes() -> None:
 
 def test_ids_and_dates_are_never_abbreviated() -> None:
     headers = ["TxnId", "SettleDate", "TxnDate", "Amount", "Book"]
-    row = ["3,300", "2025-08-05", "2025-08-07", "88,520.56", "128,225.31"]
+    row = ["4,100", "2025-03-04", "2025-03-06", "54,321.98", "76,543.21"]
 
     with capture_output(30):
         result = fit(_table(headers, row))
 
     rendered = _rendered(result.table, 60)
-    assert "3,300" in rendered
-    assert "2025-08-05" in rendered
-    assert "2025-08-07" in rendered
+    assert "4,100" in rendered
+    assert "2025-03-04" in rendered
+    assert "2025-03-06" in rendered
 
 
 def test_a_price_keeps_its_cents_while_money_loses_them() -> None:
     """A per-unit price is small enough that its cents are the point."""
     headers = ["Symbol", "Last", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "295.45", "88,520.56", "128,225.31", "39,704.75", "40,556.85"]
+    row = ["AAA", "295.45", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
 
     with capture_output(50):
         result = fit(_table(headers, row))
@@ -158,7 +158,7 @@ def test_a_price_keeps_its_cents_while_money_loses_them() -> None:
 
 def test_columns_are_dropped_last_and_in_the_order_given() -> None:
     headers = ["Symbol", "Name", "Book", "Folio%", "Market"]
-    row = ["AAA", "A Long Company Name Inc", "88,520.56", "4.34%", "128,225.31"]
+    row = ["AAA", "A Long Company Name Inc", "54,321.98", "3.21%", "76,543.21"]
 
     with capture_output(28):
         result = fit(_table(headers, row), drop_order=("Name", "Book", "Folio%"))
@@ -169,7 +169,7 @@ def test_columns_are_dropped_last_and_in_the_order_given() -> None:
 
 def test_the_reader_is_told_what_went_missing() -> None:
     headers = ["Symbol", "Name", "Book", "Market"]
-    row = ["AAA", "A Long Company Name Inc", "88,520.56", "128,225.31"]
+    row = ["AAA", "A Long Company Name Inc", "54,321.98", "76,543.21"]
 
     with capture_output(26):
         result = fit(_table(headers, row), drop_order=("Name", "Book"))
@@ -183,7 +183,7 @@ def test_the_reader_is_told_what_went_missing() -> None:
 
 def test_the_note_is_singular_for_one_column() -> None:
     headers = ["Symbol", "Name", "Market"]
-    row = ["AAA", "A Very Long Company Name Incorporated", "128,225.31"]
+    row = ["AAA", "A Very Long Company Name Incorporated", "76,543.21"]
 
     with capture_output(30):
         result = fit(_table(headers, row), drop_order=("Name",))

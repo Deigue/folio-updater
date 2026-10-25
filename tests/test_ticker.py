@@ -26,7 +26,7 @@ from services.quotes_service import Quote
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 FX = {f"2025-08-{day}": "1.25" for day in range(14, 21)}
 

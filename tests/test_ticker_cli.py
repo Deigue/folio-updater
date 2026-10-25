@@ -19,7 +19,7 @@ from .helpers.seed import seed_fx, seed_transaction
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 FX = {f"2025-08-{day}": "1.25" for day in range(14, 21)}
 
@@ -133,4 +133,11 @@ def test_ticker_exports_either_view(temp_ctx: TempContext, tmp_path: Path) -> No
         assert export("TESTTKR", "one.xlsx") == (0, True)
         assert export("all.csv") == (0, True)
         # One security's sheet holds several tables, which no CSV can.
-        assert export("TESTTKR", "one.csv") == (1, False)
+        refused = run_cli_with_config(
+            ctx.config,
+            app,
+            ["ticker", "TESTTKR", "-e", str(tmp_path / "one.csv")],
+        )
+        assert refused.exit_code == 1
+        assert_in_output("A CSV holds one table", refused)
+        assert not (tmp_path / "one.csv").exists()

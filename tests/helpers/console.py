@@ -34,7 +34,6 @@ class CapturingConsole:
         self.console = Console(
             file=self.file,
             force_terminal=False,
-            legacy_windows=True,  # Ensures no legacy ANSI codes on Windows
             width=width,
         )
 

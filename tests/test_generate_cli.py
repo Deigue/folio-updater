@@ -5,18 +5,23 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, NoReturn
 
+import pandas as pd
 from openpyxl import load_workbook
+from pandas.testing import assert_frame_equal
 
 from cli.main import app
+from datagen import ensure_data_exists
 from db import drop_table, get_columns, get_connection, get_row_count
 from db.backup import backup_file
-from domain import Table
+from domain import Column, Table
 from engine.ledger import LedgerUnavailableError
 from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.seed import (
+    seed_two_account_types,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -26,15 +31,7 @@ if TYPE_CHECKING:
     from app.app_context import AppContext
 
     from .helpers.cli import CliTestResult
-    from .test_types import TempContext
-
-FX = {
-    "2025-08-14": "1.2500",
-    "2025-08-15": "1.2500",
-    "2025-08-18": "1.2500",
-    "2025-08-19": "1.2500",
-    "2025-08-20": "1.2500",
-}
+    from .helpers.context import TempContext
 
 # Every sheet a folio holding in two account types, in two accounts, gets.
 EVERY_SHEET = [
@@ -54,35 +51,6 @@ EVERY_SHEET = [
 ]
 
 
-def _seed_folio() -> None:
-    """One USD holding in a TFSA, another in a non-registered account."""
-    seed_fx(FX)
-    seed_transaction(
-        action="CONTRIBUTION",
-        account="WS-TFSA",
-        ticker=None,
-        currency="CAD",
-        amount="10000",
-        price=None,
-        units=None,
-        date="2025-08-14",
-    )
-    seed_transaction(
-        account="WS-TFSA",
-        ticker="TESTTKR",
-        amount="-1000",
-        price="100",
-        units="10",
-    )
-    seed_transaction(
-        account="WS-PERSONAL",
-        ticker="OTHER",
-        amount="-400",
-        price="40",
-        units="10",
-    )
-
-
 def _generate(ctx: AppContext, target: Path, *extra: str) -> CliTestResult:
     """Run `folio generate` into `target`, with any extra arguments."""
     return run_cli_with_config(
@@ -98,7 +66,7 @@ def test_generate_writes_a_sheet_for_every_view_of_the_folio(
 ) -> None:
     """Only pools that hold something get a dashboard: no RRSP sheet here."""
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
         result = _generate(ctx, target)
@@ -118,7 +86,7 @@ def test_the_txns_sheet_imports_back_into_an_empty_folio(
     the first time it came back in. It must carry exactly what was stored.
     """
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.xlsx"
         assert_cli_success(_generate(ctx, target))
 
@@ -142,7 +110,7 @@ def test_only_narrows_the_workbook_to_the_sections_named(
     tmp_path: Path,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
         # Spacing and a stray trailing comma are forgiven.
@@ -162,7 +130,7 @@ def test_only_stored_writes_just_the_stored_sheets(
     tmp_path: Path,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
         result = _generate(ctx, target, "--only", "stored")
@@ -177,7 +145,7 @@ def test_generating_over_the_folio_keeps_a_backup_of_the_last_one(
     """The configured folio is rotated into its backups before it is overwritten."""
     backup = {"enabled": True, "path": "backups", "max_backups": 5}
     with temp_ctx(backup=backup) as ctx:
-        _seed_folio()
+        seed_two_account_types()
         config = ctx.config
 
         for _ in range(2):
@@ -215,7 +183,7 @@ def test_only_refuses_a_section_that_does_not_exist(
     tmp_path: Path,
 ) -> None:
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
         result = _generate(ctx, target, "--only", "dashboards")
@@ -228,7 +196,7 @@ def test_only_refuses_a_section_that_does_not_exist(
 def test_generate_refuses_a_csv(temp_ctx: TempContext, tmp_path: Path) -> None:
     """A workbook of a dozen sheets has nowhere to go in one table."""
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         target = tmp_path / "folio.csv"
 
         result = _generate(ctx, target)
@@ -261,7 +229,7 @@ def test_an_unreplayable_folio_still_writes_its_stored_sheets(
         raise LedgerUnavailableError(msg)
 
     with temp_ctx() as ctx:
-        _seed_folio()
+        seed_two_account_types()
         monkeypatch.setattr("cli.commands.generate.open_ledger", unreplayable)
         target = tmp_path / "folio.xlsx"
 
@@ -281,3 +249,44 @@ def test_an_empty_folio_writes_nothing(temp_ctx: TempContext, tmp_path: Path) ->
         assert_cli_success(result)
         assert_in_output("No transactions", result)
         assert not target.exists()
+
+
+def test_generate_command(temp_ctx: TempContext) -> None:
+    """The workbook's source sheets hold what the database holds, and nothing more."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        ensure_data_exists()
+        assert config.txn_parquet.exists()
+        assert config.tickers_parquet.exists()
+        assert not config.folio_path.exists()
+        cli_result = run_cli_with_config(config, app, ["generate"])
+        assert_cli_success(cli_result)
+        assert_in_output("sheets to", cli_result)
+        assert config.folio_path.exists()
+        transactions_parquet = pd.read_parquet(config.txn_parquet, engine="fastparquet")
+        # A column added after the table was made is stored as text, and the
+        # workbook writes it back as the number it holds.
+        transactions_parquet[Column.Txn.FEE] = pd.to_numeric(
+            transactions_parquet[Column.Txn.FEE],
+        )
+        tickers_parquet = pd.read_parquet(config.tickers_parquet, engine="fastparquet")
+        transactions_excel = pd.read_excel(
+            config.folio_path,
+            sheet_name=config.txn_sheet,
+        )
+        # The link back to the Summary, then the column bands, then the header.
+        tickers_excel = pd.read_excel(
+            config.folio_path,
+            sheet_name=config.tickers_sheet,
+            header=2,
+        )
+        assert_frame_equal(
+            transactions_parquet.reset_index(drop=True).fillna(pd.NA),
+            transactions_excel.reset_index(drop=True).fillna(pd.NA),
+        )
+        # The tickers sheet now carries what the quote cache knows of each one
+        # too, and keeps a renamed security's names together, but holds the same
+        # tickers.
+        assert sorted(tickers_parquet[Column.Ticker.TICKER]) == sorted(
+            tickers_excel[Column.Ticker.TICKER],
+        )

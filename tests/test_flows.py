@@ -21,10 +21,10 @@ from engine.flows import (
 )
 from engine.ledger import open_ledger
 
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 FX_DATES = {
     "2025-08-14": "1.25",
@@ -59,22 +59,8 @@ def _flows(
 def test_cash_is_reported_per_currency_never_summed(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="USD",
-            amount="500",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="1000")
+        seed_cash("CONTRIBUTION", amount="500", currency="USD")
 
         flows = _flows()
 
@@ -85,22 +71,8 @@ def test_cash_is_reported_per_currency_never_summed(temp_ctx: TempContext) -> No
 def test_a_transfer_moves_cash_without_consuming_room(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="TFR_IN",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="1000")
+        seed_cash("TFR_IN", amount="5000")
 
         flows = _flows()
 
@@ -113,32 +85,9 @@ def test_a_transfer_moves_cash_without_consuming_room(temp_ctx: TempContext) -> 
 def test_withdrawals_are_tracked_apart_from_transfers(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="WITHDRAWAL",
-            ticker=None,
-            currency="CAD",
-            amount="-1200",
-            price=None,
-            units=None,
-            date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_OUT",
-            ticker=None,
-            currency="CAD",
-            amount="-800",
-            price=None,
-            units=None,
-            date="2025-08-19",
-        )
+        seed_cash("CONTRIBUTION", amount="5000")
+        seed_cash("WITHDRAWAL", amount="-1200", date="2025-08-18")
+        seed_cash("TFR_OUT", amount="-800", date="2025-08-19")
 
         flows = _flows()
 
@@ -151,23 +100,8 @@ def test_net_deposits_is_contributions_minus_withdrawals(
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="WITHDRAWAL",
-            ticker=None,
-            currency="CAD",
-            amount="-1200",
-            price=None,
-            units=None,
-            date="2025-08-18",
-        )
+        seed_cash("CONTRIBUTION", amount="5000")
+        seed_cash("WITHDRAWAL", amount="-1200", date="2025-08-18")
 
         flows = _flows()
 
@@ -183,23 +117,8 @@ def test_net_deposits_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="10000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="TFR_OUT",
-            ticker=None,
-            currency="CAD",
-            amount="-4000",
-            price=None,
-            units=None,
-            date="2025-08-18",
-        )
+        seed_cash("CONTRIBUTION", amount="10000")
+        seed_cash("TFR_OUT", amount="-4000", date="2025-08-18")
         # A holding leg of a transfer moves no cash, so it must not count.
         seed_transaction(
             action="TFR_OUT",
@@ -216,6 +135,40 @@ def test_net_deposits_nets_a_cash_only_transfer(temp_ctx: TempContext) -> None:
         assert flows.net_deposits[Currency.CAD] == Decimal(6000)
 
 
+def _move_in_kind(units: str, *, settle_date: str | None = None) -> None:
+    """Move `units` of AAA from QT-TFSA to WS-TFSA on 2025-08-18, as both legs."""
+    for action, account, sign in (
+        ("TFR_OUT", "QT-TFSA", "-"),
+        ("TFR_IN", "WS-TFSA", ""),
+    ):
+        seed_transaction(
+            action=action,
+            account=account,
+            ticker="AAA",
+            currency="CAD",
+            amount=None,
+            price=None,
+            units=f"{sign}{units}",
+            date="2025-08-18",
+            settle_date=settle_date,
+        )
+
+
+def _seed_a_moved_holding() -> None:
+    """Contribute 1,000 to QT-TFSA, buy 100 AAA with it, then move them all."""
+    seed_fx(FX_DATES)
+    seed_cash("CONTRIBUTION", amount="1000", account="QT-TFSA")
+    seed_transaction(
+        account="QT-TFSA",
+        ticker="AAA",
+        currency="CAD",
+        amount="-1000",
+        price="10",
+        units="100",
+    )
+    _move_in_kind("100")
+
+
 def test_an_in_kind_transfer_carries_net_deposits_between_accounts(
     temp_ctx: TempContext,
 ) -> None:
@@ -225,44 +178,7 @@ def test_an_in_kind_transfer_carries_net_deposits_between_accounts(
     paid for. Counting only cash would read that account as empty.
     """
     with temp_ctx():
-        seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount="-1000",
-            price="10",
-            units="100",
-        )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="-100",
-            date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="100",
-            date="2025-08-18",
-        )
+        _seed_a_moved_holding()
 
         sender = _flows(Grain.ACCOUNT, "QT-TFSA")
         receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
@@ -277,44 +193,7 @@ def test_an_in_kind_transfer_cancels_at_the_pooled_grains(
 ) -> None:
     """Moving a holding between accounts you own deposits nothing."""
     with temp_ctx():
-        seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="1000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount="-1000",
-            price="10",
-            units="100",
-        )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="-100",
-            date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="100",
-            date="2025-08-18",
-        )
+        _seed_a_moved_holding()
 
         folio = _flows()
 
@@ -333,15 +212,7 @@ def test_a_currency_journal_leaves_net_deposits_alone(
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-RRSP",
-            ticker=None,
-            currency="CAD",
-            amount="1250",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="1250", account="QT-RRSP")
         seed_transaction(
             account="QT-RRSP",
             ticker="DLR.TO",
@@ -386,14 +257,10 @@ def _seed_grown_then_swept(out_account: str, in_account: str) -> None:
     and must carry half the deposits: 5,000, not the 7,500 its face value says.
     """
     seed_fx(FX_DATES)
-    seed_transaction(
-        action="CONTRIBUTION",
-        account=out_account,
-        ticker=None,
-        currency="CAD",
+    seed_cash(
+        "CONTRIBUTION",
         amount="10000",
-        price=None,
-        units=None,
+        account=out_account,
         date="2025-08-14",
         settle_date="2025-08-14",
     )
@@ -418,25 +285,17 @@ def _seed_grown_then_swept(out_account: str, in_account: str) -> None:
         date="2025-08-15",
         settle_date="2025-08-15",
     )
-    seed_transaction(
-        action="TFR_OUT",
-        account=out_account,
-        ticker=None,
-        currency="CAD",
+    seed_cash(
+        "TFR_OUT",
         amount="-7500",
-        price=None,
-        units=None,
+        account=out_account,
         date="2025-08-18",
         settle_date="2025-08-18",
     )
-    seed_transaction(
-        action="TFR_IN",
-        account=in_account,
-        ticker=None,
-        currency="CAD",
+    seed_cash(
+        "TFR_IN",
         amount="7500",
-        price=None,
-        units=None,
+        account=in_account,
         date="2025-08-18",
         settle_date="2025-08-18",
     )
@@ -466,7 +325,7 @@ def test_a_swept_cash_transfer_leaves_the_pooled_grains_alone(
 ) -> None:
     """Moving money between two accounts you own deposits nothing.
 
-    On the folio level, and moving between same account types, deposits dont change.
+    On the folio level, and moving between same account types, deposits don't change.
     """
     with temp_ctx():
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
@@ -486,14 +345,10 @@ def test_a_full_transfer_carries_exactly_what_was_contributed(
     """Emptying an account moves its deposits, and only its deposits."""
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "CONTRIBUTION",
             amount="10000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-14",
             settle_date="2025-08-14",
         )
@@ -518,47 +373,18 @@ def test_a_full_transfer_carries_exactly_what_was_contributed(
             date="2025-08-15",
             settle_date="2025-08-15",
         )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="-100",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="100",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        _move_in_kind("100", settle_date="2025-08-18")
+        seed_cash(
+            "TFR_OUT",
             amount="-500",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="500",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
@@ -583,14 +409,10 @@ def test_a_partial_in_kind_transfer_counts_uninvested_cash_in_the_pool(
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "CONTRIBUTION",
             amount="10000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-14",
             settle_date="2025-08-14",
         )
@@ -615,28 +437,7 @@ def test_a_partial_in_kind_transfer_counts_uninvested_cash_in_the_pool(
             date="2025-08-15",
             settle_date="2025-08-15",
         )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="-50",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="50",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
+        _move_in_kind("50", settle_date="2025-08-18")
 
         receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
         sender = _flows(Grain.ACCOUNT, "QT-TFSA")
@@ -661,14 +462,10 @@ def test_a_transfer_cannot_carry_more_deposits_than_the_pool_holds(
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "CONTRIBUTION",
             amount="1000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-14",
             settle_date="2025-08-14",
         )
@@ -683,39 +480,14 @@ def test_a_transfer_cannot_carry_more_deposits_than_the_pool_holds(
             settle_date="2025-08-14",
         )
         # A charge with no funding row behind it: cash goes negative.
-        seed_transaction(
-            action="FCH",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "FCH",
             amount="-200",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-15",
             settle_date="2025-08-15",
         )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="-100",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker="AAA",
-            currency="CAD",
-            amount=None,
-            price=None,
-            units="100",
-            date="2025-08-18",
-            settle_date="2025-08-18",
-        )
+        _move_in_kind("100", settle_date="2025-08-18")
 
         sender = _flows(Grain.ACCOUNT, "QT-TFSA")
         receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
@@ -734,14 +506,10 @@ def test_an_unpaired_leg_falls_back_to_face_value(temp_ctx: TempContext) -> None
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="5000",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-18",
             settle_date="2025-08-18",
         )
@@ -846,14 +614,7 @@ def test_a_sub_cent_deposit_residue_is_not_a_denominator() -> None:
 def test_a_healthy_pool_raises_no_cash_alert(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="5000")
         seed_transaction(
             ticker="AAA",
             currency="CAD",
@@ -868,17 +629,8 @@ def test_a_healthy_pool_raises_no_cash_alert(temp_ctx: TempContext) -> None:
 def test_contributions_split_by_calendar_year(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx({**FX_DATES, "2024-08-15": "1.25", "2024-08-19": "1.25"})
-        for date, amount in (("2024-08-15", "3000"), ("2025-08-15", "7000")):
-            seed_transaction(
-                action="CONTRIBUTION",
-                account="WS-TFSA",
-                ticker=None,
-                currency="CAD",
-                amount=amount,
-                price=None,
-                units=None,
-                date=date,
-            )
+        for day, amount in (("2024-08-15", "3000"), ("2025-08-15", "7000")):
+            seed_cash("CONTRIBUTION", amount=amount, account="WS-TFSA", date=day)
 
         by_year = contributions_by_type_year(open_ledger().frame)[AccountType.TFSA]
 
@@ -890,15 +642,7 @@ def test_room_reports_used_against_the_configured_limit(
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="5000", account="WS-TFSA")
 
         flows = _flows(
             Grain.TYPE,
@@ -918,15 +662,7 @@ def test_room_reports_used_against_the_configured_limit(
 def test_over_contributing_is_flagged(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="9000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="9000", account="WS-TFSA")
 
         flows = _flows(
             Grain.TYPE,
@@ -946,15 +682,7 @@ def test_room_without_a_configured_limit_still_reports_what_was_used(
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="5000", account="WS-TFSA")
 
         flows = _flows(Grain.TYPE, str(AccountType.TFSA), AccountType.TFSA, {}, 2025)
 
@@ -1005,15 +733,7 @@ def test_a_pool_without_yearly_room_has_no_room_row(
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account=account,
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="5000", account=account)
 
         flows = _flows(Grain.TYPE, str(account_type), account_type, {}, 2025)
 
@@ -1023,15 +743,7 @@ def test_a_pool_without_yearly_room_has_no_room_row(
 def test_the_folio_grain_has_no_room_row(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
-            amount="5000",
-            price=None,
-            units=None,
-        )
+        seed_cash("CONTRIBUTION", amount="5000", account="WS-TFSA")
 
         # Room belongs to one account type; a whole-folio view spans several.
         assert _flows().room is None
@@ -1041,15 +753,7 @@ def test_an_account_grain_sees_only_its_own_cash(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
         for account, amount in (("IBKR-TFSA", "1000"), ("WS-TFSA", "2000")):
-            seed_transaction(
-                action="CONTRIBUTION",
-                account=account,
-                ticker=None,
-                currency="CAD",
-                amount=amount,
-                price=None,
-                units=None,
-            )
+            seed_cash("CONTRIBUTION", amount=amount, account=account)
 
         one = _flows(Grain.ACCOUNT, "IBKR-TFSA")
         pooled = _flows(Grain.TYPE, str(AccountType.TFSA))
@@ -1091,51 +795,17 @@ def test_the_year_split_of_an_empty_frame_is_empty() -> None:
     assert contributions_by_type_year(pd.DataFrame()) == {}
 
 
-def test_the_year_split_skips_an_unreadable_date() -> None:
-    frame = pd.DataFrame(
-        [
-            {
-                str(Column.Txn.ACTION): str(Action.CONTRIBUTION),
-                str(Column.Txn.TXN_DATE): "not-a-date",
-                str(Column.Txn.AMOUNT): 1000.0,
-                "AcctType": str(AccountType.TFSA),
-            },
-            {
-                str(Column.Txn.ACTION): str(Action.CONTRIBUTION),
-                str(Column.Txn.TXN_DATE): "2025-01-02",
-                str(Column.Txn.AMOUNT): 7000.0,
-                "AcctType": str(AccountType.TFSA),
-            },
-        ],
-    )
-
-    # The database enforces the date format, so this is belt-and-braces: a bad
-    # row is dropped rather than taking the whole report down with it.
-    assert contributions_by_type_year(frame) == {
-        AccountType.TFSA: {2025: Decimal(7000)},
-    }
-
-
 def test_withdrawals_split_by_year_and_leave_transfers_out(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)
-        for action, amount, date in (
+        for action, amount, day in (
             ("CONTRIBUTION", "5000", "2025-08-14"),
             ("WITHDRAWAL", "-1200", "2025-08-18"),
             ("TFR_OUT", "-800", "2025-08-19"),
         ):
-            seed_transaction(
-                action=action,
-                account="WS-TFSA",
-                ticker=None,
-                currency="CAD",
-                amount=amount,
-                price=None,
-                units=None,
-                date=date,
-            )
+            seed_cash(action, amount=amount, account="WS-TFSA", date=day)
 
         # A transfer to another account the holder owns gives no room back, so
         # only the withdrawal counts, and as the positive sum it took out.
@@ -1171,9 +841,9 @@ def test_the_year_split_counts_an_early_rrsp_contribution_toward_last_year() -> 
                 "AcctType": str(AccountType.RRSP),
             }
             for action, day, amount in (
-                (Action.CONTRIBUTION, "2023-01-30", 6000.0),
-                (Action.CONTRIBUTION, "2023-04-04", 7000.0),
-                (Action.WITHDRAWAL, "2023-01-30", -500.0),
+                (Action.CONTRIBUTION, "2023-02-14", 6000.0),
+                (Action.CONTRIBUTION, "2023-04-11", 7000.0),
+                (Action.WITHDRAWAL, "2023-02-14", -500.0),
             )
         ],
     )
@@ -1302,14 +972,10 @@ def test_a_withdrawal_and_a_transfer_reduce_deposits_differently(
     """
     with temp_ctx():
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
-        seed_transaction(
-            action="WITHDRAWAL",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "WITHDRAWAL",
             amount="-1000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
@@ -1334,32 +1000,21 @@ def test_a_transfer_out_of_an_emptied_account_moves_nothing(
     with temp_ctx():
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
         # Sweep the remaining cash out too, then a third leg after it.
-        for txn_id, (out_date, amount) in enumerate(
-            (("2025-08-19", "-7500"), ("2025-08-20", "-3")),
-        ):
-            seed_transaction(
-                action="TFR_OUT",
-                account="QT-TFSA",
-                ticker=None,
-                currency="CAD",
+        for out_date, amount in (("2025-08-19", "-7500"), ("2025-08-20", "-3")):
+            seed_cash(
+                "TFR_OUT",
                 amount=amount,
-                price=None,
-                units=None,
+                account="QT-TFSA",
                 date=out_date,
                 settle_date=out_date,
             )
-            seed_transaction(
-                action="TFR_IN",
-                account="WS-TFSA",
-                ticker=None,
-                currency="CAD",
+            seed_cash(
+                "TFR_IN",
                 amount=amount.lstrip("-"),
-                price=None,
-                units=None,
+                account="WS-TFSA",
                 date=out_date,
                 settle_date=out_date,
             )
-            del txn_id
 
         sender = _flows(Grain.ACCOUNT, "QT-TFSA")
         receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
@@ -1379,37 +1034,25 @@ def test_an_in_leg_settling_before_its_out_leg_still_balances(
     """
     with temp_ctx():
         seed_fx(FX_DATES)
-        seed_transaction(
-            action="CONTRIBUTION",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "CONTRIBUTION",
             amount="10000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-14",
             settle_date="2025-08-14",
         )
         # The in leg lands two days before the out leg it belongs to.
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="4000",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-18",
             settle_date="2025-08-18",
         )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_OUT",
             amount="-4000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-20",
             settle_date="2025-08-20",
         )
@@ -1430,25 +1073,17 @@ def test_income_arriving_after_an_account_empties_carries_no_deposits(
     with temp_ctx():
         _seed_grown_then_swept("QT-TFSA", "WS-TFSA")
         # Sweep the rest, emptying the account of deposits entirely.
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_OUT",
             amount="-7500",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="7500",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
@@ -1464,25 +1099,17 @@ def test_income_arriving_after_an_account_empties_carries_no_deposits(
             date="2025-08-20",
             settle_date="2025-08-20",
         )
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_OUT",
             amount="-40",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-20",
             settle_date="2025-08-20",
         )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="40",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-20",
             settle_date="2025-08-20",
         )
@@ -1508,60 +1135,40 @@ def test_a_same_type_transfer_is_skipped_even_when_type_grain_is_tracked(
     with temp_ctx():
         seed_fx(FX_DATES)
         for account, amount in (("QT-TFSA", "10000"), ("WS-PERSONAL", "8000")):
-            seed_transaction(
-                action="CONTRIBUTION",
-                account=account,
-                ticker=None,
-                currency="CAD",
+            seed_cash(
+                "CONTRIBUTION",
                 amount=amount,
-                price=None,
-                units=None,
+                account=account,
                 date="2025-08-14",
                 settle_date="2025-08-14",
             )
         # Cross-type: non-registered into the TFSA. Tracks type grain.
-        seed_transaction(
-            action="TFR_OUT",
-            account="WS-PERSONAL",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_OUT",
             amount="-3000",
-            price=None,
-            units=None,
+            account="WS-PERSONAL",
             date="2025-08-18",
             settle_date="2025-08-18",
         )
-        seed_transaction(
-            action="TFR_IN",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="3000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-18",
             settle_date="2025-08-18",
         )
         # Same-type: one TFSA broker to another, inside the pool above.
-        seed_transaction(
-            action="TFR_OUT",
-            account="QT-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_OUT",
             amount="-5000",
-            price=None,
-            units=None,
+            account="QT-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
-        seed_transaction(
-            action="TFR_IN",
-            account="WS-TFSA",
-            ticker=None,
-            currency="CAD",
+        seed_cash(
+            "TFR_IN",
             amount="5000",
-            price=None,
-            units=None,
+            account="WS-TFSA",
             date="2025-08-19",
             settle_date="2025-08-19",
         )
@@ -1582,16 +1189,7 @@ def _seed_contributions_across_types() -> None:
         ("WS-TFSA", "500", "2025-08-15"),
         ("WS-RRSP", "2000", "2025-08-18"),
     ):
-        seed_transaction(
-            action="CONTRIBUTION",
-            account=account,
-            ticker=None,
-            currency="CAD",
-            amount=amount,
-            price=None,
-            units=None,
-            date=day,
-        )
+        seed_cash("CONTRIBUTION", amount=amount, account=account, date=day)
 
 
 def test_one_scan_keeps_each_types_contributions_apart(

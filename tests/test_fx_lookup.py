@@ -13,7 +13,7 @@ from engine.fx_rates import FxRates, FxRateUnavailableError, FxWarning, load_fx_
 from .helpers.seed import seed_fx
 
 if TYPE_CHECKING:
-    from .test_types import TempContext
+    from .helpers.context import TempContext
 
 D = Decimal
 
@@ -94,10 +94,9 @@ def test_coverage_reports_the_span() -> None:
 
 
 def test_load_fx_rates_reads_only_fxusdcad(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx({"2024-06-26": "1.37", "2024-06-27": "1.372"})
         rates = load_fx_rates()
-    assert ctx is not None
     assert rates.dates == ("2024-06-26", "2024-06-27")
     assert rates.usdcad == (D("1.37"), D("1.372"))
 

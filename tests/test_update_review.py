@@ -32,7 +32,8 @@ from models import (
     SettlementMatch,
     UpdateStage,
 )
-from tests.helpers.seed import ACCOUNT, TICKER, TSX_TICKER, VENTURE_TICKER
+
+from .helpers.seed import ACCOUNT, TICKER, TSX_TICKER, VENTURE_TICKER
 
 OTHER_ACCOUNT = "OTHERACCT"
 CAD = "CAD"
@@ -70,14 +71,14 @@ BARE_WITHDRAWAL_ROW = {
 CANCEL_ROW: dict[str, object] = {
     Column.Txn.TXN_DATE: "2026-09-08",
     Column.Txn.ACTION: "Deposits/Withdrawals",
-    Column.Txn.AMOUNT: "-13000",
+    Column.Txn.AMOUNT: "-8000",
     Column.Txn.CURRENCY: CAD,
     Column.Txn.ACCOUNT: ACCOUNT,
 }
 DEPOSIT_ROW: dict[str, object] = {
     **CANCEL_ROW,
     Column.Txn.TXN_DATE: "2026-09-07",
-    Column.Txn.AMOUNT: "13000",
+    Column.Txn.AMOUNT: "8000",
 }
 
 
@@ -241,7 +242,7 @@ class TestImportReview:
         event = CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW)
         review = review_import("cash.csv", _results(cancels=[event]), None)
         assert review.concerns == ()
-        voided = f"2026-09-07 Deposits/Withdrawals 13000 CAD {ACCOUNT}"
+        voided = f"2026-09-07 Deposits/Withdrawals 8000 CAD {ACCOUNT}"
         assert review.expected == (
             f"cash.csv: cancelled by the broker, both left out: {voided}",
         )
@@ -488,12 +489,12 @@ class TestLateCancellations:
 
     STORED = pd.DataFrame(
         [
-            _txn("2026-08-01", Action.CONTRIBUTION, 13000.0, "", ACCOUNT, CAD, 5),
-            _txn("2026-09-07", Action.CONTRIBUTION, 13000.0, "", ACCOUNT, CAD, 9),
+            _txn("2026-08-01", Action.CONTRIBUTION, 8000.0, "", ACCOUNT, CAD, 5),
+            _txn("2026-09-07", Action.CONTRIBUTION, 8000.0, "", ACCOUNT, CAD, 9),
             _txn(
                 "2026-09-07",
                 Action.CONTRIBUTION,
-                13000.0,
+                8000.0,
                 "",
                 OTHER_ACCOUNT,
                 CAD,

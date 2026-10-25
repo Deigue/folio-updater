@@ -22,8 +22,6 @@ from domain import (
     Action,
     CheckStatus,
     Column,
-    Currency,
-    FeeConvention,
     Table,
     WarningCode,
 )
@@ -39,23 +37,23 @@ from engine.checks import (
 )
 from engine.fx_rates import FxRates
 from engine.ledger import Ledger, open_ledger
-from engine.replay import ReplayConfig, detect_fee_signs, replay
-from engine.types import TxnRow
-from services.symbols import SymbolResolver
 from ui.views.checks import _print_findings
 
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
 from .helpers.console import capture_output
-from .helpers.seed import seed_fx, seed_transaction
+from .helpers.replay import make_row, run
+from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .test_types import TempContext
+    from engine.types import TxnRow
+
+    from .helpers.context import TempContext
 
 D = Decimal
 
-FLAT_FX = FxRates(("2020-01-01",), (D("1.35"),))
+CHECKS_FX = FxRates(("2020-01-01",), (D("1.35"),))
 
 # Every account these tests use, so a replay never has to guess a type.
 ACCOUNT_TYPES = {
@@ -84,49 +82,13 @@ class StubConfig:
         self.checks_ignore_accounts = [name.upper() for name in accounts or []]
 
 
-def make_row(
-    txn_id: int,
-    date: str,
-    action: Action,
-    *,
-    amount: str = "0",
-    units: str = "0",
-    price: str = "0",
-    fee: str = "0",
-    currency: str = "CAD",
-    ticker: str | None = "TEST",
-    account: str = "IBKR-PERSONAL",
-    settle_date: str | None = None,
-) -> TxnRow:
-    """Build one transaction with every money column already Decimal."""
-    return TxnRow(
-        txn_id=txn_id,
-        txn_date=date,
-        settle_date=settle_date or date,
-        action=action,
-        amount=D(amount),
-        currency=Currency(currency),
-        price=D(price),
-        units=D(units),
-        fee=D(fee),
-        ticker=ticker,
-        account=account,
-    )
-
-
 def ledger_of(rows: list[TxnRow]) -> Ledger:
-    """Replay rows with explicit account facts, so no config is involved."""
-    accounts = {row.account for row in rows}
-    cfg = ReplayConfig(
-        account_types={
-            name: ACCOUNT_TYPES.get(name, AccountType.NON_REGISTERED)
-            for name in accounts
-        },
-        fee_conventions=dict.fromkeys(accounts, FeeConvention.AUTO),
-        symbols=SymbolResolver([]),
-        fee_signs=detect_fee_signs(rows),
-    )
-    return Ledger.from_replay(replay(rows, FLAT_FX, cfg))
+    """Replay rows with this module's account types, so no config is involved."""
+    types = {
+        row.account: ACCOUNT_TYPES.get(row.account, AccountType.NON_REGISTERED)
+        for row in rows
+    }
+    return Ledger.from_replay(run(rows, CHECKS_FX, types))
 
 
 def check(
@@ -201,12 +163,8 @@ def test_every_check_reports_a_summary_even_when_it_passes() -> None:
 
 def test_an_unrecognised_account_name_is_reported() -> None:
     rows = [make_row(1, "2024-01-02", Action.BUY, amount="-10", units="1", price="10")]
-    cfg = ReplayConfig(
-        account_types={"IBKR-PERSONAL": AccountType.UNKNOWN},
-        fee_conventions={"IBKR-PERSONAL": FeeConvention.AUTO},
-        symbols=SymbolResolver([]),
-    )
-    results = run_checks(Ledger.from_replay(replay(rows, FLAT_FX, cfg)), StubConfig())
+    replayed = run(rows, CHECKS_FX, {"IBKR-PERSONAL": AccountType.UNKNOWN})
+    results = run_checks(Ledger.from_replay(replayed), StubConfig())
     result = next(item for item in results if item.slug == "account-types")
     assert result.status is CheckStatus.FAIL
     assert "accounts.map" in details(result)
@@ -390,7 +348,7 @@ def test_the_first_date_cash_goes_negative_is_reported() -> None:
     assert "2024-07-03" not in details(result)
 
 
-def test_a_balance_that_never_recovers_is_called_one_past_error() -> None:
+def test_a_balance_that_never_recovers_says_it_sat_unchanged() -> None:
     rows = [
         make_row(
             1,
@@ -559,11 +517,11 @@ def test_a_conversion_that_does_not_add_up_shows_all_three_numbers() -> None:
     rows = [
         make_row(
             1,
-            "2024-05-31",
+            "2024-03-08",
             Action.FXT,
-            amount="-13000",
-            units="9541.98",
-            price="1.3624",
+            amount="-10000",
+            units="7999.99",
+            price="1.25",
             ticker=None,
             account="IBKR-RRSP",
         ),
@@ -572,20 +530,20 @@ def test_a_conversion_that_does_not_add_up_shows_all_three_numbers() -> None:
     assert result.status is CheckStatus.FAIL
     text = details(result)
     # The recorded figure and the implied figure, side by side and comparable.
-    assert "-13,000.00 CAD" in text
-    assert "9,541.98 x 1.3624" in text
-    assert "-12,999.99" in text
+    assert "-10,000.00 CAD" in text
+    assert "7,999.99 x 1.25" in text
+    assert "-9,999.99" in text
 
 
 def test_a_conversion_that_adds_up_passes() -> None:
     rows = [
         make_row(
             1,
-            "2024-05-31",
+            "2024-03-08",
             Action.FXT,
-            amount="-13000",
+            amount="-12500",
             units="10000",
-            price="1.3",
+            price="1.25",
             ticker=None,
             account="IBKR-RRSP",
         ),
@@ -952,16 +910,12 @@ def test_validate_slugs_accepts_every_real_check() -> None:
 def seed_clean_folio() -> None:
     """Seed a folio the command should pass."""
     seed_fx({"2025-08-14": "1.3500", "2025-08-15": "1.3600"})
-    seed_transaction(
-        action="CONTRIBUTION",
+    seed_cash(
+        "CONTRIBUTION",
+        amount="5000",
         date="2025-08-14",
         settle_date="2025-08-14",
         account="IBKR-PERSONAL",
-        currency="CAD",
-        ticker=None,
-        amount="5000",
-        price=None,
-        units=None,
     )
     seed_transaction(
         action="BUY",
@@ -1082,27 +1036,19 @@ def test_a_folio_with_only_warnings_still_exits_zero(temp_ctx: TempContext) -> N
     """A warning is worth seeing, but it must not fail a script that gates on this."""
     with temp_ctx() as ctx:
         seed_fx({"2025-08-14": "1.3500"})
-        seed_transaction(
-            action="CONTRIBUTION",
-            date="2025-08-14",
-            settle_date="2025-08-14",
-            account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker=None,
+        seed_cash(
+            "CONTRIBUTION",
             amount="5000",
-            price=None,
-            units=None,
-        )
-        seed_transaction(
-            action="TFR_OUT",
             date="2025-08-14",
             settle_date="2025-08-14",
             account="IBKR-PERSONAL",
-            currency="CAD",
-            ticker=None,
+        )
+        seed_cash(
+            "TFR_OUT",
             amount="-100",
-            price=None,
-            units=None,
+            date="2025-08-14",
+            settle_date="2025-08-14",
+            account="IBKR-PERSONAL",
         )
         result = run_cli_with_config(ctx.config, app, ["check"])
     assert result.exit_code == 0
@@ -1163,7 +1109,7 @@ def test_a_split_both_missing_and_duplicated_reads_as_recorded_wrong() -> None:
     assert result.summary == "2 splits are recorded wrong"
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 def test_a_cached_run_reports_exactly_what_a_fresh_one_does(
     temp_ctx: TempContext,
 ) -> None:
@@ -1181,7 +1127,7 @@ def test_a_cached_run_reports_exactly_what_a_fresh_one_does(
 MANY_DIAGNOSED = 5_001
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 @pytest.mark.parametrize(
     "sales",
     [pytest.param(1, id="one"), pytest.param(MANY_DIAGNOSED, id="many")],
@@ -1232,7 +1178,6 @@ def test_editing_the_folio_replays_the_diagnostics(temp_ctx: TempContext) -> Non
         assert WarningCode.OVERSELL in {w.code for w in replayed.diagnostics}
 
 
-@pytest.mark.real_acb_cache
 def _unknown_code(path: Path) -> None:
     """Rewrite saved diagnostics with a code no release knows."""
     saved = pd.read_parquet(path, engine="fastparquet")
@@ -1240,7 +1185,7 @@ def _unknown_code(path: Path) -> None:
     saved.to_parquet(path, engine="fastparquet", index=False, object_encoding="utf8")
 
 
-@pytest.mark.real_acb_cache
+@pytest.mark.real_saved_ledger
 @pytest.mark.parametrize(
     "spoil",
     [pytest.param(Path.unlink, id="gone"), pytest.param(_unknown_code, id="unknown")],

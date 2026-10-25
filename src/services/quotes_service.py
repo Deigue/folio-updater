@@ -124,14 +124,13 @@ def _run_concurrently[T](
 
     Args:
         fetch: Looks up one provider symbol; returns None on a miss.
-        ysymbols: Provider spellings to fetch.
+        ysymbols: Provider spellings to fetch, never empty: `refresh` and
+            `_collect_metadata` return before fetching nothing.
 
     Returns:
         Whatever `fetch` returned for each symbol, in no particular order,
         with the None misses already filtered out.
     """
-    if not ysymbols:
-        return []
     workers = min(len(ysymbols), _MAX_FETCH_WORKERS)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(fetch, ysymbols))
@@ -1314,8 +1313,6 @@ def _iso(moment: datetime | None) -> str | None:
 
 def _write(rows: list[dict[str, Any]]) -> None:
     """Persist refreshed quotes, creating the table on first use."""
-    if not rows:
-        return
     try:
         create_quotes_table()
         with get_connection() as conn:

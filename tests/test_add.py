@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
 
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import get_columns, get_connection, get_row_count, get_rows
-from domain import Action, Column, Currency, Table
+from db import get_columns, get_connection
+from domain import TORONTO_TZ, Action, Column, Currency, Table
 
 from .helpers.cli import (
     assert_cli_success,
@@ -19,62 +19,62 @@ from .helpers.cli import (
     assert_not_in_output,
     run_cli_with_config,
 )
+from .helpers.folio import ticker_txns, txn_total
+from .helpers.seed import ACCOUNT, TICKER, TXN_DATE
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
-
-    from tests.test_types import TempContext
-
-# Inside the mock data range (SEED_DATE - 84 days .. SEED_DATE), so settlement
-# calculations hit the market calendars preloaded by the session fixture.
-TXN_DATE = "2025-08-15"
-ACCOUNT = "TESTACCT"
-TICKER = "TESTTKR"
-
-BUY_ARGS = [
-    "add",
-    "--type",
-    "BUY",
-    "--date",
-    TXN_DATE,
-    "--account",
-    ACCOUNT,
-    "--currency",
-    Currency.USD.value,
-    "--symbol",
-    TICKER,
-    "--amount",
-    "-1502.50",
-    "--price",
-    "150.25",
-    "--units",
-    "10",
-]
+    from .helpers.context import TempContext
 
 
-@pytest.fixture(autouse=True)
-def suppress_logging_conflicts() -> Generator[None, Any]:
-    """Suppress logging to avoid stream conflicts during CLI testing."""
-    logging.disable(logging.CRITICAL)
-    yield
-    logging.disable(logging.NOTSET)
+def _add_args(
+    action: str = "BUY",
+    currency: Currency = Currency.USD,
+    amount: str = "-1502.50",
+    price: str | None = "150.25",
+    units: str | None = "10",
+) -> list[str]:
+    """Build a fully specified `add` command line, so nothing is prompted for.
+
+    Args:
+        action: The --type given.
+        currency: The --currency given.
+        amount: The --amount given.
+        price: The --price given, or None to leave it off.
+        units: The --units given, or None to leave it off.
+
+    Returns:
+        The argv for `run_cli_with_config`.
+    """
+    args = [
+        "add",
+        "--type",
+        action,
+        "--date",
+        TXN_DATE,
+        "--account",
+        ACCOUNT,
+        "--currency",
+        currency.value,
+        "--symbol",
+        TICKER,
+        "--amount",
+        amount,
+    ]
+    if price is not None:
+        args += ["--price", price]
+    if units is not None:
+        args += ["--units", units]
+    return args
 
 
-def _txn_count() -> int:
-    """Get the current number of transactions in the database."""
-    with get_connection() as conn:
-        return get_row_count(conn, Table.TXNS)
+BUY_ARGS = _add_args()
+
+pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
 def _added_txn(ticker: str = TICKER) -> pd.Series:
     """Fetch the single transaction added by a test, by ticker."""
-    with get_connection() as conn:
-        rows = get_rows(
-            conn,
-            Table.TXNS,
-            where=f'"{Column.Txn.TICKER}" = ?',
-            params=[ticker],
-        )
+    rows = ticker_txns(ticker)
     assert len(rows) == 1, f"Expected exactly one {ticker} transaction, got {len(rows)}"
     return rows.iloc[0]
 
@@ -86,12 +86,12 @@ class TestAddSuccess:
         """A fully specified BUY is added without any prompting."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(ctx.config, cli_app, BUY_ARGS)
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before + 1
+            assert txn_total() == before + 1
             row = _added_txn()
             assert row[Column.Txn.ACTION] == Action.BUY
             assert row[Column.Txn.TXN_DATE] == TXN_DATE
@@ -109,21 +109,7 @@ class TestAddSuccess:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                [
-                    "add",
-                    "--type",
-                    "div",
-                    "--date",
-                    TXN_DATE,
-                    "--account",
-                    ACCOUNT,
-                    "--currency",
-                    Currency.CAD.value,
-                    "--symbol",
-                    TICKER,
-                    "--amount",
-                    "12.34",
-                ],
+                _add_args("div", Currency.CAD, "12.34", price=None, units=None),
             )
 
             assert_cli_success(cli_result)
@@ -224,15 +210,18 @@ class TestAddPrompting:
             # Empty first answer accepts the default date.
             answers = f"\n{ACCOUNT}\n{Currency.CAD.value}\n{TICKER}\n25.00\n"
 
+            before = datetime.now(TORONTO_TZ).strftime("%Y-%m-%d")
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
                 ["add", "--type", "ROC"],
                 user_input=answers,
             )
+            after = datetime.now(TORONTO_TZ).strftime("%Y-%m-%d")
 
             assert_cli_success(cli_result)
-            assert _added_txn()[Column.Txn.TXN_DATE]
+            # Either side of midnight, should the run straddle it.
+            assert _added_txn()[Column.Txn.TXN_DATE] in {before, after}
 
     def test_invalid_action_reprompts(self, temp_ctx: TempContext) -> None:
         """An unrecognized action is rejected and asked for again."""
@@ -278,7 +267,7 @@ class TestAddValidation:
         """A malformed field aborts the add and reports the rejection reason."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -288,13 +277,13 @@ class TestAddValidation:
 
             assert cli_result.exit_code == 1
             assert_in_output(expected, cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_empty_account_is_rejected(self, temp_ctx: TempContext) -> None:
         """An empty Account is refused cleanly instead of raising IntegrityError."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -304,13 +293,13 @@ class TestAddValidation:
 
             assert cli_result.exit_code == 1
             assert_in_output("Database rejected the transaction", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_invalid_set_value_is_rejected(self, temp_ctx: TempContext) -> None:
         """A --set argument that is not KEY=VALUE aborts the add."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -320,13 +309,13 @@ class TestAddValidation:
 
             assert cli_result.exit_code == 1
             assert_in_output("Expected KEY=VALUE", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
         """--dry-run previews the transaction without inserting it."""
         with temp_ctx() as ctx:
             ensure_data_exists()
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -336,7 +325,7 @@ class TestAddValidation:
 
             assert_cli_success(cli_result)
             assert_in_output("Dry run", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
 
 class TestAddDuplicates:
@@ -347,7 +336,7 @@ class TestAddDuplicates:
         with temp_ctx() as ctx:
             ensure_data_exists()
             assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -359,14 +348,14 @@ class TestAddDuplicates:
             assert_cli_success(cli_result)
             assert_in_output("matches 1 existing transaction", cli_result)
             assert_in_output("Transaction not added", cli_result)
-            assert _txn_count() == before
+            assert txn_total() == before
 
     def test_duplicate_confirmed_is_added(self, temp_ctx: TempContext) -> None:
         """Confirming the duplicate prompt adds the transaction anyway."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -376,14 +365,14 @@ class TestAddDuplicates:
             )
 
             assert_cli_success(cli_result)
-            assert _txn_count() == before + 1
+            assert txn_total() == before + 1
 
     def test_force_skips_the_duplicate_prompt(self, temp_ctx: TempContext) -> None:
         """--force adds a duplicate without prompting."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
-            before = _txn_count()
+            before = txn_total()
 
             cli_result = run_cli_with_config(
                 ctx.config,
@@ -393,7 +382,7 @@ class TestAddDuplicates:
 
             assert_cli_success(cli_result)
             assert_not_in_output("intentional duplicate", cli_result)
-            assert _txn_count() == before + 1
+            assert txn_total() == before + 1
 
 
 class TestAddSigns:
@@ -407,25 +396,7 @@ class TestAddSigns:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                [
-                    "add",
-                    "--type",
-                    "BUY",
-                    "--date",
-                    TXN_DATE,
-                    "--account",
-                    ACCOUNT,
-                    "--currency",
-                    Currency.USD.value,
-                    "--symbol",
-                    TICKER,
-                    "--amount",
-                    "1502.50",
-                    "--price",
-                    "150.25",
-                    "--units",
-                    "10",
-                ],
+                _add_args(amount="1502.50"),
             )
 
             assert_cli_success(cli_result)
@@ -441,25 +412,7 @@ class TestAddSigns:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                [
-                    "add",
-                    "--type",
-                    "SELL",
-                    "--date",
-                    TXN_DATE,
-                    "--account",
-                    ACCOUNT,
-                    "--currency",
-                    Currency.USD.value,
-                    "--symbol",
-                    TICKER,
-                    "--amount",
-                    "-1502.50",
-                    "--price",
-                    "150.25",
-                    "--units",
-                    "10",
-                ],
+                _add_args("SELL"),
             )
 
             assert_cli_success(cli_result)
@@ -490,21 +443,7 @@ class TestAddSettlement:
             cli_result = run_cli_with_config(
                 ctx.config,
                 cli_app,
-                [
-                    "add",
-                    "--type",
-                    "ROC",
-                    "--date",
-                    TXN_DATE,
-                    "--account",
-                    ACCOUNT,
-                    "--currency",
-                    Currency.CAD.value,
-                    "--symbol",
-                    TICKER,
-                    "--amount",
-                    "25.00",
-                ],
+                _add_args("ROC", Currency.CAD, "25.00", price=None, units=None),
             )
 
             assert_cli_success(cli_result)
