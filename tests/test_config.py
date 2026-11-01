@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from app import bootstrap
-from app.logging_setup import SharedLogHandler
+from app.logging_setup import SharedLogHandler, get_import_logger
 from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
@@ -395,3 +395,52 @@ def test_a_setting_with_a_value_is_left_alone(tmp_path: Path) -> None:
 
     assert write_missing_setting(config_path, "contribution_room", ROOM) is False
     assert config_path.read_text(encoding="utf-8") == existing
+
+def test_import_log_level_keeps_the_audit_trail(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+    project_logs: Path,
+) -> None:
+    """An import audit line reaches importer.log while folio.log stays quiet."""
+    with temp_ctx() as ctx:
+        with Path.open(ctx.config.config_path, mode="w") as f:
+            yaml.safe_dump({"log_level": "ERROR"}, f)
+
+        config = bootstrap.reload_config(tmp_path)
+        assert config.import_log_level == "INFO"
+        get_import_logger().info("audit line written by an import")
+
+    assert logging.getLogger().level == logging.ERROR
+    content = (project_logs / "importer.log").read_text(encoding="utf-8")
+    assert "audit line written by an import" in content
+
+
+def test_import_log_level_can_turn_the_audit_trail_off(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+    project_logs: Path,
+) -> None:
+    """Raising import_log_level silences the trail without touching folio.log."""
+    with temp_ctx() as ctx:
+        with Path.open(ctx.config.config_path, mode="w") as f:
+            yaml.safe_dump({"log_level": "ERROR", "import_log_level": "ERROR"}, f)
+
+        config = bootstrap.reload_config(tmp_path)
+        assert config.import_log_level == "ERROR"
+        get_import_logger().info("audit line written by an import")
+
+    assert logging.getLogger().level == logging.ERROR
+    content = (project_logs / "importer.log").read_text(encoding="utf-8")
+    assert "audit line written by an import" not in content
+
+
+def test_import_log_level_falls_back_on_a_bad_value(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+) -> None:
+    """An unknown import_log_level keeps the INFO default instead of crashing."""
+    with temp_ctx() as ctx:
+        with Path.open(ctx.config.config_path, mode="w") as f:
+            yaml.safe_dump({"import_log_level": "notalevel"}, f)
+
+        assert ctx.config.import_log_level == "INFO"
