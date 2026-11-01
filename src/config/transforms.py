@@ -70,9 +70,9 @@ class MergeGroup:
         Args:
             name: Descriptive name for this merge group
             match_fields: Fields to group by (e.g., TxnDate, Account, Ticker)
-            source_actions: Action types to merge
+            source_actions: Broker actions to merge
                 (e.g., ["Dividends", "Withholding Tax"])
-            target_action: Final action type for merged row (e.g., "DIVIDEND")
+            target_action: Final action for the merged row (e.g., "DIVIDEND")
             amount_field: Field containing the amount to sum (e.g., "Amount")
             operations: Additional field operations (e.g., {"Fee": 0})
         """

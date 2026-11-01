@@ -462,7 +462,7 @@ def get_mock_statement_transactions() -> list[dict[str, Any]]:
 
 
 def get_expected_statement_txn_csv() -> str:
-    """Get the expected CSV output for Wealthsimple statement transactions."""
+    """Get the expected CSV output for Wealthsimple statement rows."""
     return (
         "date,amount,currency,transaction,description\r\n"
         "2025-10-08,-500.00,CAD,BUY,MSFT - BUY 1.0 SHARES\r\n"

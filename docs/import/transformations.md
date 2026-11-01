@@ -91,9 +91,9 @@ transforms:
 
 **Use case**: You want to ensure that Dividend transactions don't have any fees associated to them.
 
-### 3. Normalize Action Types
+### 3. Normalize Broker Actions
 
-Convert broker-specific action types to standard ones:
+Convert broker actions to standard ones:
 
 ```yaml
 transforms:

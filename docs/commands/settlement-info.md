@@ -28,7 +28,7 @@ read, `folio update` downloads that statement again.
 - `date`: Settlement date from the statement
 - `amount`: Transaction amount (used for matching)
 - `currency`: Transaction currency
-- `transaction`: Action type (BUY, SELL, etc.)
+- `transaction`: Broker action (BUY, SELL, etc.)
 - `description`: Contains ticker symbol, units, and original trade date
 
 ## Overriding a Date by Hand

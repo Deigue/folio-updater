@@ -96,7 +96,7 @@ def _normalize_action(value: str) -> str | None:
         The canonical Action value, or None if it is not recognized.
     """
     action = value.strip().upper()
-    action = TransactionFormatter.ACTION_MAP.get(action, action)
+    action = TransactionFormatter.ACTION_ALIASES.get(action, action)
     try:
         return Action(action).value
     except ValueError:

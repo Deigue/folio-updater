@@ -441,7 +441,7 @@ class WealthsimpleService:
         *,
         load_all: bool = False,
     ) -> list[ActivityFeedItem]:
-        """Get activities (transactions) for an account.
+        """Get an account's activities, the source rows of a download.
 
         Args:
             account_id: Account ID to retrieve activities for
@@ -463,7 +463,7 @@ class WealthsimpleService:
             load_all=load_all,
         )
         logger.info(
-            "RETRIEVED %d activities for accounts: %s",
+            "RETRIEVED %d source rows for accounts: %s",
             len(activities) if activities else 0,
             account_id,
         )
@@ -562,23 +562,23 @@ class WealthsimpleService:
             writer.writerow(TXN_ESSENTIALS)
             writer.writerows(rows)
 
-        logger.info('EXPORTED %d activities to CSV: "%s"', len(rows), output_path)
+        logger.info('EXPORTED %d source rows to CSV: "%s"', len(rows), output_path)
 
     def export_statement_to_csv(
         self,
-        statement_txns: list[BrokerageMonthlyStatementTransaction],
+        statement_rows: list[BrokerageMonthlyStatementTransaction],
         csv_name: str,
     ) -> None:
-        """Export statement transactions to a CSV file.
+        """Export statement rows to a CSV file.
 
         Args:
-            statement_txns: List of statement transactions to export
+            statement_rows: List of statement rows to export
             csv_name: Name of the output CSV file
         """
         config = get_config()
         output_path: Path = config.statements_path / csv_name
         headers = ["date", "amount", "currency", "transaction", "description"]
-        rows = [self._convert_statement_txn_to_csv_row(txn) for txn in statement_txns]
+        rows = [self._convert_statement_txn_to_csv_row(txn) for txn in statement_rows]
 
         with output_path.open("w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
@@ -586,8 +586,8 @@ class WealthsimpleService:
             writer.writerows(rows)
 
         logger.info(
-            'EXPORTED %d statement transactions to CSV: "%s"',
-            len(statement_txns),
+            'EXPORTED %d statement rows to CSV: "%s"',
+            len(statement_rows),
             output_path,
         )
 
@@ -668,10 +668,10 @@ class WealthsimpleService:
         action_type: str | None,
         sub_type: str | None,
     ) -> str:
-        """Normalize action type to standard actions.
+        """Resolve a Wealthsimple activity type to one of the folio's actions.
 
         Args:
-            action_type: The action type from activity
+            action_type: The activity's type, as Wealthsimple spells it
             sub_type: The sub-type from activity
 
         Returns:
@@ -699,7 +699,7 @@ class WealthsimpleService:
 
         Args:
             amount: The transaction amount
-            action: The normalized action type
+            action: The normalized action
             amount_sign: The sign indicator from activity
 
         Returns:

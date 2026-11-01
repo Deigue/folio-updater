@@ -178,7 +178,7 @@ class ActionValidationRules:
         """Get validation rules for a specific action.
 
         Args:
-            action: The action type as a string
+            action: The action's value, such as `BUY`, with any alias already resolved
 
         Returns:
             Dictionary with 'required_fields' and 'optional_fields' lists
@@ -195,7 +195,7 @@ class ActionValidationRules:
         """Get the required Amount/Units signs for a specific action.
 
         Args:
-            action: The action type as a string
+            action: The action's value, such as `BUY`, with any alias already resolved
 
         Returns:
             Mapping of column name to required sign. Empty when the action
@@ -248,14 +248,14 @@ def _negate_decimal(value: str) -> str:
 class TransactionFormatter:
     """Formatter for transaction data before database insertion."""
 
-    CURRENCY_MAP: ClassVar[dict[str, str]] = {
+    CURRENCY_ALIASES: ClassVar[dict[str, str]] = {
         "US$": "USD",
         "C$": "CAD",
         "CAD$": "CAD",
         "CANADIAN": "CAD",
     }
 
-    ACTION_MAP: ClassVar[dict[str, str]] = {
+    ACTION_ALIASES: ClassVar[dict[str, str]] = {
         "B": "BUY",
         "PURCHASE": "BUY",
         "BOUGHT": "BUY",
@@ -537,7 +537,7 @@ class TransactionFormatter:
     def _normalize_action(self, value: object) -> str | None:
         """Resolve an action alias (`bought`, `DIV`) to its canonical name."""
         action = str(value).strip().upper()
-        mapped = self.ACTION_MAP.get(action, action)
+        mapped = self.ACTION_ALIASES.get(action, action)
         return mapped if mapped in actions else None
 
     def _format_action_column(self, column: str, *, required: bool) -> None:
@@ -561,7 +561,7 @@ class TransactionFormatter:
     def _normalize_currency(self, value: object) -> str | None:
         """Resolve a currency alias (`US$`, `canadian`) to its ISO code."""
         currency = str(value).strip().upper()
-        mapped = self.CURRENCY_MAP.get(currency, currency)
+        mapped = self.CURRENCY_ALIASES.get(currency, currency)
         return mapped if mapped in currencies else None
 
     def _format_currency_column(self, column: str, *, required: bool) -> None:

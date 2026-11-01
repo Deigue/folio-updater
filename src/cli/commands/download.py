@@ -151,7 +151,7 @@ def download_ibkr(
         console_info("To import these files, run:")
         console_info("  folio import")
     else:
-        console_warning("No transactions downloaded")
+        console_warning("No source files downloaded")
     return failures
 
 
@@ -245,7 +245,7 @@ def download_wealthsimple(
             load_all=True,
         )
 
-    console_info(f"Retrieved {len(activities)} transactions")
+    console_info(f"Retrieved {len(activities)} source rows")
 
     if len(activities) > 0:
         show_activities_preview(activities, accounts)
@@ -257,7 +257,7 @@ def download_wealthsimple(
         console_info("To import these files, run:")
         console_info("  folio import")
     else:
-        console_warning("No transactions downloaded")
+        console_warning("No source rows downloaded")
 
 
 def download_ws_statement(from_date: str) -> list[Path]:
@@ -278,34 +278,34 @@ def download_ws_statement(from_date: str) -> list[Path]:
         task = progress.add_task("Retrieving accounts...", total=None)
         accounts = ws.get_accounts()
 
-        total_transactions = 0
+        total_rows = 0
         exported_files = []
 
         progress.update(task, description="Downloading monthly statements...")
         for account in accounts:
-            statement_txns = ws.get_monthly_statement(account.id, from_date)
+            statement_rows = ws.get_monthly_statement(account.id, from_date)
             account_name = account.account_name
-            if statement_txns:
+            if statement_rows:
                 # YYYY-MM-DD -> YYYYMM
                 date_for_filename = from_date.replace("-", "")[:6]
                 csv_name = f"ws_statement_{account_name}_{date_for_filename}.csv"
-                ws.export_statement_to_csv(statement_txns, csv_name)
-                total_transactions += len(statement_txns)
+                ws.export_statement_to_csv(statement_rows, csv_name)
+                total_rows += len(statement_rows)
                 exported_files.append(csv_name)
             else:
-                msg = f"No statement transactions found for account {account_name}"
+                msg = f"No statement rows found for account {account_name}"
                 console_warning(msg)
 
     config = get_config()
     if exported_files:
-        console_success(f"Retrieved {total_transactions} statement transactions")
+        console_success(f"Retrieved {total_rows} statement rows")
         console_success(f'Files saved to: "{config.statements_path}"')
         for filename in exported_files:
             console_info(f"  - {filename}")
         console_info("To import these statement files, run:")
         console_info("  folio settle-info --import")
     else:
-        console_warning("No statement transactions downloaded")
+        console_warning("No statement rows downloaded")
     return [config.statements_path / name for name in exported_files]
 
 

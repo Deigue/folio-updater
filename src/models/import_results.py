@@ -24,7 +24,7 @@ class MergeEvent:
 
     Attributes:
         merged_row: The resulting merged transaction (as Series converted to dict)
-        source_rows: Original source transactions that were merged (as DataFrame)
+        source_rows: The source rows that were merged (as DataFrame)
     """
 
     merged_row: dict[str, Any]
@@ -108,7 +108,7 @@ class ImportResults:
         return len(self.db_rejected_df)
 
     def merge_candidates(self) -> int:
-        """Return number of transactions that were merge candidates."""
+        """Return number of source rows that were merge candidates."""
         return sum(len(me.source_rows) for me in self.merge_events)
 
     def merged_into(self) -> int:

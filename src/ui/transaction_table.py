@@ -122,11 +122,11 @@ def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> li
 
 
 def _format_amount_display(amount: float, action: str) -> str:
-    """Format amount with color based on action type.
+    """Format amount with color based on the action.
 
     Args:
         amount: Transaction amount
-        action: Transaction action type
+        action: Transaction action
 
     Returns:
         Formatted amount string with color markup

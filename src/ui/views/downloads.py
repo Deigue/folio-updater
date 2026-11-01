@@ -20,7 +20,7 @@ def show_activities_preview(
     activities: Sequence[ActivityFeedItem],
     accounts: Sequence[Account],
 ) -> None:
-    """Show the first few Wealthsimple activities a download retrieved.
+    """Show the first few Wealthsimple source rows a download retrieved.
 
     Args:
         activities: Everything retrieved, newest first.
@@ -44,7 +44,7 @@ def show_activities_preview(
             }
             for activity in activities[:PREVIEW_ROWS]
         ],
-        title=f"Downloaded Transactions Preview ({len(activities)} total)",
+        title=f"Downloaded Source Rows Preview ({len(activities)} total)",
         max_rows=PREVIEW_ROWS,
         drop_order=DOWNLOAD_DROP_ORDER,
     )

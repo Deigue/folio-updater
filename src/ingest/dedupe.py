@@ -25,17 +25,17 @@ import_logger: Logger = get_import_logger()
 
 
 class TransactionFilter:
-    """Class to filter out duplicate transactions."""
+    """Reject duplicate transactions."""
 
     @staticmethod
     def filter_db_duplicates(txn_df: pd.DataFrame) -> pd.DataFrame:
-        """Filter out transactions that already exist in the database.
+        """Reject transactions that already exist in the database.
 
         Args:
             txn_df: DataFrame with transaction data.
 
         Returns:
-            DataFrame with database duplicates removed, unless approved.
+            DataFrame with database duplicates rejected, unless approved.
         """
         if txn_df.empty:  # pragma: no cover
             return txn_df
@@ -72,13 +72,13 @@ class TransactionFilter:
 
     @staticmethod
     def filter_intra_import_duplicates(txn_df: pd.DataFrame) -> pd.DataFrame:
-        """Filter out duplicate transactions within the DataFrame itself.
+        """Reject duplicate transactions within the DataFrame itself.
 
         Args:
             txn_df: DataFrame with transaction data.
 
         Returns:
-            DataFrame with duplicates removed, unless approved.
+            DataFrame with duplicates rejected, unless approved.
         """
         if txn_df.empty:  # pragma: no cover
             return txn_df
@@ -86,9 +86,9 @@ class TransactionFilter:
         # Use vectorized key generation
         keys = generate_keys(txn_df)
         duplicate_mask = keys.duplicated(keep=False)
-        num_dupes = duplicate_mask.sum()
+        duplicate_count = duplicate_mask.sum()
 
-        if num_dupes == 0:
+        if duplicate_count == 0:
             return txn_df
 
         approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(

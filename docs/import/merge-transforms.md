@@ -45,14 +45,14 @@ List of fields that must match for transactions to be grouped together. Typicall
 
 ### `source_actions` (required)
 
-List of Action types to merge. Must have at least 2 values. Examples:
+List of broker actions to merge. Must have at least 2 values. Examples:
 
 - `["Dividends", "Withholding Tax"]`
 - `["Dividend", "Tax"]`
 
 ### `target_action` (required)
 
-The final Action type for the merged transaction. Typically `"DIVIDEND"`.
+The final action for the merged transaction. Typically `"DIVIDEND"`.
 
 ### `amount_field` (required)
 

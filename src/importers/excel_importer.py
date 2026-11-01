@@ -34,14 +34,14 @@ import_logger = get_import_logger()
 
 
 def import_transactions(
-    folio_path: Path,
+    file_path: Path,
     account: str | None = None,
     sheet: str | None = None,
 ) -> ImportResults:
     """Read a source file and add the transactions that survive ingest to the folio.
 
     Args:
-        folio_path (Path): Path to the Excel or CSV file containing transactions.
+        file_path (Path): Path to the Excel or CSV file containing transactions.
         account (str | None): Optional account identifier to use as fallback
             when Account column is missing from the file.
         sheet (str | None): Optional sheet name to read from an Excel file.
@@ -58,14 +58,14 @@ def import_transactions(
     existing_count = txn_count()
 
     # Log import start with detailed info
-    import_logger.info('IMPORT TXNS "%s"', folio_path)
+    import_logger.info('IMPORT TXNS "%s"', file_path)
     import_logger.info("EXISTING %d transactions in database", existing_count)
 
     try:
         try:
-            txns_df = _read_source(folio_path, sheet)
+            txns_df = _read_source(file_path, sheet)
         except ValueError as error:
-            import_logger.warning('CANNOT READ "%s": %s', folio_path, error)
+            import_logger.warning('CANNOT READ "%s": %s', file_path, error)
             import_logger.info("DONE: 0 imported")
             raise
 
@@ -196,7 +196,7 @@ def import_statements(statement: Path) -> StatementImportResult:
     - date: Settlement date from the statement
     - amount: Transaction amount (should match existing transaction)
     - currency: Transaction currency
-    - transaction: Action types (BUY/SELL/TRFOUT/TRFIN etc.)
+    - transaction: Broker actions (BUY/SELL/TRFOUT/TRFIN etc.)
     - description: Contains ticker and units info for BUY/SELL transactions
                    Also contains trade date for matching
 
@@ -619,9 +619,9 @@ _STATEMENT_FILENAME_PATTERN = re.compile(
 )
 
 
-def _transfer_action_for_code(transaction_type: str) -> str | None:
+def _transfer_action_for_code(action_code: str) -> str | None:
     """Map a statement transfer code to a TFR action, or None if it isn't one."""
-    code = transaction_type.strip().upper()
+    code = action_code.strip().upper()
     if code.startswith(_TRANSFER_OUT_PREFIX):
         return Action.TFR_OUT
     if code.startswith(_TRANSFER_IN_PREFIX):
@@ -677,7 +677,7 @@ def _build_transfer_transactions(
             rejected += 1
             reason = "no account in filename" if not account else "unparseable date"
             announce.warning(
-                f'Skipping transfer in "{statement_path.name}": {reason} '
+                f'Rejected transfer in "{statement_path.name}": {reason} '
                 f"({row['transaction']}, {row['date']})",
                 "importer",
             )

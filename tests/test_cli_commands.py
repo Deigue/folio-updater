@@ -523,7 +523,7 @@ FLEX_REPORT = {"brokers": {"ibkr": {"FlexReport": "abc123"}}}
             [],
             None,
             None,
-            "No transactions downloaded",
+            "No source files downloaded",
             False,
             id="no_queries",
         ),
@@ -587,28 +587,28 @@ def test_ibkr_download_scenarios(
             ["-b", "wealthsimple"],
             get_mock_activities(),
             get_expected_wealthsimple_csv(),
-            "Retrieved 6 transactions",
+            "Retrieved 6 source rows",
             id="default",
         ),
         pytest.param(
             ["-b", "wealthsimple", "--from", "2025-10-01", "--to", "2025-10-21"],
             get_mock_activities(),
             get_expected_wealthsimple_csv(),
-            "Retrieved 6 transactions",
+            "Retrieved 6 source rows",
             id="custom_dates",
         ),
         pytest.param(
             ["-b", "wealthsimple"],
             [],
             None,
-            "No transactions downloaded",
+            "No source rows downloaded",
             id="no_transactions",
         ),
         pytest.param(
             ["-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
             get_mock_statement_transactions(),
             get_expected_statement_txn_csv(),
-            "Retrieved 2 statement transactions",
+            "Retrieved 2 statement rows",
             id="statement",
         ),
     ],
@@ -740,7 +740,7 @@ def test_wealthsimple_download_refreshes_an_expired_access_token(
         )
 
         assert_cli_success(cli_result)
-        assert_in_output("Retrieved 6 transactions", cli_result)
+        assert_in_output("Retrieved 6 source rows", cli_result)
         # Refused with the stored token, then accepted once it was cleared.
         assert ws_mock.token_attempts == ["stored-token", None]
 
@@ -766,10 +766,10 @@ def test_wealthsimple_statement_not_published_yet_is_not_an_error(
 
         assert_cli_success(cli_result)
         assert_in_output(
-            "No statement transactions found for account WS-TFSA",
+            "No statement rows found for account WS-TFSA",
             cli_result,
         )
-        assert_in_output("No statement transactions downloaded", cli_result)
+        assert_in_output("No statement rows downloaded", cli_result)
         ws_mock.assert_no_csv_written()
 
 
