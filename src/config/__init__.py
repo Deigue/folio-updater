@@ -33,6 +33,7 @@ class Config:
             "folio_path": "data/folio.xlsx",
             "data_path": "data",
             "log_level": "ERROR",
+            "import_log_level": "INFO",
             "sheets": {
                 "tickers": "Tickers",
                 "txns": "Txns",
@@ -165,8 +166,13 @@ class Config:
 
     @property
     def log_level(self) -> str:
-        """Get the log level."""
+        """Get the level of the application log (folio.log)."""
         return self._settings["log_level"]
+
+    @property
+    def import_log_level(self) -> str:
+        """Get the level of the import audit log (importer.log)."""
+        return self._settings["import_log_level"]
 
     @property
     def sheets(self) -> dict[str, str]:  # pragma: no cover
@@ -492,6 +498,7 @@ class Config:
             "Data Path": self.data_path,
             "Database Path": self.db_path,
             "Log Level": self.log_level,
+            "Import Log Level": self.import_log_level,
             "Sheets": self.sheets,
             "Header Keywords": f"{len(self.header_keywords)} column(s) mapped",
             "Header Ignore": self.header_ignore,
