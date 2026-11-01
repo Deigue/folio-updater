@@ -26,7 +26,8 @@ def reload_config(project_root: Path | None = None) -> Config:
     initialize_app(project_root)
     config: Config = get_config()
     level_int: int = getattr(logging, config.log_level.upper())
-    init_logging(level_int)
+    import_level_int: int = getattr(logging, config.import_log_level.upper())
+    init_logging(level_int, import_level_int)
     logger.info("INIT config (log level: %s)", logging.getLevelName(level_int))
     if config.folio_path is not None and not config.folio_path.parent.exists():
         logger.warning(
