@@ -67,6 +67,7 @@ def validate_config(
 
     _validate_passthrough_keys(settings, validated)
     _validate_log_level(settings, validated)
+    _validate_import_log_level(settings, validated)
     _validate_sheets(settings, validated)
     _validate_header_keywords(settings, validated)
     _validate_duplicate_approval(settings, validated)
@@ -271,6 +272,17 @@ def _validate_log_level(
     if log_level not in logging.getLevelNamesMapping():
         log_level = validated["log_level"]
     validated["log_level"] = log_level
+
+
+def _validate_import_log_level(
+    settings: dict[str, Any],
+    validated: dict[str, Any],
+) -> None:
+    """Validate import_log_level, falling back to the default on a bad value."""
+    level = str(settings.get("import_log_level", validated["import_log_level"])).upper()
+    if level not in logging.getLevelNamesMapping():
+        level = validated["import_log_level"]
+    validated["import_log_level"] = level
 
 
 def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:
