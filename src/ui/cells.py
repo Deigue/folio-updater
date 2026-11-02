@@ -18,10 +18,8 @@ from ui.vocabulary import (
     FLAT,
     FLAT_BELOW,
     GAIN,
-    GAIN_STRONG,
     INCOME,
     LOSS,
-    LOSS_STRONG,
     MONEY_PRECISION,
     PRICE_PRECISION,
     RETURN_STRONG_AT,
@@ -42,6 +40,11 @@ WARN_GLYPH = "⚠" if UNICODE else "!"
 EM_DASH = "—" if UNICODE else "-"
 
 PERCENT_PRECISION = 2
+
+# Six lightness steps retain their sign hue. Even the first step exceeds
+# 4.5:1 contrast on #1e1e1e and #2d2d2d; the last is near-white for range.
+_GAIN_RAMP = ("#4da767", "#70b980", "#91cba0", "#b2ddbf", "#d3efdf", "#effff5")
+_LOSS_RAMP = ("#e27777", "#e88f8f", "#eea7a7", "#f4bfbf", "#fad7d7", "#ffefef")
 
 _HALF_DAY = 12  # hours on a twelve-hour clock
 
@@ -111,8 +114,8 @@ def graded(
 ) -> str:
     """Colour a percentage by its sign and how large it is.
 
-    A move too small to matter is dimmed, an ordinary one takes the plain sign
-    colour, and one at or beyond `strong_at` is drawn bold and bright.
+    A move too small to matter stays dimmed. Larger moves use six shades,
+    reaching the brightest at `strong_at` and keeping that shade beyond it.
 
     Args:
         text: The rendered percentage.
@@ -128,10 +131,10 @@ def graded(
     sign = ratio if sign is None else sign
     if ratio is None or sign is None or sign == 0:
         return text
-    strong = abs(ratio) >= strong_at
-    if sign > 0:
-        return style(text, GAIN_STRONG if strong else GAIN)
-    return style(text, LOSS_STRONG if strong else LOSS)
+    ramp = _GAIN_RAMP if sign > 0 else _LOSS_RAMP
+    last = len(ramp) - 1
+    step = last if abs(ratio) >= strong_at else int(abs(ratio) / strong_at * last)
+    return style(text, ramp[step])
 
 
 def day_move(value: Decimal | None, sign: Decimal | None = None) -> str:
