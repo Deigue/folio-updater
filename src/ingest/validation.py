@@ -348,16 +348,13 @@ class TransactionFormatter:
 
             import_logger.warning("REJECT %d invalid row(s)", len(labels))
 
-            for idx in sorted(labels):
-                if idx < len(self.original_df):
-                    row = self.original_df.iloc[idx]
-                    reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
-                    reason_str = ", ".join(reasons)
-                    import_logger.warning(
-                        " - %s (%s)",
-                        format_transaction_summary(row),
-                        reason_str,
-                    )
+            for idx, row in self.invalid_df.iterrows():
+                reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
+                import_logger.warning(
+                    " - %s (%s)",
+                    format_transaction_summary(row),
+                    ", ".join(reasons),
+                )
 
     def _log_formatting_changes(
         self,
@@ -376,22 +373,18 @@ class TransactionFormatter:
                 if column not in original_df.columns:
                     continue
 
-                orig_str = original_df[column].astype(str).fillna("")
+                orig_str = (
+                    original_df.loc[self.formatted_df.index, column]
+                    .astype(str)
+                    .fillna("")
+                )
                 curr_str = self.formatted_df[column].astype(str).fillna("")
                 changed_mask = orig_str != curr_str
 
                 if changed_mask.any():
                     for idx in changed_mask[changed_mask].index:
-                        orig_val = (
-                            original_df[column].iloc[idx]
-                            if idx < len(original_df)
-                            else ""
-                        )
-                        curr_val = (
-                            self.formatted_df[column].iloc[idx]
-                            if idx < len(self.formatted_df)
-                            else ""
-                        )
+                        orig_val = original_df.loc[idx, column]
+                        curr_val = self.formatted_df.loc[idx, column]
                         import_logger.debug(
                             AUTO_FORMAT_DEBUG,
                             idx,
@@ -514,7 +507,8 @@ class TransactionFormatter:
             self._format_date_column(column, required=False)
 
     def _format_date_column(self, column: str, *, required: bool) -> None:
-        """Format the date column."""
+        """Format the date column, preventing datetime dtypes recasting the text."""
+        self.formatted_df[column] = self.formatted_df[column].astype(object)
         self._apply_column_rules(
             column,
             self.formatted_df.index,

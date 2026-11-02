@@ -27,7 +27,7 @@ from term.console import (
 )
 from term.keys import getch
 from ui.format import safe_str
-from ui.layout.paging import available_height
+from ui.layout.paging import available_height, page_frame
 from ui.layout.tiles import Block, TilingLayout
 from ui.transaction_table import build_transactions_table, page_transactions
 from ui.vocabulary import (
@@ -403,6 +403,9 @@ def _build_audit_blocks(
             ),
         )
 
+        # Even one row can have a reason too long for its compact cell.
+        blocks[-1].expandable = True
+
     if not results.intra_rejected_df.empty:
         total = len(results.intra_rejected_df)
         shown = min(total, max_rows)
@@ -595,6 +598,8 @@ def _build_transform_panel(
 def _build_invalid_panel(
     df: pd.DataFrame,
     total: int,
+    *,
+    expanded: bool = False,
 ) -> Table:
     """Build a table for invalid rows.
 
@@ -626,10 +631,15 @@ def _build_invalid_panel(
 
     for col in cols_to_show:
         max_w = 20 if col == str(Column.REJECTION_REASON) else 12
-        table.add_column(str(col), overflow="ellipsis", max_width=max_w)
+        table.add_column(
+            str(col),
+            overflow="fold" if expanded else "ellipsis",
+            no_wrap=not expanded,
+            max_width=None if expanded else max_w,
+        )
 
     for _, row in df.iterrows():
-        row_vals = [safe_str(row.get(c, ""))[:15] for c in cols_to_show]
+        row_vals = [escape(safe_str(row.get(c, ""))) for c in cols_to_show]
         table.add_row(*row_vals)
 
     return table
@@ -656,10 +666,10 @@ def _build_dupes_panel(
     available_cols = [c for c in TXN_ESSENTIALS if c in df.columns]
 
     for col in available_cols:
-        table.add_column(str(col), overflow="ellipsis", max_width=15)
+        table.add_column(str(col), overflow="ellipsis", no_wrap=True, max_width=15)
 
     for _, row in df.iterrows():
-        row_vals = [safe_str(row.get(c, ""))[:15] for c in available_cols]
+        row_vals = [escape(safe_str(row.get(c, ""))) for c in available_cols]
         table.add_row(*row_vals)
 
     return table
@@ -749,7 +759,24 @@ def _expand_block(block: Block) -> None:
         console_print("\n[dim]Press any key to return...[/dim]")
         getch()
 
-    elif block.data_type in ("invalid", "dupes", "dataframe"):
+    elif block.data_type == "invalid":
+
+        def render_invalid(start: int, end: int) -> None:
+            console_print(
+                _build_invalid_panel(
+                    block.data.iloc[start:end],
+                    block.total,
+                    expanded=True,
+                ),
+            )
+
+        rows = available_height(table=True, pages=True)
+        page_frame(block.total, block.name, rows, render_invalid)
+        if active_console().is_interactive and block.total <= rows:
+            console_print("\n[dim]Press any key to return...[/dim]")
+            getch()
+
+    elif block.data_type in ("dupes", "dataframe"):
         rows = available_height(table=True, pages=True)
         page_transactions(
             block.data,

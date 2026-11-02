@@ -121,7 +121,7 @@ def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> li
     return ordered
 
 
-def _format_amount_display(amount: float, action: str) -> str:
+def _format_amount_display(amount: object, action: str) -> str:
     """Format amount with color based on the action.
 
     Args:
@@ -131,11 +131,18 @@ def _format_amount_display(amount: float, action: str) -> str:
     Returns:
         Formatted amount string with color markup
     """
-    amount_str = f"{0.0 if pd.isna(amount) else float(amount):,.{MONEY_PRECISION}f}"
+    raw = safe_str(amount)
+    try:
+        number = float(raw)
+    except ValueError:
+        return escape(raw)
+    if pd.isna(number):
+        return ""
+    amount_str = f"{number:,.{MONEY_PRECISION}f}"
 
-    if action in [Action.SELL, Action.CONTRIBUTION] or amount > 0:
+    if action in [Action.SELL, Action.CONTRIBUTION] or number > 0:
         return f"[{GAIN}]{amount_str}[/{GAIN}]"
-    if action in [Action.BUY, Action.WITHDRAWAL] or amount < 0:
+    if action in [Action.BUY, Action.WITHDRAWAL] or number < 0:
         return f"[{LOSS}]{amount_str}[/{LOSS}]"
     return f"[white]{amount_str}[/white]"
 
@@ -363,7 +370,7 @@ def _row_cells(row: pd.Series, columns: Sequence[str]) -> dict[str, str]:
         CALCULATED_SETTLEMENT if row.get(Column.Txn.SETTLE_CALCULATED) else GAIN
     )
 
-    amount = _parse_amount(row.get(Column.Txn.AMOUNT, 0))
+    amount = row.get(Column.Txn.AMOUNT, "")
     fee_val = _parse_amount(row.get(Column.Txn.FEE, 0))
 
     settle_display = f"[{settle_color}]{settle_date_str}[/{settle_color}]"
