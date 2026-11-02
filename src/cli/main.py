@@ -34,7 +34,11 @@ def _one_backup_per_command(ctx: typer.Context) -> None:
     ctx.with_resource(backup_scope())
 
 
-@app.command("import", help="Import transactions from files")
+@app.command(
+    "import",
+    rich_help_panel="Transactions",
+    help="Import transactions from files",
+)
 def import_transactions_cmd(
     file: str | None = typer.Option(
         None,
@@ -62,7 +66,11 @@ def import_transactions_cmd(
     import_transaction_files(file=file, directory=directory, verbose=verbose)
 
 
-@app.command("add", help="Add a single transaction to the folio")
+@app.command(
+    "add",
+    rich_help_panel="Transactions",
+    help="Add a single transaction to the folio",
+)
 def add_cmd(  # noqa: PLR0917
     txn_type: str | None = typer.Option(
         None,
@@ -144,7 +152,7 @@ def add_cmd(  # noqa: PLR0917
     )
 
 
-@app.command("getfx", help="Update foreign exchange rates")
+@app.command("getfx", rich_help_panel="Data", help="Update foreign exchange rates")
 def getfx_cmd() -> None:
     """Update foreign exchange rates."""
     from cli.commands.getfx import update_fx_rates
@@ -152,7 +160,11 @@ def getfx_cmd() -> None:
     update_fx_rates()
 
 
-@app.command("generate", help="Write the whole folio to one workbook")
+@app.command(
+    "generate",
+    rich_help_panel="Output",
+    help="Write the whole folio to one workbook",
+)
 def generate_cmd(
     out: str | None = typer.Option(
         None,
@@ -184,7 +196,11 @@ def generate_cmd(
     generate_excel(out=out, only=only, offline=offline, refresh=refresh)
 
 
-@app.command("demo", help="Create a demo folio from real market history")
+@app.command(
+    "demo",
+    rich_help_panel="Output",
+    help="Create a demo folio from real market history",
+)
 def demo_cmd() -> None:
     """Create a demo folio from real market history."""
     from cli.commands.demo import create_folio
@@ -192,7 +208,11 @@ def demo_cmd() -> None:
     create_folio()
 
 
-@app.command("settle-info", help="Show settlement date information")
+@app.command(
+    "settle-info",
+    rich_help_panel="Data",
+    help="Show settlement date information",
+)
 def settle_info_cmd(
     file: str | None = typer.Option(
         None,
@@ -220,7 +240,11 @@ def settle_info_cmd(
     settlement_info(file=file, import_flag=import_flag, verbose=verbose)
 
 
-@app.command("download", help="Download transactions from brokers")
+@app.command(
+    "download",
+    rich_help_panel="Data",
+    help="Download transactions from brokers",
+)
 def download_cmd(
     broker: str = typer.Option(
         "ibkr",
@@ -275,6 +299,7 @@ def download_cmd(
 
 @app.command(
     "update",
+    rich_help_panel="Daily",
     help="Catch up: download, import, settle, check, generate, then report",
 )
 def update_cmd(
@@ -296,7 +321,12 @@ def update_cmd(
     run_update(resume=resume, offline=offline)
 
 
-@app.command("symbol", help="Manage ticker aliases", no_args_is_help=True)
+@app.command(
+    "symbol",
+    rich_help_panel="Data",
+    help="Manage ticker aliases",
+    no_args_is_help=True,
+)
 def symbol_cmd(
     add: tuple[str, str, str] | None = typer.Option(
         None,
@@ -326,6 +356,7 @@ def symbol_cmd(
 
 @app.command(
     "acb",
+    rich_help_panel="Analysis",
     help="Show the adjusted cost base buildup for a symbol",
     no_args_is_help=True,
 )
@@ -411,7 +442,11 @@ def acb_cmd(  # noqa: PLR0917
     )
 
 
-@app.command("dash", help="Show holdings, cash and flows, valued at their quotes")
+@app.command(
+    "dash",
+    rich_help_panel="Daily",
+    help="Show holdings, cash and flows, valued at their quotes",
+)
 def dash_cmd(
     account_type: str | None = typer.Option(
         None,
@@ -500,6 +535,7 @@ def dash_cmd(
 
 @app.command(
     "ticker",
+    rich_help_panel="Daily",
     help="Show one security in focus, or compare several over every range",
 )
 def ticker_cmd(
@@ -581,7 +617,11 @@ def ticker_cmd(
     )
 
 
-@app.command("quotes", help="Inspect or refresh the market quote cache")
+@app.command(
+    "quotes",
+    rich_help_panel="Data",
+    help="Inspect or refresh the market quote cache",
+)
 def quotes_cmd(
     symbols: list[str] | None = typer.Argument(
         None,
@@ -617,7 +657,11 @@ def quotes_cmd(
     )
 
 
-@app.command("check", help="Check the folio for missing or inconsistent transactions")
+@app.command(
+    "check",
+    rich_help_panel="Analysis",
+    help="Check the folio for missing or inconsistent transactions",
+)
 def check_cmd(
     only: str | None = typer.Option(
         None,
@@ -639,6 +683,7 @@ def check_cmd(
 
 @app.command(
     "query",
+    rich_help_panel="Transactions",
     help="Query transactions from the database",
     no_args_is_help=True,
 )
@@ -654,7 +699,12 @@ def query_cmd(
     query_transactions(terms)
 
 
-@app.command("edit", help="Edit transactions in the folio", no_args_is_help=True)
+@app.command(
+    "edit",
+    rich_help_panel="Transactions",
+    help="Edit transactions in the folio",
+    no_args_is_help=True,
+)
 def edit_cmd(
     selection: list[str] = typer.Argument(
         ...,
@@ -688,6 +738,7 @@ def edit_cmd(
 
 @app.command(
     "delete",
+    rich_help_panel="Transactions",
     help="Delete transactions from the folio",
     no_args_is_help=True,
 )
@@ -714,7 +765,7 @@ def delete_cmd(
     delete_transactions(selection, force=force, dry_run=dry_run)
 
 
-@app.command("version")
+@app.command("version", rich_help_panel="Output")
 def show_version() -> None:
     """Show the version and exit."""
     config = bootstrap.reload_config()

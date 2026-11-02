@@ -2,29 +2,100 @@
 
 A portfolio management system that imports and processes financial transaction data from Excel files into a SQLite database.
 
+## Quick start
+
+Download and extract `folio-windows-x64.zip`, then open a terminal in that folder.
+The examples below use `folio`; use `.\folio.exe` for the extracted Windows executable.
+Developers can install the CLI with the setup instructions below.
+
+### Try it with a demo
+
+Use a separate extracted copy or development checkout for the demo so it has its own data and configuration.
+
+```bash
+folio demo
+folio dash
+folio ticker AAPL
+folio query last 10
+```
+
+`demo` downloads real market history and builds two years of sample transactions, then writes a workbook.
+It needs network access and only creates the sample folio when the database is empty.
+Use `folio version` to see the configuration, database folder and workbook paths.
+When you later import real data over the demo, folio asks before replacing it.
+
+### Use it with your accounts
+
+1. Run `folio version` to create the default `config.yaml` and locate it.
+2. Follow the [IBKR setup guide](docs/commands/download/ibkr-integration.md) for Flex Query IDs and a token, or the [Wealthsimple setup guide](docs/commands/download/wealthsimple-integration.md) for account names and authentication.
+3. Download your first history range explicitly, replacing the example date and choosing your broker:
+
+   ```bash
+   folio download --broker ibkr --from 2024-01-01
+   # Or:
+   folio download --broker wealthsimple --from 2024-01-01
+   folio import
+   folio check
+   folio generate
+   ```
+
+4. For regular use with both brokers configured, run `folio update`: it downloads, imports, checks settlement information, runs checks, writes the workbook and shows the result.
+
+`update` currently contacts IBKR and then Wealthsimple. If you use only one broker, keep using its `download` command followed by `import`, `check` and `generate`.
+After correcting a rejected downloaded file, `folio update --resume` continues from waiting files without downloading again.
+`folio update --offline` also uses only cached quotes and exchange rates.
+
+## Which command shows what
+
+| You want to see | Command |
+| --- | --- |
+| Current holdings, cash, gains and flows | `folio dash` |
+| One security's details, or a comparison | `folio ticker SYMBOL` |
+| Stored transactions matching a selection | `folio query last 10` |
+| Cost-base buildup for one security | `folio acb SYMBOL` |
+| Missing or inconsistent transactions | `folio check` |
+| Cached prices and their freshness | `folio quotes` |
+| A workbook of the folio | `folio generate` |
+| Installed version and data paths | `folio version` |
+
+## Commands
+
+These groups match the panels in `folio --help`. Run `folio COMMAND --help` for options.
+
+### Daily
+
+- **`folio update`**: Download, import, settle, check, generate and report in one run.
+- **[`folio dash`](docs/commands/dashboard.md)**: Show holdings, cash and flows valued at their quotes.
+- **[`folio ticker`](docs/commands/ticker.md)**: Show a security's details or compare several securities.
+
+### Transactions
+
+- **[`folio query`](docs/commands/querying.md)**: Search and filter stored transactions.
+- **[`folio add`](docs/commands/adding-transactions.md)**: Add a single transaction.
+- **[`folio edit`](docs/commands/editing-transactions.md)**: Edit transactions individually or in a selection.
+- **[`folio delete`](docs/commands/deleting-transactions.md)**: Delete transactions individually or in a selection.
+- **`folio import`**: Import transactions from downloaded files, Excel sheets or CSVs.
+
+### Analysis
+
+- **[`folio acb`](docs/commands/cost-base.md)**: Show adjusted cost-base buildup for a security.
+- **[`folio check`](docs/commands/checking.md)**: Check for missing or inconsistent transactions.
+
+### Data
+
+- **`folio download`**: Download [IBKR](docs/commands/download/ibkr-integration.md) or [Wealthsimple](docs/commands/download/wealthsimple-integration.md) statements.
+- **[`folio getfx`](docs/commands/forex-rates.md)**: Update foreign exchange rates.
+- **[`folio quotes`](docs/commands/dashboard.md#prices)**: Inspect or refresh the quote cache.
+- **`folio symbol`**: Manage aliases for renamed or equivalent ticker symbols.
+- **[`folio settle-info`](docs/commands/settlement-info.md)**: Inspect or import settlement-date information.
+
+### Output
+
+- **`folio generate`**: Write the folio to a workbook.
+- **`folio demo`**: Create a sample folio from real market history.
+- **`folio version`**: Show the installed version and file paths.
+
 ## Features
-
-### CLI Tool
-
-**Folio** is now available as a command-line tool for managing your portfolio:
-
-- **`folio import`**: Import transactions from files (Broker statements, Excel sheets, CSVs, etc.)
-- **[`folio add`](docs/commands/adding-transactions.md)**: Manually add a single transaction
-- **[`folio edit`](docs/commands/editing-transactions.md)**: Edit transactions, one at a time or in batch
-- **[`folio delete`](docs/commands/deleting-transactions.md)**: Delete transactions, one at a time or in batch
-- **[`folio getfx`](docs/commands/forex-rates.md)**: Update foreign exchange rates automatically
-- **`folio generate`**: Generate the latest portfolio from the database
-- **[`folio demo`](docs/commands/demo.md)**: Build a realistic two-year demo portfolio from real market history, to explore every command
-- **[`folio settle-info`](docs/commands/settlement-info.md)**: Retrieve and update settlement date information
-- **`folio download`**: Download statements directly from brokers ([Interactive Brokers](docs/commands/download/ibkr-integration.md), [Wealthsimple](docs/commands/download/wealthsimple-integration.md))
-- **`folio symbol`**: Alias ticker symbols that are renamed or different to be treated the same
-- **[`folio acb`](docs/commands/cost-base.md)**: Adjusted cost base buildup for a symbol, pooled by account, account type or portfolio
-- **[`folio dash`](docs/commands/dashboard.md)**: Dashboard with holdings, cash and flows, valued at their quotes
-- **[`folio ticker`](docs/commands/ticker.md)**: Show comprehensive details for a ticker, or compare holdings.
-- **[`folio quotes`](docs/commands/dashboard.md#prices)**: Inspect or refresh the cached quotes
-- **[`folio query`](docs/commands/querying.md)**: Search and filter transactions using natural language or explicit filters
-- **[`folio check`](docs/commands/checking.md)**: Check the folio for missing or inconsistent transactions
-- **`folio version`**: Show the version of the folio-updater and file paths.
 
 ### Import and Processing Features
 
