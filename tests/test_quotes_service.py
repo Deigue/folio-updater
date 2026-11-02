@@ -7,12 +7,13 @@ import sys
 from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from yfinance.exceptions import YFRateLimitError, YFTickerMissingError
 
 from db import get_connection, get_rows
 from domain import Column, Currency, PriceRange, QuoteStatus, Table
@@ -485,6 +486,7 @@ def _fake_yfinance(
     provider itself is replaced, never our own logic.
     """
     module = ModuleType("yfinance")
+    module.config = SimpleNamespace(debug=SimpleNamespace(hide_exceptions=True))  # ty: ignore[unresolved-attribute]
     module.Tickers = lambda names: _FakeTickers(  # ty: ignore[unresolved-attribute]
         {name: tickers[name] for name in names.split() if name in tickers},
     )
@@ -883,3 +885,71 @@ def test_fetching_intraday_stamps_each_bar_in_utc(temp_ctx: TempContext) -> None
     assert (
         fetched["AAA"][PriceRange.DAY_1].points[-1].when == "2026-09-30T19:55:00+00:00"
     )
+
+
+class _FailedFastInfo(_FastInfo):
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "last_price":
+            raise self.error
+        return super().__getattribute__(name)
+
+
+@pytest.mark.no_mock_quotes
+@pytest.mark.parametrize("throttled", [False, True])
+def test_partial_request_failure_preserves_the_exact_cached_row(
+    temp_ctx: TempContext,
+    *,
+    throttled: bool,
+) -> None:
+    with temp_ctx():
+        with _provider({"AAA": _FakeTicker(_FastInfo(100, 90, "USD"))}):
+            QuotesService.refresh(["AAA"], RESOLVER)
+        before = QuotesService.cached(["AAA"])["AAA"]
+        error = YFRateLimitError() if throttled else OSError("connection reset")
+        provider = _fake_yfinance(
+            {
+                "AAA": _FakeTicker(_FailedFastInfo(error)),
+                "BBB": _FakeTicker(_FastInfo(200, 190, "USD")),
+            },
+            pd.DataFrame(),
+        )
+        with patch.dict(sys.modules, {"yfinance": provider}):
+            result = QuotesService.refresh(["AAA", "BBB"], RESOLVER)
+        assert result == RefreshResult(fetched=1, failed=1, used_fallback=throttled)
+        assert QuotesService.cached(["AAA"])["AAA"] == before
+        assert QuotesService.cached(["BBB"])["BBB"].price == 200
+        assert provider.config.debug.hide_exceptions is True
+
+
+@pytest.mark.no_mock_quotes
+def test_real_adapter_throttling_reaches_daily_fallback(temp_ctx: TempContext) -> None:
+    with (
+        temp_ctx(),
+        _provider(
+            {"AAA": _FakeTicker(_FailedFastInfo(YFRateLimitError()))},
+            pd.DataFrame({"Close": [10.0, 11.0]}),
+        ),
+    ):
+        result = QuotesService.refresh(["AAA"], RESOLVER)
+        assert result == RefreshResult(fetched=1, used_fallback=True)
+        assert QuotesService.cached(["AAA"])["AAA"].price == 11
+
+
+@pytest.mark.no_mock_quotes
+def test_missing_symbol_is_still_negative_cached(temp_ctx: TempContext) -> None:
+    with (
+        temp_ctx(),
+        _provider(
+            {
+                "GHOST": _FakeTicker(
+                    _FailedFastInfo(YFTickerMissingError("GHOST", "no data")),
+                ),
+            },
+        ),
+    ):
+        result = QuotesService.refresh(["GHOST"], RESOLVER)
+        assert result == RefreshResult(not_found=1)
+        assert QuotesService.cached(["GHOST"])["GHOST"].status == QuoteStatus.NOT_FOUND
