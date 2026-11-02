@@ -200,7 +200,8 @@ def _holding_cells(
 ) -> list[tuple[dict[str, object], Role]]:
     """Order every holding the pool holds, or used to hold.
 
-    Grouped by currency the way the subtotals below them are, open holdings
+    An explicit sort keeps the open holdings in their requested order. Otherwise
+    they are grouped by currency the way the subtotals below them are, open holdings
     first within each group and in the order the set was sorted in. The sort is
     stable and falls back on the pool's own order, so a currency the subtotals
     somehow do not name still has its holdings written rather than dropped.
@@ -213,7 +214,8 @@ def _holding_cells(
     entries.extend(
         (holding, _closed_cells(holding), Role.CLOSED) for holding in holdings.closed
     )
-    entries.sort(key=lambda entry: order.get(entry[0].currency, last))
+    if not holdings.explicit_sort:
+        entries.sort(key=lambda entry: order.get(entry[0].currency, last))
     return [(cells, role) for _holding, cells, role in entries]
 
 

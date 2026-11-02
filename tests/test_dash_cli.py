@@ -691,3 +691,63 @@ def test_the_symbol_override_reaches_the_provider(
     asked = {symbol for call in quotes_fetch.call_args_list for symbol in call.args[0]}
     assert "CADCO.TO" in asked
     assert "TESTTKR" not in asked
+
+
+@pytest.mark.parametrize(
+    ("keys", "reverse", "expected"),
+    [
+        ("currency,total", False, ["CADCO", "TESTTKR", "OTHER"]),
+        ("$,-total", False, ["CADCO", "OTHER", "TESTTKR"]),
+        ("currency,total", True, ["OTHER", "TESTTKR", "CADCO"]),
+    ],
+)
+def test_dashboard_and_export_keep_the_requested_flat_order(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+    keys: str,
+    *,
+    reverse: bool,
+    expected: list[str],
+) -> None:
+    with temp_ctx() as ctx:
+        seed_fx(TWO_TYPES_FX)
+        for ticker, currency in (
+            ("CADCO", "CAD"),
+            ("TESTTKR", "USD"),
+            ("OTHER", "USD"),
+        ):
+            seed_transaction(
+                ticker=ticker,
+                currency=currency,
+                amount="-100",
+                price="10",
+                units="10",
+            )
+        argv = ["dash", "-s", keys, *(["-r"] if reverse else [])]
+        shown = run_cli_with_config(ctx.config, app, argv, width=UNCONSTRAINED_WIDTH)
+        assert_cli_success(shown)
+        positions = [shown.plain_output.index(symbol) for symbol in expected]
+        assert positions == sorted(positions)
+        assert "1 held" in shown.plain_output
+        assert "2 held" in shown.plain_output
+        target = tmp_path / "ordered.csv"
+        exported = run_cli_with_config(ctx.config, app, [*argv, "-e", str(target)])
+        assert_cli_success(exported)
+        contents = target.read_text(encoding="utf-8")
+        positions = [contents.index(symbol) for symbol in expected]
+        assert positions == sorted(positions)
+
+
+def test_dashboard_refuses_an_unknown_secondary_key_before_fetching(
+    temp_ctx: TempContext,
+    quotes_fetch: MagicMock,
+) -> None:
+    with temp_ctx() as ctx:
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["dash", "-s", "currency,nonsense"],
+        )
+        assert result.exit_code == 1
+        assert_in_output("Cannot sort by 'nonsense'", result)
+        assert not quotes_fetch.called

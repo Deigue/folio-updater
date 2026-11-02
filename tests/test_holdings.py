@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -22,7 +23,7 @@ from engine.holdings import (
     totals_currency,
 )
 from engine.ledger import open_ledger
-from services.quotes_service import Quote
+from services.quotes_service import Fundamentals, Quote
 
 from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
@@ -1448,3 +1449,85 @@ def test_a_security_that_paid_nothing_reads_as_zero_dividends(
         # 40 USD at 1.25.
         assert by_symbol["AAA"].dividends == Decimal(50)
         assert by_symbol["BBB"].dividends == ZERO
+
+
+def _multi_sortable() -> list[Holding]:
+    return [
+        Holding(
+            symbol=symbol,
+            name=symbol,
+            pool="",
+            currency=currency,
+            units=dec(1),
+            avg_cost=ZERO,
+            book_value=ZERO,
+            total_pnl=dec(gain),
+            quote_type=kind,
+            sector=sector,
+        )
+        for symbol, currency, gain, kind, sector in (
+            ("USDLOW", Currency.USD, 1, "ETF", "Technology"),
+            ("CADLOW", Currency.CAD, 2, "EQUITY", "Utilities"),
+            ("USDHIGH", Currency.USD, 9, "ETF", "Financials"),
+            ("CADHIGH", Currency.CAD, 8, "EQUITY", "Financials"),
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("keys", "reverse", "expected"),
+    [
+        ("currency,total", False, ["CADHIGH", "CADLOW", "USDHIGH", "USDLOW"]),
+        (" $ , TOTAL ", False, ["CADHIGH", "CADLOW", "USDHIGH", "USDLOW"]),
+        ("currency,-total", False, ["CADLOW", "CADHIGH", "USDLOW", "USDHIGH"]),
+        ("currency,total", True, ["USDLOW", "USDHIGH", "CADLOW", "CADHIGH"]),
+        ("currency,-total", True, ["USDHIGH", "USDLOW", "CADHIGH", "CADLOW"]),
+        ("type,sector", False, ["CADHIGH", "CADLOW", "USDHIGH", "USDLOW"]),
+        ("sector,total", False, ["USDHIGH", "CADHIGH", "USDLOW", "CADLOW"]),
+    ],
+)
+def test_multiple_sort_keys_have_independent_directions(
+    keys: str,
+    *,
+    reverse: bool,
+    expected: list[str],
+) -> None:
+    holdings = _multi_sortable()
+    original = list(holdings)
+    assert [
+        h.symbol for h in sort_holdings(holdings, keys, reverse=reverse)
+    ] == expected
+    assert holdings == original
+
+
+@pytest.mark.parametrize("keys", ["currency,nonsense", "currency,", "-bogus,total"])
+def test_any_unknown_sort_key_is_refused(keys: str) -> None:
+    with pytest.raises(UnknownSortError, match="Cannot sort by"):
+        sort_holdings([], keys)
+
+
+def test_multi_sort_preserves_ties_and_missing_values_within_currency() -> None:
+    holdings = _multi_sortable()
+    missing = replace(holdings[1], symbol="MISSING", total_pnl=None)
+    tied = replace(holdings[3], symbol="TIED")
+    for reverse in (False, True):
+        ordered = sort_holdings(
+            [missing, *holdings, tied],
+            "currency,total",
+            reverse=reverse,
+        )
+        cad = [h.symbol for h in ordered if h.currency is Currency.CAD]
+        assert cad[-1] == "MISSING"
+        assert cad.index("CADHIGH") < cad.index("TIED")
+
+
+def test_quote_type_is_carried_onto_valued_holdings(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(ticker="AAA", amount="-100", units="1")
+        quote = replace(
+            _quote("AAA", "100", "99"),
+            fundamentals=Fundamentals(quote_type="ETF"),
+        )
+        holding = _value({"AAA": quote}).holdings[0]
+        assert holding.quote_type == "ETF"

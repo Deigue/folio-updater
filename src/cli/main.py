@@ -435,7 +435,10 @@ def dash_cmd(
         None,
         "-s",
         "--sort",
-        help="Order by a column, e.g. -s total. Numbers sort largest first.",
+        help=(
+            "Comma-separated columns, e.g. -s currency,total. "
+            "Prefix a column with - to flip its direction."
+        ),
     ),
     export: str | None = typer.Option(
         None,

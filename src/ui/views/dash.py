@@ -190,9 +190,8 @@ def holdings_table(
 ) -> FitResult:
     """Render the holdings as a Rich table, fitted to the terminal.
 
-    Rows are grouped by the currency they trade in, each having its own subtotal.
-    Since the values are currency-denominated, the grouping is mandatory in order
-    for sensible sorting.
+    The default view groups rows by currency. An explicit sort keeps one flat
+    list in the requested order, followed by the same currency subtotals.
 
     A currency group that has any closed holdings gets one more aggregated row at the
     bottom. You can see them all when `show_closed` is True.
@@ -225,8 +224,11 @@ def holdings_table(
         )
 
     deposited = _net_deposits(flows)
+    if holdings.explicit_sort:
+        for holding in holdings.holdings:
+            table.add_row(*[spec.render(holding) for spec in specs])
     for group in holdings.by_currency:
-        for holding in group.members:
+        for holding in () if holdings.explicit_sort else group.members:
             table.add_row(*[spec.render(holding) for spec in specs])
 
         if group.closed_members:

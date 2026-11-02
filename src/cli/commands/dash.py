@@ -23,7 +23,7 @@ from cli.commands.common import (
     write_or_exit,
 )
 from domain import Currency
-from engine.holdings import SORT_NAMES, UnknownSortError
+from engine.holdings import UnknownSortError, parse_holdings_sort
 from engine.panels import FolioValuation, type_view
 from exporters.output import CSV_SUFFIX
 from exporters.sheets import panel_table, pooled_dashboard_table
@@ -109,7 +109,7 @@ def show_types(
 
     Args:
         valuation: The folio priced once, which every panel reads its rollups from.
-        sort: Order by this column instead of by market value.
+        sort: Comma-separated columns, optionally prefixed with a minus.
         reverse: Flip the sort's natural direction.
         wide: Show the wide-only columns.
         show_closed: Break the aggregate "Closed" row open into one row per
@@ -160,7 +160,7 @@ def show_dash(
         account: Report a single broker account instead.
         currency: `CAD`, `USD` or `native`.
         export: Write the valued holdings to this path instead of printing.
-        sort: Order by this column instead of by market value.
+        sort: Comma-separated columns, optionally prefixed with a minus.
         by_type: Tile one panel per account type.
         wide: Show the wide-only columns.
         show_closed: Break the aggregate "Closed" row open into one row per
@@ -179,9 +179,12 @@ def show_dash(
         raise typer.Exit(1)
 
     shown = _resolve_currency(currency)
-    if sort is not None and sort.strip().lower() not in SORT_NAMES:
-        console_error(str(UnknownSortError(sort)))
-        raise typer.Exit(1)
+    if sort is not None:
+        try:
+            parse_holdings_sort(sort)
+        except UnknownSortError as error:
+            console_error(str(error))
+            raise typer.Exit(1) from error
 
     # Quotes are today's, so the rate that converts them has to be too.
     ledger = require_ledger(refresh=refresh, priced=True, offline=offline)

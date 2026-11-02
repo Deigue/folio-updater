@@ -30,7 +30,7 @@ folio dash --by-type            # a panel per account type, side by side
 | Option             | Effect                                                |
 | ------------------ | ----------------------------------------------------- |
 | `-c`, `--currency` | `native` *(default)*, `CAD` or `USD`                  |
-| `-s`, `--sort`     | Order by a column, e.g. `-s total`                    |
+| `-s`, `--sort`     | Order by columns, e.g. `-s currency,total`                    |
 | `-r`, `--reverse`  | Flip the sort direction                               |
 | `-w`, `--wide`     | Add the columns a narrow terminal cannot fit          |
 | `--show-closed`    | Break the aggregate `Closed` row into one row each    |
@@ -44,22 +44,33 @@ folio dash --by-type            # a panel per account type, side by side
 folio dash -s total      # biggest total gain first
 folio dash -s total -r   # worst first
 folio dash -s symbol     # A to Z
+folio dash -s currency,total   # currency A to Z, biggest total gain within each
+folio dash -s '$,-total'       # same currency order, smallest total gain within each
+folio dash -s type,sector,total # security type, sector, then total gain
+folio dash -s currency,total -r # currency Z to A, smallest total gain within each
 ```
 
 **Numbers sort largest-first and text A-to-Z**, which is what you want almost
-every time. `-r` flips whichever applies. Unpriced holdings sink to the bottom.
+every time. Keys apply left to right. A `-` prefix reverses just that key;
+`-r` reverses every key's chosen direction. Missing numeric values sink to the
+bottom within rows tied on the preceding keys. Use `--sort=-total,currency` if
+your shell or argument parser treats a leading minus as another option.
+
+An explicit sort keeps one flat list of holdings, with the same currency
+subtotal figures below it. It does not create groups. `-e` preserves this order.
 Money measures sort on the CAD value, so a mixed-currency pool orders by what each
 position is really worth.
 
-Sort by any of: `symbol`, `name`, `units`, `avg`, `last`, `change`, `change%`,
+Sort by any of: `symbol`, `name`, `currency` (or `$`), `type`, `sector`, `units`, `avg`, `last`, `change`, `change%`,
 `pnl`, `pnl%`, `unreal`, `unreal%`, `realized`, `divs`, `total`, `total%`, `book`,
-`market`, `wt%`, `folio%`.
+`market`, `wt%`, `folio%`. `type` uses the cached security type (for example ETF
+or EQUITY), and `sector` uses the cached sector. Missing text sorts as empty text.
 
 ## Currency
 
 **Every holding is reported in the currency it trades in.** A US security shows its
 average cost, price, book value and market value in USD, consistent with your brokers.
-Rows are grouped by currency, each group having its own subtotal.
+Without `-s`, rows are grouped by currency, each group having its own subtotal.
 
 ```text
 | Symbol    |  Units |      Avg |     Last |     PnL |    Unreal |      Book |    Market |    Wt% |

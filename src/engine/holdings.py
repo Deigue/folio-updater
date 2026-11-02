@@ -35,6 +35,7 @@ class Holding:
         symbol: Canonical security symbol.
         name: Short name from the quote, when one is cached.
         sector: Sector from the quote, when one is cached.
+        quote_type: Security type from the cached quote, such as ETF or EQUITY.
         pool: The account, account type or folio this is pooled over.
         currency: The currency the figures are expressed in.
         units: Units held after the last transaction.
@@ -75,6 +76,7 @@ class Holding:
     book_value: Decimal
     # Defaults begin here: a field above this line is required of every holding.
     sector: str | None = None
+    quote_type: str | None = None
     price: Decimal | None = None
     prev_close: Decimal | None = None
     change: Decimal | None = None
@@ -220,7 +222,8 @@ class HoldingSet:
     per-currency subtotals in `by_currency` are the native ones.
 
     Attributes:
-        holdings: The open holdings, sorted by market value.
+        holdings: The open holdings, in the requested order.
+        explicit_sort: Keep that flat order when rendering instead of regrouping.
         grain: The grain the pool was read at.
         pool: The pool key, empty at folio grain.
         display_currency: The currency the figures are expressed in.
@@ -259,6 +262,7 @@ class HoldingSet:
     unpriced: tuple[str, ...] = ()
     fx_rate: Decimal | None = None
     fx_date: str | None = None
+    explicit_sort: bool = False
 
     @property
     def mixed_currency(self) -> bool:
@@ -546,6 +550,7 @@ class FolioHoldings:
         closed_pnl = sum((h.realized_totals + h.dividends_totals for h in closed), ZERO)
         return HoldingSet(
             holdings=holdings,
+            explicit_sort=sort is not None,
             closed=tuple(closed),
             grain=grain,
             pool=pool or "",
@@ -773,10 +778,13 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     realized_totals = _realized(record, grain, totals, native)
     dividends, dividends_totals = _income(ctx.income, symbol, shown, totals, native)
 
+    quote = ctx.quotes.get(symbol)
     if closed:
         return Holding(
             symbol=symbol,
             name=None,
+            sector=quote.sector if quote else None,
+            quote_type=quote.fundamentals.quote_type if quote else None,
             pool=ctx.pool,
             currency=shown,
             units=held,
@@ -792,7 +800,6 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             closed=True,
         )
 
-    quote = ctx.quotes.get(symbol)
     price, prev_close = _converted_price(quote, shown, ctx.fx)
     price_totals, prev_totals = _converted_price(quote, totals, ctx.fx)
 
@@ -800,6 +807,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         symbol=symbol,
         name=quote.name if quote else None,
         sector=quote.sector if quote else None,
+        quote_type=quote.fundamentals.quote_type if quote else None,
         pool=ctx.pool,
         currency=shown,
         units=held,
@@ -1179,6 +1187,10 @@ def _sum_ratios(values: Iterable[Decimal | None]) -> Decimal | None:
 _SORT_KEYS: dict[str, tuple[str, bool]] = {
     "symbol": ("symbol", True),
     "name": ("name", True),
+    "currency": ("currency", True),
+    "$": ("currency", True),
+    "type": ("quote_type", True),
+    "sector": ("sector", True),
     "units": ("units", False),
     "avg": ("avg_cost", False),
     "last": ("price", False),
@@ -1214,40 +1226,73 @@ class UnknownSortError(ValueError):
         )
 
 
+def parse_holdings_sort(name: str) -> list[tuple[str, bool, bool]]:
+    """Resolve comma-separated keys to (attribute, is_text, flipped) triples.
+
+    Raises:
+        UnknownSortError: If any key, including an empty one, is unrecognised.
+    """
+    keys = []
+    for part in name.split(","):
+        token = part.strip().lower()
+        flipped = token.startswith("-")
+        column = token[1:] if flipped else token
+        key = _SORT_KEYS.get(column)
+        if key is None:
+            raise UnknownSortError(part.strip())
+        keys.append((*key, flipped))
+    return keys
+
+
 def sort_holdings(
     holdings: list[Holding],
     name: str,
     *,
     reverse: bool = False,
 ) -> list[Holding]:
-    """Order holdings by one measure.
+    """Order holdings by comma-separated keys, most significant first.
 
-    Numbers sort largest-first and text A-to-Z, reverse flips the order.
+    Numbers sort largest-first and text A-to-Z. A leading minus flips one key;
+    reverse flips every key. Missing numeric values stay last within ties of
+    the preceding keys.
 
     Args:
         holdings: The holdings to order.
-        name: A name from `SORT_NAMES`, matched case-insensitively.
-        reverse: Flip the natural direction.
+        name: Comma-separated names from `SORT_NAMES`, optionally prefixed by -.
+        reverse: Flip each key's chosen direction.
 
     Returns:
-        A new, ordered list.
+        A new, ordered list, with equal keys retaining their input order.
 
     Raises:
-        UnknownSortError: If `name` is not a sortable measure.
+        UnknownSortError: If a key is not a sortable measure.
     """
-    key = _SORT_KEYS.get(name.strip().lower())
-    if key is None:
-        raise UnknownSortError(name)
-    attribute, is_text = key
+    ordered = list(holdings)
+    # Stable sorts from least to most significant preserve every later key.
+    for attribute, is_text, flipped in reversed(parse_holdings_sort(name)):
+        ordered = _sort_holdings_key(
+            ordered,
+            attribute,
+            is_text=is_text,
+            reverse=reverse ^ flipped,
+        )
+    return ordered
 
+
+def _sort_holdings_key(
+    holdings: list[Holding],
+    attribute: str,
+    *,
+    is_text: bool,
+    reverse: bool,
+) -> list[Holding]:
+    """Apply one stable sort, keeping missing numeric values at the end."""
     if is_text:
         return sorted(
             holdings,
             key=lambda h: str(getattr(h, attribute) or "").upper(),
             reverse=reverse,
         )
-
-    # An unpriced holding will always sink to the bottom.
     valued = [h for h in holdings if getattr(h, attribute) is not None]
     blank = [h for h in holdings if getattr(h, attribute) is None]
     valued.sort(key=lambda h: getattr(h, attribute), reverse=not reverse)
