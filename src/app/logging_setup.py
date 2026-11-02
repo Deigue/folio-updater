@@ -46,7 +46,10 @@ class SharedLogHandler(TimedRotatingFileHandler):
             self.rolloverAt = self.computeRollover(int(time.time()))
 
 
-def init_logging(level: int = logging.INFO) -> None:
+def init_logging(
+    level: int = logging.INFO,
+    import_level: int = logging.INFO,
+) -> None:
     """Initialize logging for the application.
 
     Logging is set up with:
@@ -55,6 +58,7 @@ def init_logging(level: int = logging.INFO) -> None:
 
     Args:
         level: The level the application logger records at.
+        import_level: The independent level for the import audit log.
     """
     log_dir: Path = Config.get_default_root_directory() / "logs"
     log_dir.mkdir(exist_ok=True)
@@ -81,7 +85,7 @@ def init_logging(level: int = logging.INFO) -> None:
         )
         root_logger.addHandler(file_handler)
 
-    _setup_import_logger(log_dir, level)
+    _setup_import_logger(log_dir, import_level)
 
     logger: logging.Logger = logging.getLogger(__name__)
     logger.debug("Logging initialized with level: %s", logging.getLevelName(level))
@@ -116,8 +120,8 @@ def _setup_import_logger(log_dir: Path, level: int) -> None:
             CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
         )
         import_logger.addHandler(import_handler)
-        import_logger.setLevel(level)
-        import_logger.propagate = False
+    import_logger.setLevel(level)
+    import_logger.propagate = False
 
 
 def get_import_logger() -> logging.Logger:

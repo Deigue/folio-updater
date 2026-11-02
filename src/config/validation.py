@@ -266,11 +266,11 @@ def _validate_log_level(
     settings: dict[str, Any],
     validated: dict[str, Any],
 ) -> None:
-    """Validate `log_level`, falling back to the default on any bad value."""
-    log_level = str(settings.get("log_level", validated["log_level"])).upper()
-    if log_level not in logging.getLevelNamesMapping():
-        log_level = validated["log_level"]
-    validated["log_level"] = log_level
+    """Validate diagnostic and audit levels independently."""
+    for key in ("log_level", "import_log_level"):
+        level = str(settings.get(key, validated[key])).upper()
+        if level in logging.getLevelNamesMapping():
+            validated[key] = level
 
 
 def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:

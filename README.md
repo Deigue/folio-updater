@@ -36,7 +36,7 @@ A portfolio management system that imports and processes financial transaction d
 - **[Merge Transforms](docs/import/merge-transforms.md)**: Automatically combine transactions based on custom defined rules
 - **[Settlement Date Calculation](docs/import/settlement-dates.md)**: Uses market calendars to estimate settlement dates for transactions
 - **Flexible Schema**: Dynamic column addition while maintaining essential field ordering
-- **Logging**: Comprehensive audit trail of import operations
+- **Logging**: Import audit trails in `importer.log` (`import_log_level`, default `INFO`), separate from `folio.log` diagnostics (`log_level`, default `ERROR`)
 - **Automatic Backup**: All updates are automatically backed up (configurable)
 
 ### Export Functionality

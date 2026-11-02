@@ -15,7 +15,9 @@ import yaml
 from app import bootstrap
 from app.logging_setup import SharedLogHandler
 from config import Config, write_missing_setting
+from db import create_txns_table
 from domain import AccountType, FeeConvention
+from importers import import_transactions
 
 from .helpers.console import capture_output
 
@@ -395,3 +397,55 @@ def test_a_setting_with_a_value_is_left_alone(tmp_path: Path) -> None:
 
     assert write_missing_setting(config_path, "contribution_room", ROOM) is False
     assert config_path.read_text(encoding="utf-8") == existing
+
+
+@pytest.mark.parametrize("audit_level", [None, "ERROR"])
+def test_import_auditing_has_an_independent_level(
+    tmp_path: Path,
+    temp_ctx: TempContext,
+    project_logs: Path,
+    audit_level: str | None,
+) -> None:
+    settings = {"log_level": "ERROR"}
+    if audit_level is not None:
+        settings["import_log_level"] = audit_level
+    source = tmp_path / "audit.csv"
+    source.write_text(
+        "TxnDate,Action,Amount,$,Account,Price,Units,Ticker\n"
+        "2026-01-05,CONTRIBUTION,100,CAD,TEST,0,0,\n",
+        encoding="utf-8",
+    )
+    with temp_ctx(settings):
+        bootstrap.reload_config(tmp_path)
+        create_txns_table()
+        result = import_transactions(source)
+        assert result.imported_count() == 1
+    audit = (project_logs / "importer.log").read_text(encoding="utf-8")
+    assert ("IMPORT TXNS" in audit) is (audit_level is None)
+    assert ("DONE: 1 imported" in audit) is (audit_level is None)
+    assert "IMPORT TXNS" not in (project_logs / "folio.log").read_text(
+        encoding="utf-8",
+    )
+    assert logging.getLogger().level == logging.ERROR
+
+
+@pytest.mark.parametrize(("value", "expected"), [("debug", "DEBUG"), (3, "INFO")])
+def test_import_log_level_validation(
+    temp_ctx: TempContext,
+    value: str | int,
+    expected: str,
+) -> None:
+    with temp_ctx({"import_log_level": value}) as ctx:
+        assert ctx.config.import_log_level == expected
+
+
+def test_import_log_level_changes_when_config_is_reloaded(
+    tmp_path: Path,
+    project_logs: Path,
+) -> None:
+    bootstrap.reload_config(tmp_path)
+    (tmp_path / "config.yaml").write_text("import_log_level: ERROR\n", encoding="utf-8")
+    bootstrap.reload_config(tmp_path)
+    assert logging.getLogger("importer").level == logging.ERROR
+    assert (project_logs / "importer.log").exists()
+    assert len(logging.getLogger("importer").handlers) == 1
