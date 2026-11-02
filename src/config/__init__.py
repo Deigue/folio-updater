@@ -25,6 +25,30 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
 
+class ConfigError(ValueError):
+    """An unreadable configuration that must stop a command before it writes."""
+
+
+def _read_config(path: Path) -> dict[str, Any]:
+    """Read a mapping, reporting YAML errors with their file and source line."""
+    text = path.read_text(encoding="utf-8")
+    try:
+        configuration = yaml.safe_load(text)
+        if isinstance(configuration, dict):
+            return configuration
+        node = yaml.compose(text)
+        if node is None:
+            return {}
+    except yaml.YAMLError as error:
+        mark = getattr(error, "problem_mark", None)
+        line = mark.line + 1 if mark is not None else 1
+        problem = getattr(error, "problem", None) or "invalid YAML"
+        message = f"{path}:{line}: {problem}"
+        raise ConfigError(message) from None
+    message = f"{path}:{node.start_mark.line + 1}: expected a YAML mapping"
+    raise ConfigError(message)
+
+
 class Config:
     """Configuration for the folio."""
 
@@ -327,7 +351,7 @@ class Config:
             the configured default. `auto` means detect it from the rows.
         """
         mapping = self.account_map
-        entry = mapping.get(account) or mapping.get(account.upper()) or {}
+        entry = mapping.get(account.upper(), {})
         value = entry.get("amount_includes_fees", self.account_fee_default)
         return FEE_CONVENTIONS.get(str(value).lower(), FeeConvention.AUTO)
 
@@ -443,8 +467,7 @@ class Config:
                     sort_keys=False,
                 )
         else:
-            with Path.open(config_yaml, "r", encoding="utf-8") as f:
-                configuration = yaml.safe_load(f) or {}
+            configuration = _read_config(config_yaml)
 
         configuration = validate_config(configuration, cls.DEFAULT_CONFIG)
         return cls(resolved_root, configuration)

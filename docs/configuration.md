@@ -97,7 +97,7 @@ accounts:
   map:
     TEST-ACCOUNT:
       type: NON_REGISTERED
-      amount_include_fees: excluded
+      amount_includes_fees: excluded
   defaults:
     amount_includes_fees: auto
 cost_basis:

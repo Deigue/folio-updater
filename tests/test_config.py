@@ -8,14 +8,20 @@ import time
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
+from unittest.mock import patch
 
+import pandas as pd
 import pytest
 import yaml
 
 from app import bootstrap
 from app.logging_setup import SharedLogHandler
-from config import Config, write_missing_setting
-from domain import AccountType, FeeConvention
+from cli.main import main
+from config import Config, ConfigError, write_missing_setting
+from config.transforms import TransformsConfig
+from domain import TXN_ESSENTIALS, AccountType, FeeConvention
+from engine.accounts import resolve_account_type
+from ingest.mappers import TransactionMapper
 
 from .helpers.console import capture_output
 
@@ -395,3 +401,113 @@ def test_a_setting_with_a_value_is_left_alone(tmp_path: Path) -> None:
 
     assert write_missing_setting(config_path, "contribution_room", ROOM) is False
     assert config_path.read_text(encoding="utf-8") == existing
+
+
+def test_account_aliases_and_case_keep_fee_overrides(temp_ctx: TempContext) -> None:
+    accounts = {
+        "naming_convention": False,
+        "map": {
+            "qt-joint": {"type": "PERSONAL", "amount_includes_fees": True},
+        },
+    }
+    with temp_ctx({"accounts": accounts}) as ctx:
+        assert ctx.config.account_types == {"QT-JOINT": AccountType.NON_REGISTERED}
+        for name in ("QT-JOINT", "qt-joint", "Qt-Joint"):
+            assert resolve_account_type(name) is AccountType.NON_REGISTERED
+            assert ctx.config.fee_convention_for(name) is FeeConvention.INCLUDED
+
+
+def test_dropped_account_keys_and_fields_warn(temp_ctx: TempContext) -> None:
+    accounts = {
+        "map": {
+            True: "TFSA",
+            "BAD": "unrecognized",
+            "ODD": {"type": "TFSA", "amount_includes_fees": "maybe", "typo": True},
+        },
+    }
+    with capture_output() as captured, temp_ctx({"accounts": accounts}) as ctx:
+        assert ctx.config.account_map == {"ODD": {"type": AccountType.TFSA}}
+    for text in ("invalid account key", "BAD", "amount_includes_fees", "typo"):
+        assert text in captured.get_text()
+
+
+def test_null_rules_leave_merge_and_cancellation_rules_intact() -> None:
+    config = TransformsConfig(
+        {
+            "rules": None,
+            "merge_groups": [
+                {
+                    "name": "dividends",
+                    "match_fields": ["Ticker"],
+                    "source_actions": ["DIVIDEND", "TAX"],
+                    "target_action": "DIVIDEND",
+                },
+            ],
+            "cancellations": [
+                {
+                    "name": "reversal",
+                    "conditions": {"Note": ["CANCEL"]},
+                    "match_fields": ["Account"],
+                },
+            ],
+        },
+    )
+    assert config.rules == []
+    assert len(config.merge_groups) == 1
+    assert len(config.cancellations) == 1
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [None, {"type": "invalid"}, {"type": None}, {"keywords": [1]}],
+)
+def test_bad_optional_fields_are_skipped_and_string_keywords_match_whole_headers(
+    temp_ctx: TempContext,
+    bad: object,
+) -> None:
+    with (
+        capture_output() as captured,
+        temp_ctx(
+            {
+                "optional_columns": {
+                    "Bad": bad,
+                    "Memo": {"keywords": "note"},
+                },
+            },
+        ) as ctx,
+    ):
+        assert set(ctx.config.optional_fields.get_all_fields()) == {"Memo"}
+        frame = pd.DataFrame(columns=[*TXN_ESSENTIALS, "note", "n", "o", "t", "e"])
+        mapped = TransactionMapper.map_headers(frame)
+        assert "Memo" in mapped.columns
+        assert "note" not in mapped.columns
+        assert all(letter in mapped.columns for letter in "note")
+    assert (
+        "ignoring 'Bad'" in captured.get_text() or "entry 'Bad'" in captured.get_text()
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["accounts: [\n", "# comment\n- account\n", "42", "null"],
+)
+def test_invalid_yaml_names_the_file_and_line_without_a_traceback(
+    tmp_path: Path,
+    text: str,
+) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ConfigError, match=r"config.yaml:\d+:"):
+        Config.load(tmp_path)
+    with (
+        patch.object(Config, "get_default_root_directory", return_value=tmp_path),
+        patch("sys.argv", ["folio", "version"]),
+        capture_output(width=300) as captured,
+        pytest.raises(SystemExit) as exited,
+    ):
+        main()
+    assert exited.value.code == 1
+    output = captured.get_text()
+    assert str(path) in output
+    assert output.count("config.yaml") == 1
+    assert "Traceback" not in output

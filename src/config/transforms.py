@@ -150,8 +150,9 @@ class TransformsConfig:
         self.cancellations = self._parse_cancellations(transforms_config)
 
         rules_list = transforms_config.get("rules", [])
-        if not isinstance(rules_list, list):  # pragma: no cover
-            return
+        if not isinstance(rules_list, list):
+            console_warning("transforms.rules: ignoring an invalid list.")
+            rules_list = []
 
         for rule_config in rules_list:
             rule = self._parse_rule(rule_config)
@@ -165,6 +166,8 @@ class TransformsConfig:
                 merge_group = self._parse_merge_group(group_config)
                 if merge_group:
                     self.merge_groups.append(merge_group)
+        else:
+            console_warning("transforms.merge_groups: ignoring an invalid list.")
 
     def _parse_rule(self, rule_config: object) -> TransformRule | None:
         """Parse a single rule configuration.
@@ -205,7 +208,8 @@ class TransformsConfig:
             The rules that parsed, in the order given.
         """
         cancellations = transforms_config.get("cancellations", [])
-        if not isinstance(cancellations, list):  # pragma: no cover
+        if not isinstance(cancellations, list):
+            console_warning("transforms.cancellations: ignoring an invalid list.")
             return []
         parsed = (self._parse_cancel_rule(config) for config in cancellations)
         return [rule for rule in parsed if rule is not None]

@@ -12,6 +12,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from domain import (
+    ACCOUNT_TYPE_ALIASES,
     ROOM_BEARING_TYPES,
     SUPPORTED_CURRENCIES,
     AccountType,
@@ -94,6 +95,10 @@ def _validate_passthrough_keys(
         value = settings.get(key)
         if value is not None and isinstance(value, expected):
             validated[key] = coerce(value)
+        elif key in settings:
+            console_warning(
+                f"{key}: ignoring an invalid block; expected {expected.__name__}.",
+            )
 
 
 def _validate_accounts(
@@ -116,34 +121,56 @@ def _validate_accounts(
         if fees in FEE_CONVENTIONS:
             current["defaults"] = {"amount_includes_fees": fees}
 
-    raw_map = accounts.get("map")
-    if isinstance(raw_map, dict):
-        current["map"] = {
-            name: entry
-            for name, entry in (
-                (str(name), _account_entry(value)) for name, value in raw_map.items()
-            )
-            if entry is not None
-        }
+    if "map" in accounts:
+        current["map"] = _account_map(accounts["map"])
 
 
-def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
-    """Normalise one `accounts.map` entry, or None when it is unusable."""
+def _account_map(raw_map: object) -> dict[str, dict[str, Any]]:
+    """Validate account names before normalising their entries."""
+    if not isinstance(raw_map, dict):
+        console_warning("accounts.map: ignoring an invalid mapping.")
+        return {}
+    result = {}
+    for name, value in raw_map.items():
+        if not isinstance(name, str) or not name.strip():
+            console_warning(f"accounts.map: ignoring invalid account key {name!r}.")
+            continue
+        entry = _account_entry(name, value)
+        if entry is None:
+            console_warning(f"accounts.map: ignoring unusable entry {name!r}.")
+            continue
+        key = name.upper()
+        if key in result:
+            console_warning(f"accounts.map: replacing duplicate key {key!r}.")
+        result[key] = entry
+    return result
+
+
+def _account_entry(name: str, value: Any) -> dict[str, Any] | None:  # noqa: ANN401
+    """Normalise one account, warning about every field that is dropped."""
     entry = value if isinstance(value, dict) else {"type": value}
+    for key in entry.keys() - {"type", "amount_includes_fees"}:
+        console_warning(f"accounts.map.{name}: ignoring unknown key {key!r}.")
     account_type = entry.get("type")
     normalized: dict[str, Any] = {}
-
     if account_type is not None:
+        token = str(account_type).strip().upper()
         try:
-            normalized["type"] = AccountType(str(account_type).upper())
+            normalized["type"] = (
+                ACCOUNT_TYPE_ALIASES[token]
+                if token in ACCOUNT_TYPE_ALIASES
+                else AccountType(token)
+            )
         except ValueError:
             return None
-
     if "amount_includes_fees" in entry:
         fees = str(entry["amount_includes_fees"]).lower()
         if fees in FEE_CONVENTIONS:
             normalized["amount_includes_fees"] = fees
-
+        else:
+            console_warning(
+                f"accounts.map.{name}: ignoring invalid amount_includes_fees.",
+            )
     return normalized or None
 
 

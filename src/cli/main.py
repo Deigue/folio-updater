@@ -12,8 +12,8 @@ from pathlib import Path
 import typer
 
 from app import bootstrap
-from config import Config
-from term import console_info, console_print
+from config import Config, ConfigError
+from term import console_error, console_info, console_print
 
 __version__ = _pkg_version("folio-updater")
 
@@ -733,7 +733,11 @@ def show_version() -> None:
 
 def main() -> None:
     """Entry point for the CLI application."""
-    app()
+    try:
+        app()
+    except ConfigError as error:
+        console_error(str(error))
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

@@ -57,7 +57,7 @@ def _resolve_account_type(
     naming: bool,
 ) -> AccountType:
     """Resolve a type against fixed config inputs."""
-    override = dict(overrides).get(account) or dict(overrides).get(account.upper())
+    override = dict(overrides).get(account.upper())
     if override is not None:
         return override
 

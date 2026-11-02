@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from term import console_warning
+
 if TYPE_CHECKING:
     from collections.abc import Collection
 
@@ -49,7 +51,17 @@ class OptionalField:
             ValueError: If type_str is not a valid FieldType
         """
         keywords = entry.get("keywords", [name])
+        if isinstance(keywords, str):
+            keywords = [keywords]
+        if not isinstance(keywords, list) or not all(
+            isinstance(k, str) for k in keywords
+        ):
+            message = "keywords must be text or a list of text"
+            raise ValueError(message)
         type_str = entry.get("type", "string")
+        if not isinstance(type_str, str):
+            message = "type must be text"
+            raise TypeError(message)
         try:
             field_type = FieldType(type_str.lower())
         except ValueError as e:
@@ -74,7 +86,15 @@ class OptionalFieldsConfig:
         self._fields: dict[str, OptionalField] = {}
         if config_dict:
             for name, entry in config_dict.items():
-                self._fields[name] = OptionalField.from_config_entry(name, entry)
+                if not isinstance(name, str) or not isinstance(entry, dict):
+                    console_warning(
+                        f"optional_columns: ignoring unusable entry {name!r}.",
+                    )
+                    continue
+                try:
+                    self._fields[name] = OptionalField.from_config_entry(name, entry)
+                except (ValueError, TypeError) as error:
+                    console_warning(f"optional_columns: ignoring {name!r}: {error}.")
 
     def get_all_fields(self) -> dict[str, OptionalField]:
         """Get all configured optional fields.
