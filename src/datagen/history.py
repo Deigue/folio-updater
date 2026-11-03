@@ -25,6 +25,7 @@ from datagen.demo import (
     month_index,
 )
 from datagen.history_data import FIRST_MONTH
+from services.quotes_service import load_yfinance
 from services.symbols import SymbolResolver
 
 _DATA = Path(__file__).with_name("history_data.py")
@@ -106,8 +107,7 @@ def refresh_price_history() -> None:  # pragma: no cover
         DemoScenarioError: If Yahoo does not return a full month of closes for
             every symbol.
     """
-    import yfinance as yf  # noqa: PLC0415 - a developer tool, heavy, network only
-
+    yf = load_yfinance()
     months = month_index(END) + 1
     resolver = SymbolResolver([], {})
     closes: dict[str, list[str]] = {}

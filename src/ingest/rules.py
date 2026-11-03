@@ -257,7 +257,7 @@ class TransactionTransformer:
             found = np.flatnonzero(candidates)
             # Earliest first; rows with no readable date go last.
             order = np.argsort(
-                dates.iloc[found].to_numpy(na_value=np.datetime64("NaT")),
+                dates.iloc[found].to_numpy(na_value=np.datetime64("NaT", "ns")),
                 kind="stable",
             )
             voided = int(found[order[0]]) if len(found) else None

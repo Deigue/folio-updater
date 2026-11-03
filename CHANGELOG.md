@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - `folio generate` will probe yfinance for 5s, and fallback to cached quotes and 
 history when no answer received.
 - `folio generate` now shows while it is retrieving information from Yahoo Finance.
+- Updated to pandas 3.1
+- Updated Parquet engine to `pyarrow`
 
 ### Deprecated
 

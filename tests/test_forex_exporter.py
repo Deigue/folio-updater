@@ -58,7 +58,7 @@ def test_forex_export_fetches_from_the_start_date(
         boc_fetch.assert_called_once_with(start_date)
 
         assert parquet_path.exists()
-        fx_parquet = pd.read_parquet(parquet_path, engine="fastparquet")
+        fx_parquet = pd.read_parquet(parquet_path, engine="pyarrow")
         assert len(fx_parquet) >= 35  # 60 days less weekends and stat holidays
         assert result == len(fx_parquet)
 
@@ -100,7 +100,7 @@ def test_forex_export_tops_up_after_the_latest_rate(
         latest_date_obj = pd.to_datetime(old_fx_dates[-1])
         next_date = (latest_date_obj + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
         boc_fetch.assert_called_once_with(next_date)
-        fx_parquet = pd.read_parquet(parquet_path, engine="fastparquet")
+        fx_parquet = pd.read_parquet(parquet_path, engine="pyarrow")
         assert len(fx_parquet) >= 20  # Old 10 + new ~20
         assert result == len(fx_parquet)
         assert pd.to_datetime(fx_parquet[Column.FX.DATE]).max() > latest_date_obj

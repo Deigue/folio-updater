@@ -93,7 +93,7 @@ def generate_keys(txn_df: pd.DataFrame) -> pd.Series:
 
     normalized_cols: list[list[str]] = []
     for col in TXN_ESSENTIALS:
-        col_series = txn_df[col].fillna("")
+        col_series = txn_df[col].astype(object).fillna("")
         numeric_series = pd.to_numeric(col_series, errors="coerce")
         normalized_cols.append(
             [

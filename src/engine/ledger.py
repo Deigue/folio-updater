@@ -71,8 +71,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Parquet stores every saved diagnostic field as text, blanks included.
-_TEXT = "utf8"
 
 # What restoring a saved ledger raises when a file reads but does not decode.
 _UNDECODABLE = (ValueError, KeyError, ArithmeticError)
@@ -370,7 +368,7 @@ def _read_meta(parquet: Path) -> dict[str, Any] | None:
 def _read_frame(parquet: Path, save: str) -> pd.DataFrame | None:
     """Read one save's ledger frame, or None when it is gone or unreadable."""
     try:
-        return pd.read_parquet(_frame_path(parquet, save), engine="fastparquet")
+        return pd.read_parquet(_frame_path(parquet, save), engine="pyarrow")
     except (OSError, ValueError):
         logger.debug("Unreadable saved ledger; replaying")
         return None
@@ -378,7 +376,7 @@ def _read_frame(parquet: Path, save: str) -> pd.DataFrame | None:
 
 def _read_diagnostics(parquet: Path, save: str) -> pd.DataFrame:
     """Read one save's diagnostics."""
-    return pd.read_parquet(_diagnostics_path(parquet, save), engine="fastparquet")
+    return pd.read_parquet(_diagnostics_path(parquet, save), engine="pyarrow")
 
 
 def _write_files(
@@ -397,13 +395,8 @@ def _write_files(
     staged = meta_path.with_name(f"{meta_path.name}.{save}.tmp")
     kept = (_frame_path(parquet, save), _diagnostics_path(parquet, save))
     try:
-        frame.to_parquet(kept[0], engine="fastparquet", index=False)
-        diagnostics.to_parquet(
-            kept[1],
-            engine="fastparquet",
-            index=False,
-            object_encoding=_TEXT,
-        )
+        frame.to_parquet(kept[0], engine="pyarrow", index=False)
+        diagnostics.to_parquet(kept[1], engine="pyarrow", index=False)
         staged.write_text(json.dumps(meta), encoding="utf-8")
         staged.replace(meta_path)
     except BaseException:

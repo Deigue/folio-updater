@@ -98,4 +98,4 @@ def write_frame_parquet(path: Path, frame: pd.DataFrame) -> None:
         path: Where to write.
         frame: The rows, with no table arrangement applied.
     """
-    frame.to_parquet(path, engine="fastparquet", index=False)
+    frame.to_parquet(path, engine="pyarrow", index=False)

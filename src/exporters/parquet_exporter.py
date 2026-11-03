@@ -44,7 +44,7 @@ class ParquetExporter:
         txn_df = self._remove_internal_columns(txn_df)
         txn_count = len(txn_df)
         logger.debug("Found %d transactions to export...", txn_count)
-        txn_df.to_parquet(self.txn_parquet, engine="fastparquet", index=False)
+        txn_df.to_parquet(self.txn_parquet, engine="pyarrow", index=False)
         logger.debug("Exported %d transactions to Parquet", txn_count)
         return txn_count
 
@@ -68,7 +68,7 @@ class ParquetExporter:
             return 0
 
         fx_count = len(fx_df)
-        fx_df.to_parquet(self.fx_parquet, engine="fastparquet", index=False)
+        fx_df.to_parquet(self.fx_parquet, engine="pyarrow", index=False)
         logger.debug("Exported %d FX rates to Parquet", fx_count)
         return fx_count
 
@@ -94,7 +94,7 @@ class ParquetExporter:
             return 0
 
         ticker_count = len(tickers_df)
-        tickers_df.to_parquet(self.tickers_parquet, engine="fastparquet", index=False)
+        tickers_df.to_parquet(self.tickers_parquet, engine="pyarrow", index=False)
         logger.debug("Exported %d tickers to Parquet", ticker_count)
         return ticker_count
 

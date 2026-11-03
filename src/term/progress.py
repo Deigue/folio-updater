@@ -14,7 +14,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from term.console import active_console, override_console
+from term.console import active_console, override_console, supports_unicode
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -50,7 +50,8 @@ def spinner(
         Progress instance configured with a spinner.
     """
     progress = Progress(
-        SpinnerColumn(style=color),
+        # Rich's default frames are Braille, which a legacy code page cannot encode.
+        SpinnerColumn("dots" if supports_unicode() else "line", style=color),
         TextColumn(f"[{color}]{{task.description}}[/{color}]"),
         console=active_console(),
         transient=transient,

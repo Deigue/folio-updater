@@ -146,7 +146,7 @@ class TransactionFilter:
         duplicate_indices = txn_df[duplicate_mask].index
         for idx in duplicate_indices:
             approval_cell_value = txn_df.at[idx, approval_column]  # noqa: PD008
-            is_approved: bool = bool(pd.notna(approval_cell_value)) and (
+            is_approved: bool = bool(pd.notna(approval_cell_value)) and (  # ty: ignore[no-matching-overload]
                 str(approval_cell_value).strip().upper() == approval_value.upper()
             )
 

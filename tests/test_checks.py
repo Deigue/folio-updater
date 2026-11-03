@@ -1180,9 +1180,9 @@ def test_editing_the_folio_replays_the_diagnostics(temp_ctx: TempContext) -> Non
 
 def _unknown_code(path: Path) -> None:
     """Rewrite saved diagnostics with a code no release knows."""
-    saved = pd.read_parquet(path, engine="fastparquet")
+    saved = pd.read_parquet(path, engine="pyarrow")
     saved["code"] = "NO_SUCH_CODE"
-    saved.to_parquet(path, engine="fastparquet", index=False, object_encoding="utf8")
+    saved.to_parquet(path, engine="pyarrow", index=False)
 
 
 @pytest.mark.real_saved_ledger

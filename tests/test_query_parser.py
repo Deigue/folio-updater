@@ -48,7 +48,7 @@ def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
 
     class _FrozenDateTime(datetime):
         @classmethod
-        def now(cls, tz: tzinfo | None = None) -> datetime:
+        def now(cls, tz: tzinfo | None = None) -> datetime:  # ty: ignore[invalid-method-override]
             return datetime(today.year, today.month, today.day, tzinfo=tz)
 
     monkeypatch.setattr(query_parser, "datetime", _FrozenDateTime)

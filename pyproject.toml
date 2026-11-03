@@ -4,23 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "folio-updater"
-version = "0.8.16"
+version = "0.8.17"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "openpyxl>=3.1.5",
-    "pandas>=2.0.3",
-    "pandas-market-calendars>=4.0.0",
-    "fastparquet>=2024.11.0",
-    "pyyaml>=6.0.2",
-    "typer>=0.9.0",
-    "keyring>=25.5.0",
-    "ws-api>=0.37.0",
-    "rich>=13.0.0",
-    "dateparser>=1.4.2",
-    "requests>=2.32.5",
+    "pandas>=3.1,<4",
+    "pandas-market-calendars>=5.6.0",
+    "pyarrow>=26.0.0",
+    "pyyaml>=6.0.3",
+    "typer>=0.27.3",
+    "keyring>=25.7.0",
+    "ws-api>=0.40.0",
+    "rich>=15.0.0",
+    "dateparser>=1.4.3",
+    "requests>=2.34.2",
     "yfinance>=1.7.0",
 ]
 
@@ -36,6 +36,7 @@ log_cli_level = "ERROR"
 log_cli_format = "[%(levelname)s] %(name)s(%(lineno)d): %(message)s"
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = ["error::pandas.errors.Pandas4Warning"]
 markers = [
     "no_mock_forex: Disable the mock_forex_data fixture for this test or module.",
     "no_mock_quotes: Disable the mock_quotes fixture for this test or module.",
@@ -191,13 +192,13 @@ managed = true
 
 [dependency-groups]
 dev = [
-    "ipykernel>=6.29.5",
-    "nbstripout>=0.8.1",
-    "pandas-stubs>=2.0.3",
+    "ipykernel>=7.4.0",
+    "nbstripout>=0.9.1",
+    "pandas-stubs>=3.1.0.261029",
     "pre-commit>=4.7.0",
-    "pyinstaller>=6.16.0",
-    "ruff>=0.16.2",
-    "ty>=0.0.69",
+    "pyinstaller>=6.22.3",
+    "ruff>=0.17.3",
+    "ty>=0.0.96",
 ]
 experiments = []
-test = ["pytest>=8.3.5", "pytest-cov>=5.0.0", "pytest-xdist>=3.8.0"]
+test = ["pytest>=9.2.0", "pytest-cov>=7.1.0", "pytest-xdist>=3.8.0"]

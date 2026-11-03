@@ -36,7 +36,7 @@ from services.symbols import SymbolResolver
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
     from unittest.mock import MagicMock
 
     from .helpers.context import TempContext
@@ -497,7 +497,7 @@ def _fake_yfinance(
 def _provider(
     tickers: dict[str, Any],
     frame: pd.DataFrame | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """Install the stand-in provider for the duration of a block."""
     with patch.dict(sys.modules, {"yfinance": _fake_yfinance(tickers, frame)}):
         yield

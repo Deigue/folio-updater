@@ -15,7 +15,7 @@ from db.helpers import txn_count as get_txn_count
 from domain import TORONTO_TZ
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,7 @@ def _rotate(subdir: Path, stem: str, suffix: str, keep: int) -> None:
 
 
 @contextmanager
-def backup_scope() -> Iterator[None]:
+def backup_scope() -> Generator[None]:
     """Back the folio up at most once for everything run inside.
 
     One command can write several times (an update imports each file, then

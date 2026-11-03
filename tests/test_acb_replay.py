@@ -1288,7 +1288,7 @@ def test_ledger_frame_is_one_row_per_txn() -> None:
         "Flags",
     }
     # A cash-only row tracks no holding, so its grain measures stay blank.
-    assert pd.isna(frame.loc[2, grain_column(Grain.ACCOUNT, "ACB")])
+    assert pd.isna(frame.loc[2, grain_column(Grain.ACCOUNT, "ACB")])  # ty: ignore[no-matching-overload]
 
 
 def test_acb_summary_frame_has_one_row_per_symbol() -> None:
@@ -1364,7 +1364,7 @@ def test_acb_summary_frame_carries_the_usd_average() -> None:
     # FLAT_FX is 1.30, so the USD average is the CAD one over the rate.
     assert summary.loc["USDCO", avg] == pytest.approx(130)
     assert summary.loc["USDCO", avg_usd] == pytest.approx(100)
-    assert pd.isna(summary.loc["CADCO", avg_usd])
+    assert pd.isna(summary.loc["CADCO", avg_usd])  # ty: ignore[no-matching-overload]
 
 
 def test_acb_summary_frame_closes_on_the_last_row_replayed() -> None:
@@ -1948,7 +1948,7 @@ def test_summary_leaves_an_average_blank_when_a_measure_is_missing() -> None:
     )
     frame.loc[1, grain_column(Grain.ACCOUNT, "ACB")] = None
     summary = acb_summary_frame(frame)
-    assert pd.isna(summary.loc[0, grain_column(Grain.ACCOUNT, "Avg")])
+    assert pd.isna(summary.loc[0, grain_column(Grain.ACCOUNT, "Avg")])  # ty: ignore[no-matching-overload]
 
 
 # --- intra-day ordering ---------------------------------------------------------

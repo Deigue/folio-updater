@@ -61,17 +61,17 @@ def test_the_demo_exports_mirror_its_database(temp_ctx: TempContext) -> None:
         # The exported files mirror the database, whatever the demo holds.
         with get_connection() as conn:
             stored_tickers = get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER)
-        tickers_df = pd.read_parquet(config.tickers_parquet, engine="fastparquet")
+        tickers_df = pd.read_parquet(config.tickers_parquet, engine="pyarrow")
         assert set(tickers_df.columns) == {Column.Ticker.TICKER}
         assert set(tickers_df[Column.Ticker.TICKER]) == stored_tickers
 
-        txns_df = pd.read_parquet(config.txn_parquet, engine="fastparquet")
+        txns_df = pd.read_parquet(config.txn_parquet, engine="pyarrow")
         assert not txns_df.empty
         assert len(txns_df) == txn_total()
 
         # Repeat call data remains same.
         ensure_data_exists()
-        txns_df_2 = pd.read_parquet(config.txn_parquet, engine="fastparquet")
+        txns_df_2 = pd.read_parquet(config.txn_parquet, engine="pyarrow")
         pd_testing.assert_frame_equal(txns_df, txns_df_2)
 
 

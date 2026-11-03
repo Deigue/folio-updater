@@ -142,7 +142,7 @@ class TestAddSuccess:
             cli_result = run_cli_with_config(ctx.config, cli_app, BUY_ARGS)
 
             assert_cli_success(cli_result)
-            exported = pd.read_parquet(ctx.config.txn_parquet, engine="fastparquet")
+            exported = pd.read_parquet(ctx.config.txn_parquet, engine="pyarrow")
             assert TICKER in set(exported[Column.Txn.TICKER])
 
 

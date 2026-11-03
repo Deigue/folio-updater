@@ -197,7 +197,7 @@ class WealthsimpleMockContext:
                     ),
                 )
                 pytest.fail(
-                    f"CSV content mismatch for {filepath}:\n{diff}",  # ty: ignore[invalid-argument-type]
+                    f"CSV content mismatch for {filepath}:\n{diff}",
                 )
 
     def assert_no_csv_written(self) -> None:

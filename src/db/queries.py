@@ -572,7 +572,12 @@ def append_rows(
     Raises:
         sqlite3.IntegrityError: If a row breaks a constraint of the table.
     """
-    written = frame.to_sql(table_name, connection, if_exists="append", index=False)
+    try:
+        written = frame.to_sql(table_name, connection, if_exists="append", index=False)
+    except pd.errors.DatabaseError as error:
+        if isinstance(error.__cause__, sqlite3.IntegrityError):
+            raise error.__cause__ from None
+        raise
     return len(frame) if written is None else written
 
 

@@ -1,8 +1,8 @@
 """Market quotes from Yahoo Finance, cached in the folio database.
 
-`import yfinance` is deliberately lazy, inside the two fetch methods. It is a
-heavy import, most commands never price anything, and `--offline` must be able
-to run without the package resolving at all.
+`import yfinance` is deliberately lazy, inside `load_yfinance`. It is a heavy
+import, most commands never price anything, and `--offline` must be able to run
+without the package resolving at all.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import logging
 import socket
 import sqlite3
 import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, date, datetime, timedelta, tzinfo
@@ -41,6 +42,7 @@ from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
+    from types import ModuleType
 
     from services.symbols import SymbolResolver
 
@@ -59,6 +61,18 @@ _PROVIDER_HOST = ("query1.finance.yahoo.com", 443)
 # A connection opens in well under a second or not at all: an unreachable
 # provider drops the handshake rather than refusing it.
 _PROBE_TIMEOUT_SECONDS = 5
+
+
+def load_yfinance() -> ModuleType:
+    """Import yfinance, keeping its deprecation warnings off the terminal.
+
+    Returns:
+        The yfinance module.
+    """
+    import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
+
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
+    return yf
 
 
 @cache
@@ -790,9 +804,7 @@ class QuotesService:
             Each provider symbol mapped to its raw price fields. A symbol the
             provider does not know is simply absent.
         """
-        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
-
-        tickers = yf.Tickers(" ".join(ysymbols))
+        tickers = load_yfinance().Tickers(" ".join(ysymbols))
         now = datetime.now(UTC).isoformat()
 
         def _price(ysymbol: str) -> tuple[str, dict] | None:
@@ -825,9 +837,7 @@ class QuotesService:
         Returns:
             Each provider symbol mapped to its raw price fields.
         """
-        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
-
-        frame = yf.download(
+        frame = load_yfinance().download(
             list(ysymbols),
             period="5d",
             interval="1d",
@@ -863,7 +873,7 @@ class QuotesService:
             Each provider symbol mapped to its metadata fields, the
             fundamentals keyed by their `Fundamentals` field names.
         """
-        import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
+        yf = load_yfinance()
 
         def _describe(ysymbol: str) -> tuple[str, dict] | None:
             try:
@@ -1009,9 +1019,7 @@ def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 (p
     Returns:
         The provider's frame, or None when it returned nothing.
     """
-    import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
-
-    return yf.download(
+    return load_yfinance().download(
         list(ysymbols),
         group_by="ticker",
         progress=False,
