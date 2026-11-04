@@ -10,7 +10,7 @@ from __future__ import annotations
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from domain import AccountType
-from exporters.table import Fmt, Role
+from exporters.sheet_spec import Fmt, Role
 
 # --- Number formats ----------------------------------------------------------
 

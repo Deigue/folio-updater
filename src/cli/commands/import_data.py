@@ -104,7 +104,7 @@ def import_file(
     Args:
         file_path: The file to import.
         verbose: Whether the audit lists every imported transaction.
-        interactive: Whether the audit offers to expand its panels by keypress.
+        interactive: Whether the audit offers to expand its sections by keypress.
 
     Returns:
         The file's results, or the error that stopped it.
@@ -200,7 +200,7 @@ def import_directory(
     Args:
         dir_path: Directory holding the files.
         verbose: Whether each audit lists every imported transaction.
-        interactive: Whether each audit offers to expand its panels by keypress.
+        interactive: Whether each audit offers to expand its sections by keypress.
 
     Returns:
         One entry per file, in the order imported. Empty when there were none.

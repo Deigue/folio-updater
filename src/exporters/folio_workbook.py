@@ -12,23 +12,23 @@ from domain import Column
 from domain import Table as DbTable
 from engine.panels import FOLIO_VIEW, account_view, type_view
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
+from exporters.sheet_spec import Link
 from exporters.sheets import (
     COST_BASE_SHEET,
     FLOWS_SHEET,
     LEDGER_SHEET,
     PERFORMANCE_SHEET,
     SUMMARY_SHEET,
-    cost_base_table,
-    flows_table,
-    fx_table,
-    ledger_table,
-    panel_table,
-    performance_table,
-    summary_table,
-    traded_tickers_table,
-    transactions_table,
+    cost_base_sheet,
+    flows_sheet,
+    fx_sheet,
+    ledger_sheet,
+    panel_sheet,
+    performance_sheet,
+    summary_sheet,
+    traded_tickers_sheet,
+    transactions_sheet,
 )
-from exporters.table import Link
 from services import ForexService
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from engine.flows import Room
     from engine.panels import FolioValuation, Panel
     from engine.performance import RangeMove
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
     from services.quotes_service import Quote
 
 
@@ -170,13 +170,13 @@ class FolioSources:
         )
 
 
-def folio_tables(
+def folio_sheets(
     sources: FolioSources,
     sections: Iterable[Section] = SECTIONS,
     *,
     notes: Sequence[str] = (),
-) -> list[Table]:
-    """Generate the whole folio, one table per sheet.
+) -> list[Sheet]:
+    """Generate the whole folio, sheet by sheet.
 
     Args:
         sources: What the workbook is read from.
@@ -185,53 +185,53 @@ def folio_tables(
             are.
 
     Returns:
-        The tables, in the order their sheets should appear.
+        The sheets, in the order they should appear.
     """
     chosen = set(sections)
     pools = _pools(sources.valuation) if chosen & VALUED else None
 
-    dashboards: list[Table] = []
-    cost_base: list[Table] = []
+    dashboards: list[Sheet] = []
+    cost_base: list[Sheet] = []
     if pools is not None:
-        dashboards = _dashboards(pools, chosen, notes)
+        dashboards = _dashboard_sheets(pools, chosen, notes)
         if Section.ACB in chosen and sources.valuation is not None:
             frame = sources.valuation.frame
             cost_base = [
-                ledger_table(frame, txns=sources.txns),
-                cost_base_table(frame),
+                ledger_sheet(frame, txns=sources.txns),
+                cost_base_sheet(frame),
             ]
-    performance: list[Table] = []
+    performance: list[Sheet] = []
     if pools is not None and Section.PERF in chosen:
-        performance = [_performance(pools.folio, sources, notes)]
-    stored = _stored(sources) if Section.STORED in chosen else []
+        performance = [_performance_sheet(pools.folio, sources, notes)]
+    stored = _stored_sheets(sources) if Section.STORED in chosen else []
 
     if pools is None or Section.SUMMARY not in chosen:
         return [*performance, *dashboards, *cost_base, *stored]
 
-    flows = flows_table(pools.every, history=pools.history)
+    flows = flows_sheet(pools.every, history=pools.history)
     linked = [
         flows,
         *performance,
         *cost_base,
-        *(table for table in stored if not table.hidden),
+        *(sheet for sheet in stored if not sheet.hidden),
     ]
-    summary = summary_table(
+    summary = summary_sheet(
         pools.folio,
         pools.every,
         notes=notes,
-        contents=[(table.name, _describe(table.name)) for table in linked],
+        contents=[(sheet.name, _describe(sheet.name)) for sheet in linked],
     )
     reports = [
-        _back_to_summary(table)
-        for table in (flows, *performance, *dashboards, *cost_base)
+        _back_to_summary(sheet)
+        for sheet in (flows, *performance, *dashboards, *cost_base)
     ]
     linked_stored = [
-        table if table.hidden else _back_to_summary(table) for table in stored
+        sheet if sheet.hidden else _back_to_summary(sheet) for sheet in stored
     ]
     return [summary, *reports, *linked_stored]
 
 
-# What the Summary's contents panel says each linked sheet holds.
+# What the Summary's contents list says each linked sheet holds.
 _DESCRIPTIONS: dict[str, str] = {
     FLOWS_SHEET: "Cash, contributions and room, for every pool",
     PERFORMANCE_SHEET: "Every holding's price move over each range, 2h to all time",
@@ -278,21 +278,25 @@ def _pools(valuation: FolioValuation | None) -> _Pools | None:
     )
 
 
-def _dashboards(
+def _dashboard_sheets(
     pools: _Pools,
     chosen: set[Section],
     notes: Sequence[str],
-) -> list[Table]:
+) -> list[Sheet]:
     """Dashboard for each pool the sections ask for."""
     panels: list[Panel] = []
     if Section.DASH in chosen:
         panels.extend((pools.folio, *pools.types))
     if Section.ACCOUNTS in chosen:
         panels.extend(pools.accounts)
-    return [panel_table(panel, notes=notes) for panel in panels]
+    return [panel_sheet(panel, notes=notes) for panel in panels]
 
 
-def _performance(folio: Panel, sources: FolioSources, notes: Sequence[str]) -> Table:
+def _performance_sheet(
+    folio: Panel,
+    sources: FolioSources,
+    notes: Sequence[str],
+) -> Sheet:
     """Compare every holding over each range, largest market value first."""
     quotes = {
         holding.symbol: holding_quote
@@ -300,10 +304,10 @@ def _performance(folio: Panel, sources: FolioSources, notes: Sequence[str]) -> T
         if (holding_quote := sources.quotes.get(holding.symbol)) is not None
     }
     rows = performance_rows(folio, quotes, sources.moves)
-    return performance_table(sort_performance(rows, MARKET_SORT), notes=notes)
+    return performance_sheet(sort_performance(rows, MARKET_SORT), notes=notes)
 
 
-def _stored(sources: FolioSources) -> list[Table]:
+def _stored_sheets(sources: FolioSources) -> list[Sheet]:
     """List the stored tables: rates, tickers, and the importable Txns.
 
     The Ledger shows a reader every stored column, so `Txns` is hidden: it is
@@ -311,14 +315,14 @@ def _stored(sources: FolioSources) -> list[Table]:
     """
     config = get_config()
     return [
-        transactions_table(sources.txns, config.txn_sheet, hidden=True),
-        fx_table(sources.rates, config.fx_sheet),
-        traded_tickers_table(sources.tickers, sources.quotes, config.tickers_sheet),
+        transactions_sheet(sources.txns, config.txn_sheet, hidden=True),
+        fx_sheet(sources.rates, config.fx_sheet),
+        traded_tickers_sheet(sources.tickers, sources.quotes, config.tickers_sheet),
     ]
 
 
 def _describe(sheet: str) -> str:
-    """Say what a linked sheet holds, for the Summary's contents panel."""
+    """Say what a linked sheet holds, for the Summary's contents list."""
     config = get_config()
     stored = {
         config.fx_sheet: "The Bank of Canada USDCAD rates behind every conversion",
@@ -327,9 +331,9 @@ def _describe(sheet: str) -> str:
     return _DESCRIPTIONS.get(sheet) or stored.get(sheet, "")
 
 
-def _back_to_summary(table: Table) -> Table:
+def _back_to_summary(sheet: Sheet) -> Sheet:
     """Give a report sheet a way back to the sheet the workbook opens on."""
-    return replace(table, nav=Link("Back to Summary", SUMMARY_SHEET))
+    return replace(sheet, nav=Link("Back to Summary", SUMMARY_SHEET))
 
 
 def _active_first(panels: list[Panel]) -> list[Panel]:

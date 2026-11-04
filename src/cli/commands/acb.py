@@ -17,9 +17,9 @@ from cli.commands.common import require_ledger, resolve_pool, write_or_exit
 from domain import Column, Grain, Impact
 from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import (
-    acb_buildup_table,
-    acb_summary_table,
-    ledger_table,
+    acb_buildup_sheet,
+    acb_summary_sheet,
+    ledger_sheet,
 )
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
@@ -29,7 +29,7 @@ from ui.views.acb import AcbView, NoUsdFiguresError, show_buildup, show_summary
 if TYPE_CHECKING:
     import pandas as pd
 
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 
 def resolve_view(
@@ -95,14 +95,14 @@ def _sheet(
     currency: str,
     badge: str,
     summary: bool,
-) -> Table:
+) -> Sheet:
     """Build the shape the other flags asked for.
 
     The same three shapes the command prints: a summary, one symbol's buildup,
     or the whole ledger when neither was asked for.
     """
     if summary:
-        return acb_summary_table(
+        return acb_summary_sheet(
             rows,
             grain=view.grain,
             name=f"ACB Summary - {view.label}",
@@ -110,14 +110,14 @@ def _sheet(
             notes=[badge],
         )
     if symbol:
-        return acb_buildup_table(
+        return acb_buildup_sheet(
             rows,
             grain=view.grain,
             name=f"ACB {symbol}",
             currency=currency,
             notes=[badge],
         )
-    return ledger_table(
+    return ledger_sheet(
         rows,
         name=f"Ledger - {view.label}",
         currency=currency,
@@ -138,7 +138,7 @@ def _export(
     """Write the reported rows out, choosing the format from the suffix.
 
     Parquet stays the raw frame at full precision, for a reader that is another
-    program. Everything else is the table the command reports.
+    program. Everything else is the sheet the command reports.
 
     Args:
         rows: The filtered rows from the ledger.
@@ -158,7 +158,7 @@ def _export(
         console_info(f"Exported {len(rows)} row(s) to {target}")
         return
 
-    table = _sheet(
+    sheet = _sheet(
         rows,
         view,
         symbol=symbol,
@@ -166,8 +166,8 @@ def _export(
         badge=badge,
         summary=summary,
     )
-    written = write_or_exit(target, [table])
-    console_info(f"Exported {len(table.rows)} row(s) to {written}")
+    written = write_or_exit(target, [sheet])
+    console_info(f"Exported {len(sheet.main_table.rows)} row(s) to {written}")
 
 
 def show_acb(  # noqa: PLR0917

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 WORKBOOK_SUFFIX = ".xlsx"
 CSV_SUFFIX = ".csv"
@@ -39,29 +39,31 @@ class SingleSheetError(ValueError):
         "A CSV holds one table. Export to .xlsx for a sheet per grain, or "
         "narrow the request to one grain."
     )
-    SECTIONS_MESSAGE = (
+    SEVERAL_TABLES_MESSAGE = (
         "A CSV holds one table, and '{name}' is several on one sheet. Export to .xlsx."
     )
 
-    def __init__(self, sectioned: str | None = None) -> None:
-        """Say why the tables will not fit in one CSV.
+    def __init__(self, sheet_with_tables: str | None = None) -> None:
+        """Say why the sheets will not fit in one CSV.
 
         Args:
-            sectioned: The name of a single table that carries sections, or
-                None when the problem is several tables.
+            sheet_with_tables: The name of a single sheet holding several tables,
+                or None when the problem is several sheets.
         """
-        if sectioned is None:
+        if sheet_with_tables is None:
             super().__init__(self.MESSAGE)
         else:
-            super().__init__(self.SECTIONS_MESSAGE.format(name=sectioned))
+            super().__init__(
+                self.SEVERAL_TABLES_MESSAGE.format(name=sheet_with_tables),
+            )
 
 
-def write_export(path: Path, tables: Sequence[Table]) -> Path:
-    """Write one or more tables to the format the path asks for.
+def write_export(path: Path, sheets: Sequence[Sheet]) -> Path:
+    """Write one or more sheets to the format the path asks for.
 
     Args:
         path: Where to write. A missing suffix means a workbook.
-        tables: The tables, in the order their sheets should appear.
+        sheets: The sheets, in the order they should appear.
 
     Returns:
         The path actually written, which gains a suffix when the caller gave
@@ -70,24 +72,24 @@ def write_export(path: Path, tables: Sequence[Table]) -> Path:
     Raises:
         UnsupportedExportError: If the suffix names a format that cannot be
             written.
-        SingleSheetError: If several tables, or one carrying sections, were
-            asked to share a CSV.
+        SingleSheetError: If several sheets, or one holding several tables,
+            were asked to share a CSV.
     """
     target = path if path.suffix else path.with_suffix(WORKBOOK_SUFFIX)
     suffix = target.suffix.lower()
 
     if suffix == CSV_SUFFIX:
-        if len(tables) != 1:
+        if len(sheets) != 1:
             raise SingleSheetError
-        if tables[0].sections:
-            raise SingleSheetError(tables[0].name)
-        write_csv(target, tables[0])
+        if len(sheets[0].tables) > 1:
+            raise SingleSheetError(sheets[0].name)
+        write_csv(target, sheets[0])
         return target
 
     if suffix != WORKBOOK_SUFFIX:
         raise UnsupportedExportError(suffix)
 
-    write_workbook(target, tables)
+    write_workbook(target, sheets)
     return target
 
 
@@ -96,6 +98,6 @@ def write_frame_parquet(path: Path, frame: pd.DataFrame) -> None:
 
     Args:
         path: Where to write.
-        frame: The rows, with no table arrangement applied.
+        frame: The rows, with no sheet arrangement applied.
     """
     frame.to_parquet(path, engine="pyarrow", index=False)

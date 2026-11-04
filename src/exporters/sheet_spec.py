@@ -1,4 +1,4 @@
-"""The shape of an exported table, independent of the file it lands in."""
+"""What an exported sheet holds, independent of the file it lands in."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ class Col:
 
 @dataclass(frozen=True)
 class Row:
-    """One line of a table, with one cell per column.
+    """One row of a table, with one cell per column.
 
     Attributes:
         cells: Values in column order. `None` is a genuine blank.
@@ -87,7 +87,7 @@ class Link:
 
     Attributes:
         text: What the cell reads.
-        sheet: The name of the table it points at.
+        sheet: The name of the sheet it points at.
     """
 
     text: str
@@ -96,7 +96,7 @@ class Link:
 
 @dataclass(frozen=True)
 class Line:
-    """One labelled figure in a `Block`.
+    """One labelled figure in a `SheetList`.
 
     Attributes:
         label: What the figure is.
@@ -112,11 +112,11 @@ class Line:
 
 
 @dataclass(frozen=True)
-class Block:
-    """A small labelled panel written above a table.
+class SheetList:
+    """A titled list of labelled figures, written above a sheet's tables.
 
     Attributes:
-        title: The panel's heading.
+        title: The list's heading.
         lines: Its figures, in the order they should read.
     """
 
@@ -125,41 +125,21 @@ class Block:
 
 
 @dataclass(frozen=True)
-class Table:
-    """One exported table: a sheet in a workbook, or a whole CSV.
+class SheetTable:
+    """One table on a sheet: its columns, its rows and what it discloses.
 
     Attributes:
-        name: The sheet name, before it is made legal for Excel.
         columns: The columns, in display order.
-        rows: The lines, in display order.
-        blocks: Panels written above the table.
+        rows: The rows, in display order.
         notes: Plain-text lines written under the table, disclosing what it
             could not show and what it converted at.
-        tab_color: An accent for the sheet tab, as `RRGGBB`.
-        freeze: How many leading columns stay put while the sheet is scrolled
-            sideways. Enough of them that a row still says what it is once the
-            figures being read have scrolled into view.
-        hidden: Keep the sheet out of the tab strip. Still accessible via right-click.
-        freeze_rows: Keep everything above the table's header in view while the
-            sheet scrolls. Off for a sheet whose panels above are too tall to
-            pin, which would leave little of the screen to scroll.
-        nav: A link written in the sheet's first row, above everything else.
-        sections: Further tables written below this one on the same sheet, each
-            under its own name. Only the first table is filtered and frozen. A
-            CSV writes the first table alone.
+        title: The heading written above the table, for any but a sheet's first.
     """
 
-    name: str
     columns: tuple[Col, ...]
     rows: tuple[Row, ...] = ()
-    blocks: tuple[Block, ...] = ()
     notes: tuple[str | Link, ...] = ()
-    tab_color: str | None = None
-    freeze: int = 1
-    hidden: bool = False
-    freeze_rows: bool = True
-    nav: Link | None = None
-    sections: tuple[Table, ...] = ()
+    title: str = ""
 
     @property
     def headers(self) -> list[str]:
@@ -175,6 +155,41 @@ class Table:
     def grouped(self) -> bool:
         """Whether any column asks for a band above the header."""
         return any(column.group for column in self.columns)
+
+
+@dataclass(frozen=True)
+class Sheet:
+    """One sheet of a workbook, or a whole CSV.
+
+    Attributes:
+        name: The sheet name, before it is made legal for Excel.
+        tables: Its tables, top to bottom, at least one. Only the first is
+            filtered and frozen, and a CSV holds exactly one.
+        lists: Titled lists written above the tables.
+        tab_color: An accent for the sheet tab, as `RRGGBB`.
+        freeze: How many leading columns stay put while the sheet is scrolled
+            sideways. Enough of them that a row still says what it is once the
+            figures being read have scrolled into view.
+        freeze_rows: Keep everything above the first table's header in view while
+            the sheet scrolls. Off for a sheet whose lists above are too tall to
+            pin, which would leave little of the screen to scroll.
+        hidden: Keep the sheet out of the tab strip. Still accessible via right-click.
+        nav: A link written in the sheet's first row, above everything else.
+    """
+
+    name: str
+    tables: tuple[SheetTable, ...]
+    lists: tuple[SheetList, ...] = ()
+    tab_color: str | None = None
+    freeze: int = 1
+    freeze_rows: bool = True
+    hidden: bool = False
+    nav: Link | None = None
+
+    @property
+    def main_table(self) -> SheetTable:
+        """The first table: the one filtered and frozen, and all a CSV holds."""
+        return self.tables[0]
 
 
 DATA_ROLES = frozenset({Role.DATA, Role.MUTED, Role.CLOSED})

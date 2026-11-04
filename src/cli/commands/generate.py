@@ -26,7 +26,7 @@ from exporters.folio_workbook import (
     FolioSources,
     Section,
     UnknownSectionError,
-    folio_tables,
+    folio_sheets,
     parse_sections,
 )
 from services.symbols import load_symbol_resolver
@@ -38,7 +38,7 @@ from ui.vocabulary import SPINNER_GENERATE
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 # The currency every dashboard sheet is valued in: each holding in the one it
 # trades in, the way a broker shows it. The cost base in CAD has a sheet of its
@@ -95,7 +95,7 @@ def write_folio(
         )
         if Section.STORED not in sections:
             return None
-        written = _write(target, folio_tables(FolioSources.read(None), sections))
+        written = _write(target, folio_sheets(FolioSources.read(None), sections))
         return WrittenFolio(written)
 
     if ledger.frame.empty:
@@ -132,21 +132,21 @@ def write_folio(
                 offline=offline,
             )
     note = freshness_note(ledger.computed_at, valuation.quotes)
-    tables = folio_tables(
+    sheets = folio_sheets(
         FolioSources.read(valuation, moves=moves),
         sections,
         notes=[note],
     )
     unpriced = valuation.panel(FOLIO_VIEW).holdings.unpriced
-    return WrittenFolio(_write(target, tables), unpriced=unpriced)
+    return WrittenFolio(_write(target, sheets), unpriced=unpriced)
 
 
-def _write(target: Path | None, tables: Sequence[Table]) -> Path:
-    """Write the tables out, keeping rolling backups of the configured folio.
+def _write(target: Path | None, sheets: Sequence[Sheet]) -> Path:
+    """Write the sheets out, keeping rolling backups of the configured folio.
 
     Args:
         target: Where to write, or None for the configured folio path.
-        tables: The sheets, in order.
+        sheets: The sheets, in order.
 
     Returns:
         The path written.
@@ -160,10 +160,10 @@ def _write(target: Path | None, tables: Sequence[Table]) -> Path:
         progress.add_task("Writing the workbook...", total=None)
         if path == config.folio_path and path.exists():
             backup_file(path)
-        written = write_or_exit(path, tables)
+        written = write_or_exit(path, sheets)
 
-    console_success(f"Wrote {len(tables)} sheets to {written}")
-    console_info(", ".join(table.name for table in tables))
+    console_success(f"Wrote {len(sheets)} sheets to {written}")
+    console_info(", ".join(sheet.name for sheet in sheets))
     return written
 
 

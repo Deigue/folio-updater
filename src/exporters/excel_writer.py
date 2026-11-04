@@ -1,4 +1,4 @@
-"""Render `Table` descriptions into a styled Excel workbook.
+"""Render `Sheet` descriptions into a styled Excel workbook.
 
 Two layout rules are deliberate. The heading row is frozen and filtered, so a
 sheet can be sorted and filtered like the grid it is; and the totals sit **below a
@@ -17,14 +17,13 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.hyperlink import Hyperlink
 
 from exporters import excel_style as style
-from exporters.table import (
+from exporters.sheet_spec import (
     DATA_ROLES,
     NUMERIC,
     SIGNED,
     Fmt,
     Link,
     Role,
-    Table,
     as_number,
     is_blank,
     render,
@@ -38,7 +37,7 @@ if TYPE_CHECKING:
     from openpyxl.styles import Font
     from openpyxl.worksheet.worksheet import Worksheet
 
-    from exporters.table import Block, Col, Row
+    from exporters.sheet_spec import Col, Row, Sheet, SheetList, SheetTable
 
 # Excel's own limits on what a sheet may be called.
 _NAME_LIMIT = 31
@@ -50,7 +49,7 @@ def sheet_name(name: str, taken: Collection[str] = ()) -> str:
     """Make a sheet name legal, and unique within one workbook.
 
     Args:
-        name: The name the table would like to use.
+        name: The name the sheet would like to use.
         taken: Names already given to other sheets.
 
     Returns:
@@ -71,12 +70,12 @@ def sheet_name(name: str, taken: Collection[str] = ()) -> str:
     return cleaned[: _NAME_LIMIT - 4] + "~999"
 
 
-def write_workbook(path: Path, tables: Sequence[Table]) -> None:
-    """Write every table as its own sheet of one workbook.
+def write_workbook(path: Path, sheets: Sequence[Sheet]) -> None:
+    """Write every sheet into one workbook.
 
     Args:
         path: Where the workbook is written.
-        tables: The tables, in the order their sheets should appear.
+        sheets: The sheets, in the order they should appear.
     """
     workbook = Workbook()
     default = workbook.active
@@ -86,13 +85,13 @@ def write_workbook(path: Path, tables: Sequence[Table]) -> None:
     # Every sheet is named before any is written, so a link can point forward to it
     names: dict[str, str] = {}
     taken: list[str] = []
-    for table in tables:
-        name = sheet_name(table.name, taken)
+    for sheet in sheets:
+        name = sheet_name(sheet.name, taken)
         taken.append(name)
-        names.setdefault(table.name, name)
+        names.setdefault(sheet.name, name)
 
-    for table, name in zip(tables, taken, strict=True):
-        _write_sheet(workbook.create_sheet(name), table, names)
+    for sheet, name in zip(sheets, taken, strict=True):
+        _write_sheet(workbook.create_sheet(name), sheet, names)
 
     _show_a_visible_sheet(workbook)
     workbook.save(path)
@@ -118,50 +117,54 @@ def _show_a_visible_sheet(workbook: Workbook) -> None:
 
 def _write_sheet(
     worksheet: Worksheet,
-    table: Table,
+    sheet: Sheet,
     names: Mapping[str, str],
 ) -> None:
-    """Print one table on one worksheet.
+    """Print one sheet on one worksheet.
 
     Args:
-        worksheet: The sheet to write into, assumed empty.
-        table: What to write.
-        names: Each table's name mapped to the sheet it was written to, so a
+        worksheet: The worksheet to write into, assumed empty.
+        sheet: What to write.
+        names: Each sheet's name mapped to the worksheet it was written to, so a
             link can find its target. A link to anything missing from it is
             written as plain text.
     """
     cursor = 1
-    if table.nav is not None:
-        nav = worksheet.cell(row=cursor, column=1, value=_value(table.nav))
-        _link(nav, table.nav, names)
+    if sheet.nav is not None:
+        nav = worksheet.cell(row=cursor, column=1, value=_value(sheet.nav))
+        _link(nav, sheet.nav, names)
         cursor += 1
-    cursor = _write_blocks(worksheet, table.blocks, names, cursor)
-    header_row, last_data_row, cursor = _write_grid(worksheet, table, cursor, names)
+    cursor = _write_lists(worksheet, sheet.lists, names, cursor)
+    header_row, last_data_row, cursor = _write_table(
+        worksheet,
+        sheet.main_table,
+        cursor,
+        names,
+    )
 
-    for section in table.sections:
-        title = worksheet.cell(row=cursor + 1, column=1, value=section.name)
+    for table in sheet.tables[1:]:
+        title = worksheet.cell(row=cursor + 1, column=1, value=table.title)
         title.font = style.TITLE_FONT
-        _, _, cursor = _write_grid(worksheet, section, cursor + 2, names)
+        _, _, cursor = _write_table(worksheet, table, cursor + 2, names)
 
-    _finish(worksheet, table, header_row, last_data_row)
-    if table.hidden:
+    _finish(worksheet, sheet, header_row, last_data_row)
+    if sheet.hidden:
         worksheet.sheet_state = "hidden"
 
 
-def _write_grid(
+def _write_table(
     worksheet: Worksheet,
-    table: Table,
+    table: SheetTable,
     start: int,
     links: Mapping[str, str],
 ) -> tuple[int, int, int]:
     """Write one table's header, rows and notes, starting at a given row.
 
     Args:
-        worksheet: The sheet to write into.
-        table: The table whose grid is written. Its blocks and sections are
-            the caller's business.
-        start: The row the grid starts at.
-        links: Each table's name mapped to the sheet it was written to.
+        worksheet: The worksheet to write into.
+        table: The table to write.
+        start: The row the table starts at.
+        links: Each sheet's name mapped to the worksheet it was written to.
 
     Returns:
         The header row, the last row of the filterable data, and the first
@@ -194,19 +197,19 @@ def _write_grid(
     return header_row, last_data_row, notes_row + len(table.notes)
 
 
-def _write_blocks(
+def _write_lists(
     worksheet: Worksheet,
-    blocks: Iterable[Block],
+    lists: Iterable[SheetList],
     links: Mapping[str, str],
     start: int,
 ) -> int:
-    """Write the labelled panels above the table, returning the next free row."""
+    """Write the titled lists above the tables, returning the next free row."""
     cursor = start
-    for block in blocks:
-        title = worksheet.cell(row=cursor, column=1, value=block.title)
+    for sheet_list in lists:
+        title = worksheet.cell(row=cursor, column=1, value=sheet_list.title)
         title.font = style.TITLE_FONT
         cursor += 1
-        for line in block.lines:
+        for line in sheet_list.lines:
             label = worksheet.cell(row=cursor, column=1, value=_value(line.label))
             label.font = style.LABEL_FONT
             _link(label, line.label, links)
@@ -226,7 +229,7 @@ class _Layout:
 
     Attributes:
         edges: The one-based columns a band starts at, which carry a border.
-        links: Each table's name mapped to the sheet it was written to.
+        links: Each sheet's name mapped to the worksheet it was written to.
     """
 
     edges: frozenset[int]
@@ -344,38 +347,39 @@ def _link(cell: Cell, raw: object, links: Mapping[str, str]) -> None:
 
 def _finish(
     worksheet: Worksheet,
-    table: Table,
+    sheet: Sheet,
     header_row: int,
     last_data_row: int,
 ) -> None:
     """Freeze, filter, size and accent the finished sheet."""
-    last_column = get_column_letter(len(table.columns))
-    frozen = min(max(table.freeze, 0), len(table.columns))
-    pinned = header_row + 1 if table.freeze_rows else 1
+    main_table = sheet.main_table
+    last_column = get_column_letter(len(main_table.columns))
+    frozen = min(max(sheet.freeze, 0), len(main_table.columns))
+    pinned = header_row + 1 if sheet.freeze_rows else 1
     worksheet.freeze_panes = f"{get_column_letter(frozen + 1)}{pinned}"
     if last_data_row > header_row:
         worksheet.auto_filter.ref = f"A{header_row}:{last_column}{last_data_row}"
 
     # Every table on the sheet shares its columns, so each is sized to the widest
-    # thing any of them, or the panels above, puts there.
-    widths = _block_widths(table.blocks)
-    for grid in (table, *table.sections):
-        for index, column in enumerate(grid.columns):
-            needed = _width(index, column, grid.rows)
+    # thing any of them, or the lists above, puts there.
+    widths = _list_widths(sheet.lists)
+    for table in sheet.tables:
+        for index, column in enumerate(table.columns):
+            needed = _width(index, column, table.rows)
             widths[index] = max(widths.get(index, 0), needed)
     for index, width in widths.items():
         letter = get_column_letter(index + 1)
         worksheet.column_dimensions[letter].width = min(width, style.MAX_WIDTH)
 
-    if table.tab_color:
-        worksheet.sheet_properties.tabColor = table.tab_color
+    if sheet.tab_color:
+        worksheet.sheet_properties.tabColor = sheet.tab_color
 
-    _write_bars(worksheet, table, header_row, last_data_row)
+    _write_bars(worksheet, main_table, header_row, last_data_row)
 
 
 def _write_bars(
     worksheet: Worksheet,
-    table: Table,
+    table: SheetTable,
     header_row: int,
     last_data_row: int,
 ) -> None:
@@ -433,16 +437,16 @@ def _sign_font(fmt: Fmt, raw: object, *, bold: bool) -> Font | None:
     return None if number is None else style.sign_font(float(number), bold=bold)
 
 
-def _block_widths(blocks: Iterable[Block]) -> dict[int, int]:
-    """Measure what the panels above a table need of its first two columns.
+def _list_widths(lists: Iterable[SheetList]) -> dict[int, int]:
+    """Measure what the lists above a table need of its first two columns.
 
-    A note is left out: its neighbours on a panel row are empty, so it spills
+    A note is left out: its neighbours on a list's row are empty, so it spills
     into them the way any long text does, instead of stretching a column the
     table below has to live with.
     """
     widths: dict[int, int] = {}
-    for block in blocks:
-        for line in block.lines:
+    for sheet_list in lists:
+        for line in sheet_list.lines:
             cells = (render(Fmt.TEXT, line.label), render(line.fmt, line.value))
             for index, text in enumerate(cells):
                 needed = len(text) + style.WIDTH_PADDING

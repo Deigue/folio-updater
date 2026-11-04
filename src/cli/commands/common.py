@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from engine.ledger import Ledger
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 logger = logging.getLogger(__name__)
 
@@ -126,21 +126,21 @@ def resolve_pool(
     return PoolView(Grain.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
 
 
-def write_or_exit(path: Path, tables: Sequence[Table]) -> Path:
-    """Write tables to the format the path asks for, or say why not and stop.
+def write_or_exit(path: Path, sheets: Sequence[Sheet]) -> Path:
+    """Write sheets to the format the path asks for, or say why not and stop.
 
     Args:
         path: Where to write. A path with no suffix becomes a workbook.
-        tables: The tables, in the order their sheets should appear.
+        sheets: The sheets, in the order they should appear.
 
     Returns:
         The path actually written.
 
     Raises:
-        typer.Exit: If the path names a format that cannot hold the tables.
+        typer.Exit: If the path names a format that cannot hold the sheets.
     """
     try:
-        return write_export(path, tables)
+        return write_export(path, sheets)
     except (UnsupportedExportError, SingleSheetError) as error:
         console_error(str(error))
         raise typer.Exit(1) from error

@@ -33,7 +33,7 @@ from engine.ticker import (
     sort_performance,
     symbol_holdings,
 )
-from exporters.sheets import performance_table, ticker_table
+from exporters.sheets import performance_sheet, ticker_sheet
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from engine.holdings import DisplayCurrency
     from engine.ledger import Ledger
     from engine.ticker import SymbolHoldings
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 CurrencyChoice = Literal["native", "CAD", "USD", "both"]
 
@@ -192,7 +192,7 @@ def _report_one(
     aliases = [name for name in resolver.family(canonical) if name != canonical]
     if export:
         note = freshness_note(ledger.computed_at, {canonical: quote})
-        table = ticker_table(
+        sheet = ticker_sheet(
             quote,
             moves,
             positions,
@@ -200,7 +200,7 @@ def _report_one(
             by_account=by_account,
             notes=[note],
         )
-        _export(table, export)
+        _export(sheet, export)
         return
 
     show_ticker(
@@ -287,13 +287,13 @@ def _report_matrix(
     pool_weight = view.grain is not Grain.FOLIO
     if export:
         note = freshness_note(ledger.computed_at, priced)
-        table = performance_table(
+        sheet = performance_sheet(
             rows,
             name=f"Performance - {view.label}",
             pool_weight=pool_weight,
             notes=[note],
         )
-        _export(table, export)
+        _export(sheet, export)
         return
 
     show_matrix(
@@ -309,14 +309,14 @@ def _report_matrix(
     )
 
 
-def _export(table: Table, path: str) -> None:
+def _export(sheet: Sheet, path: str) -> None:
     """Write a sheet out, choosing the format from the path's suffix.
 
     Raises:
         typer.Exit: If the path names a format that cannot hold the sheet.
     """
-    written = write_or_exit(Path(path), [table])
-    console_info(f"Exported {table.name} to {written}")
+    written = write_or_exit(Path(path), [sheet])
+    console_info(f"Exported {sheet.name} to {written}")
 
 
 def _positions(

@@ -1,34 +1,35 @@
-"""Render `Table` descriptions as flat CSV."""
+"""Render a `Sheet` description as flat CSV."""
 
 from __future__ import annotations
 
 import csv
 from typing import TYPE_CHECKING
 
-from exporters.table import Fmt, render
+from exporters.sheet_spec import Fmt, render
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from exporters.table import Table
+    from exporters.sheet_spec import Sheet
 
 
-def write_csv(path: Path, table: Table) -> None:
-    """Write one table as a CSV file.
+def write_csv(path: Path, sheet: Sheet) -> None:
+    """Write one sheet as a CSV file: its lists, then its only table.
 
-    Blocks and notes are written around the grid, exactly where the workbook
+    Lists and notes are written around the grid, exactly where the workbook
     puts them, so the two formats say the same things in the same order.
 
     Args:
         path: Where the file is written.
-        table: What to write.
+        sheet: What to write.
     """
+    table = sheet.main_table
     width = len(table.columns)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        for block in table.blocks:
-            writer.writerow(_padded([block.title], width))
-            for line in block.lines:
+        for sheet_list in sheet.lists:
+            writer.writerow(_padded([sheet_list.title], width))
+            for line in sheet_list.lines:
                 label = render(Fmt.TEXT, line.label)
                 cells = [label, render(line.fmt, line.value), line.note]
                 writer.writerow(_padded(cells, width))

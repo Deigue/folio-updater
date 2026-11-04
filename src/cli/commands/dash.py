@@ -26,7 +26,7 @@ from domain import Currency
 from engine.holdings import SORT_NAMES, UnknownSortError
 from engine.panels import FolioValuation, type_view
 from exporters.output import CSV_SUFFIX
-from exporters.sheets import panel_table, pooled_dashboard_table
+from exporters.sheets import panel_sheet, pooled_dashboard_sheet
 from term import console_error, console_info, console_warning
 from ui.format import cache_badge, freshness_note
 from ui.views.dash import show_by_type, show_dashboard
@@ -72,12 +72,12 @@ def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
     target = Path(path)
     flatten = target.suffix.lower() == CSV_SUFFIX and len(panels) > 1
     if flatten:
-        tables = [pooled_dashboard_table(panels, "Holdings", notes=[badge])]
+        sheets = [pooled_dashboard_sheet(panels, "Holdings", notes=[badge])]
     else:
-        tables = [panel_table(panel, notes=[badge]) for panel in panels]
+        sheets = [panel_sheet(panel, notes=[badge]) for panel in panels]
 
-    written = write_or_exit(target, tables)
-    count = sum(len(table.data_rows) for table in tables)
+    written = write_or_exit(target, sheets)
+    count = sum(len(sheet.main_table.data_rows) for sheet in sheets)
     console_info(f"Exported {count} holding(s) to {written}")
 
 

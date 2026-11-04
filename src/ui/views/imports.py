@@ -70,6 +70,19 @@ _INVALID_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOU
 
 
 @dataclass(frozen=True)
+class _Expansion:
+    """How to see the rest of a section the audit truncated.
+
+    Attributes:
+        key: The key that expands it.
+        show: Shows every item.
+    """
+
+    key: str
+    show: Callable[[], None]
+
+
+@dataclass(frozen=True)
 class _AuditSection:
     """One part of the audit: what it shows, and how to see the rest of it.
 
@@ -77,14 +90,12 @@ class _AuditSection:
         name: What the expansion hint and the expanded view call it. The heading
             on screen, with its count, is part of the tile's content.
         tile: The truncated content, for the layout to place.
-        key: The key that expands it, when it can be expanded.
-        expand: Shows every item. None when the tile already does.
+        expansion: How to see the rest. None when the tile already shows it all.
     """
 
     name: str
     tile: Tile
-    key: str = ""
-    expand: Callable[[], None] | None = None
+    expansion: _Expansion | None = None
 
 
 def show_import_summary(
@@ -277,7 +288,7 @@ def show_import_audit(
     sections = _build_audit_sections(results, verbose=verbose)
     TilingLayout([section.tile for section in sections]).render()
 
-    # Also dbl check if current console context is interacable
+    # Also double check if current console context is interacable
     if interactive and active_console().is_interactive:
         _prompt_and_expand(sections, results)
 
@@ -342,7 +353,7 @@ def _section(  # noqa: PLR0917
     renderable: RenderableType,
     total: int,
     shown: int,
-    expand: Callable[[], None],
+    show: Callable[[], None],
     *,
     is_full_width: bool = False,
 ) -> _AuditSection:
@@ -354,7 +365,7 @@ def _section(  # noqa: PLR0917
         renderable: The truncated content to tile.
         total: How many items there are.
         shown: How many of them the renderable shows.
-        expand: Shows every item.
+        show: Shows every item.
         is_full_width: Print it below the columns rather than in them.
 
     Returns:
@@ -363,8 +374,42 @@ def _section(  # noqa: PLR0917
     return _AuditSection(
         name=name,
         tile=Tile(renderable, is_full_width=is_full_width),
-        key=key,
-        expand=expand if total > shown else None,
+        expansion=_Expansion(key, show) if total > shown else None,
+    )
+
+
+def _rows_section(
+    name: str,
+    key: str,
+    rows: pd.DataFrame,
+    max_rows: int,
+    build: Callable[[pd.DataFrame, str], Table],
+    *,
+    is_full_width: bool = False,
+) -> _AuditSection:
+    """Build a section listing DataFrame rows, paged when it is expanded.
+
+    Args:
+        name: What the expansion hint and the expanded view call it.
+        key: The key that expands it.
+        rows: Every row of the section.
+        max_rows: How many rows fit before it is truncated.
+        build: Builds the table from the rows to show and its title.
+        is_full_width: Print it below the columns rather than in them.
+
+    Returns:
+        The section.
+    """
+    total = len(rows)
+    shown = min(total, max_rows)
+    return _section(
+        name,
+        key,
+        build(rows.head(shown), f"{name} ({total})"),
+        total,
+        shown,
+        lambda: _page_rows(rows, name),
+        is_full_width=is_full_width,
     )
 
 
@@ -437,70 +482,24 @@ def _build_audit_sections(
             ),
         )
 
-    if not results.invalid_df.empty:
-        total = len(results.invalid_df)
-        shown = min(total, max_rows)
-        sections.append(
-            _section(
-                "Invalid",
-                "n",
-                _invalid_table(results.invalid_df.head(shown), total),
-                total,
-                shown,
-                lambda: _page_rows(results.invalid_df, "Invalid"),
-            ),
+    sections.extend(
+        _rows_section(name, key, rows, max_rows, build)
+        for name, key, rows, build in (
+            ("Invalid", "n", results.invalid_df, _invalid_table),
+            ("Intra Duplicates", "i", results.intra_rejected_df, _dupes_table),
+            ("DB Duplicates", "d", results.db_rejected_df, _dupes_table),
         )
-
-    if not results.intra_rejected_df.empty:
-        total = len(results.intra_rejected_df)
-        shown = min(total, max_rows)
-        sections.append(
-            _section(
-                "Intra Duplicates",
-                "i",
-                _dupes_table(
-                    results.intra_rejected_df.head(shown),
-                    f"Intra Duplicates ({total})",
-                ),
-                total,
-                shown,
-                lambda: _page_rows(results.intra_rejected_df, "Intra Duplicates"),
-            ),
-        )
-
-    if not results.db_rejected_df.empty:
-        total = len(results.db_rejected_df)
-        shown = min(total, max_rows)
-        sections.append(
-            _section(
-                "DB Duplicates",
-                "d",
-                _dupes_table(
-                    results.db_rejected_df.head(shown),
-                    f"DB Duplicates ({total})",
-                ),
-                total,
-                shown,
-                lambda: _page_rows(results.db_rejected_df, "DB Duplicates"),
-            ),
-        )
+        if not rows.empty
+    )
 
     if verbose and not results.final_df.empty:
-        total = len(results.final_df)
-        shown = min(total, max_rows)
         sections.append(
-            _section(
+            _rows_section(
                 "Imported",
                 "v",
-                build_transactions_table(
-                    results.final_df.head(shown),
-                    f"Imported ({total})",
-                    shown,
-                    TransactionContext.IMPORT,
-                ),
-                total,
-                shown,
-                lambda: _page_rows(results.final_df, "Imported"),
+                results.final_df,
+                max_rows,
+                _imported_table,
                 is_full_width=True,
             ),
         )
@@ -617,9 +616,17 @@ def _transform_table(
     return table
 
 
+def _imported_table(
+    df: pd.DataFrame,
+    title: str,
+) -> Table:
+    """Build a table for the transactions an import stored."""
+    return build_transactions_table(df, title, len(df), TransactionContext.IMPORT)
+
+
 def _invalid_table(
     df: pd.DataFrame,
-    total: int,
+    title: str,
 ) -> Table:
     """Build a table for invalid rows.
 
@@ -627,7 +634,7 @@ def _invalid_table(
     Only show essential columns that are relevant to the rejection reason.
     """
     table = Table(
-        title=f"Invalid ({total})",
+        title=title,
         show_header=True,
         header_style="bold",
         border_style=THEME_REMOVED,
@@ -700,7 +707,9 @@ def _prompt_and_expand(
         sections: The audit's sections.
         results: ImportResults for redisplay after expansion.
     """
-    expansions = {s.key: s.expand for s in sections if s.expand is not None}
+    expansions = {
+        s.expansion.key: s.expansion for s in sections if s.expansion is not None
+    }
     if not expansions:
         return
 
@@ -712,10 +721,10 @@ def _prompt_and_expand(
             if user_input == "q":
                 break
 
-            expand = expansions.get(user_input)
-            if expand is not None:
+            expansion = expansions.get(user_input)
+            if expansion is not None:
                 active_console().clear()
-                expand()
+                expansion.show()
                 _redisplay_audit(results, sections)
         except (KeyboardInterrupt, EOFError):
             break
@@ -728,7 +737,9 @@ def _show_key_hints(sections: list[_AuditSection]) -> None:
         sections: The audit's sections, of which those that expand get a hint.
     """
     key_hints = " ".join(
-        f"[bold]{s.key}[/bold]={s.name}" for s in sections if s.expand is not None
+        f"[bold]{s.expansion.key}[/bold]={s.name}"
+        for s in sections
+        if s.expansion is not None
     )
     console_print(
         f"\n[dim]Press {key_hints} to expand, [bold]q[/bold] to continue[/dim]",

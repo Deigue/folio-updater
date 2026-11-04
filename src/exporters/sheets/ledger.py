@@ -15,9 +15,9 @@ from engine.frames import (
     replay_ordered,
 )
 from exporters.excel_style import COST_BASE_TAB
+from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable
 from exporters.sheets.acb import MEASURE_FORMATS, USD, acb_notes, families, has_usd
 from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
-from exporters.table import Col, Fmt, Row, Table
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -81,14 +81,14 @@ LEDGER_ORDER: tuple[str, ...] = (
 )
 
 
-def ledger_table(
+def ledger_sheet(
     frame: pd.DataFrame,
     *,
     txns: pd.DataFrame | None = None,
     name: str = LEDGER_SHEET,
     currency: str = "both",
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """Generate the Ledger: one row per transaction, every grain at once.
 
     Args:
@@ -100,7 +100,7 @@ def ledger_table(
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, in transaction order, its columns banded by pool grain.
+        The sheet, in transaction order, its columns banded by pool grain.
     """
     cad, usd = families(currency, usd=has_usd(frame, tuple(Grain)))
     extra: list[str] = []
@@ -136,14 +136,19 @@ def ledger_table(
     # Earliest first, in the order the replay applied them, so every running
     # column reads down the page as the accumulation it is.
     ordered = replay_ordered(frame)
-    return Table(
+    return Sheet(
         name=name,
-        columns=tuple(columns),
-        # Keys and columns are built in step, so the row is already in order.
-        rows=tuple(
-            Row(values) for values in ordered[keys].itertuples(index=False, name=None)
+        tables=(
+            SheetTable(
+                tuple(columns),
+                # Keys and columns are built in step, so the row is already in order.
+                tuple(
+                    Row(values)
+                    for values in ordered[keys].itertuples(index=False, name=None)
+                ),
+                notes=(*notes, *acb_notes(frame)),
+            ),
         ),
-        notes=(*notes, *acb_notes(frame)),
         tab_color=COST_BASE_TAB,
         freeze=keys.index(str(Column.Txn.TXN_ID)),
     )

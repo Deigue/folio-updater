@@ -7,7 +7,16 @@ from typing import TYPE_CHECKING
 from domain import Currency, WarningCode
 from engine.panels import account_type_of
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
-from exporters.table import Col, Fmt, Role, Row, Table, blank_row, row_of
+from exporters.sheet_spec import (
+    Col,
+    Fmt,
+    Role,
+    Row,
+    Sheet,
+    SheetTable,
+    blank_row,
+    row_of,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -56,15 +65,15 @@ COLUMNS: tuple[Col, ...] = (
 )
 
 
-def dashboard_table(
+def dashboard_sheet(
     holdings: HoldingSet,
     name: str,
     *,
     net_deposits: Decimal | None = None,
     tab_color: str | None = None,
     notes: Sequence[str] = (),
-) -> Table:
-    """Print one pool's valued holdings as a table.
+) -> Sheet:
+    """Print one pool's valued holdings as a sheet.
 
     Args:
         holdings: The pool's valued holdings and totals.
@@ -78,14 +87,18 @@ def dashboard_table(
             as how old the prices are.
 
     Returns:
-        The table, with the open holdings first, then the closed ones, then the
+        The sheet, with the open holdings first, then the closed ones, then the
         per-currency subtotals and the overall total below a spacer.
     """
-    return Table(
+    return Sheet(
         name=name,
-        columns=COLUMNS,
-        rows=tuple(_pool_rows(COLUMNS, holdings, net_deposits, spacer=True)),
-        notes=(*notes, *_notes(holdings)),
+        tables=(
+            SheetTable(
+                COLUMNS,
+                tuple(_pool_rows(COLUMNS, holdings, net_deposits, spacer=True)),
+                notes=(*notes, *_notes(holdings)),
+            ),
+        ),
         tab_color=tab_color,
     )
 
@@ -106,7 +119,7 @@ def _tab_color(view: PoolView) -> str | None:
     return ACCOUNT_TYPE_TABS.get(account_type)
 
 
-def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
+def panel_sheet(panel: Panel, *, notes: Sequence[str] = ()) -> Sheet:
     """Print one valued pool as a sheet of its own, named and accented for it.
 
     Args:
@@ -114,9 +127,9 @@ def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table.
+        The sheet.
     """
-    return dashboard_table(
+    return dashboard_sheet(
         panel.holdings,
         panel.view.label,
         net_deposits=panel.flows.net_deposit_denominator,
@@ -125,21 +138,21 @@ def panel_table(panel: Panel, *, notes: Sequence[str] = ()) -> Table:
     )
 
 
-def pooled_dashboard_table(
+def pooled_dashboard_sheet(
     panels: Sequence[Panel],
     name: str,
     *,
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """Print several pools as one table, each row naming the pool it is in.
 
     Args:
         panels: The pools, valued, in the order to list them.
-        name: What the table is called.
+        name: What the sheet is called.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, one pool after another.
+        The sheet, one pool after another.
     """
     columns = (Col(POOL, width=16), *COLUMNS)
     rows: list[Row] = []
@@ -155,7 +168,10 @@ def pooled_dashboard_table(
             ),
         )
         derived.extend(note for note in _notes(panel.holdings) if note not in derived)
-    return Table(name=name, columns=columns, rows=tuple(rows), notes=(*notes, *derived))
+    return Sheet(
+        name=name,
+        tables=(SheetTable(columns, tuple(rows), notes=(*notes, *derived)),),
+    )
 
 
 def _pool_rows(

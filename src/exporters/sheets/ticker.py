@@ -12,7 +12,16 @@ from typing import TYPE_CHECKING
 from domain import TORONTO_TZ, AccountType, Currency, PriceRange
 from engine.panels import account_type_of
 from exporters.excel_style import OVERVIEW_TAB
-from exporters.table import Block, Col, Fmt, Line, Role, Table, row_of
+from exporters.sheet_spec import (
+    Col,
+    Fmt,
+    Line,
+    Role,
+    Sheet,
+    SheetList,
+    SheetTable,
+    row_of,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -35,12 +44,13 @@ _MATRIX_NOTE = (
     "Market values in CAD. Moves are price only, each in the security's own "
     "currency, from an official close to the latest price."
 )
+_MOVES_NOTE = "Every move runs from an official close to the latest price, price only."
 _CRA = "CRA"
 
 PERFORMANCE_SHEET = "Performance"
 
 
-def ticker_table(  # noqa: PLR0913
+def ticker_sheet(  # noqa: PLR0913
     quote: Quote,
     moves: Mapping[PriceRange, RangeMove | None],
     positions: Sequence[SymbolHoldings],
@@ -48,7 +58,7 @@ def ticker_table(  # noqa: PLR0913
     aliases: Sequence[str] = (),
     by_account: bool = False,
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """Print one security on one sheet: quote, fundamentals, moves, holdings.
 
     Args:
@@ -60,30 +70,34 @@ def ticker_table(  # noqa: PLR0913
         notes: Lines to disclose, such as how old the prices are.
 
     Returns:
-        The sheet: the quote and fundamentals as panels, the moves as its
-        table, and each holdings table as a section below.
+        The sheet: the quote and fundamentals as lists, the moves as its first
+        table, and each holdings table below that.
     """
     rows = tuple(
         row_of(MOVE_COLUMNS, _move_cells(price_range, moves.get(price_range)))
         for price_range in PriceRange
     )
-    return Table(
+    return Sheet(
         name=quote.symbol,
-        columns=MOVE_COLUMNS,
-        rows=rows,
-        blocks=(_quote_block(quote, aliases), _fundamentals_block(quote)),
-        notes=(
-            *notes,
-            *_first_buy_note(positions),
-            "Every move runs from an official close to the latest price, price only.",
+        tables=(
+            SheetTable(
+                MOVE_COLUMNS,
+                rows,
+                notes=(
+                    *notes,
+                    *_first_buy_note(positions),
+                    _MOVES_NOTE,
+                ),
+            ),
+            *(
+                _holdings_table(position, quote.currency, by_account=by_account)
+                for position in positions
+            ),
         ),
+        lists=(_quote_list(quote, aliases), _fundamentals_list(quote)),
         tab_color=OVERVIEW_TAB,
-        # The quote and fundamentals panels are too tall to pin above it.
+        # The quote and fundamentals lists are too tall to pin above it.
         freeze_rows=False,
-        sections=tuple(
-            _holdings_table(position, quote.currency, by_account=by_account)
-            for position in positions
-        ),
     )
 
 
@@ -96,13 +110,13 @@ def _first_buy_note(positions: Sequence[SymbolHoldings]) -> list[str]:
     return [f"First bought {bought.date} at {bought.price} {bought.currency}{split}."]
 
 
-def performance_table(
+def performance_sheet(
     rows: Sequence[PerformanceRow],
     *,
     name: str = PERFORMANCE_SHEET,
     pool_weight: bool = False,
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """Line securities up over every range, one row each, to sort and filter.
 
     Args:
@@ -113,7 +127,7 @@ def performance_table(
         notes: Lines to disclose, such as how old the prices are.
 
     Returns:
-        The table: the move over each range as a column of its own.
+        The sheet: the move over each range as a column of its own.
     """
     columns: list[Col] = [
         Col("Symbol"),
@@ -128,13 +142,14 @@ def performance_table(
         Col(str(price_range), Fmt.PERCENT_SIGNED) for price_range in PriceRange
     )
     built = tuple(columns)
-    return Table(
+    return Sheet(
         name=name,
-        columns=built,
-        rows=tuple(row_of(built, _performance_cells(row)) for row in rows),
-        notes=(
-            *notes,
-            _MATRIX_NOTE,
+        tables=(
+            SheetTable(
+                built,
+                tuple(row_of(built, _performance_cells(row)) for row in rows),
+                notes=(*notes, _MATRIX_NOTE),
+            ),
         ),
         tab_color=OVERVIEW_TAB,
     )
@@ -157,7 +172,7 @@ def _performance_cells(row: PerformanceRow) -> dict[str, object]:
     return cells
 
 
-def _quote_block(quote: Quote, aliases: Sequence[str]) -> Block:
+def _quote_list(quote: Quote, aliases: Sequence[str]) -> SheetList:
     """Name the security and give its price and the day's move."""
     lines = [
         Line("Name", quote.name),
@@ -171,13 +186,13 @@ def _quote_block(quote: Quote, aliases: Sequence[str]) -> Block:
     ]
     if aliases:
         lines.append(Line("Also traded as", ", ".join(aliases)))
-    return Block(
+    return SheetList(
         title=f"{quote.symbol}",
         lines=tuple(line for line in lines if line.value is not None),
     )
 
 
-def _fundamentals_block(quote: Quote) -> Block:
+def _fundamentals_list(quote: Quote) -> SheetList:
     """List every fundamental the provider reported, blanks left out."""
     facts = quote.fundamentals
     lines = (
@@ -202,7 +217,7 @@ def _fundamentals_block(quote: Quote) -> Block:
         Line("Volume", facts.volume, Fmt.ID),
         Line("Avg volume", facts.avg_volume, Fmt.ID),
     )
-    return Block(
+    return SheetList(
         title="Fundamentals",
         lines=tuple(line for line in lines if line.value is not None),
     )
@@ -240,7 +255,7 @@ def _holdings_table(
     quoted_in: Currency | None,
     *,
     by_account: bool,
-) -> Table:
+) -> SheetTable:
     """Print every pool's holding, with the folio-wide pooled figures.
 
     Args:
@@ -283,11 +298,11 @@ def _holdings_table(
     notes: list[str] = []
     if position.fx_rate is not None and position.currency is not quoted_in:
         notes.append(f"Market value at USDCAD {position.fx_rate} ({position.fx_date}).")
-    return Table(
-        name=f"{position.symbol} held · {position.currency}",
-        columns=columns,
-        rows=tuple(rows),
+    return SheetTable(
+        columns,
+        tuple(rows),
         notes=tuple(notes),
+        title=f"{position.symbol} held · {position.currency}",
     )
 
 

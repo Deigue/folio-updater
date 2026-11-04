@@ -12,8 +12,8 @@ from engine.frames import (
 )
 from engine.panels import FOLIO_VIEW, type_view
 from exporters.excel_style import COST_BASE_TAB
+from exporters.sheet_spec import Col, Fmt, Sheet, SheetTable, row_of
 from exporters.sheets.summary import GRAIN_NAMES
-from exporters.table import Col, Fmt, Table, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Mapping, Sequence
@@ -44,15 +44,15 @@ _CONVERSION_NOTE = (
 )
 
 
-def acb_buildup_table(
+def acb_buildup_sheet(
     rows: pd.DataFrame,
     *,
     grain: Grain,
     name: str,
     currency: str = "both",
     notes: Sequence[str] = (),
-) -> Table:
-    """Print a symbol's cost-base buildup as a table.
+) -> Sheet:
+    """Print a symbol's cost-base buildup as a sheet.
 
     Listed by settlement date, the way adjustedcostbase.ca lists them. The cost
     base itself was replayed in trade-date order, so the running `Held`, `ACB`
@@ -66,7 +66,7 @@ def acb_buildup_table(
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, in settlement-date order.
+        The sheet, in settlement-date order.
     """
     cad, usd = families(currency, usd=has_usd(rows, (grain,)))
     columns = [
@@ -96,25 +96,29 @@ def acb_buildup_table(
         kind="stable",
     )
     built = tuple(columns)
-    return Table(
+    return Sheet(
         name=name,
-        columns=built,
-        rows=tuple(
-            row_of(built, _buildup_cells(record, grain))
-            for record in ordered.to_dict("records")
+        tables=(
+            SheetTable(
+                built,
+                tuple(
+                    row_of(built, _buildup_cells(record, grain))
+                    for record in ordered.to_dict("records")
+                ),
+                notes=(*notes, *acb_notes(rows)),
+            ),
         ),
-        notes=(*notes, *acb_notes(rows)),
     )
 
 
-def acb_summary_table(
+def acb_summary_sheet(
     rows: pd.DataFrame,
     *,
     grain: Grain,
     name: str,
     currency: str = "both",
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """Collapse a pool to one row per symbol: its closing holding.
 
     Args:
@@ -126,7 +130,7 @@ def acb_summary_table(
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, open holdings first and alphabetical within each group.
+        The sheet, open holdings first and alphabetical within each group.
     """
     summary = acb_summary_frame(rows)
     cad, usd = families(currency, usd=has_usd(summary, (grain,)))
@@ -141,14 +145,18 @@ def acb_summary_table(
             columns.append(Col(f"{measure} USD", MEASURE_FORMATS[measure]))
 
     built = tuple(columns)
-    return Table(
+    return Sheet(
         name=name,
-        columns=built,
-        rows=tuple(
-            row_of(built, _summary_cells(record, grain))
-            for record in _open_first(summary, grain).to_dict("records")
+        tables=(
+            SheetTable(
+                built,
+                tuple(
+                    row_of(built, _summary_cells(record, grain))
+                    for record in _open_first(summary, grain).to_dict("records")
+                ),
+                notes=(*notes, *acb_notes(rows)),
+            ),
         ),
-        notes=(*notes, *acb_notes(rows)),
     )
 
 
@@ -165,12 +173,12 @@ COST_BASE_COLUMNS: tuple[Col, ...] = (
 )
 
 
-def cost_base_table(
+def cost_base_sheet(
     frame: pd.DataFrame,
     *,
     name: str = COST_BASE_SHEET,
     notes: Sequence[str] = (),
-) -> Table:
+) -> Sheet:
     """List every pool's closing cost base, in the currency it is taxed in.
 
     Args:
@@ -179,7 +187,7 @@ def cost_base_table(
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The table, one row per pool and symbol: the folio first, then each
+        The sheet, one row per pool and symbol: the folio first, then each
         account type, then each account. Open holdings lead within each pool.
     """
     pools: list[tuple[str, Grain, pd.DataFrame]] = [
@@ -195,11 +203,15 @@ def cost_base_table(
         for label, grain, summary in pools
         for record in _open_first(summary, grain).to_dict("records")
     ]
-    return Table(
+    return Sheet(
         name=name,
-        columns=COST_BASE_COLUMNS,
-        rows=tuple(rows),
-        notes=(*notes, _CONVERSION_NOTE),
+        tables=(
+            SheetTable(
+                COST_BASE_COLUMNS,
+                tuple(rows),
+                notes=(*notes, _CONVERSION_NOTE),
+            ),
+        ),
         tab_color=COST_BASE_TAB,
         freeze=3,
     )

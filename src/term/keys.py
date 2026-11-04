@@ -1,4 +1,4 @@
-"""Reading a single keypress, for the pager and the audit-block prompts."""
+"""Reading a single keypress, for the pager and the import audit's prompts."""
 
 from __future__ import annotations
 

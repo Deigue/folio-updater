@@ -1,21 +1,21 @@
-"""Builders that turn engine figures into exportable tables."""
+"""Builders that turn engine figures into exportable sheets."""
 
 from exporters.sheets.acb import (
     COST_BASE_SHEET,
-    acb_buildup_table,
-    acb_summary_table,
-    cost_base_table,
+    acb_buildup_sheet,
+    acb_summary_sheet,
+    cost_base_sheet,
 )
-from exporters.sheets.dashboard import panel_table, pooled_dashboard_table
-from exporters.sheets.ledger import LEDGER_SHEET, ledger_table
-from exporters.sheets.stored import fx_table, traded_tickers_table, transactions_table
+from exporters.sheets.dashboard import panel_sheet, pooled_dashboard_sheet
+from exporters.sheets.ledger import LEDGER_SHEET, ledger_sheet
+from exporters.sheets.stored import fx_sheet, traded_tickers_sheet, transactions_sheet
 from exporters.sheets.summary import (
     FLOWS_SHEET,
     SUMMARY_SHEET,
-    flows_table,
-    summary_table,
+    flows_sheet,
+    summary_sheet,
 )
-from exporters.sheets.ticker import PERFORMANCE_SHEET, performance_table, ticker_table
+from exporters.sheets.ticker import PERFORMANCE_SHEET, performance_sheet, ticker_sheet
 
 __all__ = [
     "COST_BASE_SHEET",
@@ -23,17 +23,17 @@ __all__ = [
     "LEDGER_SHEET",
     "PERFORMANCE_SHEET",
     "SUMMARY_SHEET",
-    "acb_buildup_table",
-    "acb_summary_table",
-    "cost_base_table",
-    "flows_table",
-    "fx_table",
-    "ledger_table",
-    "panel_table",
-    "performance_table",
-    "pooled_dashboard_table",
-    "summary_table",
-    "ticker_table",
-    "traded_tickers_table",
-    "transactions_table",
+    "acb_buildup_sheet",
+    "acb_summary_sheet",
+    "cost_base_sheet",
+    "flows_sheet",
+    "fx_sheet",
+    "ledger_sheet",
+    "panel_sheet",
+    "performance_sheet",
+    "pooled_dashboard_sheet",
+    "summary_sheet",
+    "ticker_sheet",
+    "traded_tickers_sheet",
+    "transactions_sheet",
 ]

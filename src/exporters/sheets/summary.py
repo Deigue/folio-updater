@@ -10,7 +10,16 @@ from typing import TYPE_CHECKING
 
 from domain import AccountType, Currency, Grain
 from exporters.excel_style import OVERVIEW_TAB
-from exporters.table import Block, Col, Fmt, Line, Link, Table, row_of
+from exporters.sheet_spec import (
+    Col,
+    Fmt,
+    Line,
+    Link,
+    Sheet,
+    SheetList,
+    SheetTable,
+    row_of,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -79,21 +88,21 @@ _RRSP_NOTE = (
 _FROZEN = 2  # `Pool` and `Grain` say which row is which
 
 
-def summary_table(
+def summary_sheet(
     folio: Panel,
     pools: Sequence[Panel],
     *,
     name: str = SUMMARY_SHEET,
     notes: Sequence[str] = (),
     contents: Sequence[tuple[str, str]] = (),
-) -> Table:
-    """Print the folio's headline figures as a table, with every pool's beside them.
+) -> Sheet:
+    """Print the folio's headline figures as a sheet, with every pool's below them.
 
-    Each pool in the table links to that pool's own sheet, and a panel
-    links everything else.
+    Each pool in the table links to that pool's own sheet, and a list links
+    everything else.
 
     Args:
-        folio: The folio-wide panel, which the headline block reads.
+        folio: The folio-wide panel, which the headline list reads.
         pools: Every pool to compare, folio first, in the order to list.
         name: What the sheet is called.
         notes: Lines to disclose under the table, such as how old the prices
@@ -102,30 +111,34 @@ def summary_table(
             holds.
 
     Returns:
-        The table, with the headline and contents panels above it.
+        The sheet, with the headline and contents lists above its table.
     """
-    blocks = [_headline(folio)]
+    lists = [_headline_list(folio)]
     if contents:
-        blocks.append(_contents(contents))
-    return Table(
+        lists.append(_contents_list(contents))
+    return Sheet(
         name=name,
-        columns=POOL_COLUMNS,
-        rows=tuple(row_of(POOL_COLUMNS, _pool_cells(pool)) for pool in pools),
-        blocks=tuple(blocks),
-        notes=tuple(notes),
+        tables=(
+            SheetTable(
+                POOL_COLUMNS,
+                tuple(row_of(POOL_COLUMNS, _pool_cells(pool)) for pool in pools),
+                notes=tuple(notes),
+            ),
+        ),
+        lists=tuple(lists),
         tab_color=OVERVIEW_TAB,
         freeze=_FROZEN,
     )
 
 
-def flows_table(
+def flows_sheet(
     pools: Sequence[Panel],
     *,
     name: str = FLOWS_SHEET,
     notes: Sequence[str] = (),
     history: Sequence[Room] = (),
-) -> Table:
-    """Print the cash that moved through every pool as a table.
+) -> Sheet:
+    """Print the cash that moved through every pool as a sheet.
 
     Args:
         pools: Every pool to list, folio first.
@@ -135,48 +148,49 @@ def flows_table(
             under the flows as a table of its own.
 
     Returns:
-        The table, one row per pool and currency.
+        The sheet, one row per pool and currency, then any history.
     """
-    sections = (history_table(history),) if history else ()
-    return Table(
-        name=name,
-        columns=FLOW_COLUMNS,
-        rows=tuple(
+    flows = SheetTable(
+        FLOW_COLUMNS,
+        tuple(
             row_of(FLOW_COLUMNS, cells) for pool in pools for cells in _flow_cells(pool)
         ),
         notes=tuple(notes),
+    )
+    return Sheet(
+        name=name,
+        tables=(flows, history_table(history)) if history else (flows,),
         tab_color=OVERVIEW_TAB,
         freeze=_FROZEN + 1,
-        sections=sections,
     )
 
 
 def history_table(
     history: Sequence[Room],
     *,
-    name: str = "Contribution history",
-) -> Table:
+    title: str = "Contribution history",
+) -> SheetTable:
     """List what went into every account type having contribution limits by year.
 
     Args:
         history: One `Room` per type and year, in the order to list.
-        name: The table's title.
+        title: The table's title.
 
     Returns:
         The table, one row per type and year. Limit, used and left stay blank
         for a year with no configured limit rather than reading as zero.
     """
     rrsp = any(room.account_type is AccountType.RRSP for room in history)
-    return Table(
-        name=name,
-        columns=HISTORY_COLUMNS,
-        rows=tuple(row_of(HISTORY_COLUMNS, _history_cells(room)) for room in history),
+    return SheetTable(
+        HISTORY_COLUMNS,
+        tuple(row_of(HISTORY_COLUMNS, _history_cells(room)) for room in history),
         notes=(_RRSP_NOTE,) if rrsp else (),
+        title=title,
     )
 
 
-def _headline(folio: Panel) -> Block:
-    """Read the folio's headline figures into a block."""
+def _headline_list(folio: Panel) -> SheetList:
+    """Read the folio's headline figures into a list."""
     holdings = folio.holdings
     flows = folio.flows
     totals = str(holdings.totals_currency)
@@ -216,12 +230,12 @@ def _headline(folio: Panel) -> Block:
             key=lambda item: str(item[0]),
         )
     )
-    return Block(title="Portfolio", lines=tuple(lines))
+    return SheetList(title="Portfolio", lines=tuple(lines))
 
 
-def _contents(sheets: Sequence[tuple[str, str]]) -> Block:
+def _contents_list(sheets: Sequence[tuple[str, str]]) -> SheetList:
     """Link every sheet the pool table does not, with what each one holds."""
-    return Block(
+    return SheetList(
         title="Sheets",
         lines=tuple(
             Line(Link(sheet, sheet), note=description) for sheet, description in sheets

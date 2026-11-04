@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from domain import INTERNAL_COLUMNS, Column
 from exporters.excel_style import STORED_TAB
-from exporters.table import Col, Fmt, Row, Table, row_of
+from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -40,13 +40,13 @@ FX_FORMATS: dict[str, Fmt] = {
 }
 
 
-def transactions_table(
+def transactions_sheet(
     txns: pd.DataFrame,
     name: str,
     *,
     hidden: bool = False,
-) -> Table:
-    """Print the stored transactions as a table, ready to be imported again.
+) -> Sheet:
+    """Print the stored transactions as a sheet, ready to be imported again.
 
     Args:
         txns: The `Txns` table, as read from the database.
@@ -56,41 +56,50 @@ def transactions_table(
             the importer, which finds it by name either way.
 
     Returns:
-        The table, one row per transaction, its heading on the first row, and
+        The sheet, one row per transaction, its heading on the first row, and
         nothing written below it that an importer could mistake for a row.
     """
     keys = [column for column in txns.columns if column not in INTERNAL_COLUMNS]
-    return Table(
+    return Sheet(
         name=name,
-        columns=tuple(
-            Col(key, TXN_FORMATS.get(key, Fmt.TEXT), quiet=key in TXN_QUIET)
-            for key in keys
-        ),
-        rows=tuple(
-            Row(values) for values in txns[keys].itertuples(index=False, name=None)
+        tables=(
+            SheetTable(
+                tuple(
+                    Col(key, TXN_FORMATS.get(key, Fmt.TEXT), quiet=key in TXN_QUIET)
+                    for key in keys
+                ),
+                tuple(
+                    Row(values)
+                    for values in txns[keys].itertuples(index=False, name=None)
+                ),
+            ),
         ),
         tab_color=STORED_TAB,
         hidden=hidden,
     )
 
 
-def fx_table(rates: pd.DataFrame, name: str) -> Table:
-    """Print the FX rates as a table, one row per date.
+def fx_sheet(rates: pd.DataFrame, name: str) -> Sheet:
+    """Print the FX rates as a sheet, one row per date.
 
     Args:
         rates: The `FX` table, as read from the database.
         name: What the sheet is called.
 
     Returns:
-        The table, oldest date first.
+        The sheet, oldest date first.
     """
     keys = list(rates.columns)
     ordered = rates.sort_values(str(Column.FX.DATE)) if keys else rates
-    return Table(
+    return Sheet(
         name=name,
-        columns=tuple(Col(key, FX_FORMATS.get(key, Fmt.TEXT)) for key in keys),
-        rows=tuple(
-            Row(values) for values in ordered.itertuples(index=False, name=None)
+        tables=(
+            SheetTable(
+                tuple(Col(key, FX_FORMATS.get(key, Fmt.TEXT)) for key in keys),
+                tuple(
+                    Row(values) for values in ordered.itertuples(index=False, name=None)
+                ),
+            ),
         ),
         tab_color=STORED_TAB,
     )
@@ -142,11 +151,11 @@ TICKER_COLUMNS: tuple[Col, ...] = (
 )
 
 
-def traded_tickers_table(
+def traded_tickers_sheet(
     tickers: Sequence[tuple[str, str]],
     quotes: Mapping[str, Quote],
     name: str,
-) -> Table:
+) -> Sheet:
     """List every ticker the folio has traded, with its latest quote and fundamentals.
 
     Args:
@@ -157,17 +166,16 @@ def traded_tickers_table(
         name: What the sheet is called.
 
     Returns:
-        The table, one row per ticker, by symbol. A renamed security keeps a row
+        The sheet, one row per ticker, by symbol. A renamed security keeps a row
         per ticker it traded under, told apart by the `Ticker` at the far right.
     """
     rows = [
         row_of(TICKER_COLUMNS, _ticker_cells(ticker, symbol, quotes.get(symbol)))
         for ticker, symbol in sorted(tickers, key=lambda pair: (pair[1], pair[0]))
     ]
-    return Table(
+    return Sheet(
         name=name,
-        columns=TICKER_COLUMNS,
-        rows=tuple(rows),
+        tables=(SheetTable(TICKER_COLUMNS, tuple(rows)),),
         tab_color=STORED_TAB,
         freeze=2,  # `Symbol` and `Name` say which row is which
     )
