@@ -60,7 +60,7 @@ def available_height(
         # No stats panel is shown in this flow.
         reserved_lines = PAGE_RULE_HEIGHT + PAGE_PROGRESS_HEIGHT + PROMPT_LINES
     else:
-        # Tiled audit-block view: stats panel + expansion prompt.
+        # Tiled audit view: stats panel + expansion prompt.
         reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
     reserved_lines += TABLE_HEADER_HEIGHT if table else 0
     reserved_lines += SAFETY_MARGIN + reserved

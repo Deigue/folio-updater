@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
@@ -36,6 +37,7 @@ from .helpers.cli import (
     UNCONSTRAINED_WIDTH,
     assert_cli_success,
     assert_in_output,
+    assert_not_in_output,
     run_cli_with_config,
 )
 from .helpers.seed import (
@@ -181,6 +183,35 @@ def test_importing_several_files_backs_the_folio_up_once(
     # The name ends in the count of transactions it holds: the one seeded.
     assert len(backups) == 1
     assert backups[0].endswith("_1.db")
+
+
+def test_redirected_import_never_waits_on_a_keypress(temp_ctx: TempContext) -> None:
+    """A truncated audit offers no expansion when nobody can answer the prompt."""
+    invalid_rows = 300
+    with temp_ctx() as ctx:
+        config = ctx.config
+        register_test_dataframe(
+            config.imports_path / "transactions.xlsx",
+            pd.DataFrame(
+                {
+                    Column.Txn.TXN_DATE: ["2031-02-03"] * invalid_rows,
+                    Column.Txn.ACTION: ["BUY"] * invalid_rows,
+                    Column.Txn.AMOUNT: ["not a number"] * invalid_rows,
+                    Column.Txn.CURRENCY: ["USD"] * invalid_rows,
+                    Column.Txn.PRICE: [12.5] * invalid_rows,
+                    Column.Txn.UNITS: [4.0] * invalid_rows,
+                    Column.Txn.TICKER: ["MSFT"] * invalid_rows,
+                    Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * invalid_rows,
+                },
+            ),
+            config.txn_sheet,
+        )
+        with patch("ui.views.imports.getch", return_value="q") as getch:
+            cli_result = run_cli_with_config(config, cli_app, ["import"])
+
+    assert_in_output(f"Invalid ({invalid_rows})", cli_result)
+    assert_not_in_output("to expand", cli_result)
+    getch.assert_not_called()
 
 
 def test_settle_info_command(temp_ctx: TempContext) -> None:

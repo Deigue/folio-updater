@@ -1,14 +1,14 @@
-"""Bin-packing measured blocks into terminal columns.
+"""Bin-packing measured tiles into terminal columns.
 
-The audit view shows several panels of wildly different heights. Stacking them
-vertically wastes most of a wide terminal, so blocks are measured, sorted
+A view may show several renderables of wildly different heights. Stacking them
+vertically wastes most of a wide terminal, so tiles are measured, sorted
 tallest-first, and packed into as many columns as the width allows.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from rich.columns import Columns
 from rich.console import Group
@@ -24,150 +24,93 @@ if TYPE_CHECKING:
 COLUMN_GAP = 2
 
 
-@dataclass
-class Block:
-    """A display block representing some renderable content.
+@dataclass(eq=False)
+class Tile:
+    """One renderable for TilingLayout to place, measured on creation.
 
-    Blocks are measured renderables with metadata for layout optimization.
-    They know their exact dimensions and can be arranged by TilingLayout.
+    Compared by identity, so a view can key its own data by tile.
 
     Attributes:
-        name: Display name for the block (e.g., "Merged", "Invalid").
-        key: Single character key for interactive expansion.
-        panel: The Rich renderable (typically a Table) to display.
-        total: Total number of items in the underlying data.
-        shown: Number of items currently shown in the panel.
-        expandable: Whether there are more items than shown (total > shown).
-        data_type: Type identifier for expansion handling.
-        data: The underlying data (list or DataFrame).
-        width: Measured width of the panel in characters.
-        height: Measured height of the panel in lines.
-        full_width: If True, block is displayed below tiled layout at full width.
+        renderable: What gets drawn, already holding its content.
+        is_full_width: Print this tile on its own below the columns, at its own
+            width, rather than packing it into them.
+        width: Measured width in characters.
+        height: Measured height in lines.
     """
 
-    name: str
-    key: str
-    panel: RenderableType
-    total: int
-    shown: int
-    expandable: bool
-    data_type: str
-    data: Any
-    width: int
-    height: int
-    full_width: bool = False
+    renderable: RenderableType
+    is_full_width: bool = False
+    width: int = field(init=False)
+    height: int = field(init=False)
 
-    @classmethod
-    def create(  # noqa: PLR0917
-        cls,
-        name: str,
-        key: str,
-        panel: RenderableType,
-        total: int,
-        shown: int,
-        data_type: str,
-        data: Any,
-        *,
-        full_width: bool = False,
-    ) -> Block:
-        """Create a Block.
-
-        Args:
-            name: Display name for the block.
-            key: Single character key for interactive expansion.
-            panel: The Rich renderable to display.
-            total: Total number of items in the underlying data.
-            shown: Number of items currently shown.
-            data_type: Type identifier for expansion handling.
-            data: The underlying data.
-            full_width: If True, block is displayed below tiled layout.
-
-        Returns:
-            A new Block instance with measured width and height.
-        """
+    def __post_init__(self) -> None:
+        """Measure the renderable on the active console."""
         console = active_console()
-        measurement = Measurement.get(console, console.options, panel)
-        width = measurement.maximum
+        self.width = Measurement.get(console, console.options, self.renderable).maximum
 
         # Calculate height: for tables, count rows + header/footer overhead
         # We render to count actual lines
         with console.capture() as capture:
-            console.print(panel)
-        rendered = capture.get()
-        height = rendered.count("\n")
-
-        return cls(
-            name=name,
-            key=key,
-            panel=panel,
-            total=total,
-            shown=shown,
-            expandable=total > shown,
-            data_type=data_type,
-            data=data,
-            width=width,
-            height=height,
-            full_width=full_width,
-        )
+            console.print(self.renderable)
+        self.height = capture.get().count("\n")
 
 
 class TilingLayout:
-    """Layout manager that arranges Blocks to maximize terminal space usage.
+    """Layout manager that arranges Tiles to maximize terminal space usage.
 
-    TilingLayout optimizes block placement using a bin-packing algorithm:
-    1. Separates full-width blocks to be rendered below the tiled layout.
-    2. Sorts remaining blocks by height (tallest first) to use as column anchors.
-    3. Places the tallest block in the first column to set the height budget.
-    4. Stacks shorter blocks vertically in subsequent columns.
-    5. Starts new columns when blocks don't fit in remaining vertical space.
-    6. Renders full-width blocks at the end, below the tiled columns.
+    TilingLayout optimizes tile placement using a bin-packing algorithm:
+    1. Separates full-width tiles to be rendered below the columns.
+    2. Sorts remaining tiles by height (tallest first) to use as column anchors.
+    3. Places the tallest tile in the first column to set the height budget.
+    4. Stacks shorter tiles vertically in subsequent columns.
+    5. Starts new columns when tiles don't fit in remaining vertical space.
+    6. Renders full-width tiles at the end, below the columns.
     """
 
-    def __init__(self, blocks: list[Block], *, ordered: bool = False) -> None:
+    def __init__(self, tiles: list[Tile], *, ordered: bool = False) -> None:
         """Initialize the tiling layout.
 
         Args:
-            blocks: List of Block instances to arrange.
-            ordered: Place the blocks in the order given rather than tallest
+            tiles: The tiles to arrange.
+            ordered: Place the tiles in the order given rather than tallest
                 first, so the first one always anchors the left-hand column.
         """
-        self.ordered = ordered
-        # Separate full-width blocks from tiled blocks
-        self.tiled_blocks = [b for b in blocks if not b.full_width]
-        self.full_width_blocks = [b for b in blocks if b.full_width]
-        self.term_width, self.term_height = terminal_size()
-        self._columns: list[list[Block]] = []
+        self._ordered = ordered
+        self._tiled = [tile for tile in tiles if not tile.is_full_width]
+        self._full_width = [tile for tile in tiles if tile.is_full_width]
+        self._term_width, _ = terminal_size()
+        self._columns: list[list[Tile]] = []
 
-    def compute_layout(self) -> list[list[Block]]:
-        """Compute optimal column layout for the tiled blocks.
+    def _compute_layout(self) -> list[list[Tile]]:
+        """Compute optimal column layout for the tiled tiles.
 
         Algorithm:
-        1. Sort blocks by descending height (Tallest first)
-        2. The tallest block anchors the first column and sets height budget.
-        3. Try to fit remaining blocks into existing columns by stacking.
-        4. Create new columns when blocks exceed width or height constraints.
+        1. Sort tiles by descending height (Tallest first)
+        2. The tallest tile anchors the first column and sets height budget.
+        3. Try to fit remaining tiles into existing columns by stacking.
+        4. Create new columns when tiles exceed width or height constraints.
 
         Returns:
-            List of columns, where each column is a list of Blocks to stack.
+            List of columns, where each column is a list of Tiles to stack.
         """
-        if not self.tiled_blocks:
+        if not self._tiled:
             return []
 
-        sorted_blocks = (
-            list(self.tiled_blocks)
-            if self.ordered
-            else sorted(self.tiled_blocks, key=lambda b: b.height, reverse=True)
+        sorted_tiles = (
+            list(self._tiled)
+            if self._ordered
+            else sorted(self._tiled, key=lambda t: t.height, reverse=True)
         )
 
-        # The first block (the tallest, unless ordered) anchors the first column
-        self._columns = [[sorted_blocks[0]]]
-        column_heights = [sorted_blocks[0].height]
-        column_widths = [sorted_blocks[0].width]
+        # The first tile (the tallest, unless ordered) anchors the first column
+        self._columns = [[sorted_tiles[0]]]
+        column_heights = [sorted_tiles[0].height]
+        column_widths = [sorted_tiles[0].width]
 
         # Its height is the budget every other column stacks against
-        reference_height = sorted_blocks[0].height
+        reference_height = sorted_tiles[0].height
 
-        for block in sorted_blocks[1:]:
+        for tile in sorted_tiles[1:]:
             placed = False
 
             # Try to stack in an existing column (prefer columns with most space)
@@ -181,85 +124,86 @@ class TilingLayout:
             for col_idx in column_order:
                 remaining_height = reference_height - column_heights[col_idx]
 
-                if block.height <= remaining_height:
-                    # !Verify that the column width can accommodate this block
-                    total_width = self._calculate_total_width_with_block(
+                if tile.height <= remaining_height:
+                    # !Verify that the column width can accommodate this tile
+                    total_width = self._calculate_total_width_with_tile(
                         column_widths,
                         col_idx,
-                        block.width,
+                        tile.width,
                     )
-                    if total_width <= self.term_width:
-                        self._columns[col_idx].append(block)
-                        column_heights[col_idx] += block.height
+                    if total_width <= self._term_width:
+                        self._columns[col_idx].append(tile)
+                        column_heights[col_idx] += tile.height
                         column_widths[col_idx] = max(
                             column_widths[col_idx],
-                            block.width,
+                            tile.width,
                         )
                         placed = True
                         break
 
             if not placed:
                 new_total_width = (
-                    sum(column_widths) + COLUMN_GAP * len(column_widths) + block.width
+                    sum(column_widths) + COLUMN_GAP * len(column_widths) + tile.width
                 )
-                if new_total_width <= self.term_width:
-                    # Block fits, make new column ...
-                    self._columns.append([block])
-                    column_heights.append(block.height)
-                    column_widths.append(block.width)
+                if new_total_width <= self._term_width:
+                    # Tile fits, make new column ...
+                    self._columns.append([tile])
+                    column_heights.append(tile.height)
+                    column_widths.append(tile.width)
                 else:
-                    # Block too fat, add to shortest column instead
+                    # Tile too fat, add to shortest column instead
                     min_height_idx = column_heights.index(min(column_heights))
-                    self._columns[min_height_idx].append(block)
-                    column_heights[min_height_idx] += block.height
+                    self._columns[min_height_idx].append(tile)
+                    column_heights[min_height_idx] += tile.height
                     column_widths[min_height_idx] = max(
                         column_widths[min_height_idx],
-                        block.width,
+                        tile.width,
                     )
 
         return self._columns
 
-    def _calculate_total_width_with_block(
+    def _calculate_total_width_with_tile(
         self,
         column_widths: list[int],
         update_idx: int,
-        new_block_width: int,
+        new_tile_width: int,
     ) -> int:
-        """Calculate total layout width if a block is added to a column.
+        """Calculate total layout width if a tile is added to a column.
 
         Args:
             column_widths: Current widths of all columns.
             update_idx: Index of column being updated.
-            new_block_width: Width of the block being added.
+            new_tile_width: Width of the tile being added.
 
         Returns:
             Total width including gaps between columns.
         """
-        # Calculate width if this block updates the column
+        # Calculate width if this tile updates the column
         widths = column_widths.copy()
-        widths[update_idx] = max(widths[update_idx], new_block_width)
+        widths[update_idx] = max(widths[update_idx], new_tile_width)
         return sum(widths) + COLUMN_GAP * (len(widths) - 1)
 
     def render(self) -> None:
         """Render the computed layout to the console.
 
         Uses Rich's Columns and Group for horizontal and vertical arrangement.
-        Full-width blocks are rendered below the tiled columns.
+        Full-width tiles are rendered below the columns.
         """
         if not self._columns:
-            self._columns = self.compute_layout()
+            self._columns = self._compute_layout()
 
         # Render tiled columns
         if self._columns:
             column_renderables: list[RenderableType] = []
 
-            for column_blocks in self._columns:
-                if len(column_blocks) == 1:
-                    column_renderables.append(column_blocks[0].panel)
+            for column_tiles in self._columns:
+                if len(column_tiles) == 1:
+                    column_renderables.append(column_tiles[0].renderable)
                 else:
-                    # Stack multiple blocks vertically using Group
-                    panels = [b.panel for b in column_blocks]
-                    column_renderables.append(Group(*panels))
+                    # Stack multiple tiles vertically using Group
+                    column_renderables.append(
+                        Group(*(tile.renderable for tile in column_tiles)),
+                    )
 
             if len(column_renderables) == 1:
                 active_console().print(column_renderables[0])
@@ -272,18 +216,18 @@ class TilingLayout:
                 )
                 active_console().print(cols)
 
-        # Render full-width blocks below the tiled layout
-        for block in self.full_width_blocks:
-            active_console().print(block.panel)
+        # Render full-width tiles below the columns
+        for tile in self._full_width:
+            active_console().print(tile.renderable)
 
     @property
-    def all_blocks(self) -> list[Block]:
-        """Get all blocks in layout order.
+    def reading_order(self) -> list[Tile]:
+        """Get all tiles in layout order.
 
         Returns:
-            Flattened list of blocks from all columns, followed by full-width blocks.
+            Flattened list of tiles from all columns, followed by full-width tiles.
         """
         if not self._columns:
-            self._columns = self.compute_layout()
-        tiled = [block for column in self._columns for block in column]
-        return tiled + self.full_width_blocks
+            self._columns = self._compute_layout()
+        tiled = [tile for column in self._columns for tile in column]
+        return tiled + self._full_width

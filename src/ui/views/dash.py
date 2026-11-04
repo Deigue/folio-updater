@@ -32,7 +32,7 @@ from ui.cells import (
 )
 from ui.layout.bars import hbar, meter
 from ui.layout.fit import fit
-from ui.layout.tiles import Block, TilingLayout
+from ui.layout.tiles import Tile, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     FLOW_COLORS,
@@ -618,26 +618,18 @@ def show_by_type(
     if badge:
         console_print(badge)
 
-    strip = [
-        Block.create(
-            name=title,
-            key=title[:1].lower(),
-            panel=flows_panel(flows, title),
-            total=0,
-            shown=0,
-            data_type="flows",
-            data=(holdings, flows, title),
-        )
+    by_tile = {
+        Tile(flows_panel(flows, title)): (holdings, flows, title)
         for holdings, flows, title in panels
-    ]
-    layout = TilingLayout(strip)
+    }
+    layout = TilingLayout(list(by_tile))
     layout.render()
 
     # The tiling reorders the panels, so the sections follow its reading order
     # rather than the given one. Split from its flows panel, each table needs a
     # heading to say whose it is.
-    for block in layout.all_blocks:
-        holdings, flows, title = block.data
+    for tile in layout.reading_order:
+        holdings, flows, title = by_tile[tile]
         console_print("")
         console_print(
             Rule(_panel_title(flows, title), align="left", style=_accent(flows) or ""),

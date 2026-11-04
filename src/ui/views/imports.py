@@ -1,11 +1,12 @@
 """Rendering what an import did.
 
 The audit view reports: what was read, cancelled, merged, transformed and rejected.
-Panels are measured into blocks and tiled, and each can be expanded by keypress.
+Each part becomes a tile, and one holding rows back can be expanded by keypress.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.markup import escape
@@ -28,7 +29,7 @@ from term.console import (
 from term.keys import getch
 from ui.format import safe_str
 from ui.layout.paging import available_height
-from ui.layout.tiles import Block, TilingLayout
+from ui.layout.tiles import Tile, TilingLayout
 from ui.transaction_table import build_transactions_table, page_transactions
 from ui.vocabulary import (
     RULE_STATEMENT,
@@ -49,9 +50,10 @@ from ui.vocabulary import (
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     import pandas as pd
+    from rich.console import RenderableType
 
     from models import (
         CancelEvent,
@@ -65,6 +67,24 @@ if TYPE_CHECKING:
 
 # Minimum columns always shown for invalid rows
 _INVALID_BASE_COLUMNS = [Column.Txn.TXN_DATE, Column.Txn.ACTION, Column.Txn.AMOUNT]
+
+
+@dataclass(frozen=True)
+class _AuditSection:
+    """One part of the audit: what it shows, and how to see the rest of it.
+
+    Attributes:
+        name: What the expansion hint and the expanded view call it. The heading
+            on screen, with its count, is part of the tile's content.
+        tile: The truncated content, for the layout to place.
+        key: The key that expands it, when it can be expanded.
+        expand: Shows every item. None when the tile already does.
+    """
+
+    name: str
+    tile: Tile
+    key: str = ""
+    expand: Callable[[], None] | None = None
 
 
 def show_import_summary(
@@ -249,19 +269,17 @@ def show_import_audit(
 
     Args:
         results: ImportResults with audit data.
-        verbose: If True, includes imported transactions block.
-        interactive: If True, offers to expand truncated blocks by keypress.
+        verbose: If True, includes the imported transactions section.
+        interactive: If True, offers to expand truncated sections by keypress.
             An unattended run passes False and keeps the truncated view.
     """
     _show_stats_panel(results)
-    blocks = _build_audit_blocks(results, verbose=verbose)
+    sections = _build_audit_sections(results, verbose=verbose)
+    TilingLayout([section.tile for section in sections]).render()
 
-    if blocks:
-        layout = TilingLayout(blocks)
-        layout.render()
-
-    if interactive:
-        _prompt_and_expand_blocks(blocks, results)
+    # Also dbl check if current console context is interacable
+    if interactive and active_console().is_interactive:
+        _prompt_and_expand(sections, results)
 
 
 def _show_stats_panel(results: ImportResults) -> None:
@@ -318,21 +336,53 @@ def _show_stats_panel(results: ImportResults) -> None:
     console_panel(stats_text, title="Stats", style=TABLE_BORDER, expand=False)
 
 
-def _build_audit_blocks(
+def _section(  # noqa: PLR0917
+    name: str,
+    key: str,
+    renderable: RenderableType,
+    total: int,
+    shown: int,
+    expand: Callable[[], None],
+    *,
+    is_full_width: bool = False,
+) -> _AuditSection:
+    """Build a section, offering to expand it only when it holds back some rows.
+
+    Args:
+        name: What the expansion hint and the expanded view call it.
+        key: The key that expands it.
+        renderable: The truncated content to tile.
+        total: How many items there are.
+        shown: How many of them the renderable shows.
+        expand: Shows every item.
+        is_full_width: Print it below the columns rather than in them.
+
+    Returns:
+        The section.
+    """
+    return _AuditSection(
+        name=name,
+        tile=Tile(renderable, is_full_width=is_full_width),
+        key=key,
+        expand=expand if total > shown else None,
+    )
+
+
+def _build_audit_sections(
     results: ImportResults,
     *,
     verbose: bool = False,
-) -> list[Block]:
-    """Build Blocks for displaying audit information.
+) -> list[_AuditSection]:
+    """Build the sections of the audit, in the order their hints are offered.
 
     Args:
         results: ImportResults with audit data.
-        verbose: If True, includes imported transactions block.
+        verbose: If True, includes the imported transactions section.
 
     Returns:
-        List of Blocks to display.
+        The sections to display.
     """
-    blocks: list[Block] = []
+    sections: list[_AuditSection] = []
     max_rows = available_height()
 
     if results.merge_events:
@@ -347,126 +397,118 @@ def _build_audit_blocks(
                 break
             events_to_show.append(event)
             rows_used += event_rows
-        shown = len(events_to_show)
-        panel = _build_merge_panel(events_to_show, total)
-        blocks.append(
-            Block.create(
-                name="Merged",
-                key="m",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="merge",
-                data=results.merge_events,
+        sections.append(
+            _section(
+                "Merged",
+                "m",
+                _merge_table(events_to_show, total),
+                total,
+                len(events_to_show),
+                lambda: _show_in_full(
+                    _merge_table(results.merge_events, len(results.merge_events)),
+                ),
             ),
         )
 
     max_rows = available_height(table=True)
 
-    blocks.extend(_cancel_blocks(results.cancel_events))
+    if results.cancel_events:
+        # Always shown in full, so there is nothing to expand.
+        sections.append(
+            _AuditSection("Cancelled", Tile(_cancel_table(results.cancel_events))),
+        )
 
     if results.transform_events:
         total = len(results.transform_events)
         shown = min(total, max_rows)
-        panel = _build_transform_panel(
-            results.transform_events[:shown],
-            total,
-        )
-        blocks.append(
-            Block.create(
-                name="Transforms",
-                key="t",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="transform",
-                data=results.transform_events,
+        sections.append(
+            _section(
+                "Transforms",
+                "t",
+                _transform_table(results.transform_events[:shown], total),
+                total,
+                shown,
+                lambda: _show_in_full(
+                    _transform_table(
+                        results.transform_events,
+                        len(results.transform_events),
+                    ),
+                ),
             ),
         )
 
     if not results.invalid_df.empty:
         total = len(results.invalid_df)
         shown = min(total, max_rows)
-        panel = _build_invalid_panel(
-            results.invalid_df.head(shown),
-            total,
-        )
-        blocks.append(
-            Block.create(
-                name="Invalid",
-                key="n",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="invalid",
-                data=results.invalid_df,
+        sections.append(
+            _section(
+                "Invalid",
+                "n",
+                _invalid_table(results.invalid_df.head(shown), total),
+                total,
+                shown,
+                lambda: _page_rows(results.invalid_df, "Invalid"),
             ),
         )
 
     if not results.intra_rejected_df.empty:
         total = len(results.intra_rejected_df)
         shown = min(total, max_rows)
-        panel = _build_dupes_panel(
-            results.intra_rejected_df.head(shown),
-            f"Intra Duplicates ({total})",
-        )
-        blocks.append(
-            Block.create(
-                name="Intra Duplicates",
-                key="i",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="dupes",
-                data=results.intra_rejected_df,
+        sections.append(
+            _section(
+                "Intra Duplicates",
+                "i",
+                _dupes_table(
+                    results.intra_rejected_df.head(shown),
+                    f"Intra Duplicates ({total})",
+                ),
+                total,
+                shown,
+                lambda: _page_rows(results.intra_rejected_df, "Intra Duplicates"),
             ),
         )
 
     if not results.db_rejected_df.empty:
         total = len(results.db_rejected_df)
         shown = min(total, max_rows)
-        panel = _build_dupes_panel(
-            results.db_rejected_df.head(shown),
-            f"DB Duplicates ({total})",
-        )
-        blocks.append(
-            Block.create(
-                name="DB Duplicates",
-                key="d",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="dupes",
-                data=results.db_rejected_df,
+        sections.append(
+            _section(
+                "DB Duplicates",
+                "d",
+                _dupes_table(
+                    results.db_rejected_df.head(shown),
+                    f"DB Duplicates ({total})",
+                ),
+                total,
+                shown,
+                lambda: _page_rows(results.db_rejected_df, "DB Duplicates"),
             ),
         )
 
     if verbose and not results.final_df.empty:
         total = len(results.final_df)
         shown = min(total, max_rows)
-        panel = build_transactions_table(
-            results.final_df.head(shown),
-            f"Imported ({total})",
-            shown,
-            TransactionContext.IMPORT,
-        )
-        blocks.append(
-            Block.create(
-                name="Imported",
-                key="v",
-                panel=panel,
-                total=total,
-                shown=shown,
-                data_type="dataframe",
-                data=results.final_df,
-                full_width=True,
+        sections.append(
+            _section(
+                "Imported",
+                "v",
+                build_transactions_table(
+                    results.final_df.head(shown),
+                    f"Imported ({total})",
+                    shown,
+                    TransactionContext.IMPORT,
+                ),
+                total,
+                shown,
+                lambda: _page_rows(results.final_df, "Imported"),
+                is_full_width=True,
             ),
         )
 
-    return blocks
+    return sections
 
 
-def _build_merge_panel(
+def _merge_table(
     events: list[MergeEvent],
     total: int,
 ) -> Table:
@@ -497,24 +539,7 @@ def _build_merge_panel(
     return table
 
 
-def _cancel_blocks(events: list[CancelEvent]) -> list[Block]:
-    """Build the block for cancellations, always shown in full, if any."""
-    if not events:
-        return []
-    return [
-        Block.create(
-            name="Cancelled",
-            key="c",
-            panel=_build_cancel_panel(events),
-            total=len(events),
-            shown=len(events),
-            data_type="cancel",
-            data=events,
-        ),
-    ]
-
-
-def _build_cancel_panel(events: list[CancelEvent]) -> Table:
+def _cancel_table(events: list[CancelEvent]) -> Table:
     """Build a table for cancellations: each cancelling row and what it voided.
 
     Both rows are left out of the import; a cancellation with nothing in
@@ -555,7 +580,7 @@ def _summary(row: Mapping[str, Any] | pd.Series, last: str) -> str:
     )
 
 
-def _build_transform_panel(
+def _transform_table(
     events: list[TransformEvent],
     total: int,
 ) -> Table:
@@ -592,7 +617,7 @@ def _build_transform_panel(
     return table
 
 
-def _build_invalid_panel(
+def _invalid_table(
     df: pd.DataFrame,
     total: int,
 ) -> Table:
@@ -635,7 +660,7 @@ def _build_invalid_panel(
     return table
 
 
-def _build_dupes_panel(
+def _dupes_table(
     df: pd.DataFrame,
     title: str,
 ) -> Table:
@@ -665,21 +690,21 @@ def _build_dupes_panel(
     return table
 
 
-def _prompt_and_expand_blocks(
-    blocks: list[Block],
+def _prompt_and_expand(
+    sections: list[_AuditSection],
     results: ImportResults,
 ) -> None:
     """Show expansion prompt and handle user inputs.
 
     Args:
-        blocks: List of Blocks that are available.
+        sections: The audit's sections.
         results: ImportResults for redisplay after expansion.
     """
-    expandable = [b for b in blocks if b.expandable]
-    if not expandable:
+    expansions = {s.key: s.expand for s in sections if s.expand is not None}
+    if not expansions:
         return
 
-    _show_block_key_hints(expandable)
+    _show_key_hints(sections)
 
     while True:
         try:
@@ -687,73 +712,57 @@ def _prompt_and_expand_blocks(
             if user_input == "q":
                 break
 
-            for block in expandable:
-                if user_input == block.key:
-                    _expand_block(block)
-                    _redisplay_audit_blocks(results, blocks)
-                    break
+            expand = expansions.get(user_input)
+            if expand is not None:
+                active_console().clear()
+                expand()
+                _redisplay_audit(results, sections)
         except (KeyboardInterrupt, EOFError):
             break
 
 
-def _show_block_key_hints(expandable: list[Block]) -> None:
-    """Display the expansion key hints prompt for blocks.
+def _show_key_hints(sections: list[_AuditSection]) -> None:
+    """Display the expansion key hints prompt.
 
     Args:
-        expandable: List of expandable blocks.
+        sections: The audit's sections, of which those that expand get a hint.
     """
-    key_hints = " ".join(f"[bold]{b.key}[/bold]={b.name}" for b in expandable)
+    key_hints = " ".join(
+        f"[bold]{s.key}[/bold]={s.name}" for s in sections if s.expand is not None
+    )
     console_print(
         f"\n[dim]Press {key_hints} to expand, [bold]q[/bold] to continue[/dim]",
     )
 
 
-def _redisplay_audit_blocks(
+def _redisplay_audit(
     results: ImportResults,
-    blocks: list[Block],
+    sections: list[_AuditSection],
 ) -> None:
-    """Redisplay the audit panel after returning from expansion.
+    """Redisplay the audit after returning from an expansion.
 
     Args:
         results: ImportResults with audit data.
-        blocks: List of Blocks to display.
+        sections: The audit's sections.
     """
     active_console().clear()
     _show_stats_panel(results)
-    if blocks:
-        layout = TilingLayout(blocks)
-        layout.render()
-
-    expandable = [b for b in blocks if b.expandable]
-    if expandable:
-        _show_block_key_hints(expandable)
+    TilingLayout([section.tile for section in sections]).render()
+    _show_key_hints(sections)
 
 
-def _expand_block(block: Block) -> None:
-    """Expand a block to show full data with pagination.
+def _show_in_full(table: Table) -> None:
+    """Print a table whole, and wait for a key before returning to the audit."""
+    console_print(table)
+    console_print("\n[dim]Press any key to return...[/dim]")
+    getch()
 
-    Args:
-        block: The Block to expand.
-    """
-    active_console().clear()
 
-    if block.data_type == "merge":
-        panel = _build_merge_panel(block.data, block.total)
-        console_print(panel)
-        console_print("\n[dim]Press any key to return...[/dim]")
-        getch()
-
-    elif block.data_type == "transform":
-        panel = _build_transform_panel(block.data, block.total)
-        console_print(panel)
-        console_print("\n[dim]Press any key to return...[/dim]")
-        getch()
-
-    elif block.data_type in ("invalid", "dupes", "dataframe"):
-        rows = available_height(table=True, pages=True)
-        page_transactions(
-            block.data,
-            title=block.name,
-            page_size=rows,
-            context=TransactionContext.IMPORT,
-        )
+def _page_rows(rows: pd.DataFrame, title: str) -> None:
+    """Page through every row of a section."""
+    page_transactions(
+        rows,
+        title=title,
+        page_size=available_height(table=True, pages=True),
+        context=TransactionContext.IMPORT,
+    )

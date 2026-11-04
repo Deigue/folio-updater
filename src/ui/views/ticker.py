@@ -36,7 +36,7 @@ from ui.cells import (
 from ui.layout.bars import position_bar
 from ui.layout.charts import ChartStyle, area_chart
 from ui.layout.fit import fit
-from ui.layout.tiles import COLUMN_GAP, Block, TilingLayout
+from ui.layout.tiles import COLUMN_GAP, Tile, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     CHART_GUIDE,
@@ -53,8 +53,6 @@ from ui.vocabulary import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-
-    from rich.console import RenderableType
 
     from engine.holdings import Holding
     from engine.performance import RangeMove
@@ -119,16 +117,16 @@ def show_ticker(
     # The fundamentals anchor the left; the chart grid is sized for the room
     # beside them, or for the whole width when it would not fit there.
     width, _ = terminal_size()
-    blocks: list[Block] = []
+    tiles: list[Tile] = []
     room = width
     facts = _fundamentals(quote)
     if facts is not None:
-        blocks.append(_block("Fundamentals", facts))
-        beside = width - blocks[0].width - COLUMN_GAP
+        tiles.append(Tile(facts))
+        beside = width - tiles[0].width - COLUMN_GAP
         if beside >= _grid_width(2, _CHART_MIN_POINTS):
             room = beside
-    blocks.append(_block("Performance", _chart_grid(moves, room)))
-    TilingLayout(blocks, ordered=True).render()
+    tiles.append(Tile(_chart_grid(moves, room)))
+    TilingLayout(tiles, ordered=True).render()
 
     for position in positions:
         fitted = fit(_pool_table(position, by_account=by_account), _POOL_DROP_ORDER)
@@ -403,19 +401,6 @@ def _points_across(room: int, per_row: int) -> int:
 def _grid_width(per_row: int, points: int) -> int:
     """How many columns `per_row` charts of `points` points take."""
     return per_row * (points + _CHART_FRAME) + (per_row - 1)
-
-
-def _block(name: str, panel: RenderableType) -> Block:
-    """Measure a panel for the tiling layout."""
-    return Block.create(
-        name=name,
-        key=name[:1].lower(),
-        panel=panel,
-        total=0,
-        shown=0,
-        data_type=name.lower(),
-        data=None,
-    )
 
 
 # -- HOLDING ------------------------------------------------------------------
