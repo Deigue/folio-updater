@@ -205,7 +205,7 @@ def show_acb(  # noqa: PLR0917
         date_from: Only rows traded on or after this date.
         date_to: Only rows traded on or before this date.
         year: Shorthand for a whole calendar year.
-        export: Write the rendered rows to this path instead of only printing.
+        export: Write the report to this path instead of printing it.
         show_all: Include DIVIDEND and FCH rows.
         summary: Print one row per symbol instead of a buildup.
         refresh: Refetch the quotes and replay the cost base before reporting.
@@ -255,6 +255,22 @@ def show_acb(  # noqa: PLR0917
         valued = with_gains_since_buy(ledger.frame, quotes, load_fx_rates())
         rows = valued.loc[rows.index]
 
+    if export:
+        _export(
+            rows,
+            view,
+            export,
+            symbol=canonical,
+            currency=currency,
+            badge=(
+                freshness_note(ledger.computed_at, quotes)
+                if quotes
+                else f"Cost base {format_freshness(ledger.computed_at)}."
+            ),
+            summary=summary,
+        )
+        return
+
     try:
         if summary:
             show_summary(rows, view, currency, ledger)
@@ -270,18 +286,3 @@ def show_acb(  # noqa: PLR0917
     except NoUsdFiguresError as error:
         console_error(str(error))
         raise typer.Exit(1) from error
-
-    if export:
-        _export(
-            rows,
-            view,
-            export,
-            symbol=canonical,
-            currency=currency,
-            badge=(
-                freshness_note(ledger.computed_at, quotes)
-                if quotes
-                else f"Cost base {format_freshness(ledger.computed_at)}."
-            ),
-            summary=summary,
-        )

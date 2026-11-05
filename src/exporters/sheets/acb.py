@@ -32,7 +32,17 @@ MEASURE_FORMATS: dict[str, Fmt] = {
     "Avg": Fmt.PRICE,
     "Realized": Fmt.MONEY_SIGNED,
     "Gain": Fmt.MONEY_SIGNED,
+    "GainPct": Fmt.PERCENT_SIGNED,
 }
+
+# The buildup's per-grain measures, in the order they are laid out.
+_BUILDUP_MEASURES = ("Delta", "ACB", "Avg", "Realized", "Gain", "GainPct")
+
+
+def measure_header(measure: str) -> str:
+    """Spell a measure, or its `_USD` variant, the way a reader should see it."""
+    return measure.replace("Pct", "%").replace(USD, " USD")
+
 
 # The buildup names its dates the way the ledger and the `Txns` sheet do, so a
 # reader filtering one sheet knows what to filter on in the next.
@@ -81,11 +91,13 @@ def acb_buildup_sheet(
         Col("Amount", Fmt.MONEY_SIGNED),
         Col("Fee", Fmt.MONEY, quiet=True),
     ]
-    for measure in ("Delta", "ACB", "Avg", "Realized"):
+    for measure in _BUILDUP_MEASURES:
         if cad:
-            columns.append(Col(measure, MEASURE_FORMATS[measure]))
+            columns.append(Col(measure_header(measure), MEASURE_FORMATS[measure]))
         if usd:
-            columns.append(Col(f"{measure} USD", MEASURE_FORMATS[measure]))
+            columns.append(
+                Col(measure_header(measure + USD), MEASURE_FORMATS[measure]),
+            )
     if cad:
         columns.append(Col("Proceeds", Fmt.MONEY, quiet=True))
     if usd:
@@ -277,9 +289,9 @@ def _buildup_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, ob
         "Rate": record["FXRate"],
         "Flags": record["Flags"],
     }
-    for measure in ("Delta", "ACB", "Avg", "Realized"):
-        cells[measure] = record[grain_column(grain, measure)]
-        cells[f"{measure} USD"] = record[grain_column(grain, measure + USD)]
+    for measure in _BUILDUP_MEASURES:
+        for variant in (measure, measure + USD):
+            cells[measure_header(variant)] = record[grain_column(grain, variant)]
     return cells
 
 

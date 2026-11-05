@@ -7,6 +7,7 @@ arrows and the same currency choice, so they share their formatting here.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, NamedTuple
 
 import pandas as pd
@@ -15,6 +16,7 @@ from rich.table import Table as RichTable
 from domain import Action, Column, Currency, DiagnosticCode, Grain
 from engine.frames import acb_summary_frame, grain_column
 from term import console_print, console_warning, supports_unicode
+from ui.cells import graded, lifetime_return
 from ui.format import freshness_badge
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
@@ -24,6 +26,7 @@ from ui.vocabulary import (
     MONEY_PRECISION,
     PRICE_PRECISION,
     RATE_PRECISION,
+    RETURN_STRONG_AT,
     SUPERFICIAL_LOSS_BG,
     TABLE_BORDER,
     TABLE_HEADER,
@@ -40,6 +43,9 @@ if TYPE_CHECKING:
 
 # Column families the buildup renders, by ledger measure (also the header).
 _MEASURES = ("Delta", "ACB", "Avg", "Realized")
+
+# The row's own gain, in USD where USD is shown and in CAD otherwise. Never dropped.
+_GAIN_HEADERS = ("Gain", "Gain%")
 
 _BUILDUP_DROP_ORDER = (
     "TxnId",
@@ -235,6 +241,9 @@ def _build_table(
             table.add_column(header, justify="right")
         if show_usd:
             table.add_column(f"{header}\nUSD", justify="right")
+    # One currency of the row's own gain: two more columns is all the width spares.
+    for header in _GAIN_HEADERS:
+        table.add_column(f"{header}\nUSD" if show_usd else header, justify="right")
     if show_cad:
         table.add_column("Proceeds", justify="right")
     if show_usd:
@@ -253,13 +262,11 @@ def _measure_cell(
     column: str,
     measure: str,
     moves: dict[tuple[str, int], int],
-    *,
-    superficial_loss: bool = False,
 ) -> str:
-    """Render one per-grain measure, coloured or annotated as that measure wants."""
+    """Render one per-grain measure, coloured as that measure wants."""
     precision = PRICE_PRECISION if measure.startswith("Avg") else MONEY_PRECISION
     value = row[column]
-    # A zero delta or gain says nothing: blank it to zero.
+    # A zero delta or realized gain says nothing: blank it to zero.
     # A zero ACB or average is a real, closed holding.
     text = _format(
         value,
@@ -267,15 +274,48 @@ def _measure_cell(
         blank_zero=measure.startswith(("Delta", "Realized")),
     )
     if measure.startswith(("Delta", "Realized")):
-        cell = _signed(text, value)
-        if measure.startswith("Realized") and superficial_loss and cell:
-            cell += _SUPERFICIAL_LOSS_GLYPH
-            return f"[on {SUPERFICIAL_LOSS_BG}]{cell}[/on {SUPERFICIAL_LOSS_BG}]"
-        return cell
+        return _signed(text, value)
     if measure.startswith("Avg") and text:
         direction = moves.get((measure, int(row[str(Column.Txn.TXN_ID)])))
         return f"{_arrow(direction)}{text}"
     return text
+
+
+def _gain_cells(
+    row: pd.Series,
+    view: AcbView,
+    suffix: str,
+    *,
+    superficial_loss: bool,
+) -> list[str]:
+    """Render the row's own Gain and Gain%, coloured by how large the gain is.
+
+    Args:
+        row: The buildup row.
+        view: The pool grain being reported.
+        suffix: `_USD` for the USD figures, empty for the CAD ones.
+        superficial_loss: Whether the row is flagged as a suspect superficial
+            loss, marked on the sale's own gain.
+
+    Returns:
+        The Gain cell, then the Gain% cell.
+    """
+    gain = row[grain_column(view.grain, f"Gain{suffix}")]
+    ratio = row[grain_column(view.grain, f"GainPct{suffix}")]
+    text = _format(gain, MONEY_PRECISION)
+    if pd.isna(ratio):
+        # Nothing to grade by: a buy with no quote, or a sale that removed no cost.
+        money, share = _signed(text, gain), ""
+    else:
+        graded_by = Decimal(str(ratio))
+        money = graded(text, graded_by, RETURN_STRONG_AT, Decimal(str(gain)))
+        share = lifetime_return(graded_by)
+    if superficial_loss and money:
+        money = (
+            f"[on {SUPERFICIAL_LOSS_BG}]{money}{_SUPERFICIAL_LOSS_GLYPH}"
+            f"[/on {SUPERFICIAL_LOSS_BG}]"
+        )
+    return [money, share]
 
 
 def _arrow(direction: int | None) -> str:
@@ -318,25 +358,21 @@ def _render_row(
     for measure in _MEASURES:
         if show_cad:
             cells.append(
-                _measure_cell(
-                    row,
-                    grain_column(view.grain, measure),
-                    measure,
-                    moves,
-                    superficial_loss=superficial_loss,
-                ),
+                _measure_cell(row, grain_column(view.grain, measure), measure, moves),
             )
         if show_usd:
             usd = f"{measure}_USD"
             cells.append(
-                _measure_cell(
-                    row,
-                    grain_column(view.grain, usd),
-                    usd,
-                    moves,
-                    superficial_loss=superficial_loss,
-                ),
+                _measure_cell(row, grain_column(view.grain, usd), usd, moves),
             )
+    cells.extend(
+        _gain_cells(
+            row,
+            view,
+            "_USD" if show_usd else "",
+            superficial_loss=superficial_loss,
+        ),
+    )
     if show_cad:
         cells.append(_format(row["Proceeds"], MONEY_PRECISION))
     if show_usd:

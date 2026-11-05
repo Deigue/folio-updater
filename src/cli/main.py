@@ -372,7 +372,7 @@ def acb_cmd(  # noqa: PLR0917
         None,
         "-e",
         "--export",
-        help="Write the reported rows to a .xlsx, .csv or .parquet file",
+        help="Write it to a .xlsx, .csv or .parquet file instead of printing",
     ),
     *,
     show_all: bool = typer.Option(

@@ -389,6 +389,8 @@ def test_acb_export_writes_the_buildup_it_reports(
             ["acb", "RY.TO", "--export", str(target)],
         )
         assert_cli_success(result)
+        # The file is the report: nothing is printed beside it.
+        assert_not_in_output("ACB - RY.TO", result)
         # Asserted inside the context: `temp_ctx` sweeps *.csv on the way out.
         assert target.exists()
         header, *rows = _exported(target)

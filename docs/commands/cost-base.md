@@ -1,8 +1,8 @@
 # Adjusted Cost Base
 
 `folio acb` replays your whole transaction ledger into an adjustedcostbase-style
-buildup: units held, adjusted cost base, average cost and realized gains, one row per
-transaction.
+buildup: units held, adjusted cost base, average cost, realized gain and what each row
+gained, one row per transaction.
 
 ```bash
 folio acb NVDA
@@ -40,7 +40,8 @@ folio acb NVDA --type all             # the folio pool
 | `--all`           | Include `DIVIDEND` and `FCH` rows, which never touch cost base |
 | `-s/--summary`    | One row per symbol instead of a per-transaction buildup        |
 | `-e/--export PATH`| Write the report to a `.xlsx`, `.csv` or `.parquet` file       |
-| `-r/--refresh`    | Replay the folio before reporting, ignoring the saved ledger   |
+| `-r/--refresh`    | Refetch quotes and replay the folio, ignoring the saved ledger |
+| `--offline`       | Use cached quotes only; never touch the network                |
 
 `SYMBOL` may be omitted only with `--summary` or `--export`.
 
@@ -54,6 +55,17 @@ here is presentation only.
 `Held`, `ACB` and `Avg` are running figures: the state of the pool *after* that row. A
 `▲` or `▼` beside the average marks which way it moved against the chronologically
 preceding row, so it still reads correctly with the newest row on top.
+
+## Gain and Gain%
+
+`Realized` is the running total of realized gain. `Gain` is the row's own: what a sale
+earned (or a return of capital beyond the cost left), and on a buy, what those units are
+worth today less what they cost, counting any split since. `Gain%` is that gain against
+the buy's cost, or the cost the sale removed.
+
+A buy's gain needs today's quote, fetched the way `folio dash` does; with no quote it
+stays blank. A USD holding shows these in USD and a CAD holding in CAD; `--currency`
+overrides.
 
 > [!NOTE]
 > `--from`, `--to` and `--year` filter on the **trade** date, not the settlement date shown
@@ -83,16 +95,17 @@ CAD is the tax currency, the converted figures for a USD holding belong in it.
 
 ## Export
 
-`--export PATH` writes what the command reports, choosing the format from the
-suffix (a path with none becomes a workbook):
+`--export PATH` writes what the command reports to a file instead of printing it,
+choosing the format from the suffix (a path with none becomes a workbook):
 
-- `.xlsx` or `.csv`: the table as printed. `--summary` writes the summary, a
+- `.xlsx` or `.csv`: the table the command would print. `--summary` writes the summary, a
   `SYMBOL` writes its buildup, and neither writes the whole ledger for the pool.
   `--currency` and the row filters (`--type`, `--account`, `--from`, `--to`,
   `--year`, `--all`) apply as they do on screen. Cells keep full precision; only
   their display is rounded.
 - `.parquet`: the raw rows behind it, every column the engine computed at all
-  three grains, for another program to read.
+  three grains, with each buy's Gain since buy and every row's Gain%, for another
+  program to read.
 
 ```bash
 folio acb NVDA --export nvda.xlsx             # one symbol's buildup
@@ -184,6 +197,7 @@ printed a table.
 > Avg 1:1 against your account statements. If this flag fires, the realized loss shown
 > here is not the one CRA will actually allow - work out the adjustment yourself (or
 > with a tax preparer) before filing. This loss should not be reported on your return.
+> The flag marks that sale's own `Gain` with ⚠.
 
 Two of these are deliberately narrower than they first appear:
 
@@ -204,9 +218,10 @@ automatically. Every table says which it was:
 ```text
 computed just now
 cached 15m ago
+acb cached 15m ago · quotes cached 3m ago
 ```
 
-`--refresh` forces a replay.
+`--refresh` forces a replay. `--offline` uses only the quotes already cached.
 
 ## FX coverage
 

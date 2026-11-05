@@ -16,7 +16,14 @@ from engine.frames import (
 )
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable
-from exporters.sheets.acb import MEASURE_FORMATS, USD, acb_notes, families, has_usd
+from exporters.sheets.acb import (
+    MEASURE_FORMATS,
+    USD,
+    acb_notes,
+    families,
+    has_usd,
+    measure_header,
+)
 from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
 
 if TYPE_CHECKING:
@@ -112,7 +119,7 @@ def ledger_sheet(
     keys.extend(extra)
     columns = [
         Col(
-            _header(key),
+            measure_header(key),
             COLUMN_FORMATS.get(key, Fmt.TEXT),
             _TRANSACTION_BAND,
             quiet=key in QUIET_COLUMNS,
@@ -120,14 +127,17 @@ def ledger_sheet(
         for key in keys
     ]
 
+    # Gain% is worked out when a report runs, never saved with the ledger.
+    suffixes = [suffix for suffix, _attribute in GRAIN_MEASURES]
+    suffixes += ["GainPct", "GainPct" + USD]
     for grain in Grain:
-        for suffix, _attribute in GRAIN_MEASURES:
+        for suffix in suffixes:
             if not _wanted(suffix, cad=cad, usd=usd):
                 continue
             keys.append(grain_column(grain, suffix))
             columns.append(
                 Col(
-                    f"{GRAIN_PREFIX[grain]} {_header(suffix)}",
+                    f"{GRAIN_PREFIX[grain]} {measure_header(suffix)}",
                     MEASURE_FORMATS[suffix.removesuffix(USD)],
                     GRAIN_BANDS[grain],
                 ),
@@ -189,15 +199,19 @@ def _ordered_columns() -> list[str]:
     return ordered + [column for column in known if column not in LEDGER_ORDER]
 
 
-def _header(column: str) -> str:
-    """Spell a frame column the way a reader should see it."""
-    return column.replace(USD, " USD")
-
-
 def _wanted(column: str, *, cad: bool, usd: bool) -> bool:
     """Report whether a currency's family of columns was asked for."""
     if column.endswith(USD):
         return usd
-    if column in {"ACB", "Delta", "Avg", "Realized", "Gain", "Proceeds", "Dividend"}:
+    if column in {
+        "ACB",
+        "Delta",
+        "Avg",
+        "Realized",
+        "Gain",
+        "GainPct",
+        "Proceeds",
+        "Dividend",
+    }:
         return cad
     return True

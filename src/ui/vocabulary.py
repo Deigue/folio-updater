@@ -172,6 +172,7 @@ SHORT_HEADERS = {
     "Change": "Chg",
     "Change%": "Chg%",
     "Realized": "Rlzd",
+    "Realized\nUSD": "Rlzd\nUSD",
     "Unreal": "Unrl",
     "Unreal%": "Unrl%",
     "Market": "Mkt",
@@ -186,6 +187,8 @@ COARSE_PERCENT_HEADERS = frozenset(
         "Total%",
         "Wt%",
         "Folio%",
+        "Gain%",
+        "Gain%\nUSD",
     },
 )
 # `Change%` and `PnL%` are excluded as their precision is important.
@@ -227,6 +230,8 @@ CENTLESS_EXEMPT_HEADERS = with_short_forms(
         {
             "Change",
             "Avg",
+            "Avg\nUSD",
+            "Rate",
             "Last",
             "Price",
             "Units",
