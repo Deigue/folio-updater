@@ -721,7 +721,7 @@ def test_the_move_from_t_plus_2_to_t_plus_1_is_not_an_outlier() -> None:
 
 
 def test_a_weekend_does_not_make_a_normal_lag_look_odd() -> None:
-    """Thursday T+2 is four calendar days, which business days see as two."""
+    """Thursday T+2 is four calendar days, which counting weekdays sees as two."""
     rows = trades_with_lags([2, 2, 2, 2, 2])
     rows.append(
         make_row(

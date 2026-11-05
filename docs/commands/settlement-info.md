@@ -23,6 +23,9 @@ to `statements/processed/`, whether it updated anything or not. That folder is a
 never read again. If settlement dates are still calculated for a month whose statement was already
 read, `folio update` downloads that statement again.
 
+`folio settle-info --import -f` moves the named statement to `statements/processed/` the same way.
+Statements can be `.csv` or `.xlsx`.
+
 ## Expected Statement Format
 
 - `date`: Settlement date from the statement

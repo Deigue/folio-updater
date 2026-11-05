@@ -134,7 +134,7 @@ _TRADE_ACTIONS = (Action.BUY, Action.SELL)
 # Actions whose `$` is a real denomination of money that moved, attributed to symbol.
 DENOMINATED_ACTIONS = (Action.BUY, Action.SELL, Action.DIVIDEND, Action.ROC)
 
-# Business day lag for settlement dates
+# How far a settlement lag, counted in weekdays, may differ from the account's usual.
 SETTLE_LAG_TOLERANCE = 2
 
 # min trades below which no habit can be established for settle day lag.
@@ -1455,7 +1455,8 @@ class _Replay:
         """Report a trade settling far outside its account's usual lag.
 
         The typical settlement lag is calculated for the account, and transactions
-        outside it are reported.
+        outside it are reported. Lags count weekdays, not trading days, because the
+        replay never loads an exchange calendar.
         """
         lags: dict[str, list[tuple[TxnRow, int]]] = {}
         for row in self.rows:
@@ -1464,7 +1465,7 @@ class _Replay:
             if row.settle_date < row.txn_date:
                 # Already reported under different code
                 continue
-            lag = _business_days(row.txn_date, row.settle_date)
+            lag = _weekdays_between(row.txn_date, row.settle_date)
             lags.setdefault(row.account, []).append((row, lag))
 
         for account, entries in sorted(lags.items()):
@@ -1477,7 +1478,7 @@ class _Replay:
                         WarningCode.SETTLE_LAG_OUTLIER,
                         row,
                         detail=(
-                            f"Settles {lag} business days after the trade; "
+                            f"Settles {lag} weekdays after the trade; "
                             f"{account} usually takes {usual}"
                         ),
                         value=Decimal(lag),
@@ -1533,7 +1534,7 @@ class _Replay:
                 )
 
 
-def _business_days(start: str, end: str) -> int:
+def _weekdays_between(start: str, end: str) -> int:
     """Count weekdays between two `YYYY-MM-DD` dates, excluding the first.
 
     Args:

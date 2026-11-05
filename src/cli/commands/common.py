@@ -14,6 +14,7 @@ from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, PoolView
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
+from services.broker_files import SUPPORTED_SUFFIXES, is_supported
 from term import console_error, console_success, console_warning
 from term.progress import spinner
 from ui.vocabulary import SPINNER_PARQUET
@@ -249,3 +250,20 @@ def confirm_selection(count: int, *, verb: str, force: bool) -> bool:
         f"{verb.capitalize()} {count} transaction(s)?",
         default=False,
     )
+
+
+def refuse_unsupported_file(file_path: Path) -> None:
+    """Stop a command that was named a file folio cannot read.
+
+    Args:
+        file_path: The file named on the command line.
+
+    Raises:
+        typer.Exit: When the file's suffix is not supported.
+    """
+    if not is_supported(file_path.name):
+        console_error(
+            f"{file_path.name} is not a supported file "
+            f"({', '.join(SUPPORTED_SUFFIXES)})",
+        )
+        raise typer.Exit(1)

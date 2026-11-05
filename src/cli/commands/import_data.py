@@ -5,16 +5,16 @@ Imports transactions from files, moving each one to the processed folder.
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import export_to_parquet
+from cli.commands.common import export_to_parquet, refuse_unsupported_file
 from datagen import DemoFolio, is_demo_folio
 from importers import import_transactions
 from models import FileImport
+from services.broker_files import archive, waiting_files
 from term import (
     console_error,
     console_info,
@@ -25,8 +25,6 @@ from term import (
 from term.progress import spinner
 from ui.views.imports import show_files_summary, show_import_audit, show_import_summary
 from ui.vocabulary import SPINNER_IMPORT
-
-SUPPORTED_EXTENSIONS = frozenset({".xlsx", ".xls", ".csv"})
 
 
 def import_transaction_files(
@@ -61,6 +59,7 @@ def import_transaction_files(
         if not file_path.exists():
             console_error(f"File not found: {file}")
             raise typer.Exit(1)
+        refuse_unsupported_file(file_path)
 
         _import_file_and_export(file_path, verbose=verbose)
     elif directory:
@@ -70,25 +69,6 @@ def import_transaction_files(
             raise typer.Exit(1)
 
         _import_directory_and_export(dir_path, verbose=verbose)
-
-
-def _move_file(file_path: Path) -> None:
-    """Move a file to the destination folder."""
-    config = get_config()
-    processed_path = config.processed_path
-    destination = processed_path / file_path.name
-
-    # Handle filename conflicts
-    counter = 1
-    base_name = file_path.stem
-    suffix = file_path.suffix
-
-    while destination.exists():  # pragma: no cover
-        destination = processed_path / f"{base_name}_{counter}{suffix}"
-        counter += 1
-
-    shutil.move(str(file_path), str(destination))
-    console_info(f"Moved {file_path.name} to {processed_path.name}/")
 
 
 def import_file(
@@ -123,7 +103,9 @@ def import_file(
         show_import_summary(file_path.name, results)
         show_import_audit(results, verbose=verbose, interactive=interactive)
 
-    _move_file(file_path)
+    processed_path = get_config().processed_path
+    if archive(file_path, processed_path) != file_path:
+        console_info(f"Moved {file_path.name} to {processed_path.name}/")
     return FileImport(file_path, results=results)
 
 
@@ -173,22 +155,6 @@ def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
         console_warning(f"No transactions imported from {file_path.name}")
 
 
-def pending_import_files(dir_path: Path) -> list[Path]:
-    """Return the importable files waiting in a directory.
-
-    Args:
-        dir_path: Directory to look in.
-
-    Returns:
-        Every file with a supported extension, in name order.
-    """
-    return sorted(
-        f
-        for f in dir_path.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
-    )
-
-
 def import_directory(
     dir_path: Path,
     *,
@@ -205,7 +171,7 @@ def import_directory(
     Returns:
         One entry per file, in the order imported. Empty when there were none.
     """
-    import_files = pending_import_files(dir_path)
+    import_files = waiting_files(dir_path)
     if not import_files:
         return []
 
@@ -226,7 +192,7 @@ def import_directory(
 
 def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> None:
     """Import all files from directory and export to Parquet."""
-    if pending_import_files(dir_path) and not confirm_demo_replacement():
+    if waiting_files(dir_path) and not confirm_demo_replacement():
         raise _cancelled_for_the_demo()
     outcomes = import_directory(dir_path, verbose=verbose)
     if not outcomes:

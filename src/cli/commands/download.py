@@ -17,6 +17,7 @@ from app.logging_setup import get_import_logger
 from db import get_broker_latest_txn_date, get_connection
 from domain import TORONTO_TZ
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from services.broker_files import ws_activities_file_name, ws_statement_file_name
 from services.price_history import months_back
 from term import (
     announce,
@@ -250,7 +251,7 @@ def download_wealthsimple(
     if len(activities) > 0:
         show_activities_preview(activities, accounts)
 
-        csv_name = f"ws_activities_{resolved_from_date}_{resolved_to_date}.csv"
+        csv_name = ws_activities_file_name(resolved_from_date, resolved_to_date)
         ws.export_activities_to_csv(activities, csv_name, accounts)
 
         console_success(f'File saved: "{get_config().imports_path / csv_name}"')
@@ -286,9 +287,7 @@ def download_ws_statement(from_date: str) -> list[Path]:
             statement_rows = ws.get_monthly_statement(account.id, from_date)
             account_name = account.account_name
             if statement_rows:
-                # YYYY-MM-DD -> YYYYMM
-                date_for_filename = from_date.replace("-", "")[:6]
-                csv_name = f"ws_statement_{account_name}_{date_for_filename}.csv"
+                csv_name = ws_statement_file_name(account_name, from_date[:7])
                 ws.export_statement_to_csv(statement_rows, csv_name)
                 total_rows += len(statement_rows)
                 exported_files.append(csv_name)

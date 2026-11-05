@@ -23,6 +23,7 @@ from urllib3.util.retry import Retry
 
 from app import get_config
 from domain import TORONTO_TZ
+from services.broker_files import ibkr_file_name, ibkr_retry_file_name
 from term import announce
 from term.progress import spinner
 
@@ -407,10 +408,12 @@ class IBKRService:
 
         config = get_config()
         if isinstance(request, str):
-            csv_name = f"ibkr_ref_{request}.csv"
+            csv_name = ibkr_retry_file_name(request)
         else:
-            csv_name = (
-                f"ibkr_{request.query_name}_{request.from_date}_{request.to_date}.csv"
+            csv_name = ibkr_file_name(
+                request.query_name,
+                request.from_date,
+                request.to_date,
             )
         output_path: Path = config.imports_path / csv_name
 

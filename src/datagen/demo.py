@@ -252,7 +252,7 @@ def currency_of(symbol: str) -> Currency:
 @cache
 def _sessions(currency: Currency) -> frozenset[date]:
     """Every day the exchange for `currency` trades, across the window."""
-    schedule = settlement_calculator.get_calendar_schedule(
+    schedule = settlement_calculator.calendar.trading_days(
         currency,
         pd.Timestamp(START, tz=TORONTO_TZ),
         pd.Timestamp(END, tz=TORONTO_TZ),
@@ -269,10 +269,12 @@ def _open(day: date) -> date:
 
 def _settles(day: date, currency: Currency) -> date:
     """Find the next session after `day`: when a trade made then settles (T+1)."""
-    day += timedelta(days=1)
-    while day not in _sessions(currency):
-        day += timedelta(days=1)
-    return day
+    next_session = settlement_calculator.calendar.nth_trading_day_after(
+        pd.Timestamp(day),
+        1,
+        currency,
+    )
+    return date.fromisoformat(next_session)
 
 
 def _months(first: date) -> list[date]:

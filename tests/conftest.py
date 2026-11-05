@@ -453,12 +453,5 @@ def preload_settlement_schedules() -> None:
         buffer_end.date(),
     )
 
-    # Pre-load schedules into instance cache
     for currency in (Currency.USD, Currency.CAD):
-        settlement_calculator.calendar_schedules[currency] = (
-            settlement_calculator.get_calendar_schedule(
-                currency,
-                buffer_start,
-                buffer_end,
-            )
-        )
+        settlement_calculator.calendar.trading_days(currency, buffer_start, buffer_end)

@@ -24,6 +24,7 @@ from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome, Table
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
+from services.broker_files import statement_account_of
 from services.symbols import normalize_canadian_ticker
 from term import StatusMark, announce, get_symbol
 
@@ -280,7 +281,7 @@ def _update_settlement_dates(
         The number of transactions updated, and one `SettlementMatch` per
         candidate row describing how it was resolved.
     """
-    account = _extract_account_from_statement_filename(statement)
+    account = statement_account_of(statement.name)
     if not account:
         announce.warning(
             f'No account in statement filename "{statement.name}"; settlement '
@@ -612,11 +613,6 @@ def _apply_settlement_updates_to_db(
 _TRANSFER_OUT_PREFIX = "TRFOUT"
 _TRANSFER_IN_PREFIX = "TRFIN"
 _CASH_TRANSFER_DESCRIPTION_PREFIX = "money transfer"
-# Wealthsimple statement files "ws_statement_{account}_{yyyymm}.{ext}"
-_STATEMENT_FILENAME_PATTERN = re.compile(
-    r"^ws_statement_(?P<account>.+)_\d{6}$",
-    re.IGNORECASE,
-)
 
 
 def _transfer_action_for_code(action_code: str) -> str | None:
@@ -634,12 +630,6 @@ def _is_cash_transfer(description: str) -> bool:
     return description.strip().lower().startswith(_CASH_TRANSFER_DESCRIPTION_PREFIX)
 
 
-def _extract_account_from_statement_filename(path: Path) -> str | None:
-    """Recover the account alias from a Wealthsimple statement filename."""
-    match = _STATEMENT_FILENAME_PATTERN.match(path.stem)
-    return match.group("account") if match else None
-
-
 def _build_transfer_transactions(
     df: pd.DataFrame,
     statement_path: Path,
@@ -651,7 +641,7 @@ def _build_transfer_transactions(
         that could not be turned into a transaction, and a count of cash
         transfers skipped because the activities import already covers them.
     """
-    account = _extract_account_from_statement_filename(statement_path)
+    account = statement_account_of(statement_path.name)
     rows: list[dict[str, object]] = []
     rejected = 0
     skipped = 0

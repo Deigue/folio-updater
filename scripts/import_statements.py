@@ -14,7 +14,7 @@ root = tk.Tk()
 root.withdraw()  # Hide the main window
 import_path = filedialog.askopenfilename(
     title="Select Statement file to import",
-    filetypes=[("Statement files", "*.xlsx *.xls *.csv")],
+    filetypes=[("Statement files", "*.xlsx *.csv")],
 )
 
 if import_path and Path(import_path).exists():

@@ -11,13 +11,13 @@ import pandas as pd
 from domain import TORONTO_TZ, WEEKDAYS, Action, Column, Currency
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import date
-
-    import pandas_market_calendars as mcal
 
 DATE_FORMAT: str = "%Y-%m-%d"
 DATE_PATTERN: str = r"^\d{4}-\d{2}-\d{2}$"
 _EMPTY_SCHEDULE: pd.DatetimeIndex = pd.DatetimeIndex([])
+_EXCHANGES: dict[Currency, str] = {Currency.USD: "NYSE", Currency.CAD: "TSX"}
 T_PLUS_1_EFFECTIVE_DATES: dict[Currency, date] = {
     Currency.USD: datetime(2024, 5, 28, tzinfo=TORONTO_TZ).date(),  # US markets
     Currency.CAD: datetime(2024, 5, 27, tzinfo=TORONTO_TZ).date(),  # Canadian markets
@@ -41,18 +41,127 @@ BUSINESS_DAY_SETTLE_ACTIONS: set[Action] = {
 }
 
 
+class TradingCalendar:
+    """The days each currency's exchange trades.
+
+    Fixed sessions, handed in, are all it ever knows. Otherwise it asks the
+    market calendar library, loaded on first use and cached by date range.
+    """
+
+    def __init__(
+        self,
+        sessions: Mapping[Currency, list[str]] | None = None,
+    ) -> None:
+        """Create a calendar.
+
+        Args:
+            sessions: Each currency's trading days as YYYY-MM-DD, or None for
+                the real exchanges.
+        """
+        self._is_fixed = sessions is not None
+        self._schedules: dict[Currency, pd.DatetimeIndex] = {
+            currency: pd.DatetimeIndex(days)
+            for currency, days in (sessions or {}).items()
+        }
+
+    def trading_days(
+        self,
+        currency: Currency,
+        start_date: pd.Timestamp,
+        end_date: pd.Timestamp,
+    ) -> pd.DatetimeIndex:
+        """Get the trading days covering a date range, loading them if needed.
+
+        A cached schedule that does not cover the range is replaced by one
+        spanning both, so widening never drops days already loaded.
+
+        Args:
+            currency: Currency whose exchange applies.
+            start_date: Start of the range.
+            end_date: End of the range.
+
+        Returns:
+            Every trading day known for the currency, which may reach beyond
+            the range. Empty for a currency with no exchange.
+        """
+        existing = self._schedules.get(currency, _EMPTY_SCHEDULE)
+        exchange = _EXCHANGES.get(currency)
+        if self._is_fixed or exchange is None:
+            return existing
+
+        if len(existing) > 0:
+            cached_start = existing[0].tz_localize(TORONTO_TZ)
+            cached_end = existing[-1].tz_localize(TORONTO_TZ)
+            if cached_start <= start_date and cached_end >= end_date:
+                return existing
+            start_date = min(start_date, cached_start)
+            end_date = max(end_date, cached_end)
+
+        import pandas_market_calendars as mcal
+
+        schedule: pd.DataFrame = mcal.get_calendar(exchange).schedule(
+            start_date=start_date - pd.DateOffset(days=10),
+            end_date=end_date + pd.DateOffset(days=30),
+        )
+        days = pd.DatetimeIndex(schedule.index)
+        self._schedules[currency] = days
+        return days
+
+    def nth_trading_day_after(
+        self,
+        day: pd.Timestamp,
+        count: int,
+        currency: Currency,
+    ) -> str:
+        """Return the Nth trading day strictly after a date.
+
+        A currency with no exchange, or a count running past the last known
+        trading day, counts plain weekdays instead.
+
+        Args:
+            day: The date to count from.
+            count: How many trading days to count.
+            currency: Currency whose exchange applies.
+
+        Returns:
+            The date in YYYY-MM-DD format.
+        """
+        schedule = self._schedules.get(currency, _EMPTY_SCHEDULE)
+        if len(schedule) == 0 or not schedule[0] <= day <= schedule[-1]:
+            when = day.tz_localize(TORONTO_TZ)
+            schedule = self.trading_days(currency, when, when)
+        if len(schedule) == 0:
+            return _nth_weekday_after(day, count)
+
+        position = int(schedule.searchsorted(day, side="right"))
+        target = position + count - 1
+        if target >= len(schedule):  # pragma: no cover
+            return _nth_weekday_after(day, count)
+        return schedule[target].strftime(DATE_FORMAT)
+
+
+def _nth_weekday_after(day: pd.Timestamp, count: int) -> str:
+    """Return the Nth Monday-to-Friday strictly after a date, as YYYY-MM-DD."""
+    current = day
+    counted = 0
+    while counted < count:
+        current += pd.DateOffset(days=1)
+        if current.weekday() < WEEKDAYS:
+            counted += 1
+    return current.strftime(DATE_FORMAT)
+
+
 class SettlementCalculator:
     """Calculates settlement dates for transactions based on business rules."""
 
-    def __init__(self) -> None:
-        """Initialize the settlement calculator with market calendars."""
-        import pandas_market_calendars as mcal
+    def __init__(self, calendar: TradingCalendar | None = None) -> None:
+        """Initialize the settlement calculator.
 
-        self._calendars: dict[Currency, mcal.MarketCalendar] = {}
-        self.calendar_schedules: dict[Currency, pd.DatetimeIndex] = {}
-        # Initialize market calendars
-        self._calendars[Currency.USD] = mcal.get_calendar("NYSE")
-        self._calendars[Currency.CAD] = mcal.get_calendar("TSX")
+        Args:
+            calendar: The trading days to settle against, or None for the real
+                exchanges.
+        """
+        self.calendar = calendar or TradingCalendar()
 
     def add_settlement_dates_to_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add and calculate settlement dates in the DataFrame.
@@ -133,7 +242,7 @@ class SettlementCalculator:
             if settlement_days == 0:
                 settle_dates[row] = txn_dates[row]
             else:
-                settle_dates[row] = self._nth_trading_day_after(
+                settle_dates[row] = self.calendar.nth_trading_day_after(
                     timestamp,
                     settlement_days,
                     currency,
@@ -142,39 +251,6 @@ class SettlementCalculator:
 
         df[Column.Txn.SETTLE_DATE] = settle_dates
         df[Column.Txn.SETTLE_CALCULATED] = calculated
-
-    def _nth_trading_day_after(
-        self,
-        timestamp: pd.Timestamp,
-        settlement_days: int,
-        currency: Currency,
-    ) -> str:
-        """Return the Nth trading day strictly after a trade date.
-
-        Args:
-            timestamp: Trade date.
-            settlement_days: Trading days until settlement.
-            currency: Currency whose market calendar applies.
-
-        Returns:
-            Settlement date in YYYY-MM-DD format.
-        """
-        schedule = self.calendar_schedules.get(currency, _EMPTY_SCHEDULE)
-        if len(schedule) == 0:  # pragma: no cover
-            return self.calculate_simple_business_days(
-                timestamp.date(),
-                settlement_days,
-            )
-
-        position = int(schedule.searchsorted(timestamp, side="right"))
-        target = position + settlement_days - 1
-        if target >= len(schedule):  # pragma: no cover
-            # Calendar ran out before settlement; fall back to plain weekdays.
-            return self.calculate_simple_business_days(
-                timestamp.date(),
-                settlement_days,
-            )
-        return schedule[target].strftime(DATE_FORMAT)
 
     def _ensure_schedules_loaded(
         self,
@@ -190,77 +266,8 @@ class SettlementCalculator:
             start_date: Start date (timezone-aware)
             end_date: End date (timezone-aware)
         """
-        for currency in [Currency.USD, Currency.CAD]:
-            self.get_calendar_schedule(currency, start_date, end_date)
-
-    def calculate_simple_business_days(
-        self,
-        txn_date: date,
-        settlement_days: int,
-    ) -> str:
-        """Calculate settlement date using simple business day logic.
-
-        Args:
-            txn_date: Trade date
-            settlement_days: Number of business days to add
-
-        Returns:
-            Settlement date in YYYY-MM-DD format
-        """
-        current_date = txn_date
-        days_added = 0
-
-        while days_added < settlement_days:
-            current_date = current_date + pd.DateOffset(days=1)
-            if current_date.weekday() < WEEKDAYS:
-                days_added += 1
-
-        return current_date.strftime(DATE_FORMAT)
-
-    def get_calendar_schedule(
-        self,
-        currency: Currency,
-        start_date: pd.Timestamp,
-        end_date: pd.Timestamp,
-    ) -> pd.DatetimeIndex:
-        """Get or create calendar schedule for date range.
-
-        A cached schedule that does not cover the range is replaced by one
-        spanning both, so widening never drops days already loaded.
-
-        Args:
-            currency: Currency to get calendar for
-            start_date: Start date for schedule
-            end_date: End date for schedule
-
-        Returns:
-            DatetimeIndex of valid trading days
-        """
-        existing_schedule = self.calendar_schedules.get(currency, _EMPTY_SCHEDULE)
-        if len(existing_schedule) > 0:
-            cached_start = existing_schedule[0].tz_localize(TORONTO_TZ)
-            cached_end = existing_schedule[-1].tz_localize(TORONTO_TZ)
-            if cached_start <= start_date and cached_end >= end_date:
-                return existing_schedule
-            start_date = min(start_date, cached_start)
-            end_date = max(end_date, cached_end)
-
-        calendar: mcal.MarketCalendar | None = self._calendars.get(currency)
-        if calendar is None:  # pragma: no cover
-            return pd.DatetimeIndex([])
-
-        buffer_start: pd.Timestamp = start_date - pd.DateOffset(days=10)
-        buffer_end: pd.Timestamp = end_date + pd.DateOffset(days=30)
-
-        schedule: pd.DataFrame = calendar.schedule(
-            start_date=buffer_start,
-            end_date=buffer_end,
-        )
-        valid_days: pd.DatetimeIndex = pd.DatetimeIndex(schedule.index)
-
-        # Cache the schedule
-        self.calendar_schedules[currency] = valid_days
-        return valid_days
+        for currency in _EXCHANGES:
+            self.calendar.trading_days(currency, start_date, end_date)
 
     def _get_settlement_days(
         self,

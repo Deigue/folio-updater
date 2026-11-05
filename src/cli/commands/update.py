@@ -8,7 +8,6 @@ show the dashboards.
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -28,7 +27,6 @@ from cli.commands.generate import write_folio
 from cli.commands.import_data import (
     confirm_demo_replacement,
     import_directory,
-    pending_import_files,
 )
 from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
@@ -49,6 +47,15 @@ from engine.update_review import (
 from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
 from services import IBKRServiceError, WealthsimpleServiceError
+from services.broker_files import (
+    IBKR,
+    WS,
+    broker_of,
+    date_range_of,
+    delete_new_files,
+    statements_for_month,
+    waiting_files,
+)
 from term import console_info, console_rule
 from term.progress import spinner
 from ui.views.checks import print_report
@@ -64,15 +71,9 @@ if TYPE_CHECKING:
     from config import Config
     from models import FileImport
 
-# Broker keys as they appear in account names and download file names.
-IBKR = "ibkr"
-WS = "ws"
 _DOWNLOAD_NAMES = {IBKR: "ibkr", WS: "wealthsimple"}
 
 _DOWNLOAD_ERRORS = (IBKRServiceError, WealthsimpleServiceError, WSApiException, OSError)
-_STATEMENT_SUFFIXES = (".csv", ".xlsx")
-# Download files carry their range: ibkr_TradeConfirmation_20260807_20260902.csv
-_FILE_RANGE = re.compile(r"_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})")
 
 
 def run_update(*, resume: bool = False, offline: bool = False) -> None:
@@ -133,17 +134,17 @@ def _download_stage(config: Config, report: UpdateReport) -> None:
         report: Where a failure is recorded.
     """
     console_rule("Download", style=RULE_UPDATE)
-    before = set(pending_import_files(config.imports_path))
+    before = set(waiting_files(config.imports_path))
     try:
         failed = _download_all(config)
     except KeyboardInterrupt:  # pragma: no cover
-        _remove_new_files(config.imports_path, before)
+        delete_new_files(config.imports_path, before)
         raise
     if failed is None:
         return
 
     broker, error = failed
-    removed = _remove_new_files(config.imports_path, before)
+    removed = delete_new_files(config.imports_path, before)
     report.failure = HardFailure(
         stage=UpdateStage.DOWNLOAD,
         error=f"{broker} download failed: {error}",
@@ -172,22 +173,6 @@ def _download_all(config: Config) -> tuple[str, str] | None:
     except typer.Exit:
         return broker, "see the message above"
     return None
-
-
-def _remove_new_files(imports: Path, before: set[Path]) -> list[str]:
-    """Delete the files that appeared in the imports folder during this run.
-
-    Args:
-        imports: The imports folder.
-        before: The files that were there when the run started.
-
-    Returns:
-        The names of the files removed.
-    """
-    new = [path for path in pending_import_files(imports) if path not in before]
-    for path in new:
-        path.unlink()
-    return [path.name for path in new]
 
 
 def _download_fixes(broker: str, error: str, removed: list[str]) -> tuple[str, ...]:
@@ -236,15 +221,6 @@ def _download_fixes(broker: str, error: str, removed: list[str]) -> tuple[str, .
 # -- IMPORT ---------------------------------------------------------------------
 
 
-def _broker_of(filename: str) -> str | None:
-    """Return the broker a downloaded file came from, or None for any other file."""
-    if filename.startswith(f"{IBKR}_"):
-        return IBKR
-    if filename.startswith(f"{WS}_"):
-        return WS
-    return None  # pragma: no cover
-
-
 def _import_stage(
     config: Config,
     report: UpdateReport,
@@ -259,7 +235,7 @@ def _import_stage(
             before the run.
     """
     console_rule("Import", style=RULE_UPDATE)
-    if pending_import_files(config.imports_path) and not confirm_demo_replacement():
+    if waiting_files(config.imports_path) and not confirm_demo_replacement():
         report.failure = HardFailure(
             stage=UpdateStage.IMPORT,
             error="The folio is the demo folio, and replacing it was declined.",
@@ -280,7 +256,7 @@ def _import_stage(
     for outcome in outcomes:
         if outcome.results is None:
             continue
-        broker = _broker_of(outcome.path.name)
+        broker = broker_of(outcome.path.name)
         review = review_import(
             outcome.path.name,
             outcome.results,
@@ -349,13 +325,13 @@ def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
         ),
     ]
     for outcome in failed:
-        broker = _broker_of(outcome.path.name)
-        found = _FILE_RANGE.search(outcome.path.name)
-        if broker and found:
-            y1, m1, d1, y2, m2, d2 = found.groups()
+        broker = broker_of(outcome.path.name)
+        date_range = date_range_of(outcome.path.name)
+        if broker and date_range:
+            from_date, to_date = date_range
             steps.append(
                 f"folio download -b {_DOWNLOAD_NAMES[broker]} "
-                f"-f {y1}-{m1}-{d1} -t {y2}-{m2}-{d2}",
+                f"-f {from_date} -t {to_date}",
             )
     steps.extend(
         (
@@ -387,20 +363,6 @@ def _calculated_ws() -> pd.DataFrame:
         )
 
 
-def _statement_files(config: Config, month: str) -> list[Path]:
-    """Return the statements waiting for a YYYY-MM month.
-
-    Archived statements are ignored: a month that still has calculated dates
-    after its statement was archived is downloaded again.
-    """
-    pattern = f"ws_statement_*_{month.replace('-', '')}.*"
-    return sorted(
-        path
-        for path in config.statements_path.glob(pattern)
-        if path.suffix.lower() in _STATEMENT_SUFFIXES
-    )
-
-
 def _statement_stage(
     config: Config,
     report: UpdateReport,
@@ -429,7 +391,7 @@ def _statement_stage(
     changed = False
     imported: set[str] = set()
     for month in months:
-        files = _statement_files(config, month)
+        files = statements_for_month(config.statements_path, month)
         if not files and offline:
             report.pending.append(
                 f"{month} statement not fetched offline; to fetch it: folio update",
@@ -464,7 +426,7 @@ def _statement_stage(
     on_hand = {
         month
         for month in statement_months(remaining[Column.Txn.SETTLE_DATE], today)
-        if month in imported or _statement_files(config, month)
+        if month in imported or statements_for_month(config.statements_path, month)
     }
     stuck, pending = split_remaining(remaining, on_hand, today)
     if (concern := review_stuck(stuck)) is not None:

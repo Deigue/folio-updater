@@ -1,41 +1,92 @@
-"""Tests for the settlement calculator."""
+"""Tests for settlement dates and the trading calendar behind them."""
 
 from __future__ import annotations
 
-from datetime import datetime
+import sys
 
 import pandas as pd
 import pytest
 
 from domain import TORONTO_TZ, Action, Column, Currency
-from engine.settlement import SettlementCalculator
-
-# Shared calculator instance
-calculator = SettlementCalculator()
+from engine.settlement import SettlementCalculator, TradingCalendar
 
 
-def _primed(target: SettlementCalculator) -> SettlementCalculator:
-    """Load the calendars covering every date this module uses into `target`."""
-    for currency in (Currency.USD, Currency.CAD):
-        target.calendar_schedules[currency] = target.get_calendar_schedule(
-            currency,
-            pd.Timestamp("2025-06-01", tz=TORONTO_TZ),
-            pd.Timestamp("2025-10-01", tz=TORONTO_TZ),
-        )
-    return target
+def _sessions(start: str, end: str, *, closed: tuple[str, ...]) -> list[str]:
+    """List the weekdays in a range, leaving out the holidays named."""
+    weekdays = pd.bdate_range(start, end).strftime("%Y-%m-%d")
+    return [day for day in weekdays if day not in closed]
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prime_calendar_schedules() -> None:
-    """Load market calendars once, covering every date this module uses.
+fixed_calendar = TradingCalendar(
+    {
+        Currency.USD: _sessions(
+            "2024-05-21",
+            "2025-08-29",
+            closed=("2024-05-27", "2025-07-04"),
+        ),
+        Currency.CAD: _sessions(
+            "2024-05-21",
+            "2025-08-29",
+            closed=("2025-07-01",),
+        ),
+    },
+)
+calculator = SettlementCalculator(fixed_calendar)
+real_calculator = SettlementCalculator()
 
-    `calculator` is module-level shared state, and its schedule cache is filled
-    by whichever test runs first. When under xdist these tests are
-    spread across workers, so "first" varies and settlement results became
-    order-dependent. Priming a range that spans the whole
-    module removes the ordering assumption entirely.
-    """
-    _primed(calculator)
+SETTLEMENT_DATES = [
+    pytest.param("2025-07-03", Currency.USD, "2025-07-07", id="t1_over_us_holiday"),
+    pytest.param("2025-07-03", Currency.CAD, "2025-07-04", id="t1_us_holiday_only"),
+    pytest.param("2025-06-30", Currency.CAD, "2025-07-02", id="t1_over_cad_holiday"),
+    pytest.param("2024-05-24", Currency.USD, "2024-05-29", id="last_usd_t2"),
+    pytest.param("2024-05-24", Currency.CAD, "2024-05-28", id="last_cad_t2"),
+    pytest.param("2024-05-27", Currency.CAD, "2024-05-28", id="first_cad_t1"),
+    pytest.param("2024-05-28", Currency.USD, "2024-05-29", id="first_usd_t1"),
+]
+
+
+def _settle(
+    settlement: SettlementCalculator,
+    txn_date: str,
+    currency: Currency,
+) -> str:
+    """Settle one buy and return its settlement date."""
+    df = pd.DataFrame(
+        {
+            Column.Txn.TXN_DATE: [txn_date],
+            Column.Txn.ACTION: [Action.BUY],
+            Column.Txn.CURRENCY: [currency],
+        },
+    )
+    result = settlement.add_settlement_dates_to_dataframe(df)
+    return str(result.loc[0, Column.Txn.SETTLE_DATE])
+
+
+@pytest.mark.parametrize(("txn_date", "currency", "expected"), SETTLEMENT_DATES)
+def test_a_buy_settles_by_its_exchange_and_the_settlement_lag(
+    txn_date: str,
+    currency: Currency,
+    expected: str,
+) -> None:
+    assert _settle(calculator, txn_date, currency) == expected
+
+
+@pytest.mark.parametrize(("txn_date", "currency", "expected"), SETTLEMENT_DATES)
+def test_the_real_calendar_gives_the_same_settlement_dates(
+    txn_date: str,
+    currency: Currency,
+    expected: str,
+) -> None:
+    assert _settle(real_calculator, txn_date, currency) == expected
+
+
+def test_creating_a_calculator_does_not_load_the_calendar_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Commands that never settle anything should not pay for the library."""
+    monkeypatch.setitem(sys.modules, "pandas_market_calendars", None)
+
+    SettlementCalculator()
 
 
 def test_an_empty_frame_comes_back_empty() -> None:
@@ -182,11 +233,27 @@ def test_multiple_txns() -> None:
         ("2025-08-18", 3, "2025-08-21"),
     ],
 )
-def test_business_days(start_date: str, days: int, expected: str) -> None:
-    """Test simple business day calculation."""
-    start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=TORONTO_TZ).date()
-    result = calculator.calculate_simple_business_days(start, days)
+def test_a_currency_with_no_exchange_counts_plain_weekdays(
+    start_date: str,
+    days: int,
+    expected: str,
+) -> None:
+    result = TradingCalendar().nth_trading_day_after(
+        pd.Timestamp(start_date),
+        days,
+        Currency.EUR,
+    )
     assert result == expected
+
+
+def test_the_trading_day_lookup_loads_what_it_needs() -> None:
+    """Nothing loaded yet still means real trading days: Jul 4 is skipped."""
+    settles = TradingCalendar().nth_trading_day_after(
+        pd.Timestamp("2025-07-03"),
+        1,
+        Currency.USD,
+    )
+    assert settles == "2025-07-07"
 
 
 def test_an_earlier_batch_widens_a_cached_calendar() -> None:
@@ -196,7 +263,10 @@ def test_an_earlier_batch_widens_a_cached_calendar() -> None:
     batch following a newer one settled against the wrong trading days, and
     could even settle before it traded.
     """
-    fresh = _primed(SettlementCalculator())
+    calendar = TradingCalendar()
+    newer_start = pd.Timestamp("2025-06-01", tz=TORONTO_TZ)
+    newer_end = pd.Timestamp("2025-10-01", tz=TORONTO_TZ)
+    calendar.trading_days(Currency.USD, newer_start, newer_end)
     df = pd.DataFrame(
         {
             Column.Txn.TXN_DATE: ["2024-11-06", "2025-07-24"],
@@ -205,8 +275,9 @@ def test_an_earlier_batch_widens_a_cached_calendar() -> None:
         },
     )
 
-    result = fresh.add_settlement_dates_to_dataframe(df)
+    result = SettlementCalculator(calendar).add_settlement_dates_to_dataframe(df)
 
     assert result[Column.Txn.SETTLE_DATE].tolist() == ["2024-11-07", "2025-07-25"]
     # The days already loaded are kept, not swapped for the older range.
-    assert fresh.calendar_schedules[Currency.USD][-1] >= pd.Timestamp("2025-10-01")
+    kept = calendar.trading_days(Currency.USD, newer_start, newer_end)
+    assert kept[-1] >= pd.Timestamp("2025-10-01")

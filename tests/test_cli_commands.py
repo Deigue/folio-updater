@@ -268,6 +268,82 @@ def test_settle_info_import_reads_the_named_file(temp_ctx: TempContext) -> None:
             'Updated 1 settlement dates from "test_statement.xlsx"',
             cli_result,
         )
+        assert (ctx.config.statements_processed_path / statement_file.name).exists()
+        assert not statement_file.exists()
+
+
+def test_settle_info_import_leaves_an_archived_statement_in_place(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        statement_file = ctx.config.statements_processed_path / "test_statement.xlsx"
+        register_test_dataframe(statement_file, _seed_statement_buy())
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["settle-info", "--import", "-f", str(statement_file)],
+        )
+
+        assert_cli_success(cli_result)
+        assert [path.name for path in statement_file.parent.iterdir()] == [
+            statement_file.name,
+        ]
+
+
+def test_import_leaves_an_archived_file_in_place(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        source = ctx.config.processed_path / "test_import.xlsx"
+        create_transaction_data(source)
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["import", "--file", str(source)],
+        )
+
+        assert_cli_success(cli_result)
+        assert [path.name for path in source.parent.iterdir()] == [source.name]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(["import", "--file"], id="import"),
+        pytest.param(["settle-info", "--import", "-f"], id="settle-info"),
+    ],
+)
+def test_a_named_file_with_an_unsupported_suffix_is_refused(
+    temp_ctx: TempContext,
+    command: list[str],
+) -> None:
+    with temp_ctx() as ctx:
+        source = ctx.config.project_root / "old.xls"
+        source.touch()
+
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            [*command, str(source)],
+        )
+
+        left_in_place = source.exists()
+
+    assert cli_result.exit_code == 1
+    assert_in_output("old.xls is not a supported file (.csv, .xlsx)", cli_result)
+    assert left_in_place
+
+
+def test_an_unsupported_file_in_the_imports_folder_is_not_read(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        (ctx.config.imports_path / "old.xls").touch()
+
+        cli_result = run_cli_with_config(ctx.config, cli_app, ["import"])
+
+    assert cli_result.exit_code == 1
+    assert_in_output("No supported files found", cli_result)
 
 
 def test_settle_info_import_reads_the_statements_folder(

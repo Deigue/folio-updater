@@ -5,7 +5,6 @@ Handles querying settlement date information for transactions in the database.
 
 from __future__ import annotations
 
-import shutil
 import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -13,11 +12,13 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
+from cli.commands.common import refuse_unsupported_file
 from datagen import is_demo_folio
 from db import get_connection, get_row_count, get_rows
 from domain import Column, Table
 from exporters import ParquetExporter
 from importers import import_statements
+from services.broker_files import SUPPORTED_SUFFIXES, archive, waiting_files
 from term import (
     console_error,
     console_info,
@@ -91,7 +92,9 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
         if not statement_path.exists():
             console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
+        refuse_unsupported_file(statement_path)
         results = [import_single_statement(statement_path, verbose=verbose)]
+        archive_statement(statement_path)
     else:
         results = _import_statements_from_directory(verbose=verbose)
 
@@ -177,20 +180,12 @@ def archive_statement(statement_path: Path) -> None:
         statement_path: The statement that was imported.
     """
     config = get_config()
-
-    archive = config.statements_processed_path
-    destination = archive / statement_path.name
-    counter = 1
-    while destination.exists():
-        destination = (
-            archive / f"{statement_path.stem}_{counter}{statement_path.suffix}"
+    folder = config.statements_processed_path
+    if archive(statement_path, folder) != statement_path:
+        console_info(
+            f"Moved {statement_path.name} to "
+            f"{config.statements_path.name}/{folder.name}/",
         )
-        counter += 1
-
-    shutil.move(str(statement_path), str(destination))
-    console_info(
-        f"Moved {statement_path.name} to {config.statements_path.name}/{archive.name}/",
-    )
 
 
 def _report_settlement_matching(
@@ -242,13 +237,12 @@ def _import_statements_from_directory(
         console_error(f'Statements directory "{statements_dir}" does not exist.')
         raise typer.Exit(1)
 
-    xlsx_files = list(statements_dir.glob("*.xlsx"))
-    csv_files = list(statements_dir.glob("*.csv"))
-    statement_files = xlsx_files + csv_files
+    statement_files = waiting_files(statements_dir)
 
     if not statement_files:
         console_error(
-            f'No statement files (.xlsx or .csv) found in "{statements_dir}".',
+            f"No statement files ({', '.join(SUPPORTED_SUFFIXES)}) found in "
+            f'"{statements_dir}".',
         )
         raise typer.Exit(1)
 
