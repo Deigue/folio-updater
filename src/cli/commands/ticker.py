@@ -82,8 +82,8 @@ def report_ticker(
         export: Write what would be shown to this path instead of printing
             it. A single symbol's sheet needs a workbook; a comparison can also
             be a CSV.
-        refresh: Refetch quotes, fundamentals and history, and rebuild the
-            cost-base cache.
+        refresh: Refetch quotes, fundamentals and history, and replay the
+            cost base.
         offline: Never touch the network; show whatever is cached.
 
     Raises:
@@ -179,9 +179,9 @@ def _report_one(
         offline=offline,
     )[canonical]
 
-    positions: list[SymbolHoldings] = []
+    per_currency: list[SymbolHoldings] = []
     if traded:
-        positions = _positions(
+        per_currency = _per_currency(
             ledger,
             canonical,
             choice,
@@ -195,7 +195,7 @@ def _report_one(
         sheet = ticker_sheet(
             quote,
             moves,
-            positions,
+            per_currency,
             aliases=aliases,
             by_account=by_account,
             notes=[note],
@@ -206,7 +206,7 @@ def _report_one(
     show_ticker(
         quote,
         moves,
-        positions,
+        per_currency,
         aliases=aliases,
         by_account=by_account,
         badge=cache_badge(
@@ -319,7 +319,7 @@ def _export(sheet: Sheet, path: str) -> None:
     console_info(f"Exported {sheet.name} to {written}")
 
 
-def _positions(
+def _per_currency(
     ledger: Ledger,
     symbol: str,
     choice: CurrencyChoice,
@@ -347,4 +347,4 @@ def _positions(
         return [native] if native is not None else []
     in_cad = valued(Currency.CAD)
     shown = [in_cad] if choice == "CAD" else [native, in_cad]
-    return [position for position in shown if position is not None]
+    return [holdings for holdings in shown if holdings is not None]

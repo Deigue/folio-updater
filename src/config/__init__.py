@@ -238,7 +238,7 @@ class Config:
         """The directory where statement files are stored.
 
         This directory holds monthly statement files that can be imported
-        to update settlement dates. The directory is created
+        to confirm settlement dates. The directory is created
         lazily when first accessed.
         """
         return self._ensure_dir(self._statements_path)
@@ -407,8 +407,8 @@ class Config:
 
     @property
     def fx_parquet(self) -> Path:
-        """Path to forex.parquet in data path."""
-        return self._data_path / "forex.parquet"
+        """Path to fx.parquet in data path."""
+        return self._data_path / "fx.parquet"
 
     @property
     def tickers_parquet(self) -> Path:

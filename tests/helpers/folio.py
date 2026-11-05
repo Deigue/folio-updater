@@ -43,7 +43,7 @@ def ticker_txns(ticker: str) -> pd.DataFrame:
 
 
 def earliest_txn_date() -> str:
-    """Return the first trade date in the folio, in YYYY-MM-DD form."""
+    """Return the first transaction date in the folio, in YYYY-MM-DD form."""
     with get_connection() as conn:
         earliest = get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE)
     assert earliest is not None, "the folio holds no transactions"

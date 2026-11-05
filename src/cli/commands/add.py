@@ -68,7 +68,7 @@ PROMPT_ORDER: tuple[str, ...] = (
 )
 
 PROMPT_LABELS: dict[str, str] = {
-    Column.Txn.TXN_DATE: "Trade date (YYYY-MM-DD)",
+    Column.Txn.TXN_DATE: "Transaction date (YYYY-MM-DD)",
     Column.Txn.ACCOUNT: "Account",
     Column.Txn.CURRENCY: (
         f"Currency ({'/'.join(c.value for c in SUPPORTED_CURRENCIES)})"
@@ -308,7 +308,7 @@ def add_transaction(  # noqa: PLR0917
 
     Args:
         action: Transaction action (BUY, SELL, SPLIT, ROC, ...).
-        date: Trade date in YYYY-MM-DD format.
+        date: Transaction date in YYYY-MM-DD format.
         account: Account alias the transaction belongs to.
         currency: Transaction currency.
         ticker: Security ticker.

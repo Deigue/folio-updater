@@ -61,7 +61,7 @@ def price_moves(
     """Measure the price against every range's anchor.
 
     Args:
-        quote: The symbol's live quote.
+        quote: The symbol's quote.
         history: Its stored ranges, `2d` and longer, anchored on official closes.
         intraday: Its live ranges, from bars. Empty when offline, which leaves
             `2h` blank and draws the rest from the stored closes.
@@ -155,7 +155,7 @@ def fetch_moves(
     behind `2h` to `1wk` live, both in one batch for every security.
 
     Args:
-        quotes: Each security's live quote, keyed by canonical symbol.
+        quotes: Each security's quote, keyed by canonical symbol.
         resolver: Supplies the provider spelling for each symbol.
         refresh: Refetch the stored history regardless of when it was fetched.
         offline: Never touch the network: stored history only, no intraday.

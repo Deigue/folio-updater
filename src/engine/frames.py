@@ -29,7 +29,7 @@ from domain.numeric import safe_div
 from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
-    from engine.types import ComputedRow, GrainMeasures, ReplayResult
+    from engine.types import GrainMeasures, LedgerRow, ReplayResult
 
 # Source columns carried straight through from Txns.
 SOURCE_COLUMNS = [
@@ -123,7 +123,7 @@ def _number(value: Decimal | None) -> float | None:
 
 
 def _grain_cells(
-    computed: ComputedRow,
+    computed: LedgerRow,
     grain: Grain,
     measures: GrainMeasures,
 ) -> dict[str, float | None]:
@@ -139,8 +139,8 @@ def _grain_cells(
     return cells
 
 
-def _row_record(computed: ComputedRow) -> dict[str, object]:
-    """Flatten one `ComputedRow` into the ledger's columns."""
+def _row_record(computed: LedgerRow) -> dict[str, object]:
+    """Flatten one `LedgerRow` into the ledger's columns."""
     row = computed.row
     record: dict[str, object] = {
         str(Column.Txn.TXN_ID): row.txn_id,
@@ -170,7 +170,7 @@ def _row_record(computed: ComputedRow) -> dict[str, object]:
     return record
 
 
-def master_columns() -> list[str]:
+def ledger_columns() -> list[str]:
     """Every column of the ledger, in display order.
 
     Returns:
@@ -212,7 +212,7 @@ def ledger_frame(result: ReplayResult) -> pd.DataFrame:
         A DataFrame indexed by `TxnId`, strictly 1:1 with `Txns`, holding the
         source columns alongside every derived and per-grain measure.
     """
-    columns = master_columns()
+    columns = ledger_columns()
     if not result.rows:
         return index_by_txn_id(pd.DataFrame(columns=columns))
 
@@ -227,7 +227,7 @@ def ledger_frame(result: ReplayResult) -> pd.DataFrame:
 def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
     """Collapse the ledger to one row per symbol, all three grains.
 
-    The final state of each pool is the last row that touched it, in trade-date
+    The final state of each pool is the last row that touched it, in transaction-date
     order.
 
     Args:
@@ -318,7 +318,7 @@ _RANK = "_intraday_rank"
 def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
     """Put ledger rows in the exact order the cost base was replayed in.
 
-    Trade date first, then the day's actions in the order the replay applies
+    Transaction date first, then the day's actions in the order the replay applies
     them (a purchase before a sale, so a same-day round trip is not an
     oversell), then TxnId.
 

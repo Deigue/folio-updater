@@ -55,7 +55,7 @@ def acb_buildup_sheet(
     """Print a symbol's cost-base buildup as a sheet.
 
     Listed by settlement date, the way adjustedcostbase.ca lists them. The cost
-    base itself was replayed in trade-date order, so the running `Held`, `ACB`
+    base itself was replayed in transaction-date order, so the running `Held`, `ACB`
     and `Avg` columns can step out of sequence where the two orders differ.
 
     Args:

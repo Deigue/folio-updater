@@ -189,7 +189,7 @@ def import_statements(statement: Path) -> StatementImportResult:
     """Import monthly statement data: settlement dates and institutional transfers.
 
     A statement serves two purposes. For trades already in the folio, finds
-    matching transactions and backfills its settlement date. It is also the only source
+    matching transactions and confirms its settlement date. It is also the only source
     with a real amount and date for institutional transfers, so TFR_IN/TFR_OUT
     transactions are created here.
 
@@ -199,13 +199,13 @@ def import_statements(statement: Path) -> StatementImportResult:
     - currency: Transaction currency
     - transaction: Broker actions (BUY/SELL/TRFOUT/TRFIN etc.)
     - description: Contains ticker and units info for BUY/SELL transactions
-                   Also contains trade date for matching
+                   Also contains transaction date for matching
 
     Args:
         statement (Path): Path to the statement file (Excel or CSV).
 
     Returns:
-        StatementImportResult: Settlement dates updated and transfers created.
+        StatementImportResult: Settlement dates confirmed and transfers created.
     """
     import_logger.info('IMPORT STATEMENT "%s"', statement)
     try:
@@ -234,7 +234,7 @@ def _import_statement_rows(statement: Path) -> StatementImportResult:
             )
             return StatementImportResult()
 
-        settlement_updates, settlement_matches = _update_settlement_dates(
+        settlements_confirmed, settlement_matches = _confirm_settlement_dates(
             stmt_df,
             statement,
         )
@@ -251,14 +251,14 @@ def _import_statement_rows(statement: Path) -> StatementImportResult:
         return StatementImportResult()
     else:
         import_logger.info(
-            "DONE: Updated %d settlement date(s), created %d transfer(s), "
+            "DONE: Confirmed %d settlement date(s), created %d transfer(s), "
             "skipped %d cash transfer(s)",
-            settlement_updates,
+            settlements_confirmed,
             transfer_results.imported_count() if transfer_results else 0,
             transfers_skipped,
         )
         return StatementImportResult(
-            settlement_updates=settlement_updates,
+            settlements_confirmed=settlements_confirmed,
             transfer_results=transfer_results,
             transfers_rejected=transfers_rejected,
             transfers_skipped=transfers_skipped,
@@ -266,11 +266,11 @@ def _import_statement_rows(statement: Path) -> StatementImportResult:
         )
 
 
-def _update_settlement_dates(
+def _confirm_settlement_dates(
     df: pd.DataFrame,
     statement: Path,
 ) -> tuple[int, list[SettlementMatch]]:
-    """Update settlement dates using the provided DataFrame.
+    """Confirm settlement dates using the provided DataFrame.
 
     Args:
         df: Rows read from the statement.
@@ -278,7 +278,7 @@ def _update_settlement_dates(
             which keeps two accounts holding the same trade apart.
 
     Returns:
-        The number of transactions updated, and one `SettlementMatch` per
+        The number of transactions confirmed, and one `SettlementMatch` per
         candidate row describing how it was resolved.
     """
     account = statement_account_of(statement.name)
@@ -297,10 +297,10 @@ def _update_settlement_dates(
         )
         calculated = all_txns[Column.Txn.SETTLE_CALCULATED] == 1
         existing_txns = all_txns[calculated]
-        settled_txns = all_txns[~calculated]
+        actual_txns = all_txns[~calculated]
 
         if all_txns.empty:  # pragma: no cover
-            announce.info("No transactions found to settle", "importer")
+            announce.info("No transactions found to confirm", "importer")
             return 0, []
 
         updates: list[dict] = []
@@ -314,7 +314,7 @@ def _update_settlement_dates(
                 result, update = _resolve_statement_match(
                     statement_row,
                     matches,
-                    settled_txns,
+                    actual_txns,
                 )
                 results.append(result)
                 if update is not None:
@@ -329,7 +329,7 @@ def _update_settlement_dates(
                 "importer",
             )
         if updates:
-            return _apply_settlement_updates_to_db(conn, updates), results
+            return _apply_confirmed_dates_to_db(conn, updates), results
 
         return 0, results
 
@@ -337,14 +337,14 @@ def _update_settlement_dates(
 def _resolve_statement_match(
     statement_row: _StatementRow,
     matches: pd.DataFrame,
-    settled_txns: pd.DataFrame,
+    actual_txns: pd.DataFrame,
 ) -> tuple[SettlementMatch, dict | None]:
     """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
         statement_row: Fields extracted from the statement row.
         matches: Transactions with a calculated date that the row matched.
-        settled_txns: Transactions whose settlement date is already set properly.
+        actual_txns: Transactions whose settlement date is already actual.
 
     Returns:
         The outcome recorded for this statement row, and the update to apply
@@ -366,7 +366,7 @@ def _resolve_statement_match(
     if len(matches) == 1:
         transaction_row = matches.iloc[0]
         result.txn_id = int(transaction_row[Column.Txn.TXN_ID])
-        result.outcome = SettlementOutcome.MATCHED
+        result.outcome = SettlementOutcome.CONFIRMED
         update = {
             Column.Txn.TXN_ID: result.txn_id,
             Column.Txn.SETTLE_DATE: statement_row.settlement_date,
@@ -387,12 +387,12 @@ def _resolve_statement_match(
         )
         return result, None
 
-    already = _match_transactions(settled_txns, statement_row)
+    already = _match_transactions(actual_txns, statement_row)
     if len(already) == 1:
-        result.outcome = SettlementOutcome.ALREADY_SETTLED
+        result.outcome = SettlementOutcome.ALREADY_CONFIRMED
         result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
         result.candidates = 1
-        import_logger.info("  = Already settled: %s", described)
+        import_logger.info("  = Already confirmed: %s", described)
     else:
         import_logger.warning("  ! No match for %s", described)
     return result, None
@@ -407,7 +407,7 @@ class _StatementRow:
         action: Statement action code, such as BUY or SELL.
         ticker: Ticker spelled the way the folio stores it.
         units: Units named in the description, when it names any.
-        txn_date: Trade date named in the description, as YYYY-MM-DD.
+        txn_date: Transaction date named in the description, as YYYY-MM-DD.
         currency: Currency the row is denominated in.
         account: Account the statement belongs to, or None when unknown.
         amount: The amount, without its sign.
@@ -511,7 +511,7 @@ def _normalize_date(date_value: str) -> str | None:
 def _parse_transaction_description(
     description: str,
 ) -> tuple[str | None, float | None, str | None]:
-    """Extract ticker, units, and trade date from description.
+    """Extract ticker, units, and transaction date from description.
 
     Args:
         description: Statement description text
@@ -595,11 +595,11 @@ def _match_transactions(
     return existing_txns[conditions]
 
 
-def _apply_settlement_updates_to_db(
+def _apply_confirmed_dates_to_db(
     conn: sqlite3.Connection,
     updates: list[dict],
 ) -> int:
-    """Back up the folio, then apply settlement date updates in one batch."""
+    """Back up the folio, then apply confirmed settlement dates in one batch."""
     backup_folio()
     return update_rows(
         conn,

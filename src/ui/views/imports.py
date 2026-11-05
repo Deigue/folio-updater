@@ -173,7 +173,7 @@ def show_statements_summary(
         [
             {
                 "File": name,
-                "Settle Updates": result.settlement_updates,
+                "Confirmed": result.settlements_confirmed,
                 "Unplaced": len(result.settlement_unplaced()),
                 "Transfers": result.transfers_created(),
                 "Rejected": result.transfers_rejected,
@@ -188,9 +188,9 @@ def show_statements_summary(
 
 def _statement_status(result: StatementImportResult) -> str:
     """Label one statement's row in the summary table, symbol included."""
-    if result.settlement_updates > 0 or result.transfers_created() > 0:
+    if result.settlements_confirmed > 0 or result.transfers_created() > 0:
         return f"{get_symbol(StatusMark.SUCCESS)}Success"
-    if result.settlement_already_settled() and not result.settlement_unplaced():
+    if result.settlement_already_confirmed() and not result.settlement_unplaced():
         return f"{get_symbol(StatusMark.INFO)}Up to date"
     return f"{get_symbol(StatusMark.WARNING)}No updates"
 
@@ -253,13 +253,13 @@ def _settlement_result_label(match: SettlementMatch) -> str:
     Returns:
         Markup for the Result cell.
     """
-    if match.outcome is SettlementOutcome.MATCHED:
+    if match.outcome is SettlementOutcome.CONFIRMED:
         return (
             f"{get_symbol(StatusMark.SUCCESS)}"
-            f"[{THEME_SUCCESS}]matched[/{THEME_SUCCESS}]"
+            f"[{THEME_SUCCESS}]confirmed[/{THEME_SUCCESS}]"
         )
-    if match.outcome is SettlementOutcome.ALREADY_SETTLED:
-        return f"{get_symbol(StatusMark.INFO)}[dim]settled[/dim]"
+    if match.outcome is SettlementOutcome.ALREADY_CONFIRMED:
+        return f"{get_symbol(StatusMark.INFO)}[dim]already confirmed[/dim]"
     if match.outcome is SettlementOutcome.AMBIGUOUS:
         return (
             f"{get_symbol(StatusMark.WARNING)}"

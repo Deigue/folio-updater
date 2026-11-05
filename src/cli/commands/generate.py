@@ -40,10 +40,10 @@ if TYPE_CHECKING:
 
     from exporters.sheet_spec import Sheet
 
-# The currency every dashboard sheet is valued in: each holding in the one it
+# The currency every dashboard sheet is shown in: each holding in the one it
 # trades in, the way a broker shows it. The cost base in CAD has a sheet of its
 # own.
-_VALUATION = "native"
+_DISPLAY_CURRENCY = "native"
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ def write_folio(
             configured path keeps its rolling backups; any other is simply
             overwritten.
         sections: The groups of sheets to include.
-        refresh: Refetch every quote and rebuild the cost-base cache.
+        refresh: Refetch every quote and replay the cost base.
         offline: Never touch the network: price from cached quotes only.
 
     Returns:
@@ -111,7 +111,7 @@ def write_folio(
         )
         valuation = FolioValuation.build(
             ledger,
-            currency=_VALUATION,
+            currency=_DISPLAY_CURRENCY,
             refresh=refresh,
             offline=offline,
         )
@@ -179,7 +179,7 @@ def generate_excel(
     Args:
         out: Where to write instead of the configured folio path.
         only: Section names separated by commas, to write only those sheets.
-        refresh: Refetch every quote and rebuild the cost-base cache.
+        refresh: Refetch every quote and replay the cost base.
         offline: Never touch the network: price from cached quotes only.
 
     Raises:

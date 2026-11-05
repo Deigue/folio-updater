@@ -1,4 +1,4 @@
-"""Tests for Forex exports with Parquet storage."""
+"""Tests for FX exports with Parquet storage."""
 
 from __future__ import annotations
 
@@ -18,20 +18,20 @@ if TYPE_CHECKING:
 
 
 def _seed_usd_buy(days_ago: int) -> str:
-    """Seed one USD buy, so the folio needs FX from its trade date on.
+    """Seed one USD buy, so the folio needs FX from its transaction date on.
 
     Returns:
-        The trade date, YYYY-MM-DD.
+        The transaction date, YYYY-MM-DD.
     """
     create_txns_table()
-    trade_date = (datetime.now(TORONTO_TZ) - timedelta(days=days_ago)).strftime(
+    txn_date = (datetime.now(TORONTO_TZ) - timedelta(days=days_ago)).strftime(
         "%Y-%m-%d",
     )
     txn_data = pd.DataFrame(
         {
             Column.Txn.TXN_ID: [1],
             Column.Txn.TICKER: ["MOCK"],
-            Column.Txn.TXN_DATE: [trade_date],
+            Column.Txn.TXN_DATE: [txn_date],
             Column.Txn.ACTION: ["BUY"],
             Column.Txn.AMOUNT: [1000.0],
             Column.Txn.CURRENCY: ["USD"],
@@ -42,10 +42,10 @@ def _seed_usd_buy(days_ago: int) -> str:
     )
     with get_connection() as conn:
         txn_data.to_sql(Table.TXNS, conn, if_exists="append", index=False)
-    return trade_date
+    return txn_date
 
 
-def test_forex_export_fetches_from_the_start_date(
+def test_fx_export_fetches_from_the_start_date(
     temp_ctx: TempContext,
     boc_fetch: MagicMock,
 ) -> None:
@@ -53,7 +53,7 @@ def test_forex_export_fetches_from_the_start_date(
         parquet_path = ctx.config.fx_parquet
         start_date = _seed_usd_buy(days_ago=60)
 
-        result = ParquetExporter().export_forex(start_date)
+        result = ParquetExporter().export_fx(start_date)
 
         boc_fetch.assert_called_once_with(start_date)
 
@@ -73,7 +73,7 @@ def test_forex_export_fetches_from_the_start_date(
         assert fx_dates.min() >= start_dt
 
 
-def test_forex_export_tops_up_after_the_latest_rate(
+def test_fx_export_tops_up_after_the_latest_rate(
     temp_ctx: TempContext,
     boc_fetch: MagicMock,
 ) -> None:
@@ -95,7 +95,7 @@ def test_forex_export_tops_up_after_the_latest_rate(
         with get_connection() as conn:
             old_fx_data.to_sql(Table.FX, conn, if_exists="append", index=False)
 
-        result = ParquetExporter().export_forex()
+        result = ParquetExporter().export_fx()
 
         latest_date_obj = pd.to_datetime(old_fx_dates[-1])
         next_date = (latest_date_obj + pd.Timedelta(days=1)).strftime("%Y-%m-%d")

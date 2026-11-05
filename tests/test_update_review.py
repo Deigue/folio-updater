@@ -328,7 +328,7 @@ class TestMerges:
 
 
 class TestTransferPairs:
-    """Withdrawal/contribution pairs that look like internal transfers."""
+    """Withdrawal/contribution pairs that look like transfers."""
 
     def _txns(
         self,
@@ -436,8 +436,8 @@ class TestStatements:
             )
 
         matches = [
-            match(SettlementOutcome.MATCHED, TICKER),
-            match(SettlementOutcome.ALREADY_SETTLED, TICKER),
+            match(SettlementOutcome.CONFIRMED, TICKER),
+            match(SettlementOutcome.ALREADY_CONFIRMED, TICKER),
             match(SettlementOutcome.UNMATCHED, VENTURE_TICKER),
             match(SettlementOutcome.AMBIGUOUS, TSX_TICKER),
         ]

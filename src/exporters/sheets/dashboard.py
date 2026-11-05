@@ -1,10 +1,10 @@
-"""The holdings sheet: what a pool holds, at what it is worth today."""
+"""The dashboard sheet: what a pool holds, at what it is worth today."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Currency, WarningCode
+from domain import Currency, DiagnosticCode
 from engine.panels import account_type_of
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
 from exporters.sheet_spec import (
@@ -30,8 +30,8 @@ CLOSED = "Closed"
 
 _UNITS_SUSPECT = frozenset(
     {
-        WarningCode.OVERSELL,
-        WarningCode.NEGATIVE_FINAL_POSITION,
+        DiagnosticCode.OVERSELL,
+        DiagnosticCode.NEGATIVE_FINAL_UNITS,
     },
 )
 

@@ -28,7 +28,8 @@ class Action(StrEnum):
     DIVIDEND = "DIVIDEND"  # Income paid on a holding
     CONTRIBUTION = "CONTRIBUTION"  # New money into the folio, from outside it
     FCH = "FCH"  # Financial Charge: fees, interest, RSU income, other cash adjustments
-    FXT = "FXT"  # Foreign Exchange Trades
+    # Currency conversion: one currency's cash for another, inside one account
+    FXT = "FXT"
     ROC = "ROC"  # Return of capital: reduces ACB, a reclassification not cash
     SPLIT = "SPLIT"  # Designates splits (Price->FROM, Units->TO)
     TFR_IN = "TFR_IN"  # Cash or units arriving from another account you own
@@ -97,7 +98,7 @@ class FeeConvention(StrEnum):
 
 
 class Grain(StrEnum):
-    """The pool a cost base is accumulated over."""
+    """The level a cost base is pooled at."""
 
     ACCOUNT = "acct"
     TYPE = "type"
@@ -112,20 +113,20 @@ class Impact(StrEnum):
     NONE = "NONE"  # Cash-only (CONTRIBUTION, WITHDRAWAL, FXT)
 
 
-class WarningCode(StrEnum):
+class DiagnosticCode(StrEnum):
     """Diagnostics a replay can raise against a row, an account or a pool."""
 
     OVERSELL = "OVERSELL"
-    NEGATIVE_FINAL_POSITION = "NEGATIVE_FINAL_POSITION"
+    NEGATIVE_FINAL_UNITS = "NEGATIVE_FINAL_UNITS"
     CASH_NEGATIVE = "CASH_NEGATIVE"
     DUPLICATE_SPLIT = "DUPLICATE_SPLIT"
-    SPLIT_SCOPE_MISMATCH = "SPLIT_SCOPE_MISMATCH"
-    SPLIT_WITHOUT_POSITION = "SPLIT_WITHOUT_POSITION"
+    SPLIT_MISSING_ON_ACCOUNT = "SPLIT_MISSING_ON_ACCOUNT"
+    SPLIT_WITHOUT_HOLDING = "SPLIT_WITHOUT_HOLDING"
     ROC_EXCEEDS_ACB = "ROC_EXCEEDS_ACB"
-    INCOME_WITHOUT_POSITION = "INCOME_WITHOUT_POSITION"
+    INCOME_WITHOUT_HOLDING = "INCOME_WITHOUT_HOLDING"
     MIXED_CURRENCY = "MIXED_CURRENCY"
-    SETTLE_BEFORE_TRADE = "SETTLE_BEFORE_TRADE"
-    SETTLE_LAG_OUTLIER = "SETTLE_LAG_OUTLIER"
+    SETTLEMENT_BEFORE_TRADE = "SETTLEMENT_BEFORE_TRADE"
+    SETTLEMENT_LAG_OUTLIER = "SETTLEMENT_LAG_OUTLIER"
     AMBIGUOUS_FEE_CONVENTION = "AMBIGUOUS_FEE_CONVENTION"
     FXT_AMOUNT_INCONSISTENT = "FXT_AMOUNT_INCONSISTENT"
     UNKNOWN_ACCOUNT_TYPE = "UNKNOWN_ACCOUNT_TYPE"
@@ -136,10 +137,10 @@ class WarningCode(StrEnum):
 class SettlementOutcome(StrEnum):
     """How a statement row fared against the folio's calculated settlement dates."""
 
-    MATCHED = "MATCHED"  # Exactly one transaction matched; its date was updated.
-    ALREADY_SETTLED = "ALREADY_SETTLED"  # Matched a row that already has its date.
+    CONFIRMED = "CONFIRMED"  # Exactly one transaction matched; its date is confirmed.
+    ALREADY_CONFIRMED = "ALREADY_CONFIRMED"  # Matched a row that already has its date.
     UNMATCHED = "UNMATCHED"  # Nothing in the folio matched the row.
-    AMBIGUOUS = "AMBIGUOUS"  # Several matched, so none could be updated.
+    AMBIGUOUS = "AMBIGUOUS"  # Several matched, so none could be confirmed.
 
 
 class PriceRange(StrEnum):
@@ -243,7 +244,7 @@ class Column(StrEnum):
         """Cached market quote columns."""
 
         SYMBOL = "Symbol"  # The folio's own canonical symbol, e.g. REI.UN.TO
-        YSYMBOL = "YSymbol"  # How the provider spells it, e.g. REI-UN.TO
+        PROVIDER_SYMBOL = "ProviderSymbol"  # How the provider spells it, e.g. REI-UN.TO
         PRICE = "Price"
         PREV_CLOSE = "PrevClose"
         CURRENCY = "Currency"

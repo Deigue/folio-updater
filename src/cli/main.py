@@ -74,7 +74,7 @@ def add_cmd(  # noqa: PLR0917
         None,
         "-d",
         "--date",
-        help="Trade date in YYYY-MM-DD format (default: today)",
+        help="Transaction date in YYYY-MM-DD format (default: today)",
     ),
     account: str | None = typer.Option(
         None,
@@ -144,9 +144,9 @@ def add_cmd(  # noqa: PLR0917
     )
 
 
-@app.command("getfx", help="Update foreign exchange rates")
+@app.command("getfx", help="Update FX rates")
 def getfx_cmd() -> None:
-    """Update foreign exchange rates."""
+    """Update FX rates."""
     from cli.commands.getfx import update_fx_rates
 
     update_fx_rates()
@@ -175,7 +175,7 @@ def generate_cmd(
         False,
         "-r",
         "--refresh",
-        help="Refetch quotes and rebuild the cost-base cache",
+        help="Refetch quotes and replay the cost base",
     ),
 ) -> None:
     """Write the whole folio to one workbook."""
@@ -198,14 +198,14 @@ def settle_info_cmd(
         None,
         "-f",
         "--file",
-        help="Monthly statement file to import for settlement date updates",
+        help="Monthly statement file to confirm settlement dates from",
     ),
     *,
     import_flag: bool = typer.Option(
         False,
         "-i",
         "--import",
-        help="Import statement files to update settlement dates",
+        help="Import statement files to confirm settlement dates",
     ),
     verbose: bool = typer.Option(
         False,
@@ -275,7 +275,7 @@ def download_cmd(
 
 @app.command(
     "update",
-    help="Catch up: download, import, settle, check, generate, then report",
+    help="Catch up: download, import, statements, check, generate, then report",
 )
 def update_cmd(
     *,
@@ -390,7 +390,7 @@ def acb_cmd(  # noqa: PLR0917
         False,
         "-r",
         "--refresh",
-        help="Rebuild the cached cost-base frame",
+        help="Replay the cost base",
     ),
 ) -> None:
     """Show the adjusted cost base buildup for a symbol."""
@@ -470,7 +470,7 @@ def dash_cmd(
     refresh: bool = typer.Option(
         False,
         "--refresh",
-        help="Refetch quotes and rebuild the cost-base cache",
+        help="Refetch quotes and replay the cost base",
     ),
     offline: bool = typer.Option(
         False,

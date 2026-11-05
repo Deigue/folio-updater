@@ -223,7 +223,7 @@ evenly.
 
 Essential fields (internal names) that must be present in your Excel data:
 
-- `TxnDate` - trade date (YYYY-MM-DD)
+- `TxnDate` - transaction date (YYYY-MM-DD)
 - `Action` - action (BUY, SELL, DIVIDEND, CONTRIBUTION, etc.)
 - `Amount` - Total amount (Price * Units)
 - `$` - currency code (e.g., USD, CAD)

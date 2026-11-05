@@ -327,7 +327,7 @@ def latest_txn_date(broker: str) -> str | None:
 def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
     """Resolve the from date, using fallbacks if not specified.
 
-    Fallback to latest trade date from broker, or first of current month.
+    Fallback to latest transaction date from broker, or first of current month.
 
     Args:
         from_date_str (str | None): The from date string provided by user.
@@ -349,12 +349,12 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
             ).replace(tzinfo=TORONTO_TZ)
             resolved_date = latest_date.strftime("%Y%m%d")
             console_info(
-                f"from_date: Using latest {broker.upper()} trade date: "
+                f"from_date: Using latest {broker.upper()} transaction date: "
                 f"{latest_date_str}",
             )
             return resolved_date
     except (ValueError, OSError, sqlite3.Error) as e:
-        console_warning(f"Warning: Could not determine latest trade date: {e}")
+        console_warning(f"Warning: Could not determine latest transaction date: {e}")
 
     current_date = datetime.now(tz=TORONTO_TZ)
     fallback_date: date = current_date.replace(day=1)

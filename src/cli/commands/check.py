@@ -50,7 +50,7 @@ def _only(results: list[CheckResult], slug: str) -> list[CheckResult]:
 
 
 def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
-    """Check the folio for issues.
+    """Check the folio for missing or inconsistent transactions.
 
     Args:
         only: Report only this check, showing its findings whether it passed

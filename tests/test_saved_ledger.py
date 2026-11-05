@@ -9,9 +9,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from domain import Action, Currency, Grain, WarningCode
+from domain import Action, Currency, DiagnosticCode, Grain
 from engine.ledger import Diagnosis, Ledger
-from engine.snapshot import (
+from engine.saved_ledger import (
     decode_cash_and_totals,
     decode_diagnostics,
     encode_cash_and_totals,
@@ -74,7 +74,7 @@ def test_every_diagnostic_round_trips_exactly() -> None:
     """Including one about a pool, which tags no transaction."""
     original, restored = round_trip(run(oversold_rows()))
     untagged = {d.code for d in original.diagnostics if d.txn_id is None}
-    assert WarningCode.NEGATIVE_FINAL_POSITION in untagged
+    assert DiagnosticCode.NEGATIVE_FINAL_UNITS in untagged
     assert restored.diagnostics == original.diagnostics
 
 

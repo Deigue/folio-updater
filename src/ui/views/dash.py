@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table as RichTable
 
-from domain import Currency, Grain, WarningCode
+from domain import Currency, DiagnosticCode, Grain
 from domain.numeric import ZERO, q2
 from term import console_print
 from ui.cells import (
@@ -68,8 +68,8 @@ if TYPE_CHECKING:
 # Diagnostics that make a pool's units untrustworthy.
 _UNITS_SUSPECT = frozenset(
     {
-        WarningCode.OVERSELL,
-        WarningCode.NEGATIVE_FINAL_POSITION,
+        DiagnosticCode.OVERSELL,
+        DiagnosticCode.NEGATIVE_FINAL_UNITS,
     },
 )
 
@@ -579,8 +579,8 @@ def _room_colour(room: Room) -> str:
 def _cash_alerts(flows: Flows) -> list[RenderableType]:
     """Say what negative cash means, rather than just showing the number.
 
-    This is the highest-value alert the app has: it needs no brokerage balance
-    to detect, and it catches a missing transaction immediately.
+    This is the most useful thing the dashboard points out: it needs no brokerage
+    balance to detect, and it catches a missing transaction immediately.
     """
     negative = flows.negative_currencies
     if not negative:

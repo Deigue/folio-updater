@@ -1,6 +1,6 @@
 """GetFX command for the folio CLI.
 
-Handles updating foreign exchange rates.
+Handles updating FX rates.
 """
 
 from __future__ import annotations
@@ -15,14 +15,14 @@ from ui.vocabulary import SPINNER_FX
 
 
 def update_fx_rates() -> None:
-    """Update foreign exchange rates in the folio."""
+    """Update FX rates in the folio."""
     bootstrap.reload_config()
 
     try:
         exporter = ParquetExporter()
         with spinner(SPINNER_FX) as progress:
             progress.add_task("Updating FX rates...", total=None)
-            result = exporter.export_forex()
+            result = exporter.export_fx()
 
         if result > 0:
             console_success(f"Successfully updated {result} FX rates")

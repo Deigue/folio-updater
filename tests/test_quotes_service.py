@@ -107,7 +107,7 @@ def test_a_fresh_quote_is_not_refetched(
         assert quotes_fetch.call_count == 1, "a fresh quote was refetched"
 
 
-def test_an_expired_quote_is_refetched(
+def test_a_stale_quote_is_refetched(
     temp_ctx: TempContext,
     quotes_fetch: MagicMock,
 ) -> None:
@@ -404,7 +404,7 @@ def test_a_quote_in_an_unsupported_currency_is_not_a_crash(
 
 
 def test_a_quote_with_no_fetch_is_stale_and_unpriced() -> None:
-    quote = Quote(symbol="TESTTKR", ysymbol="TESTTKR")
+    quote = Quote(symbol="TESTTKR", provider_symbol="TESTTKR")
 
     assert quote.age is None
     assert quote.is_stale
@@ -415,21 +415,25 @@ def test_a_quote_with_no_fetch_is_stale_and_unpriced() -> None:
 def test_day_change_needs_both_sides() -> None:
     assert Quote(
         symbol="X",
-        ysymbol="X",
+        provider_symbol="X",
         price=Decimal(12),
         prev_close=Decimal(10),
     ).day_change == Decimal(2)
-    assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change is None
-    assert Quote(symbol="X", ysymbol="X", price=Decimal(12)).day_change_pct is None
+    assert Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change is None
+    assert (
+        Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change_pct is None
+    )
     # 93 against a 52-week high of 100: seven percent below it.
     off_high = Quote(
         symbol="X",
-        ysymbol="X",
+        provider_symbol="X",
         price=Decimal(93),
         fundamentals=Fundamentals(high_52=Decimal(100)),
     )
     assert off_high.from_high_52 == Decimal("-0.07")
-    assert Quote(symbol="X", ysymbol="X", price=Decimal(93)).from_high_52 is None
+    assert (
+        Quote(symbol="X", provider_symbol="X", price=Decimal(93)).from_high_52 is None
+    )
 
 
 def test_reading_an_empty_cache_is_not_an_error(temp_ctx: TempContext) -> None:
@@ -722,7 +726,7 @@ def test_a_zero_price_is_not_a_price() -> None:
     """Nothing trades at zero, so a zero is a failure in numeric clothing."""
     quote = Quote(
         symbol="X",
-        ysymbol="X",
+        provider_symbol="X",
         price=Decimal(0),
         fetched_at=datetime.now(UTC),
         status=QuoteStatus.OK,

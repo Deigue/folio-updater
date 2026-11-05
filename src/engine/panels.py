@@ -118,7 +118,7 @@ class FolioValuation:
     """Everything a report needs about one replay, priced once.
 
     Attributes:
-        positions: The frame and quotes, with each pool's rollups memoized.
+        folio_holdings: The frame and quotes, with each pool's rollups memoized.
         ledger: The ledger the holdings and cash totals are read from.
         currency: The currency figures are expressed in, or `native`.
         contributions: Every type's per-year contributions, for the room line.
@@ -128,7 +128,7 @@ class FolioValuation:
             denominator behind `Folio%` however narrow a panel is.
     """
 
-    positions: FolioHoldings
+    folio_holdings: FolioHoldings
     ledger: Ledger
     currency: DisplayCurrency
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
@@ -157,23 +157,23 @@ class FolioValuation:
             The valuation, with every open holding priced.
         """
         frame = ledger.frame
-        positions = FolioHoldings(frame, {}, load_fx_rates())
-        quotes = _quotes(positions, refresh=refresh, offline=offline)
-        positions.price(quotes)
+        folio_holdings = FolioHoldings(frame, {}, load_fx_rates())
+        quotes = _quotes(folio_holdings, refresh=refresh, offline=offline)
+        folio_holdings.price(quotes)
         return cls(
-            positions=positions,
+            folio_holdings=folio_holdings,
             ledger=ledger,
             currency=currency,
             contributions=contributions_by_type_year(frame),
             withdrawals=withdrawals_by_type_year(frame),
             quotes=quotes,
-            folio_market=positions.market_value(),
+            folio_market=folio_holdings.market_value(),
         )
 
     @property
     def frame(self) -> pd.DataFrame:
         """The replayed ledger every panel is read from."""
-        return self.positions.frame
+        return self.folio_holdings.frame
 
     @property
     def room_history(self) -> list[Room]:
@@ -205,7 +205,7 @@ class FolioValuation:
         Raises:
             UnknownSortError: If `sort` is not a sortable measure.
         """
-        holdings = self.positions.holdings(
+        holdings = self.folio_holdings.holdings(
             grain=view.grain,
             pool=view.pool,
             currency=self.currency,
@@ -252,7 +252,7 @@ class FolioValuation:
         if views:
             # Every pool at this grain is about to be reported, so split the
             # frame once rather than narrowing it again for each panel.
-            self.positions.prime(views[0].grain)
+            self.folio_holdings.prime(views[0].grain)
         built = (self.panel(view, sort=sort, reverse=reverse) for view in views)
         return [panel for panel in built if panel.occupied]
 
@@ -262,13 +262,13 @@ class FolioValuation:
 
 
 def _quotes(
-    positions: FolioHoldings,
+    folio_holdings: FolioHoldings,
     *,
     refresh: bool,
     offline: bool,
 ) -> dict[str, Quote]:
     """Price every open holding, once, for the whole folio."""
-    symbols = positions.held_symbols()
+    symbols = folio_holdings.held_symbols()
     if not symbols:
         return {}
     return QuotesService.get_quotes(

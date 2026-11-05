@@ -132,22 +132,22 @@ def _connect_within(address: tuple[str, int], seconds: float) -> None:
 
 def _run_concurrently[T](
     fetch: Callable[[str], T | None],
-    ysymbols: Sequence[str],
+    provider_symbols: Sequence[str],
 ) -> list[T]:
     """Run a per-symbol fetch across a thread pool, dropping empty results.
 
     Args:
         fetch: Looks up one provider symbol; returns None on a miss.
-        ysymbols: Provider spellings to fetch, never empty: `refresh` and
+        provider_symbols: Provider spellings to fetch, never empty: `refresh` and
             `_collect_metadata` return before fetching nothing.
 
     Returns:
         Whatever `fetch` returned for each symbol, in no particular order,
         with the None misses already filtered out.
     """
-    workers = min(len(ysymbols), _MAX_FETCH_WORKERS)
+    workers = min(len(provider_symbols), _MAX_FETCH_WORKERS)
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(fetch, ysymbols))
+        results = list(pool.map(fetch, provider_symbols))
     return [result for result in results if result is not None]
 
 
@@ -279,7 +279,7 @@ class Quote:
 
     Attributes:
         symbol: The folio's own canonical symbol.
-        ysymbol: How the provider spells it.
+        provider_symbol: How the provider spells it.
         price: Price, in `currency`. None when unpriced.
         prev_close: Previous close, which is what `day_change` is measured from.
         currency: The currency the price is quoted in.
@@ -296,7 +296,7 @@ class Quote:
     """
 
     symbol: str
-    ysymbol: str
+    provider_symbol: str
     price: Decimal | None = None
     prev_close: Decimal | None = None
     currency: Currency | None = None
@@ -378,7 +378,7 @@ class RefreshResult:
         failed: Symbols whose fetch errored, leaving any cached row in place.
         not_found: Symbols the provider does not know.
         used_fallback: Whether throttling forced the batched daily-close path,
-            which yields the previous close rather than an intraday last.
+            which yields the previous close rather than an intraday price.
     """
 
     fetched: int = 0
@@ -551,11 +551,13 @@ class QuotesService:
             return RefreshResult(failed=len(wanted))
 
         known = dict(cached) if cached is not None else cls.cached(wanted)
-        ysymbols = {symbol: resolver.yahoo_symbol(symbol) for symbol in wanted}
+        provider_symbols = {
+            symbol: resolver.provider_symbol(symbol) for symbol in wanted
+        }
 
         used_fallback = False
         try:
-            prices = cls._fetch_prices(list(ysymbols.values()))
+            prices = cls._fetch_prices(list(provider_symbols.values()))
         except Exception as error:  # noqa: BLE001 (provider raises freely)
             if not _is_rate_limited(error):
                 logger.warning(
@@ -566,7 +568,7 @@ class QuotesService:
             logger.info("Quote provider is throttling; falling back to daily closes")
             used_fallback = True
             try:
-                prices = cls._fetch_daily(list(ysymbols.values()))
+                prices = cls._fetch_daily(list(provider_symbols.values()))
             except Exception as fallback_error:  # noqa: BLE001
                 logger.warning(
                     "Quote fallback also failed (%s); using what is cached",
@@ -583,7 +585,7 @@ class QuotesService:
 
         metadata = cls._collect_metadata(
             wanted,
-            ysymbols,
+            provider_symbols,
             known,
             prices,
             _meta_max_age(fundamentals=fundamentals),
@@ -595,10 +597,10 @@ class QuotesService:
         for symbol in wanted:
             quote, outcome = _merge(
                 symbol,
-                ysymbols[symbol],
+                provider_symbols[symbol],
                 known.get(symbol),
-                prices.get(ysymbols[symbol]),
-                metadata.get(ysymbols[symbol]),
+                prices.get(provider_symbols[symbol]),
+                metadata.get(provider_symbols[symbol]),
                 now,
             )
             rows.append(_record(quote))
@@ -611,7 +613,7 @@ class QuotesService:
     def _collect_metadata(
         cls,
         symbols: Sequence[str],
-        ysymbols: Mapping[str, str],
+        provider_symbols: Mapping[str, str],
         known: Mapping[str, Quote],
         prices: Mapping[str, dict],
         max_age: timedelta,
@@ -623,10 +625,10 @@ class QuotesService:
         a caller showing fundamentals.
         """
         due = [
-            ysymbols[symbol]
+            provider_symbols[symbol]
             for symbol in symbols
             # Nothing to describe if the symbol did not price at all.
-            if ysymbols[symbol] in prices
+            if provider_symbols[symbol] in prices
             and (
                 symbol not in known
                 or known[symbol].meta_older_than(max_age)
@@ -747,16 +749,18 @@ class QuotesService:
         wanted = _unique_upper(symbols)
         if offline or not wanted or not _provider_reachable():
             return {}
-        ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in wanted}
+        provider_symbols = {
+            resolver.provider_symbol(symbol): symbol for symbol in wanted
+        }
         try:
-            fetched = cls._fetch_intraday(list(ysymbols))
+            fetched = cls._fetch_intraday(list(provider_symbols))
         except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.debug("Could not fetch intraday bars: %s", error)
             return {}
         return {
-            ysymbols[ysymbol]: ranges
-            for ysymbol, ranges in fetched.items()
-            if ysymbol in ysymbols
+            provider_symbols[provider_symbol]: ranges
+            for provider_symbol, ranges in fetched.items()
+            if provider_symbol in provider_symbols
         }
 
     @classmethod
@@ -773,9 +777,11 @@ class QuotesService:
         """
         if not _provider_reachable():
             return {}
-        ysymbols = {resolver.yahoo_symbol(symbol): symbol for symbol in symbols}
+        provider_symbols = {
+            resolver.provider_symbol(symbol): symbol for symbol in symbols
+        }
         try:
-            fetched = cls._fetch_history(list(ysymbols), today=today)
+            fetched = cls._fetch_history(list(provider_symbols), today=today)
         except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.warning(
                 "Could not fetch price history (%s); using what is kept",
@@ -785,8 +791,8 @@ class QuotesService:
 
         now = datetime.now(UTC)
         written: dict[str, tuple[datetime, dict[PriceRange, RangeHistory]]] = {}
-        for ysymbol, ranges in fetched.items():
-            symbol = ysymbols[ysymbol]
+        for provider_symbol, ranges in fetched.items():
+            symbol = provider_symbols[provider_symbol]
             _write_history(symbol, ranges, now)
             written[symbol] = (now, ranges)
         return written
@@ -794,51 +800,51 @@ class QuotesService:
     # -- NETWORK ---------------------------------------------------------
 
     @classmethod
-    def _fetch_prices(cls, ysymbols: Sequence[str]) -> dict[str, dict]:
+    def _fetch_prices(cls, provider_symbols: Sequence[str]) -> dict[str, dict]:
         """Fetch the price and previous close for a batch of symbols.
 
         Args:
-            ysymbols: Provider spellings to price.
+            provider_symbols: Provider spellings to price.
 
         Returns:
             Each provider symbol mapped to its raw price fields. A symbol the
             provider does not know is simply absent.
         """
-        tickers = load_yfinance().Tickers(" ".join(ysymbols))
+        tickers = load_yfinance().Tickers(" ".join(provider_symbols))
         now = datetime.now(UTC).isoformat()
 
-        def _price(ysymbol: str) -> tuple[str, dict] | None:
-            ticker = tickers.tickers.get(ysymbol)
+        def _price(provider_symbol: str) -> tuple[str, dict] | None:
+            ticker = tickers.tickers.get(provider_symbol)
             if ticker is None:
                 return None
             fast = ticker.fast_info
             price = _attr(fast, "last_price")
             if price is None:
                 return None
-            return ysymbol, {
+            return provider_symbol, {
                 "price": price,
                 "prev_close": _previous_close(fast),
                 "currency": _attr(fast, "currency"),
                 "quote_time": now,
             }
 
-        return dict(_run_concurrently(_price, ysymbols))
+        return dict(_run_concurrently(_price, provider_symbols))
 
     @classmethod
-    def _fetch_daily(cls, ysymbols: Sequence[str]) -> dict[str, dict]:
+    def _fetch_daily(cls, provider_symbols: Sequence[str]) -> dict[str, dict]:
         """Fetch yesterday's close for a batch, in one request.
 
         The throttling fallback. One download covers every symbol, at the cost
-        of a daily close instead of an intraday last.
+        of a daily close instead of an intraday price.
 
         Args:
-            ysymbols: Provider spellings to price.
+            provider_symbols: Provider spellings to price.
 
         Returns:
             Each provider symbol mapped to its raw price fields.
         """
         frame = load_yfinance().download(
-            list(ysymbols),
+            list(provider_symbols),
             period="5d",
             interval="1d",
             group_by="ticker",
@@ -850,11 +856,11 @@ class QuotesService:
             return {}
 
         fetched: dict[str, dict] = {}
-        for ysymbol in ysymbols:
-            closes = _daily_closes(frame, ysymbol)
+        for provider_symbol in provider_symbols:
+            closes = _daily_closes(frame, provider_symbol)
             if not closes:
                 continue
-            fetched[ysymbol] = {
+            fetched[provider_symbol] = {
                 "price": closes[-1],
                 "prev_close": closes[-2] if len(closes) > 1 else None,
                 "currency": None,
@@ -863,11 +869,11 @@ class QuotesService:
         return fetched
 
     @classmethod
-    def _fetch_metadata(cls, ysymbols: Sequence[str]) -> dict[str, dict]:
+    def _fetch_metadata(cls, provider_symbols: Sequence[str]) -> dict[str, dict]:
         """Fetch name, sector, exchange, market cap and fundamentals for a batch.
 
         Args:
-            ysymbols: Provider spellings to describe.
+            provider_symbols: Provider spellings to describe.
 
         Returns:
             Each provider symbol mapped to its metadata fields, the
@@ -875,15 +881,15 @@ class QuotesService:
         """
         yf = load_yfinance()
 
-        def _describe(ysymbol: str) -> tuple[str, dict] | None:
+        def _describe(provider_symbol: str) -> tuple[str, dict] | None:
             try:
-                info = yf.Ticker(ysymbol).info
+                info = yf.Ticker(provider_symbol).info
             except Exception as error:  # noqa: BLE001 (per-symbol scrape)
-                logger.debug("No metadata for %s: %s", ysymbol, error)
+                logger.debug("No metadata for %s: %s", provider_symbol, error)
                 return None
             if not info:
                 return None
-            return ysymbol, {
+            return provider_symbol, {
                 "name": info.get("shortName") or info.get("longName"),
                 "sector": info.get("sector"),
                 "exchange": info.get("exchange") or info.get("fullExchangeName"),
@@ -920,12 +926,12 @@ class QuotesService:
                 "fund_family": info.get("fundFamily"),
             }
 
-        return dict(_run_concurrently(_describe, ysymbols))
+        return dict(_run_concurrently(_describe, provider_symbols))
 
     @classmethod
     def _fetch_history(
         cls,
-        ysymbols: Sequence[str],
+        provider_symbols: Sequence[str],
         *,
         today: date,
     ) -> dict[str, dict[PriceRange, RangeHistory]]:
@@ -937,7 +943,7 @@ class QuotesService:
         condensed here and never kept.
 
         Args:
-            ysymbols: Provider spellings to fetch.
+            provider_symbols: Provider spellings to fetch.
             today: The day the ranges are measured back from.
 
         Returns:
@@ -948,40 +954,40 @@ class QuotesService:
         daily_from = min(months_back(today, 12), date(today.year - 1, 12, 31))
         frames = {
             "daily": _download(
-                ysymbols,
+                provider_symbols,
                 interval="1d",
                 start=(daily_from - margin).isoformat(),
             ),
             "weekly": _download(
-                ysymbols,
+                provider_symbols,
                 interval="1wk",
                 start=(months_back(today, 60) - margin).isoformat(),
             ),
-            "monthly": _download(ysymbols, interval="1mo", period="max"),
+            "monthly": _download(provider_symbols, interval="1mo", period="max"),
             "hourly": _download(
-                ysymbols,
+                provider_symbols,
                 interval="60m",
                 start=(months_back(today, 1) - margin).isoformat(),
             ),
         }
 
         condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
-        for ysymbol in ysymbols:
+        for provider_symbol in provider_symbols:
             ranges = condense(
-                _dated_closes(frames["daily"], ysymbol),
-                _dated_closes(frames["weekly"], ysymbol),
-                _dated_closes(frames["monthly"], ysymbol),
+                _dated_closes(frames["daily"], provider_symbol),
+                _dated_closes(frames["weekly"], provider_symbol),
+                _dated_closes(frames["monthly"], provider_symbol),
                 today=today,
-                hourly=_dated_closes(frames["hourly"], ysymbol, intraday=True),
+                hourly=_dated_closes(frames["hourly"], provider_symbol, intraday=True),
             )
             if ranges:
-                condensed[ysymbol] = ranges
+                condensed[provider_symbol] = ranges
         return condensed
 
     @classmethod
     def _fetch_intraday(
         cls,
-        ysymbols: Sequence[str],
+        provider_symbols: Sequence[str],
     ) -> dict[str, dict[PriceRange, RangeHistory]]:
         """Fetch and condense a batch's bars over the last week of sessions.
 
@@ -989,38 +995,38 @@ class QuotesService:
         sessions only: no pre- or after-market trading.
 
         Args:
-            ysymbols: Provider spellings to fetch.
+            provider_symbols: Provider spellings to fetch.
 
         Returns:
             Each provider symbol mapped to its `2h`, `1d`, `2d` and `1wk` ranges.
         """
-        minutes = _download(ysymbols, interval="1m", period="5d")
-        fives = _download(ysymbols, interval="5m", period="5d")
+        minutes = _download(provider_symbols, interval="1m", period="5d")
+        fives = _download(provider_symbols, interval="5m", period="5d")
         week_from = datetime.now(TORONTO_TZ).date() - timedelta(days=7)
         condensed: dict[str, dict[PriceRange, RangeHistory]] = {}
-        for ysymbol in ysymbols:
+        for provider_symbol in provider_symbols:
             ranges = condense_intraday(
-                _dated_closes(minutes, ysymbol, intraday=True),
-                _dated_closes(fives, ysymbol, intraday=True),
+                _dated_closes(minutes, provider_symbol, intraday=True),
+                _dated_closes(fives, provider_symbol, intraday=True),
                 week_from=week_from,
             )
             if ranges:
-                condensed[ysymbol] = ranges
+                condensed[provider_symbol] = ranges
         return condensed
 
 
-def _download(ysymbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 (pandas)
+def _download(provider_symbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 (pandas)
     """Download a batch's bars over one window, grouped by symbol.
 
     Args:
-        ysymbols: Provider spellings to fetch.
+        provider_symbols: Provider spellings to fetch.
         **window: The `interval`, and a `start` or a `period`.
 
     Returns:
         The provider's frame, or None when it returned nothing.
     """
     return load_yfinance().download(
-        list(ysymbols),
+        list(provider_symbols),
         group_by="ticker",
         progress=False,
         auto_adjust=False,
@@ -1106,7 +1112,7 @@ def _attr(source: object, name: str) -> object | None:
 
 def _dated_closes(
     frame: Any,  # noqa: ANN401 (a pandas frame from the provider)
-    ysymbol: str,
+    provider_symbol: str,
     *,
     intraday: bool = False,
 ) -> list[PricePoint]:
@@ -1114,7 +1120,7 @@ def _dated_closes(
 
     Args:
         frame: The provider's download, or None when it returned nothing.
-        ysymbol: The provider symbol to read.
+        provider_symbol: The provider symbol to read.
         intraday: Stamp each close with its UTC time rather than its date.
 
     Returns:
@@ -1123,7 +1129,7 @@ def _dated_closes(
     if frame is None or frame.empty:
         return []
     try:
-        closes = _close_column(frame, ysymbol).dropna()
+        closes = _close_column(frame, provider_symbol).dropna()
     except (KeyError, TypeError, IndexError):
         return []
     points: list[PricePoint] = []
@@ -1138,7 +1144,7 @@ def _dated_closes(
     return points
 
 
-def _close_column(frame: Any, ysymbol: str) -> Any:  # noqa: ANN401 (pandas)
+def _close_column(frame: Any, provider_symbol: str) -> Any:  # noqa: ANN401 (pandas)
     """Find one symbol's closes in a download, whatever shape it came in.
 
     Grouped by ticker, a download keys its columns by symbol and then field,
@@ -1146,14 +1152,14 @@ def _close_column(frame: Any, ysymbol: str) -> Any:  # noqa: ANN401 (pandas)
     the fields alone, can only hold one symbol, so it is read as that one.
     """
     if frame.columns.nlevels > 1:
-        return frame[ysymbol]["Close"]
+        return frame[provider_symbol]["Close"]
     return frame["Close"]
 
 
-def _daily_closes(frame: Any, ysymbol: str) -> list[float]:  # noqa: ANN401
+def _daily_closes(frame: Any, provider_symbol: str) -> list[float]:  # noqa: ANN401
     """Pull the close series for one symbol out of a batched download."""
     try:
-        column = _close_column(frame, ysymbol)
+        column = _close_column(frame, provider_symbol)
     except (KeyError, TypeError, IndexError):
         return []
     return [float(value) for value in column.dropna().tolist()]
@@ -1172,7 +1178,7 @@ def _is_due(quote: Quote | None) -> bool:
 
 def _merge(  # noqa: PLR0913, PLR0917
     symbol: str,
-    ysymbol: str,
+    provider_symbol: str,
     known: Quote | None,
     price: dict | None,
     meta: dict | None,
@@ -1184,8 +1190,8 @@ def _merge(  # noqa: PLR0913, PLR0917
     the previous price stays readable and visibly stale, which is more useful
     than an empty row.
     """
-    base = known or Quote(symbol=symbol, ysymbol=ysymbol)
-    base = replace(base, ysymbol=ysymbol)
+    base = known or Quote(symbol=symbol, provider_symbol=provider_symbol)
+    base = replace(base, provider_symbol=provider_symbol)
 
     if price is None:
         return replace(base, status=QuoteStatus.NOT_FOUND, fetched_at=now), (
@@ -1236,7 +1242,7 @@ def _fill_gaps(
     return {
         symbol: cached.get(
             symbol,
-            Quote(symbol=symbol, ysymbol=resolver.yahoo_symbol(symbol)),
+            Quote(symbol=symbol, provider_symbol=resolver.provider_symbol(symbol)),
         )
         for symbol in symbols
     }
@@ -1251,7 +1257,7 @@ def _quote_from_record(symbol: str, record: Mapping[Hashable, Any]) -> Quote:
         resolved = QuoteStatus.ERROR
     return Quote(
         symbol=symbol,
-        ysymbol=_text(record.get(Column.Quote.YSYMBOL)) or symbol,
+        provider_symbol=_text(record.get(Column.Quote.PROVIDER_SYMBOL)) or symbol,
         price=_number(record.get(Column.Quote.PRICE)),
         prev_close=_number(record.get(Column.Quote.PREV_CLOSE)),
         currency=_currency(record.get(Column.Quote.CURRENCY)),
@@ -1276,7 +1282,7 @@ def _record(quote: Quote) -> dict[str, Any]:
     """Flatten a `Quote` into the columns the cache table holds."""
     return {
         str(Column.Quote.SYMBOL): quote.symbol,
-        str(Column.Quote.YSYMBOL): quote.ysymbol,
+        str(Column.Quote.PROVIDER_SYMBOL): quote.provider_symbol,
         str(Column.Quote.PRICE): _stored(quote.price),
         str(Column.Quote.PREV_CLOSE): _stored(quote.prev_close),
         str(Column.Quote.CURRENCY): str(quote.currency) if quote.currency else None,

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pandas.testing as pd_testing
 import pytest
+import yaml
 
 from app import get_config
 from cli.main import app as cli_app
@@ -26,7 +27,7 @@ from domain import AccountType, Action, CheckStatus, Column, Table
 from engine.checks import run_checks
 from engine.ledger import open_ledger
 from exporters import ParquetExporter
-from services import ForexService
+from services import FxService
 
 from .fixtures.data_factory import create_transaction_data
 from .helpers.cli import (
@@ -34,6 +35,7 @@ from .helpers.cli import (
     assert_in_output,
     run_cli_with_config,
 )
+from .helpers.console import capture_output
 from .helpers.folio import txn_total
 from .helpers.seed import seed_transaction
 
@@ -56,7 +58,7 @@ def test_the_demo_exports_mirror_its_database(temp_ctx: TempContext) -> None:
         ensure_data_exists()
         assert config.txn_parquet.exists()
         assert config.tickers_parquet.exists()
-        # * forex is tested separately
+        # * FX is tested separately
 
         # The exported files mirror the database, whatever the demo holds.
         with get_connection() as conn:
@@ -126,7 +128,7 @@ def _showcase(
             (row.TxnDate, row.Account, row.Ticker) in paid
             for row in trades[trades[Column.Txn.FEE].isna()].itertuples()
         ),
-        "a currency journal (Norbert's gambit)": not out.merge(
+        "a journal (Norbert's gambit)": not out.merge(
             into,
             on=[Column.Txn.TXN_DATE, Column.Txn.ACCOUNT],
         )
@@ -349,13 +351,49 @@ def test_a_build_that_fails_part_way_leaves_the_folio_empty(
         raise OSError(msg)
 
     with temp_ctx():
-        monkeypatch.setattr(ForexService, "ensure_coverage", lambda *_a, **_k: 0)
+        monkeypatch.setattr(FxService, "ensure_coverage", lambda *_a, **_k: 0)
         monkeypatch.setattr(ParquetExporter, "export_all", disk_full)
 
         with pytest.raises(OSError, match="disk full"):
             _REAL_BUILD(DemoFolio())
 
         assert ensure_data_exists() is True
+
+
+def _build_for_real(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run the real demo build, leaving out only the FX fetch and the exports."""
+    monkeypatch.setattr(FxService, "ensure_coverage", lambda *_a, **_k: 0)
+    monkeypatch.setattr(ParquetExporter, "export_all", lambda _self: None)
+    _REAL_BUILD(DemoFolio())
+
+
+def test_a_first_demo_says_it_added_contribution_room(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The room stays behind when the demo goes, so the user has to be told."""
+    with capture_output() as captured, temp_ctx() as ctx:
+        _build_for_real(monkeypatch)
+        written = yaml.safe_load(ctx.config.config_path.read_text(encoding="utf-8"))
+
+    assert written["contribution_room"]
+    message = " ".join(captured.get_text().split())
+    assert "Added demo contribution room to config.yaml" in message
+    assert "Edit or remove it once you replace the demo" in message
+
+
+def test_a_demo_leaves_contribution_room_already_there_unmentioned(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Room the user already set is not the demo's, so there is nothing to say."""
+    room = {"TFSA": {2020: 1234}}
+    with capture_output() as captured, temp_ctx(contribution_room=room) as ctx:
+        _build_for_real(monkeypatch)
+        written = yaml.safe_load(ctx.config.config_path.read_text(encoding="utf-8"))
+
+    assert written["contribution_room"] == room
+    assert "contribution room" not in captured.get_text()
 
 
 # -- THE SIMULATION -----------------------------------------------------------
@@ -422,7 +460,7 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         config = ctx.config
         assert not config.txn_parquet.exists()
         assert not config.tickers_parquet.exists()
-        # * forex tested separately
+        # * FX tested separately
         cli_result = run_cli_with_config(config, cli_app, ["demo"])
         assert_cli_success(cli_result)
         assert_in_output("Demo folio created successfully!", cli_result)

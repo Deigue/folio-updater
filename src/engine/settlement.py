@@ -280,7 +280,7 @@ class SettlementCalculator:
         Args:
             action: Transaction action
             currency: Transaction currency
-            txn_date: Trade date
+            txn_date: Transaction date
 
         Returns:
             Tuple of (settlement days, whether the date is calculated)

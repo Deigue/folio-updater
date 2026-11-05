@@ -668,7 +668,7 @@ def test_import_statements_missing_columns(
         statement_file = ctx.config.project_root / "incomplete_statement.xlsx"
         register_test_dataframe(statement_file, incomplete_df)
         result = import_statements(statement_file)
-        assert result.settlement_updates == 0
+        assert result.settlements_confirmed == 0
         assert result.transfers_created() == 0
 
 
@@ -682,7 +682,7 @@ def test_import_statements_empty_file(
         statement_file = ctx.config.project_root / "empty_statement.xlsx"
         register_test_dataframe(statement_file, empty_df)
         result = import_statements(statement_file)
-        assert result.settlement_updates == 0
+        assert result.settlements_confirmed == 0
         assert result.transfers_created() == 0
 
 
@@ -718,7 +718,7 @@ def test_import_statements_creates_transfer_from_filename(
         register_test_dataframe(statement_file, transfer_df)
         result = import_statements(statement_file)
 
-        assert result.settlement_updates == 0
+        assert result.settlements_confirmed == 0
         assert result.transfers_created() == 2
         assert result.transfers_rejected == 0
 
@@ -864,7 +864,7 @@ def test_import_statements_matches_transform_corrected_ticker(
         register_test_dataframe(statement_file, statement_df)
         result = import_statements(statement_file)
 
-        assert result.settlement_updates == 1
+        assert result.settlements_confirmed == 1
         assert [m.ticker for m in result.settlement_matches] == [f"{VENTURE_TICKER}.V"]
 
         with get_connection() as conn:
@@ -906,7 +906,7 @@ def test_import_statements_matches_identical_trades_by_account(
         register_test_dataframe(statement_file, statement_df)
         result = import_statements(statement_file)
 
-        assert result.settlement_updates == 1
+        assert result.settlements_confirmed == 1
         assert [m.txn_id for m in result.settlement_matches] == [tfsa_id]
 
         with get_connection() as conn:
@@ -959,7 +959,7 @@ def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None
         register_test_dataframe(statement_file, statement_df)
         result = import_statements(statement_file)
 
-        assert result.settlement_updates == 0
+        assert result.settlements_confirmed == 0
         assert result.settlement_candidates() == 1
         unplaced = result.settlement_unplaced()
         assert len(unplaced) == 1
@@ -971,7 +971,7 @@ def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None
 def test_import_statements_reports_already_settled_rows(
     temp_ctx: TempContext,
 ) -> None:
-    """Re-importing a statement reports its rows settled, not unmatched.
+    """Re-importing a statement reports its rows confirmed, not unmatched.
 
     Only transactions with a calculated date are candidates, so a second run
     matches nothing. That is routine, and must not read as a failure.
@@ -998,18 +998,18 @@ def test_import_statements_reports_already_settled_rows(
         register_test_dataframe(statement_file, statement_df)
 
         first = import_statements(statement_file)
-        assert first.settlement_updates == 1
+        assert first.settlements_confirmed == 1
 
         second = import_statements(statement_file)
 
-        assert second.settlement_updates == 0
+        assert second.settlements_confirmed == 0
         assert second.settlement_candidates() == 1
-        assert second.settlement_already_settled() == 1
+        assert second.settlement_already_confirmed() == 1
         # Nothing is wrong, so nothing is reported as unplaced.
         assert second.settlement_unplaced() == []
 
         match = second.settlement_matches[0]
-        assert match.outcome is SettlementOutcome.ALREADY_SETTLED
+        assert match.outcome is SettlementOutcome.ALREADY_CONFIRMED
         assert match.txn_id == txn_id
 
         # The date from the first run is untouched.
@@ -1046,7 +1046,7 @@ def test_import_statements_reports_ambiguity_without_an_account(
         register_test_dataframe(statement_file, statement_df)
         result = import_statements(statement_file)
 
-        assert result.settlement_updates == 0
+        assert result.settlements_confirmed == 0
         unplaced = result.settlement_unplaced()
         assert len(unplaced) == 1
         assert unplaced[0].outcome is SettlementOutcome.AMBIGUOUS

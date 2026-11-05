@@ -55,7 +55,7 @@ from engine.replay import SUPERFICIAL_LOSS_DAYS
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
 from exporters import ParquetExporter
 from importers import insert_transactions
-from services import ForexService
+from services import FxService
 from term import console_warning
 
 if TYPE_CHECKING:
@@ -158,8 +158,8 @@ def _splits() -> dict[str, list[tuple[date, Decimal]]]:
     return {symbol: _parse_events(text) for symbol, text in SPLITS.items()}
 
 
-def trading_symbol(symbol: str, on: date) -> str:
-    """Name the symbol a security traded under on a given day.
+def ticker_on(symbol: str, on: date) -> str:
+    """Name the ticker a security traded under on a given day.
 
     Args:
         symbol: Any name the security has had.
@@ -295,7 +295,7 @@ class _Account:
 
     Attributes:
         name: Account name; the folio infers its type from it.
-        kind: The account type.
+        account_type: The account type.
         fee_included: QuestTrade-style: a trade's `Amount` already contains the
             commission. Otherwise the commission is charged on top, IBKR-style.
         broker_settles: The broker reports settlement dates, so the folio keeps
@@ -303,14 +303,14 @@ class _Account:
     """
 
     name: str
-    kind: AccountType
+    account_type: AccountType
     fee_included: bool = False
     broker_settles: bool = False
 
     @property
     def taxable(self) -> bool:
         """Whether a sale here is a taxable disposition."""
-        return self.kind in TAXABLE_ACCOUNT_TYPES
+        return self.account_type in TAXABLE_ACCOUNT_TYPES
 
     def fee(self, units: int) -> Decimal:
         """Charge the commission on a trade of `units` units."""
@@ -375,7 +375,7 @@ class _Simulation:
     stays under it), cash (never negative), contribution room (never exceeded)
     and the superficial-loss window around every taxable sale (never entered).
 
-    Cash is booked conservatively: a debit lands on its trade date and a credit
+    Cash is booked conservatively: a debit lands on its transaction date and a credit
     on its settlement date, so a balance that holds here also holds when the
     replay books both on their settlement dates.
     """
@@ -391,7 +391,7 @@ class _Simulation:
         self._pending: list[tuple[date, str, Currency, Decimal]] = []
         self._room: dict[tuple[str, int], Decimal] = {}
         self._paid: dict[tuple[str, str, int], Decimal] = {}
-        self._payouts: list[tuple[date, _Account, str, Decimal]] = []
+        self._dividends: list[tuple[date, _Account, str, Decimal]] = []
         self._taxable_sales: list[tuple[str, date]] = []
 
     # -- scheduling ---------------------------------------------------------
@@ -471,7 +471,7 @@ class _Simulation:
                 Column.Txn.CURRENCY: currency.value,
                 Column.Txn.PRICE: None if price is None else float(price),
                 Column.Txn.UNITS: None if units is None else float(units),
-                Column.Txn.TICKER: trading_symbol(symbol, day) if symbol else None,
+                Column.Txn.TICKER: ticker_on(symbol, day) if symbol else None,
                 Column.Txn.ACCOUNT: account.name,
                 # Both brokers write a charged commission as a negative number.
                 Column.Txn.FEE: float(-fee) if fee else None,
@@ -550,12 +550,14 @@ class _Simulation:
         for account in ACCOUNTS:
             amount = (self._held(account, symbol) * per_share).quantize(_CENT)
             if amount > 0:
-                self._payouts.append((pays, account, symbol, amount))
+                self._dividends.append((pays, account, symbol, amount))
 
     def _pay(self, day: date) -> None:
         """Pay every dividend due today, reinvesting it where the account does."""
-        due = [payout for payout in self._payouts if payout[0] == day]
-        self._payouts = [payout for payout in self._payouts if payout[0] != day]
+        due = [dividend for dividend in self._dividends if dividend[0] == day]
+        self._dividends = [
+            dividend for dividend in self._dividends if dividend[0] != day
+        ]
         for _, account, symbol, amount in due:
             currency = currency_of(symbol)
             self._emit(
@@ -579,13 +581,16 @@ class _Simulation:
     def contribute(self, day: date, account: _Account, amount: int) -> None:
         """Contribute new money, within the account type's contribution room."""
         cash = Decimal(amount)
-        limits = CRA_ROOM.get(account.kind.value)
+        limits = CRA_ROOM.get(account.account_type.value)
         if limits is not None:
-            year = room_year(account.kind, day)
-            key = (account.kind.value, year)
+            year = room_year(account.account_type, day)
+            key = (account.account_type.value, year)
             self._room[key] = self._room.get(key, Decimal(0)) + cash
             if self._room[key] > limits[year]:
-                msg = f"{account.kind} contributions for {year} pass the CRA limit"
+                msg = (
+                    f"{account.account_type} contributions for {year} "
+                    "pass the CRA limit"
+                )
                 raise DemoScenarioError(msg)
         self._emit(day, Action.CONTRIBUTION, account, Currency.CAD, amount=cash)
         self._add(account, Currency.CAD, cash)
@@ -596,7 +601,13 @@ class _Simulation:
         self._add(account, Currency.CAD, -cash)
         self._emit(day, Action.WITHDRAWAL, account, Currency.CAD, amount=-cash)
 
-    def move(self, day: date, source: _Account, target: _Account, amount: int) -> None:
+    def withdraw_and_contribute(
+        self,
+        day: date,
+        source: _Account,
+        target: _Account,
+        amount: int,
+    ) -> None:
         """Move cash from a taxable account into a registered one.
 
         Across account types the CRA sees a withdrawal and a fresh contribution,
@@ -605,7 +616,7 @@ class _Simulation:
         self.withdraw(day, source, amount)
         self.contribute(day, target, amount)
 
-    def charge(
+    def financial_charge(
         self,
         day: date,
         account: _Account,
@@ -622,7 +633,7 @@ class _Simulation:
             _CENT,
         )
         if earned > 0:
-            self.charge(day, account, earned)
+            self.financial_charge(day, account, earned)
 
     def convert(self, day: date, account: _Account, keep: int) -> None:
         """Buy US dollars with the Canadian cash above `keep`, IBKR-style.
@@ -713,7 +724,7 @@ class _Simulation:
         """Sell some units, or the whole holding, checking the outcome is as meant.
 
         Args:
-            day: Trade date.
+            day: Transaction date.
             account: Who sells.
             symbol: What is sold.
             units: How many; the whole holding when None.
@@ -757,7 +768,7 @@ class _Simulation:
         )
 
     def roc(self, day: date, account: _Account, symbol: str, share: str) -> None:
-        """Reclassify part of the year's distributions as return of capital.
+        """Reclassify part of the year's dividends as return of capital.
 
         No cash moves: it was paid as dividends already. Only the cost base
         drops, and never below zero.
@@ -918,10 +929,10 @@ def _script(sim: _Simulation) -> None:
 
     # Moving money into a TFSA from a taxable account: a withdrawal and a contribution,
     # which uses the year's room, never a transfer.
-    at(date(2025, 1, 6), sim.move, PERSONAL, TFSA, 7_000)
-    at(date(2026, 1, 6), sim.move, PERSONAL, TFSA, 7_000)
+    at(date(2025, 1, 6), sim.withdraw_and_contribute, PERSONAL, TFSA, 7_000)
+    at(date(2026, 1, 6), sim.withdraw_and_contribute, PERSONAL, TFSA, 7_000)
 
-    # A REIT bought for income: its distributions are reinvested (DRIP), and
+    # A REIT bought for income: its dividends are reinvested (DRIP), and
     # part of each year's turns out to be return of capital.
     at(date(2025, 1, 8), sim.buy, TFSA, "REI.UN.TO", units=300)
     at(date(2025, 12, 31), sim.roc, TFSA, "REI.UN.TO", share="0.30")
@@ -954,7 +965,7 @@ def _script(sim: _Simulation) -> None:
 
     # Account charges: an annual fee, and interest on idle cash.
     for year in (2025, 2026):
-        at(date(year, 1, 15), sim.charge, RRSP, Decimal(-50))
+        at(date(year, 1, 15), sim.financial_charge, RRSP, Decimal(-50))
     for month in _months(date(2024, 12, 1))[::3]:
         at(month - timedelta(days=1), sim.interest, PERSONAL)
 
@@ -971,14 +982,14 @@ class _Routine:
 
     Attributes:
         account: Whose routine it is.
-        deposit: Contributed on the first trading day of each month.
+        contribution: Contributed on the first trading day of each month.
         buy_days: Days of the month a purchase is made.
         rotation: Symbols bought in turn, one per purchase.
         budget: The most one purchase spends; less when cash is short.
     """
 
     account: _Account
-    deposit: int
+    contribution: int
     buy_days: tuple[int, ...]
     rotation: tuple[str, ...]
     budget: int
@@ -999,12 +1010,12 @@ def _background(sim: _Simulation) -> None:
     turns = dict.fromkeys(_ROUTINES, 0)
     for month in _months(date(2024, 11, 1)):
         for routine in _ROUTINES:
-            if routine.deposit:
+            if routine.contribution:
                 sim.at(
                     month,
                     sim.contribute,
                     routine.account,
-                    routine.deposit,
+                    routine.contribution,
                     rank=_BACKGROUND,
                 )
             for day in routine.buy_days:
@@ -1106,7 +1117,7 @@ class DemoFolio:
             DemoScenarioError: If the import pipeline turns away any demo row.
         """
         rows = self.rows()
-        ForexService.ensure_coverage(start=START.isoformat())
+        FxService.ensure_coverage(start=START.isoformat())
         try:
             self._write(rows)
         except Exception:
@@ -1137,6 +1148,11 @@ class DemoFolio:
         config = get_config()
         if write_missing_setting(config.config_path, "contribution_room", CRA_ROOM):
             initialize_app(config.project_root)
+            console_warning(
+                "Added demo contribution room to config.yaml (`contribution_room`). "
+                "Edit or remove it once you replace the demo, or real contributions "
+                "will be measured against it.",
+            )
 
         ParquetExporter().export_all()
 
@@ -1144,7 +1160,7 @@ class DemoFolio:
     def clear() -> None:
         """Remove the demo, so real transactions start an empty folio from TxnId 1.
 
-        The folio is backed up first. Exchange rates and cached quotes stay, being
+        The folio is backed up first. FX rates and cached quotes stay, being
         real data, and so does any contribution room the demo wrote to config.
         """
         backup_folio()

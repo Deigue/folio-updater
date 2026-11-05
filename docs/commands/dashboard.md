@@ -36,7 +36,7 @@ folio dash --by-type            # a panel per account type, side by side
 | `--show-closed`    | Break the aggregate `Closed` row into one row each    |
 | `-o`, `--offline`  | Use cached quotes only, never touching the network    |
 | `-e`, `--export`   | Write the valued holdings to a `.csv` or `.xlsx` file |
-| `--refresh`        | Refetch quotes and rebuild the cost-base cache        |
+| `--refresh`        | Refetch quotes and replay the cost base               |
 
 ## Sorting
 
@@ -49,7 +49,7 @@ folio dash -s symbol     # A to Z
 **Numbers sort largest-first and text A-to-Z**, which is what you want almost
 every time. `-r` flips whichever applies. Unpriced holdings sink to the bottom.
 Money measures sort on the CAD value, so a mixed-currency pool orders by what each
-position is really worth.
+holding is really worth.
 
 Sort by any of: `symbol`, `name`, `units`, `avg`, `last`, `change`, `change%`,
 `pnl`, `pnl%`, `unreal`, `unreal%`, `realized`, `divs`, `total`, `total%`, `book`,

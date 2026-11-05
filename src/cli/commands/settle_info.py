@@ -50,8 +50,8 @@ def settlement_info(
     """Show settlement date information for transactions in the database.
 
     Args:
-        file: Optional path to monthly statement file to import for settlement updates
-        import_flag: Whether to import statement files for settlement updates
+        file: Optional path to monthly statement file to confirm settlement dates from
+        import_flag: Whether to import statement files to confirm settlement dates
         verbose: Whether to list each statement row and how it was resolved
 
     Raises:
@@ -100,7 +100,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
 
     # Updates parquets if any changes were made.
     changed = any(
-        r.settlement_updates > 0 or r.transfers_created() > 0 for r in results
+        r.settlements_confirmed > 0 or r.transfers_created() > 0 for r in results
     )
     if changed:
         with spinner(color=SPINNER_STATEMENT) as progress:
@@ -129,18 +129,18 @@ def import_single_statement(
         progress.add_task(f"Importing {statement_path.name}...", total=None)
         result = import_statements(statement_path)
 
-    if result.settlement_updates > 0:
+    if result.settlements_confirmed > 0:
         console_success(
-            f"Updated {result.settlement_updates} settlement dates from "
+            f"Confirmed {result.settlements_confirmed} settlement dates from "
             f'"{statement_path.name}"',
         )
-    elif result.settlement_already_settled() and not result.settlement_unplaced():
+    elif result.settlement_already_confirmed() and not result.settlement_unplaced():
         console_info(
             f"All {result.settlement_candidates()} row(s) in "
-            f'"{statement_path.name}" are already settled',
+            f'"{statement_path.name}" are already confirmed',
         )
     else:
-        console_warning(f'No settlement dates updated from "{statement_path.name}"')
+        console_warning(f'No settlement dates confirmed from "{statement_path.name}"')
 
     _report_settlement_matching(statement_path.name, result, verbose=verbose)
 
@@ -259,10 +259,11 @@ def _import_statements_from_directory(
     show_statements_summary(imported)
     results = [result for _, result in imported]
 
-    total_updates = sum(r.settlement_updates for r in results)
+    total_confirmed = sum(r.settlements_confirmed for r in results)
     total_transfers = sum(r.transfers_created() for r in results)
     console_info(
-        f"Updated {total_updates} date(s) and created {total_transfers} transfer(s) "
+        f"Confirmed {total_confirmed} date(s) and created "
+        f"{total_transfers} transfer(s) "
         f"across {len(statement_files)} file(s).",
     )
     return results

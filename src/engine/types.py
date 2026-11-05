@@ -14,10 +14,10 @@ from domain import (
     Action,
     Column,
     Currency,
+    DiagnosticCode,
     Grain,
     Impact,
     Table,
-    WarningCode,
 )
 from domain.numeric import MISSING_TEXT, ZERO, dec
 
@@ -49,8 +49,8 @@ class TxnRow:
 
     Attributes:
         txn_id: Primary key.
-        txn_date: Trade date, `YYYY-MM-DD`. Units and cost base follow this.
-        settle_date: Settlement date, falling back to the trade date. Cash
+        txn_date: Transaction date, `YYYY-MM-DD`. Units and cost base follow this.
+        settle_date: Settlement date, falling back to the transaction date. Cash
             follows this.
         action: The transaction's action.
         amount: Total cash amount, sign as stored.
@@ -59,7 +59,7 @@ class TxnRow:
         units: Number of units; units *after* the split on a SPLIT row.
         fee: Commission. Which sign means "charged" varies by broker, so it is detected
             per account rather than assumed.
-        ticker: Security symbol, as written on the row.
+        ticker: The security's ticker, as the transaction records it.
         account: Owning account name.
         description: Free-text description when the optional column exists.
     """
@@ -175,7 +175,7 @@ class GrainMeasures:
 
 
 @dataclass(frozen=True)
-class ComputedRow:
+class LedgerRow:
     """One ledger row: the source transaction plus every derived measure.
 
     Strictly one of these per `Txns` row, so the ledger is 1:1 with the
@@ -195,7 +195,7 @@ class ComputedRow:
     acct: GrainMeasures = field(default_factory=GrainMeasures)
     type: GrainMeasures = field(default_factory=GrainMeasures)
     folio: GrainMeasures = field(default_factory=GrainMeasures)
-    flags: tuple[WarningCode, ...] = ()
+    flags: tuple[DiagnosticCode, ...] = ()
 
     @property
     def is_usd(self) -> bool:
@@ -219,7 +219,7 @@ class ComputedRow:
 
 
 @dataclass(frozen=True)
-class ReplayWarning:
+class Diagnostic:
     """A diagnostic raised during a replay.
 
     Most codes tag a row, but few describe a pool rather than a transaction and
@@ -237,10 +237,10 @@ class ReplayWarning:
         as_of: The date the diagnostic is about, `YYYY-MM-DD`, where a row's own
             date is not the answer.
         value: The value the diagnostic turns on: a cash balance for
-            `CASH_NEGATIVE`, a unit count for `NEGATIVE_FINAL_POSITION`.
+            `CASH_NEGATIVE`, a unit count for `NEGATIVE_FINAL_UNITS`.
     """
 
-    code: WarningCode
+    code: DiagnosticCode
     txn_id: int | None = None
     grain: Grain | None = None
     pool: str | None = None
@@ -330,28 +330,31 @@ class ReplayResult:
     """Everything one replay produced.
 
     Attributes:
-        rows: One `ComputedRow` per transaction, in trade-date order.
-        warnings: Diagnostics raised, deduplicated.
+        rows: One `LedgerRow` per transaction, in transaction-date order.
+        diagnostics: Diagnostics raised, deduplicated.
         cash: Running cash and income totals per pool grain, pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
     """
 
-    rows: list[ComputedRow] = field(default_factory=list)
-    warnings: list[ReplayWarning] = field(default_factory=list)
+    rows: list[LedgerRow] = field(default_factory=list)
+    diagnostics: list[Diagnostic] = field(default_factory=list)
     cash: dict[CashKey, CashState] = field(default_factory=dict)
     totals: ReplayTotals = field(default_factory=ReplayTotals)
 
-    def codes_by_txn(self) -> dict[int, tuple[WarningCode, ...]]:
+    def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:
         """Group the distinct codes raised against each row.
 
         Returns:
             Each tagged `TxnId` mapped to its codes, in the order they were
             raised. Rows with no diagnostics are absent.
         """
-        grouped: dict[int, dict[WarningCode, None]] = {}
-        for warning in self.warnings:
-            if warning.txn_id is not None:
-                grouped.setdefault(warning.txn_id, {}).setdefault(warning.code, None)
+        grouped: dict[int, dict[DiagnosticCode, None]] = {}
+        for diagnostic in self.diagnostics:
+            if diagnostic.txn_id is not None:
+                grouped.setdefault(diagnostic.txn_id, {}).setdefault(
+                    diagnostic.code,
+                    None,
+                )
         return {txn_id: tuple(codes) for txn_id, codes in grouped.items()}
 
 
@@ -389,7 +392,7 @@ def to_txn_rows(frame: pd.DataFrame) -> list[TxnRow]:
         frame: Rows straight from the `Txns` table.
 
     Returns:
-        `TxnRow`s ordered by trade date then TxnId.
+        `TxnRow`s ordered by transaction date then TxnId.
     """
     if frame.empty:
         return []
@@ -428,7 +431,7 @@ def load_txn_rows() -> list[TxnRow]:
     """Read the whole transactions table as `TxnRow`s.
 
     Returns:
-        Every transaction in the folio, trade-date ordered.
+        Every transaction in the folio, transaction-date ordered.
     """
     with get_connection() as conn:
         frame = get_rows(conn, Table.TXNS)

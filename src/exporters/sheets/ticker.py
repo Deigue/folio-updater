@@ -53,7 +53,7 @@ PERFORMANCE_SHEET = "Performance"
 def ticker_sheet(  # noqa: PLR0913
     quote: Quote,
     moves: Mapping[PriceRange, RangeMove | None],
-    positions: Sequence[SymbolHoldings],
+    per_currency: Sequence[SymbolHoldings],
     *,
     aliases: Sequence[str] = (),
     by_account: bool = False,
@@ -62,9 +62,9 @@ def ticker_sheet(  # noqa: PLR0913
     """Print one security on one sheet: quote, fundamentals, moves, holdings.
 
     Args:
-        quote: Its live quote, fundamentals included.
+        quote: Its quote, fundamentals included.
         moves: Its move over every range.
-        positions: Its holdings across the folio, one per currency shown.
+        per_currency: Its holdings across the folio, one per currency shown.
         aliases: Other symbols the folio has known it by.
         by_account: The holdings list broker accounts rather than types.
         notes: Lines to disclose, such as how old the prices are.
@@ -85,13 +85,13 @@ def ticker_sheet(  # noqa: PLR0913
                 rows,
                 notes=(
                     *notes,
-                    *_first_buy_note(positions),
+                    *_first_buy_note(per_currency),
                     _MOVES_NOTE,
                 ),
             ),
             *(
-                _holdings_table(position, quote.currency, by_account=by_account)
-                for position in positions
+                _holdings_table(holdings, quote.currency, by_account=by_account)
+                for holdings in per_currency
             ),
         ),
         lists=(_quote_list(quote, aliases), _fundamentals_list(quote)),
@@ -101,9 +101,9 @@ def ticker_sheet(  # noqa: PLR0913
     )
 
 
-def _first_buy_note(positions: Sequence[SymbolHoldings]) -> list[str]:
+def _first_buy_note(per_currency: Sequence[SymbolHoldings]) -> list[str]:
     """Say when and at what the folio first bought the security."""
-    bought = positions[0].first_buy if positions else None
+    bought = per_currency[0].first_buy if per_currency else None
     if bought is None:
         return []
     split = " (before a later split)" if bought.split_since else ""
@@ -251,7 +251,7 @@ def _start(start: str) -> str | None:
 
 
 def _holdings_table(
-    position: SymbolHoldings,
+    holdings: SymbolHoldings,
     quoted_in: Currency | None,
     *,
     by_account: bool,
@@ -259,7 +259,7 @@ def _holdings_table(
     """Print every pool's holding, with the folio-wide pooled figures.
 
     Args:
-        position: The security across the folio, in one currency.
+        holdings: The security across the folio, in one currency.
         quoted_in: The currency the security trades in, so a table converted
             out of it can say at what rate.
         by_account: The lines are broker accounts rather than types.
@@ -289,20 +289,20 @@ def _holdings_table(
             _holding_cells(_pool_name(line), line.holding, share),
             Role.CLOSED if line.holding.closed else Role.DATA,
         )
-        for line in position.lines
+        for line in holdings.lines
     ]
-    if position.pooled_differs:
-        pooled = _holding_cells(_POOLED, position.total, share)
+    if holdings.pooled_differs:
+        pooled = _holding_cells(_POOLED, holdings.total, share)
         pooled[share] = None
         rows.append(row_of(columns, pooled, Role.TOTAL))
     notes: list[str] = []
-    if position.fx_rate is not None and position.currency is not quoted_in:
-        notes.append(f"Market value at USDCAD {position.fx_rate} ({position.fx_date}).")
+    if holdings.fx_rate is not None and holdings.currency is not quoted_in:
+        notes.append(f"Market value at USDCAD {holdings.fx_rate} ({holdings.fx_date}).")
     return SheetTable(
         columns,
         tuple(rows),
         notes=tuple(notes),
-        title=f"{position.symbol} held · {position.currency}",
+        title=f"{holdings.symbol} held · {holdings.currency}",
     )
 
 

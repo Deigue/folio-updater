@@ -12,7 +12,7 @@ A portfolio management system that imports and processes financial transaction d
 - **[`folio add`](docs/commands/adding-transactions.md)**: Manually add a single transaction
 - **[`folio edit`](docs/commands/editing-transactions.md)**: Edit transactions, one at a time or in batch
 - **[`folio delete`](docs/commands/deleting-transactions.md)**: Delete transactions, one at a time or in batch
-- **[`folio getfx`](docs/commands/forex-rates.md)**: Update foreign exchange rates automatically
+- **[`folio getfx`](docs/commands/fx-rates.md)**: Update FX rates automatically
 - **`folio generate`**: Generate the latest portfolio from the database
 - **[`folio demo`](docs/commands/demo.md)**: Build a realistic two-year demo portfolio from real market history, to explore every command
 - **[`folio settle-info`](docs/commands/settlement-info.md)**: Retrieve and update settlement date information
@@ -42,7 +42,7 @@ A portfolio management system that imports and processes financial transaction d
 ### Export Functionality
 
 - **Transaction Export**: Export transactions from database to Excel sheets
-- **[FX Rate Export](docs/commands/forex-rates.md)**: Automatic FX Rate management
+- **[FX Rate Export](docs/commands/fx-rates.md)**: Automatic FX Rate management
 
 ## Usage
 

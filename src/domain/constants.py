@@ -15,7 +15,7 @@ WEEKDAYS = 5
 # Internal transaction fields that are essential for processing. A tuple, so no
 # caller can reorder it and silently change the duplicate key for every import.
 TXN_ESSENTIALS: tuple[str, ...] = (
-    Column.Txn.TXN_DATE,  # Trade date
+    Column.Txn.TXN_DATE,  # Transaction date
     Column.Txn.ACTION,  # Action
     Column.Txn.AMOUNT,  # Total amount (Price * Units)
     Column.Txn.CURRENCY,  # Currency

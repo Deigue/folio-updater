@@ -146,7 +146,7 @@ def test_an_empty_frame_comes_back_empty() -> None:
             None,
             pd.NA,
             0,
-            id="missing_trade_date_does_not_crash",
+            id="missing_transaction_date_does_not_crash",
         ),
         pytest.param(
             "2025-08-18",
@@ -219,7 +219,7 @@ def test_multiple_txns() -> None:
     assert result.loc[1, Column.Txn.SETTLE_DATE] == "2025-07-29"
     assert result.loc[1, Column.Txn.SETTLE_CALCULATED] == 0
 
-    # DIVIDEND, no existing date -> same day as trade date
+    # DIVIDEND, no existing date -> same day as transaction date
     assert result.loc[2, Column.Txn.SETTLE_DATE] == "2025-07-24"
     assert result.loc[2, Column.Txn.SETTLE_CALCULATED] == 0
 
@@ -257,7 +257,7 @@ def test_the_trading_day_lookup_loads_what_it_needs() -> None:
 
 
 def test_an_earlier_batch_widens_a_cached_calendar() -> None:
-    """A trade dated before the cached schedule still settles on the next day.
+    """A transaction dated before the cached schedule still settles on the next day.
 
     The cache used to be trusted once loaded, so in one process an older
     batch following a newer one settled against the wrong trading days, and

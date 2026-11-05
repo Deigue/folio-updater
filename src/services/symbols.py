@@ -116,7 +116,7 @@ class SymbolResolver:
                     pending.append(neighbour)
         return sorted(found)
 
-    def yahoo_symbol(self, ticker: str) -> str:
+    def provider_symbol(self, ticker: str) -> str:
         """Render a canonical symbol the way Yahoo Finance spells it.
 
         Yahoo separates an *exchange* with a dot and a *share class* with a

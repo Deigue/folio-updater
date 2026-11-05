@@ -181,7 +181,7 @@ QUOTES_COLUMN_DEFINITIONS = [
             f'UPPER("{Column.Quote.SYMBOL}") AND length("{Column.Quote.SYMBOL}") > 0)'
         ),
     ),
-    ColumnDefinition(Column.Quote.YSYMBOL, "TEXT", "NOT NULL"),
+    ColumnDefinition(Column.Quote.PROVIDER_SYMBOL, "TEXT", "NOT NULL"),
     ColumnDefinition(Column.Quote.PRICE, NUMERIC_PRECISION),
     ColumnDefinition(Column.Quote.PREV_CLOSE, NUMERIC_PRECISION),
     ColumnDefinition(

@@ -152,7 +152,7 @@ class SettlementMatch:
     Attributes:
         outcome: Whether the row matched exactly one transaction, none, or several.
         settle_date: The settlement date the statement reports for the row.
-        txn_date: Trade date parsed out of the statement description.
+        txn_date: Transaction date parsed out of the statement description.
         action: Statement action code (BUY/SELL/...).
         ticker: Ticker after normalization and the user's transform rules.
         currency: Currency the row is denominated in.
@@ -160,7 +160,7 @@ class SettlementMatch:
         units: Units parsed from the description, when the row carries one.
         account: Account the statement belongs to, from its filename.
         candidates: How many folio transactions the row matched.
-        txn_id: The transaction updated, set only when the outcome is MATCHED.
+        txn_id: The transaction confirmed, set only when the outcome is CONFIRMED.
     """
 
     outcome: SettlementOutcome
@@ -180,7 +180,7 @@ class SettlementMatch:
 class StatementImportResult:
     """Result for a statement import operation."""
 
-    settlement_updates: int = 0
+    settlements_confirmed: int = 0
     transfer_results: ImportResults | None = None
     transfers_rejected: int = 0
     transfers_skipped: int = 0
@@ -194,18 +194,18 @@ class StatementImportResult:
         """Return how many statement rows were weighed for a settlement date."""
         return len(self.settlement_matches)
 
-    def settlement_already_settled(self) -> int:
-        """Return how many rows were already settled."""
+    def settlement_already_confirmed(self) -> int:
+        """Return how many rows were already confirmed."""
         return sum(
-            match.outcome is SettlementOutcome.ALREADY_SETTLED
+            match.outcome is SettlementOutcome.ALREADY_CONFIRMED
             for match in self.settlement_matches
         )
 
     def settlement_unplaced(self) -> list[SettlementMatch]:
         """Return the candidate rows that could not be placed on a transaction."""
-        settled = (SettlementOutcome.MATCHED, SettlementOutcome.ALREADY_SETTLED)
+        confirmed = (SettlementOutcome.CONFIRMED, SettlementOutcome.ALREADY_CONFIRMED)
         return [
-            match for match in self.settlement_matches if match.outcome not in settled
+            match for match in self.settlement_matches if match.outcome not in confirmed
         ]
 
 

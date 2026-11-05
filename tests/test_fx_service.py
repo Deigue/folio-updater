@@ -10,11 +10,11 @@ from unittest.mock import patch
 import pytest
 
 from domain import Column
-from services import ForexService
+from services import FxService
 
 # * The rest of the suite runs with `get_fx_rates_from_boc` stubbed out; this
 # * module is testing that very method, so it opts out and mocks `requests`.
-pytestmark = pytest.mark.no_mock_forex
+pytestmark = pytest.mark.no_mock_fx
 
 # ---------------------------------------------------------------------------
 # CANNED BANK OF CANADA RESPONSE. Update if changed.
@@ -54,9 +54,9 @@ EXPECTED_USDCAD = [1.3750, 1.3785, 1.3702]
 
 def test_boc_response_is_parsed_into_fx_rates() -> None:
     """A Bank of Canada CSV becomes a sorted, inverted, gap-free FX frame."""
-    with patch("services.forex_service.requests.get") as mock_get:
+    with patch("services.fx_service.requests.get") as mock_get:
         mock_get.return_value.text = BOC_CSV_RESPONSE
-        fx_df = ForexService.get_fx_rates_from_boc("2025-08-01")
+        fx_df = FxService.get_fx_rates_from_boc("2025-08-01")
 
     # The requested start date is threaded into the query string.
     requested_url = mock_get.call_args.args[0]
@@ -79,8 +79,8 @@ def test_boc_response_is_parsed_into_fx_rates() -> None:
 
 def test_missing_observations_section_yields_empty_frame() -> None:
     """A response without an OBSERVATIONS block is discarded, not guessed at."""
-    with patch("services.forex_service.requests.get") as mock_get:
+    with patch("services.fx_service.requests.get") as mock_get:
         mock_get.return_value.text = '"TERMS AND CONDITIONS"\n"nothing useful"\n'
-        fx_df = ForexService.get_fx_rates_from_boc("2025-08-01")
+        fx_df = FxService.get_fx_rates_from_boc("2025-08-01")
 
     assert fx_df.empty

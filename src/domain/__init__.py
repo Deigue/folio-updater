@@ -15,6 +15,7 @@ from domain.enums import (
     CheckStatus,
     Column,
     Currency,
+    DiagnosticCode,
     FeeConvention,
     Grain,
     Impact,
@@ -23,7 +24,6 @@ from domain.enums import (
     SettlementOutcome,
     Sign,
     Table,
-    WarningCode,
 )
 
 __all__ = [
@@ -40,6 +40,7 @@ __all__ = [
     "CheckStatus",
     "Column",
     "Currency",
+    "DiagnosticCode",
     "FeeConvention",
     "Grain",
     "Impact",
@@ -48,5 +49,4 @@ __all__ = [
     "SettlementOutcome",
     "Sign",
     "Table",
-    "WarningCode",
 ]

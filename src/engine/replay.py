@@ -5,7 +5,7 @@ for all three pool grains at once: account, account type, and the whole
 folio, via one pass.
 
 **Two orderings, one call.** Units and cost base follow the *trade* date; cash
-follows the *settle* date. Ordering the cash replay by trade date produces
+follows the *settlement* date. Ordering the cash replay by transaction date produces
 phantom negative balances whenever a buy and the contribution funding it land on
 the same day. Both walks share the row list and every accumulator, so all three grains
 still come out of one pass over each ordering rather than three separate replays.
@@ -35,22 +35,22 @@ from domain import (
     AccountType,
     Action,
     Currency,
+    DiagnosticCode,
     FeeConvention,
     Grain,
-    WarningCode,
 )
 from domain.numeric import ONE, ZERO, q2, safe_div
 from engine.accounts import fee_convention_for, resolve_account_type
-from engine.deposits import DepositLedger, PoolId
+from engine.deposits import DepositTracker, PoolId
 from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, pair_transfers
 from engine.types import (
     CashKey,
     CashState,
-    ComputedRow,
+    Diagnostic,
     GrainMeasures,
     HoldingState,
+    LedgerRow,
     ReplayResult,
-    ReplayWarning,
 )
 
 if TYPE_CHECKING:
@@ -87,11 +87,11 @@ FEE_MAJORITY_SHARE = 0.6
 SUPERFICIAL_LOSS_DAYS = 30
 
 # Where a sale's loss is checked for being superficial: the taxable accounts,
-# where CRA would deny it, and unresolved accounts, which get every diagnostic
-# any account could. An unresolved account still counts in no tax figure.
+# where CRA would deny it, and unknown accounts, which get every diagnostic
+# any account could. An unknown account still counts in no tax figure.
 SUPERFICIAL_LOSS_TYPES = TAXABLE_ACCOUNT_TYPES | {AccountType.UNKNOWN}
 
-# Order actions share a trade date in. The date is the finest resolution the folio
+# Order actions share a transaction date in. The date is the finest resolution the folio
 # records, so several rows routinely land on one and their true sequence is not
 # recoverable. This prioritization makes things deterministic and avoid cost base
 # problems.
@@ -121,7 +121,7 @@ def intraday_rank(action: object) -> int:
         action: The row's action, as the enum or as its stored text.
 
     Returns:
-        Its rank; lower is applied first on the same trade date.
+        Its rank; lower is applied first on the same transaction date.
     """
     try:
         return _INTRADAY_ORDER.get(Action(str(action)), _INTRADAY_DEFAULT)
@@ -135,10 +135,10 @@ _TRADE_ACTIONS = (Action.BUY, Action.SELL)
 DENOMINATED_ACTIONS = (Action.BUY, Action.SELL, Action.DIVIDEND, Action.ROC)
 
 # How far a settlement lag, counted in weekdays, may differ from the account's usual.
-SETTLE_LAG_TOLERANCE = 2
+SETTLEMENT_LAG_TOLERANCE = 2
 
-# min trades below which no habit can be established for settle day lag.
-SETTLE_LAG_MIN_TRADES = 5
+# min trades below which no habit can be established for settlement lag.
+SETTLEMENT_LAG_MIN_TRADES = 5
 
 # How long after a holding closes a dividend on it is still expected. A
 # dividend is earned on the ex-date and paid weeks later, so a sale can leave income
@@ -438,7 +438,7 @@ class _Replay:
         self.cfg = cfg
         self.pools = _Pools()
         self.result = ReplayResult()
-        self._seen: set[tuple[WarningCode, int | None, str | None]] = set()
+        self._seen: set[tuple[DiagnosticCode, int | None, str | None]] = set()
         pairs, unpaired = pair_transfers(rows)
         self.pair_of: dict[int, int] = {}
         self.pair_by_id: dict[int, TransferPair] = {}
@@ -450,9 +450,9 @@ class _Replay:
         # Cost base carried by an out leg, waiting for its in leg to claim it.
         self.carried: dict[tuple[int, Grain], tuple[Decimal, Decimal]] = {}
         # Net deposits, tracked only for the pools dealing with transfers.
-        self.deposits = DepositLedger(self._tracked_pools(pairs))
+        self.deposits = DepositTracker(self._tracked_pools(pairs))
         # Cost-base change per grain then row, kept only for those same pools.
-        # Nested rather than keyed by a `(txn_id, grain)` tuple so the settle
+        # Nested rather than keyed by a `(txn_id, grain)` tuple so the settlement
         # walk allocates no key to look one up on every row of the ledger.
         self.acb_delta: dict[Grain, dict[int, Decimal]] = {
             grain: {} for grain in self.deposits.grains
@@ -460,9 +460,9 @@ class _Replay:
         # Track accounts already reported negative, so only the first crossing shows.
         self.reported_negative: set[tuple[str, Currency]] = set()
         # * Split coverage trackers
-        # (symbol, trade date) -> set[account] , accounts that recorded the split.
+        # (symbol, transaction date) -> set[account] , accounts that recorded the split.
         self.split_rows: dict[tuple[str, str], set[str]] = {}
-        # (symbol, trade date) -> set[account] , accounts that have holding.
+        # (symbol, transaction date) -> set[account] , accounts that hold it.
         self.split_holders: dict[tuple[str, str], set[str]] = {}
 
     def _tracked_pools(self, pairs: Sequence[TransferPair]) -> frozenset[PoolId]:
@@ -499,22 +499,22 @@ class _Replay:
 
     def run(self) -> ReplayResult:
         """Walk the ledger and return everything it produced."""
-        self._warn_unknown_accounts()
+        self._diagnose_unknown_accounts()
         self._acb_walk()
         self._cash_walk()
-        self._final_position_check()
+        self._final_units_check()
         self._split_coverage_check()
         self._mixed_currency_check()
-        self._settle_lag_check()
+        self._settlement_lag_check()
         self._superficial_loss_check()
         self._attach_flags()
         return self.result
 
     # -- DIAGNOSTICS ------------------------------------------------------
 
-    def warn(  # noqa: PLR0913 - every argument names one facet of the diagnostic
+    def diagnose(  # noqa: PLR0913 - every argument names one facet of the diagnostic
         self,
-        code: WarningCode,
+        code: DiagnosticCode,
         row: TxnRow | None = None,
         grain: Grain | None = None,
         pool: str | None = None,
@@ -532,8 +532,8 @@ class _Replay:
         if key in self._seen:
             return
         self._seen.add(key)
-        self.result.warnings.append(
-            ReplayWarning(
+        self.result.diagnostics.append(
+            Diagnostic(
                 code=code,
                 txn_id=txn_id,
                 grain=grain,
@@ -561,12 +561,12 @@ class _Replay:
             for computed in self.result.rows
         ]
 
-    def _warn_unknown_accounts(self) -> None:
+    def _diagnose_unknown_accounts(self) -> None:
         """Report accounts whose account type could not be inferred."""
         for account, acct_type in sorted(self.cfg.account_types.items()):
             if acct_type is AccountType.UNKNOWN:
-                self.warn(
-                    WarningCode.UNKNOWN_ACCOUNT_TYPE,
+                self.diagnose(
+                    DiagnosticCode.UNKNOWN_ACCOUNT_TYPE,
                     grain=Grain.ACCOUNT,
                     pool=account,
                     detail=f"Could not infer an account type for account '{account}'",
@@ -589,7 +589,7 @@ class _Replay:
     # -- THE COST-BASE WALK -----------------------------------------------
 
     def _acb_walk(self) -> None:
-        """Apply every row to all three pools, in trade-date order."""
+        """Apply every row to all three pools, in transaction-date order."""
         ordered = sorted(
             self.rows,
             key=lambda row: (
@@ -605,7 +605,7 @@ class _Replay:
             if tracked:
                 self._stash_acb_delta(row, computed)
 
-    def _stash_acb_delta(self, row: TxnRow, computed: ComputedRow) -> None:
+    def _stash_acb_delta(self, row: TxnRow, computed: LedgerRow) -> None:
         """Keep the cost-base change the deposit rule will divide by.
 
         Recorded during this walk rather than looked up afterwards so the
@@ -623,7 +623,7 @@ class _Replay:
             if self.deposits.resolve(grain, name) is not None:
                 self.acb_delta[grain][row.txn_id] = delta
 
-    def _apply(self, row: TxnRow) -> ComputedRow:
+    def _apply(self, row: TxnRow) -> LedgerRow:
         """Apply one row to all three pools and emit a ledger row."""
         acct_type = self._type_of(row.account)
         symbol = (
@@ -650,7 +650,7 @@ class _Replay:
         dividend_cad, dividend_usd = self._dividend(row)
         self.result.totals.add((row.action, row.account, symbol or "", row.currency))
 
-        return ComputedRow(
+        return LedgerRow(
             row=row,
             symbol=symbol,
             acct_type=acct_type,
@@ -674,8 +674,8 @@ class _Replay:
             and row.txn_date
             and row.settle_date < row.txn_date
         ):
-            self.warn(
-                WarningCode.SETTLE_BEFORE_TRADE,
+            self.diagnose(
+                DiagnosticCode.SETTLEMENT_BEFORE_TRADE,
                 row,
                 detail=f"Settles {row.settle_date}, traded {row.txn_date}",
             )
@@ -685,16 +685,16 @@ class _Replay:
             # Checked here rather than in the pool walk, to also capture cash transfers
             # that carry no ticker.
             if row.txn_id in self.unpaired:
-                self.warn(
-                    WarningCode.TRANSFER_UNPAIRED,
+                self.diagnose(
+                    DiagnosticCode.TRANSFER_UNPAIRED,
                     row,
                     detail=f"{row.action} has no matching counterpart leg",
                 )
         elif row.action in _TRADE_ACTIONS and row.fee != ZERO:
             excluded_fits, included_fits = _convention_fits(row, self._fee_sign(row))
             if not (excluded_fits or included_fits):
-                self.warn(
-                    WarningCode.AMBIGUOUS_FEE_CONVENTION,
+                self.diagnose(
+                    DiagnosticCode.AMBIGUOUS_FEE_CONVENTION,
                     row,
                     detail=(
                         f"Amount {row.amount} matches neither Price*Units nor "
@@ -735,8 +735,8 @@ class _Replay:
         ):
             # Account grain only: the pooled grains have no holding either, and
             # three copies of one diagnostic is noise, not extra information.
-            self.warn(
-                WarningCode.INCOME_WITHOUT_POSITION,
+            self.diagnose(
+                DiagnosticCode.INCOME_WITHOUT_HOLDING,
                 row,
                 grain=grain,
                 pool=pool,
@@ -786,8 +786,8 @@ class _Replay:
         held = state.units
 
         if held <= ZERO or sold > held:
-            self.warn(
-                WarningCode.OVERSELL,
+            self.diagnose(
+                DiagnosticCode.OVERSELL,
                 row,
                 grain=grain,
                 pool=pool,
@@ -837,8 +837,8 @@ class _Replay:
             state.gain_usd += native - applied_usd
 
         if excess_cad > ZERO:
-            self.warn(
-                WarningCode.ROC_EXCEEDS_ACB,
+            self.diagnose(
+                DiagnosticCode.ROC_EXCEEDS_ACB,
                 row,
                 grain=grain,
                 pool=pool,
@@ -847,8 +847,8 @@ class _Replay:
                 value=excess_cad,
             )
         if self._income_is_orphaned(row, state) and grain is Grain.ACCOUNT:
-            self.warn(
-                WarningCode.INCOME_WITHOUT_POSITION,
+            self.diagnose(
+                DiagnosticCode.INCOME_WITHOUT_HOLDING,
                 row,
                 grain=grain,
                 pool=pool,
@@ -879,8 +879,8 @@ class _Replay:
         ratio = row.units / row.price
         if not self.pools.claim_split(grain, (pool, symbol, row.txn_date, str(ratio))):
             if grain is Grain.ACCOUNT:
-                self.warn(
-                    WarningCode.DUPLICATE_SPLIT,
+                self.diagnose(
+                    DiagnosticCode.DUPLICATE_SPLIT,
                     row,
                     grain=grain,
                     pool=pool,
@@ -894,8 +894,8 @@ class _Replay:
 
         if state.units == ZERO:
             if grain is Grain.ACCOUNT:
-                self.warn(
-                    WarningCode.SPLIT_WITHOUT_POSITION,
+                self.diagnose(
+                    DiagnosticCode.SPLIT_WITHOUT_HOLDING,
                     row,
                     grain=grain,
                     pool=pool,
@@ -1011,8 +1011,8 @@ class _Replay:
             return
         implied = abs(row.units * row.price)
         if abs(abs(row.amount) - implied) > FXT_TOLERANCE:
-            self.warn(
-                WarningCode.FXT_AMOUNT_INCONSISTENT,
+            self.diagnose(
+                DiagnosticCode.FXT_AMOUNT_INCONSISTENT,
                 row,
                 detail=f"Amount {row.amount} against Units*Price {implied}",
             )
@@ -1069,7 +1069,7 @@ class _Replay:
         """Move the pool basis by the cost base one row changed.
 
         Applied at the row's **settlement date**, alongside its cash, even though
-        `_acb_walk` computed it in trade-date order. A buy on T settling T+2
+        `_acb_walk` computed it in transaction-date order. A buy on T settling T+2
         raises the cost base on T and drops cash on T+2; booking both here keeps
         `pool basis = cost base + cash` self-consistent, so a purchase leaves the
         pool basis untouched and only genuine growth moves it. Splitting the two
@@ -1355,8 +1355,8 @@ class _Replay:
                     continue
                 self.reported_negative.add((account, currency))
                 first = next(row for row in rows if row.account == account)
-                self.warn(
-                    WarningCode.CASH_NEGATIVE,
+                self.diagnose(
+                    DiagnosticCode.CASH_NEGATIVE,
                     first,
                     grain=Grain.ACCOUNT,
                     pool=f"{account}:{currency}",
@@ -1369,13 +1369,13 @@ class _Replay:
 
     # -- FINAL CHECKS -----------------------------------------------------
 
-    def _final_position_check(self) -> None:
+    def _final_units_check(self) -> None:
         """Report any pool that ends below zero units."""
         for grain in Grain:
             for (pool, symbol), state in self.pools.all_states(grain):
                 if state.units < -DUST_UNITS:
-                    self.warn(
-                        WarningCode.NEGATIVE_FINAL_POSITION,
+                    self.diagnose(
+                        DiagnosticCode.NEGATIVE_FINAL_UNITS,
                         grain=grain,
                         pool=f"{pool}:{symbol}",
                         detail=f"{symbol} ends at {state.units} units in {pool}",
@@ -1404,8 +1404,8 @@ class _Replay:
         for (symbol, on), holders in sorted(self.split_holders.items()):
             recorded = self.split_rows.get((symbol, on), set())
             for account in sorted(holders - recorded):
-                self.warn(
-                    WarningCode.SPLIT_SCOPE_MISMATCH,
+                self.diagnose(
+                    DiagnosticCode.SPLIT_MISSING_ON_ACCOUNT,
                     grain=Grain.ACCOUNT,
                     pool=f"{symbol}:{on}:{account}",
                     detail=f"Split on {symbol} missing on account {account}",
@@ -1439,8 +1439,8 @@ class _Replay:
             main = ranked[0][0]
             for currency, rows in ranked[1:]:
                 for row in rows:
-                    self.warn(
-                        WarningCode.MIXED_CURRENCY,
+                    self.diagnose(
+                        DiagnosticCode.MIXED_CURRENCY,
                         row,
                         pool=symbol,
                         detail=(
@@ -1451,7 +1451,7 @@ class _Replay:
                         currency=currency,
                     )
 
-    def _settle_lag_check(self) -> None:
+    def _settlement_lag_check(self) -> None:
         """Report a trade settling far outside its account's usual lag.
 
         The typical settlement lag is calculated for the account, and transactions
@@ -1469,13 +1469,13 @@ class _Replay:
             lags.setdefault(row.account, []).append((row, lag))
 
         for account, entries in sorted(lags.items()):
-            if len(entries) < SETTLE_LAG_MIN_TRADES:
+            if len(entries) < SETTLEMENT_LAG_MIN_TRADES:
                 continue
             usual = Counter(lag for _row, lag in entries).most_common(1)[0][0]
             for row, lag in entries:
-                if abs(lag - usual) > SETTLE_LAG_TOLERANCE:
-                    self.warn(
-                        WarningCode.SETTLE_LAG_OUTLIER,
+                if abs(lag - usual) > SETTLEMENT_LAG_TOLERANCE:
+                    self.diagnose(
+                        DiagnosticCode.SETTLEMENT_LAG_OUTLIER,
                         row,
                         detail=(
                             f"Settles {lag} weekdays after the trade; "
@@ -1494,7 +1494,7 @@ class _Replay:
         The CRA superficial-loss window spans from 30 days before
         the sale to 30 days after it (inclusive of the sale date). Restricted
         to taxable accounts, the only place the rule has any consequence, and
-        unresolved ones, which might turn out taxable. The triggering buy may be
+        unknown ones, which might turn out taxable. The triggering buy may be
         in any account.
         """
         buys: dict[str, list[date]] = {}
@@ -1524,8 +1524,8 @@ class _Replay:
             # the window's end.
             index = bisect_left(repurchased, window_start)
             if index < len(repurchased) and repurchased[index] <= window_end:
-                self.warn(
-                    WarningCode.SUPERFICIAL_LOSS_SUSPECT,
+                self.diagnose(
+                    DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT,
                     row,
                     detail=(
                         f"Loss on {computed.symbol} with a buy within "
@@ -1555,7 +1555,7 @@ def _weekdays_between(start: str, end: str) -> int:
     return weeks * WEEKDAYS + tail
 
 
-def _sale_gain(computed: ComputedRow) -> Decimal:
+def _sale_gain(computed: LedgerRow) -> Decimal:
     """Compute the gain one SELL realized in its own account, in CAD."""
     # cost base removed is negative, so negated delta_cad is the positive acb removed
     removed = -computed.acct.delta_cad

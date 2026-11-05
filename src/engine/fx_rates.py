@@ -28,7 +28,7 @@ class FxRateUnavailableError(RuntimeError):
     """Raised when a conversion is needed and no rate can supply it."""
 
 
-class FxWarning(StrEnum):
+class FxFallback(StrEnum):
     """Why a conversion used a rate other than an exact same-day one."""
 
     CARRIED_BACK = "carried_back"  # weekend or holiday; used the prior business day
@@ -43,7 +43,7 @@ class Conversion:
     value: Decimal
     rate: Decimal
     rate_date: str
-    warning: FxWarning | None = None
+    fallback: FxFallback | None = None
 
 
 @dataclass(frozen=True)
@@ -89,8 +89,8 @@ class FxRates:
         """
         if frm is Currency.CAD:
             return Conversion(amount, ONE, on)
-        rate_date, rate, warning = self._lookup(on, frm)
-        return Conversion(amount * rate, rate, rate_date, warning)
+        rate_date, rate, fallback = self._lookup(on, frm)
+        return Conversion(amount * rate, rate, rate_date, fallback)
 
     def from_cad(self, amount: Decimal, on: str, to: Currency) -> Conversion:
         """Convert a CAD amount into another currency.
@@ -107,8 +107,8 @@ class FxRates:
         """
         if to is Currency.CAD:
             return Conversion(amount, ONE, on)
-        rate_date, rate, warning = self._lookup(on, to)
-        return Conversion(safe_div(amount, rate), rate, rate_date, warning)
+        rate_date, rate, fallback = self._lookup(on, to)
+        return Conversion(safe_div(amount, rate), rate, rate_date, fallback)
 
     @property
     def coverage(self) -> tuple[str, str]:
@@ -121,7 +121,7 @@ class FxRates:
         self,
         on: str,
         other: Currency,
-    ) -> tuple[str, Decimal, FxWarning | None]:
+    ) -> tuple[str, Decimal, FxFallback | None]:
         """Resolve the USDCAD rate for a date, classifying how it was found."""
         if other is not Currency.USD:
             msg = (
@@ -142,10 +142,10 @@ class FxRates:
         if rate_date == on:
             return rate_date, rate, None
         if on < self.dates[0]:
-            return rate_date, rate, FxWarning.UNCOVERED
+            return rate_date, rate, FxFallback.UNCOVERED
         if on > self.dates[-1]:
-            return rate_date, rate, FxWarning.STALE
-        return rate_date, rate, FxWarning.CARRIED_BACK
+            return rate_date, rate, FxFallback.STALE
+        return rate_date, rate, FxFallback.CARRIED_BACK
 
 
 def load_fx_rates() -> FxRates:

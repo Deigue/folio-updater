@@ -76,7 +76,9 @@ def _show_changes(report: UpdateReport) -> None:
         )
 
     confirmed = [
-        match for match in report.settled if match.outcome is SettlementOutcome.MATCHED
+        match
+        for match in report.confirmed
+        if match.outcome is SettlementOutcome.CONFIRMED
     ]
     if confirmed:
         show_data_table(

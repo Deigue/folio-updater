@@ -21,7 +21,7 @@ from datagen import DemoFolio
 from datagen.demo import END, START
 from domain import TORONTO_TZ, Column, Currency
 from engine.settlement import settlement_calculator
-from services import ForexService
+from services import FxService
 from services.quotes_service import QuotesService
 from term.console import override_console
 
@@ -121,17 +121,17 @@ def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
 
 
 @pytest.fixture(autouse=True)
-def mock_forex_data(
+def mock_fx_data(
     request: pytest.FixtureRequest,
     cached_fx_data: Callable[[str | None], pd.DataFrame],
 ) -> Generator[None, Any]:
     """Keep the test suite off the Bank of Canada API endpoint."""
-    if request.node.get_closest_marker("no_mock_forex"):
+    if request.node.get_closest_marker("no_mock_fx"):
         yield
         return
 
     with patch.object(
-        ForexService,
+        FxService,
         "get_fx_rates_from_boc",
         side_effect=cached_fx_data,
     ):
@@ -140,18 +140,18 @@ def mock_forex_data(
 
 def _cached_prices(
     cached_quote_data: dict[str, dict[str, Any]],
-    ysymbols: list[str],
+    provider_symbols: list[str],
 ) -> dict[str, dict[str, Any]]:
     """Answer a price fetch from the cached quotes, as the provider would."""
     return {
-        ysymbol: {
-            "price": cached_quote_data[ysymbol]["price"],
-            "prev_close": cached_quote_data[ysymbol]["prev_close"],
-            "currency": cached_quote_data[ysymbol]["currency"],
+        provider_symbol: {
+            "price": cached_quote_data[provider_symbol]["price"],
+            "prev_close": cached_quote_data[provider_symbol]["prev_close"],
+            "currency": cached_quote_data[provider_symbol]["currency"],
             "quote_time": datetime.now(UTC).isoformat(),
         }
-        for ysymbol in ysymbols
-        if ysymbol in cached_quote_data
+        for provider_symbol in provider_symbols
+        if provider_symbol in cached_quote_data
     }
 
 
@@ -216,17 +216,17 @@ def mock_quotes(
             yield
         return
 
-    def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
-        return _cached_prices(cached_quote_data, ysymbols)
+    def prices(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
+        return _cached_prices(cached_quote_data, provider_symbols)
 
-    def metadata(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
+    def metadata(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
         return {
-            ysymbol: {
-                key: cached_quote_data[ysymbol][key]
+            provider_symbol: {
+                key: cached_quote_data[provider_symbol][key]
                 for key in ("name", "sector", "exchange", "market_cap", "currency")
             }
-            for ysymbol in ysymbols
-            if ysymbol in cached_quote_data
+            for provider_symbol in provider_symbols
+            if provider_symbol in cached_quote_data
         }
 
     with (
@@ -252,8 +252,8 @@ def quotes_fetch(
         The mock standing in for `QuotesService._fetch_prices`.
     """
 
-    def prices(ysymbols: list[str]) -> dict[str, dict[str, Any]]:
-        return _cached_prices(cached_quote_data, ysymbols)
+    def prices(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
+        return _cached_prices(cached_quote_data, provider_symbols)
 
     with (
         patch.object(QuotesService, "_fetch_metadata", return_value={}),
@@ -272,10 +272,10 @@ def boc_fetch(
     nothing was requested at all, can do so without patching by hand.
 
     Yields:
-        The mock standing in for `ForexService.get_fx_rates_from_boc`.
+        The mock standing in for `FxService.get_fx_rates_from_boc`.
     """
     with patch.object(
-        ForexService,
+        FxService,
         "get_fx_rates_from_boc",
         side_effect=cached_fx_data,
     ) as fetch:
@@ -350,7 +350,7 @@ def temp_ctx(tmp_path: Path) -> TempContext:
 def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
     """Fixture returning a function to slice a synthetic Bank of Canada FX frame.
 
-    Generated forex dataframe for full offline testing.
+    Generated FX dataframe for full offline testing.
 
     Returns:
         A callable taking an optional inclusive start date (YYYY-MM-DD) and
@@ -402,7 +402,7 @@ def cached_demo(
     AppContext.get_instance().initialize(root)
     try:
         with patch.object(
-            ForexService,
+            FxService,
             "get_fx_rates_from_boc",
             side_effect=cached_fx_data,
         ):

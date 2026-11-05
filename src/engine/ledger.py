@@ -44,7 +44,7 @@ from domain import TORONTO_TZ, Column, Table
 from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import FxRateUnavailableError, load_fx_rates
 from engine.replay import ReplayConfig, replay
-from engine.snapshot import (
+from engine.saved_ledger import (
     SCHEMA_VERSION,
     decode_cash_and_totals,
     decode_diagnostics,
@@ -52,7 +52,7 @@ from engine.snapshot import (
     encode_diagnostics,
 )
 from engine.types import load_txn_rows
-from services import ForexService
+from services import FxService
 from services.symbols import load_symbol_resolver
 from term import announce
 
@@ -63,10 +63,10 @@ if TYPE_CHECKING:
     from engine.types import (
         CashKey,
         CashState,
-        ComputedRow,
+        Diagnostic,
+        LedgerRow,
         ReplayResult,
         ReplayTotals,
-        ReplayWarning,
     )
 
 logger = logging.getLogger(__name__)
@@ -86,12 +86,12 @@ class Diagnosis:
 
     Attributes:
         diagnostics: Every diagnostic the replay raised, in the order raised.
-        rows: The exact computed row of each transaction a diagnostic tags,
+        rows: The exact ledger row of each transaction a diagnostic tags,
             by TxnId.
     """
 
-    diagnostics: tuple[ReplayWarning, ...]
-    rows: Mapping[int, ComputedRow]
+    diagnostics: tuple[Diagnostic, ...]
+    rows: Mapping[int, LedgerRow]
 
 
 @dataclass(frozen=True, eq=False)
@@ -127,11 +127,11 @@ class Ledger:
         """
         diagnosed = {
             diagnostic.txn_id
-            for diagnostic in result.warnings
+            for diagnostic in result.diagnostics
             if diagnostic.txn_id is not None
         }
         diagnosis = Diagnosis(
-            diagnostics=tuple(result.warnings),
+            diagnostics=tuple(result.diagnostics),
             rows={
                 computed.row.txn_id: computed
                 for computed in result.rows
@@ -156,13 +156,13 @@ class Ledger:
         return self.load_diagnosis()
 
     @property
-    def diagnostics(self) -> tuple[ReplayWarning, ...]:
+    def diagnostics(self) -> tuple[Diagnostic, ...]:
         """Every diagnostic the replay raised, in the order raised."""
         return self.diagnosis.diagnostics
 
     @property
-    def diagnosed_rows(self) -> Mapping[int, ComputedRow]:
-        """The exact computed row of each transaction a diagnostic tags."""
+    def diagnosed_rows(self) -> Mapping[int, LedgerRow]:
+        """The exact ledger row of each transaction a diagnostic tags."""
         return self.diagnosis.rows
 
 
@@ -215,7 +215,7 @@ def _top_up_fx(*, priced: bool) -> None:
         if not priced:
             latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
     try:
-        ForexService.ensure_coverage(earliest, latest)
+        FxService.ensure_coverage(earliest, latest)
     except (OSError, ValueError, KeyError):
         announce.warning("Could not refresh FX rates; using what is stored")
 

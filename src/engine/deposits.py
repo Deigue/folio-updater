@@ -105,7 +105,7 @@ class PoolDeposits:
     deposits: Deposits = field(default_factory=dict)
 
 
-class DepositLedger:
+class DepositTracker:
     """Running deposits for the pools that transfers actually touch.
 
     Deliberately **not** every pool. When transfers not involved, net deposits is simply

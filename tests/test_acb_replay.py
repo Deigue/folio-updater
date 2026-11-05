@@ -13,9 +13,9 @@ from domain import (
     Action,
     Column,
     Currency,
+    DiagnosticCode,
     FeeConvention,
     Grain,
-    WarningCode,
 )
 from engine.frames import (
     POOL_COLUMN,
@@ -41,9 +41,9 @@ if TYPE_CHECKING:
 D = Decimal
 
 
-def codes(result: ReplayResult) -> set[WarningCode]:
+def codes(result: ReplayResult) -> set[DiagnosticCode]:
     """Every distinct diagnostic a replay raised."""
-    return {warning.code for warning in result.warnings}
+    return {diagnostic.code for diagnostic in result.diagnostics}
 
 
 # --- the adjustedcostbase.ca worked example -----------------------------------
@@ -122,7 +122,7 @@ def test_sell_leaves_average_cost_invariant() -> None:
         assert after.avg_cad == before.avg_cad, sold
 
 
-def test_oversell_goes_negative_and_warns() -> None:
+def test_oversell_goes_negative_and_is_diagnosed() -> None:
     result = run(
         [
             make_row(
@@ -148,8 +148,8 @@ def test_oversell_goes_negative_and_warns() -> None:
     # All remaining cost base comes off; the deficit stays visible.
     assert final.acb_cad == D("0")
     assert final.gain_cad == D("1250")
-    assert WarningCode.OVERSELL in codes(result)
-    assert WarningCode.NEGATIVE_FINAL_POSITION in codes(result)
+    assert DiagnosticCode.OVERSELL in codes(result)
+    assert DiagnosticCode.NEGATIVE_FINAL_UNITS in codes(result)
 
 
 # --- dual currency -------------------------------------------------------------
@@ -281,7 +281,7 @@ def test_roc_floors_at_zero() -> None:
     after = result.rows[-1].acct
     assert after.acb_cad == D("0")
     assert after.gain_cad == D("40")
-    assert WarningCode.ROC_EXCEEDS_ACB in codes(result)
+    assert DiagnosticCode.ROC_EXCEEDS_ACB in codes(result)
 
 
 def test_split_preserves_acb() -> None:
@@ -321,7 +321,7 @@ def test_duplicate_split_applied_once() -> None:
         ],
     )
     assert result.rows[-1].acct.units == D("1000")
-    assert WarningCode.DUPLICATE_SPLIT in codes(result)
+    assert DiagnosticCode.DUPLICATE_SPLIT in codes(result)
 
 
 def test_split_in_two_accounts_pools_once_but_splits_each() -> None:
@@ -369,13 +369,13 @@ def test_split_in_two_accounts_pools_once_but_splits_each() -> None:
     assert result.rows[2].acct.units == D("100")
     assert result.rows[3].acct.units == D("200")
     assert result.rows[3].type.units == D("300")
-    assert WarningCode.DUPLICATE_SPLIT not in codes(result)
+    assert DiagnosticCode.DUPLICATE_SPLIT not in codes(result)
 
 
-def test_split_without_position_warns() -> None:
+def test_split_without_holding_is_diagnosed() -> None:
     result = run([make_row(1, "2024-06-10", Action.SPLIT, units="10", price="1")])
     assert result.rows[0].acct.units == D("0")
-    assert WarningCode.SPLIT_WITHOUT_POSITION in codes(result)
+    assert DiagnosticCode.SPLIT_WITHOUT_HOLDING in codes(result)
 
 
 # --- income --------------------------------------------------------------------
@@ -427,9 +427,9 @@ def test_negative_dividend_reversal_is_not_coerced_positive() -> None:
     assert cash.dividends == D("3")
 
 
-def test_income_without_position_warns() -> None:
+def test_income_without_holding_is_diagnosed() -> None:
     result = run([make_row(1, "2024-04-01", Action.DIVIDEND, amount="20")])
-    assert WarningCode.INCOME_WITHOUT_POSITION in codes(result)
+    assert DiagnosticCode.INCOME_WITHOUT_HOLDING in codes(result)
 
 
 def test_dividend_shortly_after_a_sale_is_not_orphaned() -> None:
@@ -458,7 +458,7 @@ def test_dividend_shortly_after_a_sale_is_not_orphaned() -> None:
             make_row(3, "2024-03-20", Action.DIVIDEND, amount="20"),
         ],
     )
-    assert WarningCode.INCOME_WITHOUT_POSITION not in codes(result)
+    assert DiagnosticCode.INCOME_WITHOUT_HOLDING not in codes(result)
 
 
 def test_dividend_long_after_a_sale_is_still_orphaned() -> None:
@@ -484,7 +484,7 @@ def test_dividend_long_after_a_sale_is_still_orphaned() -> None:
             make_row(3, "2024-08-20", Action.DIVIDEND, amount="20"),
         ],
     )
-    assert WarningCode.INCOME_WITHOUT_POSITION in codes(result)
+    assert DiagnosticCode.INCOME_WITHOUT_HOLDING in codes(result)
 
 
 def test_the_closing_row_still_counts_as_a_day_held() -> None:
@@ -507,7 +507,7 @@ def test_the_closing_row_still_counts_as_a_day_held() -> None:
             make_row(3, "2024-06-20", Action.DIVIDEND, amount="20"),
         ],
     )
-    assert WarningCode.INCOME_WITHOUT_POSITION not in codes(result)
+    assert DiagnosticCode.INCOME_WITHOUT_HOLDING not in codes(result)
 
 
 # --- grains ---------------------------------------------------------------------
@@ -543,7 +543,7 @@ def test_all_grains_in_one_pass() -> None:
     assert sale.type.units == D("0")
     assert sale.folio.units == D("0")
     assert sale.type.gain_cad == D("200")
-    oversells = [w for w in result.warnings if w.code is WarningCode.OVERSELL]
+    oversells = [w for w in result.diagnostics if w.code is DiagnosticCode.OVERSELL]
     assert [w.grain for w in oversells] == [Grain.ACCOUNT]
 
 
@@ -725,7 +725,7 @@ def test_partial_transfer_carries_a_proportional_slice() -> None:
     assert result.rows[2].acct.acb_cad == D("400")
 
 
-def test_transfer_unpaired_warns() -> None:
+def test_transfer_unpaired_is_diagnosed() -> None:
     result = run(
         [
             make_row(
@@ -739,7 +739,7 @@ def test_transfer_unpaired_warns() -> None:
             make_row(2, "2024-05-01", Action.TFR_OUT, units="-100"),
         ],
     )
-    assert WarningCode.TRANSFER_UNPAIRED in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED in codes(result)
     # Units leave, but with no counterpart there is nowhere for the cost to go.
     assert result.rows[-1].acct.units == D("0")
     assert result.rows[-1].acct.acb_cad == D("1000")
@@ -822,7 +822,7 @@ def test_cash_orders_by_settle_date() -> None:
         ],
     )
     assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
-    assert WarningCode.CASH_NEGATIVE not in codes(result)
+    assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
 
 
 def test_sub_cent_cash_residue_is_not_an_overdraft() -> None:
@@ -854,7 +854,7 @@ def test_sub_cent_cash_residue_is_not_an_overdraft() -> None:
     )
     cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
     assert cash == D("-0.000063")  # the accumulator is still exact
-    assert WarningCode.CASH_NEGATIVE not in codes(result)
+    assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
 
 
 def test_a_one_cent_overdraft_is_still_reported() -> None:
@@ -885,7 +885,7 @@ def test_a_one_cent_overdraft_is_still_reported() -> None:
     )
     cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
     assert cash == D("-0.01")
-    assert WarningCode.CASH_NEGATIVE in codes(result)
+    assert DiagnosticCode.CASH_NEGATIVE in codes(result)
 
 
 def test_cash_negative_reports_the_first_crossing_only() -> None:
@@ -909,7 +909,9 @@ def test_cash_negative_reports_the_first_crossing_only() -> None:
             ),
         ],
     )
-    crossings = [w for w in result.warnings if w.code is WarningCode.CASH_NEGATIVE]
+    crossings = [
+        w for w in result.diagnostics if w.code is DiagnosticCode.CASH_NEGATIVE
+    ]
     assert len(crossings) == 1
     assert crossings[0].txn_id == 1
 
@@ -978,7 +980,7 @@ def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
     )
     assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.CAD)].cash == D("-1000")
     assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.USD)].cash == D("735")
-    assert WarningCode.FXT_AMOUNT_INCONSISTENT not in codes(result)
+    assert DiagnosticCode.FXT_AMOUNT_INCONSISTENT not in codes(result)
 
 
 def test_fxt_amount_inconsistent() -> None:
@@ -999,8 +1001,8 @@ def test_fxt_amount_inconsistent() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    assert WarningCode.FXT_AMOUNT_INCONSISTENT in codes(result)
-    # The warning never substitutes a recomputed figure for what moved.
+    assert DiagnosticCode.FXT_AMOUNT_INCONSISTENT in codes(result)
+    # The diagnostic never substitutes a recomputed figure for what moved.
     assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-10000")
 
 
@@ -1064,7 +1066,7 @@ def test_included_and_excluded_agree_when_the_fee_is_zero() -> None:
     assert included.cost == excluded.cost == D("1000")
 
 
-def test_ambiguous_fee_convention_warns() -> None:
+def test_ambiguous_fee_convention_is_diagnosed() -> None:
     result = run(
         [
             make_row(
@@ -1078,7 +1080,7 @@ def test_ambiguous_fee_convention_warns() -> None:
             ),
         ],
     )
-    assert WarningCode.AMBIGUOUS_FEE_CONVENTION in codes(result)
+    assert DiagnosticCode.AMBIGUOUS_FEE_CONVENTION in codes(result)
 
 
 def test_questrade_price_rounding_does_not_read_as_ambiguous() -> None:
@@ -1098,13 +1100,13 @@ def test_questrade_price_rounding_does_not_read_as_ambiguous() -> None:
         ],
         types={"QT-TFSA": AccountType.TFSA},
     )
-    assert WarningCode.AMBIGUOUS_FEE_CONVENTION not in codes(result)
+    assert DiagnosticCode.AMBIGUOUS_FEE_CONVENTION not in codes(result)
 
 
 # --- diagnostics and frames ---------------------------------------------------
 
 
-def test_settle_before_trade_warns() -> None:
+def test_settlement_before_trade_is_diagnosed() -> None:
     result = run(
         [
             make_row(
@@ -1118,7 +1120,7 @@ def test_settle_before_trade_warns() -> None:
             ),
         ],
     )
-    assert WarningCode.SETTLE_BEFORE_TRADE in codes(result)
+    assert DiagnosticCode.SETTLEMENT_BEFORE_TRADE in codes(result)
 
 
 @pytest.mark.parametrize("action", [Action.CONTRIBUTION, Action.DIVIDEND])
@@ -1142,7 +1144,7 @@ def test_settle_before_trade_is_trades_only(action: Action) -> None:
             make_row(2, "2024-03-04", action, amount="500", settle_date="2024-03-01"),
         ],
     )
-    assert WarningCode.SETTLE_BEFORE_TRADE not in codes(result)
+    assert DiagnosticCode.SETTLEMENT_BEFORE_TRADE not in codes(result)
 
 
 def test_superficial_loss_suspect() -> None:
@@ -1174,7 +1176,7 @@ def test_superficial_loss_suspect() -> None:
             ),
         ],
     )
-    assert WarningCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
 
 
 def test_superficial_loss_suspect_buy_precedes_sale() -> None:
@@ -1200,14 +1202,14 @@ def test_superficial_loss_suspect_buy_precedes_sale() -> None:
             ),
         ],
     )
-    assert WarningCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
 
 
 @pytest.mark.parametrize(
     ("account", "account_type", "flagged"),
     [
         ("IBKR-TFSA", AccountType.TFSA, False),
-        # Unresolved: checked as strictly as a taxable account would be.
+        # Unknown: checked as strictly as a taxable account would be.
         ("IBKR-U1234567", AccountType.UNKNOWN, True),
     ],
 )
@@ -1249,7 +1251,7 @@ def test_superficial_loss_is_flagged_by_account_type(
         ],
         types={account: account_type},
     )
-    assert (WarningCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)) is flagged
+    assert (DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)) is flagged
 
 
 def test_flags_include_codes_raised_after_the_row_was_emitted() -> None:
@@ -1266,7 +1268,7 @@ def test_flags_include_codes_raised_after_the_row_was_emitted() -> None:
             ),
         ],
     )
-    assert WarningCode.CASH_NEGATIVE in result.rows[0].flags
+    assert DiagnosticCode.CASH_NEGATIVE in result.rows[0].flags
 
 
 def test_ledger_frame_is_one_row_per_txn() -> None:
@@ -1460,9 +1462,9 @@ def test_roc_on_a_usd_holding_floors_both_currencies() -> None:
     assert after.gain_cad == D("80")
 
 
-def test_roc_without_a_position_warns() -> None:
+def test_roc_without_a_holding_is_diagnosed() -> None:
     result = run([make_row(1, "2024-05-02", Action.ROC, amount="50")])
-    assert WarningCode.INCOME_WITHOUT_POSITION in codes(result)
+    assert DiagnosticCode.INCOME_WITHOUT_HOLDING in codes(result)
 
 
 def test_split_with_a_non_positive_ratio_is_skipped() -> None:
@@ -1487,14 +1489,14 @@ def test_unpaired_transfer_in_adds_units_without_cost() -> None:
     result = run([make_row(1, "2024-05-01", Action.TFR_IN, units="100")])
     assert result.rows[0].acct.units == D("100")
     assert result.rows[0].acct.acb_cad == D("0")
-    assert WarningCode.TRANSFER_UNPAIRED in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED in codes(result)
 
 
 def test_unpaired_cash_transfer_moves_no_units() -> None:
     result = run(
         [make_row(1, "2024-05-01", Action.TFR_OUT, amount="-500", ticker=None)],
     )
-    assert WarningCode.TRANSFER_UNPAIRED in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED in codes(result)
     assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("-500")
 
 
@@ -1617,7 +1619,9 @@ def test_unknown_account_type_is_reported_once() -> None:
         ],
         types={"MYSTERY": AccountType.UNKNOWN},
     )
-    unknown = [w for w in result.warnings if w.code is WarningCode.UNKNOWN_ACCOUNT_TYPE]
+    unknown = [
+        w for w in result.diagnostics if w.code is DiagnosticCode.UNKNOWN_ACCOUNT_TYPE
+    ]
     assert len(unknown) == 1
     assert unknown[0].pool == "MYSTERY"
     assert unknown[0].txn_id is None
@@ -1638,7 +1642,7 @@ def test_margin_accounts_are_allowed_to_go_negative() -> None:
         ],
         types={"IBKR-MARGIN": AccountType.MARGIN},
     )
-    assert WarningCode.CASH_NEGATIVE not in codes(result)
+    assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
 
 
 def test_empty_replay_produces_an_empty_frame() -> None:
@@ -1806,24 +1810,24 @@ def test_a_cash_transfer_pair_carries_no_cost_base() -> None:
         ],
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
-    assert WarningCode.TRANSFER_UNPAIRED not in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED not in codes(result)
     assert all(row.acct.units == D("0") for row in result.rows)
 
 
-def test_a_no_position_finding_is_reported_once_per_row() -> None:
+def test_a_no_holding_diagnostic_is_reported_once_per_row() -> None:
     """One finding, not one per pool grain."""
     result = run([make_row(1, "2024-06-10", Action.SPLIT, units="10", price="1")])
-    without_position = [
-        w for w in result.warnings if w.code is WarningCode.SPLIT_WITHOUT_POSITION
+    without_holding = [
+        w for w in result.diagnostics if w.code is DiagnosticCode.SPLIT_WITHOUT_HOLDING
     ]
-    assert len(without_position) == 1
-    assert without_position[0].grain is Grain.ACCOUNT
+    assert len(without_holding) == 1
+    assert without_holding[0].grain is Grain.ACCOUNT
 
 
 def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type() -> (
     None
 ):
-    """Account pool `TFSA` and type pool `TFSA` are the same key; warn once."""
+    """Account pool `TFSA` and type pool `TFSA` are the same key; diagnose once."""
     result = run(
         [
             make_row(
@@ -1847,7 +1851,7 @@ def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type(
         ],
         types={"TFSA": AccountType.TFSA},
     )
-    oversells = [w for w in result.warnings if w.code is WarningCode.OVERSELL]
+    oversells = [w for w in result.diagnostics if w.code is DiagnosticCode.OVERSELL]
     # Account, type and folio would be three, but two of them share a pool key.
     assert [w.pool for w in oversells] == ["TFSA", "FOLIO"]
 
@@ -1884,7 +1888,7 @@ def test_a_transfer_leg_carrying_a_ticker_but_no_units_moves_only_cash() -> None
         ],
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
-    assert WarningCode.TRANSFER_UNPAIRED not in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED not in codes(result)
     # The holding stayed where it was; only cash moved.
     assert result.rows[1].acct.units == D("100")
     assert result.rows[1].acct.acb_cad == D("1000")
@@ -1896,7 +1900,7 @@ def test_an_unpaired_leg_with_a_ticker_but_no_units_moves_nothing() -> None:
     result = run(
         [make_row(1, "2024-05-01", Action.TFR_OUT, amount="-500", units="0")],
     )
-    assert WarningCode.TRANSFER_UNPAIRED in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED in codes(result)
     assert result.rows[0].acct.units == D("0")
 
 
@@ -2007,7 +2011,7 @@ def test_a_same_day_buy_then_sell_is_not_an_oversell() -> None:
             ),
         ],
     )
-    assert WarningCode.OVERSELL not in codes(result)
+    assert DiagnosticCode.OVERSELL not in codes(result)
     assert result.rows[-1].acct.units == D("0")
     assert result.rows[-1].acct.gain_cad == D("200")
 
@@ -2038,7 +2042,7 @@ def test_a_same_day_transfer_in_supplies_a_sale() -> None:
         ],
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
-    assert WarningCode.OVERSELL not in codes(result)
+    assert DiagnosticCode.OVERSELL not in codes(result)
     sale = next(c for c in result.rows if c.row.txn_id == 4)
     assert sale.acct.units == D("0")
     # Cost base came across with the units, so the gain is 1400 - 1000.
@@ -2067,12 +2071,12 @@ def test_a_same_day_split_applies_before_the_sale() -> None:
             make_row(2, "2024-06-10", Action.SPLIT, units="10", price="1"),
         ],
     )
-    assert WarningCode.OVERSELL not in codes(result)
+    assert DiagnosticCode.OVERSELL not in codes(result)
     assert result.rows[-1].acct.units == D("500")
 
 
-def test_cost_base_follows_trade_date_not_settle_date() -> None:
-    """Settlement lags differ by action, so settle order loses the true sequence.
+def test_cost_base_follows_transaction_date_not_settlement_date() -> None:
+    """Settlement lags differ by action, so settlement order loses the true sequence.
 
     A T+2 buy traded on the 4th settles on the 6th, while a return of capital
     traded on the 5th settles the same day. Replaying by settlement date would apply
@@ -2112,14 +2116,14 @@ def test_cost_base_follows_trade_date_not_settle_date() -> None:
     assert final.units == D("20")
     assert final.acb_cad == D("800")
     assert final.gain_cad == D("0")
-    assert WarningCode.ROC_EXCEEDS_ACB not in codes(result)
+    assert DiagnosticCode.ROC_EXCEEDS_ACB not in codes(result)
 
 
-def test_cash_follows_settle_date_not_trade_date() -> None:
+def test_cash_follows_settlement_date_not_transaction_date() -> None:
     """The mirror of the rule above, and why the two walks cannot be merged.
 
     A buy traded on the 4th settles on the 6th; the contribution funding it
-    settles on the 5th. Ordering cash by trade date would show the account
+    settles on the 5th. Ordering cash by transaction date would show the account
     overdrawn on a day it never was.
     """
     result = run(
@@ -2143,7 +2147,7 @@ def test_cash_follows_settle_date_not_trade_date() -> None:
             ),
         ],
     )
-    assert WarningCode.CASH_NEGATIVE not in codes(result)
+    assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
     assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
 
 
@@ -2450,7 +2454,7 @@ def test_a_paired_cross_broker_transfer_carries_its_cost_base() -> None:
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
 
-    assert WarningCode.TRANSFER_UNPAIRED not in codes(result)
+    assert DiagnosticCode.TRANSFER_UNPAIRED not in codes(result)
     assert result.rows[2].acct.units == D("100")
     assert result.rows[2].acct.acb_cad == D("1000")
 

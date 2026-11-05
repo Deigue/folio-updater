@@ -56,7 +56,7 @@ def _quote(
     """Build a quote directly, so a test states the price it wants."""
     return Quote(
         symbol=symbol,
-        ysymbol=symbol,
+        provider_symbol=symbol,
         price=dec(price),
         prev_close=dec(prev_close),
         currency=currency,
@@ -346,7 +346,7 @@ def test_a_closed_holding_still_counts_toward_totals(temp_ctx: TempContext) -> N
         assert group.total_pnl_pct is None
 
 
-def _liquidated(symbol: str, realized: str, dividends: str) -> Holding:
+def _closed(symbol: str, realized: str, dividends: str) -> Holding:
     """Build a holding sold out of, carrying only what it earned while held."""
     return Holding(
         symbol=symbol,
@@ -365,7 +365,7 @@ def _liquidated(symbol: str, realized: str, dividends: str) -> Holding:
 def test_closed_holdings_aggregate_into_one_earned_figure() -> None:
     """The row a currency group shows in place of every closed holding."""
     totals = summarize_closed(
-        [_liquidated("AAA", "200", "40"), _liquidated("BBB", "-50", "10")],
+        [_closed("AAA", "200", "40"), _closed("BBB", "-50", "10")],
     )
 
     assert totals.count == 2
@@ -430,7 +430,7 @@ def test_a_not_found_quote_does_not_price_a_holding(temp_ctx: TempContext) -> No
 
         missing = Quote(
             symbol="AAA",
-            ysymbol="AAA",
+            provider_symbol="AAA",
             fetched_at=datetime.now(UTC),
             status=QuoteStatus.NOT_FOUND,
         )
@@ -1095,7 +1095,7 @@ def test_native_totals_are_grouped_by_currency(temp_ctx: TempContext) -> None:
         holdings = _value(_mixed_quotes(), currency="native")
 
         assert holdings.mixed_currency
-        # CAD first: a Canadian folio reads home-currency-first.
+        # CAD first: a Canadian folio reads tax-currency-first.
         assert [g.currency for g in holdings.by_currency] == [
             Currency.CAD,
             Currency.USD,
@@ -1139,12 +1139,12 @@ def test_the_folio_share_survives_the_usd_filter(temp_ctx: TempContext) -> None:
     """
     with temp_ctx():
         _mixed_folio()
-        positions = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
+        folio_holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
 
-        holdings = positions.holdings(
+        holdings = folio_holdings.holdings(
             grain=Grain.FOLIO,
             currency=Currency.USD,
-            folio_market=positions.market_value(),
+            folio_market=folio_holdings.market_value(),
         )
 
         (held,) = holdings.holdings
@@ -1162,10 +1162,10 @@ def test_the_folio_total_ignores_the_display_currency(temp_ctx: TempContext) -> 
     """Valuing at `-c USD` would total the USD sleeve, not the folio."""
     with temp_ctx():
         _mixed_folio()
-        positions = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
+        folio_holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
 
         # 1,500 CAD plus 1,200 USD at 1.25, not the 1,200 the filter leaves.
-        assert positions.market_value() == Decimal(3000)
+        assert folio_holdings.market_value() == Decimal(3000)
 
 
 def _mixed_groups() -> HoldingSet:
@@ -1348,21 +1348,21 @@ def _two_type_folio() -> None:
 def test_folio_holdings_derives_each_pools_rollups_once(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _two_type_folio()
-        positions = FolioHoldings(
+        folio_holdings = FolioHoldings(
             _frame(),
             {"AAA": _quote("AAA", "100", "100")},
             load_fx_rates(),
         )
 
-        first = positions.rollups(Grain.FOLIO, None)
-        positions.held_symbols()
-        positions.market_value()
-        positions.holdings(grain=Grain.FOLIO, currency=Currency.CAD)
+        first = folio_holdings.rollups(Grain.FOLIO, None)
+        folio_holdings.held_symbols()
+        folio_holdings.market_value()
+        folio_holdings.holdings(grain=Grain.FOLIO, currency=Currency.CAD)
 
         # Same object, not merely an equal one.
-        assert positions.rollups(Grain.FOLIO, None) is first
+        assert folio_holdings.rollups(Grain.FOLIO, None) is first
         # A different pool is a different derivation.
-        assert positions.rollups(Grain.TYPE, "TFSA") is not first
+        assert folio_holdings.rollups(Grain.TYPE, "TFSA") is not first
 
 
 def test_pricing_later_keeps_the_rollups_already_derived(
@@ -1371,16 +1371,16 @@ def test_pricing_later_keeps_the_rollups_already_derived(
     """Symbols have to be known before quotes can be fetched for them."""
     with temp_ctx():
         _two_type_folio()
-        positions = FolioHoldings(_frame(), {}, load_fx_rates())
+        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
 
-        assert positions.held_symbols() == ["AAA", "BBB"]
-        derived = positions.rollups(Grain.FOLIO, None)
+        assert folio_holdings.held_symbols() == ["AAA", "BBB"]
+        derived = folio_holdings.rollups(Grain.FOLIO, None)
 
-        positions.price({"AAA": _quote("AAA", "100", "100")})
+        folio_holdings.price({"AAA": _quote("AAA", "100", "100")})
 
-        assert positions.rollups(Grain.FOLIO, None) is derived
+        assert folio_holdings.rollups(Grain.FOLIO, None) is derived
         # The total reflects the quotes supplied afterwards, not the empty set.
-        assert positions.market_value() == Decimal(3750)
+        assert folio_holdings.market_value() == Decimal(3750)
 
 
 def test_priming_a_grain_matches_deriving_each_pool_alone(
@@ -1415,23 +1415,23 @@ def test_priming_a_grain_matches_deriving_each_pool_alone(
 def test_priming_leaves_a_pool_already_derived_alone(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _two_type_folio()
-        positions = FolioHoldings(_frame(), {}, load_fx_rates())
+        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
 
-        first = positions.rollups(Grain.TYPE, "TFSA")
-        positions.prime(Grain.TYPE)
+        first = folio_holdings.rollups(Grain.TYPE, "TFSA")
+        folio_holdings.prime(Grain.TYPE)
 
-        assert positions.rollups(Grain.TYPE, "TFSA") is first
+        assert folio_holdings.rollups(Grain.TYPE, "TFSA") is first
 
 
 def test_priming_the_folio_grain_is_a_no_op(temp_ctx: TempContext) -> None:
     """Folio grain is one pool, so there is nothing to split."""
     with temp_ctx():
         _two_type_folio()
-        positions = FolioHoldings(_frame(), {}, load_fx_rates())
+        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
 
-        positions.prime(Grain.FOLIO)
+        folio_holdings.prime(Grain.FOLIO)
 
-        assert positions.rollups(Grain.FOLIO, None).summary.empty is False
+        assert folio_holdings.rollups(Grain.FOLIO, None).summary.empty is False
 
 
 def test_a_security_that_paid_nothing_reads_as_zero_dividends(

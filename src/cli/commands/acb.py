@@ -198,7 +198,7 @@ def show_acb(  # noqa: PLR0917
         export: Write the rendered rows to this path instead of only printing.
         show_all: Include DIVIDEND and FCH rows.
         summary: Print one row per symbol instead of a buildup.
-        refresh: Rebuild the cache before reporting.
+        refresh: Replay the cost base before reporting.
 
     Raises:
         typer.Exit: On an unusable request.

@@ -116,8 +116,10 @@ def refresh_price_history() -> None:  # pragma: no cover
 
     derived: list[str] = []
     for symbol in (*SYMBOLS, USDCAD):
-        ysymbol = "CAD=X" if symbol == USDCAD else resolver.yahoo_symbol(symbol)
-        ticker = yf.Ticker(ysymbol)
+        provider_symbol = (
+            "CAD=X" if symbol == USDCAD else resolver.provider_symbol(symbol)
+        )
+        ticker = yf.Ticker(provider_symbol)
         history = ticker.history(
             start=FIRST_DAY.isoformat(),
             end=(END + timedelta(days=1)).isoformat(),
@@ -128,7 +130,10 @@ def refresh_price_history() -> None:  # pragma: no cover
             if symbol in USD_LINES:
                 derived.append(symbol)
                 continue
-            msg = f"{ysymbol}: expected {months} monthly closes, got {len(history)}"
+            msg = (
+                f"{provider_symbol}: expected {months} monthly closes, "
+                f"got {len(history)}"
+            )
             raise DemoScenarioError(msg)
         places = 6 if symbol == USDCAD else 4
         closes[symbol] = [_number(float(v), places) for v in history["Close"]]

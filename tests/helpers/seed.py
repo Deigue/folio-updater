@@ -75,13 +75,13 @@ def _apply_settlement(
 ) -> None:
     """Fill a row's settlement columns, deriving them at most once per triple.
 
-    The derived date depends on the trade date, the action and the
+    The derived date depends on the transaction date, the action and the
     currency's market calendar, and on nothing else in the row, so the first row
     of a given triple pays for every later one.
 
     Args:
         row: The row to fill, updated in place.
-        date: Trade date, in YYYY-MM-DD form.
+        date: Transaction date, in YYYY-MM-DD form.
         action: Transaction action, which sets the settlement lag.
         currency: Currency code, which picks the market calendar.
     """
@@ -125,7 +125,7 @@ def seed_transaction(
 
     Args:
         action: Transaction action (BUY, SELL, ...).
-        date: Trade date in YYYY-MM-DD form.
+        date: Transaction date in YYYY-MM-DD form.
         account: Owning account name.
         currency: Currency code.
         ticker: Ticker symbol, or None for a row that carries no security.
@@ -193,7 +193,7 @@ def statement_buy(
         name: Company name printed before the colon.
         units: Whole shares bought.
         price: Price per share, as the statement prints it.
-        traded: Trade date, which the description carries as "executed at".
+        traded: Transaction date, which the description carries as "executed at".
         settled: Statement date, which is when the buy settled.
 
     Returns:
@@ -217,7 +217,7 @@ def seed_fx(rows: dict[str, str]) -> None:
     Args:
         rows: `YYYY-MM-DD` to `FXUSDCAD`, as strings so the stored value is
             exactly what the test asked for. `FXCADUSD` is derived the way
-            `ForexService` derives it, and is never read by the engine.
+            `FxService` derives it, and is never read by the engine.
     """
     create_fx_table()
     with get_connection() as conn:
@@ -280,7 +280,7 @@ def seed_cash(
         amount: Total cash amount.
         currency: Currency code.
         account: Owning account name.
-        date: Trade date in YYYY-MM-DD form.
+        date: Transaction date in YYYY-MM-DD form.
         fee: Optional fee, as `seed_transaction` takes it.
         settle_date: Explicit settlement date, as `seed_transaction` takes it.
 

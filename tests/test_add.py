@@ -425,7 +425,7 @@ class TestAddSettlement:
     """Settlement dates are calculated the same way imports calculate them."""
 
     def test_buy_settles_on_a_later_business_day(self, temp_ctx: TempContext) -> None:
-        """A BUY gets a calculated settlement date after the trade date."""
+        """A BUY gets a calculated settlement date after the transaction date."""
         with temp_ctx() as ctx:
             ensure_data_exists()
 

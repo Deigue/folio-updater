@@ -60,48 +60,48 @@ def test_the_total_is_the_folio_grain_not_the_sum_of_the_lines(
         _seed_two_types()
         valuation = _valuation()
 
-        position = symbol_holdings(valuation, "TESTTKR")
+        holdings = symbol_holdings(valuation, "TESTTKR")
 
-        assert position is not None
-        lines = {line.view.pool: line.holding for line in position.lines}
+        assert holdings is not None
+        lines = {line.view.pool: line.holding for line in holdings.lines}
         # The open pools' units add up...
         assert (
-            position.total.units == lines["NON_REGISTERED"].units + lines["TFSA"].units
+            holdings.total.units == lines["NON_REGISTERED"].units + lines["TFSA"].units
         )
         # ...but pooled across every account, the RRSP's round trip moved the
         # folio's average, which no combination of the lines reproduces.
         # A USD holding valued natively reads the USD family of columns.
         frame = valuation.frame
         folio_avg = frame[frame["Symbol"] == "TESTTKR"]["FolioAvg_USD"].iloc[-1]
-        assert position.total.avg_cost == Decimal(str(folio_avg))
-        assert position.total.avg_cost not in {
+        assert holdings.total.avg_cost == Decimal(str(folio_avg))
+        assert holdings.total.avg_cost not in {
             lines["NON_REGISTERED"].avg_cost,
             lines["TFSA"].avg_cost,
             (lines["NON_REGISTERED"].avg_cost + lines["TFSA"].avg_cost) / 2,
         }
         # Three pools, so pooling them says something none of them does.
-        assert position.pooled_differs
+        assert holdings.pooled_differs
         # The pool that sold out stays, last, with what it realized.
-        assert position.lines[-1].holding.closed
-        assert position.lines[-1].holding.realized == Decimal(300)
-        assert position.first_traded == "2025-08-14"
+        assert holdings.lines[-1].holding.closed
+        assert holdings.lines[-1].holding.realized == Decimal(300)
+        assert holdings.first_traded == "2025-08-14"
         # The price it first went in at, as traded, with no split since.
-        assert position.first_buy == FirstBuy(
+        assert holdings.first_buy == FirstBuy(
             "2025-08-14",
             Decimal("150.25"),
             Currency.USD,
         )
-        assert position.held_for(date(2026, 8, 13)) == (0, 11)
+        assert holdings.held_for(date(2026, 8, 13)) == (0, 11)
 
 
 def test_by_account_lists_broker_accounts(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _seed_two_types()
 
-        position = symbol_holdings(_valuation(), "TESTTKR", by_account=True)
+        holdings = symbol_holdings(_valuation(), "TESTTKR", by_account=True)
 
-        assert position is not None
-        assert [line.view.pool for line in position.lines] == [
+        assert holdings is not None
+        assert [line.view.pool for line in holdings.lines] == [
             "WS-PERSONAL",
             "WS-TFSA",
             "QT-RRSP",
@@ -140,7 +140,7 @@ def _ranged(price_range: PriceRange, anchor: int) -> RangeHistory:
 def test_each_move_runs_from_its_anchor_to_the_live_price() -> None:
     quote = Quote(
         symbol="AAA",
-        ysymbol="AAA",
+        provider_symbol="AAA",
         price=Decimal(150),
         prev_close=Decimal(140),
         status=QuoteStatus.OK,
@@ -173,7 +173,7 @@ def _bar(when: str, close: int) -> PricePoint:
 def test_a_session_chart_runs_from_an_official_close_and_is_drawn_from_bars() -> None:
     quote = Quote(
         symbol="AAA",
-        ysymbol="AAA",
+        provider_symbol="AAA",
         price=Decimal(150),
         prev_close=Decimal(140),
         status=QuoteStatus.OK,
@@ -231,7 +231,7 @@ def test_a_session_chart_runs_from_an_official_close_and_is_drawn_from_bars() ->
 
 
 def test_an_unpriced_quote_has_no_moves() -> None:
-    quote = Quote(symbol="AAA", ysymbol="AAA", status=QuoteStatus.NOT_FOUND)
+    quote = Quote(symbol="AAA", provider_symbol="AAA", status=QuoteStatus.NOT_FOUND)
     history = {PriceRange.YEAR_1: _ranged(PriceRange.YEAR_1, 100)}
 
     assert set(price_moves(quote, history, {}).values()) == {None}
@@ -250,7 +250,7 @@ def _row(symbol: str, week: str | None, market: int | None) -> PerformanceRow:
             points=(),
             start="2026-09-24",
         )
-    quote = Quote(symbol=symbol, ysymbol=symbol, status=QuoteStatus.OK)
+    quote = Quote(symbol=symbol, provider_symbol=symbol, status=QuoteStatus.OK)
     return PerformanceRow(
         symbol,
         quote,
@@ -280,8 +280,12 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
         _seed_two_types()
         valuation = FolioValuation.build(open_ledger(), currency=Currency.CAD)
         panel = valuation.panel(type_view("TFSA"))
-        quote = Quote(symbol="TESTTKR", ysymbol="TESTTKR", status=QuoteStatus.OK)
-        unheld = Quote(symbol="OTHER", ysymbol="OTHER", status=QuoteStatus.OK)
+        quote = Quote(
+            symbol="TESTTKR",
+            provider_symbol="TESTTKR",
+            status=QuoteStatus.OK,
+        )
+        unheld = Quote(symbol="OTHER", provider_symbol="OTHER", status=QuoteStatus.OK)
 
         held, other = performance_rows(
             panel,

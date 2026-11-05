@@ -22,8 +22,8 @@ from domain import (
     Action,
     CheckStatus,
     Column,
+    DiagnosticCode,
     Table,
-    WarningCode,
 )
 from engine.checks import (
     CHECK_SLUGS,
@@ -224,7 +224,7 @@ def test_an_oversell_is_reported_against_the_security() -> None:
 def test_an_account_short_but_a_type_balanced_points_at_a_transfer() -> None:
     result = check(oversold_in_one_account(), "unit-balances")
     assert "The TFSA total is correct" in details(result)
-    assert "moved from another account without being recorded" in details(result)
+    assert "transferred from another account without being recorded" in details(result)
 
 
 def test_units_missing_from_the_whole_folio_say_so() -> None:
@@ -1175,7 +1175,7 @@ def test_editing_the_folio_replays_the_diagnostics(temp_ctx: TempContext) -> Non
         )
         replayed = open_ledger()
         assert replayed.computed_at is None
-        assert WarningCode.OVERSELL in {w.code for w in replayed.diagnostics}
+        assert DiagnosticCode.OVERSELL in {w.code for w in replayed.diagnostics}
 
 
 def _unknown_code(path: Path) -> None:

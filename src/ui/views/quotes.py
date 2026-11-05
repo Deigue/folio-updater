@@ -40,7 +40,7 @@ def quotes_table(
     table.add_column("Symbol", no_wrap=True)
     if held is not None:
         table.add_column("Held", no_wrap=True)
-    table.add_column("Yahoo", no_wrap=True)
+    table.add_column("Provider", no_wrap=True)
     table.add_column("Name")
     table.add_column("Price", justify="right")
     table.add_column("Prev", justify="right")
@@ -53,7 +53,7 @@ def quotes_table(
         table.add_row(
             quote.symbol,
             *owned,
-            quote.ysymbol,
+            quote.provider_symbol,
             quote.name or "",
             signed(price(quote.price), quote.day_change),
             price(quote.prev_close),
@@ -61,7 +61,7 @@ def quotes_table(
             _age(quote),
             _status(quote),
         )
-    return fit_table(table, ("Name", "Prev", "Yahoo"))
+    return fit_table(table, ("Name", "Prev", "Provider"))
 
 
 def _held(owned: bool) -> str:  # noqa: FBT001 - one flag, read as a cell

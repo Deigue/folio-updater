@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from app import get_config
 from db import get_connection, get_distinct_values, get_rows
 from domain import INTERNAL_COLUMNS, Column, Table
-from services import ForexService
+from services import FxService
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -48,7 +48,7 @@ class ParquetExporter:
         logger.debug("Exported %d transactions to Parquet", txn_count)
         return txn_count
 
-    def export_forex(self, start_date: str | None = None) -> int:
+    def export_fx(self, start_date: str | None = None) -> int:
         """Export all FX rates to Parquet file.
 
         FX Coverage is extended at both ends, so rates are fetched covering all
@@ -56,13 +56,13 @@ class ParquetExporter:
 
         Args:
             start_date: Start date in YYYY-MM-DD format. If None, uses earliest
-                       trade date from database.
+                       transaction date from database.
 
         Returns:
             int: Number of FX rate records exported.
         """
-        ForexService.ensure_coverage(start_date)
-        fx_df = ForexService.get_fx_rates_from_db()
+        FxService.ensure_coverage(start_date)
+        fx_df = FxService.get_fx_rates_from_db()
         if fx_df.empty:  # pragma: no cover
             logger.debug("No FX rates available for export")
             return 0
@@ -102,10 +102,10 @@ class ParquetExporter:
         """Export all data to Parquet files.
 
         Returns:
-            tuple: (transactions_count, forex_count, tickers_count)
+            tuple: (transactions_count, fx_count, tickers_count)
         """
         txn_count = self.export_transactions()
-        fx_count = self.export_forex()
+        fx_count = self.export_fx()
         ticker_count = self.export_tickers()
 
         logger.info(

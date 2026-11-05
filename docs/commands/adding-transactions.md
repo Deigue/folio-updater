@@ -27,7 +27,7 @@ folio add --type ROC
 ```
 
 ```text
-Trade date (YYYY-MM-DD) [2026-08-08]: 2025-08-20
+Transaction date (YYYY-MM-DD) [2026-08-08]: 2025-08-20
 Account: RRSP
 Currency (USD/CAD): CAD
 Ticker: O
@@ -40,7 +40,7 @@ Amount: 42.15
 | Option       | Short | Meaning                                                                                                    |
 | ------------ | ----- | ---------------------------------------------------------------------------------------------------------- |
 | `--type`     | `-t`  | `BUY`, `SELL`, `SPLIT`, `ROC`, `DIVIDEND`, `CONTRIBUTION`, `WITHDRAWAL`, `TFR_IN`, `TFR_OUT`, `FCH`, `FXT` |
-| `--date`     | `-d`  | Trade date, `YYYY-MM-DD` (prompt defaults to today)                                                        |
+| `--date`     | `-d`  | Transaction date, `YYYY-MM-DD` (prompt defaults to today)                                                   |
 | `--account`  | `-a`  | Account alias                                                                                              |
 | `--currency` | `-c`  | `USD` or `CAD`, the currencies the cost base can convert                                                   |
 | `--symbol`   | `-s`  | Security symbol                                                                                            |

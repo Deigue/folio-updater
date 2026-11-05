@@ -29,7 +29,7 @@ from exporters.sheets import (
     traded_tickers_sheet,
     transactions_sheet,
 )
-from services import ForexService
+from services import FxService
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 
@@ -163,7 +163,7 @@ class FolioSources:
         return cls(
             valuation=valuation,
             txns=txns,
-            rates=ForexService.get_fx_rates_from_db(),
+            rates=FxService.get_fx_rates_from_db(),
             tickers=[(name, resolver.canonical(name)) for name in names],
             quotes=QuotesService.cached(),
             moves=moves or {},

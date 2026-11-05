@@ -61,7 +61,7 @@ is used in the activity rows, in the statement file names, and in every report.
 
 ### Basic Download
 
-Download all transactions from the latest trade date to today:
+Download all transactions from the latest transaction date to today:
 
 ```bash
 folio download --broker wealthsimple

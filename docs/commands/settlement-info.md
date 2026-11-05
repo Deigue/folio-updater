@@ -32,7 +32,7 @@ Statements can be `.csv` or `.xlsx`.
 - `amount`: Transaction amount (used for matching)
 - `currency`: Transaction currency
 - `transaction`: Broker action (BUY, SELL, etc.)
-- `description`: Contains ticker symbol, units, and original trade date
+- `description`: Contains ticker symbol, units, and original transaction date
 
 ## Overriding a Date by Hand
 

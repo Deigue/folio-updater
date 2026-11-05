@@ -97,28 +97,28 @@ def test_family_of_an_unknown_symbol_is_itself() -> None:
         ("CAR.UN.TO", "CAR-UN.TO"),
     ],
 )
-def test_yahoo_symbol(ticker: str, expected: str) -> None:
-    assert SymbolResolver([]).yahoo_symbol(ticker) == expected
+def test_provider_symbol(ticker: str, expected: str) -> None:
+    assert SymbolResolver([]).provider_symbol(ticker) == expected
 
 
 def test_a_configured_override_beats_the_spelling_rule() -> None:
     resolver = SymbolResolver([], {"VNTKR.TO": "VNTKR.V"})
 
-    assert resolver.yahoo_symbol("VNTKR.TO") == "VNTKR.V"
+    assert resolver.provider_symbol("VNTKR.TO") == "VNTKR.V"
     # Everything else still follows the rule.
-    assert resolver.yahoo_symbol("REI.UN.TO") == "REI-UN.TO"
+    assert resolver.provider_symbol("REI.UN.TO") == "REI-UN.TO"
 
 
 def test_an_override_is_matched_regardless_of_case() -> None:
     resolver = SymbolResolver([], {"vntkr.to": "VNTKR.V"})
 
-    assert resolver.yahoo_symbol("VNTKR.TO") == "VNTKR.V"
+    assert resolver.provider_symbol("VNTKR.TO") == "VNTKR.V"
 
 
 def test_an_override_applies_after_a_rename() -> None:
     resolver = SymbolResolver(SIMPLE, {"NEWCO": "NEWCO.OVERRIDE"})
 
-    assert resolver.yahoo_symbol("OLDCO") == "NEWCO.OVERRIDE"
+    assert resolver.provider_symbol("OLDCO") == "NEWCO.OVERRIDE"
 
 
 def test_load_symbol_resolver_without_an_alias_table(temp_ctx: TempContext) -> None:

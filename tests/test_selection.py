@@ -15,7 +15,7 @@ from .helpers.seed import ACCOUNT, TICKER, seed_transaction
 if TYPE_CHECKING:
     from .helpers.context import TempContext
 
-# Restricts a selection to the seeded rows, leaving the mock folio out of it.
+# Restricts a selection to the seeded rows, leaving the demo folio out of it.
 _SEEDED = f"account:{ACCOUNT}"
 
 

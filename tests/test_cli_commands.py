@@ -265,7 +265,7 @@ def test_settle_info_import_reads_the_named_file(temp_ctx: TempContext) -> None:
         )
         assert_cli_success(cli_result)
         assert_in_output(
-            'Updated 1 settlement dates from "test_statement.xlsx"',
+            'Confirmed 1 settlement dates from "test_statement.xlsx"',
             cli_result,
         )
         assert (ctx.config.statements_processed_path / statement_file.name).exists()
@@ -476,7 +476,7 @@ def test_settle_info_verbose_lists_every_candidate_row(
 
         assert_cli_success(cli_result)
         assert_in_output("Settlement Matching", cli_result)
-        assert_in_output("matched", cli_result)
+        assert_in_output("confirmed", cli_result)
         assert_in_output("no match", cli_result)
 
 
@@ -485,7 +485,7 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
 
     A statement is moved to the archive whether it updated anything or not, so
     the next run never reads it again. Downloading it once more brings it back:
-    rows whose transactions are already settled must not look like misses, and
+    rows whose transactions are already confirmed must not look like misses, and
     the new copy is archived beside the old one rather than over it.
     """
     with temp_ctx() as ctx:
@@ -530,7 +530,7 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
         assert_cli_success(second)
         assert_in_output("Found 1 statement file(s)", second)
         assert_in_output("Up to date", second)
-        assert_in_output("are already settled", second)
+        assert_in_output("are already confirmed", second)
         assert (archive / "ws_statement_WS-TFSA_202604_1.xlsx").exists()
 
 
@@ -646,7 +646,7 @@ FLEX_REPORT = {"brokers": {"ibkr": {"FlexReport": "abc123"}}}
             [],
             FLEX_REPORT,
             _seed_ibkr_trade,
-            f"Using latest IBKR trade date: {TXN_DATE}",
+            f"Using latest IBKR transaction date: {TXN_DATE}",
             True,
             id="db_date",
         ),

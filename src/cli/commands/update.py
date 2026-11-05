@@ -1,7 +1,7 @@
 """The `folio update` command.
 
 Catches the folio up in one shot:
-download from every broker, import, confirm which settlement dates can be updated via
+download from every broker, import, confirm settlement dates from
 monthly statements, run the health checks, write the workbook and
 show the dashboards.
 """
@@ -231,7 +231,7 @@ def _import_stage(
     Args:
         config: The application configuration.
         report: Where concerns, notes and a failure are recorded.
-        overlap_days: Each broker's overlap day: its latest stored trade date
+        overlap_days: Each broker's overlap day: its latest stored transaction date
             before the run.
     """
     console_rule("Import", style=RULE_UPDATE)
@@ -403,10 +403,10 @@ def _statement_stage(
         for path in files:
             result = import_single_statement(path, verbose=True, interactive=False)
             archive_statement(path)
-            report.settled.extend(
+            report.confirmed.extend(
                 match
                 for match in result.settlement_matches
-                if match.outcome is SettlementOutcome.MATCHED
+                if match.outcome is SettlementOutcome.CONFIRMED
             )
             report.concerns.extend(
                 review_statement(
@@ -415,7 +415,9 @@ def _statement_stage(
                     result.transfers_rejected,
                 ),
             )
-            changed |= result.settlement_updates > 0 or result.transfers_created() > 0
+            changed |= (
+                result.settlements_confirmed > 0 or result.transfers_created() > 0
+            )
 
     if changed:
         with spinner(color=SPINNER_STATEMENT) as progress:

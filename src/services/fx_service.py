@@ -1,4 +1,4 @@
-"""Forex service module.
+"""FX service module.
 
 Handles fetching FX rates from Bank of Canada API.
 """
@@ -33,7 +33,7 @@ BOC_DATE_COLUMN = "date"
 BOC_USDCAD_COLUMN = "FXUSDCAD"
 
 
-class ForexService:
+class FxService:
     """Service for handling FX rate operations."""
 
     BOC_BASE_URL = (
@@ -261,7 +261,7 @@ class ForexService:
         """Work out how far back coverage has to reach for this folio.
 
         Returns:
-            The earliest trade date, or 30 days ago for an empty folio.
+            The earliest transaction date, or 30 days ago for an empty folio.
         """
         with get_connection() as conn:
             earliest = earliest_transaction_date(conn)
@@ -273,14 +273,14 @@ class ForexService:
 
     @classmethod
     def ensure_coverage(cls, start: str | None = None, end: str | None = None) -> int:
-        """Ensure there is forex coverage for all transactions in the folio.
+        """Ensure there is FX coverage for all transactions in the folio.
 
         This refetches from `start` whenever `start` predates what is on hand,
         and otherwise tops up the forward end.
 
         Args:
             start: Earliest date that needs a rate, YYYY-MM-DD. Defaults to the
-                folio's own earliest trade date
+                folio's own earliest transaction date
             end: Latest date that needs a rate, YYYY-MM-DD. (capped to latest available)
 
         Returns:

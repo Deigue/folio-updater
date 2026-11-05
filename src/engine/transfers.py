@@ -7,7 +7,7 @@ the replay carry the cost base across, which it must
 Two shapes exist:
 
 - **Same account, same settlement date**: a journal.
-- **Cross account, same symbol, same settlement date**: an in-kind move between
+- **Cross account, same symbol, same settlement date**: an in-kind transfer between
   two accounts you own, equal magnitude and opposing sign.
 
 Cash transfers pair the same way but move no units and no cost base; they matter only

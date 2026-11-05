@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
-from domain import Action, Column, Currency, PriceRange, WarningCode
+from domain import Action, Column, Currency, DiagnosticCode, PriceRange
 from domain.numeric import ZERO, dec
 from engine.panels import FOLIO_VIEW, account_view, type_view
 
@@ -109,9 +109,9 @@ class SymbolHoldings:
         return len(self.lines) > 1
 
     @property
-    def flags(self) -> tuple[WarningCode, ...]:
+    def flags(self) -> tuple[DiagnosticCode, ...]:
         """Every diagnostic raised against it in any pool, each once."""
-        seen: dict[WarningCode, None] = {}
+        seen: dict[DiagnosticCode, None] = {}
         for holding in (self.total, *(line.holding for line in self.lines)):
             seen.update(dict.fromkeys(holding.flags))
         return tuple(seen)
@@ -217,7 +217,7 @@ class PerformanceRow:
 
     Attributes:
         symbol: The canonical symbol.
-        quote: Its live quote.
+        quote: Its quote.
         moves: Its move over every range.
         market: The pool's market value of it, in CAD whatever currency the
             pool was valued in, so rows compare. None for a security the pool

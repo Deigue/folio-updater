@@ -166,7 +166,7 @@ def show_dash(
         show_closed: Break the aggregate "Closed" row open into one row per
             closed holding, instead of one summed line.
         reverse: Flip the sort's natural direction.
-        refresh: Refetch quotes and rebuild the cost-base cache.
+        refresh: Refetch quotes and replay the cost base.
         offline: Never touch the network.
 
     Raises:

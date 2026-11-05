@@ -1,4 +1,4 @@
-"""Turn the replayed frame plus live quotes into valued holdings."""
+"""Turn the replayed frame plus quotes into valued holdings."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
 
-from domain import Column, Currency, Grain, WarningCode
+from domain import Column, Currency, DiagnosticCode, Grain
 from domain.numeric import ZERO, dec, safe_div
 from engine.frames import (
     POOL_COLUMN,
@@ -91,7 +91,7 @@ class Holding:
     weight_in_pool: Decimal | None = None
     weight_in_folio: Decimal | None = None
     priced: bool = False
-    flags: tuple[WarningCode, ...] = ()
+    flags: tuple[DiagnosticCode, ...] = ()
     book_value_totals: Decimal = ZERO
     market_value_totals: Decimal | None = None
     day_pnl_totals: Decimal | None = None
@@ -130,7 +130,7 @@ class ClosedTotals:
 
 
 def summarize_closed(closed: Iterable[Holding]) -> ClosedTotals:
-    """Aggregate closed holdings into one earned-since-liquidation figure.
+    """Aggregate closed holdings into one figure for what they earned.
 
     Args:
         closed: The closed holdings to fold together.
@@ -319,9 +319,9 @@ class HoldingSet:
         return safe_div(self.total_pnl_cad, denominator)
 
     @property
-    def flags(self) -> tuple[WarningCode, ...]:
+    def flags(self) -> tuple[DiagnosticCode, ...]:
         """Every distinct diagnostic carried by the holdings shown."""
-        seen: dict[WarningCode, None] = {}
+        seen: dict[DiagnosticCode, None] = {}
         for holding in self.holdings:
             for code in holding.flags:
                 seen.setdefault(code, None)
@@ -362,9 +362,9 @@ def _open_symbols(summary: pd.DataFrame) -> list[str]:
     if summary.empty:
         return []
     column = grain_column(Grain.FOLIO, "Units")
-    open_positions = summary[summary[column].fillna(0) != 0]
+    open_holdings = summary[summary[column].fillna(0) != 0]
     return sorted(
-        {str(symbol) for symbol in open_positions[Column.Ledger.SYMBOL] if symbol},
+        {str(symbol) for symbol in open_holdings[Column.Ledger.SYMBOL] if symbol},
     )
 
 
@@ -373,7 +373,7 @@ class _Rollups:
     """One pool's derived inputs, read off the frame before anything is valued."""
 
     summary: pd.DataFrame
-    flags: dict[str, tuple[WarningCode, ...]]
+    flags: dict[str, tuple[DiagnosticCode, ...]]
     income: dict[str, tuple[Decimal, Decimal]]
 
 
@@ -718,7 +718,7 @@ class _Context:
     """Everything `_holding` needs that is the same for every row."""
 
     quotes: Mapping[str, Quote]
-    flags: Mapping[str, tuple[WarningCode, ...]]
+    flags: Mapping[str, tuple[DiagnosticCode, ...]]
     income: Mapping[str, tuple[Decimal, Decimal]]
     grain: Grain
     pool: str
@@ -1122,11 +1122,11 @@ def _native_currency(record: Mapping[str, object], grain: Grain) -> Currency:
     return Currency.CAD if usd is None or pd.isna(usd) else Currency.USD
 
 
-def _flags_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[WarningCode, ...]]:
+def _flags_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[DiagnosticCode, ...]]:
     """Roll the frame's `Flags` column up per symbol, within this pool."""
     if rows.empty or Column.Ledger.FLAGS not in rows.columns:
         return {}
-    grouped: dict[str, dict[WarningCode, None]] = {}
+    grouped: dict[str, dict[DiagnosticCode, None]] = {}
     for symbol, flags in zip(
         rows[Column.Ledger.SYMBOL].to_numpy(),
         rows[Column.Ledger.FLAGS].to_numpy(),
@@ -1136,7 +1136,7 @@ def _flags_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[WarningCode, ...]]:
             continue
         for token in str(flags).split(","):
             try:
-                code = WarningCode(token.strip())
+                code = DiagnosticCode(token.strip())
             except ValueError:
                 continue
             grouped.setdefault(symbol, {}).setdefault(code, None)

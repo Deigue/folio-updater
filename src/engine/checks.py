@@ -17,7 +17,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Protocol
 
-from domain import Action, CheckStatus, Currency, Grain, WarningCode
+from domain import Action, CheckStatus, Currency, DiagnosticCode, Grain
 from domain.numeric import ZERO, q2
 from engine.replay import DENOMINATED_ACTIONS
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from engine.ledger import Ledger
-    from engine.types import ComputedRow, ReplayWarning
+    from engine.types import Diagnostic, LedgerRow
 
 
 class ChecksConfig(Protocol):
@@ -157,12 +157,12 @@ def _joined(names: Sequence[str]) -> str:
     return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
-class _Folio:
+class _LedgerIndex:
     """The ledger's diagnostics, cash and row counts, indexed for the checks."""
 
     def __init__(self, ledger: Ledger, config: ChecksConfig) -> None:
         self.ledger = ledger
-        self.rows: Mapping[int, ComputedRow] = ledger.diagnosed_rows
+        self.rows: Mapping[int, LedgerRow] = ledger.diagnosed_rows
         self._ignored_tickers = set(config.checks_ignore_tickers)
         self._ignored_accounts = set(config.checks_ignore_accounts)
         self.accounts = sorted(
@@ -170,59 +170,59 @@ class _Folio:
             for account in ledger.totals.accounts()
             if not self._account_ignored(account)
         )
-        self._by_code: dict[WarningCode, list[ReplayWarning]] = {}
+        self._by_code: dict[DiagnosticCode, list[Diagnostic]] = {}
         # Indexed rather than searched. `fired_at` is asked, per diagnostic,
         # whether a code also fired at another grain, so scanning the list each
         # time makes the whole check quadratic in its own diagnostics, which
         # bites hardest on exactly the badly-broken folio that raises the most.
-        self._fired: set[tuple[WarningCode, Grain | None, int | None]] = set()
-        for warning in ledger.diagnostics:
-            if self._suppressed(warning):
+        self._fired: set[tuple[DiagnosticCode, Grain | None, int | None]] = set()
+        for diagnostic in ledger.diagnostics:
+            if self._suppressed(diagnostic):
                 continue
-            self._by_code.setdefault(warning.code, []).append(warning)
-            self._fired.add((warning.code, warning.grain, warning.txn_id))
+            self._by_code.setdefault(diagnostic.code, []).append(diagnostic)
+            self._fired.add((diagnostic.code, diagnostic.grain, diagnostic.txn_id))
 
     def _account_ignored(self, account: str | None) -> bool:
         return bool(account) and str(account).upper() in self._ignored_accounts
 
-    def _suppressed(self, warning: ReplayWarning) -> bool:
+    def _suppressed(self, diagnostic: Diagnostic) -> bool:
         """Whether config says to leave this diagnostic alone."""
-        return self._account_ignored(self.account_of(warning)) or (
-            (self.symbol_of(warning) or "").upper() in self._ignored_tickers
+        return self._account_ignored(self.account_of(diagnostic)) or (
+            (self.symbol_of(diagnostic) or "").upper() in self._ignored_tickers
         )
 
-    def account_of(self, warning: ReplayWarning) -> str | None:
+    def account_of(self, diagnostic: Diagnostic) -> str | None:
         """Return the account a diagnostic is about, falling back to its row's."""
-        if warning.account:
-            return warning.account
-        computed = self.row_of(warning)
+        if diagnostic.account:
+            return diagnostic.account
+        computed = self.row_of(diagnostic)
         return computed.row.account if computed else None
 
-    def symbol_of(self, warning: ReplayWarning) -> str | None:
+    def symbol_of(self, diagnostic: Diagnostic) -> str | None:
         """Return the security a diagnostic is about, falling back to its row's."""
-        if warning.symbol:
-            return warning.symbol
-        computed = self.row_of(warning)
+        if diagnostic.symbol:
+            return diagnostic.symbol
+        computed = self.row_of(diagnostic)
         return computed.symbol if computed else None
 
-    def row_of(self, warning: ReplayWarning) -> ComputedRow | None:
+    def row_of(self, diagnostic: Diagnostic) -> LedgerRow | None:
         """Return the transaction a diagnostic tags, where it tags one."""
-        if warning.txn_id is None:
+        if diagnostic.txn_id is None:
             return None
-        return self.rows.get(warning.txn_id)
+        return self.rows.get(diagnostic.txn_id)
 
-    def having(self, *codes: WarningCode) -> list[ReplayWarning]:
+    def having(self, *codes: DiagnosticCode) -> list[Diagnostic]:
         """Every surviving diagnostic carrying one of these codes."""
-        warnings = []
+        diagnostics = []
         for code in codes:
-            warnings.extend(self._by_code.get(code, []))
-        return warnings
+            diagnostics.extend(self._by_code.get(code, []))
+        return diagnostics
 
     def tagged(
         self,
-        *codes: WarningCode,
+        *codes: DiagnosticCode,
         grain: Grain | None = None,
-    ) -> Iterator[tuple[ReplayWarning, ComputedRow]]:
+    ) -> Iterator[tuple[Diagnostic, LedgerRow]]:
         """Pair each surviving diagnostic with the transaction it tags.
 
         Args:
@@ -234,17 +234,26 @@ class _Folio:
             them. These codes always tag a transaction, so none is skipped in
             practice.
         """
-        warnings = self.having(*codes)
+        diagnostics = self.having(*codes)
         if grain is not None:
-            warnings = [warning for warning in warnings if warning.grain is grain]
-        pairs = ((warning, self.row_of(warning)) for warning in _ordered(warnings))
-        yield from ((warning, row) for warning, row in pairs if row is not None)
+            diagnostics = [
+                diagnostic for diagnostic in diagnostics if diagnostic.grain is grain
+            ]
+        pairs = (
+            (diagnostic, self.row_of(diagnostic))
+            for diagnostic in _ordered(diagnostics)
+        )
+        yield from ((diagnostic, row) for diagnostic, row in pairs if row is not None)
 
-    def at(self, grain: Grain, *codes: WarningCode) -> list[ReplayWarning]:
+    def at(self, grain: Grain, *codes: DiagnosticCode) -> list[Diagnostic]:
         """Every surviving diagnostic at one pool grain."""
-        return [warning for warning in self.having(*codes) if warning.grain is grain]
+        return [
+            diagnostic
+            for diagnostic in self.having(*codes)
+            if diagnostic.grain is grain
+        ]
 
-    def fired_at(self, grain: Grain, code: WarningCode, txn_id: int | None) -> bool:
+    def fired_at(self, grain: Grain, code: DiagnosticCode, txn_id: int | None) -> bool:
         """Whether one code fired against one row at a given grain."""
         return (code, grain, txn_id) in self._fired
 
@@ -280,11 +289,11 @@ class _Folio:
         return state.cash if state else ZERO
 
 
-def _ordered(warnings: Iterable[ReplayWarning]) -> list[ReplayWarning]:
+def _ordered(diagnostics: Iterable[Diagnostic]) -> list[Diagnostic]:
     """Sort findings the way a reader scans them: by row, then by pool."""
     return sorted(
-        warnings,
-        key=lambda warning: (warning.txn_id or 0, warning.pool or ""),
+        diagnostics,
+        key=lambda diagnostic: (diagnostic.txn_id or 0, diagnostic.pool or ""),
     )
 
 
@@ -314,18 +323,18 @@ class _Outcome:
 # --- CHECK FUNCTIONS ---------------------------------------------------------
 
 
-def _check_account_types(folio: _Folio) -> _Outcome:
+def _check_account_types(folio: _LedgerIndex) -> _Outcome:
     """Every account has to resolve to an account type before anything else counts."""
     findings = [
         CheckFinding(
-            subject=str(warning.account),
+            subject=str(diagnostic.account),
             detail=(
-                f"{warning.account} does not look like any account type. Rename it "
+                f"{diagnostic.account} does not look like any account type. Rename it "
                 f"<BROKER>-<TYPE>, or give it a type under accounts.map in "
                 f"config.yaml."
             ),
         )
-        for warning in _ordered(folio.having(WarningCode.UNKNOWN_ACCOUNT_TYPE))
+        for diagnostic in _ordered(folio.having(DiagnosticCode.UNKNOWN_ACCOUNT_TYPE))
     ]
     return _Outcome(
         findings,
@@ -334,10 +343,10 @@ def _check_account_types(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_fee_conventions(folio: _Folio) -> _Outcome:
+def _check_fee_conventions(folio: _LedgerIndex) -> _Outcome:
     """Report trades whose amount reconciles against neither fee convention."""
     findings = []
-    for _warning, computed in folio.tagged(WarningCode.AMBIGUOUS_FEE_CONVENTION):
+    for _diagnostic, computed in folio.tagged(DiagnosticCode.AMBIGUOUS_FEE_CONVENTION):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -360,7 +369,7 @@ def _check_fee_conventions(folio: _Folio) -> _Outcome:
     )
 
 
-def _shortfall_reason(folio: _Folio, warning: ReplayWarning) -> str:
+def _shortfall_reason(folio: _LedgerIndex, diagnostic: Diagnostic) -> str:
     """Say where the missing units went, from the grains the sale broke.
 
     A sale that overdraws one account but not the account type is a transfer
@@ -368,38 +377,41 @@ def _shortfall_reason(folio: _Folio, warning: ReplayWarning) -> str:
     between types. One that overdraws the folio means the units were never
     there at all.
     """
-    computed = folio.row_of(warning)
+    computed = folio.row_of(diagnostic)
     acct_type = computed.acct_type if computed else None
-    if folio.fired_at(Grain.FOLIO, WarningCode.OVERSELL, warning.txn_id):
+    if folio.fired_at(Grain.FOLIO, DiagnosticCode.OVERSELL, diagnostic.txn_id):
         return "Those units are missing from the folio entirely."
-    if folio.fired_at(Grain.TYPE, WarningCode.OVERSELL, warning.txn_id):
+    if folio.fired_at(Grain.TYPE, DiagnosticCode.OVERSELL, diagnostic.txn_id):
         return (
             f"The {acct_type} total is short too, so this is either a transfer "
             f"between account types or a transaction that was never recorded."
         )
     return (
-        f"The {acct_type} total is correct, so those units most likely moved "
-        f"from another account without being recorded."
+        f"The {acct_type} total is correct, so those units were most likely "
+        f"transferred from another account without being recorded."
     )
 
 
-def _check_unit_balances(folio: _Folio) -> _Outcome:
+def _check_unit_balances(folio: _LedgerIndex) -> _Outcome:
     """Report holdings that go negative: the proof that a row is missing."""
     findings = []
     explained: set[tuple[str | None, str | None]] = set()
-    for warning, computed in folio.tagged(WarningCode.OVERSELL, grain=Grain.ACCOUNT):
+    for diagnostic, computed in folio.tagged(
+        DiagnosticCode.OVERSELL,
+        grain=Grain.ACCOUNT,
+    ):
         row = computed.row
-        held = warning.value if warning.value is not None else ZERO
+        held = diagnostic.value if diagnostic.value is not None else ZERO
         sold = abs(row.units)
-        explained.add((warning.symbol, row.account))
+        explained.add((diagnostic.symbol, row.account))
         findings.append(
             CheckFinding(
-                subject=str(warning.symbol or row.ticker),
+                subject=str(diagnostic.symbol or row.ticker),
                 detail=(
                     f"{row.account} sold {_units(sold)} units on {row.txn_date} "
                     f"but only held {_units(max(held, ZERO))} there. "
                     f"{_units(sold - held)} units are unaccounted for. "
-                    f"{_shortfall_reason(folio, warning)}"
+                    f"{_shortfall_reason(folio, diagnostic)}"
                 ),
                 txn_ids=(row.txn_id,),
             ),
@@ -408,16 +420,17 @@ def _check_unit_balances(folio: _Folio) -> _Outcome:
     # A holding left negative by a sale already reported above is the same
     # defect seen from the other end. Reporting it twice pads the count and
     # tells the reader nothing they were not just told.
-    for warning in _ordered(
-        folio.at(Grain.ACCOUNT, WarningCode.NEGATIVE_FINAL_POSITION),
+    for diagnostic in _ordered(
+        folio.at(Grain.ACCOUNT, DiagnosticCode.NEGATIVE_FINAL_UNITS),
     ):
-        if (warning.symbol, warning.account) in explained:
+        if (diagnostic.symbol, diagnostic.account) in explained:
             continue
         findings.append(
             CheckFinding(
-                subject=str(warning.symbol),
+                subject=str(diagnostic.symbol),
                 detail=(
-                    f"{warning.account} ends holding {_units(warning.value or ZERO)} "
+                    f"{diagnostic.account} ends holding "
+                    f"{_units(diagnostic.value or ZERO)} "
                     f"units of it, which cannot happen. A purchase or a transfer "
                     f"in is missing."
                 ),
@@ -432,13 +445,13 @@ def _check_unit_balances(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_cash_balances(folio: _Folio) -> _Outcome:
+def _check_cash_balances(folio: _LedgerIndex) -> _Outcome:
     """Report the first date each account's cash crosses below zero."""
     findings = []
-    for warning in _ordered(folio.having(WarningCode.CASH_NEGATIVE)):
-        account = str(warning.account)
-        currency = warning.currency or Currency.CAD
-        crossed = warning.value if warning.value is not None else ZERO
+    for diagnostic in _ordered(folio.having(DiagnosticCode.CASH_NEGATIVE)):
+        account = str(diagnostic.account)
+        currency = diagnostic.currency or Currency.CAD
+        crossed = diagnostic.value if diagnostic.value is not None else ZERO
         ended = folio.cash(account, currency)
         if q2(ended) == q2(crossed):
             # A balance that never moves again is one past error, not a running
@@ -453,10 +466,10 @@ def _check_cash_balances(folio: _Folio) -> _Outcome:
             CheckFinding(
                 subject=f"{account} {currency}",
                 detail=(
-                    f"first goes negative on {warning.as_of}, at "
+                    f"first goes negative on {diagnostic.as_of}, at "
                     f"{_money(crossed, currency)}, {tail}"
                 ),
-                txn_ids=(warning.txn_id,) if warning.txn_id else (),
+                txn_ids=(diagnostic.txn_id,) if diagnostic.txn_id else (),
             ),
         )
     return _Outcome(
@@ -466,15 +479,15 @@ def _check_cash_balances(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_split_coverage(folio: _Folio) -> _Outcome:
+def _check_split_coverage(folio: _LedgerIndex) -> _Outcome:
     """Report splits missing from an account that held the security.
 
     A split reaches only its own account, so a missing row is silent forever.
     """
     missing: dict[tuple[str, str], list[str]] = {}
-    for warning in folio.having(WarningCode.SPLIT_SCOPE_MISMATCH):
-        key = (str(warning.symbol), str(warning.as_of))
-        missing.setdefault(key, []).append(str(warning.account))
+    for diagnostic in folio.having(DiagnosticCode.SPLIT_MISSING_ON_ACCOUNT):
+        key = (str(diagnostic.symbol), str(diagnostic.as_of))
+        missing.setdefault(key, []).append(str(diagnostic.account))
 
     findings = [
         CheckFinding(
@@ -487,17 +500,17 @@ def _check_split_coverage(folio: _Folio) -> _Outcome:
         )
         for (symbol, on), accounts in sorted(missing.items())
     ]
-    duplicates = _ordered(folio.having(WarningCode.DUPLICATE_SPLIT))
+    duplicates = _ordered(folio.having(DiagnosticCode.DUPLICATE_SPLIT))
     findings.extend(
         CheckFinding(
-            subject=str(warning.symbol),
+            subject=str(diagnostic.symbol),
             detail=(
-                f"is split twice on {warning.as_of} in {warning.account}. "
+                f"is split twice on {diagnostic.as_of} in {diagnostic.account}. "
                 f"One of the two rows is a duplicate."
             ),
-            txn_ids=(warning.txn_id,) if warning.txn_id else (),
+            txn_ids=(diagnostic.txn_id,) if diagnostic.txn_id else (),
         )
-        for warning in duplicates
+        for diagnostic in duplicates
     )
 
     if not missing:
@@ -517,17 +530,17 @@ def _check_split_coverage(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_income_sanity(folio: _Folio) -> _Outcome:
+def _check_income_sanity(folio: _LedgerIndex) -> _Outcome:
     """Income arriving where nothing is held usually means the holding is missing."""
     findings = []
-    for warning, computed in folio.tagged(WarningCode.INCOME_WITHOUT_POSITION):
+    for diagnostic, computed in folio.tagged(DiagnosticCode.INCOME_WITHOUT_HOLDING):
         row = computed.row
         paid = "a return of capital" if row.action is Action.ROC else "a dividend"
         findings.append(
             CheckFinding(
                 subject=f"TxnId {row.txn_id}",
                 detail=(
-                    f"{row.account} received {paid} on {warning.symbol} on "
+                    f"{row.account} received {paid} on {diagnostic.symbol} on "
                     f"{row.txn_date} while holding none of it. Either the "
                     f"purchase is missing or the income is on the wrong account."
                 ),
@@ -535,17 +548,17 @@ def _check_income_sanity(folio: _Folio) -> _Outcome:
             ),
         )
 
-    for warning in _ordered(folio.at(Grain.ACCOUNT, WarningCode.ROC_EXCEEDS_ACB)):
+    for diagnostic in _ordered(folio.at(Grain.ACCOUNT, DiagnosticCode.ROC_EXCEEDS_ACB)):
         findings.append(  # noqa: PERF401 - the two loops read different findings
             CheckFinding(
-                subject=f"TxnId {warning.txn_id}",
+                subject=f"TxnId {diagnostic.txn_id}",
                 detail=(
-                    f"return of capital on {warning.symbol} in {warning.account} "
-                    f"runs {_money(warning.value or ZERO)} past what the holding "
+                    f"return of capital on {diagnostic.symbol} in {diagnostic.account} "
+                    f"runs {_money(diagnostic.value or ZERO)} past what the holding "
                     f"cost. The excess becomes a realized gain, so check it is "
                     f"really a return of capital."
                 ),
-                txn_ids=(warning.txn_id,) if warning.txn_id else (),
+                txn_ids=(diagnostic.txn_id,) if diagnostic.txn_id else (),
             ),
         )
     return _Outcome(
@@ -556,10 +569,10 @@ def _check_income_sanity(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_conversion_arithmetic(folio: _Folio) -> _Outcome:
+def _check_conversion_arithmetic(folio: _LedgerIndex) -> _Outcome:
     """Report conversions whose amount, units and rate disagree."""
     findings = []
-    for _warning, computed in folio.tagged(WarningCode.FXT_AMOUNT_INCONSISTENT):
+    for _diagnostic, computed in folio.tagged(DiagnosticCode.FXT_AMOUNT_INCONSISTENT):
         row = computed.row
         # The engine compares magnitudes, so the implied figure is shown with
         # the recorded amount's sign.
@@ -583,15 +596,15 @@ def _check_conversion_arithmetic(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_currency_consistency(folio: _Folio) -> _Outcome:
+def _check_currency_consistency(folio: _LedgerIndex) -> _Outcome:
     """Report securities booked in more than one currency."""
-    by_symbol: dict[str, list[ReplayWarning]] = {}
-    for warning in folio.having(WarningCode.MIXED_CURRENCY):
-        by_symbol.setdefault(str(warning.symbol), []).append(warning)
+    by_symbol: dict[str, list[Diagnostic]] = {}
+    for diagnostic in folio.having(DiagnosticCode.MIXED_CURRENCY):
+        by_symbol.setdefault(str(diagnostic.symbol), []).append(diagnostic)
 
     findings = []
-    for symbol, warnings in sorted(by_symbol.items()):
-        odd = _ordered(warnings)
+    for symbol, diagnostics in sorted(by_symbol.items()):
+        odd = _ordered(diagnostics)
         counts = [
             _plural(count, f"row of {name}")
             for name, count in folio.currency_split(symbol)
@@ -615,10 +628,10 @@ def _check_currency_consistency(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_settlement_dates(folio: _Folio) -> _Outcome:
+def _check_settlement_dates(folio: _LedgerIndex) -> _Outcome:
     """Settlement lags are a broker habit, so a stray one is usually a typo."""
     findings = []
-    for _warning, computed in folio.tagged(WarningCode.SETTLE_BEFORE_TRADE):
+    for _diagnostic, computed in folio.tagged(DiagnosticCode.SETTLEMENT_BEFORE_TRADE):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -631,7 +644,7 @@ def _check_settlement_dates(folio: _Folio) -> _Outcome:
             ),
         )
 
-    for _warning, computed in folio.tagged(WarningCode.SETTLE_LAG_OUTLIER):
+    for _diagnostic, computed in folio.tagged(DiagnosticCode.SETTLEMENT_LAG_OUTLIER):
         row = computed.row
         findings.append(
             CheckFinding(
@@ -653,10 +666,10 @@ def _check_settlement_dates(folio: _Folio) -> _Outcome:
     )
 
 
-def _check_transfers(folio: _Folio) -> _Outcome:
+def _check_transfers(folio: _LedgerIndex) -> _Outcome:
     """Report transfer legs with no matching counterpart."""
     findings = []
-    for _warning, computed in folio.tagged(WarningCode.TRANSFER_UNPAIRED):
+    for _diagnostic, computed in folio.tagged(DiagnosticCode.TRANSFER_UNPAIRED):
         row = computed.row
         leaving = row.action is Action.TFR_OUT
         moved = (
@@ -668,7 +681,7 @@ def _check_transfers(folio: _Folio) -> _Outcome:
             CheckFinding(
                 subject=f"TxnId {row.txn_id}",
                 detail=(
-                    f"{row.account} moved {moved} "
+                    f"{row.account} transferred {moved} "
                     f"{'out on' if leaving else 'in on'} {row.txn_date}, and no "
                     f"other account records the matching side. Without it the "
                     f"cost base cannot follow the units across."
@@ -689,7 +702,7 @@ def _check_transfers(folio: _Folio) -> _Outcome:
 # Printed in this order. Identity first, because an account with no type makes
 # every later check unreliable, then the checks that prove a row is missing,
 # then the ones that only ask for a second look.
-_CHECKS: tuple[tuple[str, str, Callable[[_Folio], _Outcome]], ...] = (
+_CHECKS: tuple[tuple[str, str, Callable[[_LedgerIndex], _Outcome]], ...] = (
     ("account-types", "Account types", _check_account_types),
     ("unit-balances", "Unit balances", _check_unit_balances),
     ("cash-balances", "Cash balances", _check_cash_balances),
@@ -734,7 +747,7 @@ def run_checks(ledger: Ledger, config: ChecksConfig) -> list[CheckResult]:
     """
     disabled = set(config.checks_disabled)
     validate_slugs(disabled)
-    folio = _Folio(ledger, config)
+    folio = _LedgerIndex(ledger, config)
     return [
         run(folio).to_result(name, slug)
         for slug, name, run in _CHECKS

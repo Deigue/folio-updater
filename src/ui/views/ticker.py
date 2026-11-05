@@ -93,7 +93,7 @@ _COMPARABLE = 2
 def show_ticker(
     quote: Quote,
     moves: Mapping[PriceRange, RangeMove | None],
-    positions: Sequence[SymbolHoldings],
+    per_currency: Sequence[SymbolHoldings],
     *,
     aliases: Sequence[str] = (),
     by_account: bool = False,
@@ -102,9 +102,9 @@ def show_ticker(
     """Print everything known about one security.
 
     Args:
-        quote: Its live quote, fundamentals included.
+        quote: Its quote, fundamentals included.
         moves: Its price move over every range.
-        positions: Its holdings across the folio, one per currency shown.
+        per_currency: Its holdings across the folio, one per currency shown.
             Empty for a security the folio never traded.
         aliases: Other symbols the folio has known it by.
         by_account: The holdings list broker accounts rather than types.
@@ -128,15 +128,15 @@ def show_ticker(
     tiles.append(Tile(_chart_grid(moves, room)))
     TilingLayout(tiles, ordered=True).render()
 
-    for position in positions:
-        fitted = fit(_pool_table(position, by_account=by_account), _POOL_DROP_ORDER)
+    for holdings in per_currency:
+        fitted = fit(_pool_table(holdings, by_account=by_account), _POOL_DROP_ORDER)
         if fitted.note:
             console_print(fitted.note)
         console_print(fitted.table)
-        for note in _conversion_notes(position, quote):
+        for note in _conversion_notes(holdings, quote):
             console_print(note)
-    if positions:
-        for note in _footer(positions[0]):
+    if per_currency:
+        for note in _footer(per_currency[0]):
             console_print(note)
 
 
@@ -406,11 +406,11 @@ def _grid_width(per_row: int, points: int) -> int:
 # -- HOLDING ------------------------------------------------------------------
 
 
-def _pool_table(position: SymbolHoldings, *, by_account: bool) -> RichTable:
+def _pool_table(holdings: SymbolHoldings, *, by_account: bool) -> RichTable:
     """Print every pool's holding, with the folio-wide total below."""
     share = "Acct%" if by_account else "Type%"
     table = RichTable(
-        title=f"{position.symbol} held · {position.currency}",
+        title=f"{holdings.symbol} held · {holdings.currency}",
         title_justify="left",
         border_style=TABLE_BORDER,
         header_style=TABLE_HEADER,
@@ -437,15 +437,15 @@ def _pool_table(position: SymbolHoldings, *, by_account: bool) -> RichTable:
             no_wrap=True,
         )
 
-    for line in position.lines:
+    for line in holdings.lines:
         cells = _closed_cells(line) if line.holding.closed else _open_cells(line)
         table.add_row(*cells, style="dim" if line.holding.closed else None)
 
-    if position.pooled_differs:
+    if holdings.pooled_differs:
         table.add_section()
         table.add_row(
             "POOLED",
-            *_figures(position.total, share=None),
+            *_figures(holdings.total, share=None),
             style=GRAND_TOTAL_ROW_STYLE,
         )
     return table
@@ -508,11 +508,11 @@ def _closed_cells(line: PoolLine) -> list[str]:
     ]
 
 
-def _conversion_notes(position: SymbolHoldings, quote: Quote) -> list[str]:
+def _conversion_notes(holdings: SymbolHoldings, quote: Quote) -> list[str]:
     """Say what a table in another currency than the quote's was converted at."""
-    if position.currency is quote.currency or position.fx_rate is None:
+    if holdings.currency is quote.currency or holdings.fx_rate is None:
         return []
-    rate = f"USDCAD {float(position.fx_rate):,.4f} ({position.fx_date})"
+    rate = f"USDCAD {float(holdings.fx_rate):,.4f} ({holdings.fx_date})"
     note = (
         "[dim]Cost base at each transaction's settlement-date rate; "
         f"market value at {rate}.[/dim]"
@@ -520,12 +520,12 @@ def _conversion_notes(position: SymbolHoldings, quote: Quote) -> list[str]:
     return [note]
 
 
-def _footer(position: SymbolHoldings) -> list[str]:
+def _footer(holdings: SymbolHoldings) -> list[str]:
     """Say when it was first bought and at what, and anything the replay flagged."""
     notes: list[str] = []
-    years, months = position.held_for(datetime.now(TORONTO_TZ).date())
-    traded = long_date(position.first_traded)
-    bought = position.first_buy
+    years, months = holdings.held_for(datetime.now(TORONTO_TZ).date())
+    traded = long_date(holdings.first_traded)
+    bought = holdings.first_buy
     if bought is None:
         # Only ever transferred in: there is no purchase price to give.
         opening = f"First traded {traded}"
@@ -533,7 +533,7 @@ def _footer(position: SymbolHoldings) -> list[str]:
         at = f"at {price(bought.price)} {bought.currency}"
         if bought.split_since:
             at += " (before a later split)"
-        if bought.date == position.first_traded:
+        if bought.date == holdings.first_traded:
             opening = f"First bought {traded} {at}"
         else:
             # Transferred in first, bought later: both dates matter.
@@ -541,13 +541,13 @@ def _footer(position: SymbolHoldings) -> list[str]:
                 f"First traded {traded} · first bought {long_date(bought.date)} {at}"
             )
     notes.append(f"[dim]{opening} · held {years}y {months}m[/dim]")
-    if not position.total.priced and not position.total.closed:
+    if not holdings.total.priced and not holdings.total.closed:
         notes.append(
             f"[yellow]{WARN_GLYPH} No price: market value and unrealized "
             f"gain are blank.[/yellow]",
         )
-    if position.flags:
-        codes = ", ".join(str(code) for code in position.flags)
+    if holdings.flags:
+        codes = ", ".join(str(code) for code in holdings.flags)
         notes.append(
             f"[yellow]{WARN_GLYPH} Flags: {codes}. Run `folio check`.[/yellow]",
         )

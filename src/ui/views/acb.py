@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, NamedTuple
 import pandas as pd
 from rich.table import Table as RichTable
 
-from domain import Action, Column, Currency, Grain, WarningCode
+from domain import Action, Column, Currency, DiagnosticCode, Grain
 from engine.frames import acb_summary_frame, grain_column
 from term import console_print, console_warning, supports_unicode
 from ui.format import freshness_badge
@@ -226,7 +226,7 @@ def _build_table(
         header_style=TABLE_HEADER,
         border_style=TABLE_BORDER,
     )
-    for name in ("Settle", "TxnId", "Action"):
+    for name in ("Settlement", "TxnId", "Action"):
         table.add_column(name, no_wrap=True)
     for name in ("Units", "Held", "Price", "Amount", "Fee"):
         table.add_column(name, justify="right")
@@ -295,7 +295,7 @@ def _render_row(
     action = str(row[str(Column.Txn.ACTION)])
     colour = TRANSACTION_COLORS.get(Action(action), "white") if action else "white"
     units = row[str(Column.Txn.UNITS)]
-    superficial_loss = str(WarningCode.SUPERFICIAL_LOSS_SUSPECT) in str(
+    superficial_loss = str(DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT) in str(
         row["Flags"] or "",
     ).split(",")
     cells = [
@@ -467,7 +467,7 @@ def show_summary(
         max_rows=len(records),
         drop_order=_SUMMARY_DROP_ORDER,
     )
-    _print_footer(rows, exclude={str(WarningCode.SUPERFICIAL_LOSS_SUSPECT)})
+    _print_footer(rows, exclude={str(DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT)})
 
 
 def show_buildup(
@@ -479,9 +479,9 @@ def show_buildup(
 ) -> None:
     """Print the per-transaction buildup for one symbol.
 
-    Rows are dated and ordered by *settle* date (the date the cash and the FX
+    Rows are dated and ordered by *settlement* date (the date the cash and the FX
     rate belong to) and shown newest first, the way adjustedcostbase.ca lists
-    them. The cost base itself is still replayed in trade-date order; this is
+    them. The cost base itself is still replayed in transaction-date order; this is
     presentation only, and the two orders disagree on a handful of rows where a
     same-day action settles before a trade made earlier.
     """

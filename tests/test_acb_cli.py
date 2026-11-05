@@ -588,7 +588,7 @@ def _write_quote(*_: object) -> None:
             Table.QUOTES,
             {
                 Column.Quote.SYMBOL: TICKER,
-                Column.Quote.YSYMBOL: TICKER,
+                Column.Quote.PROVIDER_SYMBOL: TICKER,
                 Column.Quote.PRICE: 151.5,
                 Column.Quote.STATUS: QuoteStatus.OK,
             },
@@ -959,7 +959,7 @@ def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
 
 # --- table presentation -----------------------------------------------------------
 #
-# Display only: the replay still walks trade dates, and none of these change a
+# Display only: the replay still walks transaction dates, and none of these change a
 # reported number.
 
 

@@ -35,7 +35,7 @@ The FX rates are exported to a dedicated sheet in your folio workbook. The sheet
 
 ```yaml
 sheets:
-  fx: FX  # Default sheet name for forex rates
+  fx: FX  # Default sheet name for FX rates
 ```
 
 ### Data Structure

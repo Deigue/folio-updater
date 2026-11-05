@@ -2,7 +2,7 @@
 
 Every stage of an update prints its own audit. These rules read those
 results and pick out noticable anomolies afterwards: rows that never made it in,
-rows that arrived twice, cash moves that were really transfers, settlement dates no
+rows that arrived twice, cash that was really a transfer, settlement dates no
 statement could confirm. Each is labeled a `Concern` carrying the rows involved and
 the commands required to fix them.
 """
@@ -203,7 +203,7 @@ def before_overlap_day(rejected: pd.DataFrame, overlap_day: str | None) -> pd.Da
 
     Args:
         rejected: Rows rejected as already in the database.
-        overlap_day: The broker's latest stored trade date before this run, or
+        overlap_day: The broker's latest stored transaction date before this run, or
             None when the file is not a broker download.
 
     Returns:
@@ -240,7 +240,7 @@ def review_import(
     Args:
         filename: The file imported.
         results: What the import pipeline produced.
-        overlap_day: The broker's latest stored trade date before this run, or
+        overlap_day: The broker's latest stored transaction date before this run, or
             None when the file is not a broker download.
 
     Returns:
@@ -537,7 +537,7 @@ def transfer_like_pairs(
 
 
 def review_transfer_pairs(txns: pd.DataFrame, new_ids: Iterable[int]) -> Concern | None:
-    """Raise the withdrawal/contribution pairs that look like internal transfers.
+    """Raise the withdrawal/contribution pairs that look like transfers.
 
     Args:
         txns: Every stored transaction.
@@ -634,8 +634,8 @@ def review_statement(
         The concerns: unplaced rows and rejected transfers.
     """
     concerns: list[Concern] = []
-    settled = (SettlementOutcome.MATCHED, SettlementOutcome.ALREADY_SETTLED)
-    unplaced = [m for m in matches if m.outcome not in settled]
+    confirmed = (SettlementOutcome.CONFIRMED, SettlementOutcome.ALREADY_CONFIRMED)
+    unplaced = [m for m in matches if m.outcome not in confirmed]
     if unplaced:
         rows = pd.DataFrame(
             {

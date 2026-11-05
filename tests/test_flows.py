@@ -201,7 +201,7 @@ def test_an_in_kind_transfer_cancels_at_the_pooled_grains(
         assert folio.net_deposits[Currency.CAD] == Decimal(1000)
 
 
-def test_a_currency_journal_leaves_net_deposits_alone(
+def test_a_journal_leaves_net_deposits_alone(
     temp_ctx: TempContext,
 ) -> None:
     """Norbert's Gambit converts money, it does not deposit any.
@@ -520,7 +520,7 @@ def test_an_unpaired_leg_falls_back_to_face_value(temp_ctx: TempContext) -> None
 
 
 def test_negative_cash_is_surfaced_as_an_alert(temp_ctx: TempContext) -> None:
-    """The highest-value alert available without a real brokerage balance."""
+    """The most useful thing to point out without a real brokerage balance."""
     with temp_ctx():
         seed_fx(FX_DATES)
         # A buy with no contribution funding it: cash goes below zero, which

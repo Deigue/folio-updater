@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from domain import Currency
-from engine.fx_rates import FxRates, FxRateUnavailableError, FxWarning, load_fx_rates
+from engine.fx_rates import FxFallback, FxRates, FxRateUnavailableError, load_fx_rates
 
 from .helpers.seed import seed_fx
 
@@ -33,32 +33,32 @@ def test_weekend_carries_back_to_friday() -> None:
     conversion = WEEK.to_cad(D("100"), "2024-06-29", Currency.USD)
     assert conversion.rate_date == "2024-06-28"
     assert conversion.value == D("137.20")
-    assert conversion.warning is FxWarning.CARRIED_BACK
+    assert conversion.fallback is FxFallback.CARRIED_BACK
 
 
 def test_canadian_holiday_carries_back() -> None:
     """Canada Day: US markets settle, the Bank of Canada does not publish."""
     conversion = WEEK.to_cad(D("100"), "2024-07-01", Currency.USD)
     assert conversion.rate_date == "2024-06-28"
-    assert conversion.warning is FxWarning.CARRIED_BACK
+    assert conversion.fallback is FxFallback.CARRIED_BACK
 
 
 def test_before_coverage_uses_the_earliest_rate() -> None:
     conversion = WEEK.to_cad(D("100"), "2020-01-01", Currency.USD)
     assert conversion.rate_date == "2024-06-26"
-    assert conversion.warning is FxWarning.UNCOVERED
+    assert conversion.fallback is FxFallback.UNCOVERED
 
 
 def test_after_coverage_carries_the_latest_forward() -> None:
     conversion = WEEK.to_cad(D("100"), "2030-01-01", Currency.USD)
     assert conversion.rate_date == "2024-07-02"
-    assert conversion.warning is FxWarning.STALE
+    assert conversion.fallback is FxFallback.STALE
 
 
 def test_same_currency_needs_no_lookup() -> None:
     conversion = WEEK.to_cad(D("100"), "1900-01-01", Currency.CAD)
     assert conversion.value == D("100")
-    assert conversion.warning is None
+    assert conversion.fallback is None
 
 
 def test_from_cad_divides_at_full_precision() -> None:
@@ -110,4 +110,4 @@ def test_load_fx_rates_is_empty_without_a_table(temp_ctx: TempContext) -> None:
 def test_from_cad_to_cad_is_the_identity() -> None:
     conversion = WEEK.from_cad(D("100"), "1900-01-01", Currency.CAD)
     assert conversion.value == D("100")
-    assert conversion.warning is None
+    assert conversion.fallback is None

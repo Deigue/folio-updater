@@ -1,4 +1,4 @@
-"""Tests verifying forex coverage is extended at both ends."""
+"""Tests verifying FX coverage is extended at both ends."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from datagen import ensure_data_exists
 from db import create_txns_table, drop_table, get_connection, get_row_count
 from domain import TORONTO_TZ, Column, Table
 from engine.ledger import open_ledger
-from services import ForexService
+from services import FxService
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
 from .helpers.seed import seed_fx, seed_transaction
@@ -53,8 +53,8 @@ def test_ensure_coverage_defaults_to_the_earliest_transaction(
         oldest_txn = rate_dates[-20]
         seed_transaction(date=oldest_txn, settle_date=oldest_txn)
 
-        assert ForexService.ensure_coverage() == 20
-        assert ForexService.get_earliest_fx_date_from_db() == oldest_txn
+        assert FxService.ensure_coverage() == 20
+        assert FxService.get_earliest_fx_date_from_db() == oldest_txn
 
 
 @pytest.mark.parametrize("make_table", [False, True], ids=["no_table", "empty_table"])
@@ -69,7 +69,7 @@ def test_ensure_coverage_falls_back_to_thirty_days_ago(
         if make_table:
             create_txns_table()
 
-        ForexService.ensure_coverage()
+        FxService.ensure_coverage()
 
         # Asserted on the date requested rather than on what came back: the
         # first business day on or after the cutoff is the same for a couple of
@@ -85,15 +85,15 @@ def test_ensure_coverage_backfills_history_older_than_the_earliest_rate(
     """A plain top-up from MAX(Date) only extends forward; this fixes that."""
     with temp_ctx():
         _seed_rates(rate_dates[-2:])
-        assert ForexService.get_earliest_fx_date_from_db() == rate_dates[-2]
+        assert FxService.get_earliest_fx_date_from_db() == rate_dates[-2]
 
         # The refetch spans the held dates too; only the new ones are written,
         # since the rest would collide on the Date primary key.
-        assert ForexService.ensure_coverage(rate_dates[-20]) == 18
-        assert ForexService.get_earliest_fx_date_from_db() == rate_dates[-20]
+        assert FxService.ensure_coverage(rate_dates[-20]) == 18
+        assert FxService.get_earliest_fx_date_from_db() == rate_dates[-20]
 
         # Asking again finds nothing left to add.
-        assert ForexService.ensure_coverage(rate_dates[-20]) == 0
+        assert FxService.ensure_coverage(rate_dates[-20]) == 0
 
 
 def test_ensure_coverage_discards_dates_it_already_holds(
@@ -111,7 +111,7 @@ def test_ensure_coverage_discards_dates_it_already_holds(
         # A start older than the earliest rate held always forces a refetch,
         # but here the response carries only dates already stored: nothing is
         # written, and nothing collides on the Date primary key.
-        assert ForexService.ensure_coverage(earlier) == 0
+        assert FxService.ensure_coverage(earlier) == 0
         assert boc_fetch.call_args.args == (earlier,)
 
 
@@ -122,7 +122,7 @@ def test_ensure_coverage_is_a_no_op_when_the_span_is_already_held(
 ) -> None:
     with temp_ctx():
         _seed_rates(rate_dates[-20:])
-        assert ForexService.ensure_coverage(rate_dates[-20], rate_dates[-1]) == 0
+        assert FxService.ensure_coverage(rate_dates[-20], rate_dates[-1]) == 0
         boc_fetch.assert_not_called()
 
 
@@ -133,11 +133,11 @@ def test_ensure_coverage_never_chases_a_future_end(
 ) -> None:
     """Dont invoke API if end date is in the future."""
     with temp_ctx():
-        today = ForexService.effective_today()
+        today = FxService.effective_today()
         _seed_rates([*rate_dates[-5:], today])
         future = (pd.to_datetime(today) + pd.Timedelta(days=2)).strftime("%Y-%m-%d")
 
-        assert ForexService.ensure_coverage(rate_dates[-5], future) == 0
+        assert FxService.ensure_coverage(rate_dates[-5], future) == 0
         boc_fetch.assert_not_called()
 
 
@@ -148,7 +148,7 @@ def test_ensure_coverage_tops_up_the_forward_end(
 ) -> None:
     with temp_ctx():
         _seed_rates(rate_dates[-20:-10])
-        assert ForexService.ensure_coverage(rate_dates[-20]) == 10
+        assert FxService.ensure_coverage(rate_dates[-20]) == 10
 
         # Picked up from the day after the newest rate held, not from `start`.
         day_after = pd.to_datetime(rate_dates[-11]) + pd.Timedelta(days=1)
@@ -160,7 +160,7 @@ def test_ensure_coverage_without_any_stored_rates(
     rate_dates: list[str],
 ) -> None:
     with temp_ctx():
-        assert ForexService.ensure_coverage(rate_dates[-5]) == 5
+        assert FxService.ensure_coverage(rate_dates[-5]) == 5
 
 
 def test_ensure_coverage_handles_an_empty_response(
@@ -172,7 +172,7 @@ def test_ensure_coverage_handles_an_empty_response(
         _seed_rates(rate_dates[-1:])
         boc_fetch.side_effect = None
         boc_fetch.return_value = pd.DataFrame()
-        assert ForexService.ensure_coverage(rate_dates[0]) == 0
+        assert FxService.ensure_coverage(rate_dates[0]) == 0
 
 
 def test_getfx_backfills_rates_older_than_the_ones_held(
@@ -190,13 +190,13 @@ def test_getfx_backfills_rates_older_than_the_ones_held(
 
         # Fetched from the earliest transaction date, not from MAX(Date) + 1.
         assert boc_fetch.call_args.args == (oldest_txn,)
-        assert ForexService.get_earliest_fx_date_from_db() == oldest_txn
+        assert FxService.get_earliest_fx_date_from_db() == oldest_txn
     assert_cli_success(result)
 
 
 # --- opening the ledger ---------------------------------------------------------
 
-# One trade: its trade date starts the top-up, its settlement date can end it.
+# One trade: its transaction date starts the top-up, its settlement date can end it.
 TRADED = "2025-08-15"
 SETTLED = "2025-08-18"
 
@@ -206,9 +206,9 @@ def top_up() -> Generator[MagicMock]:
     """Stand in for the Bank of Canada top-up, which is external.
 
     Yields:
-        The mock standing in for `ForexService.ensure_coverage`.
+        The mock standing in for `FxService.ensure_coverage`.
     """
-    with patch.object(ForexService, "ensure_coverage", return_value=0) as fake:
+    with patch.object(FxService, "ensure_coverage", return_value=0) as fake:
         yield fake
 
 

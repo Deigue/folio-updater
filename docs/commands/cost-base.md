@@ -160,13 +160,13 @@ is recorded.
 | Code                       | Meaning                                                      |
 | -------------------------- | ------------------------------------------------------------ |
 | `OVERSELL`                 | Replayed units went negative                                 |
-| `NEGATIVE_FINAL_POSITION`  | A pool ends below zero                                       |
+| `NEGATIVE_FINAL_UNITS`     | A pool ends below zero                                       |
 | `CASH_NEGATIVE`            | Cash went negative in a non-margin account                   |
 | `DUPLICATE_SPLIT`          | Two split rows for the same ticker in the same account       |
-| `SPLIT_WITHOUT_POSITION`   | A split against a pool holding nothing                       |
+| `SPLIT_WITHOUT_HOLDING`    | A split against a pool holding nothing                       |
 | `ROC_EXCEEDS_ACB`          | Return of capital drove the cost base below zero             |
-| `INCOME_WITHOUT_POSITION`  | A dividend or return of capital with no holding              |
-| `SETTLE_BEFORE_TRADE`      | A trade that settles before it was made                      |
+| `INCOME_WITHOUT_HOLDING`   | A dividend or return of capital with no holding              |
+| `SETTLEMENT_BEFORE_TRADE`  | A trade that settles before it was made                      |
 | `AMBIGUOUS_FEE_CONVENTION` | A trade matching neither fee convention                      |
 | `FXT_AMOUNT_INCONSISTENT`  | A conversion whose `Amount` and `Units * Price` disagree     |
 | `UNKNOWN_ACCOUNT_TYPE`     | An account name the convention could not resolve             |
@@ -187,9 +187,9 @@ printed a table.
 
 Two of these are deliberately narrower than they first appear:
 
-- **`SETTLE_BEFORE_TRADE` judges trades only.** This diagnostic code is only applicable
+- **`SETTLEMENT_BEFORE_TRADE` judges trades only.** This diagnostic code is only applicable
   to trade type transactions like `BUY` and `SELL`
-- **`INCOME_WITHOUT_POSITION` allows a 60-day tail.** A dividend is earned
+- **`INCOME_WITHOUT_HOLDING` allows a 60-day tail.** A dividend is earned
   on its ex-date and paid weeks later, during which the holding could be sold out. The
   diagnostic is income against a pool that never held the symbol, or has not held it in months.
 

@@ -6,7 +6,7 @@ saved beside the frame, so a reused ledger reports exactly what a fresh replay
 would without replaying.
 
 Diagnostics are saved as a frame of one record per diagnostic, each carrying the
-exact computed row it tags. Only the rows a diagnostic points at are stored: the
+exact ledger row it tags. Only the rows a diagnostic points at are stored: the
 diagnostic report needs full details for the transactions it prints, nothing
 more. Every figure is stored as text, so no Decimal loses a digit.
 """
@@ -19,13 +19,13 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from domain import AccountType, Action, Currency, Grain, Impact, WarningCode
+from domain import AccountType, Action, Currency, DiagnosticCode, Grain, Impact
 from engine.types import (
     CashState,
-    ComputedRow,
+    Diagnostic,
     GrainMeasures,
+    LedgerRow,
     ReplayTotals,
-    ReplayWarning,
     TxnRow,
 )
 
@@ -36,25 +36,25 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # The nine `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
 
-# The three per-grain measure sets a computed row carries, by attribute.
+# The three per-grain measure sets a ledger row carries, by attribute.
 _GRAINS = ("acct", "type", "folio")
 
 # Every column below is read off the dataclasses, so a field added to
-# `ReplayWarning`, `TxnRow` or `ComputedRow` is saved with no edit here. Only a
+# `Diagnostic`, `TxnRow` or `LedgerRow` is saved with no edit here. Only a
 # field that must come back as something other than text needs a decoder.
-_DIAGNOSTIC_COLUMNS = tuple(field.name for field in fields(ReplayWarning))
+_DIAGNOSTIC_COLUMNS = tuple(field.name for field in fields(Diagnostic))
 
 # The transaction's own columns (its id is the key), then the derived scalars
-# of the computed row beside it. The per-grain measures and the flags follow.
+# of the ledger row beside it. The per-grain measures and the flags follow.
 _TXN_FIELDS = tuple(field.name for field in fields(TxnRow) if field.name != "txn_id")
 _DERIVED_FIELDS = tuple(
     field.name
-    for field in fields(ComputedRow)
+    for field in fields(LedgerRow)
     if field.name not in {"row", "flags", *_GRAINS}
 )
 
@@ -92,7 +92,7 @@ def _optional(convert: Callable[[Any], Any]) -> Callable[[Any], Any]:
 
 # How the fields that are not plain text come back from storage.
 _DIAGNOSTIC_DECODERS: dict[str, Callable[[Any], Any]] = {
-    "code": WarningCode,
+    "code": DiagnosticCode,
     "txn_id": _optional(int),
     "grain": _optional(Grain),
     "currency": _optional(Currency),
@@ -115,14 +115,14 @@ _ROW_DECODERS: dict[str, Callable[[Any], Any]] = {
 }
 
 
-def _encode_diagnostic(diagnostic: ReplayWarning) -> dict[str, str | None]:
+def _encode_diagnostic(diagnostic: Diagnostic) -> dict[str, str | None]:
     """Flatten one diagnostic."""
     return {name: _text(getattr(diagnostic, name)) for name in _DIAGNOSTIC_COLUMNS}
 
 
-def _decode_diagnostic(record: Mapping[Hashable, Any]) -> ReplayWarning:
+def _decode_diagnostic(record: Mapping[Hashable, Any]) -> Diagnostic:
     """Restore one diagnostic."""
-    return ReplayWarning(
+    return Diagnostic(
         **{
             name: _DIAGNOSTIC_DECODERS.get(name, _same)(record[name])
             for name in _DIAGNOSTIC_COLUMNS
@@ -130,8 +130,8 @@ def _decode_diagnostic(record: Mapping[Hashable, Any]) -> ReplayWarning:
     )
 
 
-def _encode_row(computed: ComputedRow) -> dict[str, str | None]:
-    """Flatten one computed row, money included, losing nothing."""
+def _encode_row(computed: LedgerRow) -> dict[str, str | None]:
+    """Flatten one ledger row, money included, losing nothing."""
     values = [
         *(getattr(computed.row, name) for name in _TXN_FIELDS),
         *(getattr(computed, name) for name in _DERIVED_FIELDS),
@@ -152,32 +152,32 @@ def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
     )
 
 
-def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> ComputedRow:
-    """Restore one computed row exactly as the replay produced it."""
+def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> LedgerRow:
+    """Restore one ledger row exactly as the replay produced it."""
     flags = record["row_flags"]
     stored = {
         name: _ROW_DECODERS.get(name, _same)(record[f"row_{name}"])
         for name in (*_TXN_FIELDS, *_DERIVED_FIELDS)
     }
-    return ComputedRow(
+    return LedgerRow(
         row=TxnRow(txn_id=txn_id, **{name: stored[name] for name in _TXN_FIELDS}),
         **{name: stored[name] for name in _DERIVED_FIELDS},
         acct=_read_measures(record, "acct"),
         type=_read_measures(record, "type"),
         folio=_read_measures(record, "folio"),
-        flags=tuple(WarningCode(code) for code in flags.split(",")) if flags else (),
+        flags=tuple(DiagnosticCode(code) for code in flags.split(",")) if flags else (),
     )
 
 
 def encode_diagnostics(
-    diagnostics: Sequence[ReplayWarning],
-    rows: Mapping[int, ComputedRow],
+    diagnostics: Sequence[Diagnostic],
+    rows: Mapping[int, LedgerRow],
 ) -> pd.DataFrame:
     """Pair diagnostics with the rows they tag, ready to save as Parquet.
 
     Args:
         diagnostics: Every diagnostic a replay raised, in the order raised.
-        rows: The computed row of each transaction a diagnostic tags, by TxnId.
+        rows: The ledger row of each transaction a diagnostic tags, by TxnId.
 
     Returns:
         One text record per diagnostic. Its row's columns are filled on the
@@ -204,7 +204,7 @@ def encode_diagnostics(
 
 def decode_diagnostics(
     frame: pd.DataFrame,
-) -> tuple[list[ReplayWarning], dict[int, ComputedRow]]:
+) -> tuple[list[Diagnostic], dict[int, LedgerRow]]:
     """Restore the diagnostics and the rows they tag from `encode_diagnostics`.
 
     Args:
@@ -213,8 +213,8 @@ def decode_diagnostics(
     Returns:
         The diagnostics in the order raised, and each tagged row by TxnId.
     """
-    diagnostics: list[ReplayWarning] = []
-    rows: dict[int, ComputedRow] = {}
+    diagnostics: list[Diagnostic] = []
+    rows: dict[int, LedgerRow] = {}
     for record in frame.to_dict("records"):
         diagnostic = _decode_diagnostic(record)
         diagnostics.append(diagnostic)

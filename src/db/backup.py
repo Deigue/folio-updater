@@ -131,7 +131,7 @@ def backup_scope() -> Generator[None]:
     """Back the folio up at most once for everything run inside.
 
     One command can write several times (an update imports each file, then
-    settles each statement), and a copy before every write would crowd the
+    confirms from each statement), and a copy before every write would crowd the
     rotation with states nobody restores to. Within a scope only the first
     `backup_folio()` acts: the copy from before the first write undoes the whole
     command. Nothing is copied when nothing is written. A nested scope joins the

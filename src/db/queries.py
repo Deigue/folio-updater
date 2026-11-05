@@ -193,7 +193,7 @@ def get_max_value(
 
 
 def earliest_transaction_date(connection: sqlite3.Connection) -> str | None:
-    """Return the earliest trade date among all stored transactions.
+    """Return the earliest transaction date among all stored transactions.
 
     Args:
         connection: The database connection.
@@ -208,7 +208,7 @@ def get_broker_latest_txn_date(
     connection: sqlite3.Connection,
     broker: str,
 ) -> str | None:
-    """Return the latest trade date among the accounts whose name holds `broker`.
+    """Return the latest transaction date among the accounts whose name holds `broker`.
 
     Args:
         connection: The database connection.
