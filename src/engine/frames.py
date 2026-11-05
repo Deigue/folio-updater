@@ -11,6 +11,8 @@ Conventions for the per-grain columns:
   USD-denominated holdings and blank otherwise. The suffix applies to *every*
   USD column.
 - **`Delta` means change in cost base.** The ACB context is implied by the family.
+- **`Realized` is the running realized gain, `Gain` what this row earned.** A sale
+  always has one, even at zero. A BUY's is blank here and added at valuation.
 
 There are deliberately no per-type columns (`TfsaACB`, `NregACB`): a transaction
 belongs to one type, so those would leave a single populated cell per row and
@@ -24,8 +26,8 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from domain import Column, Grain
-from domain.numeric import safe_div
+from domain import Action, Column, Grain
+from domain.numeric import ZERO, safe_div
 from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
@@ -87,6 +89,8 @@ GRAIN_MEASURES: list[tuple[str, str]] = [
     ("Delta_USD", "delta_usd"),
     ("Avg", "avg_cad"),
     ("Avg_USD", "avg_usd"),
+    ("Realized", "realized_cad"),
+    ("Realized_USD", "realized_usd"),
     ("Gain", "gain_cad"),
     ("Gain_USD", "gain_usd"),
 ]
@@ -107,7 +111,7 @@ def grain_column(grain: Grain, measure: str) -> str:
 
 # The measures a summary carries: each grain measure that is a state, not a change.
 _SUMMARY_SUFFIXES = tuple(
-    suffix for suffix, _ in GRAIN_MEASURES if not suffix.startswith("Delta")
+    suffix for suffix, _ in GRAIN_MEASURES if not suffix.startswith(("Delta", "Gain"))
 )
 
 # A summary frame's columns: the symbol, then each grain's summary measures.
@@ -127,15 +131,18 @@ def _grain_cells(
     grain: Grain,
     measures: GrainMeasures,
 ) -> dict[str, float | None]:
-    """Emit one grain's nine measures, blanking what does not apply."""
+    """Emit one grain's measures, blanking what does not apply."""
     tracked = computed.symbol is not None
+    sale = computed.row.action is Action.SELL
     cells: dict[str, float | None] = {}
     for suffix, attribute in GRAIN_MEASURES:
         column = grain_column(grain, suffix)
         if not tracked or (suffix.endswith("_USD") and not computed.is_usd):
             cells[column] = None
             continue
-        cells[column] = _number(getattr(measures, attribute))
+        value = getattr(measures, attribute)
+        earned_nothing = suffix.startswith("Gain") and value == ZERO and not sale
+        cells[column] = None if earned_nothing else _number(value)
     return cells
 
 
@@ -175,7 +182,7 @@ def ledger_columns() -> list[str]:
 
     Returns:
         Source columns, then derived context, then the shared measures, then
-        each grain's nine-measure family.
+        each grain's family of measures.
     """
     columns = [*SOURCE_COLUMNS, *CONTEXT_COLUMNS, *SHARED_COLUMNS]
     for grain in Grain:

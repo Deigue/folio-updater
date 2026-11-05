@@ -90,7 +90,7 @@ def test_acb_matches_adjustedcostbase() -> None:
     # Removed 1610 * 60/150 = 644 against proceeds of 900 - 5.
     assert sale.units == D("90")
     assert sale.acb_cad == D("966")
-    assert sale.gain_cad == D("251")
+    assert sale.realized_cad == D("251")
     assert result.rows[2].proceeds_cad == D("895")
 
 
@@ -147,7 +147,7 @@ def test_oversell_goes_negative_and_is_diagnosed() -> None:
     assert final.units == D("-50")
     # All remaining cost base comes off; the deficit stays visible.
     assert final.acb_cad == D("0")
-    assert final.gain_cad == D("1250")
+    assert final.realized_cad == D("1250")
     assert DiagnosticCode.OVERSELL in codes(result)
     assert DiagnosticCode.NEGATIVE_FINAL_UNITS in codes(result)
 
@@ -240,7 +240,7 @@ def test_cad_holding_has_blank_usd_columns() -> None:
         assert frame[grain_column(grain, "ACB")].iloc[0] == pytest.approx(1000)
         assert pd.isna(frame[grain_column(grain, "ACB_USD")].iloc[0])
         assert pd.isna(frame[grain_column(grain, "Avg_USD")].iloc[0])
-        assert pd.isna(frame[grain_column(grain, "Gain_USD")].iloc[0])
+        assert pd.isna(frame[grain_column(grain, "Realized_USD")].iloc[0])
     assert pd.isna(frame["FXRate"].iloc[0])
 
 
@@ -280,7 +280,7 @@ def test_roc_floors_at_zero() -> None:
     )
     after = result.rows[-1].acct
     assert after.acb_cad == D("0")
-    assert after.gain_cad == D("40")
+    assert after.realized_cad == D("40")
     assert DiagnosticCode.ROC_EXCEEDS_ACB in codes(result)
 
 
@@ -542,7 +542,7 @@ def test_all_grains_in_one_pass() -> None:
     assert sale.acct.units == D("-100")
     assert sale.type.units == D("0")
     assert sale.folio.units == D("0")
-    assert sale.type.gain_cad == D("200")
+    assert sale.type.realized_cad == D("200")
     oversells = [w for w in result.diagnostics if w.code is DiagnosticCode.OVERSELL]
     assert [w.grain for w in oversells] == [Grain.ACCOUNT]
 
@@ -620,7 +620,7 @@ def test_transfer_pair_moves_acb_cross_account() -> None:
     assert in_leg.acct.units == D("100")
     assert in_leg.acct.acb_cad == D("1000")
     # Neither leg is a disposition, and the pooled type never noticed.
-    assert in_leg.acct.gain_cad == D("0")
+    assert in_leg.acct.realized_cad == D("0")
     assert in_leg.type.units == D("100")
     assert in_leg.type.acb_cad == D("1000")
 
@@ -666,7 +666,7 @@ def test_transfer_pair_moves_acb_across_a_currency_journal() -> None:
     # CAD is the invariant; the USD figure derives from it at that day's rate.
     assert in_leg.acct.acb_cad == D("1300")
     assert in_leg.acct.acb_usd == D("1040")
-    assert in_leg.acct.gain_cad == D("0")
+    assert in_leg.acct.realized_cad == D("0")
 
 
 def test_transfer_never_reads_amount_on_a_leg() -> None:
@@ -1457,9 +1457,9 @@ def test_roc_on_a_usd_holding_floors_both_currencies() -> None:
     after = result.rows[-1].acct
     assert after.acb_usd == D("0")
     assert after.acb_cad == D("0")
-    assert after.gain_usd == D("50")
+    assert after.realized_usd == D("50")
     # 150 USD converts to 210 CAD against a 130 CAD cost base.
-    assert after.gain_cad == D("80")
+    assert after.realized_cad == D("80")
 
 
 def test_roc_without_a_holding_is_diagnosed() -> None:
@@ -1526,7 +1526,61 @@ def test_dust_snaps_to_zero_and_rolls_residual_into_gain() -> None:
     assert final.units == D("0")
     assert final.acb_cad == D("0")
     # Everything the sale did not remove is realized rather than stranded.
-    assert final.gain_cad == D("200")
+    assert final.realized_cad == D("200")
+
+
+def test_each_row_carries_its_own_gain_beside_the_running_realized() -> None:
+    """Pools average differently, so one sale earns different amounts per grain."""
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-1000",
+                units="100",
+                price="10",
+            ),
+            make_row(
+                2,
+                "2024-01-03",
+                Action.BUY,
+                amount="-2000",
+                units="100",
+                price="20",
+                account="WS-PERSONAL",
+            ),
+            make_row(
+                3,
+                "2024-02-01",
+                Action.SELL,
+                amount="750",
+                units="-50",
+                price="15",
+            ),
+            make_row(
+                4,
+                "2024-03-01",
+                Action.SELL,
+                amount="150",
+                units="-30",
+                price="5",
+            ),
+            # Only 200 of cost is left in this account, against 1800 in the type pool.
+            make_row(5, "2024-04-01", Action.ROC, amount="400"),
+        ],
+    )
+
+    assert [row.acct.gain_cad for row in result.rows] == [0, 0, 250, -150, 200]
+    assert [row.acct.realized_cad for row in result.rows] == [0, 0, 250, 100, 300]
+    assert [row.type.gain_cad for row in result.rows] == [0, 0, 0, -300, 0]
+    assert [row.type.realized_cad for row in result.rows] == [0, 0, 0, -300, -300]
+
+    gains = ledger_frame(result).set_index("TxnId")[grain_column(Grain.TYPE, "Gain")]
+    # A sale that broke even earned zero; a buy has earned nothing yet.
+    assert pd.isna(gains.loc[1])
+    assert gains.loc[3] == 0
+    assert pd.isna(gains.loc[5])
 
 
 def test_fch_is_income_and_charges_cash() -> None:
@@ -2013,7 +2067,7 @@ def test_a_same_day_buy_then_sell_is_not_an_oversell() -> None:
     )
     assert DiagnosticCode.OVERSELL not in codes(result)
     assert result.rows[-1].acct.units == D("0")
-    assert result.rows[-1].acct.gain_cad == D("200")
+    assert result.rows[-1].acct.realized_cad == D("200")
 
 
 def test_a_same_day_transfer_in_supplies_a_sale() -> None:
@@ -2046,7 +2100,7 @@ def test_a_same_day_transfer_in_supplies_a_sale() -> None:
     sale = next(c for c in result.rows if c.row.txn_id == 4)
     assert sale.acct.units == D("0")
     # Cost base came across with the units, so the gain is 1400 - 1000.
-    assert sale.acct.gain_cad == D("400")
+    assert sale.acct.realized_cad == D("400")
 
 
 def test_a_same_day_split_applies_before_the_sale() -> None:
@@ -2115,7 +2169,7 @@ def test_cost_base_follows_transaction_date_not_settlement_date() -> None:
     final = result.rows[-1].acct
     assert final.units == D("20")
     assert final.acb_cad == D("800")
-    assert final.gain_cad == D("0")
+    assert final.realized_cad == D("0")
     assert DiagnosticCode.ROC_EXCEEDS_ACB not in codes(result)
 
 

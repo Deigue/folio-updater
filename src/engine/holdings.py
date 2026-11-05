@@ -1030,7 +1030,7 @@ def _realized(
     native: Currency,
 ) -> Decimal:
     """Read the cumulative realized gain in the currency being displayed."""
-    return dec(record.get(grain_column(grain, f"Gain{_suffix(shown, native)}")))
+    return dec(record.get(grain_column(grain, f"Realized{_suffix(shown, native)}")))
 
 
 def _income(

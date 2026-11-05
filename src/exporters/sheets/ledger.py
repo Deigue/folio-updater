@@ -198,6 +198,6 @@ def _wanted(column: str, *, cad: bool, usd: bool) -> bool:
     """Report whether a currency's family of columns was asked for."""
     if column.endswith(USD):
         return usd
-    if column in {"ACB", "Delta", "Avg", "Gain", "Proceeds", "Dividend"}:
+    if column in {"ACB", "Delta", "Avg", "Realized", "Gain", "Proceeds", "Dividend"}:
         return cad
     return True

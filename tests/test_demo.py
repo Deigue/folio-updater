@@ -106,7 +106,10 @@ def _showcase(
     )
     sells = frame[frame[Column.Txn.ACTION] == Action.SELL]
     last = frame.groupby([Column.Txn.ACCOUNT, "Symbol"]).tail(1)
-    taxable_gains = last.loc[last["AcctType"] == AccountType.NON_REGISTERED, "AcctGain"]
+    taxable_gains = last.loc[
+        last["AcctType"] == AccountType.NON_REGISTERED,
+        "AcctRealized",
+    ]
     rrsp_deposits = txns[
         (action == Action.CONTRIBUTION) & account.str.endswith("RRSP")
     ][Column.Txn.TXN_DATE]

@@ -39,23 +39,23 @@ if TYPE_CHECKING:
     from engine.ledger import Ledger
 
 # Column families the buildup renders, by ledger measure (also the header).
-_MEASURES = ("Delta", "ACB", "Avg", "Gain")
+_MEASURES = ("Delta", "ACB", "Avg", "Realized")
 
 _BUILDUP_DROP_ORDER = (
     "TxnId",
     "Delta",
     "Delta\nUSD",
     "Rate",
-    "Gain\nUSD",
+    "Realized\nUSD",
     "ACB\nUSD",
     "Avg\nUSD",
-    "Gain",
+    "Realized",
     "Proceeds",
     "Flags",
     "Fee",
 )
 
-_SUMMARY_DROP_ORDER = ("Gain\nUSD", "ACB\nUSD", "Avg\nUSD")
+_SUMMARY_DROP_ORDER = ("Realized\nUSD", "ACB\nUSD", "Avg\nUSD")
 
 # Running measures whose direction of travel is worth marking, compared against
 # the chronologically preceding row.
@@ -202,7 +202,7 @@ def _by_direction(text: str, direction: int | None) -> str:
     """Colour a cell by which way its running value moved.
 
     Green for a rise and red for a fall, matching the sign colouring on `Units`,
-    `Delta` and `Gain`: across this table green always means the number went up.
+    `Delta` and `Realized`: across this table green always means the number went up.
     """
     if not text or not direction:
         return text
@@ -261,10 +261,14 @@ def _measure_cell(
     value = row[column]
     # A zero delta or gain says nothing: blank it to zero.
     # A zero ACB or average is a real, closed holding.
-    text = _format(value, precision, blank_zero=measure.startswith(("Delta", "Gain")))
-    if measure.startswith(("Delta", "Gain")):
+    text = _format(
+        value,
+        precision,
+        blank_zero=measure.startswith(("Delta", "Realized")),
+    )
+    if measure.startswith(("Delta", "Realized")):
         cell = _signed(text, value)
-        if measure.startswith("Gain") and superficial_loss and cell:
+        if measure.startswith("Realized") and superficial_loss and cell:
             cell += _SUPERFICIAL_LOSS_GLYPH
             return f"[on {SUPERFICIAL_LOSS_BG}]{cell}[/on {SUPERFICIAL_LOSS_BG}]"
         return cell
@@ -420,7 +424,7 @@ def _summary_record(
     def cell(measure: str, precision: int) -> str:
         value = record[grain_column(view.grain, measure)]
         text = _format(value, precision, blank_zero=True)
-        return _signed(text, value) if measure.startswith("Gain") else text
+        return _signed(text, value) if measure.startswith("Realized") else text
 
     cells = {
         "Symbol": str(record["Symbol"]),
@@ -429,7 +433,7 @@ def _summary_record(
     for measure, precision in (
         ("ACB", MONEY_PRECISION),
         ("Avg", PRICE_PRECISION),
-        ("Gain", MONEY_PRECISION),
+        ("Realized", MONEY_PRECISION),
     ):
         if show_cad:
             cells[measure] = cell(measure, precision)

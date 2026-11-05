@@ -419,8 +419,10 @@ def _snapshot(state: HoldingState, before: HoldingState) -> GrainMeasures:
         delta_usd=(state.acb_usd - before.acb_usd) if usd else ZERO,
         avg_cad=safe_div(state.acb_cad, state.units),
         avg_usd=safe_div(state.acb_usd, state.units) if usd else ZERO,
-        gain_cad=state.gain_cad,
-        gain_usd=state.gain_usd if usd else ZERO,
+        realized_cad=state.realized_cad,
+        realized_usd=state.realized_usd if usd else ZERO,
+        gain_cad=state.realized_cad - before.realized_cad,
+        gain_usd=(state.realized_usd - before.realized_usd) if usd else ZERO,
     )
 
 
@@ -807,9 +809,9 @@ class _Replay:
         state.units -= sold
         state.acb_cad -= removed_cad
         state.acb_usd -= removed_usd
-        state.gain_cad += self.to_cad(trade.proceeds, row) - removed_cad
+        state.realized_cad += self.to_cad(trade.proceeds, row) - removed_cad
         if row.currency is Currency.USD:
-            state.gain_usd += trade.proceeds - removed_usd
+            state.realized_usd += trade.proceeds - removed_usd
 
         self._snap_dust(state)
 
@@ -829,12 +831,12 @@ class _Replay:
         applied_cad = min(roc_cad, max(state.acb_cad, ZERO))
         state.acb_cad -= applied_cad
         excess_cad = roc_cad - applied_cad
-        state.gain_cad += excess_cad
+        state.realized_cad += excess_cad
 
         if row.currency is Currency.USD:
             applied_usd = min(native, max(state.acb_usd, ZERO))
             state.acb_usd -= applied_usd
-            state.gain_usd += native - applied_usd
+            state.realized_usd += native - applied_usd
 
         if excess_cad > ZERO:
             self.diagnose(
@@ -987,8 +989,8 @@ class _Replay:
     def _snap_dust(self, state: HoldingState) -> None:
         """Snap a holding's residual units to zero, rolling leftover cost into gain."""
         if state.units != ZERO and abs(state.units) < DUST_UNITS:
-            state.gain_cad -= state.acb_cad
-            state.gain_usd -= state.acb_usd
+            state.realized_cad -= state.acb_cad
+            state.realized_usd -= state.acb_usd
             state.units = ZERO
             state.acb_cad = ZERO
             state.acb_usd = ZERO
@@ -1328,10 +1330,10 @@ class _Replay:
             for (pool, _symbol), state in self.pools.all_states(grain):
                 if state.currency is Currency.USD:
                     bucket = self._cash(grain, pool, Currency.USD)
-                    bucket.realized_gain += state.gain_usd
+                    bucket.realized_gain += state.realized_usd
                 else:
                     bucket = self._cash(grain, pool, Currency.CAD)
-                    bucket.realized_gain += state.gain_cad
+                    bucket.realized_gain += state.realized_cad
 
     def _check_negative_cash(self, rows: Sequence[TxnRow], on: str) -> None:
         """Report the first date an account's cash crosses below zero.

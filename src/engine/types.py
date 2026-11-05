@@ -108,8 +108,8 @@ class HoldingState:
     units: Decimal = ZERO
     acb_cad: Decimal = ZERO
     acb_usd: Decimal = ZERO
-    gain_cad: Decimal = ZERO
-    gain_usd: Decimal = ZERO
+    realized_cad: Decimal = ZERO
+    realized_usd: Decimal = ZERO
     currency: Currency | None = None
     last_held: str | None = None
 
@@ -159,8 +159,10 @@ class GrainMeasures:
         delta_usd: Change in `acb_usd` this row caused.
         avg_cad: Average cost in CAD.
         avg_usd: Average cost in USD, USD holdings only.
-        gain_cad: Cumulative realized gain in CAD.
-        gain_usd: Cumulative realized gain in USD, USD holdings only.
+        realized_cad: Cumulative realized gain in CAD.
+        realized_usd: Cumulative realized gain in USD, USD holdings only.
+        gain_cad: Realized gain this row earned in CAD. A BUY's is added at valuation.
+        gain_usd: The same in USD, USD holdings only.
     """
 
     units: Decimal = ZERO
@@ -170,6 +172,8 @@ class GrainMeasures:
     delta_usd: Decimal = ZERO
     avg_cad: Decimal = ZERO
     avg_usd: Decimal = ZERO
+    realized_cad: Decimal = ZERO
+    realized_usd: Decimal = ZERO
     gain_cad: Decimal = ZERO
     gain_usd: Decimal = ZERO
 

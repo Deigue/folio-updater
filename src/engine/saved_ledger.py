@@ -36,9 +36,9 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
-# The nine `GrainMeasures` fields, in declaration order, resolved once.
+# The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
 
 # The three per-grain measure sets a ledger row carries, by attribute.
@@ -146,7 +146,7 @@ def _encode_row(computed: LedgerRow) -> dict[str, str | None]:
 
 
 def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
-    """Restore one grain's nine figures."""
+    """Restore one grain's figures."""
     return GrainMeasures(
         **{name: Decimal(record[f"row_{grain}_{name}"]) for name in _MEASURE_FIELDS},
     )

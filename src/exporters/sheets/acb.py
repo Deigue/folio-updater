@@ -30,6 +30,7 @@ MEASURE_FORMATS: dict[str, Fmt] = {
     "ACB": Fmt.MONEY,
     "Delta": Fmt.MONEY_SIGNED,
     "Avg": Fmt.PRICE,
+    "Realized": Fmt.MONEY_SIGNED,
     "Gain": Fmt.MONEY_SIGNED,
 }
 
@@ -80,7 +81,7 @@ def acb_buildup_sheet(
         Col("Amount", Fmt.MONEY_SIGNED),
         Col("Fee", Fmt.MONEY, quiet=True),
     ]
-    for measure in ("Delta", "ACB", "Avg", "Gain"):
+    for measure in ("Delta", "ACB", "Avg", "Realized"):
         if cad:
             columns.append(Col(measure, MEASURE_FORMATS[measure]))
         if usd:
@@ -138,7 +139,7 @@ def acb_summary_sheet(
         summary = summary[summary[grain_column(grain, "ACB" + USD)].notna()]
 
     columns: list[Col] = [Col("Symbol"), Col("Units", Fmt.UNITS)]
-    for measure in ("ACB", "Avg", "Gain"):
+    for measure in ("ACB", "Avg", "Realized"):
         if cad:
             columns.append(Col(measure, MEASURE_FORMATS[measure]))
         if usd:
@@ -169,7 +170,7 @@ COST_BASE_COLUMNS: tuple[Col, ...] = (
     Col("Units", Fmt.UNITS, quiet=True),
     Col("ACB", Fmt.MONEY, quiet=True),
     Col("Avg", Fmt.PRICE, quiet=True),
-    Col("Gain", Fmt.MONEY_SIGNED),
+    Col("Realized", Fmt.MONEY_SIGNED),
 )
 
 
@@ -230,7 +231,7 @@ def _cost_base_cells(
         "Units": record[grain_column(grain, "Units")],
         "ACB": record[grain_column(grain, "ACB")],
         "Avg": record[grain_column(grain, "Avg")],
-        "Gain": record[grain_column(grain, "Gain")],
+        "Realized": record[grain_column(grain, "Realized")],
     }
 
 
@@ -276,7 +277,7 @@ def _buildup_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, ob
         "Rate": record["FXRate"],
         "Flags": record["Flags"],
     }
-    for measure in ("Delta", "ACB", "Avg", "Gain"):
+    for measure in ("Delta", "ACB", "Avg", "Realized"):
         cells[measure] = record[grain_column(grain, measure)]
         cells[f"{measure} USD"] = record[grain_column(grain, measure + USD)]
     return cells
@@ -288,7 +289,7 @@ def _summary_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, ob
         "Symbol": record["Symbol"],
         "Units": record[grain_column(grain, "Units")],
     }
-    for measure in ("ACB", "Avg", "Gain"):
+    for measure in ("ACB", "Avg", "Realized"):
         cells[measure] = record[grain_column(grain, measure)]
         cells[f"{measure} USD"] = record[grain_column(grain, measure + USD)]
     return cells
