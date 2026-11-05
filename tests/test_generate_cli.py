@@ -6,6 +6,7 @@ import os
 from typing import TYPE_CHECKING, NoReturn
 
 import pandas as pd
+import pytest
 from openpyxl import load_workbook
 from pandas.testing import assert_frame_equal
 
@@ -19,14 +20,11 @@ from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
-from .helpers.seed import (
-    seed_two_account_types,
-)
+from .helpers.seed import seed_transaction, seed_two_account_types
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pytest
+    from unittest.mock import MagicMock
 
     from app.app_context import AppContext
 
@@ -73,6 +71,38 @@ def test_generate_writes_a_sheet_for_every_view_of_the_folio(
 
         assert_cli_success(result)
         assert load_workbook(target).sheetnames == EVERY_SHEET
+
+
+def test_the_ledger_sheet_prices_buys_of_closed_holdings_too(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+    quotes_fetch: MagicMock,
+) -> None:
+    with temp_ctx() as ctx:
+        seed_transaction()  # Something open, so the folio has a dashboard to value.
+        seed_transaction(ticker="OTHER", amount="-1000", price="100", units="10")
+        seed_transaction(
+            action="SELL",
+            ticker="OTHER",
+            amount="1200",
+            price="120",
+            units="-10",
+        )
+        target = tmp_path / "folio.xlsx"
+
+        result = _generate(ctx, target, "--only", "acb")
+
+        assert_cli_success(result)
+        asked = {s for call in quotes_fetch.call_args_list for s in call.args[0]}
+        assert "OTHER" in asked
+        rows = list(load_workbook(target)["Ledger"].iter_rows(values_only=True))
+        header = next(row for row in rows if "Acct Gain USD" in row)
+        named = [dict(zip(header, row, strict=True)) for row in rows]
+        bought = next(
+            row for row in named if row["Symbol"] == "OTHER" and row["Action"] == "BUY"
+        )
+        # Ten units bought for 1,000 USD, quoted at 50.
+        assert bought["Acct Gain USD"] == pytest.approx(-500)
 
 
 def test_the_txns_sheet_imports_back_into_an_empty_folio(

@@ -390,7 +390,12 @@ def acb_cmd(  # noqa: PLR0917
         False,
         "-r",
         "--refresh",
-        help="Replay the cost base",
+        help="Refetch the quotes and replay the cost base",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Never touch the network: price from cached quotes only",
     ),
 ) -> None:
     """Show the adjusted cost base buildup for a symbol."""
@@ -408,6 +413,7 @@ def acb_cmd(  # noqa: PLR0917
         show_all=show_all,
         summary=summary,
         refresh=refresh,
+        offline=offline,
     )
 
 

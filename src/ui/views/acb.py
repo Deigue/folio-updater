@@ -479,7 +479,7 @@ def show_buildup(
     view: AcbView,
     symbol: str,
     currency: str,
-    ledger: Ledger,
+    badge: str,
 ) -> None:
     """Print the per-transaction buildup for one symbol.
 
@@ -512,7 +512,6 @@ def show_buildup(
             ),
         )
 
-    badge = freshness_badge(ledger.computed_at)
     page_frame(
         len(ordered),
         title,

@@ -15,21 +15,30 @@ import typer
 from app import bootstrap
 from cli.commands.common import require_ledger, resolve_pool, write_or_exit
 from domain import Column, Grain, Impact
+from engine.fx_rates import load_fx_rates
+from engine.gain_since_buy import bought_symbols, with_gains_since_buy
 from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import (
     acb_buildup_sheet,
     acb_summary_sheet,
     ledger_sheet,
 )
+from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
-from ui.format import format_freshness
+from ui.format import (
+    cache_badge,
+    format_freshness,
+    freshness_badge,
+    freshness_note,
+)
 from ui.views.acb import AcbView, NoUsdFiguresError, show_buildup, show_summary
 
 if TYPE_CHECKING:
     import pandas as pd
 
     from exporters.sheet_spec import Sheet
+    from services.quotes_service import Quote
 
 
 def resolve_view(
@@ -183,6 +192,7 @@ def show_acb(  # noqa: PLR0917
     show_all: bool = False,
     summary: bool = False,
     refresh: bool = False,
+    offline: bool = False,
 ) -> None:
     """Show the adjusted cost base buildup.
 
@@ -198,7 +208,8 @@ def show_acb(  # noqa: PLR0917
         export: Write the rendered rows to this path instead of only printing.
         show_all: Include DIVIDEND and FCH rows.
         summary: Print one row per symbol instead of a buildup.
-        refresh: Replay the cost base before reporting.
+        refresh: Refetch the quotes and replay the cost base before reporting.
+        offline: Never touch the network: price from cached quotes only.
 
     Raises:
         typer.Exit: On an unusable request.
@@ -211,7 +222,9 @@ def show_acb(  # noqa: PLR0917
         )
         raise typer.Exit(1)
 
-    ledger = require_ledger(refresh=refresh)
+    # Quotes are today's, so the rate that converts them has to be too. A summary
+    # has no per-row Gain, so it prices nothing.
+    ledger = require_ledger(refresh=refresh, priced=not summary, offline=offline)
     if ledger.frame.empty:
         console_warning("No transactions to compute a cost base from.")
         return
@@ -230,13 +243,30 @@ def show_acb(  # noqa: PLR0917
         show_all=show_all,
     )
 
+    quotes: dict[str, Quote] = {}
+    if not summary:
+        quotes = QuotesService.get_quotes(
+            bought_symbols(rows),
+            load_symbol_resolver(),
+            refresh=refresh,
+            offline=offline,
+        )
+        # Worked out over the whole ledger: a split any account reported counts.
+        valued = with_gains_since_buy(ledger.frame, quotes, load_fx_rates())
+        rows = valued.loc[rows.index]
+
     try:
         if summary:
             show_summary(rows, view, currency, ledger)
         elif rows.empty:
             console_warning(f"No {canonical} transactions in the {view.label} pool.")
         else:
-            show_buildup(rows, view, canonical or "", currency, ledger)
+            badge = (
+                cache_badge(quotes, computed_at=ledger.computed_at, offline=offline)
+                if quotes
+                else freshness_badge(ledger.computed_at)
+            )
+            show_buildup(rows, view, canonical or "", currency, badge)
     except NoUsdFiguresError as error:
         console_error(str(error))
         raise typer.Exit(1) from error
@@ -248,6 +278,10 @@ def show_acb(  # noqa: PLR0917
             export,
             symbol=canonical,
             currency=currency,
-            badge=f"Cost base {format_freshness(ledger.computed_at)}.",
+            badge=(
+                freshness_note(ledger.computed_at, quotes)
+                if quotes
+                else f"Cost base {format_freshness(ledger.computed_at)}."
+            ),
             summary=summary,
         )

@@ -55,6 +55,19 @@ class _Split:
         return bought < self.date or (self.covers_same_day and bought == self.date)
 
 
+def bought_symbols(rows: pd.DataFrame) -> list[str]:
+    """Name the securities rows buy, which are the ones a report has to price.
+
+    Args:
+        rows: Rows from the ledger.
+
+    Returns:
+        Each canonical symbol bought, sorted, whether still held or not.
+    """
+    bought = rows.loc[rows[_ACTION] == str(Action.BUY), _SYMBOL]
+    return sorted({str(symbol) for symbol in bought.dropna()})
+
+
 def with_gains_since_buy(
     frame: pd.DataFrame,
     quotes: Mapping[str, Quote],

@@ -10,6 +10,7 @@ from app import get_config
 from db import get_connection, get_distinct_values, get_rows
 from domain import Column
 from domain import Table as DbTable
+from engine.gain_since_buy import with_gains_since_buy
 from engine.panels import FOLIO_VIEW, account_view, type_view
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
 from exporters.sheet_spec import Link
@@ -196,8 +197,13 @@ def folio_sheets(
         dashboards = _dashboard_sheets(pools, chosen, notes)
         if Section.ACB in chosen and sources.valuation is not None:
             frame = sources.valuation.frame
+            valued = with_gains_since_buy(
+                frame,
+                sources.quotes,
+                sources.valuation.folio_holdings.fx,
+            )
             cost_base = [
-                ledger_sheet(frame, txns=sources.txns),
+                ledger_sheet(valued, txns=sources.txns),
                 cost_base_sheet(frame),
             ]
     performance: list[Sheet] = []

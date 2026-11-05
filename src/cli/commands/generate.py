@@ -18,6 +18,7 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
 from db.backup import backup_file
+from engine.gain_since_buy import bought_symbols
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.panels import FOLIO_VIEW, FolioValuation
 from engine.performance import fetch_moves
@@ -29,6 +30,7 @@ from exporters.folio_workbook import (
     folio_sheets,
     parse_sections,
 )
+from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_success, console_warning
 from term.progress import spinner
@@ -115,6 +117,14 @@ def write_folio(
             refresh=refresh,
             offline=offline,
         )
+        if Section.ACB in sections:
+            # The Ledger prices every buy, of holdings since closed as well.
+            QuotesService.get_quotes(
+                [s for s in bought_symbols(ledger.frame) if s not in valuation.quotes],
+                load_symbol_resolver(),
+                refresh=refresh,
+                offline=offline,
+            )
         moves = {}
         if Section.PERF in sections:
             progress.update(
