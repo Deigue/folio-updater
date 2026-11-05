@@ -793,8 +793,8 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         )
 
     quote = ctx.quotes.get(symbol)
-    price, prev_close = _converted_price(quote, shown, ctx.fx)
-    price_totals, prev_totals = _converted_price(quote, totals, ctx.fx)
+    price, prev_close = converted_price(quote, shown, ctx.fx)
+    price_totals, prev_totals = converted_price(quote, totals, ctx.fx)
 
     started = Holding(
         symbol=symbol,
@@ -888,7 +888,7 @@ def _market_in_cad(
     Returns:
         The CAD market value, or None when the holding could not be priced.
     """
-    price, _ = _converted_price(quote, Currency.CAD, fx)
+    price, _ = converted_price(quote, Currency.CAD, fx)
     return None if price is None else price * held
 
 
@@ -925,7 +925,7 @@ def _cad_earned(
     if held == ZERO:
         return banked
 
-    price, _ = _converted_price(ctx.quotes.get(symbol), Currency.CAD, ctx.fx)
+    price, _ = converted_price(ctx.quotes.get(symbol), Currency.CAD, ctx.fx)
     if price is None:
         return None
     return (price * held - book) + banked
@@ -1079,7 +1079,7 @@ def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal
     return totals
 
 
-def _converted_price(
+def converted_price(
     quote: Quote | None,
     shown: Currency,
     fx: FxRates,
