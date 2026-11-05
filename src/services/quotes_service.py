@@ -7,6 +7,7 @@ without the package resolving at all.
 
 from __future__ import annotations
 
+import json
 import logging
 import socket
 import sqlite3
@@ -274,6 +275,19 @@ class Fundamentals:
 
 
 @dataclass(frozen=True)
+class QuoteSplit:
+    """One split in the provider's history of a security.
+
+    Attributes:
+        date: The day the provider dates it, `YYYY-MM-DD`.
+        ratio: Units after per unit before, so a consolidation is below one.
+    """
+
+    date: str
+    ratio: Decimal
+
+
+@dataclass(frozen=True)
 class Quote:
     """A symbol's quote: its latest cached market data.
 
@@ -293,6 +307,8 @@ class Quote:
             fetched. Its own TTL.
         status: How the last fetch attempt came out.
         fundamentals: Valuation, dividend, trading-range and fund figures.
+        splits: The provider's split history, oldest first, fetched with the
+            metadata. None until it is known, which no splits is not.
     """
 
     symbol: str
@@ -309,6 +325,7 @@ class Quote:
     meta_fetched_at: datetime | None = None
     status: QuoteStatus = QuoteStatus.ERROR
     fundamentals: Fundamentals = field(default_factory=Fundamentals)
+    splits: tuple[QuoteSplit, ...] | None = None
 
     @property
     def age(self) -> timedelta | None:
@@ -633,6 +650,7 @@ class QuotesService:
                 symbol not in known
                 or known[symbol].meta_older_than(max_age)
                 or known[symbol].name is None
+                or known[symbol].splits is None
             )
         ]
         if not due:
@@ -883,7 +901,8 @@ class QuotesService:
 
         def _describe(provider_symbol: str) -> tuple[str, dict] | None:
             try:
-                info = yf.Ticker(provider_symbol).info
+                ticker = yf.Ticker(provider_symbol)
+                info = ticker.info
             except Exception as error:  # noqa: BLE001 (per-symbol scrape)
                 logger.debug("No metadata for %s: %s", provider_symbol, error)
                 return None
@@ -924,6 +943,7 @@ class QuotesService:
                 "total_assets": _first(info, "totalAssets", "netAssets"),
                 "category": info.get("category"),
                 "fund_family": info.get("fundFamily"),
+                "splits": _split_history(ticker),
             }
 
         return dict(_run_concurrently(_describe, provider_symbols))
@@ -1041,6 +1061,19 @@ def _meta_max_age(*, fundamentals: bool) -> timedelta:
     if fundamentals:
         return timedelta(hours=config.quotes_fundamentals_ttl_hours)
     return timedelta(days=config.quotes_metadata_ttl_days)
+
+
+def _split_history(ticker: Any) -> tuple[QuoteSplit, ...] | None:  # noqa: ANN401
+    """Read a ticker's split history, or None when it could not be fetched."""
+    try:
+        history = ticker.splits
+    except Exception as error:  # noqa: BLE001 (a separate provider request)
+        logger.debug("No split history: %s", error)
+        return None
+    return tuple(
+        QuoteSplit(when.strftime("%Y-%m-%d"), Decimal(str(ratio)))
+        for when, ratio in history.items()
+    )
 
 
 def _first(info: Mapping[str, Any], *keys: str) -> object | None:
@@ -1218,6 +1251,9 @@ def _merge(  # noqa: PLR0913, PLR0917
             meta_fetched_at=now,
             fundamentals=_fundamentals(meta),
         )
+        splits = meta.get("splits")
+        if splits is not None:
+            updated = replace(updated, splits=splits)
     return updated, QuoteStatus.OK
 
 
@@ -1275,6 +1311,7 @@ def _quote_from_record(symbol: str, record: Mapping[Hashable, Any]) -> Quote:
                 for item in fields(Fundamentals)
             },
         ),
+        splits=_read_splits(record.get(Column.Quote.SPLITS)),
     )
 
 
@@ -1295,6 +1332,7 @@ def _record(quote: Quote) -> dict[str, Any]:
         str(Column.Quote.META_FETCHED_AT): _iso(quote.meta_fetched_at),
         str(Column.Quote.SOURCE): SOURCE,
         str(Column.Quote.STATUS): str(quote.status),
+        str(Column.Quote.SPLITS): _stored_splits(quote.splits),
         **{
             str(item.metadata["column"]): (
                 _stored(getattr(quote.fundamentals, item.name))
@@ -1313,6 +1351,21 @@ def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
         raw = values.get(item.name)
         read[item.name] = _number(raw) if item.metadata["numeric"] else _text(raw)
     return Fundamentals(**read)
+
+
+def _stored_splits(splits: tuple[QuoteSplit, ...] | None) -> str | None:
+    """Render a split history for storage, keeping unknown a genuine null."""
+    if splits is None:
+        return None
+    return json.dumps([[split.date, str(split.ratio)] for split in splits])
+
+
+def _read_splits(value: object) -> tuple[QuoteSplit, ...] | None:
+    """Read a split history back, keeping unknown as None."""
+    text = _text(value)
+    if text is None:
+        return None
+    return tuple(QuoteSplit(when, Decimal(ratio)) for when, ratio in json.loads(text))
 
 
 def _stored(value: Decimal | None) -> float | None:

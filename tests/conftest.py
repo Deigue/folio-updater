@@ -222,8 +222,11 @@ def mock_quotes(
     def metadata(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
         return {
             provider_symbol: {
-                key: cached_quote_data[provider_symbol][key]
-                for key in ("name", "sector", "exchange", "market_cap", "currency")
+                "splits": (),
+                **{
+                    key: cached_quote_data[provider_symbol][key]
+                    for key in ("name", "sector", "exchange", "market_cap", "currency")
+                },
             }
             for provider_symbol in provider_symbols
             if provider_symbol in cached_quote_data

@@ -227,6 +227,7 @@ QUOTES_COLUMN_DEFINITIONS = [
     ),
     ColumnDefinition(Column.Quote.CATEGORY, "TEXT"),
     ColumnDefinition(Column.Quote.FUND_FAMILY, "TEXT"),
+    ColumnDefinition(Column.Quote.SPLITS, "TEXT"),
     ColumnDefinition(Column.Quote.QUOTE_TIME, "TEXT"),
     ColumnDefinition(Column.Quote.FETCHED_AT, "TEXT"),
     ColumnDefinition(Column.Quote.META_FETCHED_AT, "TEXT"),

@@ -273,6 +273,7 @@ class Column(StrEnum):
         TOTAL_ASSETS = "TotalAssets"  # Funds only
         CATEGORY = "Category"  # Funds only
         FUND_FAMILY = "FundFamily"  # Funds only
+        SPLITS = "Splits"  # JSON of [date, ratio] pairs. Null until fetched
         QUOTE_TIME = "QuoteTime"  # The provider's own market timestamp
         FETCHED_AT = "FetchedAt"  # Drives the price TTL
         META_FETCHED_AT = "MetaFetchedAt"  # Drives the slower metadata TTL

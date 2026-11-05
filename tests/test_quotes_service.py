@@ -21,6 +21,7 @@ from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
     Fundamentals,
     Quote,
+    QuoteSplit,
     QuotesService,
     RefreshResult,
     _attr,
@@ -465,9 +466,15 @@ class _FastInfo:
 class _FakeTicker:
     """Stands in for one `yf.Ticker`."""
 
-    def __init__(self, fast: _FastInfo, info: dict | None = None) -> None:
+    def __init__(
+        self,
+        fast: _FastInfo,
+        info: dict | None = None,
+        splits: pd.Series | None = None,
+    ) -> None:
         self.fast_info = fast
         self.info = info if info is not None else {}
+        self.splits = pd.Series(dtype=float) if splits is None else splits
 
 
 class _FakeTickers:
@@ -606,6 +613,82 @@ def test_fundamentals_are_cached_in_one_set_of_units(temp_ctx: TempContext) -> N
     assert fund_fundamentals.total_assets == Decimal(35_000_000_000)
     # A fund paying nothing reports a zero rate, which is no rate at all.
     assert fund_fundamentals.dividend_rate is None
+
+
+@pytest.mark.no_mock_quotes
+def test_split_history_is_cached_with_the_metadata(temp_ctx: TempContext) -> None:
+    info = {"shortName": "Alpha"}
+    fast = _FastInfo(100.0, 99.0, "USD")
+
+    class SplitsFail:
+        """A ticker that describes itself but cannot give its splits."""
+
+        fast_info = fast
+
+        def __init__(self) -> None:
+            self.info = info
+
+        @property
+        def splits(self) -> pd.Series:
+            message = "throttled"
+            raise RuntimeError(message)
+
+    history = pd.Series(
+        [4.0, 0.1],
+        index=pd.DatetimeIndex(["2022-06-10", "2024-03-01"], tz="America/New_York"),
+    )
+    tickers: dict[str, Any] = {
+        "SPLIT": _FakeTicker(fast, info, history),
+        "FLAT": _FakeTicker(fast, info),
+        "FAIL": SplitsFail(),
+    }
+
+    with temp_ctx(), _provider(tickers):
+        QuotesService.refresh(["SPLIT", "FLAT", "FAIL"], RESOLVER)
+        cached = QuotesService.cached()
+
+    assert cached["SPLIT"].splits == (
+        QuoteSplit("2022-06-10", Decimal(4)),
+        QuoteSplit("2024-03-01", Decimal("0.1")),
+    )
+    # Known to have none is not the same as not knowing.
+    assert cached["FLAT"].splits == ()
+    assert cached["FAIL"].splits is None
+    assert cached["FAIL"].name == "Alpha"
+
+
+def test_unknown_split_history_is_asked_for_inside_the_metadata_ttl(
+    temp_ctx: TempContext,
+) -> None:
+    unknown = {"TESTTKR": {"name": "Test", "splits": None}}
+    known = {"TESTTKR": {"name": "Test", "splits": ()}}
+
+    with temp_ctx(quotes={"metadata_ttl_days": 30}):
+        with patch.object(QuotesService, "_fetch_metadata", return_value=unknown):
+            QuotesService.refresh(["TESTTKR"], RESOLVER)
+        with patch.object(QuotesService, "_fetch_metadata", return_value=known) as meta:
+            QuotesService.refresh(["TESTTKR"], RESOLVER)
+            QuotesService.refresh(["TESTTKR"], RESOLVER)
+
+        assert meta.call_count == 1
+        assert QuotesService.cached()["TESTTKR"].splits == ()
+
+
+def test_a_failed_split_fetch_keeps_the_history_already_cached(
+    temp_ctx: TempContext,
+) -> None:
+    split = QuoteSplit("2022-06-10", Decimal(4))
+    known = {"TESTTKR": {"name": "Test", "splits": (split,)}}
+    failed = {"TESTTKR": {"name": "Test", "splits": None}}
+
+    # With no TTL to speak of, every refresh asks for the metadata again.
+    with temp_ctx(quotes={"metadata_ttl_days": 0}):
+        with patch.object(QuotesService, "_fetch_metadata", return_value=known):
+            QuotesService.refresh(["TESTTKR"], RESOLVER)
+        with patch.object(QuotesService, "_fetch_metadata", return_value=failed):
+            QuotesService.refresh(["TESTTKR"], RESOLVER)
+
+        assert QuotesService.cached()["TESTTKR"].splits == (split,)
 
 
 @pytest.mark.no_mock_quotes
