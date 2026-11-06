@@ -315,7 +315,7 @@ def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
     """
     steps = [
         (
-            f"The file(s) stayed in {config.imports_path}; logs/importer.log "
+            f"The file(s) stayed in {config.imports_path}; logs/audit.log "
             "has the detail. Every other file was imported."
         ),
         "If a file needs a mapping or rule change, fix config.yaml.",

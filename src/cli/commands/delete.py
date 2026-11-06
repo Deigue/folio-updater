@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from app.logging_setup import audit_footer, get_import_logger
+from app.logging_setup import audit_footer, get_audit_logger
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from cli.selection import Selection
 
 logger = logging.getLogger(__name__)
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 
 
 def _delete_by_ids(txn_ids: Sequence[int]) -> int:
@@ -62,24 +62,24 @@ def _log_delete(
     transactions: pd.DataFrame,
     deleted: int,
 ) -> None:
-    """Record the deletion in the shared import audit log.
+    """Record the deletion in the audit log.
 
     Args:
         selection: What the user asked to delete.
         transactions: The rows that matched.
         deleted: Rows the database actually removed.
     """
-    import_logger.info("DELETE TXN (manual, %s)", selection.describe())
+    audit_logger.info("DELETE TXN (manual, %s)", selection.describe())
     for _, row in transactions.iterrows():
-        import_logger.info(" - %s", format_transaction_summary(row))
+        audit_logger.info(" - %s", format_transaction_summary(row))
     txn_ids = ", ".join(str(txn_id) for txn_id in selection.txn_ids)
-    import_logger.info(
+    audit_logger.info(
         "DONE: %d transaction(s) deleted (TxnIds %s)",
         deleted,
         txn_ids,
     )
     if deleted != len(transactions):
-        import_logger.error(
+        audit_logger.error(
             "MISMATCH: %d transaction(s) matched but %d deleted",
             len(transactions),
             deleted,

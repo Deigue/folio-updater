@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from app.logging_setup import get_import_logger
+from app.logging_setup import get_audit_logger
 
 # Local imports, don;t get from db package
 from db import helpers, schema
@@ -14,7 +14,7 @@ from ingest.rules import TransactionTransformer
 from ingest.validation import TransactionFormatter
 from models import ImportResults
 
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 
 
 def prepare_transactions(
@@ -38,7 +38,7 @@ def prepare_transactions(
     if df.empty:  # pragma: no cover
         return ImportResults()
 
-    import_logger.debug(
+    audit_logger.debug(
         "PREPARE transactions: mapping → transforming → formatting → filtering",
     )
     schema.create_txns_table()

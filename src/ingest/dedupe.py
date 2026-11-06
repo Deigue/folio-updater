@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from app.logging_setup import get_import_logger
+from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_rows
 from domain import TXN_ESSENTIALS, Table
@@ -21,7 +21,7 @@ from domain import TXN_ESSENTIALS, Table
 if TYPE_CHECKING:
     from logging import Logger
 
-import_logger: Logger = get_import_logger()
+audit_logger: Logger = get_audit_logger()
 
 
 class TransactionFilter:
@@ -46,7 +46,7 @@ class TransactionFilter:
 
         new_keys_series: pd.Series[str] = generate_keys(txn_df)
         new_keys: set[str] = set(new_keys_series)
-        import_logger.debug(
+        audit_logger.debug(
             "CHECK duplicates: %d existing keys, %d new keys",
             len(existing_keys),
             len(new_keys),
@@ -113,7 +113,7 @@ class TransactionFilter:
         approval_column = get_config().duplicate_approval_column
         if approval_column in txn_df.columns:
             msg = f"Duplicate approval column found: {approval_column}"
-            import_logger.debug(msg)
+            audit_logger.debug(msg)
             return txn_df.drop(columns=[approval_column])
         return txn_df
 
@@ -173,29 +173,29 @@ class TransactionFilter:
         if approved_mask.any():
             approved_count = approved_mask.sum()
             msg = f"APPROVE {approved_count} {duplicate_type} duplicates"
-            import_logger.info(msg)
+            audit_logger.info(msg)
 
-            if import_logger.isEnabledFor(logging.INFO):
+            if audit_logger.isEnabledFor(logging.INFO):
                 approved_summaries = txn_df[approved_mask].apply(
                     format_transaction_summary,
                     axis=1,
                 )
                 for summary in approved_summaries:
-                    import_logger.info(" * %s", summary)
+                    audit_logger.info(" * %s", summary)
 
         # Log rejected duplicates
         if rejected_mask.any():
             rejected_count = rejected_mask.sum()
             msg = f"REJECT {rejected_count} {duplicate_type} duplicates"
-            import_logger.warning(msg)
+            audit_logger.warning(msg)
 
-            if import_logger.isEnabledFor(logging.WARNING):
+            if audit_logger.isEnabledFor(logging.WARNING):
                 rejected_summaries = txn_df[rejected_mask].apply(
                     format_transaction_summary,
                     axis=1,
                 )
                 for summary in rejected_summaries:
-                    import_logger.warning(" - %s", summary)
+                    audit_logger.warning(" - %s", summary)
 
     @staticmethod
     def _get_db_transaction_keys() -> set[str]:

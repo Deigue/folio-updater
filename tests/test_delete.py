@@ -348,7 +348,7 @@ class TestDeleteSideEffects:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(delete_module, "import_logger") as mock_logger:
+            with patch.object(delete_module, "audit_logger") as mock_logger:
                 cli_result = run_cli_with_config(
                     ctx.config,
                     cli_app,

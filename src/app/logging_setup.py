@@ -7,13 +7,12 @@ import time
 from logging.handlers import TimedRotatingFileHandler
 from typing import TYPE_CHECKING
 
-from config import Config
-
 if TYPE_CHECKING:
     from pathlib import Path
 
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(module)s:%(lineno)4d %(message)s"
 DATE_FORMAT = "%m-%d %H:%M:%S"
+AUDIT_LOGGER = "audit"
 
 
 class CompactFormatter(logging.Formatter):
@@ -46,91 +45,72 @@ class SharedLogHandler(TimedRotatingFileHandler):
             self.rolloverAt = self.computeRollover(int(time.time()))
 
 
-def init_logging(level: int = logging.INFO) -> None:
+def init_logging(
+    log_dir: Path,
+    level: int = logging.INFO,
+    audit_level: int = logging.INFO,
+) -> None:
     """Initialize logging for the application.
 
     Logging is set up with:
         - A rolling file log for the application (`folio.log`)
-        - A separate rolling file log for import operations (`importer.log`)
+        - A separate rolling file log for the audit trail (`audit.log`)
 
     Args:
+        log_dir: The folder both logs are written into.
         level: The level the application logger records at.
+        audit_level: The level the audit logger records at.
     """
-    log_dir: Path = Config.get_default_root_directory() / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file: Path = log_dir / "folio.log"
 
     root_logger: logging.Logger = logging.getLogger()
     root_logger.setLevel(level)
+    _add_file_handler(root_logger, log_file, backup_count=14)
 
-    # File handler (folio.log)
-    file_exists = any(
-        isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
-        for h in root_logger.handlers
-    )
-    if not file_exists:
-        file_handler = SharedLogHandler(
-            log_file,
-            when="midnight",
-            interval=1,
-            backupCount=14,
-            encoding="utf-8",
-        )
-        file_handler.setFormatter(
-            CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
-        )
-        root_logger.addHandler(file_handler)
-
-    _setup_import_logger(log_dir, level)
+    audit_logger = get_audit_logger()
+    # Keep 30 days of the audit trail, against folio.log's 14.
+    _add_file_handler(audit_logger, log_dir / "audit.log", backup_count=30)
+    audit_logger.setLevel(audit_level)
+    audit_logger.propagate = False
 
     logger: logging.Logger = logging.getLogger(__name__)
     logger.debug("Logging initialized with level: %s", logging.getLevelName(level))
 
 
-def _setup_import_logger(log_dir: Path, level: int) -> None:
-    """Set up a dedicated logger for import operations.
-
-    Args:
-        log_dir: Directory where log files should be stored
-        level: Logging level to use
-    """
-    import_log_file: Path = log_dir / "importer.log"
-    import_logger: logging.Logger = logging.getLogger("importer")
-
-    # Check if handler already exists
-    import_handler_exists = any(
-        isinstance(h, TimedRotatingFileHandler)
-        and h.baseFilename == str(import_log_file)
-        for h in import_logger.handlers
+def _add_file_handler(
+    logger: logging.Logger,
+    log_file: Path,
+    backup_count: int,
+) -> None:
+    """Give a logger its rolling file, unless an earlier setup already did."""
+    if any(
+        isinstance(h, TimedRotatingFileHandler) and h.baseFilename == str(log_file)
+        for h in logger.handlers
+    ):
+        return
+    handler = SharedLogHandler(
+        log_file,
+        when="midnight",
+        interval=1,
+        backupCount=backup_count,
+        encoding="utf-8",
     )
-
-    if not import_handler_exists:
-        import_handler = SharedLogHandler(
-            import_log_file,
-            when="midnight",
-            interval=1,
-            backupCount=30,  # Keep more import logs for audit purposes
-            encoding="utf-8",
-        )
-        import_handler.setFormatter(
-            CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
-        )
-        import_logger.addHandler(import_handler)
-        import_logger.setLevel(level)
-        import_logger.propagate = False
+    handler.setFormatter(CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    logger.addHandler(handler)
 
 
-def get_import_logger() -> logging.Logger:
-    """Get the dedicated import logger.
+def get_audit_logger() -> logging.Logger:
+    """Get the logger that writes the audit trail.
 
     Returns:
-        Logger instance for import operations
+        The audit logger.
     """
-    return logging.getLogger("importer")
+    return logging.getLogger(AUDIT_LOGGER)
 
 
 def audit_footer() -> None:
     """Close an audit log entry with a separator line."""
-    import_logger = get_import_logger()
-    import_logger.info("=" * 80)
-    import_logger.info("")
+    audit_logger = get_audit_logger()
+    audit_logger.info("=" * 80)
+    audit_logger.info("")

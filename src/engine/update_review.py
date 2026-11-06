@@ -393,7 +393,7 @@ def _review_tally(filename: str, results: ImportResults) -> ImportReview:
         title=f"Import tally does not add up for {filename}",
         why=(
             f"{results.imported_count()} row(s) imported where the stages account "
-            f"for {results.expected_count()}. Compare the file with importer.log "
+            f"for {results.expected_count()}. Compare the file with logs/audit.log "
             "to find the rows that went astray."
         ),
     )
@@ -678,7 +678,7 @@ def review_statement(
                 title=f"{transfers_rejected} transfer(s) in {filename} not created",
                 why=(
                     "The statement lists transfers that could not be turned into "
-                    "transactions; importer.log names them. Add each by hand."
+                    "transactions; logs/audit.log names them. Add each by hand."
                 ),
                 commands=(
                     (

@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 from app import get_config
-from app.logging_setup import get_import_logger
+from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary
 from domain import TXN_ESSENTIALS, Column
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-import_logger: Logger = get_import_logger()
+audit_logger: Logger = get_audit_logger()
 
 
 class TransactionMapper:
@@ -64,18 +64,18 @@ class TransactionMapper:
         )
 
         if ignored_columns:
-            import_logger.info("IGNORE columns: %s", ignored_columns)
+            audit_logger.info("IGNORE columns: %s", ignored_columns)
             df = df.drop(columns=ignored_columns)
 
         if mapping:
             pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
-            import_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
+            audit_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
         else:
-            import_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
+            audit_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
 
         # Ensure TXN_ESSENTIALS are present in the mapping
         if unmatched and Column.Txn.ACCOUNT in unmatched and account is not None:
-            import_logger.info(
+            audit_logger.info(
                 "FALLBACK account column using: %s",
                 account,
             )
@@ -85,15 +85,15 @@ class TransactionMapper:
         if unmatched:
             unmatched_str = {str(col) for col in unmatched}
             error_message = f"MISSING essential columns: {unmatched_str}"
-            import_logger.error(error_message)
+            audit_logger.error(error_message)
             raise ValueError(error_message)
 
         df = df.rename(columns=mapping)
 
-        if import_logger.isEnabledFor(logging.INFO):
+        if audit_logger.isEnabledFor(logging.INFO):
             summaries = df.apply(format_transaction_summary, axis=1)
             for summary in summaries:
-                import_logger.info(" + %s", summary)
+                audit_logger.info(" + %s", summary)
         return df
 
     @staticmethod
@@ -163,7 +163,7 @@ class TransactionMapper:
         )
 
         if is_essential:
-            import_logger.warning(
+            audit_logger.warning(
                 "KEEP column '%s' (in ignore list but essential)",
                 normalized_column,
             )

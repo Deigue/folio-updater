@@ -203,7 +203,7 @@ def show_settlement_detail(
 
     Matched rows carry the transaction they updated. Rows that matched
     nothing, or matched too much to choose, are the ones worth reading:
-    without this they are visible only in the importer log.
+    without this they are visible only in the audit log.
 
     Args:
         filename: Name of the statement the rows came from.

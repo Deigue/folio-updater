@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from app.logging_setup import get_import_logger
 from db import get_broker_latest_txn_date, get_connection
 from domain import TORONTO_TZ
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
@@ -37,7 +36,6 @@ if TYPE_CHECKING:
     from config import Config
 
 logger = logging.getLogger(__name__)
-import_logger = get_import_logger()
 
 SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 

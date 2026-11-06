@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from app import get_config
-from app.logging_setup import get_import_logger
+from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary
 from domain import Column
 from models import CancelEvent, MergeEvent, TransformEvent
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
     from config.transforms import CancelRule, MergeGroup, TransformRule
 
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 
 CONTAINS_PREFIX = "contains:"
 # A cancellation and the row it voids carry amounts that sum to zero.
@@ -119,7 +119,7 @@ class TransactionTransformer:
         # Apply merge groups next (before regular transformations)
         if self.transforms and self.transforms.merge_groups:
             for group_index, group in enumerate(self.transforms.merge_groups):
-                import_logger.debug(
+                audit_logger.debug(
                     "Applying merge group %d: %s",
                     group_index + 1,
                     group.name,
@@ -128,13 +128,13 @@ class TransactionTransformer:
 
         # Regular transformation rules
         if not self.transforms or not self.transforms.rules:
-            import_logger.debug(
+            audit_logger.debug(
                 "No transformation rules configured, skipping transforms",
             )
             return
 
         for rule_index, rule in enumerate(self.transforms.rules):
-            import_logger.debug("Applying transformation rule %d", rule_index + 1)
+            audit_logger.debug("Applying transformation rule %d", rule_index + 1)
             self._apply_single_rule(rule)
 
     def _apply_single_rule(self, rule: TransformRule) -> None:
@@ -150,13 +150,13 @@ class TransactionTransformer:
         # Count matching rows
         matching_rows = mask.sum()
         if matching_rows == 0:
-            import_logger.debug("No rows match transformation conditions")
+            audit_logger.debug("No rows match transformation conditions")
             return
 
         # Apply transformations to matching rows
         for field_name, new_value in rule.actions.items():
             if field_name not in self.df.columns:
-                import_logger.warning(
+                audit_logger.warning(
                     "Transform target field '%s' not found in data, skipping",
                     field_name,
                 )
@@ -168,7 +168,7 @@ class TransactionTransformer:
                 f"TRANSFORM '{field_name}' for {matching_rows} row(s): "
                 f"{old_values} -> {new_value}"
             )
-            import_logger.info(msg)
+            audit_logger.info(msg)
 
             if new_value == "":
                 self.df.loc[mask, field_name] = pd.NA
@@ -202,7 +202,7 @@ class TransactionTransformer:
         mask = pd.Series([True] * len(self.df), index=self.df.index)
         for field_name, match_values in conditions.items():
             if field_name not in self.df.columns:
-                import_logger.debug(
+                audit_logger.debug(
                     "Condition field '%s' not found in data, skipping rule",
                     field_name,
                 )
@@ -225,7 +225,7 @@ class TransactionTransformer:
         needed = [*rule.match_fields, rule.amount_field]
         missing = [name for name in needed if name not in self.df.columns]
         if missing:
-            import_logger.warning(
+            audit_logger.warning(
                 "SKIP cancellation rule '%s' (missing fields: %s)",
                 rule.name,
                 missing,
@@ -285,15 +285,15 @@ class TransactionTransformer:
             cancellation: The cancelling row.
             cancelled: The row it voids, or None when the file held none.
         """
-        import_logger.info(
+        audit_logger.info(
             "CANCEL (%s) %s",
             rule.name,
             format_transaction_summary(cancellation),
         )
         if cancelled is None:
-            import_logger.warning("   ? nothing in this file for it to void")
+            audit_logger.warning("   ? nothing in this file for it to void")
         else:
-            import_logger.info("   x %s", format_transaction_summary(cancelled))
+            audit_logger.info("   x %s", format_transaction_summary(cancelled))
         self._cancel_events.append(
             CancelEvent(
                 cancellation={str(k): v for k, v in cancellation.items()},
@@ -384,7 +384,7 @@ class TransactionTransformer:
                 return float(new_value)
             except ValueError:
                 # If conversion fails, log warning and return as string
-                import_logger.warning(
+                audit_logger.warning(
                     "CONVERT FAIL '%s' to numeric for column '%s' (use string)",
                     new_value,
                     field_name,
@@ -416,21 +416,21 @@ class TransactionTransformer:
             if merged_row is not None:
                 if not self._has_groups:
                     self._has_groups = True
-                    import_logger.info(
+                    audit_logger.info(
                         "MERGE transactions",
                     )
                 rows_to_drop.extend(group_df.index.tolist())
                 rows_to_add.append(merged_row)
 
-                if import_logger.isEnabledFor(logging.INFO):  # pragma: no cover
-                    import_logger.info(" + %s", format_transaction_summary(merged_row))
+                if audit_logger.isEnabledFor(logging.INFO):  # pragma: no cover
+                    audit_logger.info(" + %s", format_transaction_summary(merged_row))
                     dropped_rows = group_df.apply(
                         format_transaction_summary,
                         axis=1,
                     )
 
                     for row in dropped_rows:
-                        import_logger.info("   - %s", row)
+                        audit_logger.info("   - %s", row)
 
                 self._merge_events.append(
                     MergeEvent(
@@ -455,7 +455,7 @@ class TransactionTransformer:
         """
         missing_fields = [f for f in group.match_fields if f not in self.df.columns]
         if missing_fields:
-            import_logger.warning(
+            audit_logger.warning(
                 "SKIP merge group '%s' (missing fields: %s)",
                 group.name,
                 missing_fields,
@@ -463,7 +463,7 @@ class TransactionTransformer:
             return False
 
         if group.amount_field not in self.df.columns:
-            import_logger.warning(
+            audit_logger.warning(
                 "SKIP merge group '%s' (missing amount field: %s)",
                 group.name,
                 group.amount_field,
@@ -488,13 +488,13 @@ class TransactionTransformer:
         matching_rows = self.df[action_mask].copy()
 
         if matching_rows.empty:
-            import_logger.debug(
+            audit_logger.debug(
                 "No rows match source actions %s for merge group '%s'",
                 group.source_actions,
                 group.name,
             )
         else:
-            import_logger.debug(
+            audit_logger.debug(
                 "Found %d row(s) matching source actions for merge group '%s'",
                 len(matching_rows),
                 group.name,
@@ -529,7 +529,7 @@ class TransactionTransformer:
             action in unique_actions for action in group.source_actions
         )
         if not has_all_actions:
-            import_logger.debug(
+            audit_logger.debug(
                 "Group %s missing some source actions, skipping",
                 group_key,
             )
@@ -537,7 +537,7 @@ class TransactionTransformer:
 
         merged_row = self._create_merged_row(group, group_df)
 
-        import_logger.debug(
+        audit_logger.debug(
             "Merged %d row(s) into 1 %s for group %s",
             len(group_df),
             group.target_action,
@@ -600,7 +600,7 @@ class TransactionTransformer:
                 new_rows_df = pd.DataFrame(rows_to_add)
                 self.df = pd.concat([self.df, new_rows_df], ignore_index=True)
 
-            import_logger.debug(
+            audit_logger.debug(
                 "Merge group '%s': Removed %d row(s), added %d merged row(s)",
                 group.name,
                 len(rows_to_drop),

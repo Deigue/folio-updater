@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from app import bootstrap
-from app.logging_setup import SharedLogHandler
+from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, write_missing_setting
 from domain import AccountType, FeeConvention
 
@@ -111,6 +111,7 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
     with temp_ctx(
         {
             "log_level": 3,
+            "audit_log_level": "LOUD",
             "sheets": {"tickers": "Tickers", "txns": None, "unknown_sheet": "Nope"},
             "header_ignore": "notalist",
             "brokers": "notadict",
@@ -130,6 +131,7 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
     ) as ctx:
         config = ctx.config
         assert config.log_level == "ERROR"  # Defaults to ERROR on bad value
+        assert config.audit_log_level == "INFO"
         assert "InvalidKeyword" not in config.header_keywords
         assert config.header_ignore == []
         assert config.brokers == Config.DEFAULT_CONFIG["brokers"]
@@ -141,25 +143,16 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
 
 
 @pytest.fixture
-def project_logs(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[Path]:
-    """Point `init_logging` at tmp_path, and take back every handler it adds.
+def project_logs(tmp_path: Path) -> Generator[Path]:
+    """Take back every handler a reload rooted at tmp_path adds.
 
-    `init_logging` writes beside the project root, not the configured one, so
-    without this a reload would log into the repo's own `logs/` for the rest of
-    the worker's run.
+    The logs follow the project root, so a reload writes into tmp_path, but the
+    handlers stay on the process's loggers for the rest of the worker's run.
 
     Yields:
-        The logs folder `init_logging` will write into.
+        The logs folder a reload rooted at tmp_path writes into.
     """
-    monkeypatch.setattr(
-        Config,
-        "get_default_root_directory",
-        staticmethod(lambda: tmp_path),
-    )
-    loggers = [logging.getLogger(), logging.getLogger("importer")]
+    loggers = [logging.getLogger(), get_audit_logger()]
     saved = [(lg, lg.level, lg.propagate, list(lg.handlers)) for lg in loggers]
     yield tmp_path / "logs"
     for lg, level, propagate, handlers in saved:
@@ -197,7 +190,30 @@ def test_reload_config_reads_the_file_again(
     # The new log level reaches the logs, which the reload sets up.
     assert logging.getLogger().level == logging.INFO
     assert (project_logs / "folio.log").exists()
-    assert (project_logs / "importer.log").exists()
+    assert (project_logs / "audit.log").exists()
+
+
+def test_the_audit_log_records_info_until_its_own_level_is_raised(
+    tmp_path: Path,
+    project_logs: Path,
+) -> None:
+    """`log_level` quiets folio.log only, and a raised audit level takes on reload."""
+    config_yaml = tmp_path / "config.yaml"
+    config_yaml.write_text("log_level: ERROR\n", encoding="utf-8")
+    bootstrap.reload_config(tmp_path)
+    get_audit_logger().info("ADD TXN first")
+
+    config_yaml.write_text(
+        "log_level: ERROR\naudit_log_level: ERROR\n",
+        encoding="utf-8",
+    )
+    bootstrap.reload_config(tmp_path)
+    get_audit_logger().info("ADD TXN second")
+
+    audit = (project_logs / "audit.log").read_text(encoding="utf-8")
+    assert "ADD TXN first" in audit
+    assert "ADD TXN second" not in audit
+    assert "ADD TXN" not in (project_logs / "folio.log").read_text(encoding="utf-8")
 
 
 def test_cost_base_defaults(temp_ctx: TempContext) -> None:

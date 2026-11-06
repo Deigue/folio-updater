@@ -66,7 +66,8 @@ def validate_config(
     validated: dict[str, Any] = deepcopy(dict(defaults))
 
     _validate_passthrough_keys(settings, validated)
-    _validate_log_level(settings, validated)
+    _validate_log_level(settings, validated, "log_level")
+    _validate_log_level(settings, validated, "audit_log_level")
     _validate_sheets(settings, validated)
     _validate_header_keywords(settings, validated)
     _validate_duplicate_approval(settings, validated)
@@ -265,12 +266,13 @@ def _validate_display(
 def _validate_log_level(
     settings: dict[str, Any],
     validated: dict[str, Any],
+    key: str,
 ) -> None:
-    """Validate `log_level`, falling back to the default on any bad value."""
-    log_level = str(settings.get("log_level", validated["log_level"])).upper()
-    if log_level not in logging.getLevelNamesMapping():
-        log_level = validated["log_level"]
-    validated["log_level"] = log_level
+    """Validate one log level setting, falling back to its default on a bad value."""
+    level = str(settings.get(key, validated[key])).upper()
+    if level not in logging.getLevelNamesMapping():
+        level = validated[key]
+    validated[key] = level
 
 
 def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:

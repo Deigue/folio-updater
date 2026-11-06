@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- The audit trail is on by default and moves to `logs/audit.log`, set by the new
+`audit_log_level` (default `INFO`); `log_level` now governs only `folio.log`. Old
+`importer.log` files are left as they are.
 - `folio generate` will probe yfinance for 5s, and fallback to cached quotes and 
 history when no answer received.
 - `folio generate` now shows while it is retrieving information from Yahoo Finance.

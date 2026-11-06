@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from domain import ActionProfile
 
 from app import get_config
-from app.logging_setup import get_import_logger
+from app.logging_setup import get_audit_logger
 from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
 from domain import (
@@ -36,7 +36,7 @@ from domain import (
 )
 from engine.settlement import settlement_calculator
 
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 actions: list[str] = [action.value for action in Action]
 currencies: set[str] = {currency.value for currency in SUPPORTED_CURRENCIES}
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
@@ -190,17 +190,17 @@ class TransactionFormatter:
 
             self.formatted_df = self.formatted_df[~self.formatted_df.index.isin(labels)]
 
-            if not import_logger.isEnabledFor(logging.WARNING):  # pragma: no cover
+            if not audit_logger.isEnabledFor(logging.WARNING):  # pragma: no cover
                 return
 
-            import_logger.warning("REJECT %d invalid row(s)", len(labels))
+            audit_logger.warning("REJECT %d invalid row(s)", len(labels))
 
             for idx in sorted(labels):
                 if idx < len(self.original_df):
                     row = self.original_df.iloc[idx]
                     reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
                     reason_str = ", ".join(reasons)
-                    import_logger.warning(
+                    audit_logger.warning(
                         " - %s (%s)",
                         format_transaction_summary(row),
                         reason_str,
@@ -215,7 +215,7 @@ class TransactionFormatter:
         Args:
             original_df: Original DataFrame before any formatting
         """
-        if not import_logger.isEnabledFor(logging.DEBUG):
+        if not audit_logger.isEnabledFor(logging.DEBUG):
             return
 
         try:
@@ -239,7 +239,7 @@ class TransactionFormatter:
                             if idx < len(self.formatted_df)
                             else ""
                         )
-                        import_logger.debug(
+                        audit_logger.debug(
                             AUTO_FORMAT_DEBUG,
                             idx,
                             column,
@@ -247,7 +247,7 @@ class TransactionFormatter:
                             curr_val,
                         )
         except (TypeError, ValueError) as exc:
-            import_logger.warning(
+            audit_logger.warning(
                 "Comparison failed for column '%s' due to error: %s",
                 column,
                 exc,
@@ -335,7 +335,7 @@ class TransactionFormatter:
         if not (required or reject_invalid):
             if invalid_debug:
                 for label, raw in invalid:
-                    import_logger.debug(invalid_debug, label, column, raw)
+                    audit_logger.debug(invalid_debug, label, column, raw)
             return
 
         reason = f"INVALID {column}" if required else f"{NON_NUMERIC} {column}"
@@ -435,7 +435,7 @@ class TransactionFormatter:
 
             profile = _profile_for(action_value)
             required = profile.required if profile else _UNKNOWN_ACTION_REQUIRED
-            import_logger.debug(
+            audit_logger.debug(
                 "Processing %d rows with action %s requiring %s",
                 len(action_indices),
                 action_value,

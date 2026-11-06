@@ -18,7 +18,7 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from app.logging_setup import audit_footer, get_import_logger
+from app.logging_setup import audit_footer, get_audit_logger
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from cli.selection import Selection
 
 logger = logging.getLogger(__name__)
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 
 ARITHMETIC_OPERATORS = "*/+-"
 
@@ -496,7 +496,7 @@ def _update(formatted: pd.DataFrame, set_columns: list[str]) -> int:
             )
         except sqlite3.IntegrityError as e:
             console_error(f"Database rejected the edit: {e}")
-            import_logger.error("EDIT FAILED: %s", e)  # noqa: TRY400
+            audit_logger.error("EDIT FAILED: %s", e)  # noqa: TRY400
             raise typer.Exit(1) from e
 
 
@@ -508,7 +508,7 @@ def _log_edit(  # noqa: PLR0917
     operations: list[SetOperation],
     updated: int,
 ) -> None:
-    """Record the edit in the shared import audit log.
+    """Record the edit in the audit log.
 
     Writes both a compact per-field diff and the complete pre- and post-edit
     state, so the folio can be reconstructed from the log alone.
@@ -522,7 +522,7 @@ def _log_edit(  # noqa: PLR0917
         updated: Rows the database actually wrote.
     """
     sets = ", ".join(operation.raw for operation in operations)
-    import_logger.info("EDIT TXN (manual, %s) SET %s", selection.describe(), sets)
+    audit_logger.info("EDIT TXN (manual, %s) SET %s", selection.describe(), sets)
 
     for position in range(len(after)):
         old_row = before.iloc[position]
@@ -532,18 +532,18 @@ def _log_edit(  # noqa: PLR0917
             for column in changed
             if str(old_row.get(column)) != str(new_row.get(column))
         )
-        import_logger.info(" ~ TxnId %s: %s", new_row[Column.Txn.TXN_ID], diffs)
-        import_logger.info(" - %s", format_transaction_summary(old_row))
-        import_logger.info(" + %s", format_transaction_summary(new_row))
+        audit_logger.info(" ~ TxnId %s: %s", new_row[Column.Txn.TXN_ID], diffs)
+        audit_logger.info(" - %s", format_transaction_summary(old_row))
+        audit_logger.info(" + %s", format_transaction_summary(new_row))
 
     txn_ids = ", ".join(str(txn_id) for txn_id in selection.txn_ids)
-    import_logger.info(
+    audit_logger.info(
         "DONE: %d transaction(s) updated (TxnIds %s)",
         updated,
         txn_ids,
     )
     if updated != len(after):
-        import_logger.error(
+        audit_logger.error(
             "MISMATCH: %d transaction(s) matched but %d updated",
             len(after),
             updated,

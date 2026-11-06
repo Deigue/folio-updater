@@ -18,7 +18,7 @@ import pandas as pd
 import typer
 
 from app import bootstrap, get_config
-from app.logging_setup import audit_footer, get_import_logger
+from app.logging_setup import audit_footer, get_audit_logger
 from cli.commands.common import export_to_parquet
 from db import backup_folio
 from db.helpers import format_transaction_summary, generate_keys
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from models import ImportResults
 
 logger = logging.getLogger(__name__)
-import_logger = get_import_logger()
+audit_logger = get_audit_logger()
 
 # Order fields are prompted in: when, where, then what and how much.
 PROMPT_ORDER: tuple[str, ...] = (
@@ -260,18 +260,18 @@ def _insert_transaction(final_df: pd.DataFrame) -> int:
             append_rows(conn, Table.TXNS, final_df)
         except sqlite3.IntegrityError as e:
             console_error(f"Database rejected the transaction: {e}")
-            import_logger.error("ADD FAILED: %s", e)  # noqa: TRY400
+            audit_logger.error("ADD FAILED: %s", e)  # noqa: TRY400
             raise typer.Exit(1) from e
 
         return get_last_insert_rowid(conn)
 
 
 def _log_add(final_df: pd.DataFrame, txn_id: int) -> None:
-    """Record the manual add in the shared import audit log."""
-    import_logger.info("ADD TXN (manual entry)")
+    """Record the manual add in the audit log."""
+    audit_logger.info("ADD TXN (manual entry)")
     for _, row in final_df.iterrows():
-        import_logger.info(" + %s", format_transaction_summary(row))
-    import_logger.info("DONE: TxnId %d added", txn_id)
+        audit_logger.info(" + %s", format_transaction_summary(row))
+    audit_logger.info("DONE: TxnId %d added", txn_id)
     audit_footer()
 
 

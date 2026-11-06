@@ -162,7 +162,7 @@ def import_single_statement(
     if result.transfers_rejected > 0:
         console_warning(
             f"{result.transfers_rejected} transfer(s) in "
-            f'"{statement_path.name}" could not be created - see import log '
+            f'"{statement_path.name}" could not be created - see logs/audit.log '
             "for details",
         )
 
@@ -197,7 +197,7 @@ def _report_settlement_matching(
     """Say what settlement matching could not place, in full when asked.
 
     Rows that match nothing or match ambiguously used to reach only the
-    importer log, which is what let a mis-spelled ticker go unnoticed. The
+    audit log, which is what let a mis-spelled ticker go unnoticed. The
     count is always printed; `verbose` adds the row-by-row table.
 
     Args:

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
+from app.logging_setup import AUDIT_LOGGER
 from db import create_txns_table, get_connection, get_rows, helpers, txn_count
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions, insert_transactions
@@ -473,16 +474,16 @@ REPEATING_ROWS: dict[str, Any] = {
 
 
 @pytest.fixture
-def importer_info(caplog: pytest.LogCaptureFixture) -> None:
-    """Enable the importer logger for INFO, where duplicates are summarised.
+def audit_info(caplog: pytest.LogCaptureFixture) -> None:
+    """Hold the audit logger at INFO, where duplicates are summarised.
 
-    Nothing in this file configures that level otherwise, so setting it makes
-    the summary path deterministic rather than incidental.
+    INFO is the default, but a test's config could set another level, so pinning
+    it keeps the summary path deterministic rather than incidental.
     """
-    caplog.set_level(logging.INFO, logger="importer")
+    caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
 
 
-@pytest.mark.usefixtures("importer_info")
+@pytest.mark.usefixtures("audit_info")
 def test_a_row_repeated_within_a_file_is_held_back(temp_ctx: TempContext) -> None:
     """Without approval, neither copy of a repeated row is imported."""
     with temp_ctx() as ctx:
@@ -498,7 +499,7 @@ def test_a_row_repeated_within_a_file_is_held_back(temp_ctx: TempContext) -> Non
         assert _imported(path, sheet) == len(rows) - 1
 
 
-@pytest.mark.usefixtures("importer_info")
+@pytest.mark.usefixtures("audit_info")
 def test_a_row_already_in_the_folio_needs_approval(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         sheet = ctx.config.txn_sheet
@@ -518,7 +519,7 @@ def test_a_row_already_in_the_folio_needs_approval(temp_ctx: TempContext) -> Non
         assert _imported(approved_path, sheet) == 1  # The approved duplicate
 
 
-@pytest.mark.usefixtures("importer_info")
+@pytest.mark.usefixtures("audit_info")
 def test_an_approved_repeat_within_a_file_is_imported(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         sheet = ctx.config.txn_sheet
@@ -548,8 +549,8 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A row ingest passed but the table's checks refuse takes none of its batch."""
-    caplog.set_level(logging.INFO, logger="importer")
-    monkeypatch.setattr(logging.getLogger("importer"), "propagate", True)
+    caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
+    monkeypatch.setattr(logging.getLogger(AUDIT_LOGGER), "propagate", True)
     with temp_ctx():
         create_txns_table()
         rows = pd.DataFrame(
@@ -641,7 +642,7 @@ def test_import_missing_essential_column(
         txn_sheet = config.txn_sheet
         temp_path = config.folio_path.parent / "temp_missing_essential.xlsx"
         register_test_dataframe(temp_path, df, txn_sheet)
-        caplog.set_level(logging.CRITICAL, logger="importer")
+        caplog.set_level(logging.CRITICAL, logger=AUDIT_LOGGER)
         with pytest.raises(
             ValueError,
             match=rf"MISSING essential columns: \{{'{essential_to_remove}'\}}\s*",

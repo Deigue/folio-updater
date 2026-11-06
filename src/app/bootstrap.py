@@ -25,9 +25,17 @@ def reload_config(project_root: Path | None = None) -> Config:
     """
     initialize_app(project_root)
     config: Config = get_config()
-    level_int: int = getattr(logging, config.log_level.upper())
-    init_logging(level_int)
-    logger.info("INIT config (log level: %s)", logging.getLevelName(level_int))
+    levels = logging.getLevelNamesMapping()
+    init_logging(
+        config.project_root / "logs",
+        levels[config.log_level],
+        levels[config.audit_log_level],
+    )
+    logger.info(
+        "INIT config (log level: %s, audit log level: %s)",
+        config.log_level,
+        config.audit_log_level,
+    )
     if config.folio_path is not None and not config.folio_path.parent.exists():
         logger.warning(
             "Folio directory does not exist: %s",
