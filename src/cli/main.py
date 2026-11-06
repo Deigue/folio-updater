@@ -27,10 +27,12 @@ app = typer.Typer(
 
 
 @app.callback()
-def _one_backup_per_command(ctx: typer.Context) -> None:
-    """Back the folio up at most once, however many times the command writes."""
+def _command_scope(ctx: typer.Context) -> None:
+    """Name the command in the audit trail, and back the folio up at most once."""
+    from app.audit import audit_command
     from db import backup_scope
 
+    ctx.with_resource(audit_command(f"folio {ctx.invoked_subcommand}"))
     ctx.with_resource(backup_scope())
 
 

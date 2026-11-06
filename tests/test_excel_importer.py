@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import pytest
 
+from app.audit import audit_command
 from app.logging_setup import AUDIT_LOGGER
 from db import create_txns_table, get_connection, get_rows, helpers, txn_count
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
@@ -519,6 +520,44 @@ def test_a_row_already_in_the_folio_needs_approval(temp_ctx: TempContext) -> Non
         assert _imported(approved_path, sheet) == 1  # The approved duplicate
 
 
+def _audit_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return the audit trail's lines, as they would read in audit.log."""
+    return [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]
+
+
+@pytest.mark.usefixtures("audit_info")
+def test_an_import_entry_names_its_stages_rows_and_txn_ids(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Each stage heads its marked rows, and what was stored carries its TxnIds."""
+    with temp_ctx(backup={"enabled": True}) as ctx:
+        sheet = ctx.config.txn_sheet
+        folder = ctx.config.folio_path.parent
+        _imported(_register(folder / "stored.xlsx", STORED_ROWS, sheet), sheet)
+        repeating = _register(folder / "repeating.xlsx", REPEATING_ROWS, sheet)
+        caplog.clear()
+
+        with audit_command("folio import"):
+            _imported(repeating, sheet)
+
+    lines = _audit_lines(caplog)
+    assert lines[0] == f"IMPORT TXNS \"{repeating}\" sheet '{sheet}' (folio import)"
+    assert "  READ 2 source rows; folio holds 2 transactions" in lines
+    read = lines.index("  MAP 2 row(s) onto the folio's columns")
+    assert lines[read + 1].startswith("    > TxnDate=2024-01-01|Action=BUY|")
+    rejected = lines.index("  REJECT 1 database duplicate(s), not approved")
+    assert lines[rejected + 1].startswith("    - TxnDate=2024-01-01|Action=BUY|")
+    store = next(i for i, line in enumerate(lines) if line.startswith("  STORE"))
+    assert lines[store].startswith("  STORE 1 transaction(s) (TxnIds 3-3); backup ")
+    assert lines[store + 1].startswith("    + TxnId=3|TxnDate=2024-01-03|")
+    assert lines[-3:] == [
+        "DONE 1 stored, 1 rejected; folio holds 3 transactions",
+        "=" * 80,
+        "",
+    ]
+
+
 @pytest.mark.usefixtures("audit_info")
 def test_an_approved_repeat_within_a_file_is_imported(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
@@ -576,8 +615,9 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
             insert_transactions(rows)
 
         assert txn_count() == 0
-        assert "Row 2/3: SUCCESS" in caplog.text
-        assert "Row 3/3: FAILED" in caplog.text
+        refused = [r.message for r in caplog.records if r.levelno == logging.ERROR]
+        assert refused[-1].strip().startswith("- TxnDate=2024-01-04")
+        assert "CHECK constraint failed" in refused[-1]
 
 
 def test_the_table_refuses_a_currency_the_folio_does_not_support(
@@ -642,12 +682,16 @@ def test_import_missing_essential_column(
         txn_sheet = config.txn_sheet
         temp_path = config.folio_path.parent / "temp_missing_essential.xlsx"
         register_test_dataframe(temp_path, df, txn_sheet)
-        caplog.set_level(logging.CRITICAL, logger=AUDIT_LOGGER)
+        caplog.set_level(logging.ERROR, logger=AUDIT_LOGGER)
         with pytest.raises(
             ValueError,
             match=rf"MISSING essential columns: \{{'{essential_to_remove}'\}}\s*",
         ):
             import_transactions(temp_path, None, txn_sheet)
+
+    # At ERROR the entry is only its closing line, written once, with the reason.
+    (closing,) = _audit_lines(caplog)
+    assert closing.startswith("FAILED: MISSING essential columns")
 
 
 def test_import_statements_missing_columns(
@@ -920,6 +964,43 @@ def test_import_statements_matches_identical_trades_by_account(
         # The personal row keeps the date the market calendar gave it.
         personal_row = txns[txns[Column.Txn.TXN_ID] == personal_id].iloc[0]
         assert int(personal_row[Column.Txn.SETTLE_CALCULATED]) == 1
+
+
+@pytest.mark.usefixtures("audit_info")
+def test_a_statement_entry_records_each_confirmed_date_old_and_new(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A confirmation names the TxnId and the settlement date it replaced."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_id = seed_transaction(
+            action="BUY",
+            date=STATEMENT_TRADE_DATE,
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount=f"-{STATEMENT_PRICE}",
+            price=STATEMENT_PRICE,
+            units="1",
+        )
+        with get_connection() as conn:
+            calculated = get_rows(conn, Table.TXNS)[Column.Txn.SETTLE_DATE].iloc[0]
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(statement_file, pd.DataFrame([statement_buy()]))
+        caplog.clear()
+
+        import_statements(statement_file)
+
+    lines = _audit_lines(caplog)
+    confirm = lines.index("  CONFIRM 1 of 1 settlement date(s); no backup taken")
+    assert lines[confirm + 1] == (
+        f"    ~ TxnId {txn_id}: SettleDate {calculated} -> {STATEMENT_SETTLE_DATE}"
+    )
+    assert lines[-3] == (
+        "DONE 1 settlement date(s) confirmed, 0 transfer(s) stored, "
+        "0 cash transfer(s) left to the activities import"
+    )
 
 
 def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None:

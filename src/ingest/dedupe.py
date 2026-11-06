@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app import get_config
+from app import audit, get_config
+from app.audit import AuditMark
 from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_rows
@@ -172,30 +173,33 @@ class TransactionFilter:
         # Log approved duplicates
         if approved_mask.any():
             approved_count = approved_mask.sum()
-            msg = f"APPROVE {approved_count} {duplicate_type} duplicates"
-            audit_logger.info(msg)
+            audit.stage("APPROVE %d %s duplicate(s)", approved_count, duplicate_type)
 
-            if audit_logger.isEnabledFor(logging.INFO):
+            if audit.enabled():
                 approved_summaries = txn_df[approved_mask].apply(
                     format_transaction_summary,
                     axis=1,
                 )
                 for summary in approved_summaries:
-                    audit_logger.info(" * %s", summary)
+                    audit.row(AuditMark.APPROVED, summary)
 
         # Log rejected duplicates
         if rejected_mask.any():
             rejected_count = rejected_mask.sum()
-            msg = f"REJECT {rejected_count} {duplicate_type} duplicates"
-            audit_logger.warning(msg)
+            audit.stage(
+                "REJECT %d %s duplicate(s), not approved",
+                rejected_count,
+                duplicate_type,
+                level=logging.WARNING,
+            )
 
-            if audit_logger.isEnabledFor(logging.WARNING):
+            if audit.enabled(logging.WARNING):
                 rejected_summaries = txn_df[rejected_mask].apply(
                     format_transaction_summary,
                     axis=1,
                 )
                 for summary in rejected_summaries:
-                    audit_logger.warning(" - %s", summary)
+                    audit.row(AuditMark.REMOVED, summary, level=logging.WARNING)
 
     @staticmethod
     def _get_db_transaction_keys() -> set[str]:

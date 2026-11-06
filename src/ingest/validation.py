@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 
     from domain import ActionProfile
 
-from app import get_config
+from app import audit, get_config
+from app.audit import AuditMark
 from app.logging_setup import get_audit_logger
 from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
@@ -190,20 +191,20 @@ class TransactionFormatter:
 
             self.formatted_df = self.formatted_df[~self.formatted_df.index.isin(labels)]
 
-            if not audit_logger.isEnabledFor(logging.WARNING):  # pragma: no cover
+            if not audit.enabled(logging.WARNING):  # pragma: no cover
                 return
 
-            audit_logger.warning("REJECT %d invalid row(s)", len(labels))
+            audit.stage("REJECT %d invalid row(s)", len(labels), level=logging.WARNING)
 
             for idx in sorted(labels):
                 if idx < len(self.original_df):
                     row = self.original_df.iloc[idx]
                     reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
                     reason_str = ", ".join(reasons)
-                    audit_logger.warning(
-                        " - %s (%s)",
-                        format_transaction_summary(row),
-                        reason_str,
+                    audit.row(
+                        AuditMark.REMOVED,
+                        f"{format_transaction_summary(row)} ({reason_str})",
+                        level=logging.WARNING,
                     )
 
     def _log_formatting_changes(

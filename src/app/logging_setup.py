@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 LOG_FORMAT = "%(asctime)s %(levelname)-8s %(module)s:%(lineno)4d %(message)s"
 DATE_FORMAT = "%m-%d %H:%M:%S"
+AUDIT_FORMAT = "%(asctime)s %(levelname)-7s %(message)s"
+AUDIT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 AUDIT_LOGGER = "audit"
 
 
@@ -66,11 +68,21 @@ def init_logging(
 
     root_logger: logging.Logger = logging.getLogger()
     root_logger.setLevel(level)
-    _add_file_handler(root_logger, log_file, backup_count=14)
+    _add_file_handler(
+        root_logger,
+        log_file,
+        backup_count=14,
+        formatter=CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT),
+    )
 
     audit_logger = get_audit_logger()
     # Keep 30 days of the audit trail, against folio.log's 14.
-    _add_file_handler(audit_logger, log_dir / "audit.log", backup_count=30)
+    _add_file_handler(
+        audit_logger,
+        log_dir / "audit.log",
+        backup_count=30,
+        formatter=logging.Formatter(AUDIT_FORMAT, datefmt=AUDIT_DATE_FORMAT),
+    )
     audit_logger.setLevel(audit_level)
     audit_logger.propagate = False
 
@@ -82,6 +94,7 @@ def _add_file_handler(
     logger: logging.Logger,
     log_file: Path,
     backup_count: int,
+    formatter: logging.Formatter,
 ) -> None:
     """Give a logger its rolling file, unless an earlier setup already did."""
     if any(
@@ -96,7 +109,7 @@ def _add_file_handler(
         backupCount=backup_count,
         encoding="utf-8",
     )
-    handler.setFormatter(CompactFormatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    handler.setFormatter(formatter)
     logger.addHandler(handler)
 
 

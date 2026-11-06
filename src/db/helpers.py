@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from typing import Any
 
 import pandas as pd
 
 from db.queries import add_column_to_table, get_columns, get_connection, get_row_count
-from domain import TXN_ESSENTIALS, Table
+from domain import TXN_ESSENTIALS, Column, Table
 
 logger = logging.getLogger(__name__)
 
@@ -49,22 +50,31 @@ def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
 
 
 def format_transaction_summary(row: pd.Series) -> str:
-    """Format a transaction row into a human-readable summary.
+    """Format a transaction row as one line of the audit trail.
 
     Args:
         row: A pandas Series containing transaction data.
 
     Returns:
-        A formatted string summarizing the transaction.
+        The fields as `name=value`, joined by `|`.
     """
-    essential_parts = []
+    parts = []
+    txn_id = row.get(Column.Txn.TXN_ID)
+    if _is_set(txn_id):
+        parts.append(f"{Column.Txn.TXN_ID}={txn_id}")
     for col in TXN_ESSENTIALS:
-        value = row.get(col, "N/A")
-        if pd.isna(value):
-            value = "N/A"
-        essential_parts.append(f"{col}={value}")
+        value = row.get(col)
+        parts.append(f"{col}={value if _is_set(value) else 'N/A'}")
+    for col in (Column.Txn.FEE, Column.Txn.SETTLE_DATE):
+        value = row.get(col)
+        if _is_set(value):
+            parts.append(f"{col}={value}")
+    return "|".join(parts)
 
-    return "|".join(essential_parts)
+
+def _is_set(value: Any) -> bool:  # noqa: ANN401
+    """Whether a field holds a value, rather than nothing or an empty cell."""
+    return value is not None and not pd.isna(value) and value != ""
 
 
 # Amounts from source files don't always reproduce bit-for-bit between exports:

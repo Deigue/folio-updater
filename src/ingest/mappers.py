@@ -10,7 +10,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-from app import get_config
+from app import audit, get_config
+from app.audit import AuditMark
 from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary
 from domain import TXN_ESSENTIALS, Column
@@ -64,7 +65,7 @@ class TransactionMapper:
         )
 
         if ignored_columns:
-            audit_logger.info("IGNORE columns: %s", ignored_columns)
+            audit.stage("IGNORE columns %s", ", ".join(map(repr, ignored_columns)))
             df = df.drop(columns=ignored_columns)
 
         if mapping:
@@ -75,25 +76,21 @@ class TransactionMapper:
 
         # Ensure TXN_ESSENTIALS are present in the mapping
         if unmatched and Column.Txn.ACCOUNT in unmatched and account is not None:
-            audit_logger.info(
-                "FALLBACK account column using: %s",
-                account,
-            )
+            audit.stage("FALLBACK account %s for every row", account)
             df = df.assign(**{Column.Txn.ACCOUNT: account})
             unmatched.remove(Column.Txn.ACCOUNT)
 
         if unmatched:
             unmatched_str = {str(col) for col in unmatched}
             error_message = f"MISSING essential columns: {unmatched_str}"
-            audit_logger.error(error_message)
             raise ValueError(error_message)
 
         df = df.rename(columns=mapping)
 
-        if audit_logger.isEnabledFor(logging.INFO):
-            summaries = df.apply(format_transaction_summary, axis=1)
-            for summary in summaries:
-                audit_logger.info(" + %s", summary)
+        audit.stage("MAP %d row(s) onto the folio's columns", len(df))
+        if audit.enabled():
+            for summary in df.apply(format_transaction_summary, axis=1):
+                audit.row(AuditMark.READ, summary)
         return df
 
     @staticmethod
@@ -163,9 +160,10 @@ class TransactionMapper:
         )
 
         if is_essential:
-            audit_logger.warning(
-                "KEEP column '%s' (in ignore list but essential)",
+            audit.stage(
+                "KEEP column '%s' (in header_ignore, but essential)",
                 normalized_column,
+                level=logging.WARNING,
             )
             return False
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -9,11 +10,14 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app.logging_setup import AUDIT_LOGGER, audit_footer, get_audit_logger
+from app import audit
+from app.audit import AuditMark
+from app.logging_setup import get_audit_logger
 from db import (
     append_rows,
     backup_folio,
     get_connection,
+    get_max_value,
     get_rows,
     trial_insert_rows,
     txn_count,
@@ -26,12 +30,13 @@ from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
 from services.broker_files import statement_account_of
 from services.symbols import normalize_canadian_ticker
-from term import StatusMark, announce, get_symbol
+from term import console_info, console_warning
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 audit_logger = get_audit_logger()
+logger = logging.getLogger(__name__)
 
 
 def import_transactions(
@@ -56,33 +61,21 @@ def import_transactions(
         ValueError: If the file cannot be read, such as an Excel file with no
             sheet of that name.
     """
-    existing_count = txn_count()
-
-    # Log import start with detailed info
-    audit_logger.info('IMPORT TXNS "%s"', file_path)
-    audit_logger.info("EXISTING %d transactions in database", existing_count)
-
-    try:
-        try:
-            txns_df = _read_source(file_path, sheet)
-        except ValueError as error:
-            audit_logger.warning('CANNOT READ "%s": %s', file_path, error)
-            audit_logger.info("DONE: 0 imported")
-            raise
-
-        where = f" from sheet '{sheet}'" if sheet else ""
-        audit_logger.info("READ %d transactions%s", len(txns_df), where)
-
+    where = f" sheet '{sheet}'" if sheet else ""
+    with audit.block('IMPORT TXNS "%s"%s', file_path, where) as entry:
+        txns_df = _read_source(file_path, sheet)
+        audit.stage(
+            "READ %d source rows; folio holds %d transactions",
+            len(txns_df),
+            txn_count(),
+        )
         import_results = insert_transactions(txns_df, account)
-
-        audit_logger.info("DONE: %d imported", import_results.imported_count())
-        _log_imported(import_results.final_df)
-        audit_logger.info(
-            "TOTAL %d transactions in database",
+        entry.done(
+            "%d stored, %d rejected; folio holds %d transactions",
+            import_results.imported_count(),
+            import_results.rejected_count(),
             import_results.final_db_count,
         )
-    finally:
-        audit_footer()
     return import_results
 
 
@@ -99,12 +92,6 @@ def _read_source(source: Path, sheet: str | None = None) -> pd.DataFrame:
     if source.suffix.lower() == ".csv":  # pragma: no cover
         return pd.read_csv(source)
     return pd.read_excel(source, sheet_name=0 if sheet is None else sheet)
-
-
-def _log_imported(imported: pd.DataFrame) -> None:
-    """Add a line to the audit log for each transaction that was imported."""
-    for summary in imported.apply(format_transaction_summary, axis=1):
-        audit_logger.info(" + %s", summary)
 
 
 def insert_transactions(
@@ -135,16 +122,45 @@ def insert_transactions(
     prepared_df = import_results.final_df
 
     if not prepared_df.empty:
-        backup_folio()
+        backup = backup_folio()
         with get_connection() as conn:
+            last_id = get_max_value(conn, Table.TXNS, Column.Txn.TXN_ID) or 0
             try:
                 append_rows(conn, Table.TXNS, prepared_df)
             except sqlite3.IntegrityError:
                 _log_refused_row(conn, prepared_df)
                 raise
+            stored = get_rows(
+                conn,
+                Table.TXNS,
+                where=f'"{Column.Txn.TXN_ID}" > ?',
+                params=(last_id,),
+                order_by=f'"{Column.Txn.TXN_ID}"',
+            )
+        _log_stored(stored, backup)
 
     import_results.final_db_count = txn_count()
     return import_results
+
+
+def _log_stored(stored: pd.DataFrame, backup: Path | None) -> None:
+    """Write the STORE stage: the TxnIds given, the backup that undoes it, each row.
+
+    Args:
+        stored: The rows as the table now holds them, TxnIds included.
+        backup: The backup taken before the write, if any.
+    """
+    ids = stored[Column.Txn.TXN_ID]
+    audit.stage(
+        "STORE %d transaction(s) (TxnIds %s-%s); %s",
+        len(stored),
+        ids.iloc[0],
+        ids.iloc[-1],
+        audit.describe_backup(backup),
+    )
+    if audit.enabled():
+        for summary in stored.apply(format_transaction_summary, axis=1):
+            audit.row(AuditMark.STORED, summary)
 
 
 def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> None:
@@ -158,31 +174,23 @@ def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> Non
         conn: Database connection.
         prepared_df: The rows the table refused as a batch.
     """
-    info = get_symbol(StatusMark.INFO)
-    success = get_symbol(StatusMark.SUCCESS)
-    error = get_symbol(StatusMark.ERROR)
-    audit_logger.error("%sBULK INSERT FAILED - Analyzing transactions...", info)
-
-    total_rows = len(prepared_df)
+    audit.stage(
+        "TRY %d row(s) one at a time: the table refused the batch",
+        len(prepared_df),
+        level=logging.ERROR,
+    )
     try:
         outcomes = trial_insert_rows(conn, Table.TXNS, prepared_df)
     except sqlite3.Error:
         # The batch's own error is what the caller raises; this is only a guide.
         audit_logger.exception("Could not try the rows one at a time")
         return
-    for position, refusal in enumerate(outcomes, 1):
+    for position, refusal in enumerate(outcomes):
+        summary = format_transaction_summary(prepared_df.iloc[position])
         if refusal is None:
-            audit_logger.info("%sRow %d/%d: SUCCESS", success, position, total_rows)
-            continue
-        audit_logger.info(
-            "%sRow %d/%d: FAILED - %s",
-            error,
-            position,
-            total_rows,
-            refusal,
-        )
-        summary = format_transaction_summary(prepared_df.iloc[position - 1])
-        audit_logger.info("   %s", summary)
+            audit.row(AuditMark.STORED, summary)
+        else:
+            audit.row(AuditMark.REMOVED, f"{summary} ({refusal})", level=logging.ERROR)
 
 
 def import_statements(statement: Path) -> StatementImportResult:
@@ -207,61 +215,58 @@ def import_statements(statement: Path) -> StatementImportResult:
     Returns:
         StatementImportResult: Settlement dates confirmed and transfers created.
     """
-    audit_logger.info('IMPORT STATEMENT "%s"', statement)
-    try:
-        return _import_statement_rows(statement)
-    finally:
-        audit_footer()
+    with audit.block('IMPORT STATEMENT "%s"', statement) as entry:
+        return _import_statement_rows(statement, entry)
 
 
-def _import_statement_rows(statement: Path) -> StatementImportResult:
+def _import_statement_rows(
+    statement: Path,
+    entry: audit.AuditBlock,
+) -> StatementImportResult:
     """Read a statement and apply it, whether or not the file turns out usable."""
     try:
         stmt_df = _read_source(statement)
 
         if stmt_df.empty:
-            announce.warning("Statement file is empty.", AUDIT_LOGGER)
+            console_warning("Statement file is empty.")
+            entry.done("nothing read: the statement is empty")
             return StatementImportResult()
 
-        audit_logger.info("READ %d rows from statement", len(stmt_df))
+        audit.stage("READ %d statement rows", len(stmt_df))
         stmt_df.columns = stmt_df.columns.str.lower().str.strip()
         required_cols = ["date", "amount", "currency", "transaction", "description"]
         missing_cols = [col for col in required_cols if col not in stmt_df.columns]
         if missing_cols:
-            announce.warning(
-                f"Statement is missing required columns: {missing_cols}",
-                AUDIT_LOGGER,
-            )
+            console_warning(f"Statement is missing required columns: {missing_cols}")
+            entry.failed(f"missing required columns {missing_cols}")
             return StatementImportResult()
 
         settlements_confirmed, settlement_matches = _confirm_settlement_dates(
             stmt_df,
             statement,
         )
-        transfer_df, transfers_rejected, transfers_skipped = (
-            _build_transfer_transactions(stmt_df, statement)
+        transfer_df, rejected, skipped = _build_transfer_transactions(
+            stmt_df,
+            statement,
         )
-        transfer_results = (
-            _create_transfer_transactions(transfer_df)
-            if not transfer_df.empty
-            else None
-        )
-    except (OSError, ValueError, KeyError):
-        audit_logger.exception("Error processing statement")
+        transfer_results = _store_transfers(transfer_df, rejected, skipped)
+    except (OSError, ValueError, KeyError) as error:
+        logger.exception("Error processing statement %s", statement)
+        entry.failed(error)
         return StatementImportResult()
     else:
-        audit_logger.info(
-            "DONE: Confirmed %d settlement date(s), created %d transfer(s), "
-            "skipped %d cash transfer(s)",
+        entry.done(
+            "%d settlement date(s) confirmed, %d transfer(s) stored, "
+            "%d cash transfer(s) left to the activities import",
             settlements_confirmed,
             transfer_results.imported_count() if transfer_results else 0,
-            transfers_skipped,
+            len(skipped),
         )
         return StatementImportResult(
             settlements_confirmed=settlements_confirmed,
             transfer_results=transfer_results,
-            transfers_rejected=transfers_rejected,
-            transfers_skipped=transfers_skipped,
+            transfers_rejected=len(rejected),
+            transfers_skipped=len(skipped),
             settlement_matches=settlement_matches,
         )
 
@@ -283,11 +288,12 @@ def _confirm_settlement_dates(
     """
     account = statement_account_of(statement.name)
     if not account:
-        announce.warning(
+        message = (
             f'No account in statement filename "{statement.name}"; settlement '
-            "matching cannot tell two accounts' identical trades apart",
-            AUDIT_LOGGER,
+            "matching cannot tell two accounts' identical trades apart"
         )
+        console_warning(message)
+        audit.stage(message, level=logging.WARNING)
 
     with get_connection() as conn:
         all_txns = get_rows(
@@ -300,45 +306,56 @@ def _confirm_settlement_dates(
         actual_txns = all_txns[~calculated]
 
         if all_txns.empty:  # pragma: no cover
-            announce.info("No transactions found to confirm", AUDIT_LOGGER)
+            console_info("No transactions found to confirm")
+            audit.stage("CONFIRM nothing: the folio holds no transactions")
             return 0, []
 
         updates: list[dict] = []
         results: list[SettlementMatch] = []
+        lines: list[_AuditRow] = []
         for _, row in df.iterrows():
             try:
                 statement_row = _extract_statement_row_data(row, account)
                 if statement_row is None:
                     continue
                 matches = _match_transactions(existing_txns, statement_row)
-                result, update = _resolve_statement_match(
+                result, update, line = _resolve_statement_match(
                     statement_row,
                     matches,
                     actual_txns,
                 )
                 results.append(result)
+                lines.append(line)
                 if update is not None:
                     updates.append(update)
             except (ValueError, TypeError) as e:
-                announce.warning(f"Skipping invalid statement row: {e}", AUDIT_LOGGER)
+                console_warning(f"Skipping invalid statement row: {e}")
+                lines.append(
+                    _AuditRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
+                )
                 continue
 
+        confirmed, backup = (
+            _apply_confirmed_dates_to_db(conn, updates) if updates else (0, None)
+        )
         if results:
-            announce.info(
-                f"Matched {len(updates)} out of {len(results)} candidates.",
-                AUDIT_LOGGER,
+            console_info(f"Matched {len(updates)} out of {len(results)} candidates.")
+            audit.stage(
+                "CONFIRM %d of %d settlement date(s)%s",
+                len(updates),
+                len(results),
+                f"; {audit.describe_backup(backup)}" if updates else "",
             )
-        if updates:
-            return _apply_confirmed_dates_to_db(conn, updates), results
-
-        return 0, results
+        for line in lines:
+            audit.row(line.mark, line.text, level=line.level)
+        return confirmed, results
 
 
 def _resolve_statement_match(
     statement_row: _StatementRow,
     matches: pd.DataFrame,
     actual_txns: pd.DataFrame,
-) -> tuple[SettlementMatch, dict | None]:
+) -> tuple[SettlementMatch, dict | None, _AuditRow]:
     """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
@@ -372,30 +389,43 @@ def _resolve_statement_match(
             Column.Txn.SETTLE_DATE: statement_row.settlement_date,
             Column.Txn.SETTLE_CALCULATED: 0,
         }
-        audit_logger.info("  * %s", format_transaction_summary(transaction_row))
-        return result, update
+        change = (
+            f"{Column.Txn.TXN_ID} {result.txn_id}: {Column.Txn.SETTLE_DATE} "
+            f"{transaction_row[Column.Txn.SETTLE_DATE]} -> "
+            f"{statement_row.settlement_date}"
+        )
+        return result, update, _AuditRow(AuditMark.CHANGED, change, logging.INFO)
 
     described = (
         f"{result.action} {result.ticker} on {result.txn_date} for {result.amount}"
     )
     if len(matches) > 1:
         result.outcome = SettlementOutcome.AMBIGUOUS
-        audit_logger.warning(
-            "  ? %d matches for %s, skipping",
-            len(matches),
-            described,
-        )
-        return result, None
+        text = f"{len(matches)} matches for {described}, left unconfirmed"
+        return result, None, _AuditRow(AuditMark.UNRESOLVED, text)
 
     already = _match_transactions(actual_txns, statement_row)
     if len(already) == 1:
         result.outcome = SettlementOutcome.ALREADY_CONFIRMED
         result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
         result.candidates = 1
-        audit_logger.info("  = Already confirmed: %s", described)
+        line = _AuditRow(
+            AuditMark.UNCHANGED,
+            f"already confirmed: {described}",
+            logging.INFO,
+        )
     else:
-        audit_logger.warning("  ! No match for %s", described)
-    return result, None
+        line = _AuditRow(AuditMark.UNRESOLVED, f"no match for {described}")
+    return result, None, line
+
+
+@dataclass(frozen=True)
+class _AuditRow:
+    """One row of the CONFIRM stage, written once the stage line is."""
+
+    mark: AuditMark
+    text: str
+    level: int = logging.WARNING
 
 
 @dataclass(frozen=True)
@@ -598,16 +628,21 @@ def _match_transactions(
 def _apply_confirmed_dates_to_db(
     conn: sqlite3.Connection,
     updates: list[dict],
-) -> int:
-    """Back up the folio, then apply confirmed settlement dates in one batch."""
-    backup_folio()
-    return update_rows(
+) -> tuple[int, Path | None]:
+    """Back up the folio, then apply confirmed settlement dates in one batch.
+
+    Returns:
+        How many transactions were updated, and the backup taken first.
+    """
+    backup = backup_folio()
+    updated = update_rows(
         conn,
         Table.TXNS,
         updates,
         where_columns=[Column.Txn.TXN_ID],
         set_columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],
     )
+    return updated, backup
 
 
 _TRANSFER_OUT_PREFIX = "TRFOUT"
@@ -633,18 +668,18 @@ def _is_cash_transfer(description: str) -> bool:
 def _build_transfer_transactions(
     df: pd.DataFrame,
     statement_path: Path,
-) -> tuple[pd.DataFrame, int, int]:
+) -> tuple[pd.DataFrame, list[str], list[str]]:
     """Build TFR_IN/TFR_OUT transactions from transfer rows in a statement.
 
     Returns:
-        Candidate transactions (possibly empty), a count of transfer rows found
-        that could not be turned into a transaction, and a count of cash
-        transfers skipped because the activities import already covers them.
+        Candidate transactions (possibly empty), the transfer rows that could
+        not be turned into a transaction (each with its reason), and the cash
+        transfers left alone because the activities import already covers them.
     """
     account = statement_account_of(statement_path.name)
     rows: list[dict[str, object]] = []
-    rejected = 0
-    skipped = 0
+    rejected: list[str] = []
+    skipped: list[str] = []
 
     for _, row in df.iterrows():
         action = _transfer_action_for_code(str(row["transaction"]))
@@ -652,25 +687,17 @@ def _build_transfer_transactions(
             continue
 
         if _is_cash_transfer(str(row["description"])):
-            skipped += 1
-            audit_logger.info(
-                " - Skipping cash transfer (imported as a contribution or "
-                "withdrawal): %s, %s, %s",
-                row["transaction"],
-                row["date"],
-                row["amount"],
-            )
+            skipped.append(f"{row['transaction']}, {row['date']}, {row['amount']}")
             continue
 
         settle_date = _normalize_date(row["date"])
         if not account or not settle_date:
-            rejected += 1
             reason = "no account in filename" if not account else "unparseable date"
-            announce.warning(
+            console_warning(
                 f'Rejected transfer in "{statement_path.name}": {reason} '
                 f"({row['transaction']}, {row['date']})",
-                AUDIT_LOGGER,
             )
+            rejected.append(f"{row['transaction']}, {row['date']} ({reason})")
             continue
 
         # Build baseline transaction layout with essential columns.
@@ -689,14 +716,30 @@ def _build_transfer_transactions(
     return pd.DataFrame(rows), rejected, skipped
 
 
-def _create_transfer_transactions(transfer_df: pd.DataFrame) -> ImportResults:
-    """Pass transfer transactions to the standard import pipeline."""
-    import_results = insert_transactions(transfer_df, map_headers=False)
-    prepared_df = import_results.final_df
+def _store_transfers(
+    transfer_df: pd.DataFrame,
+    rejected: list[str],
+    skipped: list[str],
+) -> ImportResults | None:
+    """Write the TRANSFER stage, running its transactions through the import pipeline.
 
-    audit_logger.info(
-        "IMPORT %d transfer transaction(s) from statement",
-        len(prepared_df),
-    )
-    _log_imported(prepared_df)
-    return import_results
+    Args:
+        transfer_df: The transfer transactions built from the statement.
+        rejected: Transfer rows that could not become a transaction.
+        skipped: Cash transfers the activities import already covers.
+
+    Returns:
+        The pipeline's results, or None when there was nothing to store.
+    """
+    found = len(transfer_df) + len(rejected) + len(skipped)
+    if not found:
+        return None
+    audit.stage("TRANSFER %d transfer row(s) from the statement", found)
+    for text in skipped:
+        audit.row(AuditMark.UNCHANGED, f"cash transfer, left to the activities: {text}")
+    for text in rejected:
+        audit.row(AuditMark.REMOVED, text, level=logging.WARNING)
+    if transfer_df.empty:
+        return None
+    with audit.nested():
+        return insert_transactions(transfer_df, map_headers=False)

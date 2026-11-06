@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from app import get_config
+from app import audit, get_config
+from app.audit import AuditMark
 from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary
 from domain import Column
@@ -57,7 +58,7 @@ class TransactionTransformer:
         self.df: pd.DataFrame = df.copy()
         self._config = get_config()
         self.transforms = self._config.transforms
-        self._has_groups: bool = False
+        self._cancel_rules_seen: set[str] = set()
         self._merge_events: list[MergeEvent] = []
         self._transform_events: list[TransformEvent] = []
         self._cancel_events: list[CancelEvent] = []
@@ -156,19 +157,22 @@ class TransactionTransformer:
         # Apply transformations to matching rows
         for field_name, new_value in rule.actions.items():
             if field_name not in self.df.columns:
-                audit_logger.warning(
-                    "Transform target field '%s' not found in data, skipping",
+                audit.stage(
+                    "SKIP transform of '%s': the file has no such field",
                     field_name,
+                    level=logging.WARNING,
                 )
                 continue
 
             # Log transformations
             old_values = list(self.df.loc[mask, field_name].unique())
-            msg = (
-                f"TRANSFORM '{field_name}' for {matching_rows} row(s): "
-                f"{old_values} -> {new_value}"
+            audit.stage(
+                "TRANSFORM %s %s -> %s (%d row(s))",
+                field_name,
+                ", ".join(map(str, old_values)),
+                new_value,
+                matching_rows,
             )
-            audit_logger.info(msg)
 
             if new_value == "":
                 self.df.loc[mask, field_name] = pd.NA
@@ -225,10 +229,11 @@ class TransactionTransformer:
         needed = [*rule.match_fields, rule.amount_field]
         missing = [name for name in needed if name not in self.df.columns]
         if missing:
-            audit_logger.warning(
+            audit.stage(
                 "SKIP cancellation rule '%s' (missing fields: %s)",
                 rule.name,
-                missing,
+                ", ".join(map(str, missing)),
+                level=logging.WARNING,
             )
             return
         mask = self._conditions_mask(rule.conditions)
@@ -285,15 +290,19 @@ class TransactionTransformer:
             cancellation: The cancelling row.
             cancelled: The row it voids, or None when the file held none.
         """
-        audit_logger.info(
-            "CANCEL (%s) %s",
-            rule.name,
-            format_transaction_summary(cancellation),
-        )
+        if rule.name not in self._cancel_rules_seen:
+            self._cancel_rules_seen.add(rule.name)
+            audit.stage("CANCEL '%s'", rule.name)
+        audit.row(AuditMark.VOIDED, format_transaction_summary(cancellation))
         if cancelled is None:
-            audit_logger.warning("   ? nothing in this file for it to void")
+            audit.row(
+                AuditMark.UNRESOLVED,
+                "nothing in this file for it to void",
+                depth=3,
+                level=logging.WARNING,
+            )
         else:
-            audit_logger.info("   x %s", format_transaction_summary(cancelled))
+            audit.row(AuditMark.VOIDED, format_transaction_summary(cancelled), depth=3)
         self._cancel_events.append(
             CancelEvent(
                 cancellation={str(k): v for k, v in cancellation.items()},
@@ -384,10 +393,11 @@ class TransactionTransformer:
                 return float(new_value)
             except ValueError:
                 # If conversion fails, log warning and return as string
-                audit_logger.warning(
-                    "CONVERT FAIL '%s' to numeric for column '%s' (use string)",
+                audit.stage(
+                    "KEEP '%s' as text in '%s': it is not a number",
                     new_value,
                     field_name,
+                    level=logging.WARNING,
                 )
                 return new_value
 
@@ -414,23 +424,15 @@ class TransactionTransformer:
         for group_key, group_df in groups:
             merged_row = self._try_merge_group(group, group_df, group_key)
             if merged_row is not None:
-                if not self._has_groups:
-                    self._has_groups = True
-                    audit_logger.info(
-                        "MERGE transactions",
-                    )
+                if not rows_to_add:
+                    audit.stage("MERGE '%s'", group.name)
                 rows_to_drop.extend(group_df.index.tolist())
                 rows_to_add.append(merged_row)
 
-                if audit_logger.isEnabledFor(logging.INFO):  # pragma: no cover
-                    audit_logger.info(" + %s", format_transaction_summary(merged_row))
-                    dropped_rows = group_df.apply(
-                        format_transaction_summary,
-                        axis=1,
-                    )
-
-                    for row in dropped_rows:
-                        audit_logger.info("   - %s", row)
+                if audit.enabled():
+                    audit.row(AuditMark.STORED, format_transaction_summary(merged_row))
+                    for row in group_df.apply(format_transaction_summary, axis=1):
+                        audit.row(AuditMark.REMOVED, row, depth=3)
 
                 self._merge_events.append(
                     MergeEvent(
@@ -455,18 +457,20 @@ class TransactionTransformer:
         """
         missing_fields = [f for f in group.match_fields if f not in self.df.columns]
         if missing_fields:
-            audit_logger.warning(
+            audit.stage(
                 "SKIP merge group '%s' (missing fields: %s)",
                 group.name,
-                missing_fields,
+                ", ".join(map(str, missing_fields)),
+                level=logging.WARNING,
             )
             return False
 
         if group.amount_field not in self.df.columns:
-            audit_logger.warning(
+            audit.stage(
                 "SKIP merge group '%s' (missing amount field: %s)",
                 group.name,
                 group.amount_field,
+                level=logging.WARNING,
             )
             return False
 

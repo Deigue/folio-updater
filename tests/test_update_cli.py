@@ -29,6 +29,9 @@ WS_ACCOUNT = "WS-TFSA"
 WS_FILE = "ws_activities_20260901_20261003.xlsx"
 OFFLINE = "offline"
 
+# A failed import closes its audit entry with an error, under the runner.
+pytestmark = pytest.mark.usefixtures("quiet_logging")
+
 
 def _no_call(*_args: object, **_kwargs: object) -> None:
     """Stand in for a stage that must not run."""

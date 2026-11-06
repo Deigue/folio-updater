@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
 
+from app.logging_setup import AUDIT_LOGGER
 from domain import Column
 from ingest.rules import TransactionTransformer
 
@@ -264,8 +266,13 @@ MERGE_CONFIG = {
 class TestMergeGroups:
     """Test merge group functionality."""
 
-    def test_groups_with_transforms(self, temp_ctx: TempContext) -> None:
+    def test_groups_with_transforms(
+        self,
+        temp_ctx: TempContext,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
         """Test merging multiple dividend/tax pairs for different tickers."""
+        caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
         with temp_ctx(MERGE_CONFIG):
             df = pd.DataFrame(
                 {
@@ -315,6 +322,13 @@ class TestMergeGroups:
             actual_spy = Decimal(str(spy_row[Column.Txn.AMOUNT]))
             assert actual_spy == expected_spy
             assert spy_row[Column.Txn.UNITS] == 0  # From transform rule
+
+        # Each merged row is stored, with the source rows it took under it.
+        lines = [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]
+        merge = next(i for i, line in enumerate(lines) if line.startswith("  MERGE '"))
+        assert lines[merge + 1].startswith("    + TxnDate=2025-09-10|Action=DIVIDEND")
+        assert lines[merge + 2].startswith("      - TxnDate=2025-09-10|Action=Div")
+        assert lines[merge + 3].startswith("      - TxnDate=2025-09-10|Action=With")
 
     def test_incomplete_pair_not_merged(self, temp_ctx: TempContext) -> None:
         """Test that rows without matching pairs are not merged."""

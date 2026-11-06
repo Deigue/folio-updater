@@ -107,6 +107,11 @@ class ImportResults:
         """Return number of database duplicates rejected."""
         return len(self.db_rejected_df)
 
+    def rejected_count(self) -> int:
+        """Return how many source rows were rejected: invalid rows and duplicates."""
+        duplicates = self.intra_rejected_count() + self.db_rejected_count()
+        return self.invalid_count() + duplicates
+
     def merge_candidates(self) -> int:
         """Return number of source rows that were merge candidates."""
         return sum(len(me.source_rows) for me in self.merge_events)

@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 from contextlib import closing, contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -20,8 +21,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# None outside a backup scope; inside one, whether the folio is already backed up.
-_scope: ContextVar[bool | None] = ContextVar("backup_scope", default=None)
+
+@dataclass
+class _Scope:
+    """One command's backup: whether it was taken yet, and where it went."""
+
+    taken: bool = False
+    path: Path | None = None
+
+
+# None outside a backup scope.
+_scope: ContextVar[_Scope | None] = ContextVar("backup_scope", default=None)
 
 
 def backup_file(file_path: Path, max_backups: int | None = None) -> None:
@@ -47,13 +57,16 @@ def backup_file(file_path: Path, max_backups: int | None = None) -> None:
     _rotate(subdir, file_path.stem, file_path.suffix, keep)
 
 
-def backup_database(max_backups: int | None = None) -> None:
+def backup_database(max_backups: int | None = None) -> Path | None:
     """Copy the folio database into its rolling backups.
 
     Each backup is named with the number of transactions it holds.
 
     Args:
         max_backups: Number of backup files to keep. If None, uses config setting.
+
+    Returns:
+        The backup written, or None when backups are off.
 
     Raises:
         FileNotFoundError: If the database doesn't exist
@@ -62,7 +75,7 @@ def backup_database(max_backups: int | None = None) -> None:
     db_path = get_config().db_path
     slot = _backup_slot(db_path, max_backups)
     if slot is None:
-        return
+        return None
     subdir, timestamp, keep = slot
 
     backup_path = (
@@ -82,6 +95,7 @@ def backup_database(max_backups: int | None = None) -> None:
         logger.exception("SQLite backup failed: %s", db_path)
         raise
     _rotate(subdir, db_path.stem, db_path.suffix, keep)
+    return backup_path
 
 
 def _backup_slot(
@@ -140,22 +154,29 @@ def backup_scope() -> Generator[None]:
     if _scope.get() is not None:
         yield
         return
-    token = _scope.set(False)
+    token = _scope.set(_Scope())
     try:
         yield
     finally:
         _scope.reset(token)
 
 
-def backup_folio() -> None:
+def backup_folio() -> Path | None:
     """Take a rolling backup of the folio database, if it holds anything.
 
-    Inside a `backup_scope()`, only the first call does anything.
+    Inside a `backup_scope()`, only the first call does anything; later calls
+    return that first backup, the one that undoes the whole command.
+
+    Returns:
+        The backup that holds the folio as it was before this write, or None when
+        none was taken (backups are off, or the folio was empty).
     """
-    if _scope.get():
+    scope = _scope.get()
+    if scope is not None and scope.taken:
         logger.debug("Folio already backed up for this command")
-        return
-    if _scope.get() is not None:
-        _scope.set(True)
-    if get_txn_count() > 0:
-        backup_database()
+        return scope.path
+    path = backup_database() if get_txn_count() > 0 else None
+    if scope is not None:
+        scope.taken = True
+        scope.path = path
+    return path
