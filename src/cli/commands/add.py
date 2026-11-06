@@ -29,6 +29,8 @@ from db.queries import (
     get_rows,
 )
 from domain import (
+    ACTION_PROFILES,
+    ALWAYS_REQUIRED,
     SUPPORTED_CURRENCIES,
     TORONTO_TZ,
     TXN_ESSENTIALS,
@@ -36,7 +38,7 @@ from domain import (
     Column,
     Table,
 )
-from ingest import ActionValidationRules, prepare_transactions
+from ingest import prepare_transactions
 from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import show_transactions
@@ -46,15 +48,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 import_logger = get_import_logger()
-
-# Required for every transaction regardless of action. TxnDate and Currency are
-# validated as required by TransactionFormatter for all rows; Account is absent
-# from ActionValidationRules but enforced by a NOT NULL CHECK on the Txns table.
-ALWAYS_REQUIRED: tuple[str, ...] = (
-    Column.Txn.TXN_DATE,
-    Column.Txn.CURRENCY,
-    Column.Txn.ACCOUNT,
-)
 
 # Order fields are prompted in: when, where, then what and how much.
 PROMPT_ORDER: tuple[str, ...] = (
@@ -124,8 +117,7 @@ def _required_columns(action: str) -> list[str]:
     Returns:
         Required column names, in the order they should be prompted for.
     """
-    rules = ActionValidationRules.get_rules_for_action(action)
-    required = set(ALWAYS_REQUIRED) | set(rules["required_fields"])
+    required = {*ALWAYS_REQUIRED, *ACTION_PROFILES[Action(action)].required}
     return [column for column in PROMPT_ORDER if column in required]
 
 

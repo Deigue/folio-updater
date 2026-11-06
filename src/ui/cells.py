@@ -46,6 +46,11 @@ PERCENT_PRECISION = 2
 _HALF_DAY = 12  # hours on a twelve-hour clock
 
 
+def display_round(number: float, precision: int) -> float:
+    """Round a figure to the decimals a cell shows, collapsing `-0.0` to `0.0`."""
+    return round(number, precision) + 0.0
+
+
 def money(value: Decimal | None, *, blank_zero: bool = False) -> str:
     """Render a money figure, leaving a genuine blank blank.
 
@@ -64,14 +69,15 @@ def price(value: Decimal | None) -> str:
     """Render a per-unit price at its own, finer precision."""
     if value is None:
         return EM_DASH
-    return f"{float(value):,.{PRICE_PRECISION}f}".rstrip("0").rstrip(".")
+    number = display_round(float(value), PRICE_PRECISION)
+    return f"{number:,.{PRICE_PRECISION}f}".rstrip("0").rstrip(".")
 
 
 def units(value: Decimal | None) -> str:
     """Render a unit count, dropping the zeros whole units do not need."""
     if value is None:
         return EM_DASH
-    text = f"{float(value):,.{UNIT_PRECISION}f}"
+    text = f"{display_round(float(value), UNIT_PRECISION):,.{UNIT_PRECISION}f}"
     return text.rstrip("0").rstrip(".") if "." in text else text
 
 
@@ -80,7 +86,8 @@ def percent(value: Decimal | None, *, plus: bool = False) -> str:
     if value is None:
         return EM_DASH
     flag = "+" if plus else ""
-    return f"{float(value) * 100:{flag},.{PERCENT_PRECISION}f}%"
+    number = display_round(float(value) * 100, PERCENT_PRECISION)
+    return f"{number:{flag},.{PERCENT_PRECISION}f}%"
 
 
 def style(text: str, style: str | None) -> str:

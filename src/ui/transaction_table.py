@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import pandas as pd
 from rich.markup import escape
 from rich.table import Table
 
-from domain import Action, Column
+from domain import Column
+from domain.numeric import dec, q2
 from term.console import console_print
+from ui.cells import money, style
 from ui.format import decimals, safe_str
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
@@ -31,6 +32,7 @@ from ui.vocabulary import (
 if TYPE_CHECKING:
     from collections.abc import Container, Sequence
 
+    import pandas as pd
     from rich.console import JustifyMethod
 
 
@@ -121,38 +123,23 @@ def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> li
     return ordered
 
 
-def _format_amount_display(amount: float, action: str) -> str:
-    """Format amount with color based on the action.
+def _money_cell(value: object, *, blank_zero: bool) -> str:
+    """Render a raw `Txns` money value, blank when the transaction has none."""
+    if not safe_str(value):
+        return ""
+    return money(dec(value), blank_zero=blank_zero)
 
-    Args:
-        amount: Transaction amount
-        action: Transaction action
 
-    Returns:
-        Formatted amount string with color markup
+def _amount_cell(value: object) -> str:
+    """Render Amount, coloured by whether cash came in or went out.
+
+    The sign is read after rounding to cents, so a residue below a cent is
+    neither cash in nor cash out.
     """
-    amount_str = f"{0.0 if pd.isna(amount) else float(amount):,.{MONEY_PRECISION}f}"
-
-    if action in [Action.SELL, Action.CONTRIBUTION] or amount > 0:
-        return f"[{GAIN}]{amount_str}[/{GAIN}]"
-    if action in [Action.BUY, Action.WITHDRAWAL] or amount < 0:
-        return f"[{LOSS}]{amount_str}[/{LOSS}]"
-    return f"[white]{amount_str}[/white]"
-
-
-def _parse_amount(amount: Any) -> float:
-    """Parse amount value to float.
-
-    Args:
-        amount: Raw amount value
-
-    Returns:
-        Parsed float value or 0.0
-    """
-    try:
-        return float(amount)
-    except (TypeError, ValueError):
-        return 0.0
+    text = _money_cell(value, blank_zero=False)
+    cents = q2(dec(value))
+    colour = GAIN if cents > 0 else LOSS if cents < 0 else "white"
+    return style(text, colour)
 
 
 def build_transactions_table(
@@ -363,16 +350,13 @@ def _row_cells(row: pd.Series, columns: Sequence[str]) -> dict[str, str]:
         CALCULATED_SETTLEMENT if row.get(Column.Txn.SETTLE_CALCULATED) else GAIN
     )
 
-    amount = _parse_amount(row.get(Column.Txn.AMOUNT, 0))
-    fee_val = _parse_amount(row.get(Column.Txn.FEE, 0))
-
     settle_display = f"[{settle_color}]{settle_date_str}[/{settle_color}]"
     special: dict[str, str] = {
         Column.Txn.SETTLE_DATE: settle_display,
         Column.Txn.ACTION: f"[{action_color}]{action}[/{action_color}]",
-        Column.Txn.AMOUNT: _format_amount_display(amount, action),
-        # Blank the fee if its zero/nothing
-        Column.Txn.FEE: f"{fee_val:,.{MONEY_PRECISION}f}" if fee_val else "",
+        Column.Txn.AMOUNT: _amount_cell(row.get(Column.Txn.AMOUNT)),
+        # Blank when there is no fee, or less than a cent of one.
+        Column.Txn.FEE: _money_cell(row.get(Column.Txn.FEE), blank_zero=True),
         Column.Txn.PRICE: decimals(
             row.get(Column.Txn.PRICE, ""),
             PRICE_PRECISION,

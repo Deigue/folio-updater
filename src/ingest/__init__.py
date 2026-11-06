@@ -9,10 +9,8 @@ added. The caller stores whatever is returned.
 
 from ingest.pipeline import prepare_transactions
 from ingest.rules import TransactionTransformer
-from ingest.validation import ActionValidationRules
 
 __all__ = [
-    "ActionValidationRules",
     "TransactionTransformer",
     "prepare_transactions",
 ]

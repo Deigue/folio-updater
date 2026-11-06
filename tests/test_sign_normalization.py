@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from domain import Action, Column, Currency, Sign
-from ingest.validation import ActionValidationRules, TransactionFormatter
+from domain import ACTION_PROFILES, Action, Column, Currency, Sign
+from ingest.validation import TransactionFormatter
 
 from .helpers.seed import ACCOUNT, TXN_DATE
 
@@ -18,26 +18,27 @@ if TYPE_CHECKING:
 AMOUNT_MAGNITUDE = 1502.50
 UNITS_MAGNITUDE = 10.0
 
-# Derived straight from the production rule table, so a new constrained action
+# Derived straight from the action profiles, so a new constrained action
 # (or a changed sign) is picked up here without touching this file.
 SIGNED_FIELD_CASES: list[tuple[Action, float | None, float | None]] = [
     (
         action,
         AMOUNT_MAGNITUDE
-        if rules.get(Column.Txn.AMOUNT) is Sign.POSITIVE
+        if profile.signs.get(Column.Txn.AMOUNT) is Sign.POSITIVE
         else -AMOUNT_MAGNITUDE
-        if rules.get(Column.Txn.AMOUNT) is Sign.NEGATIVE
+        if profile.signs.get(Column.Txn.AMOUNT) is Sign.NEGATIVE
         else None,
         UNITS_MAGNITUDE
-        if rules.get(Column.Txn.UNITS) is Sign.POSITIVE
+        if profile.signs.get(Column.Txn.UNITS) is Sign.POSITIVE
         else -UNITS_MAGNITUDE
-        if rules.get(Column.Txn.UNITS) is Sign.NEGATIVE
+        if profile.signs.get(Column.Txn.UNITS) is Sign.NEGATIVE
         else None,
     )
-    for action, rules in ActionValidationRules.SIGN_RULES.items()
+    for action, profile in ACTION_PROFILES.items()
+    if profile.signs
 ]
 UNCONSTRAINED_ACTIONS: list[Action] = [
-    action for action in Action if action not in ActionValidationRules.SIGN_RULES
+    action for action, profile in ACTION_PROFILES.items() if not profile.signs
 ]
 
 
@@ -60,6 +61,11 @@ def _format_one(action: str, amount: str, units: str) -> pd.Series:
     formatted_df, invalid_df = TransactionFormatter.format_and_validate(df)
     assert invalid_df.empty, f"{action} unexpectedly rejected"
     return formatted_df.iloc[0]
+
+
+def test_every_action_has_a_profile() -> None:
+    """No action is left without its impact, required fields and signs."""
+    assert set(ACTION_PROFILES) == set(Action)
 
 
 class TestSignNormalization:

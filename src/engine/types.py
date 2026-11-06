@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from db.queries import get_connection, get_rows
 from domain import (
+    ACTION_PROFILES,
     AccountType,
     Action,
     Column,
@@ -26,21 +27,6 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     import pandas as pd
-
-# What each action does to the cost base. Anything absent is cash-only.
-ACTION_IMPACT: dict[Action, Impact] = {
-    Action.BUY: Impact.ACB,
-    Action.SELL: Impact.ACB,
-    Action.ROC: Impact.ACB,
-    Action.SPLIT: Impact.ACB,
-    Action.TFR_IN: Impact.ACB,
-    Action.TFR_OUT: Impact.ACB,
-    Action.DIVIDEND: Impact.INCOME,
-    Action.FCH: Impact.INCOME,
-    Action.CONTRIBUTION: Impact.NONE,
-    Action.WITHDRAWAL: Impact.NONE,
-    Action.FXT: Impact.NONE,
-}
 
 
 @dataclass(frozen=True)
@@ -85,7 +71,7 @@ class TxnRow:
     @property
     def impact(self) -> Impact:
         """What this row does to the cost base."""
-        return ACTION_IMPACT.get(self.action, Impact.NONE)
+        return ACTION_PROFILES[self.action].impact
 
     @property
     def is_in_kind_transfer(self) -> bool:

@@ -20,11 +20,20 @@ from pandas import Series
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from domain import ActionProfile
+
 from app import get_config
 from app.logging_setup import get_import_logger
 from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
-from domain import SUPPORTED_CURRENCIES, TORONTO_TZ, Action, Column, Sign
+from domain import (
+    ACTION_PROFILES,
+    SUPPORTED_CURRENCIES,
+    TORONTO_TZ,
+    Action,
+    Column,
+    Sign,
+)
 from engine.settlement import settlement_calculator
 
 import_logger = get_import_logger()
@@ -34,178 +43,16 @@ AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
 NON_NUMERIC: str = "NON-NUMERIC"
 
 
-class ActionValidationRules:
-    """Defines validation rules for different transaction actions."""
+# Unknown action will follow buy's template, the strictest set.
+_UNKNOWN_ACTION_REQUIRED: frozenset[Column.Txn] = ACTION_PROFILES[Action.BUY].required
 
-    # Action-specific validation rules
-    RULES: ClassVar[dict[Action, dict[str, list[str]]]] = {
-        Action.CONTRIBUTION: {
-            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-            ],
-        },
-        Action.FXT: {
-            "required_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.ACCOUNT,
-                Column.Txn.CURRENCY,
-            ],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-            ],
-        },
-        Action.DIVIDEND: {
-            "required_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.ACCOUNT,
-                Column.Txn.TICKER,
-            ],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-            ],
-        },
-        Action.FCH: {
-            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-            ],
-        },
-        Action.WITHDRAWAL: {
-            "required_fields": [Column.Txn.AMOUNT, Column.Txn.ACCOUNT],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-            ],
-        },
-        Action.ROC: {
-            "required_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.ACCOUNT,
-                Column.Txn.TICKER,
-            ],
-            "optional_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-            ],
-        },
-        Action.SPLIT: {
-            "required_fields": [
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-                Column.Txn.ACCOUNT,
-            ],
-            "optional_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.FEE,
-            ],
-        },
-        # A transfer carries either cash or units, so neither is required on its
-        # own: a cash transfer has Amount and no Ticker, an in-kind transfer has
-        # Ticker and Units and no Amount.
-        Action.TFR_IN: {
-            "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],
-            "optional_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-                Column.Txn.FEE,
-            ],
-        },
-        Action.TFR_OUT: {
-            "required_fields": [Column.Txn.ACCOUNT, Column.Txn.CURRENCY],
-            "optional_fields": [
-                Column.Txn.AMOUNT,
-                Column.Txn.PRICE,
-                Column.Txn.UNITS,
-                Column.Txn.TICKER,
-                Column.Txn.FEE,
-            ],
-        },
-    }
 
-    # Default rule for actions that require all fields (BUY, SELL, etc.)
-    DEFAULT: ClassVar[dict[str, list[str]]] = {
-        "required_fields": [
-            Column.Txn.AMOUNT,
-            Column.Txn.PRICE,
-            Column.Txn.UNITS,
-            Column.Txn.TICKER,
-            Column.Txn.CURRENCY,
-        ],
-        "optional_fields": [Column.Txn.FEE],
-    }
-
-    # Required signs for each action
-    SIGN_RULES: ClassVar[dict[Action, dict[str, Sign]]] = {
-        Action.BUY: {
-            Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
-            Column.Txn.UNITS: Sign.POSITIVE,  # units acquired
-        },
-        Action.SELL: {
-            Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
-            Column.Txn.UNITS: Sign.NEGATIVE,  # units disposed
-        },
-        Action.WITHDRAWAL: {Column.Txn.AMOUNT: Sign.NEGATIVE},
-        Action.CONTRIBUTION: {Column.Txn.AMOUNT: Sign.POSITIVE},
-        Action.ROC: {Column.Txn.AMOUNT: Sign.POSITIVE},
-        Action.SPLIT: {
-            Column.Txn.PRICE: Sign.POSITIVE,
-            Column.Txn.UNITS: Sign.POSITIVE,
-        },
-        Action.TFR_IN: {
-            Column.Txn.AMOUNT: Sign.POSITIVE,  # cash in
-            Column.Txn.UNITS: Sign.POSITIVE,  # units in
-        },
-        Action.TFR_OUT: {
-            Column.Txn.AMOUNT: Sign.NEGATIVE,  # cash out
-            Column.Txn.UNITS: Sign.NEGATIVE,  # units out
-        },
-    }
-
-    @classmethod
-    def get_rules_for_action(cls, action: str) -> dict[str, list[str]]:
-        """Get validation rules for a specific action.
-
-        Args:
-            action: The action's value, such as `BUY`, with any alias already resolved
-
-        Returns:
-            Dictionary with 'required_fields' and 'optional_fields' lists
-        """
-        try:
-            action_enum = Action(action)
-            return cls.RULES.get(action_enum, cls.DEFAULT)
-        except ValueError:
-            # If action is not a valid enum, use default rules
-            return cls.DEFAULT
-
-    @classmethod
-    def get_sign_rules_for_action(cls, action: str) -> dict[str, Sign]:
-        """Get the required Amount/Units signs for a specific action.
-
-        Args:
-            action: The action's value, such as `BUY`, with any alias already resolved
-
-        Returns:
-            Mapping of column name to required sign. Empty when the action
-            places no constraint on either field.
-        """
-        try:
-            action_enum = Action(action)
-        except ValueError:
-            return {}
-        return cls.SIGN_RULES.get(action_enum, {})
+def _profile_for(action: object) -> ActionProfile | None:
+    """Look up an action value's profile, or None when it is not an action."""
+    try:
+        return ACTION_PROFILES[Action(str(action))]
+    except ValueError:
+        return None
 
 
 def _to_decimal_format(value: str) -> str | None:
@@ -586,32 +433,31 @@ class TransactionFormatter:
             if len(action_indices) == 0:  # pragma: no cover
                 continue
 
-            rules = ActionValidationRules.get_rules_for_action(str(action_value))
+            profile = _profile_for(action_value)
+            required = profile.required if profile else _UNKNOWN_ACTION_REQUIRED
             import_logger.debug(
-                "Processing %d rows with action %s using rules %s",
+                "Processing %d rows with action %s requiring %s",
                 len(action_indices),
                 action_value,
-                rules,
+                sorted(required),
             )
-            self._format_rows_with_rules(action_indices, rules)
+            self._format_rows_requiring(action_indices, required)
 
         invalid_action_mask = action_series.isna()
         if invalid_action_mask.any():
             invalid_indices = self.formatted_df[invalid_action_mask].index
-            self._format_rows_with_rules(invalid_indices, ActionValidationRules.DEFAULT)
+            self._format_rows_requiring(invalid_indices, _UNKNOWN_ACTION_REQUIRED)
 
     def _normalize_signs(self) -> None:
         """Correct Amount/Units signs to match each action's cash-flow direction."""
         action_series: Series = self.formatted_df[Column.Txn.ACTION]
         for action_value in action_series.dropna().unique():
-            sign_rules = ActionValidationRules.get_sign_rules_for_action(
-                str(action_value),
-            )
-            if not sign_rules:
+            profile = _profile_for(action_value)
+            if profile is None or not profile.signs:
                 continue
 
             action_indices = self.formatted_df[action_series == action_value].index
-            for column, sign in sign_rules.items():
+            for column, sign in profile.signs.items():
                 if column in self.formatted_df.columns:
                     self._apply_sign_for_rows(
                         column,
@@ -643,13 +489,12 @@ class TransactionFormatter:
         corrected = wrong_series.apply(_negate_decimal)
         self.formatted_df.loc[wrong_series.index, column] = corrected
 
-    def _format_rows_with_rules(
+    def _format_rows_requiring(
         self,
         rows: pd.Index,
-        rules: dict[str, list[str]],
+        required_fields: frozenset[Column.Txn],
     ) -> None:
-        """Format all columns for given indices based on validation rules."""
-        required_fields = set(rules["required_fields"])
+        """Format all columns for given rows, rejecting any missing a required one."""
         is_required = Column.Txn.TICKER in required_fields
         self._format_ticker_for_rows(
             Column.Txn.TICKER,

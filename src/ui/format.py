@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from term.console import supports_unicode
-from ui.cells import WARN_GLYPH
+from ui.cells import WARN_GLYPH, display_round
 
 if TYPE_CHECKING:
     from collections.abc import Container, Mapping, Sequence
@@ -56,7 +56,7 @@ def decimals(value: Any, precision: int, minimum: int = 0) -> str:
     if not text:
         return ""
     try:
-        number = float(value)
+        number = display_round(float(value), precision)
     except (TypeError, ValueError):
         return text
     rendered = f"{number:,.{precision}f}"

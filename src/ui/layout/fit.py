@@ -172,7 +172,9 @@ def _reduce_precision(table: Table) -> None:
 
 def _to_cents(match: re.Match[str]) -> str:
     """Re-render one number found inside a cell at cent precision."""
-    return f"{float(match.group().replace(',', '')):,.{MONEY_PRECISION}f}"
+    # Rounded before formatting, so a residue below a cent reads 0.00, not -0.00.
+    number = round(float(match.group().replace(",", "")), MONEY_PRECISION) + 0.0
+    return f"{number:,.{MONEY_PRECISION}f}"
 
 
 def _coarsen_percents(table: Table) -> None:

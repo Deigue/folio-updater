@@ -13,7 +13,7 @@ from domain import TXN_ESSENTIALS, Action, Column, Table
 logger: logging.Logger = logging.getLogger(__name__)
 
 # Amount/Units signs the importer is expected to enforce, per action. Duplicated
-# here rather than read from ActionValidationRules.SIGN_RULES, so a
+# here rather than read from the action profiles' signs, so a
 # regression in the production table is caught instead of mirrored.
 # FCH and FXT are absent: both directions are valid for them.
 EXPECTED_SIGNS: dict[str, dict[str, int]] = {

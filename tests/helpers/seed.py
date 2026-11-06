@@ -20,9 +20,8 @@ from db import (
     helpers,
     insert_or_replace,
 )
-from domain import Column, Currency, Sign, Table
+from domain import ACTION_PROFILES, Action, Column, Currency, Sign, Table
 from engine.settlement import settlement_calculator
-from ingest import ActionValidationRules
 
 # Inside the demo folio's range, so settlement calculations hit the market
 # calendars preloaded by the session fixture.
@@ -156,7 +155,7 @@ def seed_transaction(
         row[Column.Txn.SETTLE_DATE] = settle_date
         row[Column.Txn.SETTLE_CALCULATED] = 0
 
-    for column, sign in ActionValidationRules.get_sign_rules_for_action(action).items():
+    for column, sign in ACTION_PROFILES[Action(action)].signs.items():
         value = row.get(column)
         if not isinstance(value, (int, float)) or value == 0:
             continue

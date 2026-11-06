@@ -21,6 +21,7 @@ from ui.cells import (
     clock_time,
     currency_tint,
     day_move,
+    display_round,
     graded,
     income,
     lifetime_return,
@@ -280,12 +281,12 @@ def _magnitude(value: Decimal | None) -> str | None:
     for size, suffix in MAGNITUDES:
         if abs(number) >= size:
             return f"{number / size:,.2f}{suffix}"
-    return f"{number:,.0f}"
+    return f"{display_round(number, 0):,.0f}"
 
 
 def _ratio(value: Decimal | None) -> str | None:
     """Render a plain ratio such as a P/E or a beta."""
-    return None if value is None else f"{float(value):,.2f}"
+    return None if value is None else f"{display_round(float(value), 2):,.2f}"
 
 
 def _price_or_none(value: Decimal | None) -> str | None:
