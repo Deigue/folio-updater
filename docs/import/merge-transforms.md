@@ -93,7 +93,7 @@ transforms:
   opposite amount here.
 
 Each cancelling row voids the **earliest** matching row on or before its date, and
-both are left out of the import. The import audit lists them under **Cancelled**.
+both are left out of the import. The [audit log](../audit.md) lists them under the rule's `CANCEL` stage, marked `x`.
 
 A cancelling row with nothing to void in its file is still left out: the row it
 voids was most likely imported earlier. `folio update` then lists the stored rows

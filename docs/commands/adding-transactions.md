@@ -124,7 +124,7 @@ folio add -t TFR_IN  -s SCHD -u 100 -a IBKR-RRSP -c USD -d 2023-09-18
 Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
 
 These rules apply to every ingest path, not just `folio add`: imports from brokers and
-spreadsheets are corrected the same way, and the correction is recorded in the importer audit log.
+spreadsheets are corrected the same way, and the [audit log](../audit.md) shows each row as read (`>`) and as stored (`+`).
 
 ## Recording a Split
 
@@ -211,7 +211,7 @@ folio add -t BUY -s AAPL -d 2025-08-15 -a TFSA -c USD \
   `FXT`, `SPLIT`) get a calculated settlement date; the rest settle same day. See
   [Settlement Date Calculation](../import/settlement-dates.md).
 - **A backup is taken** before database changes as *always*, subject to your `backup` config.
-- **It is logged** to the same importer audit log as imports.
+- **It is logged** to the [audit log](../audit.md) with its TxnId and the backup taken before it.
 
 ## Related
 

@@ -8,7 +8,8 @@ It is **auto-generated** with default values the first time you run the applicat
 ```yaml
 folio_path: data/folio.xlsx
 data_path: data
-log_level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level: ERROR  # folio.log: DEBUG, INFO, WARNING, ERROR, CRITICAL
+audit_log_level: INFO  # audit.log, same values
 sheets:
   tickers: Tickers
   txns: Txns
@@ -123,7 +124,8 @@ contribution_room:
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`folio_path`**         | Path to your folio workbook. If this is **relative**, it will be based on the path of the executable. If you set an **absolute path** (e.g. `C:/Finance/folio.xlsx`), the project will use it directly without creating any folders. Generate this with `folio generate`.                                         |
 | **`data_path`**          | Folder path where data files are stored (automatically created if it does not exist). Relative paths will behave similar to the `folio_path`. Default: `data`                                                                                                                                                           |
-| **`log_level`**          | Sets the application's logging verbosity. Recommended values: ERROR for minimal user-facing logs, INFO for normal operation details, DEBUG for full development troubleshooting.                                                                                                                                        |
+| **`log_level`**          | Verbosity of `logs/folio.log`, the application's diagnostic log. Default: `ERROR`. Use `INFO` for normal operation details, `DEBUG` for full troubleshooting. Does not affect the audit log.                                                                                                                            |
+| **`audit_log_level`**    | Verbosity of `logs/audit.log`, the record of every change to the folio. Default: `INFO`, which keeps every entry in full. See [Audit Log](audit.md).                                                                                                                                                                    |
 | **`sheets`**             | A mapping of logical sheet names (keys) to actual Excel sheet names (values). This allows you to rename sheets without touching the code.                                                                                                                                                                               |
 | **`header_keywords`**    | Maps internally recognized field names (left) to a list of header variations that might appear in your Excel Txns sheet. This allows the importer to automatically match differently-named columns to the required internal schema.                                                                                     |
 | **`header_ignore`**      | List of column names to ignore during import. Essential columns cannot be ignored even if listed here.                                                                                                                                                                                                                  |

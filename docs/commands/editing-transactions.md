@@ -116,7 +116,7 @@ No changes to apply.
 
 - The folio database is backed up before the update, subject to your
   [backup configuration](../configuration.md).
-- Every edit is written to the importer audit log with a per-field diff plus the complete before and
+- Every edit is written to the [audit log](../audit.md) with a per-field diff plus the complete before and
   after state of each row.
 
 ## Related

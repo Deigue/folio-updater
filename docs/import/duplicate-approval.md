@@ -36,7 +36,7 @@ If **all** these fields match between transactions, they are considered duplicat
 ### Approval Process
 
 1. **Import Attempt**: Try to import your Excel file normally
-2. **Review Logs**: Check the import logs for duplicate warnings
+2. **Review Logs**: Check the [audit log](../audit.md) for the `REJECT … duplicate(s), not approved` stage
 3. **Add Approval Column**: Add the configured approval column to your Excel file
 4. **Mark Approved Duplicates**: Enter the approval value for legitimate duplicates
 5. **Re-import**: Import the same file again - approved duplicates will be processed
@@ -124,6 +124,5 @@ Always review duplicate warnings carefully:
 
 ### Logging and Audit
 
-- Import logs provide full audit trail of all duplicate decisions
-- Approved duplicates are clearly marked in logs for future reference
+- The [audit log](../audit.md) records every duplicate decision: rejected rows under `REJECT` with `-`, approved ones under `APPROVE` with `*`
 - Database maintains separate records for each approved duplicate
