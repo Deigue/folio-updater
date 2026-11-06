@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 from app import audit, get_config
 from app.audit import AuditMark
-from app.logging_setup import get_audit_logger
 from config.optional_fields import FieldType
 from db.helpers import format_transaction_summary
 from domain import (
@@ -37,7 +36,8 @@ from domain import (
 )
 from engine.settlement import settlement_calculator
 
-audit_logger = get_audit_logger()
+logger = logging.getLogger(__name__)
+
 actions: list[str] = [action.value for action in Action]
 currencies: set[str] = {currency.value for currency in SUPPORTED_CURRENCIES}
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
@@ -216,7 +216,7 @@ class TransactionFormatter:
         Args:
             original_df: Original DataFrame before any formatting
         """
-        if not audit_logger.isEnabledFor(logging.DEBUG):
+        if not audit.enabled(logging.DEBUG):
             return
 
         try:
@@ -240,7 +240,7 @@ class TransactionFormatter:
                             if idx < len(self.formatted_df)
                             else ""
                         )
-                        audit_logger.debug(
+                        audit.debug(
                             AUTO_FORMAT_DEBUG,
                             idx,
                             column,
@@ -248,7 +248,7 @@ class TransactionFormatter:
                             curr_val,
                         )
         except (TypeError, ValueError) as exc:
-            audit_logger.warning(
+            logger.warning(
                 "Comparison failed for column '%s' due to error: %s",
                 column,
                 exc,
@@ -336,7 +336,7 @@ class TransactionFormatter:
         if not (required or reject_invalid):
             if invalid_debug:
                 for label, raw in invalid:
-                    audit_logger.debug(invalid_debug, label, column, raw)
+                    audit.debug(invalid_debug, label, column, raw)
             return
 
         reason = f"INVALID {column}" if required else f"{NON_NUMERIC} {column}"
@@ -436,7 +436,7 @@ class TransactionFormatter:
 
             profile = _profile_for(action_value)
             required = profile.required if profile else _UNKNOWN_ACTION_REQUIRED
-            audit_logger.debug(
+            audit.debug(
                 "Processing %d rows with action %s requiring %s",
                 len(action_indices),
                 action_value,

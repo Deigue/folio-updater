@@ -7,7 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-import pandas as pd
+from domain.cells import is_blank
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -265,28 +265,6 @@ def blank_row(columns: Sequence[Col]) -> Row:
 
 # Numbers, excluding the booleans Python counts among them.
 _NUMBERS = (int, float, Decimal)
-
-
-def is_blank(value: object) -> bool:
-    """Report whether a cell holds nothing, whatever the source called it.
-
-    A frame cell arrives as `NaN` or `pd.NA`, an engine figure as `None`. All
-    three mean the same thing to a reader, and all three must stay empty rather
-    than print as a zero.
-
-    Args:
-        value: The stored value.
-
-    Returns:
-        True when there is nothing to show.
-    """
-    if value is None:
-        return True
-    try:
-        # A cell is `object`, which the stubs' overloads do not cover.
-        return bool(pd.isna(value))  # ty: ignore[no-matching-overload]
-    except (TypeError, ValueError):  # only arrays reach here
-        return False
 
 
 def as_number(value: object) -> float | int | Decimal | None:

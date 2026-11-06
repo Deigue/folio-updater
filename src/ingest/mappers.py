@@ -12,16 +12,11 @@ from typing import TYPE_CHECKING
 
 from app import audit, get_config
 from app.audit import AuditMark
-from app.logging_setup import get_audit_logger
-from db.helpers import format_transaction_summary
+from db.helpers import audit_rows
 from domain import TXN_ESSENTIALS, Column
 
 if TYPE_CHECKING:
-    from logging import Logger
-
     import pandas as pd
-
-audit_logger: Logger = get_audit_logger()
 
 
 class TransactionMapper:
@@ -70,9 +65,9 @@ class TransactionMapper:
 
         if mapping:
             pretty_mapping = "\n".join(f'"{k}" -> "{v}"' for k, v in mapping.items())
-            audit_logger.debug("Excel->Internal mappings:\n%s", pretty_mapping)
+            audit.debug("Excel->Internal mappings:\n%s", pretty_mapping)
         else:
-            audit_logger.debug("Excel->Internal mappings: {}")  # pragma: no cover
+            audit.debug("Excel->Internal mappings: {}")  # pragma: no cover
 
         # Ensure TXN_ESSENTIALS are present in the mapping
         if unmatched and Column.Txn.ACCOUNT in unmatched and account is not None:
@@ -88,9 +83,7 @@ class TransactionMapper:
         df = df.rename(columns=mapping)
 
         audit.stage("MAP %d row(s) onto the folio's columns", len(df))
-        if audit.enabled():
-            for summary in df.apply(format_transaction_summary, axis=1):
-                audit.row(AuditMark.READ, summary)
+        audit_rows(AuditMark.READ, df)
         return df
 
     @staticmethod

@@ -22,7 +22,7 @@ from app import audit, bootstrap, get_config
 from app.audit import AuditMark
 from cli.commands.common import export_to_parquet
 from db import backup_folio
-from db.helpers import format_transaction_summary, generate_keys, txn_count
+from db.helpers import audit_rows, generate_keys, txn_count
 from db.queries import (
     append_rows,
     get_connection,
@@ -45,7 +45,7 @@ from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import show_transactions
 
 if TYPE_CHECKING:
-    from app.audit import AuditBlock
+    from app.audit import AuditEntry
     from models import ImportResults
 
 logger = logging.getLogger(__name__)
@@ -243,12 +243,12 @@ def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
     return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
 
-def _insert_transaction(final_df: pd.DataFrame, entry: AuditBlock) -> int:
+def _insert_transaction(final_df: pd.DataFrame, entry: AuditEntry) -> int:
     """Insert the prepared transaction and return its assigned TxnId.
 
     Args:
         final_df: Single-row DataFrame with columns aligned to the Txns table.
-        entry: The audit block the insert is recorded in.
+        entry: The audit entry the insert is recorded in.
 
     Raises:
         typer.Exit: If the database rejects the row.
@@ -273,7 +273,7 @@ def _insert_transaction(final_df: pd.DataFrame, entry: AuditBlock) -> int:
         txn_id,
         audit.describe_backup(backup),
     )
-    audit.row(AuditMark.STORED, format_transaction_summary(stored.iloc[0]))
+    audit_rows(AuditMark.STORED, stored)
     return txn_id
 
 
@@ -333,7 +333,7 @@ def add_transaction(  # noqa: PLR0917
         fields[Column.Txn.FEE] = fee
     fields.update(_parse_extra_fields(set_values))
 
-    with audit.muted() if dry_run else nullcontext(), audit.block("ADD TXN") as entry:
+    with audit.muted() if dry_run else nullcontext(), audit.entry("ADD TXN") as entry:
         results = _prepare(fields, approve_duplicate=force)
 
         if not results.invalid_df.empty:

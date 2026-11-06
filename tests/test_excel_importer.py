@@ -689,13 +689,17 @@ def test_import_missing_essential_column(
         ):
             import_transactions(temp_path, None, txn_sheet)
 
-    # At ERROR the entry is only its closing line, written once, with the reason.
-    (closing,) = _audit_lines(caplog)
+    # At ERROR the failure still sits under its heading, written once.
+    heading, closing, footer, _blank = _audit_lines(caplog)
+    assert heading.startswith(f'IMPORT TXNS "{temp_path}"')
     assert closing.startswith("FAILED: MISSING essential columns")
+    assert footer == "=" * 80
 
 
+@pytest.mark.usefixtures("audit_info")
 def test_import_statements_missing_columns(
     temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test statement import with missing required columns."""
     with temp_ctx() as ctx:
@@ -716,6 +720,10 @@ def test_import_statements_missing_columns(
         assert result.settlements_confirmed == 0
         assert result.transfers_created() == 0
 
+    assert _audit_lines(caplog)[2] == (
+        "FAILED: missing required columns ['currency', 'transaction', 'description']"
+    )
+
 
 def test_import_statements_empty_file(
     temp_ctx: TempContext,
@@ -731,8 +739,10 @@ def test_import_statements_empty_file(
         assert result.transfers_created() == 0
 
 
+@pytest.mark.usefixtures("audit_info")
 def test_import_statements_creates_transfer_from_filename(
     temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """TRFOUT*/TRFIN* rows create TFR_OUT/TFR_IN, with account from the filename."""
     with temp_ctx() as ctx:
@@ -784,8 +794,19 @@ def test_import_statements_creates_transfer_from_filename(
         assert in_txn[Column.Txn.SETTLE_DATE] == "2025-01-22"
         assert float(in_txn[Column.Txn.AMOUNT]) == 1000.0
 
+    lines = _audit_lines(caplog)
+    transfer = lines.index("  TRANSFER 2 transfer row(s) from the statement")
+    assert lines[transfer + 1] == (
+        "    STORE 2 transaction(s) (TxnIds 1-2); no backup taken"
+    )
+    assert lines[transfer + 2].startswith("      + TxnId=1|TxnDate=2025-01-22|")
 
-def test_import_statements_skips_cash_transfers(temp_ctx: TempContext) -> None:
+
+@pytest.mark.usefixtures("audit_info")
+def test_import_statements_skips_cash_transfers(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Cash "Money transfer" rows are skipped; institutional transfers still import."""
     with temp_ctx() as ctx:
         create_txns_table()
@@ -830,9 +851,18 @@ def test_import_statements_skips_cash_transfers(temp_ctx: TempContext) -> None:
         assert txns.iloc[0][Column.Txn.ACTION] == "TFR_IN"
         assert float(txns.iloc[0][Column.Txn.AMOUNT]) == 1000.0
 
+    lines = _audit_lines(caplog)
+    assert lines[4:6] == [
+        "    = cash transfer, left to the activities: TRFIN, 2025-07-11, 500.0",
+        "    = cash transfer, left to the activities: TRFOUT, 2025-07-14, -200.0",
+    ]
+    assert lines[-3].endswith(", 2 cash transfer(s) left to the activities import")
 
+
+@pytest.mark.usefixtures("audit_info")
 def test_import_statements_rejects_transfer_without_account_in_filename(
     temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A transfer row is rejected, not silently dropped, without a parseable account."""
     with temp_ctx() as ctx:
@@ -859,6 +889,12 @@ def test_import_statements_rejects_transfer_without_account_in_filename(
         with get_connection() as conn:
             txns = get_rows(conn, Table.TXNS)
         assert txns.empty
+
+    lines = _audit_lines(caplog)
+    assert (
+        '  MATCH without an account: the filename "unnamed_statement.xlsx" names none'
+    ) in lines
+    assert "    - TRFOUTTF, 2025-03-11 (no account in filename)" in lines
 
 
 def test_import_statements_matches_transform_corrected_ticker(

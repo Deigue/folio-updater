@@ -1118,7 +1118,7 @@ class DemoFolio:
         """
         rows = self.rows()
         FxService.ensure_coverage(start=START.isoformat())
-        with audit.block("BUILD DEMO folio") as entry:
+        with audit.entry("BUILD DEMO folio") as entry:
             try:
                 with audit.muted():
                     self._write(rows)
@@ -1172,7 +1172,7 @@ class DemoFolio:
         The folio is backed up first. FX rates and cached quotes stay, being
         real data, and so does any contribution room the demo wrote to config.
         """
-        with audit.block("CLEAR DEMO folio") as entry:
+        with audit.entry("CLEAR DEMO folio") as entry:
             removed = txn_count()
             audit.stage(
                 "REMOVE %d transaction(s) and the ticker aliases; %s",

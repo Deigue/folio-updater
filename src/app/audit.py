@@ -1,8 +1,12 @@
 """Write the audit trail in its set format.
 
-Every entry is a block: a heading naming what happened and the command that did
-it, stage lines indented under it, marked rows under each stage, and exactly one
+Every entry has a heading naming what happened and the command that did it,
+stage lines indented under it, marked rows under each stage, and exactly one
 closing line (`DONE ...` or `FAILED: ...`) before the footer.
+
+The heading is held back until a line under it is recorded, and is written at
+that line's level. So when `audit_log_level` is raised, the warnings and failures
+that remain still sit under their heading and footer.
 """
 
 from __future__ import annotations
@@ -39,11 +43,12 @@ class AuditMark(StrEnum):
 _command: ContextVar[str | None] = ContextVar("audit_command", default=None)
 _depth: ContextVar[int] = ContextVar("audit_depth", default=0)
 _muted: ContextVar[bool] = ContextVar("audit_muted", default=False)
+_open: ContextVar[AuditEntry | None] = ContextVar("audit_entry", default=None)
 
 
 @contextmanager
 def audit_command(command: str) -> Generator[None]:
-    """Name the command every block written inside was made by."""
+    """Name the command every entry written inside was made by."""
     token = _command.set(command)
     try:
         yield
@@ -63,7 +68,7 @@ def nested() -> Generator[None]:
 
 @contextmanager
 def muted() -> Generator[None]:
-    """Write nothing inside: for work a summary block already accounts for."""
+    """Write nothing inside: for work a summary entry already accounts for."""
     token = _muted.set(True)
     try:
         yield
@@ -84,13 +89,23 @@ def describe_backup(backup: Path | None) -> str:
 def _write(level: int, depth: int, message: str, *args: object) -> None:
     if _muted.get():
         return
+    if not get_audit_logger().isEnabledFor(level):
+        return
+    entry = _open.get()
+    if entry is not None:
+        entry.announce(level)
     indent = INDENT * (depth + _depth.get())
     get_audit_logger().log(level, f"{indent}{message}", *args)
 
 
 def stage(message: str, *args: object, level: int = logging.INFO) -> None:
-    """Write a stage line: one step of the block, with its rows below it."""
+    """Write a stage line: one step of the entry, with its rows below it."""
     _write(level, 1, message, *args)
+
+
+def debug(message: str, *args: object) -> None:
+    """Write a working detail at DEBUG, at stage depth: a trace, not a change."""
+    _write(logging.DEBUG, 1, message, *args)
 
 
 def row(
@@ -104,44 +119,61 @@ def row(
     _write(level, depth, "%s %s", mark, text)
 
 
-class AuditBlock:
-    """An open block, closed by `done` or, when the work raises, `FAILED`."""
+class AuditEntry:
+    """An open entry, closed by `done` or, when the work raises, `FAILED`."""
 
-    def __init__(self) -> None:
-        """Start with no closing line written."""
+    def __init__(self, heading: str, args: tuple[object, ...]) -> None:
+        """Hold the heading back until a line under it is recorded."""
+        self._heading = heading
+        self._args = args
+        self._indent = INDENT * _depth.get()
+        self._level: int | None = None
         self.closed = False
 
+    def announce(self, level: int) -> None:
+        """Write the heading, once, at the level of the first line recorded under it."""
+        if self._level is not None:
+            return
+        self._level = level
+        get_audit_logger().log(level, f"{self._indent}{self._heading}", *self._args)
+
     def done(self, message: str, *args: object) -> None:
-        """Write the block's closing line, saying what it did."""
+        """Write the entry's closing line, saying what it did."""
         _write(logging.INFO, 0, f"DONE {message}", *args)
         self.closed = True
 
     def failed(self, reason: object) -> None:
-        """Close the block as failed, with the reason."""
+        """Close the entry as failed, with the reason."""
         _write(logging.ERROR, 0, "FAILED: %s", reason)
         self.closed = True
 
+    def footer(self) -> None:
+        """Close the entry with its footer, if its heading was written."""
+        if self._level is not None:
+            get_audit_logger().log(self._level, f"{self._indent}{FOOTER}")
+            get_audit_logger().log(self._level, "")
+
 
 @contextmanager
-def block(heading: str, *args: object) -> Generator[AuditBlock]:
-    """Write a block: its heading now, its closing line and footer at the end.
+def entry(heading: str, *args: object) -> Generator[AuditEntry]:
+    """Open an entry: its heading with the first line under it, its footer at the end.
 
-    A block whose work raises before it closed is closed as `FAILED`, and the
+    An entry whose work raises before it closed is closed as `FAILED`, and the
     error goes on. The heading ends with the command that made the change.
 
     Yields:
-        The open block, for its closing line.
+        The open entry, for its closing line.
     """
     command = _command.get()
     suffix = f" ({command})" if command else ""
-    _write(logging.INFO, 0, f"{heading}{suffix}", *args)
-    audit_block = AuditBlock()
+    audit_entry = AuditEntry(f"{heading}{suffix}", args)
+    token = _open.set(audit_entry)
     try:
-        yield audit_block
+        yield audit_entry
     except BaseException as error:
-        if not audit_block.closed:
-            audit_block.failed(str(error) or type(error).__name__)
+        if not audit_entry.closed:
+            audit_entry.failed(str(error) or type(error).__name__)
         raise
     finally:
-        _write(logging.INFO, 0, FOOTER)
-        _write(logging.INFO, 0, "")
+        _open.reset(token)
+        audit_entry.footer()

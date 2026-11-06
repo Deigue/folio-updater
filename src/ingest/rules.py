@@ -12,7 +12,6 @@ import pandas as pd
 
 from app import audit, get_config
 from app.audit import AuditMark
-from app.logging_setup import get_audit_logger
 from db.helpers import format_transaction_summary
 from domain import Column
 from models import CancelEvent, MergeEvent, TransformEvent
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
 
     from config.transforms import CancelRule, MergeGroup, TransformRule
 
-audit_logger = get_audit_logger()
 
 CONTAINS_PREFIX = "contains:"
 # A cancellation and the row it voids carry amounts that sum to zero.
@@ -120,7 +118,7 @@ class TransactionTransformer:
         # Apply merge groups next (before regular transformations)
         if self.transforms and self.transforms.merge_groups:
             for group_index, group in enumerate(self.transforms.merge_groups):
-                audit_logger.debug(
+                audit.debug(
                     "Applying merge group %d: %s",
                     group_index + 1,
                     group.name,
@@ -129,13 +127,13 @@ class TransactionTransformer:
 
         # Regular transformation rules
         if not self.transforms or not self.transforms.rules:
-            audit_logger.debug(
+            audit.debug(
                 "No transformation rules configured, skipping transforms",
             )
             return
 
         for rule_index, rule in enumerate(self.transforms.rules):
-            audit_logger.debug("Applying transformation rule %d", rule_index + 1)
+            audit.debug("Applying transformation rule %d", rule_index + 1)
             self._apply_single_rule(rule)
 
     def _apply_single_rule(self, rule: TransformRule) -> None:
@@ -151,7 +149,7 @@ class TransactionTransformer:
         # Count matching rows
         matching_rows = mask.sum()
         if matching_rows == 0:
-            audit_logger.debug("No rows match transformation conditions")
+            audit.debug("No rows match transformation conditions")
             return
 
         # Apply transformations to matching rows
@@ -206,7 +204,7 @@ class TransactionTransformer:
         mask = pd.Series([True] * len(self.df), index=self.df.index)
         for field_name, match_values in conditions.items():
             if field_name not in self.df.columns:
-                audit_logger.debug(
+                audit.debug(
                     "Condition field '%s' not found in data, skipping rule",
                     field_name,
                 )
@@ -492,13 +490,13 @@ class TransactionTransformer:
         matching_rows = self.df[action_mask].copy()
 
         if matching_rows.empty:
-            audit_logger.debug(
+            audit.debug(
                 "No rows match source actions %s for merge group '%s'",
                 group.source_actions,
                 group.name,
             )
         else:
-            audit_logger.debug(
+            audit.debug(
                 "Found %d row(s) matching source actions for merge group '%s'",
                 len(matching_rows),
                 group.name,
@@ -533,7 +531,7 @@ class TransactionTransformer:
             action in unique_actions for action in group.source_actions
         )
         if not has_all_actions:
-            audit_logger.debug(
+            audit.debug(
                 "Group %s missing some source actions, skipping",
                 group_key,
             )
@@ -541,7 +539,7 @@ class TransactionTransformer:
 
         merged_row = self._create_merged_row(group, group_df)
 
-        audit_logger.debug(
+        audit.debug(
             "Merged %d row(s) into 1 %s for group %s",
             len(group_df),
             group.target_action,
@@ -604,7 +602,7 @@ class TransactionTransformer:
                 new_rows_df = pd.DataFrame(rows_to_add)
                 self.df = pd.concat([self.df, new_rows_df], ignore_index=True)
 
-            audit_logger.debug(
+            audit.debug(
                 "Merge group '%s': Removed %d row(s), added %d merged row(s)",
                 group.name,
                 len(rows_to_drop),

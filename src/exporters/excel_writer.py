@@ -16,6 +16,7 @@ from openpyxl.formatting.rule import DataBarRule
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.hyperlink import Hyperlink
 
+from domain.cells import is_blank
 from exporters import excel_style as style
 from exporters.sheet_spec import (
     DATA_ROLES,
@@ -25,7 +26,6 @@ from exporters.sheet_spec import (
     Link,
     Role,
     as_number,
-    is_blank,
     render,
 )
 

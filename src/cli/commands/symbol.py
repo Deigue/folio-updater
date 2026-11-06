@@ -52,24 +52,25 @@ def _existing_alias(conn: sqlite3.Connection, old_ticker: str) -> dict | None:
     return None if rows.empty else rows.iloc[0].to_dict()
 
 
+def _alias_changes(previous: dict, alias: dict) -> str:
+    """List what `alias` changes on the one already stored, as `Field old -> new`."""
+    return "; ".join(
+        f"{column} {previous[column]} -> {alias[column]}"
+        for column in (Column.Aliases.NEW_TICKER, Column.Aliases.EFFECTIVE_DATE)
+        if str(previous[column]) != str(alias[column])
+    )
+
+
 def _log_alias_write(previous: dict | None, alias: dict, backup: Path | None) -> str:
-    """Write the stage and row for an alias add, and return what the add did."""
+    """Write the stage and row for a stored alias, and return what the add did."""
     where = audit.describe_backup(backup)
     if previous is None:
         audit.stage("STORE 1 alias; %s", where)
         audit.row(AuditMark.STORED, _describe_alias(alias))
         return "1 alias added"
-    diffs = "; ".join(
-        f"{column} {previous[column]} -> {alias[column]}"
-        for column in (Column.Aliases.NEW_TICKER, Column.Aliases.EFFECTIVE_DATE)
-        if str(previous[column]) != str(alias[column])
-    )
-    if not diffs:
-        audit.stage("KEEP 1 alias, already as given")
-        audit.row(AuditMark.UNCHANGED, _describe_alias(alias))
-        return "alias unchanged"
     audit.stage("REPLACE 1 alias; %s", where)
-    audit.row(AuditMark.CHANGED, f"{alias[Column.Aliases.OLD_TICKER]}: {diffs}")
+    changes = _alias_changes(previous, alias)
+    audit.row(AuditMark.CHANGED, f"{alias[Column.Aliases.OLD_TICKER]}: {changes}")
     return "1 alias replaced"
 
 
@@ -83,7 +84,7 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
         Column.Aliases.NEW_TICKER: new_ticker.upper(),
         Column.Aliases.EFFECTIVE_DATE: effective_date,
     }
-    with audit.block("ALIAS ADD %s", alias[Column.Aliases.OLD_TICKER]) as entry:
+    with audit.entry("ADD ALIAS %s", alias[Column.Aliases.OLD_TICKER]) as entry:
         try:
             with get_connection() as conn:
                 tables = get_tables(conn)
@@ -93,6 +94,13 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
                     create_ticker_aliases_table()
 
                 previous = _existing_alias(conn, alias[Column.Aliases.OLD_TICKER])
+                if previous is not None and not _alias_changes(previous, alias):
+                    audit.stage("KEEP 1 alias, already as given")
+                    audit.row(AuditMark.UNCHANGED, _describe_alias(alias))
+                    entry.done("alias unchanged")
+                    console_success("Alias already set as given.")
+                    return
+
                 backup = backup_folio()
                 if not insert_or_replace(conn, Table.TICKER_ALIASES, alias):
                     console_error("Failed to add alias.")
@@ -137,7 +145,7 @@ def delete_alias(old_ticker: str) -> None:
     """Remove a ticker alias from the database."""
     console_info(f"Deleting alias for {old_ticker}")
     msg = f"Alias for '{old_ticker}' not found."
-    with audit.block("ALIAS REMOVE %s", old_ticker.upper()) as entry:
+    with audit.entry("REMOVE ALIAS %s", old_ticker.upper()) as entry:
         try:
             with get_connection() as conn:
                 tables = get_tables(conn)

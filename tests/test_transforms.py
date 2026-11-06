@@ -202,8 +202,10 @@ def test_cancellations(
     rows: list[tuple[str, str, str, str]],
     kept: list[str],
     voided: str | None,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A cancellation drops itself and the earliest matching row before it."""
+    caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
     with temp_ctx(CANCEL_CONFIG):
         outcome = TransactionTransformer.transform(_cash_rows(rows))
         result, cancels = outcome.df, outcome.cancels
@@ -212,6 +214,15 @@ def test_cancellations(
     assert len(cancels) == 1
     cancelled = cancels[0].cancelled
     assert (None if cancelled is None else cancelled[Column.Txn.TXN_DATE]) == voided
+    stage, cancellation, target = (
+        r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER
+    )
+    assert stage == "  CANCEL 'Broker Cancellation'"
+    assert cancellation.startswith("    x TxnDate=2026-09-08|")
+    if voided is None:
+        assert target == "      ? nothing in this file for it to void"
+    else:
+        assert target.startswith(f"      x TxnDate={voided}|")
 
 
 def test_cancellation_rule_needs_its_fields(temp_ctx: TempContext) -> None:

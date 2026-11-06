@@ -21,7 +21,7 @@ from cli.commands.common import (
     resolve_selection,
 )
 from db import backup_folio
-from db.helpers import format_transaction_summary, txn_count
+from db.helpers import audit_rows, txn_count
 from db.queries import delete_rows, get_connection
 from domain import Column, Table
 from term import console_error, console_info, console_success
@@ -64,9 +64,7 @@ def _log_removed(transactions: pd.DataFrame, backup: Path | None) -> None:
         len(transactions),
         audit.describe_backup(backup),
     )
-    if audit.enabled():
-        for summary in transactions.apply(format_transaction_summary, axis=1):
-            audit.row(AuditMark.REMOVED, summary)
+    audit_rows(AuditMark.REMOVED, transactions)
 
 
 def delete_transactions(
@@ -100,7 +98,7 @@ def delete_transactions(
         console_info("No transactions deleted.")
         return
 
-    with audit.block("DELETE TXNS %s", selection.describe()) as entry:
+    with audit.entry("DELETE TXNS %s", selection.describe()) as entry:
         backup = backup_folio()
         deleted = _delete_by_ids(selection.txn_ids)
         _log_removed(matched, backup)

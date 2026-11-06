@@ -8,21 +8,14 @@ is already stored.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from app import audit, get_config
 from app.audit import AuditMark
-from app.logging_setup import get_audit_logger
-from db.helpers import format_transaction_summary, generate_keys
+from db.helpers import audit_rows, generate_keys
 from db.queries import get_connection, get_rows
 from domain import TXN_ESSENTIALS, Table
-
-if TYPE_CHECKING:
-    from logging import Logger
-
-audit_logger: Logger = get_audit_logger()
 
 
 class TransactionFilter:
@@ -47,7 +40,7 @@ class TransactionFilter:
 
         new_keys_series: pd.Series[str] = generate_keys(txn_df)
         new_keys: set[str] = set(new_keys_series)
-        audit_logger.debug(
+        audit.debug(
             "CHECK duplicates: %d existing keys, %d new keys",
             len(existing_keys),
             len(new_keys),
@@ -114,7 +107,7 @@ class TransactionFilter:
         approval_column = get_config().duplicate_approval_column
         if approval_column in txn_df.columns:
             msg = f"Duplicate approval column found: {approval_column}"
-            audit_logger.debug(msg)
+            audit.debug(msg)
             return txn_df.drop(columns=[approval_column])
         return txn_df
 
@@ -175,13 +168,7 @@ class TransactionFilter:
             approved_count = approved_mask.sum()
             audit.stage("APPROVE %d %s duplicate(s)", approved_count, duplicate_type)
 
-            if audit.enabled():
-                approved_summaries = txn_df[approved_mask].apply(
-                    format_transaction_summary,
-                    axis=1,
-                )
-                for summary in approved_summaries:
-                    audit.row(AuditMark.APPROVED, summary)
+            audit_rows(AuditMark.APPROVED, txn_df[approved_mask])
 
         # Log rejected duplicates
         if rejected_mask.any():
@@ -193,13 +180,7 @@ class TransactionFilter:
                 level=logging.WARNING,
             )
 
-            if audit.enabled(logging.WARNING):
-                rejected_summaries = txn_df[rejected_mask].apply(
-                    format_transaction_summary,
-                    axis=1,
-                )
-                for summary in rejected_summaries:
-                    audit.row(AuditMark.REMOVED, summary, level=logging.WARNING)
+            audit_rows(AuditMark.REMOVED, txn_df[rejected_mask], level=logging.WARNING)
 
     @staticmethod
     def _get_db_transaction_keys() -> set[str]:

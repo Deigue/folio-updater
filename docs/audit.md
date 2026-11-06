@@ -23,7 +23,7 @@ audit_log_level: INFO   # audit.log (same levels)
 2025-03-15 09:12:00 INFO          - TxnDate=2025-03-14|Action=Withholding|Amount=-1.5|…
 2025-03-15 09:12:00 WARNING   REJECT 1 invalid row(s)
 2025-03-15 09:12:00 WARNING     - TxnDate=N/A|Action=BUY|… (MISSING TxnDate)
-2025-03-15 09:12:00 INFO      STORE 4 transaction(s) (TxnIds 121-124); backup folio_20250315_091200.db
+2025-03-15 09:12:00 INFO      STORE 4 transaction(s) (TxnIds 121-124); backup folio_20250315_091200_120.db
 2025-03-15 09:12:00 INFO        + TxnId=121|TxnDate=2025-03-03|Action=BUY|…|Fee=4.95|SettleDate=2025-03-04
 2025-03-15 09:12:00 INFO    DONE 4 stored, 1 rejected; folio holds 124 transactions
 2025-03-15 09:12:00 INFO    ================================================================================
@@ -51,8 +51,8 @@ audit_log_level: INFO   # audit.log (same levels)
 | `ADD TXN`                     | `folio add`                                 | `REJECT`, `APPROVE`, `STORE`                                                         |
 | `EDIT TXNS <selection> SET …` | `folio edit`                                | `UPDATE`: a `~` row per transaction, with its old (`-`) and new (`+`) row under it   |
 | `DELETE TXNS <selection>`     | `folio delete`                              | `REMOVE`: each removed row in full                                                   |
-| `ALIAS ADD <ticker>`          | `folio symbol --add`                        | `STORE`, `REPLACE` (`~` for what changed) or `KEEP` (already as given)               |
-| `ALIAS REMOVE <ticker>`       | `folio symbol --delete`                     | `REMOVE`                                                                             |
+| `ADD ALIAS <ticker>`          | `folio symbol --add`                        | `STORE`, `REPLACE` (`~` for what changed) or `KEEP` (already as given)               |
+| `REMOVE ALIAS <ticker>`       | `folio symbol --delete`                     | `REMOVE`                                                                             |
 | `BUILD DEMO folio`            | `folio demo`                                | none: one summary line, since the demo is a fixed generated set                      |
 | `CLEAR DEMO folio`            | importing your own rows over the demo       | `REMOVE`                                                                             |
 

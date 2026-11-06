@@ -12,7 +12,6 @@ import pandas as pd
 
 from app import audit
 from app.audit import AuditMark
-from app.logging_setup import get_audit_logger
 from db import (
     append_rows,
     backup_folio,
@@ -23,7 +22,7 @@ from db import (
     txn_count,
     update_rows,
 )
-from db.helpers import format_transaction_summary
+from db.helpers import audit_rows, format_transaction_summary
 from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome, Table
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
@@ -35,7 +34,6 @@ from term import console_info, console_warning
 if TYPE_CHECKING:
     from pathlib import Path
 
-audit_logger = get_audit_logger()
 logger = logging.getLogger(__name__)
 
 
@@ -62,7 +60,7 @@ def import_transactions(
             sheet of that name.
     """
     where = f" sheet '{sheet}'" if sheet else ""
-    with audit.block('IMPORT TXNS "%s"%s', file_path, where) as entry:
+    with audit.entry('IMPORT TXNS "%s"%s', file_path, where) as entry:
         txns_df = _read_source(file_path, sheet)
         audit.stage(
             "READ %d source rows; folio holds %d transactions",
@@ -158,9 +156,7 @@ def _log_stored(stored: pd.DataFrame, backup: Path | None) -> None:
         ids.iloc[-1],
         audit.describe_backup(backup),
     )
-    if audit.enabled():
-        for summary in stored.apply(format_transaction_summary, axis=1):
-            audit.row(AuditMark.STORED, summary)
+    audit_rows(AuditMark.STORED, stored)
 
 
 def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> None:
@@ -183,7 +179,7 @@ def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> Non
         outcomes = trial_insert_rows(conn, Table.TXNS, prepared_df)
     except sqlite3.Error:
         # The batch's own error is what the caller raises; this is only a guide.
-        audit_logger.exception("Could not try the rows one at a time")
+        logger.exception("Could not try the rows one at a time")
         return
     for position, refusal in enumerate(outcomes):
         summary = format_transaction_summary(prepared_df.iloc[position])
@@ -215,13 +211,13 @@ def import_statements(statement: Path) -> StatementImportResult:
     Returns:
         StatementImportResult: Settlement dates confirmed and transfers created.
     """
-    with audit.block('IMPORT STATEMENT "%s"', statement) as entry:
+    with audit.entry('IMPORT STATEMENT "%s"', statement) as entry:
         return _import_statement_rows(statement, entry)
 
 
 def _import_statement_rows(
     statement: Path,
-    entry: audit.AuditBlock,
+    entry: audit.AuditEntry,
 ) -> StatementImportResult:
     """Read a statement and apply it, whether or not the file turns out usable."""
     try:
@@ -293,7 +289,11 @@ def _confirm_settlement_dates(
             "matching cannot tell two accounts' identical trades apart"
         )
         console_warning(message)
-        audit.stage(message, level=logging.WARNING)
+        audit.stage(
+            'MATCH without an account: the filename "%s" names none',
+            statement.name,
+            level=logging.WARNING,
+        )
 
     with get_connection() as conn:
         all_txns = get_rows(
@@ -312,26 +312,26 @@ def _confirm_settlement_dates(
 
         updates: list[dict] = []
         results: list[SettlementMatch] = []
-        lines: list[_AuditRow] = []
+        pending: list[_PendingRow] = []
         for _, row in df.iterrows():
             try:
                 statement_row = _extract_statement_row_data(row, account)
                 if statement_row is None:
                     continue
                 matches = _match_transactions(existing_txns, statement_row)
-                result, update, line = _resolve_statement_match(
+                result, update, held = _resolve_statement_match(
                     statement_row,
                     matches,
                     actual_txns,
                 )
                 results.append(result)
-                lines.append(line)
+                pending.append(held)
                 if update is not None:
                     updates.append(update)
             except (ValueError, TypeError) as e:
                 console_warning(f"Skipping invalid statement row: {e}")
-                lines.append(
-                    _AuditRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
+                pending.append(
+                    _PendingRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
                 )
                 continue
 
@@ -346,8 +346,8 @@ def _confirm_settlement_dates(
                 len(results),
                 f"; {audit.describe_backup(backup)}" if updates else "",
             )
-        for line in lines:
-            audit.row(line.mark, line.text, level=line.level)
+        for held in pending:
+            audit.row(held.mark, held.text, level=held.level)
         return confirmed, results
 
 
@@ -355,7 +355,7 @@ def _resolve_statement_match(
     statement_row: _StatementRow,
     matches: pd.DataFrame,
     actual_txns: pd.DataFrame,
-) -> tuple[SettlementMatch, dict | None, _AuditRow]:
+) -> tuple[SettlementMatch, dict | None, _PendingRow]:
     """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
@@ -394,7 +394,7 @@ def _resolve_statement_match(
             f"{transaction_row[Column.Txn.SETTLE_DATE]} -> "
             f"{statement_row.settlement_date}"
         )
-        return result, update, _AuditRow(AuditMark.CHANGED, change, logging.INFO)
+        return result, update, _PendingRow(AuditMark.CHANGED, change, logging.INFO)
 
     described = (
         f"{result.action} {result.ticker} on {result.txn_date} for {result.amount}"
@@ -402,26 +402,26 @@ def _resolve_statement_match(
     if len(matches) > 1:
         result.outcome = SettlementOutcome.AMBIGUOUS
         text = f"{len(matches)} matches for {described}, left unconfirmed"
-        return result, None, _AuditRow(AuditMark.UNRESOLVED, text)
+        return result, None, _PendingRow(AuditMark.UNRESOLVED, text)
 
     already = _match_transactions(actual_txns, statement_row)
     if len(already) == 1:
         result.outcome = SettlementOutcome.ALREADY_CONFIRMED
         result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
         result.candidates = 1
-        line = _AuditRow(
+        held = _PendingRow(
             AuditMark.UNCHANGED,
             f"already confirmed: {described}",
             logging.INFO,
         )
     else:
-        line = _AuditRow(AuditMark.UNRESOLVED, f"no match for {described}")
-    return result, None, line
+        held = _PendingRow(AuditMark.UNRESOLVED, f"no match for {described}")
+    return result, None, held
 
 
 @dataclass(frozen=True)
-class _AuditRow:
-    """One row of the CONFIRM stage, written once the stage line is."""
+class _PendingRow:
+    """A CONFIRM row held back until the stage line, with its totals, is written."""
 
     mark: AuditMark
     text: str

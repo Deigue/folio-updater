@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from app import audit
 from db.queries import add_column_to_table, get_columns, get_connection, get_row_count
 from domain import TXN_ESSENTIALS, Column, Table
+from domain.cells import is_blank
+
+if TYPE_CHECKING:
+    from app.audit import AuditMark
 
 logger = logging.getLogger(__name__)
 
@@ -72,9 +77,27 @@ def format_transaction_summary(row: pd.Series) -> str:
     return "|".join(parts)
 
 
-def _is_set(value: Any) -> bool:  # noqa: ANN401
+def audit_rows(
+    mark: AuditMark,
+    transactions: pd.DataFrame,
+    *,
+    level: int = logging.INFO,
+) -> None:
+    """Write each transaction as one marked row of the audit trail, under its stage.
+
+    Args:
+        mark: What happened to the rows.
+        transactions: The rows, one audit line each.
+        level: The level the stage above them was written at.
+    """
+    if audit.enabled(level):
+        for summary in transactions.apply(format_transaction_summary, axis=1):
+            audit.row(mark, summary, level=level)
+
+
+def _is_set(value: object) -> bool:
     """Whether a field holds a value, rather than nothing or an empty cell."""
-    return value is not None and not pd.isna(value) and value != ""
+    return not is_blank(value) and value != ""
 
 
 # Amounts from source files don't always reproduce bit-for-bit between exports:

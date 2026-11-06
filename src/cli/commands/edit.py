@@ -37,7 +37,7 @@ from ui.transaction_table import page_changes, show_transactions
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from app.audit import AuditBlock
+    from app.audit import AuditEntry
 
 logger = logging.getLogger(__name__)
 
@@ -473,14 +473,14 @@ def _changed_columns(before: pd.DataFrame, after: pd.DataFrame) -> list[str]:
 def _update(
     formatted: pd.DataFrame,
     set_columns: list[str],
-    entry: AuditBlock,
+    entry: AuditEntry,
 ) -> int:
     """Write the edited rows, keyed on TxnId.
 
     Args:
         formatted: The validated, post-edit rows.
         set_columns: Columns to write.
-        entry: The audit block the edit is recorded in.
+        entry: The audit entry the edit is recorded in.
 
     Raises:
         typer.Exit: If the database rejects the update.
@@ -514,7 +514,8 @@ def _log_updated(
 ) -> None:
     """Write the UPDATE stage: each change field by field, then the old and new row.
 
-    Both versions of the row are kept, so the folio can be rebuilt from the log alone.
+    Both versions of the row are kept, so the folio can be reconstructed from the
+    log alone.
 
     Args:
         before: The matched rows as they stood.
@@ -606,7 +607,7 @@ def edit_transactions(
         return
 
     sets = ", ".join(operation.raw for operation in operations)
-    with audit.block("EDIT TXNS %s SET %s", selection.describe(), sets) as entry:
+    with audit.entry("EDIT TXNS %s SET %s", selection.describe(), sets) as entry:
         backup = backup_folio()
         updated = _update(after, changed, entry)
         _log_updated(before, after, changed, backup)
