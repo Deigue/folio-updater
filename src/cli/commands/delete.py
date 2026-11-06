@@ -3,7 +3,7 @@
 Removes transactions selected either by explicit TxnId or by the same query
 terms `folio query` accepts.
 The rows are previewed and confirmed before anything is executed, the folio is
-backed up first, and every removal is recorded in the importer audit log.
+backed up first, and every removal is recorded in the audit trail.
 """
 
 from __future__ import annotations
@@ -13,15 +13,15 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap
-from app.logging_setup import audit_footer, get_audit_logger
+from app import audit, bootstrap
+from app.audit import AuditMark
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
     resolve_selection,
 )
 from db import backup_folio
-from db.helpers import format_transaction_summary
+from db.helpers import format_transaction_summary, txn_count
 from db.queries import delete_rows, get_connection
 from domain import Column, Table
 from term import console_error, console_info, console_success
@@ -29,13 +29,13 @@ from ui.transaction_table import page_transactions
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     import pandas as pd
 
     from cli.selection import Selection
 
 logger = logging.getLogger(__name__)
-audit_logger = get_audit_logger()
 
 
 def _delete_by_ids(txn_ids: Sequence[int]) -> int:
@@ -57,34 +57,16 @@ def _delete_by_ids(txn_ids: Sequence[int]) -> int:
         )
 
 
-def _log_delete(
-    selection: Selection,
-    transactions: pd.DataFrame,
-    deleted: int,
-) -> None:
-    """Record the deletion in the audit log.
-
-    Args:
-        selection: What the user asked to delete.
-        transactions: The rows that matched.
-        deleted: Rows the database actually removed.
-    """
-    audit_logger.info("DELETE TXN (manual, %s)", selection.describe())
-    for _, row in transactions.iterrows():
-        audit_logger.info(" - %s", format_transaction_summary(row))
-    txn_ids = ", ".join(str(txn_id) for txn_id in selection.txn_ids)
-    audit_logger.info(
-        "DONE: %d transaction(s) deleted (TxnIds %s)",
-        deleted,
-        txn_ids,
+def _log_removed(transactions: pd.DataFrame, backup: Path | None) -> None:
+    """Write the REMOVE stage: the backup that undoes it, then each removed row."""
+    audit.stage(
+        "REMOVE %d transaction(s); %s",
+        len(transactions),
+        audit.describe_backup(backup),
     )
-    if deleted != len(transactions):
-        audit_logger.error(
-            "MISMATCH: %d transaction(s) matched but %d deleted",
-            len(transactions),
-            deleted,
-        )
-    audit_footer()
+    if audit.enabled():
+        for summary in transactions.apply(format_transaction_summary, axis=1):
+            audit.row(AuditMark.REMOVED, summary)
 
 
 def delete_transactions(
@@ -118,9 +100,14 @@ def delete_transactions(
         console_info("No transactions deleted.")
         return
 
-    backup_folio()
-    deleted = _delete_by_ids(selection.txn_ids)
-    _log_delete(selection, matched, deleted)
+    with audit.block("DELETE TXNS %s", selection.describe()) as entry:
+        backup = backup_folio()
+        deleted = _delete_by_ids(selection.txn_ids)
+        _log_removed(matched, backup)
+        if deleted == len(matched):
+            entry.done("%d deleted; folio holds %d transactions", deleted, txn_count())
+        else:
+            entry.failed(f"{len(matched)} transaction(s) matched but {deleted} deleted")
 
     if deleted != len(matched):
         console_error(

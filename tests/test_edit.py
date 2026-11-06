@@ -595,8 +595,12 @@ class TestEditFlow:
             assert_in_output("No transactions edited.", cli_result)
             assert _row(txn_id).equals(before)
 
-    def test_confirming_applies(self, temp_ctx: TempContext) -> None:
-        """Answering yes writes the edit."""
+    def test_confirming_applies(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """Answering yes writes the edit, logged as a diff with the old and new row."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
@@ -610,6 +614,16 @@ class TestEditFlow:
 
             assert_cli_success(cli_result)
             assert Decimal(str(_row(txn_id)[Column.Txn.PRICE])) == Decimal("175.20")
+
+        assert audit_trail[0] == (
+            f"EDIT TXNS TxnIds {txn_id} SET Price=175.20 (folio edit)"
+        )
+        assert audit_trail[1].startswith("  UPDATE 1 transaction(s); ")
+        assert audit_trail[2].startswith(f"    ~ TxnId {txn_id}: Price ")
+        assert audit_trail[2].endswith(" -> 175.20")
+        assert audit_trail[3].startswith(f"      - TxnId={txn_id}|")
+        assert audit_trail[4].startswith(f"      + TxnId={txn_id}|")
+        assert audit_trail[5] == "DONE 1 updated"
 
     @pytest.mark.real_parquet_export
     def test_edit_exports_to_parquet(self, temp_ctx: TempContext) -> None:
@@ -632,25 +646,25 @@ class TestEditFlow:
             ]
             assert Decimal(str(prices.iloc[0])) == Decimal("175.20")
 
-    def test_edit_is_logged(self, temp_ctx: TempContext) -> None:
-        """Edits are recorded in the shared importer audit log."""
+    def test_an_edit_short_of_its_match_closes_failed(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """Rows that matched but were not written fail the command and its entry."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(edit_module, "audit_logger") as mock_logger:
+            with patch.object(edit_module, "_update", return_value=0):
                 cli_result = run_cli_with_config(
                     ctx.config,
                     cli_app,
                     ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
                 )
 
-            assert_cli_success(cli_result)
-            logged = " ".join(str(call) for call in mock_logger.info.call_args_list)
-            assert "EDIT TXN (manual, %s) SET %s" in logged
-            assert "Price=175.20" in logged
-            assert " ~ TxnId %s: %s" in logged
-            assert "DONE: %d transaction(s) updated (TxnIds %s)" in logged
+        assert cli_result.exit_code == 1
+        assert audit_trail[-3] == "FAILED: 1 transaction(s) matched but 0 updated"
 
 
 class TestEditSelection:

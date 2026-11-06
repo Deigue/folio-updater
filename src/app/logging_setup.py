@@ -120,10 +120,3 @@ def get_audit_logger() -> logging.Logger:
         The audit logger.
     """
     return logging.getLogger(AUDIT_LOGGER)
-
-
-def audit_footer() -> None:
-    """Close an audit log entry with a separator line."""
-    audit_logger = get_audit_logger()
-    audit_logger.info("=" * 80)
-    audit_logger.info("")

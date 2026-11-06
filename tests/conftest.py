@@ -17,6 +17,7 @@ import yaml
 from rich.console import Console
 
 from app import AppContext, get_config
+from app.logging_setup import AUDIT_LOGGER
 from datagen import DemoFolio
 from datagen.demo import END, START
 from domain import TORONTO_TZ, Column, Currency
@@ -80,6 +81,40 @@ def quiet_logging() -> Generator[None, Any]:
     logging.disable(logging.CRITICAL)
     yield
     logging.disable(logging.NOTSET)
+
+
+class _AuditLines(logging.Handler):
+    """Keep each audit record's text, as one line of audit.log would read."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.DEBUG)
+        self.lines: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.lines.append(record.getMessage())
+
+
+@pytest.fixture
+def audit_trail(quiet_logging: None) -> Generator[list[str], Any]:  # noqa: ARG001
+    """Collect the audit trail's lines at INFO while `quiet_logging` holds the rest.
+
+    The audit logger is kept off the root logger meanwhile, so a `FAILED` line,
+    logged at ERROR, never reaches the live-log handler under `CliRunner`.
+    """
+    audit_logger = logging.getLogger(AUDIT_LOGGER)
+    handler = _AuditLines()
+    level, propagate = audit_logger.level, audit_logger.propagate
+    audit_logger.addHandler(handler)
+    audit_logger.setLevel(logging.INFO)
+    audit_logger.propagate = False
+    logging.disable(logging.NOTSET)
+    try:
+        yield handler.lines
+    finally:
+        logging.disable(logging.CRITICAL)
+        audit_logger.removeHandler(handler)
+        audit_logger.setLevel(level)
+        audit_logger.propagate = propagate
 
 
 @pytest.fixture(autouse=True)

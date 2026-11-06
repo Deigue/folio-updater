@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 
+from cli.commands import symbol as symbol_module
+from cli.main import app as cli_app
 from cli.selection import get_ticker_family
 from db import create_ticker_aliases_table, get_connection, insert_or_replace
 from domain import Column, Table
@@ -15,9 +18,12 @@ from services.symbols import (
     normalize_canadian_ticker,
 )
 
+from .helpers.cli import assert_cli_success, run_cli_with_config
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
+    from app import AppContext
+
     from .helpers.context import TempContext
 
 
@@ -161,3 +167,79 @@ def test_normalize_canadian_ticker() -> None:
     # Test non-CAD currency: no change
     assert normalize_canadian_ticker("AAPL", "USD") == "AAPL"
     assert normalize_canadian_ticker("GOOGL", "USD") == "GOOGL"
+
+
+# -- ALIAS AUDIT TRAIL --------------------------------------------------------
+
+FOOTER = ["=" * 80, ""]
+
+
+def _symbol(ctx: AppContext, *args: str) -> None:
+    assert_cli_success(run_cli_with_config(ctx.config, cli_app, ["symbol", *args]))
+
+
+def _entries(lines: list[str]) -> list[list[str]]:
+    """Split the audit trail into its entries, footers dropped."""
+    entries, current = [], []
+    for line in lines:
+        if line == FOOTER[0]:
+            entries.append(current)
+            current = []
+        elif line:
+            current.append(line)
+    return entries
+
+
+def test_each_alias_change_is_one_entry_naming_its_backup(
+    temp_ctx: TempContext,
+    audit_trail: list[str],
+) -> None:
+    """Added, replaced, re-added as it stands, removed, then removed again."""
+    with temp_ctx(backup={"enabled": True}) as ctx:
+        seed_transaction(ticker="OLDCO")
+        _symbol(ctx, "--add", "oldco", "newco", "2025-06-16")
+        _symbol(ctx, "--add", "OLDCO", "OTHERCO", "2025-07-02")
+        _symbol(ctx, "--add", "OLDCO", "OTHERCO", "2025-07-02")
+        _symbol(ctx, "--delete", "oldco")
+        _symbol(ctx, "--delete", "OLDCO")
+
+    added, replaced, unchanged, removed, missing = _entries(audit_trail)
+    assert added[0] == "ALIAS ADD OLDCO (folio symbol)"
+    assert added[1].startswith("  STORE 1 alias; backup folio_")
+    assert added[2:] == ["    + OLDCO -> NEWCO from 2025-06-16", "DONE 1 alias added"]
+    assert replaced[1].startswith("  REPLACE 1 alias; backup folio_")
+    assert replaced[2:] == [
+        (
+            "    ~ OLDCO: NewTicker NEWCO -> OTHERCO;"
+            " EffectiveDate 2025-06-16 -> 2025-07-02"
+        ),
+        "DONE 1 alias replaced",
+    ]
+    assert unchanged[1:] == [
+        "  KEEP 1 alias, already as given",
+        "    = OLDCO -> OTHERCO from 2025-07-02",
+        "DONE alias unchanged",
+    ]
+    assert removed[0] == "ALIAS REMOVE OLDCO (folio symbol)"
+    assert removed[1].startswith("  REMOVE 1 alias; backup folio_")
+    assert removed[2:] == [
+        "    - OLDCO -> OTHERCO from 2025-07-02",
+        "DONE 1 alias removed",
+    ]
+    assert missing == [
+        "ALIAS REMOVE OLDCO (folio symbol)",
+        "DONE nothing removed: no alias for OLDCO",
+    ]
+
+
+def test_an_alias_the_table_refuses_closes_failed(
+    temp_ctx: TempContext,
+    audit_trail: list[str],
+) -> None:
+    with (
+        temp_ctx() as ctx,
+        patch.object(symbol_module, "insert_or_replace", return_value=False),
+    ):
+        _symbol(ctx, "--add", "OLDCO", "NEWCO", "2025-06-16")
+
+    assert audit_trail[1:] == ["FAILED: the table refused the alias", *FOOTER]

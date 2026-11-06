@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import typer
 
-from app import bootstrap, get_config
-from app.logging_setup import audit_footer, get_audit_logger
+from app import audit, bootstrap, get_config
+from app.audit import AuditMark
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
@@ -35,10 +35,11 @@ from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import page_changes, show_transactions
 
 if TYPE_CHECKING:
-    from cli.selection import Selection
+    from pathlib import Path
+
+    from app.audit import AuditBlock
 
 logger = logging.getLogger(__name__)
-audit_logger = get_audit_logger()
 
 ARITHMETIC_OPERATORS = "*/+-"
 
@@ -469,12 +470,17 @@ def _changed_columns(before: pd.DataFrame, after: pd.DataFrame) -> list[str]:
     ]
 
 
-def _update(formatted: pd.DataFrame, set_columns: list[str]) -> int:
+def _update(
+    formatted: pd.DataFrame,
+    set_columns: list[str],
+    entry: AuditBlock,
+) -> int:
     """Write the edited rows, keyed on TxnId.
 
     Args:
         formatted: The validated, post-edit rows.
         set_columns: Columns to write.
+        entry: The audit block the edit is recorded in.
 
     Raises:
         typer.Exit: If the database rejects the update.
@@ -496,34 +502,31 @@ def _update(formatted: pd.DataFrame, set_columns: list[str]) -> int:
             )
         except sqlite3.IntegrityError as e:
             console_error(f"Database rejected the edit: {e}")
-            audit_logger.error("EDIT FAILED: %s", e)  # noqa: TRY400
+            entry.failed(f"the table refused the edit: {e}")
             raise typer.Exit(1) from e
 
 
-def _log_edit(  # noqa: PLR0917
-    selection: Selection,
+def _log_updated(
     before: pd.DataFrame,
     after: pd.DataFrame,
     changed: list[str],
-    operations: list[SetOperation],
-    updated: int,
+    backup: Path | None,
 ) -> None:
-    """Record the edit in the audit log.
+    """Write the UPDATE stage: each change field by field, then the old and new row.
 
-    Writes both a compact per-field diff and the complete pre- and post-edit
-    state, so the folio can be reconstructed from the log alone.
+    Both versions of the row are kept, so the folio can be rebuilt from the log alone.
 
     Args:
-        selection: What the user asked to edit.
         before: The matched rows as they stood.
         after: The matched rows as they were meant to end up.
         changed: Columns the edit touches.
-        operations: The `SET` operations the user gave.
-        updated: Rows the database actually wrote.
+        backup: The backup taken before the write, if any.
     """
-    sets = ", ".join(operation.raw for operation in operations)
-    audit_logger.info("EDIT TXN (manual, %s) SET %s", selection.describe(), sets)
-
+    audit.stage(
+        "UPDATE %d transaction(s); %s",
+        len(after),
+        audit.describe_backup(backup),
+    )
     for position in range(len(after)):
         old_row = before.iloc[position]
         new_row = after.iloc[position]
@@ -532,23 +535,9 @@ def _log_edit(  # noqa: PLR0917
             for column in changed
             if str(old_row.get(column)) != str(new_row.get(column))
         )
-        audit_logger.info(" ~ TxnId %s: %s", new_row[Column.Txn.TXN_ID], diffs)
-        audit_logger.info(" - %s", format_transaction_summary(old_row))
-        audit_logger.info(" + %s", format_transaction_summary(new_row))
-
-    txn_ids = ", ".join(str(txn_id) for txn_id in selection.txn_ids)
-    audit_logger.info(
-        "DONE: %d transaction(s) updated (TxnIds %s)",
-        updated,
-        txn_ids,
-    )
-    if updated != len(after):
-        audit_logger.error(
-            "MISMATCH: %d transaction(s) matched but %d updated",
-            len(after),
-            updated,
-        )
-    audit_footer()
+        audit.row(AuditMark.CHANGED, f"TxnId {new_row[Column.Txn.TXN_ID]}: {diffs}")
+        audit.row(AuditMark.REMOVED, format_transaction_summary(old_row), depth=3)
+        audit.row(AuditMark.STORED, format_transaction_summary(new_row), depth=3)
 
 
 def _confirm_conflicts(conflicts: pd.DataFrame, *, internal: bool) -> bool:
@@ -616,9 +605,15 @@ def edit_transactions(
         console_info("No transactions edited.")
         return
 
-    backup_folio()
-    updated = _update(after, changed)
-    _log_edit(selection, before, after, changed, operations, updated)
+    sets = ", ".join(operation.raw for operation in operations)
+    with audit.block("EDIT TXNS %s SET %s", selection.describe(), sets) as entry:
+        backup = backup_folio()
+        updated = _update(after, changed, entry)
+        _log_updated(before, after, changed, backup)
+        if updated == len(after):
+            entry.done("%d updated", updated)
+        else:
+            entry.failed(f"{len(after)} transaction(s) matched but {updated} updated")
 
     if updated != len(after):
         console_error(

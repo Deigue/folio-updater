@@ -11,17 +11,18 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import nullcontext
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import pandas as pd
 import typer
 
-from app import bootstrap, get_config
-from app.logging_setup import audit_footer, get_audit_logger
+from app import audit, bootstrap, get_config
+from app.audit import AuditMark
 from cli.commands.common import export_to_parquet
 from db import backup_folio
-from db.helpers import format_transaction_summary, generate_keys
+from db.helpers import format_transaction_summary, generate_keys, txn_count
 from db.queries import (
     append_rows,
     get_connection,
@@ -44,10 +45,10 @@ from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import show_transactions
 
 if TYPE_CHECKING:
+    from app.audit import AuditBlock
     from models import ImportResults
 
 logger = logging.getLogger(__name__)
-audit_logger = get_audit_logger()
 
 # Order fields are prompted in: when, where, then what and how much.
 PROMPT_ORDER: tuple[str, ...] = (
@@ -242,11 +243,12 @@ def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
     return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
 
-def _insert_transaction(final_df: pd.DataFrame) -> int:
+def _insert_transaction(final_df: pd.DataFrame, entry: AuditBlock) -> int:
     """Insert the prepared transaction and return its assigned TxnId.
 
     Args:
         final_df: Single-row DataFrame with columns aligned to the Txns table.
+        entry: The audit block the insert is recorded in.
 
     Raises:
         typer.Exit: If the database rejects the row.
@@ -254,25 +256,25 @@ def _insert_transaction(final_df: pd.DataFrame) -> int:
     Returns:
         The TxnId assigned by SQLite.
     """
-    backup_folio()
+    backup = backup_folio()
     with get_connection() as conn:
         try:
             append_rows(conn, Table.TXNS, final_df)
         except sqlite3.IntegrityError as e:
             console_error(f"Database rejected the transaction: {e}")
-            audit_logger.error("ADD FAILED: %s", e)  # noqa: TRY400
+            entry.failed(f"the table refused the transaction: {e}")
             raise typer.Exit(1) from e
 
-        return get_last_insert_rowid(conn)
+        txn_id = get_last_insert_rowid(conn)
 
-
-def _log_add(final_df: pd.DataFrame, txn_id: int) -> None:
-    """Record the manual add in the audit log."""
-    audit_logger.info("ADD TXN (manual entry)")
-    for _, row in final_df.iterrows():
-        audit_logger.info(" + %s", format_transaction_summary(row))
-    audit_logger.info("DONE: TxnId %d added", txn_id)
-    audit_footer()
+    stored = final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})
+    audit.stage(
+        "STORE 1 transaction (TxnId %d); %s",
+        txn_id,
+        audit.describe_backup(backup),
+    )
+    audit.row(AuditMark.STORED, format_transaction_summary(stored.iloc[0]))
+    return txn_id
 
 
 def _prepare(fields: dict[str, str], *, approve_duplicate: bool) -> ImportResults:
@@ -331,25 +333,28 @@ def add_transaction(  # noqa: PLR0917
         fields[Column.Txn.FEE] = fee
     fields.update(_parse_extra_fields(set_values))
 
-    results = _prepare(fields, approve_duplicate=force)
+    with audit.muted() if dry_run else nullcontext(), audit.block("ADD TXN") as entry:
+        results = _prepare(fields, approve_duplicate=force)
 
-    if not results.invalid_df.empty:
-        _show_rejections(results)
-        raise typer.Exit(1)
+        if not results.invalid_df.empty:
+            _show_rejections(results)
+            entry.failed("the transaction is invalid")
+            raise typer.Exit(1)
 
-    if not results.db_rejected_df.empty:
-        if not _confirm_duplicate(results.db_rejected_df):
-            console_info("Transaction not added.")
+        if not results.db_rejected_df.empty:
+            if not _confirm_duplicate(results.db_rejected_df):
+                console_info("Transaction not added.")
+                entry.done("nothing added: the duplicate was declined")
+                return
+            results = _prepare(fields, approve_duplicate=True)
+
+        if dry_run:
+            console_info("Dry run - nothing was written to the folio.")
+            show_transactions(results.final_df, title="Would Add")
             return
-        results = _prepare(fields, approve_duplicate=True)
 
-    if dry_run:
-        console_info("Dry run - nothing was written to the folio.")
-        show_transactions(results.final_df, title="Would Add")
-        return
-
-    txn_id = _insert_transaction(results.final_df)
-    _log_add(results.final_df, txn_id)
+        txn_id = _insert_transaction(results.final_df, entry)
+        entry.done("1 added; folio holds %d transactions", txn_count())
 
     console_success(f"Added transaction (TxnId {txn_id})")
     added = results.final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})

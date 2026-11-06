@@ -82,8 +82,12 @@ def _added_txn(ticker: str = TICKER) -> pd.Series:
 class TestAddSuccess:
     """Successful add scenarios."""
 
-    def test_add_buy_fully_specified(self, temp_ctx: TempContext) -> None:
-        """A fully specified BUY is added without any prompting."""
+    def test_add_buy_fully_specified(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """A fully specified BUY is added unprompted, logged with its TxnId."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             before = txn_total()
@@ -100,6 +104,18 @@ class TestAddSuccess:
             assert float(row[Column.Txn.PRICE]) == pytest.approx(150.25)
             assert float(row[Column.Txn.UNITS]) == pytest.approx(10)
             assert float(row[Column.Txn.AMOUNT]) == pytest.approx(-1502.50)
+
+        txn_id = row[Column.Txn.TXN_ID]
+        assert audit_trail[0] == "ADD TXN (folio add)"
+        store = audit_trail.index(
+            f"  STORE 1 transaction (TxnId {txn_id}); no backup taken",
+        )
+        assert audit_trail[store + 1].startswith(
+            f"    + TxnId={txn_id}|TxnDate={TXN_DATE}|Action=BUY|",
+        )
+        assert audit_trail[store + 2] == (
+            f"DONE 1 added; folio holds {before + 1} transactions"
+        )
 
     def test_add_action_alias_is_normalized(self, temp_ctx: TempContext) -> None:
         """An action alias is normalized the same way imports normalize it."""
@@ -260,6 +276,7 @@ class TestAddValidation:
     def test_invalid_field_is_rejected(
         self,
         temp_ctx: TempContext,
+        audit_trail: list[str],
         option: str,
         value: str,
         expected: str,
@@ -279,8 +296,15 @@ class TestAddValidation:
             assert_in_output(expected, cli_result)
             assert txn_total() == before
 
-    def test_empty_account_is_rejected(self, temp_ctx: TempContext) -> None:
-        """An empty Account is refused cleanly instead of raising IntegrityError."""
+        assert "  REJECT 1 invalid row(s)" in audit_trail
+        assert audit_trail[-3] == "FAILED: the transaction is invalid"
+
+    def test_empty_account_is_rejected(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """An empty Account is refused cleanly, the table's reason logged as FAILED."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             before = txn_total()
@@ -294,6 +318,10 @@ class TestAddValidation:
             assert cli_result.exit_code == 1
             assert_in_output("Database rejected the transaction", cli_result)
             assert txn_total() == before
+
+        assert audit_trail[-3].startswith(
+            "FAILED: the table refused the transaction: CHECK constraint failed",
+        )
 
     def test_invalid_set_value_is_rejected(self, temp_ctx: TempContext) -> None:
         """A --set argument that is not KEY=VALUE aborts the add."""
@@ -311,8 +339,12 @@ class TestAddValidation:
             assert_in_output("Expected KEY=VALUE", cli_result)
             assert txn_total() == before
 
-    def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
-        """--dry-run previews the transaction without inserting it."""
+    def test_dry_run_writes_nothing(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """--dry-run previews the transaction, writing neither it nor an audit entry."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             before = txn_total()
@@ -326,6 +358,8 @@ class TestAddValidation:
             assert_cli_success(cli_result)
             assert_in_output("Dry run", cli_result)
             assert txn_total() == before
+
+        assert audit_trail == []
 
 
 class TestAddDuplicates:

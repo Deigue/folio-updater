@@ -32,9 +32,13 @@ pytestmark = pytest.mark.usefixtures("quiet_logging")
 class TestDeleteSelection:
     """Selecting the transactions to delete."""
 
-    def test_delete_single_txn_id(self, temp_ctx: TempContext) -> None:
-        """A single TxnId deletes exactly that transaction."""
-        with temp_ctx() as ctx:
+    def test_delete_single_txn_id(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """A single TxnId deletes exactly that row, logged whole with its backup."""
+        with temp_ctx(backup={"enabled": True}) as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
@@ -48,6 +52,13 @@ class TestDeleteSelection:
             assert_cli_success(cli_result)
             assert txn_total() == before - 1
             assert txn_id not in txn_ids()
+
+        assert audit_trail[0] == f"DELETE TXNS TxnIds {txn_id} (folio delete)"
+        assert audit_trail[1].startswith("  REMOVE 1 transaction(s); backup folio_")
+        assert audit_trail[2].startswith(f"    - TxnId={txn_id}|")
+        assert audit_trail[3] == (
+            f"DONE 1 deleted; folio holds {before - 1} transactions"
+        )
 
     def test_delete_multiple_txn_ids(self, temp_ctx: TempContext) -> None:
         """Several TxnIds are all deleted in one call."""
@@ -342,21 +353,22 @@ class TestDeleteSideEffects:
             exported = pd.read_parquet(ctx.config.txn_parquet)
             assert TICKER not in set(exported[Column.Txn.TICKER])
 
-    def test_delete_is_logged(self, temp_ctx: TempContext) -> None:
-        """Deletions are recorded in the shared importer audit log."""
+    def test_a_delete_short_of_its_match_closes_failed(
+        self,
+        temp_ctx: TempContext,
+        audit_trail: list[str],
+    ) -> None:
+        """Rows that matched but were not removed fail the command and its entry."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(delete_module, "audit_logger") as mock_logger:
+            with patch.object(delete_module, "_delete_by_ids", return_value=0):
                 cli_result = run_cli_with_config(
                     ctx.config,
                     cli_app,
                     ["delete", str(txn_id), "--force"],
                 )
 
-            assert_cli_success(cli_result)
-            logged = " ".join(str(call) for call in mock_logger.info.call_args_list)
-            assert "DELETE TXN (manual, %s)" in logged
-            assert f"TxnIds {txn_id}" in logged
-            assert "DONE: %d transaction(s) deleted (TxnIds %s)" in logged
+        assert cli_result.exit_code == 1
+        assert audit_trail[-3] == "FAILED: 1 transaction(s) matched but 0 deleted"

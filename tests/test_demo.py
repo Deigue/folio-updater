@@ -239,10 +239,12 @@ def _stored_accounts() -> set[str]:
 
 def test_importing_your_own_transactions_can_replace_the_demo(
     temp_ctx: TempContext,
+    audit_trail: list[str],
 ) -> None:
     """Yes backs the demo up, then your rows start an empty folio from TxnId 1."""
     with temp_ctx(backup={"enabled": True}) as ctx:
         ensure_data_exists()
+        demo_total = txn_total()
         source = ctx.config.project_root / "mine.xlsx"
         create_transaction_data(source)
 
@@ -265,6 +267,11 @@ def test_importing_your_own_transactions_can_replace_the_demo(
     assert txn_ids == [1, 2]
     assert renames == []
     assert backed_up
+    clear = audit_trail.index("CLEAR DEMO folio (folio import)")
+    assert audit_trail[clear + 1].startswith(
+        f"  REMOVE {demo_total} transaction(s) and the ticker aliases; backup folio_",
+    )
+    assert audit_trail[clear + 2] == "DONE demo removed; folio holds 0 transactions"
 
 
 @pytest.mark.parametrize(
@@ -373,11 +380,21 @@ def _build_for_real(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_a_first_demo_says_it_added_contribution_room(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
+    audit_trail: list[str],
 ) -> None:
-    """The room stays behind when the demo goes, so the user has to be told."""
+    """The room stays behind when the demo goes, so the user has to be told.
+
+    The build is one audit entry with no rows: a fixed generated set would only
+    bury real entries.
+    """
     with capture_output() as captured, temp_ctx() as ctx:
         _build_for_real(monkeypatch)
         written = yaml.safe_load(ctx.config.config_path.read_text(encoding="utf-8"))
+        stored = txn_total()
+
+    assert audit_trail[0] == "BUILD DEMO folio"
+    assert audit_trail[1].startswith(f"DONE {stored} transactions and ")
+    assert audit_trail[2] == "=" * 80
 
     assert written["contribution_room"]
     message = " ".join(captured.get_text().split())

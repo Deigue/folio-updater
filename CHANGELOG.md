@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - `folio update --offline` runs all steps offline (no downloads, no fx, no quotes)
+- Ticker alias changes from `folio symbol` are recorded in the audit log.
 
 ### Changed
 

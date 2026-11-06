@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from app import get_config, initialize_app
+from app import audit, get_config, initialize_app
 from config import write_missing_setting
 from datagen.history_data import CLOSES, DIVIDENDS, FIRST_MONTH, SPLITS
 from db import (
@@ -38,7 +38,7 @@ from db import (
     get_row_count,
     insert_or_replace,
 )
-from db.helpers import generate_keys
+from db.helpers import generate_keys, txn_count
 from domain import (
     TAXABLE_ACCOUNT_TYPES,
     TORONTO_TZ,
@@ -1118,11 +1118,20 @@ class DemoFolio:
         """
         rows = self.rows()
         FxService.ensure_coverage(start=START.isoformat())
-        try:
-            self._write(rows)
-        except Exception:
-            self._remove()
-            raise
+        with audit.block("BUILD DEMO folio") as entry:
+            try:
+                with audit.muted():
+                    self._write(rows)
+            except Exception:
+                self._remove()
+                raise
+            entry.done(
+                "%d transactions and %d ticker aliases stored; folio holds %d"
+                " transactions",
+                len(rows),
+                len(RENAMES),
+                txn_count(),
+            )
         logger.info("CREATED demo folio: %d transactions", len(rows))
 
     @staticmethod
@@ -1163,8 +1172,15 @@ class DemoFolio:
         The folio is backed up first. FX rates and cached quotes stay, being
         real data, and so does any contribution room the demo wrote to config.
         """
-        backup_folio()
-        DemoFolio._remove()
+        with audit.block("CLEAR DEMO folio") as entry:
+            removed = txn_count()
+            audit.stage(
+                "REMOVE %d transaction(s) and the ticker aliases; %s",
+                removed,
+                audit.describe_backup(backup_folio()),
+            )
+            DemoFolio._remove()
+            entry.done("demo removed; folio holds 0 transactions")
         logger.info("REMOVED demo folio")
 
     @staticmethod

@@ -38,6 +38,7 @@ class AuditMark(StrEnum):
 
 _command: ContextVar[str | None] = ContextVar("audit_command", default=None)
 _depth: ContextVar[int] = ContextVar("audit_depth", default=0)
+_muted: ContextVar[bool] = ContextVar("audit_muted", default=False)
 
 
 @contextmanager
@@ -60,9 +61,19 @@ def nested() -> Generator[None]:
         _depth.reset(token)
 
 
+@contextmanager
+def muted() -> Generator[None]:
+    """Write nothing inside: for work a summary block already accounts for."""
+    token = _muted.set(True)
+    try:
+        yield
+    finally:
+        _muted.reset(token)
+
+
 def enabled(level: int = logging.INFO) -> bool:
     """Whether the audit trail records `level`, so costly rows can be skipped."""
-    return get_audit_logger().isEnabledFor(level)
+    return not _muted.get() and get_audit_logger().isEnabledFor(level)
 
 
 def describe_backup(backup: Path | None) -> str:
@@ -71,6 +82,8 @@ def describe_backup(backup: Path | None) -> str:
 
 
 def _write(level: int, depth: int, message: str, *args: object) -> None:
+    if _muted.get():
+        return
     indent = INDENT * (depth + _depth.get())
     get_audit_logger().log(level, f"{indent}{message}", *args)
 
