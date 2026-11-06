@@ -157,16 +157,27 @@ def test_acb_suppresses_usd_columns_for_a_cad_holding(temp_ctx: TempContext) -> 
     assert_not_in_output("Rate", result)
 
 
+@pytest.mark.parametrize(
+    "request_args",
+    [["RY.TO"], ["--export", "{target}"]],
+    ids=["on-screen", "export"],
+)
 def test_acb_currency_usd_against_a_cad_holding_is_an_error(
     temp_ctx: TempContext,
+    tmp_path: Path,
+    request_args: list[str],
 ) -> None:
+    """An export would be every figure blank, so it is refused and nothing written."""
+    target = tmp_path / "acb.csv"
+    args = [arg.format(target=target) for arg in request_args]
     with temp_ctx() as ctx:
         seed_cad_holding()
         result = run_cli_with_config(
             ctx.config,
             app,
-            ["acb", "RY.TO", "--currency", "USD"],
+            ["acb", *args, "--currency", "USD"],
         )
+        assert not target.exists()
     assert result.exit_code == 1
     assert_in_output("Nothing here is USD-denominated", result)
 
@@ -397,6 +408,44 @@ def test_acb_export_writes_the_buildup_it_reports(
         # A buildup is per transaction, so it carries the TxnId of each.
         assert "TxnId" in header
         assert len(rows) == 2
+
+
+def test_acb_export_writes_txn_ids_as_plain_digits(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """A TxnId is read back by `folio query` and `folio edit`, which take no comma."""
+    target = tmp_path / "acb.csv"
+    with temp_ctx() as ctx:
+        seed_fx(FX)
+        seed_transaction(
+            action="BUY",
+            date="2025-03-11",
+            settle_date="2025-03-11",
+            account="IBKR-PERSONAL",
+            currency="CAD",
+            ticker="RY.TO",
+            amount="-730",
+            price="14.6",
+            units="50",
+        )
+        # The only row, renumbered past the point a thousands separator appears.
+        with get_connection() as conn:
+            update_rows(
+                conn,
+                Table.TXNS,
+                [{Column.Txn.TICKER: "RY.TO", Column.Txn.TXN_ID: 4321}],
+                [Column.Txn.TICKER],
+                [Column.Txn.TXN_ID],
+            )
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "RY.TO", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        header, *rows = _exported(target)
+    assert [row[header.index("TxnId")] for row in rows] == ["4321"]
 
 
 def test_acb_export_writes_the_summary_when_asked_for_one(

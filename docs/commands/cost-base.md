@@ -88,7 +88,7 @@ underneath.
 
 The `USD` columns will only appear if the pool contains USD-denominated holdings.
 
-`--currency USD` additionally **drops the CAD-denominated holdings**
+`--currency USD` additionally **drops the CAD-denominated holdings**, and is refused where the pool holds nothing in USD, on screen and in an export, since every figure would be blank.
 
 `--currency CAD` keeps both denominated holdings, but only shows the CAD columns. Since
 CAD is the tax currency, the converted figures for a USD holding belong in it.

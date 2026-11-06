@@ -223,6 +223,11 @@ COMPACT_STEPS: dict[Fmt, tuple[tuple[int, int, str], ...]] = {
 # The formats whose values are numbers rather than text.
 NUMERIC: frozenset[Fmt] = frozenset(DECIMALS)
 
+# The formats whose digits are never grouped: an identifier or a year, which a
+# reader types back in (`folio query`, `folio edit`) and which the workbook
+# writes as plain digits too.
+UNGROUPED: frozenset[Fmt] = frozenset({Fmt.ID})
+
 # The formats rendered as a percentage of a ratio.
 PERCENTS: frozenset[Fmt] = frozenset({Fmt.PERCENT, Fmt.PERCENT_SIGNED})
 
@@ -322,7 +327,8 @@ def _number(fmt: Fmt, number: float, decimals: int) -> str:
         return _compact(number, COMPACT_STEPS[fmt], decimals)
     if fmt in PERCENTS:
         return f"{number * 100:,.{decimals}f}%"
-    text = f"{number:,.{decimals}f}"
+    grouping = "" if fmt in UNGROUPED else ","
+    text = f"{number:{grouping}.{decimals}f}"
     if fmt is Fmt.UNITS and "." in text:
         return text.rstrip("0").rstrip(".")
     return text

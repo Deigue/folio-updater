@@ -214,8 +214,8 @@ def _fundamentals_list(quote: Quote) -> SheetList:
         Line("52-week high", facts.high_52, Fmt.PRICE),
         Line("50-day avg", facts.avg_50, Fmt.PRICE),
         Line("200-day avg", facts.avg_200, Fmt.PRICE),
-        Line("Volume", facts.volume, Fmt.ID),
-        Line("Avg volume", facts.avg_volume, Fmt.ID),
+        Line("Volume", facts.volume, Fmt.COUNT),
+        Line("Avg volume", facts.avg_volume, Fmt.COUNT),
     )
     return SheetList(
         title="Fundamentals",

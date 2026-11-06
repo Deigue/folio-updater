@@ -21,6 +21,7 @@ from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import (
     acb_buildup_sheet,
     acb_summary_sheet,
+    has_usd,
     ledger_sheet,
 )
 from services.quotes_service import QuotesService
@@ -159,8 +160,12 @@ def _export(
         summary: Whether one row per symbol was asked for.
 
     Raises:
+        NoUsdFiguresError: If USD figures alone were asked for where nothing is
+            USD-denominated, which would write a file of blank figures.
         typer.Exit: If the path names a format that cannot be written.
     """
+    if currency.strip().upper() == "USD" and not has_usd(rows, tuple(Grain)):
+        raise NoUsdFiguresError
     target = Path(path)
     if target.suffix.lower() == PARQUET_SUFFIX:
         write_frame_parquet(target, rows)
@@ -255,24 +260,22 @@ def show_acb(  # noqa: PLR0917
         valued = with_gains_since_buy(ledger.frame, quotes, load_fx_rates())
         rows = valued.loc[rows.index]
 
-    if export:
-        _export(
-            rows,
-            view,
-            export,
-            symbol=canonical,
-            currency=currency,
-            badge=(
-                freshness_note(ledger.computed_at, quotes)
-                if quotes
-                else f"Cost base {format_freshness(ledger.computed_at)}."
-            ),
-            summary=summary,
-        )
-        return
-
     try:
-        if summary:
+        if export:
+            _export(
+                rows,
+                view,
+                export,
+                symbol=canonical,
+                currency=currency,
+                badge=(
+                    freshness_note(ledger.computed_at, quotes)
+                    if quotes
+                    else f"Cost base {format_freshness(ledger.computed_at)}."
+                ),
+                summary=summary,
+            )
+        elif summary:
             show_summary(rows, view, currency, ledger)
         elif rows.empty:
             console_warning(f"No {canonical} transactions in the {view.label} pool.")
