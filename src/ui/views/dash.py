@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from rich import box
@@ -63,6 +62,7 @@ from ui.vocabulary import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from decimal import Decimal
 
     from rich.console import RenderableType
     from rich.table import JustifyMethod
@@ -330,11 +330,10 @@ def _grand_total_cells(
     holdings = valued.holdings
     totals = holdings.totals_currency
     total = valued.total_return
-    whole = percent(Decimal(1)) if holdings.total_market else ""
     cells = {
         "Symbol": "[bold]Total[/bold]",
         "Units": currency_tint(totals, f"({totals})"),
-        "Wt%": whole,
+        "Wt%": percent(holdings.total_weight_in_pool),
         # How much of everything owned this whole grain accounts for
         "Folio%": percent(holdings.total_weight_in_folio),
         "Book": money(holdings.total_book),
@@ -357,12 +356,11 @@ def _grand_total_cells(
     return [cells.get(spec.header, "") for spec in specs]
 
 
-def flows_panel(flows: Flows, title: str | None = None) -> Panel:
-    """Render cash, contributions and cumulative income for one grain.
+def flows_panel(valued: ValuedPool) -> Panel:
+    """Render cash, contributions and cumulative income for one pool.
 
     Args:
-        flows: The pool's figures.
-        title: Panel title, defaulting to the pool's label.
+        valued: The pool, valued. Its label titles the panel.
 
     Returns:
         A Rich panel. Cash is listed per currency and never summed across them:
@@ -371,6 +369,7 @@ def flows_panel(flows: Flows, title: str | None = None) -> Panel:
     # A borderless table rather than a grid, so `add_section` can draw a faint
     # rule between capital, income and room. The one-space divider plus one
     # collapsed space of padding keeps the grid's two-space gap, and its width.
+    flows = valued.flows
     table = RichTable(
         box=box.HORIZONTALS,
         show_header=False,
@@ -396,17 +395,16 @@ def flows_panel(flows: Flows, title: str | None = None) -> Panel:
 
     return Panel(
         Group(*body),
-        title=_panel_title(flows, title),
+        title=_panel_title(valued),
         border_style="red" if flows.negative_currencies else TABLE_BORDER,
         expand=False,
     )
 
 
-def _panel_title(flows: Flows, title: str | None) -> str:
+def _panel_title(valued: ValuedPool) -> str:
     """Name the panel, accented by the pool's account type when it has one."""
-    name = title or flows.label
-    accent = _accent(flows)
-    return style(name, f"bold {accent}") if accent else name
+    accent = _accent(valued.flows)
+    return style(valued.label, f"bold {accent}") if accent else valued.label
 
 
 def _accent(flows: Flows) -> str | None:
@@ -438,14 +436,13 @@ def _add_money_rows(table: RichTable, flows: Flows) -> None:
             table.add_section()
         if not amounts:
             continue
-        moved = flows.transfers_value if amounts is flows.transfers else {}
+        transfers = amounts is flows.transfers
         for index, currency in enumerate(sorted(amounts, key=str)):
             amount = amounts[currency]
             note = currency_tint(currency, str(currency))
-            actual = moved.get(currency)
-            # When transfers value and transfer are not the same.
-            if actual is not None and q2(actual) != q2(amount):
-                note += style(f"  of {money(actual)} moved", "dim")
+            moved = flows.moved_by_transfers(currency) if transfers else None
+            if moved is not None:
+                note += style(f"  of {money(moved)} moved", "dim")
             table.add_row(
                 label if index == 0 else "",
                 _flow_amount(label, amount, alert=alert),
@@ -531,7 +528,7 @@ def _cash_alerts(flows: Flows) -> list[RenderableType]:
 
 
 def show_by_type(
-    valued: Sequence[ValuedPool],
+    valued_pools: Sequence[ValuedPool],
     *,
     wide: bool = False,
     show_closed: bool = False,
@@ -545,7 +542,7 @@ def show_by_type(
     each under a heading of its own.
 
     Args:
-        valued: Each account type's pool, valued.
+        valued_pools: Each account type's pool, valued.
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
@@ -553,7 +550,7 @@ def show_by_type(
     if badge:
         console_print(badge)
 
-    by_tile = {Tile(flows_panel(each.flows, each.pool.label)): each for each in valued}
+    by_tile = {Tile(flows_panel(valued)): valued for valued in valued_pools}
     layout = TilingLayout(list(by_tile))
     layout.render()
 
@@ -561,16 +558,16 @@ def show_by_type(
     # rather than the given one. Split from its flows panel, each table needs a
     # heading to say whose it is.
     for tile in layout.reading_order:
-        each = by_tile[tile]
+        valued = by_tile[tile]
         console_print("")
         console_print(
             Rule(
-                _panel_title(each.flows, each.pool.label),
+                _panel_title(valued),
                 align="left",
-                style=_accent(each.flows) or "",
+                style=_accent(valued.flows) or "",
             ),
         )
-        _print_holdings(each, wide=wide, show_closed=show_closed)
+        _print_holdings(valued, wide=wide, show_closed=show_closed)
 
 
 def show_dashboard(
@@ -590,7 +587,7 @@ def show_dashboard(
     """
     if badge:
         console_print(badge)
-    console_print(flows_panel(valued.flows, valued.pool.label))
+    console_print(flows_panel(valued))
     _print_holdings(valued, wide=wide, show_closed=show_closed)
 
 

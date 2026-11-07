@@ -93,11 +93,11 @@ def pool_sheet(valued: ValuedPool, *, notes: Sequence[str] = ()) -> Sheet:
         per-currency subtotals and the overall total below a spacer.
     """
     return Sheet(
-        name=valued.pool.label,
+        name=valued.label,
         tables=(
             SheetTable(
                 COLUMNS,
-                tuple(_pool_rows(COLUMNS, valued, spacer=True)),
+                tuple(_pool_rows(COLUMNS, valued, pooled=False)),
                 notes=(*notes, *_notes(valued)),
             ),
         ),
@@ -106,7 +106,7 @@ def pool_sheet(valued: ValuedPool, *, notes: Sequence[str] = ()) -> Sheet:
 
 
 def pooled_dashboard_sheet(
-    valued: Sequence[ValuedPool],
+    valued_pools: Sequence[ValuedPool],
     name: str,
     *,
     notes: Sequence[str] = (),
@@ -114,7 +114,7 @@ def pooled_dashboard_sheet(
     """Print several pools as one table, each row naming the pool it is in.
 
     Args:
-        valued: The pools, valued, in the order to list them.
+        valued_pools: The pools, valued, in the order to list them.
         name: What the sheet is called.
         notes: Lines to disclose above the ones the table derives itself.
 
@@ -124,11 +124,9 @@ def pooled_dashboard_sheet(
     columns = (Col(POOL, width=16), *COLUMNS)
     rows: list[Row] = []
     derived: list[str] = []
-    for each in valued:
-        rows.extend(
-            _pool_rows(columns, each, pool=each.pool.label, spacer=False),
-        )
-        derived.extend(note for note in _notes(each) if note not in derived)
+    for valued in valued_pools:
+        rows.extend(_pool_rows(columns, valued, pooled=True))
+        derived.extend(note for note in _notes(valued) if note not in derived)
     return Sheet(
         name=name,
         tables=(SheetTable(columns, tuple(rows), notes=(*notes, *derived)),),
@@ -139,37 +137,48 @@ def _pool_rows(
     columns: Sequence[Col],
     valued: ValuedPool,
     *,
-    pool: str | None = None,
-    spacer: bool,
+    pooled: bool,
 ) -> list[Row]:
-    """List one pool's rows: its holdings, then what they total to."""
+    """List one pool's rows: its holdings, then what they total to.
+
+    Args:
+        columns: The table's columns.
+        valued: The pool, valued.
+        pooled: The table lists several pools, so each row names its own in
+            the Pool column. A pool alone on its sheet gets a spacer instead,
+            between its holdings and its totals.
+
+    Returns:
+        The rows, in order.
+    """
     holdings = valued.holdings
+    label = valued.label if pooled else None
     rows = [
-        row_of(columns, _named(cells, pool), role)
+        row_of(columns, _named(cells, label), role)
         for cells, role in _holding_cells(holdings)
     ]
-    if rows and spacer:
+    if rows and not pooled:
         rows.append(blank_row(columns))
     for group in holdings.by_currency:
         total = valued.subtotal_return(group).ratio
-        cells = _named(_subtotal_cells(group, total), pool)
+        cells = _named(_subtotal_cells(group, total), label)
         rows.append(row_of(columns, cells, Role.SUBTOTAL))
     if holdings.mixed_currency:
         rows.append(
             row_of(
                 columns,
-                _named(_total_cells(valued), pool),
+                _named(_total_cells(valued), label),
                 Role.TOTAL,
             ),
         )
     return rows
 
 
-def _named(cells: dict[str, object], pool: str | None) -> dict[str, object]:
+def _named(cells: dict[str, object], label: str | None) -> dict[str, object]:
     """Say which pool a row belongs to, where the table reports several."""
-    if pool is None:
+    if label is None:
         return cells
-    return {POOL: pool, **cells}
+    return {POOL: label, **cells}
 
 
 def _holding_cells(
@@ -279,6 +288,7 @@ def _total_cells(valued: ValuedPool) -> dict[str, object]:
         "Total%": valued.total_return.ratio,
         "Book": holdings.total_book,
         "Market": holdings.total_market,
+        _WEIGHT: holdings.total_weight_in_pool,
         "Folio%": holdings.total_weight_in_folio,
     }
 

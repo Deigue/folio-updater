@@ -8,15 +8,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from domain import Currency, PriceRange, QuoteStatus
+from domain import Currency, Grain, PriceRange, QuoteStatus
 from engine.ledger import open_ledger
 from engine.performance import RangeMove, price_moves
-from engine.pools import FolioValuation, type_pool
+from engine.pools import FolioValuation, Pool
 from engine.ticker import (
     FirstBuy,
     PerformanceRow,
     UnknownMatrixSortError,
     performance_rows,
+    range_extremes,
     sort_performance,
     symbol_holdings,
 )
@@ -273,13 +274,24 @@ def test_the_matrix_sorts_best_first_with_the_unmeasured_last() -> None:
         sort_performance(rows, "volume")
 
 
+def test_the_matrix_marks_the_best_and_worst_move_once_there_are_two() -> None:
+    rows = [_row("AAA", "2", 500), _row("BBB", None, 900), _row("CCC", "-3", 100)]
+
+    extremes = range_extremes(rows)
+
+    assert extremes[PriceRange.WEEK_1] == {Decimal("0.02"), Decimal("-0.03")}
+    # A single move has nothing to be best or worst against.
+    assert range_extremes(rows[:2])[PriceRange.WEEK_1] == set()
+    assert extremes[PriceRange.YEAR_1] == set()
+
+
 def test_the_matrix_reads_market_and_weights_from_the_pool(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
         _seed_two_types()
         valuation = FolioValuation.build(open_ledger(), currency=Currency.CAD)
-        valued = valuation.value(type_pool("TFSA"))
+        valued = valuation.value(Pool(Grain.TYPE, "TFSA"))
         quote = Quote(
             symbol="TESTTKR",
             provider_symbol="TESTTKR",

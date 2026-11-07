@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import pandas as pd
 
 from domain import Column, Currency, DiagnosticCode, Grain
-from domain.numeric import ZERO, dec, safe_div
+from domain.numeric import ONE, ZERO, dec, safe_div
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
@@ -274,6 +274,11 @@ class HoldingSet:
     def mixed_currency(self) -> bool:
         """Whether more than one currency group is on show."""
         return len(self.by_currency) > 1
+
+    @property
+    def total_weight_in_pool(self) -> Decimal | None:
+        """The pool's share of itself: all of it, once it has a market value."""
+        return ONE if self.total_market else None
 
     @property
     def total_weight_in_folio(self) -> Decimal | None:

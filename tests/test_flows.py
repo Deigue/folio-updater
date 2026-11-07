@@ -48,7 +48,6 @@ def _flows(
         ledger,
         grain=grain,
         pool=pool,
-        label=pool or "Portfolio",
         contributions=contributions_by_type_year(ledger.frame),
         account_type=account_type,
         room=room,
@@ -544,13 +543,11 @@ def test_a_sub_cent_residue_is_not_a_missing_transaction() -> None:
     dusty = Flows(
         grain=Grain.FOLIO,
         pool="",
-        label="Portfolio",
         cash={Currency.CAD: Decimal("-0.000002999")},
     )
     genuinely_short = Flows(
         grain=Grain.FOLIO,
         pool="",
-        label="Portfolio",
         cash={Currency.CAD: Decimal("-0.01")},
     )
 
@@ -563,7 +560,6 @@ def _funded(**deposits: str) -> Flows:
     return Flows(
         grain=Grain.FOLIO,
         pool="",
-        label="Portfolio",
         contributions={
             Currency[code]: Decimal(amount) for code, amount in deposits.items()
         },
@@ -1229,3 +1225,20 @@ def test_a_type_never_contributed_to_is_absent(temp_ctx: TempContext) -> None:
         every = contributions_by_type_year(open_ledger().frame)
 
         assert AccountType.FHSA not in every
+
+
+def test_a_transfer_names_what_it_moved_only_when_not_the_deposits_it_carried() -> None:
+    """A grown pool sends more than its deposits; a residue below a cent is equal."""
+    flows = Flows(
+        grain=Grain.ACCOUNT,
+        pool="Sender",
+        transfers={Currency.CAD: Decimal(-4000), Currency.USD: Decimal(-700)},
+        transfers_value={
+            Currency.CAD: Decimal(-5000),
+            Currency.USD: Decimal("-700.004"),
+        },
+    )
+
+    assert flows.moved_by_transfers(Currency.CAD) == Decimal(-5000)
+    assert flows.moved_by_transfers(Currency.USD) is None
+    assert _funded(CAD="10000").moved_by_transfers(Currency.CAD) is None

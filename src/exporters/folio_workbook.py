@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from db import get_connection, get_distinct_values, get_rows
-from domain import Column
+from domain import Column, Grain
 from domain import Table as DbTable
 from engine.gain_since_buy import with_gains_since_buy
-from engine.pools import FOLIO, account_pool, type_pool
+from engine.pools import FOLIO, Pool
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
 from exporters.sheet_spec import Link
 from exporters.sheets import (
@@ -189,32 +189,32 @@ def folio_sheets(
         The sheets, in the order they should appear.
     """
     chosen = set(sections)
-    pools = _pools(sources.valuation) if chosen & VALUED else None
+    valued_pools = _value_pools(sources.valuation) if chosen & VALUED else None
 
     dashboards: list[Sheet] = []
     cost_base: list[Sheet] = []
-    if pools is not None:
-        dashboards = _dashboard_sheets(pools, chosen, notes)
+    if valued_pools is not None:
+        dashboards = _dashboard_sheets(valued_pools, chosen, notes)
         if Section.ACB in chosen and sources.valuation is not None:
             frame = sources.valuation.frame
-            valued = with_gains_since_buy(
+            with_gains = with_gains_since_buy(
                 frame,
                 sources.quotes,
                 sources.valuation.folio_holdings.fx,
             )
             cost_base = [
-                ledger_sheet(valued, txns=sources.txns),
+                ledger_sheet(with_gains, txns=sources.txns),
                 cost_base_sheet(frame),
             ]
     performance: list[Sheet] = []
-    if pools is not None and Section.PERF in chosen:
-        performance = [_performance_sheet(pools.folio, sources, notes)]
+    if valued_pools is not None and Section.PERF in chosen:
+        performance = [_performance_sheet(valued_pools.folio, sources, notes)]
     stored = _stored_sheets(sources) if Section.STORED in chosen else []
 
-    if pools is None or Section.SUMMARY not in chosen:
+    if valued_pools is None or Section.SUMMARY not in chosen:
         return [*performance, *dashboards, *cost_base, *stored]
 
-    flows = flows_sheet(pools.every, history=pools.history)
+    flows = flows_sheet(valued_pools.every, history=valued_pools.history)
     linked = [
         flows,
         *performance,
@@ -222,8 +222,8 @@ def folio_sheets(
         *(sheet for sheet in stored if not sheet.hidden),
     ]
     summary = summary_sheet(
-        pools.folio,
-        pools.every,
+        valued_pools.folio,
+        valued_pools.every,
         notes=notes,
         contents=[(sheet.name, _describe(sheet.name)) for sheet in linked],
     )
@@ -247,7 +247,7 @@ _DESCRIPTIONS: dict[str, str] = {
 
 
 @dataclass(frozen=True)
-class _Pools:
+class _ValuedPools:
     """Every pool the workbook reports, valued once.
 
     Attributes:
@@ -268,36 +268,38 @@ class _Pools:
         return [self.folio, *self.types, *self.accounts]
 
 
-def _pools(valuation: FolioValuation | None) -> _Pools | None:
+def _value_pools(valuation: FolioValuation | None) -> _ValuedPools | None:
     """Value every pool once, or None when the folio could not be replayed."""
     if valuation is None:
         return None
-    return _Pools(
+    return _ValuedPools(
         folio=valuation.value(FOLIO),
         types=_active_first(
             valuation.value_all(
-                [type_pool(name) for name in valuation.account_types()],
+                [Pool(Grain.TYPE, name) for name in valuation.account_types()],
             ),
         ),
         accounts=_active_first(
-            valuation.value_all([account_pool(name) for name in valuation.accounts()]),
+            valuation.value_all(
+                [Pool(Grain.ACCOUNT, name) for name in valuation.accounts()],
+            ),
         ),
         history=valuation.room_history,
     )
 
 
 def _dashboard_sheets(
-    pools: _Pools,
+    valued_pools: _ValuedPools,
     chosen: set[Section],
     notes: Sequence[str],
 ) -> list[Sheet]:
     """Dashboard for each pool the sections ask for."""
-    valued: list[ValuedPool] = []
+    shown: list[ValuedPool] = []
     if Section.DASH in chosen:
-        valued.extend((pools.folio, *pools.types))
+        shown.extend((valued_pools.folio, *valued_pools.types))
     if Section.ACCOUNTS in chosen:
-        valued.extend(pools.accounts)
-    return [pool_sheet(each, notes=notes) for each in valued]
+        shown.extend(valued_pools.accounts)
+    return [pool_sheet(valued, notes=notes) for valued in shown]
 
 
 def _performance_sheet(
@@ -344,6 +346,6 @@ def _back_to_summary(sheet: Sheet) -> Sheet:
     return replace(sheet, nav=Link("Back to Summary", SUMMARY_SHEET))
 
 
-def _active_first(valued: list[ValuedPool]) -> list[ValuedPool]:
+def _active_first(valued_pools: list[ValuedPool]) -> list[ValuedPool]:
     """Put the pools still holding securities ahead of the fully closed ones."""
-    return sorted(valued, key=lambda each: not each.active)
+    return sorted(valued_pools, key=lambda valued: not valued.active)

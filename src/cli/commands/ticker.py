@@ -340,7 +340,7 @@ def _per_currency(
     it in CAD, once.
     """
 
-    def valued(currency: DisplayCurrency) -> SymbolHoldings | None:
+    def holdings_in(currency: DisplayCurrency) -> SymbolHoldings | None:
         valuation = FolioValuation.build(
             ledger,
             currency=currency,
@@ -348,9 +348,9 @@ def _per_currency(
         )
         return symbol_holdings(valuation, symbol, by_account=by_account)
 
-    native = valued("native")
+    native = holdings_in("native")
     if native is None or choice in {"native", "USD"} or native.currency is Currency.CAD:
         return [native] if native is not None else []
-    in_cad = valued(Currency.CAD)
+    in_cad = holdings_in(Currency.CAD)
     shown = [in_cad] if choice == "CAD" else [native, in_cad]
     return [holdings for holdings in shown if holdings is not None]

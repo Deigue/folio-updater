@@ -163,6 +163,16 @@ class ValuedPool:
     flows: Flows
 
     @property
+    def label(self) -> str:
+        """How the pool reads in a heading or a sheet name."""
+        return self.pool.label
+
+    @property
+    def grain(self) -> Grain:
+        """The grain the pool was valued at."""
+        return self.pool.grain
+
+    @property
     def occupied(self) -> bool:
         """Whether the pool holds anything, or ever did."""
         return bool(self.holdings.holdings or self.holdings.closed)
@@ -183,9 +193,12 @@ class ValuedPool:
 
         Against net deposits rather than book value: see `HoldingSet.return_on`.
         """
-        holdings = self.holdings
-        ratio = holdings.return_on(self.flows.net_deposit_denominator)
-        return Return(ratio, holdings.total_pnl)
+        return Return(self._deposit_return, self.holdings.total_pnl)
+
+    @property
+    def _deposit_return(self) -> Decimal | None:
+        """The pool's CAD gain over its net CAD deposits, when both are known."""
+        return self.holdings.return_on(self.flows.net_deposit_denominator)
 
     def subtotal_return(self, group: CurrencyTotals) -> Return:
         """Say what one currency group's subtotal reports as its `Total%`.
@@ -210,7 +223,7 @@ class ValuedPool:
             return Return(group.total_pnl_pct, group.total_pnl)
         if not holdings.deposits_measurable:
             return Return()
-        promoted = holdings.return_on(self.flows.net_deposit_denominator)
+        promoted = self._deposit_return
         if promoted is None:
             return Return(group.total_pnl_pct, group.total_pnl)
         return Return(promoted, holdings.total_pnl_cad)
@@ -248,17 +261,19 @@ class ValuedPool:
             what, into = Conversion.TOTAL, holdings.totals_currency
         elif holdings.display_currency == Currency.CAD:
             what, into = Conversion.VALUED, Currency.CAD
-        elif self._promoted_from(holdings.by_currency):
+        elif self._promoted:
             what, into = Conversion.TOTAL_RETURN, Currency.CAD
         else:
             return None
         return Converted(what, into, holdings.fx_rate, holdings.fx_date)
 
-    def _promoted_from(self, groups: tuple[CurrencyTotals, ...]) -> bool:
+    @property
+    def _promoted(self) -> bool:
         """Whether a lone non-CAD group's `Total%` was promoted to a CAD ratio."""
+        groups = self.holdings.by_currency
         if len(groups) != 1 or groups[0].currency is Currency.CAD:
             return False
-        return self.holdings.return_on(self.flows.net_deposit_denominator) is not None
+        return self._deposit_return is not None
 
 
 def account_type_of(pool: Pool) -> AccountType | None:
@@ -274,23 +289,10 @@ def account_type_of(pool: Pool) -> AccountType | None:
         The account type, or None when the pool spans more than one.
     """
     if pool.grain is Grain.TYPE:
-        try:
-            return AccountType(pool.name)
-        except ValueError:  # callers resolve the type first
-            return None
+        return AccountType(pool.name)
     if pool.grain is Grain.ACCOUNT:
         return resolve_account_type(pool.name)
     return None
-
-
-def type_pool(name: str) -> Pool:
-    """Name one account type's pool."""
-    return Pool(Grain.TYPE, name)
-
-
-def account_pool(name: str) -> Pool:
-    """Name one broker account's pool."""
-    return Pool(Grain.ACCOUNT, name)
 
 
 @dataclass(frozen=True)
@@ -405,7 +407,6 @@ class FolioValuation:
             self.ledger,
             grain=pool.grain,
             pool=pool.name,
-            label=pool.label,
             account_type=account_type_of(pool),
             room=get_config().contribution_room,
             contributions=self.contributions,
@@ -414,11 +415,11 @@ class FolioValuation:
 
     def account_types(self) -> list[str]:
         """Every account type with a holding, in a stable order."""
-        return self._pools(Column.Ledger.ACCT_TYPE)
+        return self._pool_names(Column.Ledger.ACCT_TYPE)
 
     def accounts(self) -> list[str]:
         """Every account with a holding, in a stable order."""
-        return self._pools(Column.Txn.ACCOUNT)
+        return self._pool_names(Column.Txn.ACCOUNT)
 
     def value_all(
         self,
@@ -443,10 +444,10 @@ class FolioValuation:
         """
         if pools:
             self.folio_holdings.prime(pools[0].grain)
-        valued = (self.value(pool, sort=sort, reverse=reverse) for pool in pools)
-        return [each for each in valued if each.occupied]
+        valued_pools = (self.value(pool, sort=sort, reverse=reverse) for pool in pools)
+        return [valued for valued in valued_pools if valued.occupied]
 
-    def _pools(self, column: str) -> list[str]:
+    def _pool_names(self, column: str) -> list[str]:
         """Name every pool a column holds, in a stable order."""
         return sorted({str(value) for value in self.frame[column].dropna()})
 

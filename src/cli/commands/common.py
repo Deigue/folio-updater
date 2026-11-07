@@ -9,9 +9,9 @@ import typer
 
 from cli.selection import Selection, SelectionError, select_transactions
 from db import txn_count
-from domain import ACCOUNT_TYPE_ALIASES, AccountType
+from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
 from engine.ledger import LedgerUnavailableError, open_ledger
-from engine.pools import FOLIO, Pool, account_pool, type_pool
+from engine.pools import FOLIO, Pool
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from services.broker_files import SUPPORTED_SUFFIXES, is_supported
@@ -112,7 +112,7 @@ def resolve_pool(
         raise typer.Exit(1)
 
     if account:
-        return account_pool(account)
+        return Pool(Grain.ACCOUNT, account)
     requested = account_type or default_type
     if requested is None or requested.strip().lower() == ALL_POOLS:
         return FOLIO
@@ -124,7 +124,7 @@ def resolve_pool(
             f"{ALL_POOLS}, {', '.join(str(member).lower() for member in AccountType)}",
         )
         raise typer.Exit(1)
-    return type_pool(str(resolved))
+    return Pool(Grain.TYPE, str(resolved))
 
 
 def write_or_exit(path: Path, sheets: Sequence[Sheet]) -> Path:

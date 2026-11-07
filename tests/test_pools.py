@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from domain import Currency, DiagnosticCode
+from domain import Currency, DiagnosticCode, Grain
 from engine.ledger import open_ledger
 from engine.pools import (
     FOLIO,
@@ -19,8 +19,6 @@ from engine.pools import (
     TotalReturnHidden,
     UnitsSuspect,
     Unpriced,
-    account_pool,
-    type_pool,
 )
 
 from .helpers.seed import TWO_TYPES_FX, seed_cash, seed_fx, seed_transaction
@@ -35,8 +33,8 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize(
     ("pool", "label"),
     [
-        (account_pool("WS-TFSA"), "WS-TFSA"),
-        (type_pool("NON_REGISTERED"), "NON-REGISTERED"),
+        (Pool(Grain.ACCOUNT, "WS-TFSA"), "WS-TFSA"),
+        (Pool(Grain.TYPE, "NON_REGISTERED"), "NON-REGISTERED"),
         (FOLIO, "Portfolio"),
     ],
     ids=["account", "type", "folio"],
@@ -62,7 +60,7 @@ def _usd_only(currency: DisplayCurrency = "native") -> ValuedPool:
         units="10",
     )
     valuation = FolioValuation.build(open_ledger(), currency=currency)
-    return valuation.value(account_pool("WS-TFSA"))
+    return valuation.value(Pool(Grain.ACCOUNT, "WS-TFSA"))
 
 
 def test_a_usd_only_pools_subtotal_is_its_return_on_net_deposits(
@@ -95,15 +93,18 @@ def test_a_usd_only_pool_discloses_its_return_as_converted(
         )
 
 
-def _mixed(currency: DisplayCurrency = "native") -> ValuedPool:
-    """Fund a TFSA in both currencies and hold one security in each.
+def _mixed(
+    currency: DisplayCurrency = "native",
+    funding: tuple[str, ...] = ("CAD", "USD"),
+) -> ValuedPool:
+    """Fund a TFSA in `funding`'s currencies and hold one security in each.
 
     10 TESTTKR bought at 100 USD trade at 200 USD (1,250 CAD gained at 1.25), and
     10 CADCO.TO bought at 200 CAD trade at 20 CAD (1,800 CAD lost), so the pool
     is down 550 CAD on 10,000 CAD of net deposits.
     """
     seed_fx(TWO_TYPES_FX)
-    for funded in ("CAD", "USD"):
+    for funded in funding:
         seed_cash(
             "CONTRIBUTION",
             amount="10000",
@@ -128,7 +129,7 @@ def _mixed(currency: DisplayCurrency = "native") -> ValuedPool:
         units="10",
     )
     valuation = FolioValuation.build(open_ledger(), currency=currency)
-    return valuation.value(account_pool("WS-TFSA"))
+    return valuation.value(Pool(Grain.ACCOUNT, "WS-TFSA"))
 
 
 def test_a_mixed_pool_measures_subtotals_on_book_and_its_total_on_deposits(
@@ -159,6 +160,16 @@ def test_hiding_part_of_a_pool_says_why_its_return_is_blank(
         assert valued.disclosures == (TotalReturnHidden(1, Currency.USD),)
 
 
+def test_a_pool_with_no_cad_deposits_has_no_hidden_return_to_explain(
+    temp_ctx: TempContext,
+) -> None:
+    """Funded only in USD, its `Total%` is blank whatever the filter hides."""
+    with temp_ctx():
+        valued = _mixed(Currency.USD, funding=("USD",))
+
+        assert valued.disclosures == ()
+
+
 def test_a_holding_with_no_quote_is_named_as_left_out_of_the_totals(
     temp_ctx: TempContext,
 ) -> None:
@@ -169,7 +180,7 @@ def test_a_holding_with_no_quote_is_named_as_left_out_of_the_totals(
         seed_transaction(account="WS-TFSA", ticker="MSFT", amount="-400", units="2")
         valuation = FolioValuation.build(open_ledger(), currency="native")
 
-        valued = valuation.value(account_pool("WS-TFSA"))
+        valued = valuation.value(Pool(Grain.ACCOUNT, "WS-TFSA"))
 
         assert Unpriced(("MSFT",)) in valued.disclosures
 
@@ -216,6 +227,6 @@ def test_a_pool_valued_with_no_rate_held_states_no_conversion(
         ledger = open_ledger(offline=True)
         valuation = FolioValuation.build(ledger, currency=Currency.CAD, offline=True)
 
-        valued = valuation.value(account_pool("WS-TFSA"))
+        valued = valuation.value(Pool(Grain.ACCOUNT, "WS-TFSA"))
 
-        assert not any(isinstance(each, Converted) for each in valued.disclosures)
+        assert not any(isinstance(found, Converted) for found in valued.disclosures)

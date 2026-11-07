@@ -87,7 +87,6 @@ class Flows:
     Attributes:
         grain: The grain these figures were read at.
         pool: The pool key, empty at folio grain.
-        label: How the pool reads in a heading.
         account_type: The type this pool is, when it is exactly one.
         cash: Running cash balance.
         contributions: Cumulative `CONTRIBUTION` only.
@@ -108,7 +107,6 @@ class Flows:
 
     grain: Grain
     pool: str
-    label: str
     account_type: AccountType | None = None
     cash: dict[Currency, Decimal] = field(default_factory=dict)
     contributions: dict[Currency, Decimal] = field(default_factory=dict)
@@ -159,6 +157,25 @@ class Flows:
             currency for currency, amount in self.cash.items() if q2(amount) < ZERO
         )
 
+    def moved_by_transfers(self, currency: Currency) -> Decimal | None:
+        """Report what transfers moved in `currency`, when not the deposits carried.
+
+        A transfer carries only the deposit share of what it moves, so the two
+        part ways once the sending pool has grown or shrunk. **Judged at cent
+        precision**, so a residue of the proportional split reads as equal.
+
+        Args:
+            currency: The currency to compare in.
+
+        Returns:
+            The value moved, or None when it matches the deposits carried or
+            no transfer moved any.
+        """
+        moved = self.transfers_value.get(currency)
+        if moved is None or q2(moved) == q2(self.transfers.get(currency, ZERO)):
+            return None
+        return moved
+
     @property
     def net_deposit_denominator(self) -> Decimal | None:
         """The CAD money the holder put in, as a return denominator.
@@ -185,7 +202,6 @@ def build_flows(  # noqa: PLR0913
     *,
     grain: Grain,
     pool: str | None,
-    label: str,
     contributions: Mapping[AccountType, Mapping[int, Decimal]],
     account_type: AccountType | None = None,
     room: Mapping[AccountType, Mapping[int, Decimal]] | None = None,
@@ -198,7 +214,6 @@ def build_flows(  # noqa: PLR0913
         grain: The pool grain to read at.
         pool: The account name or account type. Ignored at folio grain,
             where the replay credits the literal `FOLIO` key.
-        label: How the pool should read in a heading.
         account_type: The type this pool is, when it is exactly one. Drives
             whether a contribution-room row applies at all.
         room: Configured limits by account type and year.
@@ -220,7 +235,6 @@ def build_flows(  # noqa: PLR0913
     return Flows(
         grain=grain,
         pool=key if grain is not Grain.FOLIO else "",
-        label=label,
         account_type=account_type,
         cash=_measure(states, "cash"),
         contributions=_measure(states, "contributions"),

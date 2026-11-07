@@ -10,7 +10,6 @@ CAD,acct,MOCK-CORPORATE,flows,contributions CAD,12000.0
 CAD,acct,MOCK-CORPORATE,flows,dividends USD,177.0
 CAD,acct,MOCK-CORPORATE,flows,fees USD,5.0
 CAD,acct,MOCK-CORPORATE,flows,grain,acct
-CAD,acct,MOCK-CORPORATE,flows,label,MOCK-CORPORATE
 CAD,acct,MOCK-CORPORATE,flows,negative_currencies,
 CAD,acct,MOCK-CORPORATE,flows,net_deposit_denominator,12000.0
 CAD,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000.0
@@ -79,6 +78,7 @@ CAD,acct,MOCK-CORPORATE,totals,total_realized,427.7216
 CAD,acct,MOCK-CORPORATE,totals,total_unrealized,1379.32140
 CAD,acct,MOCK-CORPORATE,totals,total_unrealized_pct,0.2399611656201126263821386904
 CAD,acct,MOCK-CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+CAD,acct,MOCK-CORPORATE,totals,total_weight_in_pool,1
 CAD,acct,MOCK-CORPORATE,totals,totals_currency,CAD
 CAD,acct,MOCK-CORPORATE,totals,unpriced,
 CAD,acct,MOCK-CORPORATE,totals CAD,book,5748.1026
@@ -112,7 +112,6 @@ CAD,acct,MOCK-MARGIN,flows,contributions USD,2000.0
 CAD,acct,MOCK-MARGIN,flows,dividends USD,335.25
 CAD,acct,MOCK-MARGIN,flows,fees USD,6.0
 CAD,acct,MOCK-MARGIN,flows,grain,acct
-CAD,acct,MOCK-MARGIN,flows,label,MOCK-MARGIN
 CAD,acct,MOCK-MARGIN,flows,negative_currencies,
 CAD,acct,MOCK-MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 CAD,acct,MOCK-MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -184,6 +183,7 @@ CAD,acct,MOCK-MARGIN,totals,total_realized,478.691
 CAD,acct,MOCK-MARGIN,totals,total_unrealized,3127.048292307692
 CAD,acct,MOCK-MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
 CAD,acct,MOCK-MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+CAD,acct,MOCK-MARGIN,totals,total_weight_in_pool,1
 CAD,acct,MOCK-MARGIN,totals,totals_currency,CAD
 CAD,acct,MOCK-MARGIN,totals,unpriced,
 CAD,acct,MOCK-MARGIN,totals CAD,book,9345.943707692308
@@ -217,7 +217,6 @@ CAD,acct,MOCK-PERSONAL,flows,dividends USD,2008.27
 CAD,acct,MOCK-PERSONAL,flows,fees CAD,94.13
 CAD,acct,MOCK-PERSONAL,flows,fees USD,182.13
 CAD,acct,MOCK-PERSONAL,flows,grain,acct
-CAD,acct,MOCK-PERSONAL,flows,label,MOCK-PERSONAL
 CAD,acct,MOCK-PERSONAL,flows,negative_currencies,
 CAD,acct,MOCK-PERSONAL,flows,net_deposit_denominator,136181.2038681286276690667035
 CAD,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
@@ -732,6 +731,7 @@ CAD,acct,MOCK-PERSONAL,totals,total_realized,2716.6396846153847
 CAD,acct,MOCK-PERSONAL,totals,total_unrealized,27390.261873076925
 CAD,acct,MOCK-PERSONAL,totals,total_unrealized_pct,0.2039907563264576777599589233
 CAD,acct,MOCK-PERSONAL,totals,total_weight_in_folio,0.5726412629920112257092537600
+CAD,acct,MOCK-PERSONAL,totals,total_weight_in_pool,1
 CAD,acct,MOCK-PERSONAL,totals,totals_currency,CAD
 CAD,acct,MOCK-PERSONAL,totals,unpriced,
 CAD,acct,MOCK-PERSONAL,totals CAD,book,134272.073726923075
@@ -764,7 +764,6 @@ CAD,acct,MOCK-RRSP,flows,dividends USD,953.80
 CAD,acct,MOCK-RRSP,flows,fees CAD,100.0
 CAD,acct,MOCK-RRSP,flows,fees USD,64.0
 CAD,acct,MOCK-RRSP,flows,grain,acct
-CAD,acct,MOCK-RRSP,flows,label,MOCK-RRSP
 CAD,acct,MOCK-RRSP,flows,negative_currencies,
 CAD,acct,MOCK-RRSP,flows,net_deposit_denominator,66000.0
 CAD,acct,MOCK-RRSP,flows,net_deposits CAD,66000.0
@@ -951,6 +950,7 @@ CAD,acct,MOCK-RRSP,totals,total_realized,0.0
 CAD,acct,MOCK-RRSP,totals,total_unrealized,14222.34575
 CAD,acct,MOCK-RRSP,totals,total_unrealized_pct,0.2183636305799505297107354015
 CAD,acct,MOCK-RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+CAD,acct,MOCK-RRSP,totals,total_weight_in_pool,1
 CAD,acct,MOCK-RRSP,totals,totals_currency,CAD
 CAD,acct,MOCK-RRSP,totals,unpriced,
 CAD,acct,MOCK-RRSP,totals CAD,book,65131.47685
@@ -984,7 +984,6 @@ CAD,acct,MOCK-TFSA,flows,dividends CAD,959.32
 CAD,acct,MOCK-TFSA,flows,dividends USD,9.72
 CAD,acct,MOCK-TFSA,flows,fees CAD,35.0
 CAD,acct,MOCK-TFSA,flows,grain,acct
-CAD,acct,MOCK-TFSA,flows,label,MOCK-TFSA
 CAD,acct,MOCK-TFSA,flows,negative_currencies,
 CAD,acct,MOCK-TFSA,flows,net_deposit_denominator,19500.00000000000000000000000
 CAD,acct,MOCK-TFSA,flows,net_deposits CAD,19500.00000000000000000000000
@@ -1324,6 +1323,7 @@ CAD,acct,MOCK-TFSA,totals,total_realized,233.19
 CAD,acct,MOCK-TFSA,totals,total_unrealized,4510.1820
 CAD,acct,MOCK-TFSA,totals,total_unrealized_pct,0.2624761031262494027600198100
 CAD,acct,MOCK-TFSA,totals,total_weight_in_folio,0.07684245898932065402939359638
+CAD,acct,MOCK-TFSA,totals,total_weight_in_pool,1
 CAD,acct,MOCK-TFSA,totals,totals_currency,CAD
 CAD,acct,MOCK-TFSA,totals,unpriced,
 CAD,acct,MOCK-TFSA,totals CAD,book,17183.21
@@ -1358,7 +1358,6 @@ CAD,acct,MOCK2-TFSA,flows,dividends USD,4.86
 CAD,acct,MOCK2-TFSA,flows,fees CAD,19.80
 CAD,acct,MOCK2-TFSA,flows,fees USD,6.95
 CAD,acct,MOCK2-TFSA,flows,grain,acct
-CAD,acct,MOCK2-TFSA,flows,label,MOCK2-TFSA
 CAD,acct,MOCK2-TFSA,flows,negative_currencies,
 CAD,acct,MOCK2-TFSA,flows,net_deposit_denominator,
 CAD,acct,MOCK2-TFSA,flows,net_deposits CAD,0.0
@@ -1585,6 +1584,7 @@ CAD,acct,MOCK2-TFSA,totals,total_realized,0.0
 CAD,acct,MOCK2-TFSA,totals,total_unrealized,
 CAD,acct,MOCK2-TFSA,totals,total_unrealized_pct,
 CAD,acct,MOCK2-TFSA,totals,total_weight_in_folio,
+CAD,acct,MOCK2-TFSA,totals,total_weight_in_pool,
 CAD,acct,MOCK2-TFSA,totals,totals_currency,CAD
 CAD,acct,MOCK2-TFSA,totals,unpriced,
 CAD,acct,MOCK2-TFSA,totals CAD,book,0
@@ -1620,7 +1620,6 @@ CAD,folio,,flows,dividends USD,3488.90
 CAD,folio,,flows,fees CAD,248.93
 CAD,folio,,flows,fees USD,264.08
 CAD,folio,,flows,grain,folio
-CAD,folio,,flows,label,Portfolio
 CAD,folio,,flows,negative_currencies,
 CAD,folio,,flows,net_deposit_denominator,245500.0
 CAD,folio,,flows,net_deposits CAD,245500.0
@@ -2505,6 +2504,7 @@ CAD,folio,,totals,total_realized,3892.6377565730566
 CAD,folio,,totals,total_unrealized,50592.763843426943
 CAD,folio,,totals,total_unrealized_pct,0.2183384027119978398689875414
 CAD,folio,,totals,total_weight_in_folio,0.9999999999999999999999999998
+CAD,folio,,totals,total_weight_in_pool,1
 CAD,folio,,totals,totals_currency,CAD
 CAD,folio,,totals,unpriced,
 CAD,folio,,totals CAD,book,231717.202356573057
@@ -2536,7 +2536,6 @@ CAD,type,CORPORATE,flows,contributions CAD,12000.0
 CAD,type,CORPORATE,flows,dividends USD,177.0
 CAD,type,CORPORATE,flows,fees USD,5.0
 CAD,type,CORPORATE,flows,grain,type
-CAD,type,CORPORATE,flows,label,CORPORATE
 CAD,type,CORPORATE,flows,negative_currencies,
 CAD,type,CORPORATE,flows,net_deposit_denominator,12000.0
 CAD,type,CORPORATE,flows,net_deposits CAD,12000.0
@@ -2605,6 +2604,7 @@ CAD,type,CORPORATE,totals,total_realized,427.7216
 CAD,type,CORPORATE,totals,total_unrealized,1379.32140
 CAD,type,CORPORATE,totals,total_unrealized_pct,0.2399611656201126263821386904
 CAD,type,CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+CAD,type,CORPORATE,totals,total_weight_in_pool,1
 CAD,type,CORPORATE,totals,totals_currency,CAD
 CAD,type,CORPORATE,totals,unpriced,
 CAD,type,CORPORATE,totals CAD,book,5748.1026
@@ -2638,7 +2638,6 @@ CAD,type,MARGIN,flows,contributions USD,2000.0
 CAD,type,MARGIN,flows,dividends USD,335.25
 CAD,type,MARGIN,flows,fees USD,6.0
 CAD,type,MARGIN,flows,grain,type
-CAD,type,MARGIN,flows,label,MARGIN
 CAD,type,MARGIN,flows,negative_currencies,
 CAD,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 CAD,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -2710,6 +2709,7 @@ CAD,type,MARGIN,totals,total_realized,478.691
 CAD,type,MARGIN,totals,total_unrealized,3127.048292307692
 CAD,type,MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
 CAD,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+CAD,type,MARGIN,totals,total_weight_in_pool,1
 CAD,type,MARGIN,totals,totals_currency,CAD
 CAD,type,MARGIN,totals,unpriced,
 CAD,type,MARGIN,totals CAD,book,9345.943707692308
@@ -2743,7 +2743,6 @@ CAD,type,NON_REGISTERED,flows,dividends USD,2008.27
 CAD,type,NON_REGISTERED,flows,fees CAD,94.13
 CAD,type,NON_REGISTERED,flows,fees USD,182.13
 CAD,type,NON_REGISTERED,flows,grain,type
-CAD,type,NON_REGISTERED,flows,label,NON-REGISTERED
 CAD,type,NON_REGISTERED,flows,negative_currencies,
 CAD,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
 CAD,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
@@ -3258,6 +3257,7 @@ CAD,type,NON_REGISTERED,totals,total_realized,2716.6396846153847
 CAD,type,NON_REGISTERED,totals,total_unrealized,27390.261873076925
 CAD,type,NON_REGISTERED,totals,total_unrealized_pct,0.2039907563264576777599589233
 CAD,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+CAD,type,NON_REGISTERED,totals,total_weight_in_pool,1
 CAD,type,NON_REGISTERED,totals,totals_currency,CAD
 CAD,type,NON_REGISTERED,totals,unpriced,
 CAD,type,NON_REGISTERED,totals CAD,book,134272.073726923075
@@ -3290,7 +3290,6 @@ CAD,type,RRSP,flows,dividends USD,953.80
 CAD,type,RRSP,flows,fees CAD,100.0
 CAD,type,RRSP,flows,fees USD,64.0
 CAD,type,RRSP,flows,grain,type
-CAD,type,RRSP,flows,label,RRSP
 CAD,type,RRSP,flows,negative_currencies,
 CAD,type,RRSP,flows,net_deposit_denominator,66000.0
 CAD,type,RRSP,flows,net_deposits CAD,66000.0
@@ -3477,6 +3476,7 @@ CAD,type,RRSP,totals,total_realized,0.0
 CAD,type,RRSP,totals,total_unrealized,14222.34575
 CAD,type,RRSP,totals,total_unrealized_pct,0.2183636305799505297107354015
 CAD,type,RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+CAD,type,RRSP,totals,total_weight_in_pool,1
 CAD,type,RRSP,totals,totals_currency,CAD
 CAD,type,RRSP,totals,unpriced,
 CAD,type,RRSP,totals CAD,book,65131.47685
@@ -3511,7 +3511,6 @@ CAD,type,TFSA,flows,dividends USD,14.58
 CAD,type,TFSA,flows,fees CAD,54.80
 CAD,type,TFSA,flows,fees USD,6.95
 CAD,type,TFSA,flows,grain,type
-CAD,type,TFSA,flows,label,TFSA
 CAD,type,TFSA,flows,negative_currencies,
 CAD,type,TFSA,flows,net_deposit_denominator,19500.0
 CAD,type,TFSA,flows,net_deposits CAD,19500.0
@@ -3848,6 +3847,7 @@ CAD,type,TFSA,totals,total_realized,233.19
 CAD,type,TFSA,totals,total_unrealized,4510.1820
 CAD,type,TFSA,totals,total_unrealized_pct,0.2624761031262494027600198100
 CAD,type,TFSA,totals,total_weight_in_folio,0.07684245898932065402939359638
+CAD,type,TFSA,totals,total_weight_in_pool,1
 CAD,type,TFSA,totals,totals_currency,CAD
 CAD,type,TFSA,totals,unpriced,
 CAD,type,TFSA,totals CAD,book,17183.21
@@ -3880,7 +3880,6 @@ USD,acct,MOCK-CORPORATE,flows,contributions CAD,12000.0
 USD,acct,MOCK-CORPORATE,flows,dividends USD,177.0
 USD,acct,MOCK-CORPORATE,flows,fees USD,5.0
 USD,acct,MOCK-CORPORATE,flows,grain,acct
-USD,acct,MOCK-CORPORATE,flows,label,MOCK-CORPORATE
 USD,acct,MOCK-CORPORATE,flows,negative_currencies,
 USD,acct,MOCK-CORPORATE,flows,net_deposit_denominator,12000.0
 USD,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000.0
@@ -3949,6 +3948,7 @@ USD,acct,MOCK-CORPORATE,totals,total_realized,358.92
 USD,acct,MOCK-CORPORATE,totals,total_unrealized,970.080
 USD,acct,MOCK-CORPORATE,totals,total_unrealized_pct,0.2312621581416638059274516535
 USD,acct,MOCK-CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+USD,acct,MOCK-CORPORATE,totals,total_weight_in_pool,1
 USD,acct,MOCK-CORPORATE,totals,totals_currency,USD
 USD,acct,MOCK-CORPORATE,totals,unpriced,
 USD,acct,MOCK-CORPORATE,totals USD,book,4194.72
@@ -3982,7 +3982,6 @@ USD,acct,MOCK-MARGIN,flows,contributions USD,2000.0
 USD,acct,MOCK-MARGIN,flows,dividends USD,335.25
 USD,acct,MOCK-MARGIN,flows,fees USD,6.0
 USD,acct,MOCK-MARGIN,flows,grain,acct
-USD,acct,MOCK-MARGIN,flows,label,MOCK-MARGIN
 USD,acct,MOCK-MARGIN,flows,negative_currencies,
 USD,acct,MOCK-MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 USD,acct,MOCK-MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -4054,6 +4053,7 @@ USD,acct,MOCK-MARGIN,totals,total_realized,335.6
 USD,acct,MOCK-MARGIN,totals,total_unrealized,2163.250769230769
 USD,acct,MOCK-MARGIN,totals,total_unrealized_pct,0.3146478275044994386254051379
 USD,acct,MOCK-MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+USD,acct,MOCK-MARGIN,totals,total_weight_in_pool,1
 USD,acct,MOCK-MARGIN,totals,totals_currency,USD
 USD,acct,MOCK-MARGIN,totals,unpriced,
 USD,acct,MOCK-MARGIN,totals USD,book,6875.149230769231
@@ -4085,7 +4085,6 @@ USD,acct,MOCK-PERSONAL,flows,dividends USD,2008.27
 USD,acct,MOCK-PERSONAL,flows,fees CAD,94.13
 USD,acct,MOCK-PERSONAL,flows,fees USD,182.13
 USD,acct,MOCK-PERSONAL,flows,grain,acct
-USD,acct,MOCK-PERSONAL,flows,label,MOCK-PERSONAL
 USD,acct,MOCK-PERSONAL,flows,negative_currencies,
 USD,acct,MOCK-PERSONAL,flows,net_deposit_denominator,136181.2038681286276690667035
 USD,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
@@ -4563,6 +4562,7 @@ USD,acct,MOCK-PERSONAL,totals,total_realized,1747.9915571751874
 USD,acct,MOCK-PERSONAL,totals,total_unrealized,18648.613186813186
 USD,acct,MOCK-PERSONAL,totals,total_unrealized_pct,0.1893298533662970369773144192
 USD,acct,MOCK-PERSONAL,totals,total_weight_in_folio,0.5726412629920112257092537600
+USD,acct,MOCK-PERSONAL,totals,total_weight_in_pool,1
 USD,acct,MOCK-PERSONAL,totals,totals_currency,USD
 USD,acct,MOCK-PERSONAL,totals,unpriced,
 USD,acct,MOCK-PERSONAL,totals USD,book,98498.006813186814
@@ -4595,7 +4595,6 @@ USD,acct,MOCK-RRSP,flows,dividends USD,953.80
 USD,acct,MOCK-RRSP,flows,fees CAD,100.0
 USD,acct,MOCK-RRSP,flows,fees USD,64.0
 USD,acct,MOCK-RRSP,flows,grain,acct
-USD,acct,MOCK-RRSP,flows,label,MOCK-RRSP
 USD,acct,MOCK-RRSP,flows,negative_currencies,
 USD,acct,MOCK-RRSP,flows,net_deposit_denominator,66000.0
 USD,acct,MOCK-RRSP,flows,net_deposits CAD,66000.0
@@ -4782,6 +4781,7 @@ USD,acct,MOCK-RRSP,totals,total_realized,0.0
 USD,acct,MOCK-RRSP,totals,total_unrealized,9854.410
 USD,acct,MOCK-RRSP,totals,total_unrealized_pct,0.2068153027722255288534589648
 USD,acct,MOCK-RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+USD,acct,MOCK-RRSP,totals,total_weight_in_pool,1
 USD,acct,MOCK-RRSP,totals,totals_currency,USD
 USD,acct,MOCK-RRSP,totals,unpriced,
 USD,acct,MOCK-RRSP,totals USD,book,47648.36
@@ -4813,7 +4813,6 @@ USD,acct,MOCK-TFSA,flows,dividends CAD,959.32
 USD,acct,MOCK-TFSA,flows,dividends USD,9.72
 USD,acct,MOCK-TFSA,flows,fees CAD,35.0
 USD,acct,MOCK-TFSA,flows,grain,acct
-USD,acct,MOCK-TFSA,flows,label,MOCK-TFSA
 USD,acct,MOCK-TFSA,flows,negative_currencies,
 USD,acct,MOCK-TFSA,flows,net_deposit_denominator,19500.00000000000000000000000
 USD,acct,MOCK-TFSA,flows,net_deposits CAD,19500.00000000000000000000000
@@ -4894,6 +4893,7 @@ USD,acct,MOCK-TFSA,totals,total_realized,0.0
 USD,acct,MOCK-TFSA,totals,total_unrealized,-14.10
 USD,acct,MOCK-TFSA,totals,total_unrealized_pct,-0.07966101694915254237288135593
 USD,acct,MOCK-TFSA,totals,total_weight_in_folio,0.0007962949485132275149555099199
+USD,acct,MOCK-TFSA,totals,total_weight_in_pool,1
 USD,acct,MOCK-TFSA,totals,totals_currency,USD
 USD,acct,MOCK-TFSA,totals,unpriced,
 USD,acct,MOCK-TFSA,totals USD,book,177.0
@@ -4924,7 +4924,6 @@ USD,acct,MOCK2-TFSA,flows,dividends USD,4.86
 USD,acct,MOCK2-TFSA,flows,fees CAD,19.80
 USD,acct,MOCK2-TFSA,flows,fees USD,6.95
 USD,acct,MOCK2-TFSA,flows,grain,acct
-USD,acct,MOCK2-TFSA,flows,label,MOCK2-TFSA
 USD,acct,MOCK2-TFSA,flows,negative_currencies,
 USD,acct,MOCK2-TFSA,flows,net_deposit_denominator,
 USD,acct,MOCK2-TFSA,flows,net_deposits CAD,0.0
@@ -5003,6 +5002,7 @@ USD,acct,MOCK2-TFSA,totals,total_realized,0.0
 USD,acct,MOCK2-TFSA,totals,total_unrealized,
 USD,acct,MOCK2-TFSA,totals,total_unrealized_pct,
 USD,acct,MOCK2-TFSA,totals,total_weight_in_folio,
+USD,acct,MOCK2-TFSA,totals,total_weight_in_pool,
 USD,acct,MOCK2-TFSA,totals,totals_currency,USD
 USD,acct,MOCK2-TFSA,totals,unpriced,
 USD,acct,MOCK2-TFSA,totals USD,book,0
@@ -5036,7 +5036,6 @@ USD,folio,,flows,dividends USD,3488.90
 USD,folio,,flows,fees CAD,248.93
 USD,folio,,flows,fees USD,264.08
 USD,folio,,flows,grain,folio
-USD,folio,,flows,label,Portfolio
 USD,folio,,flows,negative_currencies,
 USD,folio,,flows,net_deposit_denominator,245500.0
 USD,folio,,flows,net_deposits CAD,245500.0
@@ -5625,6 +5624,7 @@ USD,folio,,totals,total_realized,2448.5244672280975
 USD,folio,,totals,total_unrealized,31616.241045991045
 USD,folio,,totals,total_unrealized_pct,0.2008665305336311143693328714
 USD,folio,,totals,total_weight_in_folio,0.9239538359591925734855619134
+USD,folio,,totals,total_weight_in_pool,1
 USD,folio,,totals,totals_currency,USD
 USD,folio,,totals,unpriced,
 USD,folio,,totals USD,book,157399.248954008955
@@ -5656,7 +5656,6 @@ USD,type,CORPORATE,flows,contributions CAD,12000.0
 USD,type,CORPORATE,flows,dividends USD,177.0
 USD,type,CORPORATE,flows,fees USD,5.0
 USD,type,CORPORATE,flows,grain,type
-USD,type,CORPORATE,flows,label,CORPORATE
 USD,type,CORPORATE,flows,negative_currencies,
 USD,type,CORPORATE,flows,net_deposit_denominator,12000.0
 USD,type,CORPORATE,flows,net_deposits CAD,12000.0
@@ -5725,6 +5724,7 @@ USD,type,CORPORATE,totals,total_realized,358.92
 USD,type,CORPORATE,totals,total_unrealized,970.080
 USD,type,CORPORATE,totals,total_unrealized_pct,0.2312621581416638059274516535
 USD,type,CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+USD,type,CORPORATE,totals,total_weight_in_pool,1
 USD,type,CORPORATE,totals,totals_currency,USD
 USD,type,CORPORATE,totals,unpriced,
 USD,type,CORPORATE,totals USD,book,4194.72
@@ -5758,7 +5758,6 @@ USD,type,MARGIN,flows,contributions USD,2000.0
 USD,type,MARGIN,flows,dividends USD,335.25
 USD,type,MARGIN,flows,fees USD,6.0
 USD,type,MARGIN,flows,grain,type
-USD,type,MARGIN,flows,label,MARGIN
 USD,type,MARGIN,flows,negative_currencies,
 USD,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 USD,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -5830,6 +5829,7 @@ USD,type,MARGIN,totals,total_realized,335.6
 USD,type,MARGIN,totals,total_unrealized,2163.250769230769
 USD,type,MARGIN,totals,total_unrealized_pct,0.3146478275044994386254051379
 USD,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+USD,type,MARGIN,totals,total_weight_in_pool,1
 USD,type,MARGIN,totals,totals_currency,USD
 USD,type,MARGIN,totals,unpriced,
 USD,type,MARGIN,totals USD,book,6875.149230769231
@@ -5861,7 +5861,6 @@ USD,type,NON_REGISTERED,flows,dividends USD,2008.27
 USD,type,NON_REGISTERED,flows,fees CAD,94.13
 USD,type,NON_REGISTERED,flows,fees USD,182.13
 USD,type,NON_REGISTERED,flows,grain,type
-USD,type,NON_REGISTERED,flows,label,NON-REGISTERED
 USD,type,NON_REGISTERED,flows,negative_currencies,
 USD,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
 USD,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
@@ -6339,6 +6338,7 @@ USD,type,NON_REGISTERED,totals,total_realized,1747.9915571751874
 USD,type,NON_REGISTERED,totals,total_unrealized,18648.613186813186
 USD,type,NON_REGISTERED,totals,total_unrealized_pct,0.1893298533662970369773144192
 USD,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+USD,type,NON_REGISTERED,totals,total_weight_in_pool,1
 USD,type,NON_REGISTERED,totals,totals_currency,USD
 USD,type,NON_REGISTERED,totals,unpriced,
 USD,type,NON_REGISTERED,totals USD,book,98498.006813186814
@@ -6371,7 +6371,6 @@ USD,type,RRSP,flows,dividends USD,953.80
 USD,type,RRSP,flows,fees CAD,100.0
 USD,type,RRSP,flows,fees USD,64.0
 USD,type,RRSP,flows,grain,type
-USD,type,RRSP,flows,label,RRSP
 USD,type,RRSP,flows,negative_currencies,
 USD,type,RRSP,flows,net_deposit_denominator,66000.0
 USD,type,RRSP,flows,net_deposits CAD,66000.0
@@ -6558,6 +6557,7 @@ USD,type,RRSP,totals,total_realized,0.0
 USD,type,RRSP,totals,total_unrealized,9854.410
 USD,type,RRSP,totals,total_unrealized_pct,0.2068153027722255288534589648
 USD,type,RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+USD,type,RRSP,totals,total_weight_in_pool,1
 USD,type,RRSP,totals,totals_currency,USD
 USD,type,RRSP,totals,unpriced,
 USD,type,RRSP,totals USD,book,47648.36
@@ -6590,7 +6590,6 @@ USD,type,TFSA,flows,dividends USD,14.58
 USD,type,TFSA,flows,fees CAD,54.80
 USD,type,TFSA,flows,fees USD,6.95
 USD,type,TFSA,flows,grain,type
-USD,type,TFSA,flows,label,TFSA
 USD,type,TFSA,flows,negative_currencies,
 USD,type,TFSA,flows,net_deposit_denominator,19500.0
 USD,type,TFSA,flows,net_deposits CAD,19500.0
@@ -6668,6 +6667,7 @@ USD,type,TFSA,totals,total_realized,0.0
 USD,type,TFSA,totals,total_unrealized,-14.10
 USD,type,TFSA,totals,total_unrealized_pct,-0.07966101694915254237288135593
 USD,type,TFSA,totals,total_weight_in_folio,0.0007962949485132275149555099199
+USD,type,TFSA,totals,total_weight_in_pool,1
 USD,type,TFSA,totals,totals_currency,USD
 USD,type,TFSA,totals,unpriced,
 USD,type,TFSA,totals USD,book,177.0
@@ -6700,7 +6700,6 @@ native,acct,MOCK-CORPORATE,flows,contributions CAD,12000.0
 native,acct,MOCK-CORPORATE,flows,dividends USD,177.0
 native,acct,MOCK-CORPORATE,flows,fees USD,5.0
 native,acct,MOCK-CORPORATE,flows,grain,acct
-native,acct,MOCK-CORPORATE,flows,label,MOCK-CORPORATE
 native,acct,MOCK-CORPORATE,flows,negative_currencies,
 native,acct,MOCK-CORPORATE,flows,net_deposit_denominator,12000.0
 native,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000.0
@@ -6769,6 +6768,7 @@ native,acct,MOCK-CORPORATE,totals,total_realized,427.7216
 native,acct,MOCK-CORPORATE,totals,total_unrealized,1379.32140
 native,acct,MOCK-CORPORATE,totals,total_unrealized_pct,0.2399611656201126263821386904
 native,acct,MOCK-CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+native,acct,MOCK-CORPORATE,totals,total_weight_in_pool,1
 native,acct,MOCK-CORPORATE,totals,totals_currency,CAD
 native,acct,MOCK-CORPORATE,totals,unpriced,
 native,acct,MOCK-CORPORATE,totals USD,book,4194.72
@@ -6802,7 +6802,6 @@ native,acct,MOCK-MARGIN,flows,contributions USD,2000.0
 native,acct,MOCK-MARGIN,flows,dividends USD,335.25
 native,acct,MOCK-MARGIN,flows,fees USD,6.0
 native,acct,MOCK-MARGIN,flows,grain,acct
-native,acct,MOCK-MARGIN,flows,label,MOCK-MARGIN
 native,acct,MOCK-MARGIN,flows,negative_currencies,
 native,acct,MOCK-MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 native,acct,MOCK-MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -6874,6 +6873,7 @@ native,acct,MOCK-MARGIN,totals,total_realized,478.691
 native,acct,MOCK-MARGIN,totals,total_unrealized,3127.048292307692
 native,acct,MOCK-MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
 native,acct,MOCK-MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+native,acct,MOCK-MARGIN,totals,total_weight_in_pool,1
 native,acct,MOCK-MARGIN,totals,totals_currency,CAD
 native,acct,MOCK-MARGIN,totals,unpriced,
 native,acct,MOCK-MARGIN,totals USD,book,6875.149230769231
@@ -6907,7 +6907,6 @@ native,acct,MOCK-PERSONAL,flows,dividends USD,2008.27
 native,acct,MOCK-PERSONAL,flows,fees CAD,94.13
 native,acct,MOCK-PERSONAL,flows,fees USD,182.13
 native,acct,MOCK-PERSONAL,flows,grain,acct
-native,acct,MOCK-PERSONAL,flows,label,MOCK-PERSONAL
 native,acct,MOCK-PERSONAL,flows,negative_currencies,
 native,acct,MOCK-PERSONAL,flows,net_deposit_denominator,136181.2038681286276690667035
 native,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
@@ -7424,6 +7423,7 @@ native,acct,MOCK-PERSONAL,totals,total_realized,2716.6396846153847
 native,acct,MOCK-PERSONAL,totals,total_unrealized,27390.261873076925
 native,acct,MOCK-PERSONAL,totals,total_unrealized_pct,0.2039907563264576777599589233
 native,acct,MOCK-PERSONAL,totals,total_weight_in_folio,0.5726412629920112257092537600
+native,acct,MOCK-PERSONAL,totals,total_weight_in_pool,1
 native,acct,MOCK-PERSONAL,totals,totals_currency,CAD
 native,acct,MOCK-PERSONAL,totals,unpriced,
 native,acct,MOCK-PERSONAL,totals CAD,book,0
@@ -7475,7 +7475,6 @@ native,acct,MOCK-RRSP,flows,dividends USD,953.80
 native,acct,MOCK-RRSP,flows,fees CAD,100.0
 native,acct,MOCK-RRSP,flows,fees USD,64.0
 native,acct,MOCK-RRSP,flows,grain,acct
-native,acct,MOCK-RRSP,flows,label,MOCK-RRSP
 native,acct,MOCK-RRSP,flows,negative_currencies,
 native,acct,MOCK-RRSP,flows,net_deposit_denominator,66000.0
 native,acct,MOCK-RRSP,flows,net_deposits CAD,66000.0
@@ -7662,6 +7661,7 @@ native,acct,MOCK-RRSP,totals,total_realized,0.0
 native,acct,MOCK-RRSP,totals,total_unrealized,14222.34575
 native,acct,MOCK-RRSP,totals,total_unrealized_pct,0.2183636305799505297107354015
 native,acct,MOCK-RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+native,acct,MOCK-RRSP,totals,total_weight_in_pool,1
 native,acct,MOCK-RRSP,totals,totals_currency,CAD
 native,acct,MOCK-RRSP,totals,unpriced,
 native,acct,MOCK-RRSP,totals USD,book,47648.36
@@ -7695,7 +7695,6 @@ native,acct,MOCK-TFSA,flows,dividends CAD,959.32
 native,acct,MOCK-TFSA,flows,dividends USD,9.72
 native,acct,MOCK-TFSA,flows,fees CAD,35.0
 native,acct,MOCK-TFSA,flows,grain,acct
-native,acct,MOCK-TFSA,flows,label,MOCK-TFSA
 native,acct,MOCK-TFSA,flows,negative_currencies,
 native,acct,MOCK-TFSA,flows,net_deposit_denominator,19500.00000000000000000000000
 native,acct,MOCK-TFSA,flows,net_deposits CAD,19500.00000000000000000000000
@@ -8037,6 +8036,7 @@ native,acct,MOCK-TFSA,totals,total_realized,233.19
 native,acct,MOCK-TFSA,totals,total_unrealized,4510.1820
 native,acct,MOCK-TFSA,totals,total_unrealized_pct,0.2624761031262494027600198100
 native,acct,MOCK-TFSA,totals,total_weight_in_folio,0.07684245898932065402939359638
+native,acct,MOCK-TFSA,totals,total_weight_in_pool,1
 native,acct,MOCK-TFSA,totals,totals_currency,CAD
 native,acct,MOCK-TFSA,totals,unpriced,
 native,acct,MOCK-TFSA,totals CAD,book,16938.95
@@ -8090,7 +8090,6 @@ native,acct,MOCK2-TFSA,flows,dividends USD,4.86
 native,acct,MOCK2-TFSA,flows,fees CAD,19.80
 native,acct,MOCK2-TFSA,flows,fees USD,6.95
 native,acct,MOCK2-TFSA,flows,grain,acct
-native,acct,MOCK2-TFSA,flows,label,MOCK2-TFSA
 native,acct,MOCK2-TFSA,flows,negative_currencies,
 native,acct,MOCK2-TFSA,flows,net_deposit_denominator,
 native,acct,MOCK2-TFSA,flows,net_deposits CAD,0.0
@@ -8319,6 +8318,7 @@ native,acct,MOCK2-TFSA,totals,total_realized,0.0
 native,acct,MOCK2-TFSA,totals,total_unrealized,
 native,acct,MOCK2-TFSA,totals,total_unrealized_pct,
 native,acct,MOCK2-TFSA,totals,total_weight_in_folio,
+native,acct,MOCK2-TFSA,totals,total_weight_in_pool,
 native,acct,MOCK2-TFSA,totals,totals_currency,CAD
 native,acct,MOCK2-TFSA,totals,unpriced,
 native,acct,MOCK2-TFSA,totals CAD,book,0
@@ -8373,7 +8373,6 @@ native,folio,,flows,dividends USD,3488.90
 native,folio,,flows,fees CAD,248.93
 native,folio,,flows,fees USD,264.08
 native,folio,,flows,grain,folio
-native,folio,,flows,label,Portfolio
 native,folio,,flows,negative_currencies,
 native,folio,,flows,net_deposit_denominator,245500.0
 native,folio,,flows,net_deposits CAD,245500.0
@@ -9260,6 +9259,7 @@ native,folio,,totals,total_realized,3892.6377565730566
 native,folio,,totals,total_unrealized,50592.763843426943
 native,folio,,totals,total_unrealized_pct,0.2183384027119978398689875414
 native,folio,,totals,total_weight_in_folio,0.9999999999999999999999999998
+native,folio,,totals,total_weight_in_pool,1
 native,folio,,totals,totals_currency,CAD
 native,folio,,totals,unpriced,
 native,folio,,totals CAD,book,16938.95
@@ -9309,7 +9309,6 @@ native,type,CORPORATE,flows,contributions CAD,12000.0
 native,type,CORPORATE,flows,dividends USD,177.0
 native,type,CORPORATE,flows,fees USD,5.0
 native,type,CORPORATE,flows,grain,type
-native,type,CORPORATE,flows,label,CORPORATE
 native,type,CORPORATE,flows,negative_currencies,
 native,type,CORPORATE,flows,net_deposit_denominator,12000.0
 native,type,CORPORATE,flows,net_deposits CAD,12000.0
@@ -9378,6 +9377,7 @@ native,type,CORPORATE,totals,total_realized,427.7216
 native,type,CORPORATE,totals,total_unrealized,1379.32140
 native,type,CORPORATE,totals,total_unrealized_pct,0.2399611656201126263821386904
 native,type,CORPORATE,totals,total_weight_in_folio,0.02524680264015418949811060549
+native,type,CORPORATE,totals,total_weight_in_pool,1
 native,type,CORPORATE,totals,totals_currency,CAD
 native,type,CORPORATE,totals,unpriced,
 native,type,CORPORATE,totals USD,book,4194.72
@@ -9411,7 +9411,6 @@ native,type,MARGIN,flows,contributions USD,2000.0
 native,type,MARGIN,flows,dividends USD,335.25
 native,type,MARGIN,flows,fees USD,6.0
 native,type,MARGIN,flows,grain,type
-native,type,MARGIN,flows,label,MARGIN
 native,type,MARGIN,flows,negative_currencies,
 native,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
 native,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
@@ -9483,6 +9482,7 @@ native,type,MARGIN,totals,total_realized,478.691
 native,type,MARGIN,totals,total_unrealized,3127.048292307692
 native,type,MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
 native,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
+native,type,MARGIN,totals,total_weight_in_pool,1
 native,type,MARGIN,totals,totals_currency,CAD
 native,type,MARGIN,totals,unpriced,
 native,type,MARGIN,totals USD,book,6875.149230769231
@@ -9516,7 +9516,6 @@ native,type,NON_REGISTERED,flows,dividends USD,2008.27
 native,type,NON_REGISTERED,flows,fees CAD,94.13
 native,type,NON_REGISTERED,flows,fees USD,182.13
 native,type,NON_REGISTERED,flows,grain,type
-native,type,NON_REGISTERED,flows,label,NON-REGISTERED
 native,type,NON_REGISTERED,flows,negative_currencies,
 native,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
 native,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
@@ -10033,6 +10032,7 @@ native,type,NON_REGISTERED,totals,total_realized,2716.6396846153847
 native,type,NON_REGISTERED,totals,total_unrealized,27390.261873076925
 native,type,NON_REGISTERED,totals,total_unrealized_pct,0.2039907563264576777599589233
 native,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+native,type,NON_REGISTERED,totals,total_weight_in_pool,1
 native,type,NON_REGISTERED,totals,totals_currency,CAD
 native,type,NON_REGISTERED,totals,unpriced,
 native,type,NON_REGISTERED,totals CAD,book,0
@@ -10084,7 +10084,6 @@ native,type,RRSP,flows,dividends USD,953.80
 native,type,RRSP,flows,fees CAD,100.0
 native,type,RRSP,flows,fees USD,64.0
 native,type,RRSP,flows,grain,type
-native,type,RRSP,flows,label,RRSP
 native,type,RRSP,flows,negative_currencies,
 native,type,RRSP,flows,net_deposit_denominator,66000.0
 native,type,RRSP,flows,net_deposits CAD,66000.0
@@ -10271,6 +10270,7 @@ native,type,RRSP,totals,total_realized,0.0
 native,type,RRSP,totals,total_unrealized,14222.34575
 native,type,RRSP,totals,total_unrealized_pct,0.2183636305799505297107354015
 native,type,RRSP,totals,total_weight_in_folio,0.2810875707582440991415484786
+native,type,RRSP,totals,total_weight_in_pool,1
 native,type,RRSP,totals,totals_currency,CAD
 native,type,RRSP,totals,unpriced,
 native,type,RRSP,totals USD,book,47648.36
@@ -10305,7 +10305,6 @@ native,type,TFSA,flows,dividends USD,14.58
 native,type,TFSA,flows,fees CAD,54.80
 native,type,TFSA,flows,fees USD,6.95
 native,type,TFSA,flows,grain,type
-native,type,TFSA,flows,label,TFSA
 native,type,TFSA,flows,negative_currencies,
 native,type,TFSA,flows,net_deposit_denominator,19500.0
 native,type,TFSA,flows,net_deposits CAD,19500.0
@@ -10644,6 +10643,7 @@ native,type,TFSA,totals,total_realized,233.19
 native,type,TFSA,totals,total_unrealized,4510.1820
 native,type,TFSA,totals,total_unrealized_pct,0.2624761031262494027600198100
 native,type,TFSA,totals,total_weight_in_folio,0.07684245898932065402939359638
+native,type,TFSA,totals,total_weight_in_pool,1
 native,type,TFSA,totals,totals_currency,CAD
 native,type,TFSA,totals,unpriced,
 native,type,TFSA,totals CAD,book,16938.95

@@ -10,19 +10,19 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
-from domain import Action, Column, Currency, DiagnosticCode, PriceRange
+from domain import Action, Column, Currency, DiagnosticCode, Grain, PriceRange
 from domain.numeric import ZERO, dec
-from engine.pools import FOLIO, account_pool, type_pool
+from engine.pools import FOLIO, Pool
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from decimal import Decimal
 
     import pandas as pd
 
     from engine.holdings import Holding
     from engine.performance import RangeMove
-    from engine.pools import FolioValuation, Pool, ValuedPool
+    from engine.pools import FolioValuation, ValuedPool
     from services.quotes_service import Quote
 
 
@@ -145,10 +145,10 @@ def symbol_holdings(
 
     if by_account:
         names = rows[str(Column.Txn.ACCOUNT)]
-        pools = [account_pool(name) for name in sorted({str(n) for n in names})]
+        pools = [Pool(Grain.ACCOUNT, name) for name in sorted({str(n) for n in names})]
     else:
         names = rows[Column.Ledger.ACCT_TYPE]
-        pools = [type_pool(name) for name in sorted({str(n) for n in names})]
+        pools = [Pool(Grain.TYPE, name) for name in sorted({str(n) for n in names})]
 
     lines = [
         PoolLine(valued.pool, holding)
@@ -284,6 +284,34 @@ def performance_rows(
             ),
         )
     return rows
+
+
+# The fewest moves over a range worth naming a best and a worst among.
+_COMPARABLE = 2
+
+
+def range_extremes(rows: Sequence[PerformanceRow]) -> dict[PriceRange, set[Decimal]]:
+    """Find the best and worst move over every range.
+
+    Args:
+        rows: The securities being compared.
+
+    Returns:
+        Each range mapped to its largest and smallest move, or to nothing when
+        fewer than two securities moved over it.
+    """
+    extremes: dict[PriceRange, set[Decimal]] = {}
+    for price_range in PriceRange:
+        moves = [
+            move.change_pct
+            for row in rows
+            if (move := row.moves.get(price_range)) is not None
+            and move.change_pct is not None
+        ]
+        extremes[price_range] = (
+            {max(moves), min(moves)} if len(moves) >= _COMPARABLE else set()
+        )
+    return extremes
 
 
 def sort_performance(

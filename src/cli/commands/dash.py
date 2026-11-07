@@ -22,9 +22,9 @@ from cli.commands.common import (
     resolve_pool,
     write_or_exit,
 )
-from domain import Currency
+from domain import Currency, Grain
 from engine.holdings import SORT_NAMES, UnknownSortError
-from engine.pools import FolioValuation, type_pool
+from engine.pools import FolioValuation, Pool
 from exporters.output import CSV_SUFFIX
 from exporters.sheets import pool_sheet, pooled_dashboard_sheet
 from term import console_error, console_info, console_warning
@@ -55,14 +55,14 @@ def _resolve_currency(requested: str | None) -> DisplayCurrency:
     return "native" if choice == "native" else Currency(choice)
 
 
-def _export(valued: Sequence[ValuedPool], path: str, badge: str) -> None:
+def _export(valued_pools: Sequence[ValuedPool], path: str, badge: str) -> None:
     """Write the valued holdings out, choosing the format from the suffix.
 
     A workbook gives each pool a sheet. A CSV holds one table, so several pools
     flatten into one, each row naming the pool it belongs to.
 
     Args:
-        valued: The pools to write, in the order they should appear.
+        valued_pools: The pools to write, in the order they should appear.
         path: Where to write. A path with no suffix becomes a workbook.
         badge: The freshness line, as plain text for the sheet's notes.
 
@@ -70,11 +70,11 @@ def _export(valued: Sequence[ValuedPool], path: str, badge: str) -> None:
         typer.Exit: If the path names a format that cannot be written.
     """
     target = Path(path)
-    flatten = target.suffix.lower() == CSV_SUFFIX and len(valued) > 1
+    flatten = target.suffix.lower() == CSV_SUFFIX and len(valued_pools) > 1
     if flatten:
-        sheets = [pooled_dashboard_sheet(valued, "Holdings", notes=[badge])]
+        sheets = [pooled_dashboard_sheet(valued_pools, "Holdings", notes=[badge])]
     else:
-        sheets = [pool_sheet(each, notes=[badge]) for each in valued]
+        sheets = [pool_sheet(valued, notes=[badge]) for valued in valued_pools]
 
     written = write_or_exit(target, sheets)
     count = sum(len(sheet.main_table.data_rows) for sheet in sheets)
@@ -120,19 +120,19 @@ def show_types(
     Raises:
         typer.Exit: If the export path names a format that cannot be written.
     """
-    valued = valuation.value_all(
-        [type_pool(name) for name in valuation.account_types()],
+    valued_pools = valuation.value_all(
+        [Pool(Grain.TYPE, name) for name in valuation.account_types()],
         sort=sort,
         reverse=reverse,
     )
-    if not valued:
+    if not valued_pools:
         console_warning("No open holdings in any account type.")
         return
     if export:
-        _export(valued, export, _note(valuation))
+        _export(valued_pools, export, _note(valuation))
         return
     show_by_type(
-        valued,
+        valued_pools,
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),

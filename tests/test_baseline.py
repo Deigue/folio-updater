@@ -47,7 +47,7 @@ from engine.frames import (
 )
 from engine.gain_since_buy import bought_symbols, with_gains_since_buy
 from engine.ledger import open_ledger
-from engine.pools import FOLIO, FolioValuation, account_pool, type_pool
+from engine.pools import FOLIO, FolioValuation, Pool
 from engine.ticker import symbol_holdings
 from services.quotes_service import QuotesService
 from services.symbols import SymbolResolver, load_symbol_resolver
@@ -237,35 +237,42 @@ def _every_pool(valuation: FolioValuation) -> list[ValuedPool]:
     """Value the folio, each account type and each account."""
     return [
         *valuation.value_all([FOLIO]),
-        *valuation.value_all([type_pool(name) for name in valuation.account_types()]),
-        *valuation.value_all([account_pool(name) for name in valuation.accounts()]),
+        *valuation.value_all(
+            [Pool(Grain.TYPE, name) for name in valuation.account_types()],
+        ),
+        *valuation.value_all(
+            [Pool(Grain.ACCOUNT, name) for name in valuation.accounts()],
+        ),
     ]
 
 
-def _dashboard_rows(display: str, valued: Iterable[ValuedPool]) -> list[list[str]]:
+def _dashboard_rows(
+    display: str,
+    valued_pools: Iterable[ValuedPool],
+) -> list[list[str]]:
     """Write out every figure the dashboard reads from each pool."""
     rows: list[list[str]] = []
-    for each in valued:
-        pool = [display, str(each.pool.grain), each.pool.name]
-        held = each.holdings
+    for valued in valued_pools:
+        key = [display, str(valued.grain), valued.pool.name]
+        held = valued.holdings
         records: list[tuple[str, DataclassInstance]] = [
             *((f"holding {holding.symbol}", holding) for holding in held.holdings),
             *((f"holding {holding.symbol}", holding) for holding in held.closed),
             ("totals", held),
             *((f"totals {group.currency}", group) for group in held.by_currency),
-            ("flows", each.flows),
-            ("return", each.total_return),
+            ("flows", valued.flows),
+            ("return", valued.total_return),
             *(
-                (f"return {group.currency}", each.subtotal_return(group))
+                (f"return {group.currency}", valued.subtotal_return(group))
                 for group in held.by_currency
             ),
             *(
                 (f"disclosure {type(disclosure).__name__}", disclosure)
-                for disclosure in each.disclosures
+                for disclosure in valued.disclosures
             ),
         ]
         for item, record in records:
-            rows.extend(_record_rows([*pool, item], record))
+            rows.extend(_record_rows([*key, item], record))
     return rows
 
 

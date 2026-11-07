@@ -90,7 +90,7 @@ _FROZEN = 2  # `Pool` and `Grain` say which row is which
 
 def summary_sheet(
     folio: ValuedPool,
-    pools: Sequence[ValuedPool],
+    valued_pools: Sequence[ValuedPool],
     *,
     name: str = SUMMARY_SHEET,
     notes: Sequence[str] = (),
@@ -103,7 +103,7 @@ def summary_sheet(
 
     Args:
         folio: The folio pool, valued, which the headline list reads.
-        pools: Every pool to compare, folio first, in the order to list.
+        valued_pools: Every pool to compare, folio first, in the order to list.
         name: What the sheet is called.
         notes: Lines to disclose under the table, such as how old the prices
             are.
@@ -121,7 +121,9 @@ def summary_sheet(
         tables=(
             SheetTable(
                 POOL_COLUMNS,
-                tuple(row_of(POOL_COLUMNS, _pool_cells(each)) for each in pools),
+                tuple(
+                    row_of(POOL_COLUMNS, _pool_cells(valued)) for valued in valued_pools
+                ),
                 notes=tuple(notes),
             ),
         ),
@@ -132,7 +134,7 @@ def summary_sheet(
 
 
 def flows_sheet(
-    pools: Sequence[ValuedPool],
+    valued_pools: Sequence[ValuedPool],
     *,
     name: str = FLOWS_SHEET,
     notes: Sequence[str] = (),
@@ -141,7 +143,7 @@ def flows_sheet(
     """Print the cash that moved through every pool as a sheet.
 
     Args:
-        pools: Every pool to list, folio first.
+        valued_pools: Every pool to list, folio first.
         name: What the sheet is called.
         notes: Lines to disclose under the table.
         history: Every year of contribution room used, newest first, listed
@@ -153,7 +155,9 @@ def flows_sheet(
     flows = SheetTable(
         FLOW_COLUMNS,
         tuple(
-            row_of(FLOW_COLUMNS, cells) for each in pools for cells in _flow_cells(each)
+            row_of(FLOW_COLUMNS, cells)
+            for valued in valued_pools
+            for cells in _flow_cells(valued)
         ),
         notes=tuple(notes),
     )
@@ -245,7 +249,7 @@ def _contents_list(sheets: Sequence[tuple[str, str]]) -> SheetList:
 
 def _pool(valued: ValuedPool) -> Link:
     """Name a pool, as a link to its own sheet."""
-    return Link(valued.pool.label, valued.pool.label)
+    return Link(valued.label, valued.label)
 
 
 def _pool_cells(valued: ValuedPool) -> dict[str, object]:
@@ -253,7 +257,7 @@ def _pool_cells(valued: ValuedPool) -> dict[str, object]:
     holdings = valued.holdings
     return {
         "Pool": _pool(valued),
-        "Grain": GRAIN_NAMES[valued.pool.grain],
+        "Grain": GRAIN_NAMES[valued.grain],
         "Held": len(holdings.holdings),
         "Book": holdings.total_book,
         "Market": holdings.total_market,
@@ -274,7 +278,7 @@ def _flow_cells(valued: ValuedPool) -> list[dict[str, object]]:
     for currency in _currencies(flows):
         cells: dict[str, object] = {
             "Pool": _pool(valued),
-            "Grain": GRAIN_NAMES[valued.pool.grain],
+            "Grain": GRAIN_NAMES[valued.grain],
             "$": str(currency),
             "Cash": flows.cash.get(currency),
             "Contributions": flows.contributions.get(currency),

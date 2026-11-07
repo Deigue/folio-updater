@@ -12,6 +12,7 @@ from rich.text import Text
 
 from domain import TORONTO_TZ, AccountType, PriceRange
 from engine.pools import account_type_of
+from engine.ticker import range_extremes
 from term import console_print
 from term.size import terminal_size
 from ui.cells import (
@@ -87,8 +88,6 @@ _POOL_DROP_ORDER = ("Weight", "Book", "Unreal%", "Total%", "Divs", "Realized")
 
 # Matrix columns, conceded in this order on a narrow terminal.
 _MATRIX_DROP_ORDER = ("Wt%", "2d", "2h", "5y", "Market")
-# Bolding the best and worst of a column means nothing with only one row.
-_COMPARABLE = 2
 
 
 def show_ticker(
@@ -592,7 +591,7 @@ def show_matrix(
     for price_range in PriceRange:
         table.add_column(str(price_range), justify="right", no_wrap=True)
 
-    extremes = {price_range: _extremes(rows, price_range) for price_range in PriceRange}
+    extremes = range_extremes(rows)
     for row in rows:
         quote = row.quote
         last = price(quote.price)
@@ -617,16 +616,3 @@ def show_matrix(
     if fitted.note:
         console_print(fitted.note)
     console_print(fitted.table)
-
-
-def _extremes(rows: Sequence[PerformanceRow], price_range: PriceRange) -> set[Decimal]:
-    """Find the best and worst move over one range, when there are two to compare."""
-    moves = [
-        move.change_pct
-        for row in rows
-        if (move := row.moves.get(price_range)) is not None
-        and move.change_pct is not None
-    ]
-    if len(moves) < _COMPARABLE:
-        return set()
-    return {max(moves), min(moves)}
