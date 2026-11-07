@@ -62,12 +62,9 @@ def resolve_view(
     Raises:
         typer.Exit: If the requested account type is not one the engine knows.
     """
-    grain, pool, label = resolve_pool(
-        account,
-        account_type,
-        default_type="nreg",
-    )
-    return AcbView(grain, pool, label if grain is Grain.ACCOUNT else label.lower())
+    pool = resolve_pool(account, account_type, default_type="nreg")
+    label = pool.label if pool.grain is Grain.ACCOUNT else pool.label.lower()
+    return AcbView(pool.grain, pool.name, label)
 
 
 def _filter_rows(

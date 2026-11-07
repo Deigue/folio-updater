@@ -47,7 +47,7 @@ from engine.frames import (
 )
 from engine.gain_since_buy import bought_symbols, with_gains_since_buy
 from engine.ledger import open_ledger
-from engine.panels import FOLIO_VIEW, FolioValuation, account_view, type_view
+from engine.pools import FOLIO, FolioValuation, account_pool, type_pool
 from engine.ticker import symbol_holdings
 from services.quotes_service import QuotesService
 from services.symbols import SymbolResolver, load_symbol_resolver
@@ -60,7 +60,7 @@ if TYPE_CHECKING:
 
     from engine.holdings import DisplayCurrency
     from engine.ledger import Ledger
-    from engine.panels import Panel
+    from engine.pools import ValuedPool
 
     from .helpers.context import TempContext
 
@@ -149,7 +149,7 @@ def demo_ledger(temp_ctx: TempContext) -> Generator[Ledger, Any]:
     """
     with (
         temp_ctx(contribution_room=CRA_ROOM),
-        patch("engine.panels.load_fx_rates", side_effect=_rates_through_end),
+        patch("engine.pools.load_fx_rates", side_effect=_rates_through_end),
     ):
         ensure_data_exists()
         yield open_ledger(offline=True)
@@ -233,27 +233,27 @@ def _record_rows(key: list[str], record: DataclassInstance) -> list[list[str]]:
     return [[*key, name, _cell(value)] for name, value in _figures(record)]
 
 
-def _every_pool(valuation: FolioValuation) -> list[Panel]:
+def _every_pool(valuation: FolioValuation) -> list[ValuedPool]:
     """Value the folio, each account type and each account."""
     return [
-        *valuation.panels([FOLIO_VIEW]),
-        *valuation.panels([type_view(name) for name in valuation.account_types()]),
-        *valuation.panels([account_view(name) for name in valuation.accounts()]),
+        *valuation.value_all([FOLIO]),
+        *valuation.value_all([type_pool(name) for name in valuation.account_types()]),
+        *valuation.value_all([account_pool(name) for name in valuation.accounts()]),
     ]
 
 
-def _dashboard_rows(display: str, panels: Iterable[Panel]) -> list[list[str]]:
+def _dashboard_rows(display: str, valued: Iterable[ValuedPool]) -> list[list[str]]:
     """Write out every figure the dashboard reads from each pool."""
     rows: list[list[str]] = []
-    for panel in panels:
-        pool = [display, str(panel.view.grain), panel.view.pool]
-        held = panel.holdings
+    for each in valued:
+        pool = [display, str(each.pool.grain), each.pool.name]
+        held = each.holdings
         records: list[tuple[str, DataclassInstance]] = [
             *((f"holding {holding.symbol}", holding) for holding in held.holdings),
             *((f"holding {holding.symbol}", holding) for holding in held.closed),
             ("totals", held),
             *((f"totals {group.currency}", group) for group in held.by_currency),
-            ("flows", panel.flows),
+            ("flows", each.flows),
         ]
         for item, record in records:
             rows.extend(_record_rows([*pool, item], record))
@@ -275,7 +275,7 @@ def _summary_rows(as_of: str, frame: pd.DataFrame) -> list[list[str]]:
         & (frame[str(Column.Txn.TXN_DATE)] <= as_of)
     ]
     pools: list[tuple[Grain, str, pd.DataFrame]] = [
-        (Grain.FOLIO, FOLIO_VIEW.pool, acb_summary_frame(shown)),
+        (Grain.FOLIO, FOLIO.name, acb_summary_frame(shown)),
     ]
     for grain in (Grain.TYPE, Grain.ACCOUNT):
         pools += [
@@ -448,7 +448,7 @@ def test_every_security_keeps_what_folio_ticker_adds(
                 for row in _record_rows(key, found)
                 if not row[2].startswith("total.")
             ]
-            pools = [line.view.pool for line in found.lines]
+            pools = [line.pool.name for line in found.lines]
             rows.append([*key, "lines", _cell(pools)])
             rows.append([*key, "held_for", _cell(found.held_for(END))])
 

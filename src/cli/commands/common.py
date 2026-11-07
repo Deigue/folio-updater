@@ -9,9 +9,9 @@ import typer
 
 from cli.selection import Selection, SelectionError, select_transactions
 from db import txn_count
-from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
+from domain import ACCOUNT_TYPE_ALIASES, AccountType
 from engine.ledger import LedgerUnavailableError, open_ledger
-from engine.panels import FOLIO_VIEW, PoolView
+from engine.pools import FOLIO, Pool, account_pool, type_pool
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from services.broker_files import SUPPORTED_SUFFIXES, is_supported
@@ -90,7 +90,7 @@ def resolve_pool(
     account_type: str | None,
     *,
     default_type: str | None = None,
-) -> PoolView:
+) -> Pool:
     """Decide which pool a `-a` / `-t` request is asking about.
 
     Args:
@@ -112,10 +112,10 @@ def resolve_pool(
         raise typer.Exit(1)
 
     if account:
-        return PoolView(Grain.ACCOUNT, account, account)
+        return account_pool(account)
     requested = account_type or default_type
     if requested is None or requested.strip().lower() == ALL_POOLS:
-        return FOLIO_VIEW
+        return FOLIO
 
     resolved = parse_account_type(requested)
     if resolved is None:
@@ -124,7 +124,7 @@ def resolve_pool(
             f"{ALL_POOLS}, {', '.join(str(member).lower() for member in AccountType)}",
         )
         raise typer.Exit(1)
-    return PoolView(Grain.TYPE, str(resolved), str(resolved).replace("_", "-").upper())
+    return type_pool(str(resolved))
 
 
 def write_or_exit(path: Path, sheets: Sequence[Sheet]) -> Path:

@@ -32,7 +32,7 @@ from cli.commands.settle_info import archive_statement, import_single_statement
 from db import get_connection, get_max_value, get_rows
 from domain import TORONTO_TZ, Column, SettlementOutcome, Table
 from engine.checks import CheckReport, run_checks
-from engine.panels import FolioValuation
+from engine.pools import FolioValuation
 from engine.update_review import (
     review_checks,
     review_import,

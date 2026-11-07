@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from domain import TORONTO_TZ, AccountType, Currency, PriceRange
-from engine.panels import account_type_of
+from engine.pools import account_type_of
 from exporters.excel_style import OVERVIEW_TAB
 from exporters.sheet_spec import (
     Col,
@@ -308,8 +308,8 @@ def _holdings_table(
 
 def _pool_name(line: PoolLine) -> str:
     """Name a pool, badging the one whose cost base the CRA taxes."""
-    taxed = account_type_of(line.view) is AccountType.NON_REGISTERED
-    return f"{line.view.label} {_CRA}" if taxed else line.view.label
+    taxed = account_type_of(line.pool) is AccountType.NON_REGISTERED
+    return f"{line.pool.label} {_CRA}" if taxed else line.pool.label
 
 
 def _holding_cells(pool: str, holding: Holding, share: str) -> dict[str, object]:

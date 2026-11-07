@@ -10,8 +10,8 @@ import pytest
 
 from domain import Currency, PriceRange, QuoteStatus
 from engine.ledger import open_ledger
-from engine.panels import FolioValuation, type_view
 from engine.performance import RangeMove, price_moves
+from engine.pools import FolioValuation, type_pool
 from engine.ticker import (
     FirstBuy,
     PerformanceRow,
@@ -63,7 +63,7 @@ def test_the_total_is_the_folio_grain_not_the_sum_of_the_lines(
         holdings = symbol_holdings(valuation, "TESTTKR")
 
         assert holdings is not None
-        lines = {line.view.pool: line.holding for line in holdings.lines}
+        lines = {line.pool.name: line.holding for line in holdings.lines}
         # The open pools' units add up...
         assert (
             holdings.total.units == lines["NON_REGISTERED"].units + lines["TFSA"].units
@@ -101,7 +101,7 @@ def test_by_account_lists_broker_accounts(temp_ctx: TempContext) -> None:
         holdings = symbol_holdings(_valuation(), "TESTTKR", by_account=True)
 
         assert holdings is not None
-        assert [line.view.pool for line in holdings.lines] == [
+        assert [line.pool.name for line in holdings.lines] == [
             "WS-PERSONAL",
             "WS-TFSA",
             "QT-RRSP",
@@ -279,7 +279,7 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
     with temp_ctx():
         _seed_two_types()
         valuation = FolioValuation.build(open_ledger(), currency=Currency.CAD)
-        panel = valuation.panel(type_view("TFSA"))
+        valued = valuation.value(type_pool("TFSA"))
         quote = Quote(
             symbol="TESTTKR",
             provider_symbol="TESTTKR",
@@ -288,7 +288,7 @@ def test_the_matrix_reads_market_and_weights_from_the_pool(
         unheld = Quote(symbol="OTHER", provider_symbol="OTHER", status=QuoteStatus.OK)
 
         held, other = performance_rows(
-            panel,
+            valued,
             {"TESTTKR": quote, "OTHER": unheld},
             {},
         )

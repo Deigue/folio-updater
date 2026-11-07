@@ -20,8 +20,8 @@ from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
 from db.backup import backup_file
 from engine.gain_since_buy import bought_symbols
 from engine.ledger import LedgerUnavailableError, open_ledger
-from engine.panels import FOLIO_VIEW, FolioValuation
 from engine.performance import fetch_moves
+from engine.pools import FOLIO, FolioValuation
 from exporters.folio_workbook import (
     SECTIONS,
     FolioSources,
@@ -147,7 +147,7 @@ def write_folio(
         sections,
         notes=[note],
     )
-    unpriced = valuation.panel(FOLIO_VIEW).holdings.unpriced
+    unpriced = valuation.value(FOLIO).holdings.unpriced
     return WrittenFolio(_write(target, sheets), unpriced=unpriced)
 
 

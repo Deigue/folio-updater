@@ -24,9 +24,9 @@ from cli.commands.common import (
 )
 from domain import Currency
 from engine.holdings import SORT_NAMES, UnknownSortError
-from engine.panels import FolioValuation, type_view
+from engine.pools import FolioValuation, type_pool
 from exporters.output import CSV_SUFFIX
-from exporters.sheets import panel_sheet, pooled_dashboard_sheet
+from exporters.sheets import pool_sheet, pooled_dashboard_sheet
 from term import console_error, console_info, console_warning
 from ui.format import cache_badge, freshness_note
 from ui.views.dash import show_by_type, show_dashboard
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from engine.holdings import DisplayCurrency
-    from engine.panels import Panel
+    from engine.pools import ValuedPool
 
 _CURRENCIES = ("native", "CAD", "USD")
 
@@ -55,14 +55,14 @@ def _resolve_currency(requested: str | None) -> DisplayCurrency:
     return "native" if choice == "native" else Currency(choice)
 
 
-def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
+def _export(valued: Sequence[ValuedPool], path: str, badge: str) -> None:
     """Write the valued holdings out, choosing the format from the suffix.
 
     A workbook gives each pool a sheet. A CSV holds one table, so several pools
     flatten into one, each row naming the pool it belongs to.
 
     Args:
-        panels: The pools to write, in the order they should appear.
+        valued: The pools to write, in the order they should appear.
         path: Where to write. A path with no suffix becomes a workbook.
         badge: The freshness line, as plain text for the sheet's notes.
 
@@ -70,11 +70,11 @@ def _export(panels: Sequence[Panel], path: str, badge: str) -> None:
         typer.Exit: If the path names a format that cannot be written.
     """
     target = Path(path)
-    flatten = target.suffix.lower() == CSV_SUFFIX and len(panels) > 1
+    flatten = target.suffix.lower() == CSV_SUFFIX and len(valued) > 1
     if flatten:
-        sheets = [pooled_dashboard_sheet(panels, "Holdings", notes=[badge])]
+        sheets = [pooled_dashboard_sheet(valued, "Holdings", notes=[badge])]
     else:
-        sheets = [panel_sheet(panel, notes=[badge]) for panel in panels]
+        sheets = [pool_sheet(each, notes=[badge]) for each in valued]
 
     written = write_or_exit(target, sheets)
     count = sum(len(sheet.main_table.data_rows) for sheet in sheets)
@@ -108,7 +108,7 @@ def show_types(
     """Tile one panel per account type, or export them.
 
     Args:
-        valuation: The folio priced once, which every panel reads its rollups from.
+        valuation: The folio priced once, which every pool is valued from.
         sort: Order by this column instead of by market value.
         reverse: Flip the sort's natural direction.
         wide: Show the wide-only columns.
@@ -120,19 +120,19 @@ def show_types(
     Raises:
         typer.Exit: If the export path names a format that cannot be written.
     """
-    panels = valuation.panels(
-        [type_view(name) for name in valuation.account_types()],
+    valued = valuation.value_all(
+        [type_pool(name) for name in valuation.account_types()],
         sort=sort,
         reverse=reverse,
     )
-    if not panels:
+    if not valued:
         console_warning("No open holdings in any account type.")
         return
     if export:
-        _export(panels, export, _note(valuation))
+        _export(valued, export, _note(valuation))
         return
     show_by_type(
-        [(panel.holdings, panel.flows, panel.view.label) for panel in panels],
+        [(each.holdings, each.flows, each.pool.label) for each in valued],
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),
@@ -189,8 +189,8 @@ def show_dash(
         console_warning("No transactions to build a dashboard from.")
         return
 
-    # One valuation for the whole invocation: every panel below reads its
-    # rollups from here, and the quotes are fetched once rather than per panel.
+    # One valuation for the whole invocation: every pool below is valued from
+    # here, and the quotes are fetched once rather than per pool.
     valuation = FolioValuation.build(
         ledger,
         currency=shown,
@@ -209,20 +209,20 @@ def show_dash(
         )
         return
 
-    panel = valuation.panel(
+    valued = valuation.value(
         resolve_pool(account, account_type),
         sort=sort,
         reverse=reverse,
     )
 
     if export:
-        _export([panel], export, _note(valuation))
+        _export([valued], export, _note(valuation))
         return
 
     show_dashboard(
-        panel.holdings,
-        panel.flows,
-        panel.view.label,
+        valued.holdings,
+        valued.flows,
+        valued.pool.label,
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),

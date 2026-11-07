@@ -1,7 +1,7 @@
 """The summary sheets: the whole folio at a glance, and every pool beside it.
 
-Every figure is read off the same panels the dashboard sheets are printed
-from. Nothing is computed here, only arranged.
+Every figure is read off the same valued pools the dashboard sheets are
+printed from. Nothing is computed here, only arranged.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from engine.flows import Flows, Room
-    from engine.panels import Panel
+    from engine.pools import ValuedPool
 
 # How each grain reads in a `Grain` column.
 GRAIN_NAMES: dict[Grain, str] = {
@@ -89,8 +89,8 @@ _FROZEN = 2  # `Pool` and `Grain` say which row is which
 
 
 def summary_sheet(
-    folio: Panel,
-    pools: Sequence[Panel],
+    folio: ValuedPool,
+    pools: Sequence[ValuedPool],
     *,
     name: str = SUMMARY_SHEET,
     notes: Sequence[str] = (),
@@ -102,7 +102,7 @@ def summary_sheet(
     everything else.
 
     Args:
-        folio: The folio-wide panel, which the headline list reads.
+        folio: The folio pool, valued, which the headline list reads.
         pools: Every pool to compare, folio first, in the order to list.
         name: What the sheet is called.
         notes: Lines to disclose under the table, such as how old the prices
@@ -121,7 +121,7 @@ def summary_sheet(
         tables=(
             SheetTable(
                 POOL_COLUMNS,
-                tuple(row_of(POOL_COLUMNS, _pool_cells(pool)) for pool in pools),
+                tuple(row_of(POOL_COLUMNS, _pool_cells(each)) for each in pools),
                 notes=tuple(notes),
             ),
         ),
@@ -132,7 +132,7 @@ def summary_sheet(
 
 
 def flows_sheet(
-    pools: Sequence[Panel],
+    pools: Sequence[ValuedPool],
     *,
     name: str = FLOWS_SHEET,
     notes: Sequence[str] = (),
@@ -153,7 +153,7 @@ def flows_sheet(
     flows = SheetTable(
         FLOW_COLUMNS,
         tuple(
-            row_of(FLOW_COLUMNS, cells) for pool in pools for cells in _flow_cells(pool)
+            row_of(FLOW_COLUMNS, cells) for each in pools for cells in _flow_cells(each)
         ),
         notes=tuple(notes),
     )
@@ -189,7 +189,7 @@ def history_table(
     )
 
 
-def _headline_list(folio: Panel) -> SheetList:
+def _headline_list(folio: ValuedPool) -> SheetList:
     """Read the folio's headline figures into a list."""
     holdings = folio.holdings
     flows = folio.flows
@@ -243,17 +243,17 @@ def _contents_list(sheets: Sequence[tuple[str, str]]) -> SheetList:
     )
 
 
-def _pool(pool: Panel) -> Link:
+def _pool(valued: ValuedPool) -> Link:
     """Name a pool, as a link to its own sheet."""
-    return Link(pool.view.label, pool.view.label)
+    return Link(valued.pool.label, valued.pool.label)
 
 
-def _pool_cells(pool: Panel) -> dict[str, object]:
+def _pool_cells(valued: ValuedPool) -> dict[str, object]:
     """Read one pool's totals, in the totals currency every pool shares."""
-    holdings = pool.holdings
+    holdings = valued.holdings
     return {
-        "Pool": _pool(pool),
-        "Grain": GRAIN_NAMES[pool.view.grain],
+        "Pool": _pool(valued),
+        "Grain": GRAIN_NAMES[valued.pool.grain],
         "Held": len(holdings.holdings),
         "Book": holdings.total_book,
         "Market": holdings.total_market,
@@ -263,19 +263,19 @@ def _pool_cells(pool: Panel) -> dict[str, object]:
         "Divs": holdings.total_dividends,
         "Total": holdings.total_pnl,
         # Against net deposits rather than book value: see `HoldingSet.return_on`.
-        "Total%": holdings.return_on(pool.flows.net_deposit_denominator),
+        "Total%": holdings.return_on(valued.flows.net_deposit_denominator),
         "Folio%": holdings.total_weight_in_folio,
     }
 
 
-def _flow_cells(pool: Panel) -> list[dict[str, object]]:
+def _flow_cells(valued: ValuedPool) -> list[dict[str, object]]:
     """Read one pool's cash movements, one set of cells per currency."""
-    flows = pool.flows
+    flows = valued.flows
     rows: list[dict[str, object]] = []
     for currency in _currencies(flows):
         cells: dict[str, object] = {
-            "Pool": _pool(pool),
-            "Grain": GRAIN_NAMES[pool.view.grain],
+            "Pool": _pool(valued),
+            "Grain": GRAIN_NAMES[valued.pool.grain],
             "$": str(currency),
             "Cash": flows.cash.get(currency),
             "Contributions": flows.contributions.get(currency),

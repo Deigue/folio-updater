@@ -11,7 +11,7 @@ from db import get_connection, get_distinct_values, get_rows
 from domain import Column
 from domain import Table as DbTable
 from engine.gain_since_buy import with_gains_since_buy
-from engine.panels import FOLIO_VIEW, account_view, type_view
+from engine.pools import FOLIO, account_pool, type_pool
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
 from exporters.sheet_spec import Link
 from exporters.sheets import (
@@ -24,8 +24,8 @@ from exporters.sheets import (
     flows_sheet,
     fx_sheet,
     ledger_sheet,
-    panel_sheet,
     performance_sheet,
+    pool_sheet,
     summary_sheet,
     traded_tickers_sheet,
     transactions_sheet,
@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
     from domain import PriceRange
     from engine.flows import Room
-    from engine.panels import FolioValuation, Panel
     from engine.performance import RangeMove
+    from engine.pools import FolioValuation, ValuedPool
     from exporters.sheet_spec import Sheet
     from services.quotes_service import Quote
 
@@ -257,13 +257,13 @@ class _Pools:
         history: Every year of contribution room used, newest first.
     """
 
-    folio: Panel
-    types: list[Panel]
-    accounts: list[Panel]
+    folio: ValuedPool
+    types: list[ValuedPool]
+    accounts: list[ValuedPool]
     history: list[Room]
 
     @property
-    def every(self) -> list[Panel]:
+    def every(self) -> list[ValuedPool]:
         """The folio, then every type, then every account."""
         return [self.folio, *self.types, *self.accounts]
 
@@ -273,12 +273,14 @@ def _pools(valuation: FolioValuation | None) -> _Pools | None:
     if valuation is None:
         return None
     return _Pools(
-        folio=valuation.panel(FOLIO_VIEW),
+        folio=valuation.value(FOLIO),
         types=_active_first(
-            valuation.panels([type_view(name) for name in valuation.account_types()]),
+            valuation.value_all(
+                [type_pool(name) for name in valuation.account_types()],
+            ),
         ),
         accounts=_active_first(
-            valuation.panels([account_view(name) for name in valuation.accounts()]),
+            valuation.value_all([account_pool(name) for name in valuation.accounts()]),
         ),
         history=valuation.room_history,
     )
@@ -290,16 +292,16 @@ def _dashboard_sheets(
     notes: Sequence[str],
 ) -> list[Sheet]:
     """Dashboard for each pool the sections ask for."""
-    panels: list[Panel] = []
+    valued: list[ValuedPool] = []
     if Section.DASH in chosen:
-        panels.extend((pools.folio, *pools.types))
+        valued.extend((pools.folio, *pools.types))
     if Section.ACCOUNTS in chosen:
-        panels.extend(pools.accounts)
-    return [panel_sheet(panel, notes=notes) for panel in panels]
+        valued.extend(pools.accounts)
+    return [pool_sheet(each, notes=notes) for each in valued]
 
 
 def _performance_sheet(
-    folio: Panel,
+    folio: ValuedPool,
     sources: FolioSources,
     notes: Sequence[str],
 ) -> Sheet:
@@ -342,6 +344,6 @@ def _back_to_summary(sheet: Sheet) -> Sheet:
     return replace(sheet, nav=Link("Back to Summary", SUMMARY_SHEET))
 
 
-def _active_first(panels: list[Panel]) -> list[Panel]:
+def _active_first(valued: list[ValuedPool]) -> list[ValuedPool]:
     """Put the pools still holding securities ahead of the fully closed ones."""
-    return sorted(panels, key=lambda panel: not panel.active)
+    return sorted(valued, key=lambda each: not each.active)

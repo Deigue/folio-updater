@@ -10,7 +10,7 @@ from engine.frames import (
     acb_summary_frames_by_pool,
     grain_column,
 )
-from engine.panels import FOLIO_VIEW, type_view
+from engine.pools import FOLIO, type_pool
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheet_spec import Col, Fmt, Sheet, SheetTable, row_of
 from exporters.sheets.summary import GRAIN_NAMES
@@ -204,11 +204,11 @@ def cost_base_sheet(
         account type, then each account. Open holdings lead within each pool.
     """
     pools: list[tuple[str, Grain, pd.DataFrame]] = [
-        (FOLIO_VIEW.label, Grain.FOLIO, acb_summary_frame(frame)),
+        (FOLIO.label, Grain.FOLIO, acb_summary_frame(frame)),
     ]
     for grain in (Grain.TYPE, Grain.ACCOUNT):
         for pool, summary in sorted(acb_summary_frames_by_pool(frame, grain).items()):
-            label = type_view(pool).label if grain is Grain.TYPE else pool
+            label = type_pool(pool).label if grain is Grain.TYPE else pool
             pools.append((label, grain, summary))
 
     rows = [

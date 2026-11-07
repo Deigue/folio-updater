@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from domain import Action, Column, Currency, DiagnosticCode, PriceRange
 from domain.numeric import ZERO, dec
-from engine.panels import FOLIO_VIEW, account_view, type_view
+from engine.pools import FOLIO, account_pool, type_pool
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.holdings import Holding
-    from engine.panels import FolioValuation, Panel, PoolView
     from engine.performance import RangeMove
+    from engine.pools import FolioValuation, Pool, ValuedPool
     from services.quotes_service import Quote
 
 
@@ -31,11 +31,11 @@ class PoolLine:
     """One pool's holding of the security.
 
     Attributes:
-        view: The account type or account.
+        pool: The account type or account.
         holding: Its holding there, open or closed.
     """
 
-    view: PoolView
+    pool: Pool
     holding: Holding
 
 
@@ -138,22 +138,22 @@ def symbol_holdings(
     rows = frame[frame[Column.Ledger.SYMBOL] == symbol]
     if rows.empty:
         return None
-    folio = valuation.panel(FOLIO_VIEW)
+    folio = valuation.value(FOLIO)
     total = _holding_of(folio, symbol)
     if total is None:
         return None
 
     if by_account:
         names = rows[str(Column.Txn.ACCOUNT)]
-        views = [account_view(name) for name in sorted({str(n) for n in names})]
+        pools = [account_pool(name) for name in sorted({str(n) for n in names})]
     else:
         names = rows[Column.Ledger.ACCT_TYPE]
-        views = [type_view(name) for name in sorted({str(n) for n in names})]
+        pools = [type_pool(name) for name in sorted({str(n) for n in names})]
 
     lines = [
-        PoolLine(panel.view, holding)
-        for panel in valuation.panels(views)
-        if (holding := _holding_of(panel, symbol)) is not None
+        PoolLine(valued.pool, holding)
+        for valued in valuation.value_all(pools)
+        if (holding := _holding_of(valued, symbol)) is not None
     ]
     lines.sort(
         key=lambda line: (
@@ -202,9 +202,9 @@ def _first_buy(rows: pd.DataFrame) -> FirstBuy | None:
     return None
 
 
-def _holding_of(panel: Panel, symbol: str) -> Holding | None:
+def _holding_of(valued: ValuedPool, symbol: str) -> Holding | None:
     """Find one symbol's holding in a pool, open or closed."""
-    holdings = panel.holdings
+    holdings = valued.holdings
     for holding in (*holdings.holdings, *holdings.closed):
         if holding.symbol == symbol:
             return holding
@@ -253,14 +253,14 @@ class UnknownMatrixSortError(ValueError):
 
 
 def performance_rows(
-    panel: Panel | None,
+    valued: ValuedPool | None,
     quotes: Mapping[str, Quote],
     moves: Mapping[str, Mapping[PriceRange, RangeMove | None]],
 ) -> list[PerformanceRow]:
     """Line securities up for comparison, with what a pool holds of each.
 
     Args:
-        panel: The pool whose holdings supply the market value and weights, or
+        valued: The pool whose holdings supply the market value and weights, or
             None when there is no folio to value.
         quotes: Each security's quote, in the order to list them.
         moves: Each security's move over every range.
@@ -269,7 +269,7 @@ def performance_rows(
         One row per security, in the order given. A security the pool does not
         hold has no market value or weights.
     """
-    held = {} if panel is None else {h.symbol: h for h in panel.holdings.holdings}
+    held = {} if valued is None else {h.symbol: h for h in valued.holdings.holdings}
     rows: list[PerformanceRow] = []
     for symbol, quote in quotes.items():
         holding = held.get(symbol)

@@ -23,8 +23,8 @@ from cli.commands.common import (
     write_or_exit,
 )
 from domain import Column, Currency, Grain, QuoteStatus
-from engine.panels import FolioValuation
 from engine.performance import fetch_moves
+from engine.pools import FolioValuation
 from engine.ticker import (
     MARKET_SORT,
     MATRIX_SORTS,
@@ -244,10 +244,10 @@ def _report_matrix(
         typer.Exit: When none of the symbols asked for is known.
     """
     resolver = load_symbol_resolver()
-    view = resolve_pool(account, account_type)
+    pool = resolve_pool(account, account_type)
     ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
 
-    panel = None
+    valued = None
     if not ledger.frame.empty:
         valuation = FolioValuation.build(
             ledger,
@@ -255,14 +255,14 @@ def _report_matrix(
             refresh=refresh,
             offline=offline,
         )
-        panel = valuation.panel(view)
+        valued = valuation.value(pool)
 
     if symbols:
         wanted = list(dict.fromkeys(resolver.canonical(name) for name in symbols))
     else:
-        wanted = panel.open_symbols if panel is not None else []
+        wanted = valued.open_symbols if valued is not None else []
     if not wanted:
-        console_warning(f"No open holdings in {view.label} to compare.")
+        console_warning(f"No open holdings in {pool.label} to compare.")
         return
 
     # Held securities were priced with the folio; only named ones may be new.
@@ -286,16 +286,16 @@ def _report_matrix(
 
     priced = {name: quotes[name] for name in wanted}
     moves = fetch_moves(priced, resolver, refresh=refresh, offline=offline)
-    rows = performance_rows(panel, priced, moves)
+    rows = performance_rows(valued, priced, moves)
     if sort is not None or not symbols:
         rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)
 
-    pool_weight = view.grain is not Grain.FOLIO
+    pool_weight = pool.grain is not Grain.FOLIO
     if export:
         note = freshness_note(ledger.computed_at, priced)
         sheet = performance_sheet(
             rows,
-            name=f"Performance - {view.label}",
+            name=f"Performance - {pool.label}",
             pool_weight=pool_weight,
             notes=[note],
         )
@@ -304,13 +304,13 @@ def _report_matrix(
 
     show_matrix(
         rows,
-        title=view.label,
+        title=pool.label,
         pool_weight=pool_weight,
         badge=cache_badge(
             priced,
             computed_at=ledger.computed_at,
             offline=offline,
-            with_acb=panel is not None,
+            with_acb=valued is not None,
         ),
     )
 
