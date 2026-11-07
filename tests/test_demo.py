@@ -15,7 +15,15 @@ import yaml
 from app import get_config
 from cli.main import app as cli_app
 from datagen import DemoFolio, DemoScenarioError, ensure_data_exists
-from datagen.demo import PERSONAL, START, USDCAD, _Simulation, price_on
+from datagen.demo import (
+    CORPORATE,
+    MARGIN,
+    PERSONAL,
+    START,
+    USDCAD,
+    _Simulation,
+    price_on,
+)
 from datagen.history import _window_events
 from db import (
     get_alias_edges,
@@ -116,8 +124,8 @@ def _showcase(
         )
     )
     fee_inside = trades[(amount - price * units).round(2) == fee]
-    transfer_types = {
-        (row.Action, row.AcctType)
+    transfer_accounts = {
+        (row.Action, row.Account)
         for row in frame[
             frame[Column.Txn.ACTION].isin([Action.TFR_IN, Action.TFR_OUT])
         ].itertuples()
@@ -132,7 +140,7 @@ def _showcase(
         (action == Action.CONTRIBUTION) & account.str.endswith("RRSP")
     ][Column.Txn.TXN_DATE]
     held = last[last["AcctUnits"] > 0]
-    partly_sold = set(sells.loc[sells["AcctUnits"] > 0, "AcctType"])
+    partly_sold = set(sells.loc[sells["AcctUnits"] > 0, Column.Txn.ACCOUNT])
     return {
         "every kind of transaction": set(action) == {str(a) for a in Action},
         "one account type held at two brokers": bool(
@@ -170,10 +178,10 @@ def _showcase(
         .query("Account_x != Account_y and `$_x` == 'USD'")
         .empty,
         "units moved in kind from a non-registered account to a margin one": {
-            (Action.TFR_OUT, AccountType.NON_REGISTERED),
-            (Action.TFR_IN, AccountType.MARGIN),
+            (Action.TFR_OUT, PERSONAL.name),
+            (Action.TFR_IN, MARGIN.name),
         }
-        <= transfer_types,
+        <= transfer_accounts,
         "a US dollar contribution": bool((usd & (action == Action.CONTRIBUTION)).any()),
         "a US dollar trade with its commission inside the amount": bool(
             (fee_inside[Column.Txn.CURRENCY] == Currency.USD).any(),
@@ -192,18 +200,11 @@ def _showcase(
             rrsp_deposits.str[5:7].isin(["01", "02"]).any(),
         ),
         "one symbol held in non-registered, margin and corporate accounts": any(
-            {
-                AccountType.NON_REGISTERED,
-                AccountType.MARGIN,
-                AccountType.CORPORATE,
-            }
-            <= set(types)
-            for _, types in held.groupby("Symbol")["AcctType"]
+            {PERSONAL.name, MARGIN.name, CORPORATE.name} <= set(accounts)
+            for _, accounts in held.groupby("Symbol")[Column.Txn.ACCOUNT]
         ),
-        "a partial sale from a margin account": AccountType.MARGIN in partly_sold,
-        "a partial sale from a corporate account": (
-            AccountType.CORPORATE in partly_sold
-        ),
+        "a partial sale from a margin account": MARGIN.name in partly_sold,
+        "a partial sale from a corporate account": CORPORATE.name in partly_sold,
     }
 
 

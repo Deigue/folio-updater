@@ -1,4 +1,4 @@
-"""Tests for inferring an account's type and fee convention from its name."""
+"""Tests for inferring an account's type, margin and fee convention from its name."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from domain import AccountType, FeeConvention
-from engine.accounts import fee_convention_for, resolve_account_type
+from engine.accounts import Account, fee_convention_for, resolve_account
 
 if TYPE_CHECKING:
     from .helpers.context import TempContext
@@ -30,7 +30,7 @@ def test_account_names_resolve_without_config(
     expected: AccountType,
 ) -> None:
     with temp_ctx():
-        assert resolve_account_type(account) is expected
+        assert resolve_account(account).account_type is expected
 
 
 @pytest.mark.parametrize(
@@ -50,38 +50,64 @@ def test_naming_variants(
     expected: AccountType,
 ) -> None:
     with temp_ctx():
-        assert resolve_account_type(account) is expected
+        assert resolve_account(account).account_type is expected
 
 
 def test_right_to_left_token_scan_wins(temp_ctx: TempContext) -> None:
     """A broker code that collides with a type must not shadow the real one."""
     with temp_ctx():
-        assert resolve_account_type("CASH-RRSP") is AccountType.RRSP
+        assert resolve_account("CASH-RRSP").account_type is AccountType.RRSP
 
 
 def test_config_override_beats_the_naming_convention(temp_ctx: TempContext) -> None:
     overrides = {"accounts": {"map": {"IBKR-TFSA": "RRSP"}}}
     with temp_ctx(overrides):
-        assert resolve_account_type("IBKR-TFSA") is AccountType.RRSP
+        assert resolve_account("IBKR-TFSA").account_type is AccountType.RRSP
 
 
 def test_override_resolves_a_name_the_convention_cannot(temp_ctx: TempContext) -> None:
     overrides = {"accounts": {"map": {"U1234567": {"type": "NON_REGISTERED"}}}}
     with temp_ctx(overrides):
-        assert resolve_account_type("U1234567") is AccountType.NON_REGISTERED
+        assert resolve_account("U1234567").account_type is AccountType.NON_REGISTERED
 
 
 def test_naming_convention_can_be_switched_off(temp_ctx: TempContext) -> None:
     with temp_ctx({"accounts": {"naming_convention": False}}):
-        assert resolve_account_type("IBKR-TFSA") is AccountType.UNKNOWN
+        assert resolve_account("IBKR-TFSA").account_type is AccountType.UNKNOWN
 
 
 def test_the_cache_does_not_leak_between_configs(temp_ctx: TempContext) -> None:
     """The lookup is memoised on the overrides, so a new config is never stale."""
     with temp_ctx():
-        assert resolve_account_type("IBKR-TFSA") is AccountType.TFSA
+        assert resolve_account("IBKR-TFSA").account_type is AccountType.TFSA
     with temp_ctx({"accounts": {"map": {"IBKR-TFSA": "RRSP"}}}):
-        assert resolve_account_type("IBKR-TFSA") is AccountType.RRSP
+        assert resolve_account("IBKR-TFSA").account_type is AccountType.RRSP
+
+
+@pytest.mark.parametrize(
+    ("account", "overrides"),
+    [
+        ("QT-MARGIN", {}),
+        ("U7654321", {"accounts": {"map": {"U7654321": "MARGIN"}}}),
+        ("U7654321", {"accounts": {"map": {"U7654321": {"type": "margin"}}}}),
+    ],
+)
+def test_a_margin_account_is_a_non_registered_one_that_may_borrow(
+    temp_ctx: TempContext,
+    account: str,
+    overrides: dict[str, object],
+) -> None:
+    with temp_ctx(overrides):
+        assert resolve_account(account) == Account(
+            account,
+            AccountType.NON_REGISTERED,
+            margin=True,
+        )
+
+
+def test_a_plain_non_registered_account_is_not_margin(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        assert not resolve_account("WS-PERSONAL").margin
 
 
 def test_fee_convention_defaults_to_auto(temp_ctx: TempContext) -> None:

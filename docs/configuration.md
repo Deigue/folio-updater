@@ -194,8 +194,11 @@ move cash between accounts you already own and consume no room.
 
 Each account's type is inferred from the
 `<BROKER>-<TYPE>` naming convention: `IBKR-TFSA` is a TFSA, `WS-PERSONAL` is
-non-registered, `QT-RRSP` is an RRSP. Recognised types are `NON_REGISTERED`, `MARGIN`,
+non-registered, `QT-RRSP` is an RRSP. Recognised types are `NON_REGISTERED`,
 `CORPORATE`, `TFSA`, `RRSP`, `RRIF`, `RESP`, `FHSA` and `LIRA`;
+
+A `MARGIN` account (`QT-MARGIN`, or `map: X: MARGIN`) is non-registered; margin only lets its cash
+go below zero.
 
 `NONREG`, `NREG`, `PERSONAL`, `CASH` and `TAXABLE` all resolve to non-registered.
 

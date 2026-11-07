@@ -153,7 +153,7 @@ def _closes() -> dict[str, list[Decimal]]:
 
 
 @cache
-def _splits() -> dict[str, list[tuple[date, Decimal]]]:
+def _parsed_splits() -> dict[str, list[tuple[date, Decimal]]]:
     """Split dates and ratios (new units per old unit) per symbol."""
     return {symbol: _parse_events(text) for symbol, text in SPLITS.items()}
 
@@ -185,7 +185,7 @@ def split_factor(symbol: str, on: date) -> Decimal:
         The product of every split ratio dated after `on`, 1 when there is none.
     """
     factor = Decimal(1)
-    for day, ratio in _splits().get(symbol, []):
+    for day, ratio in _parsed_splits().get(symbol, []):
         if day > on:
             factor *= ratio
     return factor
@@ -193,7 +193,7 @@ def split_factor(symbol: str, on: date) -> Decimal:
 
 def splits(symbol: str) -> list[tuple[date, Decimal]]:
     """Every split of a symbol in the price history, as (date, new per old)."""
-    return list(_splits().get(symbol, []))
+    return list(_parsed_splits().get(symbol, []))
 
 
 def price_on(symbol: str, on: date) -> Decimal:
@@ -328,9 +328,9 @@ TFSA2 = _Account(
     fee_included=True,
     broker_settles=True,
 )
-# Taxable accounts beside PERSONAL: a margin account shares the non-registered
-# pool under ITA s.47, a corporation is a separate taxpayer with a pool of its own.
-MARGIN = _Account("MOCK-MARGIN", AccountType.MARGIN)
+# Taxable accounts beside PERSONAL: a margin account is non-registered and shares
+# its pool under ITA s.47, a corporation is a separate taxpayer with a pool of its own.
+MARGIN = _Account("MOCK-MARGIN", AccountType.NON_REGISTERED)
 CORPORATE = _Account("MOCK-CORPORATE", AccountType.CORPORATE)
 ACCOUNTS: tuple[_Account, ...] = (PERSONAL, RRSP, TFSA, TFSA2, MARGIN, CORPORATE)
 

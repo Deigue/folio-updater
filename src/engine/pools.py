@@ -8,9 +8,16 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple
 
 from app import get_config
-from domain import AccountType, Column, Currency, DiagnosticCode, Grain
+from domain import (
+    TAXABLE_ACCOUNT_TYPES,
+    AccountType,
+    Column,
+    Currency,
+    DiagnosticCode,
+    Grain,
+)
 from domain.constants import TORONTO_TZ
-from engine.accounts import resolve_account_type
+from engine.accounts import resolve_account
 from engine.flows import (
     build_flows,
     contributions_by_type_year,
@@ -62,6 +69,15 @@ class Pool(NamedTuple):
         if self.grain is Grain.ACCOUNT:
             return self.name
         return FOLIO_LABEL
+
+    @property
+    def taxed(self) -> bool:
+        """Whether the CRA taxes the pool's sales: a non-registered or corporate pool.
+
+        The folio pool blends registered with taxable accounts, so it is never
+        taxed as a whole.
+        """
+        return account_type_of(self) in TAXABLE_ACCOUNT_TYPES
 
 
 FOLIO = Pool(Grain.FOLIO, "")
@@ -291,7 +307,7 @@ def account_type_of(pool: Pool) -> AccountType | None:
     if pool.grain is Grain.TYPE:
         return AccountType(pool.name)
     if pool.grain is Grain.ACCOUNT:
-        return resolve_account_type(pool.name)
+        return resolve_account(pool.name).account_type
     return None
 
 

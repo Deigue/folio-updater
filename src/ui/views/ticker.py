@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table as RichTable
 from rich.text import Text
 
-from domain import TORONTO_TZ, AccountType, PriceRange
+from domain import TORONTO_TZ, PriceRange
 from engine.pools import account_type_of
 from engine.ticker import range_extremes
 from term import console_print
@@ -452,10 +452,10 @@ def _pool_table(holdings: SymbolHoldings, *, by_account: bool) -> RichTable:
 
 
 def _pool_cell(line: PoolLine) -> str:
-    """Name a pool in its account type's colour, badging the taxable one."""
+    """Name a pool in its account type's colour, badging a taxed one."""
     account_type = account_type_of(line.pool)
     label = line.pool.label
-    if account_type is AccountType.NON_REGISTERED:
+    if line.taxed:
         label = f"{label} [dim]CRA[/dim]"
     tint = ACCOUNT_TYPE_COLORS.get(account_type) if account_type else None
     return style(label, tint)

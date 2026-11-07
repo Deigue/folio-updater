@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from engine.ledger import Ledger
-    from engine.types import Diagnostic, LedgerRow
+    from engine.types import Diagnostic, LedgerRow, TxnRow
 
 
 class ChecksConfig(Protocol):
@@ -666,22 +666,24 @@ def _check_settlement_dates(folio: _LedgerIndex) -> _Outcome:
     )
 
 
-def _check_transfers(folio: _LedgerIndex) -> _Outcome:
-    """Report transfer legs with no matching counterpart."""
+def _what_moved(row: TxnRow, symbol: str | None) -> str:
+    """Name what a transfer leg carried: `40 RY.TO` in kind, `600.00 CAD` in cash."""
+    if row.is_in_kind_transfer:
+        return f"{_units(abs(row.units))} {symbol}"
+    return _money(abs(row.amount), row.currency)
+
+
+def _unpaired_legs(folio: _LedgerIndex) -> list[CheckFinding]:
+    """Report each transfer leg no other account records the matching side of."""
     findings = []
     for _diagnostic, computed in folio.tagged(DiagnosticCode.TRANSFER_UNPAIRED):
         row = computed.row
         leaving = row.action is Action.TFR_OUT
-        moved = (
-            f"{_units(abs(row.units))} {computed.symbol}"
-            if row.is_in_kind_transfer
-            else f"{_money(abs(row.amount), row.currency)}"
-        )
         findings.append(
             CheckFinding(
                 subject=f"TxnId {row.txn_id}",
                 detail=(
-                    f"{row.account} transferred {moved} "
+                    f"{row.account} transferred {_what_moved(row, computed.symbol)} "
                     f"{'out on' if leaving else 'in on'} {row.txn_date}, and no "
                     f"other account records the matching side. Without it the "
                     f"cost base cannot follow the units across."
@@ -689,14 +691,18 @@ def _check_transfers(folio: _LedgerIndex) -> _Outcome:
                 txn_ids=(row.txn_id,),
             ),
         )
-    unpaired = len(findings)
+    return findings
 
+
+def _misdated_legs(folio: _LedgerIndex) -> list[CheckFinding]:
+    """Report each in-kind leg that needs the other leg's date."""
+    findings = []
     for diagnostic, computed in folio.tagged(
         DiagnosticCode.TRANSFER_IN_BEFORE_OUT,
         DiagnosticCode.TRANSFER_ACROSS_YEAR_END,
     ):
         row = computed.row
-        moved = f"{_units(abs(row.units))} {computed.symbol}"
+        moved = _what_moved(row, computed.symbol)
         if diagnostic.code is DiagnosticCode.TRANSFER_IN_BEFORE_OUT:
             problem = (
                 f"{row.account} sent {moved} out on {row.txn_date}, after they "
@@ -718,21 +724,53 @@ def _check_transfers(folio: _LedgerIndex) -> _Outcome:
                 txn_ids=(row.txn_id,),
             ),
         )
+    return findings
 
-    misdated = len(findings) - unpaired
+
+def _cross_type_pairs(folio: _LedgerIndex) -> list[CheckFinding]:
+    """Report each transfer between two account types, by its in leg."""
+    findings = []
+    for diagnostic, computed in folio.tagged(DiagnosticCode.TRANSFER_ACROSS_TYPES):
+        row = computed.row
+        findings.append(
+            CheckFinding(
+                subject=f"TxnId {row.txn_id}",
+                detail=(
+                    f"{diagnostic.account} moved {_what_moved(row, computed.symbol)} "
+                    f"into {row.account} on {row.txn_date}, an account of another "
+                    f"type. Moving money or holdings between tax treatments is not "
+                    f"a transfer: record it as a sale, a withdrawal, a contribution "
+                    f"and a buy."
+                ),
+                txn_ids=(row.txn_id,),
+            ),
+        )
+    return findings
+
+
+def _check_transfers(folio: _LedgerIndex) -> _Outcome:
+    """Report transfer legs that are unpaired, misdated or cross account types."""
+    unpaired = _unpaired_legs(folio)
+    misdated = _misdated_legs(folio)
+    crossed = _cross_type_pairs(folio)
     problems = []
     if unpaired:
         problems.append(
-            f"{_plural(unpaired, 'transfer leg has', 'transfer legs have')} "
+            f"{_plural(len(unpaired), 'transfer leg has', 'transfer legs have')} "
             f"no counterpart",
         )
     if misdated:
         problems.append(
-            f"{_plural(misdated, 'transfer leg needs', 'transfer legs need')} "
+            f"{_plural(len(misdated), 'transfer leg needs', 'transfer legs need')} "
             f"the other leg's date",
         )
+    if crossed:
+        problems.append(
+            f"{_plural(len(crossed), 'transfer crosses', 'transfers cross')} "
+            f"account types",
+        )
     return _Outcome(
-        findings,
+        [*unpaired, *misdated, *crossed],
         f"{_plural(folio.counting(Action.TFR_IN, Action.TFR_OUT), 'transfer leg')} "
         f"all paired up",
         ", ".join(problems),

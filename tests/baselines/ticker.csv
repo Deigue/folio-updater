@@ -224,7 +224,7 @@ KO,type,flags,
 KO,type,fx_date,2026-09-30
 KO,type,fx_rate,1.38
 KO,type,held_for,"1,11"
-KO,type,lines,"NON_REGISTERED,MARGIN,CORPORATE"
+KO,type,lines,"NON_REGISTERED,CORPORATE"
 KO,type,pooled_differs,True
 KO,type,symbol,KO
 META,account,currency,CAD

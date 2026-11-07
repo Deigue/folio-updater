@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Demo folio now includes a US dollar deposit, US dollar trade at a broker who prices
 its commission into the amount, a dividend reversal and rebook, and an in-kind transfer
 between a non-registered and margin account.
+- `folio check` warns for transfers between account types, which need to be recorded as
+salem, withdrawal, contribution and then buy instead (across tax types)
 
 ### Changed
 
@@ -38,6 +40,8 @@ totals between its two legs; `folio check` warns when an in-kind transfer's legs
 different years or arrive before they leave.
 - Quote refreshes in which nothing is priced are treated as an outage instead of 
 negative-caching every symbol.
+- Margin accounts now share the non-registered tax pool. It is no longer a distinct
+account type. `MARGIN` account-names only allow for cash to go into negatives.
 
 ### Security
 

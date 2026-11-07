@@ -48,7 +48,6 @@ class AccountType(StrEnum):
     """Tax treatment of an account, inferred from its name."""
 
     NON_REGISTERED = "NON_REGISTERED"
-    MARGIN = "MARGIN"
     CORPORATE = "CORPORATE"
     TFSA = "TFSA"
     RRSP = "RRSP"
@@ -62,8 +61,12 @@ class AccountType(StrEnum):
 # Account types whose dispositions are taxable, and therefore the only ones
 # where realized gains and superficial losses matter.
 TAXABLE_ACCOUNT_TYPES = frozenset(
-    {AccountType.NON_REGISTERED, AccountType.MARGIN, AccountType.CORPORATE},
+    {AccountType.NON_REGISTERED, AccountType.CORPORATE},
 )
+
+# The name token, or `accounts.map` value, that marks a margin account: a
+# non-registered account allowed to borrow. Margin is not an account type.
+MARGIN_MARKER = "MARGIN"
 
 # Account types with a CRA contribution limit set per year. An RESP limit is
 # lifetime and per beneficiary instead, so it has no room year to report against.
@@ -133,6 +136,7 @@ class DiagnosticCode(StrEnum):
     TRANSFER_UNPAIRED = "TRANSFER_UNPAIRED"
     TRANSFER_IN_BEFORE_OUT = "TRANSFER_IN_BEFORE_OUT"
     TRANSFER_ACROSS_YEAR_END = "TRANSFER_ACROSS_YEAR_END"
+    TRANSFER_ACROSS_TYPES = "TRANSFER_ACROSS_TYPES"
     SUPERFICIAL_LOSS_SUSPECT = "SUPERFICIAL_LOSS_SUSPECT"
 
 

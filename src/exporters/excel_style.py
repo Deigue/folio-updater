@@ -89,7 +89,6 @@ ACCOUNT_TYPE_TABS: dict[AccountType, str] = {
     AccountType.LIRA: "B0C4DE",
     AccountType.RESP: "D7A0D7",
     AccountType.NON_REGISTERED: "F08080",
-    AccountType.MARGIN: "FFA07A",
     AccountType.CORPORATE: "D2B48C",
 }
 

@@ -104,7 +104,7 @@ CAD,acct,MOCK-MARGIN,disclosure Converted,into,CAD
 CAD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 CAD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-MARGIN,disclosure Converted,what,valued
-CAD,acct,MOCK-MARGIN,flows,account_type,MARGIN
+CAD,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
 CAD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 CAD,acct,MOCK-MARGIN,flows,cash USD,4076.45
 CAD,acct,MOCK-MARGIN,flows,contributions CAD,10000.0
@@ -2626,131 +2626,26 @@ CAD,type,CORPORATE,totals CAD,unrealized,1379.32140
 CAD,type,CORPORATE,totals CAD,unrealized_pct,0.2399611656201126263821386904
 CAD,type,CORPORATE,totals CAD,weight_in_folio,0.02524680264015418949811060549
 CAD,type,CORPORATE,totals CAD,weight_in_pool,1
-CAD,type,MARGIN,disclosure Converted,into,CAD
-CAD,type,MARGIN,disclosure Converted,rate,1.38
-CAD,type,MARGIN,disclosure Converted,rate_date,2026-09-30
-CAD,type,MARGIN,disclosure Converted,what,valued
-CAD,type,MARGIN,flows,account_type,MARGIN
-CAD,type,MARGIN,flows,cash CAD,315.16
-CAD,type,MARGIN,flows,cash USD,4076.45
-CAD,type,MARGIN,flows,contributions CAD,10000.0
-CAD,type,MARGIN,flows,contributions USD,2000.0
-CAD,type,MARGIN,flows,dividends USD,335.25
-CAD,type,MARGIN,flows,fees USD,6.0
-CAD,type,MARGIN,flows,grain,type
-CAD,type,MARGIN,flows,negative_currencies,
-CAD,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
-CAD,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
-CAD,type,MARGIN,flows,net_deposits USD,2000.0
-CAD,type,MARGIN,flows,pool,MARGIN
-CAD,type,MARGIN,flows,realized USD,335.60
-CAD,type,MARGIN,flows,room,
-CAD,type,MARGIN,flows,transfers CAD,1818.79613187137233093329647
-CAD,type,MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
-CAD,type,MARGIN,holding KO,avg_cost,89.0089876923077
-CAD,type,MARGIN,holding KO,book_value,9345.943707692308
-CAD,type,MARGIN,holding KO,book_value_totals,9345.943707692308
-CAD,type,MARGIN,holding KO,change,-0.1242
-CAD,type,MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
-CAD,type,MARGIN,holding KO,closed,False
-CAD,type,MARGIN,holding KO,closed_total,937.25450
-CAD,type,MARGIN,holding KO,currency,CAD
-CAD,type,MARGIN,holding KO,day_pnl,-13.04100
-CAD,type,MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
-CAD,type,MARGIN,holding KO,day_pnl_totals,-13.04100
-CAD,type,MARGIN,holding KO,dividends,458.56350
-CAD,type,MARGIN,holding KO,dividends_totals,458.56350
-CAD,type,MARGIN,holding KO,flags,
-CAD,type,MARGIN,holding KO,market_value,12472.99200
-CAD,type,MARGIN,holding KO,market_value_cad,12472.99200
-CAD,type,MARGIN,holding KO,market_value_totals,12472.99200
-CAD,type,MARGIN,holding KO,name,KO
-CAD,type,MARGIN,holding KO,pool,MARGIN
-CAD,type,MARGIN,holding KO,prev_close,118.9146
-CAD,type,MARGIN,holding KO,price,118.7904
-CAD,type,MARGIN,holding KO,priced,True
-CAD,type,MARGIN,holding KO,realized,478.691
-CAD,type,MARGIN,holding KO,realized_totals,478.691
-CAD,type,MARGIN,holding KO,sector,
-CAD,type,MARGIN,holding KO,symbol,KO
-CAD,type,MARGIN,holding KO,total_pnl,4064.302792307692
-CAD,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
-CAD,type,MARGIN,holding KO,total_pnl_pct,0.4348734509242241074561559262
-CAD,type,MARGIN,holding KO,total_pnl_totals,4064.302792307692
-CAD,type,MARGIN,holding KO,units,105.0
-CAD,type,MARGIN,holding KO,units_suspect,False
-CAD,type,MARGIN,holding KO,unrealized,3127.048292307692
-CAD,type,MARGIN,holding KO,unrealized_pct,0.3345888216439749931895564498
-CAD,type,MARGIN,holding KO,unrealized_totals,3127.048292307692
-CAD,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
-CAD,type,MARGIN,holding KO,weight_in_pool,1
-CAD,type,MARGIN,return,gain,4064.302792307692
-CAD,type,MARGIN,return,ratio,0.3438846687056066298312706820
-CAD,type,MARGIN,return CAD,gain,4064.302792307692
-CAD,type,MARGIN,return CAD,ratio,0.3438846687056066298312706820
-CAD,type,MARGIN,totals,closed,
-CAD,type,MARGIN,totals,deposits_measurable,True
-CAD,type,MARGIN,totals,display_currency,CAD
-CAD,type,MARGIN,totals,excluded,0
-CAD,type,MARGIN,totals,flags,
-CAD,type,MARGIN,totals,fx_date,2026-09-30
-CAD,type,MARGIN,totals,fx_rate,1.38
-CAD,type,MARGIN,totals,grain,type
-CAD,type,MARGIN,totals,mixed_currency,False
-CAD,type,MARGIN,totals,pool,MARGIN
-CAD,type,MARGIN,totals,total_book,9345.943707692308
-CAD,type,MARGIN,totals,total_day_pnl,-13.04100
-CAD,type,MARGIN,totals,total_day_pnl_pct,-0.001044447023325983520946965301
-CAD,type,MARGIN,totals,total_dividends,458.56350
-CAD,type,MARGIN,totals,total_market,12472.99200
-CAD,type,MARGIN,totals,total_pnl,4064.302792307692
-CAD,type,MARGIN,totals,total_pnl_cad,4064.302792307692
-CAD,type,MARGIN,totals,total_realized,478.691
-CAD,type,MARGIN,totals,total_unrealized,3127.048292307692
-CAD,type,MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
-CAD,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
-CAD,type,MARGIN,totals,total_weight_in_pool,1
-CAD,type,MARGIN,totals,totals_currency,CAD
-CAD,type,MARGIN,totals,unpriced,
-CAD,type,MARGIN,totals CAD,book,9345.943707692308
-CAD,type,MARGIN,totals CAD,closed_members,
-CAD,type,MARGIN,totals CAD,closed_totals.count,0
-CAD,type,MARGIN,totals CAD,closed_totals.dividends,0
-CAD,type,MARGIN,totals CAD,closed_totals.realized,0
-CAD,type,MARGIN,totals CAD,closed_totals.total,0
-CAD,type,MARGIN,totals CAD,count,1
-CAD,type,MARGIN,totals CAD,currency,CAD
-CAD,type,MARGIN,totals CAD,day_pnl,-13.04100
-CAD,type,MARGIN,totals CAD,day_pnl_pct,-0.001044447023325983520946965301
-CAD,type,MARGIN,totals CAD,dividends,458.56350
-CAD,type,MARGIN,totals CAD,market,12472.99200
-CAD,type,MARGIN,totals CAD,realized,478.691
-CAD,type,MARGIN,totals CAD,total_pnl,4064.302792307692
-CAD,type,MARGIN,totals CAD,total_pnl_pct,0.4348734509242241074561559262
-CAD,type,MARGIN,totals CAD,unrealized,3127.048292307692
-CAD,type,MARGIN,totals CAD,unrealized_pct,0.3345888216439749931895564498
-CAD,type,MARGIN,totals CAD,weight_in_folio,0.04418190462026983162169355961
-CAD,type,MARGIN,totals CAD,weight_in_pool,1
 CAD,type,NON_REGISTERED,disclosure Converted,into,CAD
 CAD,type,NON_REGISTERED,disclosure Converted,rate,1.38
 CAD,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
 CAD,type,NON_REGISTERED,disclosure Converted,what,valued
 CAD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
-CAD,type,NON_REGISTERED,flows,cash CAD,6012.79
-CAD,type,NON_REGISTERED,flows,cash USD,572.19
-CAD,type,NON_REGISTERED,flows,contributions CAD,152000.0
-CAD,type,NON_REGISTERED,flows,dividends USD,2008.27
+CAD,type,NON_REGISTERED,flows,cash CAD,6327.95
+CAD,type,NON_REGISTERED,flows,cash USD,4648.64
+CAD,type,NON_REGISTERED,flows,contributions CAD,162000.0
+CAD,type,NON_REGISTERED,flows,contributions USD,2000.0
+CAD,type,NON_REGISTERED,flows,dividends USD,2343.52
 CAD,type,NON_REGISTERED,flows,fees CAD,94.13
-CAD,type,NON_REGISTERED,flows,fees USD,182.13
+CAD,type,NON_REGISTERED,flows,fees USD,188.13
 CAD,type,NON_REGISTERED,flows,grain,type
 CAD,type,NON_REGISTERED,flows,negative_currencies,
-CAD,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
-CAD,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
+CAD,type,NON_REGISTERED,flows,net_deposit_denominator,148000.0
+CAD,type,NON_REGISTERED,flows,net_deposits CAD,148000.0
+CAD,type,NON_REGISTERED,flows,net_deposits USD,2000.0
 CAD,type,NON_REGISTERED,flows,pool,NON_REGISTERED
-CAD,type,NON_REGISTERED,flows,realized USD,1747.991557175187433173138830
+CAD,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 CAD,type,NON_REGISTERED,flows,room,
-CAD,type,NON_REGISTERED,flows,transfers CAD,-1818.7961318713723309332965
-CAD,type,NON_REGISTERED,flows,transfers_value CAD,-1875.40670769230769230769231
 CAD,type,NON_REGISTERED,flows,withdrawals CAD,14000.0
 CAD,type,NON_REGISTERED,holding AAPL,avg_cost,342.24479396551726
 CAD,type,NON_REGISTERED,holding AAPL,book_value,19850.19805
@@ -2761,7 +2656,7 @@ CAD,type,NON_REGISTERED,holding AAPL,closed,False
 CAD,type,NON_REGISTERED,holding AAPL,closed_total,111.2485
 CAD,type,NON_REGISTERED,holding AAPL,currency,CAD
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl,43.22160
-CAD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+CAD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl_totals,43.22160
 CAD,type,NON_REGISTERED,holding AAPL,dividends,111.2485
 CAD,type,NON_REGISTERED,holding AAPL,dividends_totals,111.2485
@@ -2788,7 +2683,7 @@ CAD,type,NON_REGISTERED,holding AAPL,unrealized,6804.72275
 CAD,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3428037711694266949643860102
 CAD,type,NON_REGISTERED,holding AAPL,unrealized_totals,6804.72275
 CAD,type,NON_REGISTERED,holding AAPL,weight_in_folio,0.09441721508732198629691876602
-CAD,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1648802159208690784249686419
+CAD,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1530701504822046230210210372
 CAD,type,NON_REGISTERED,holding COST,avg_cost,1307.656988888889
 CAD,type,NON_REGISTERED,holding COST,book_value,11768.9129
 CAD,type,NON_REGISTERED,holding COST,book_value_totals,11768.9129
@@ -2798,7 +2693,7 @@ CAD,type,NON_REGISTERED,holding COST,closed,False
 CAD,type,NON_REGISTERED,holding COST,closed_total,71.12085
 CAD,type,NON_REGISTERED,holding COST,currency,CAD
 CAD,type,NON_REGISTERED,holding COST,day_pnl,-13.91040
-CAD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+CAD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
 CAD,type,NON_REGISTERED,holding COST,day_pnl_totals,-13.91040
 CAD,type,NON_REGISTERED,holding COST,dividends,71.12085
 CAD,type,NON_REGISTERED,holding COST,dividends_totals,71.12085
@@ -2825,7 +2720,7 @@ CAD,type,NON_REGISTERED,holding COST,unrealized,-462.49010
 CAD,type,NON_REGISTERED,holding COST,unrealized_pct,-0.03929760581370264028379375635
 CAD,type,NON_REGISTERED,holding COST,unrealized_totals,-462.49010
 CAD,type,NON_REGISTERED,holding COST,weight_in_folio,0.04004967643257080309196679008
-CAD,type,NON_REGISTERED,holding COST,weight_in_pool,0.06993850953616928939136272135
+CAD,type,NON_REGISTERED,holding COST,weight_in_pool,0.06492894322955292157500153346
 CAD,type,NON_REGISTERED,holding DLR.TO,avg_cost,0.0
 CAD,type,NON_REGISTERED,holding DLR.TO,book_value,0.0
 CAD,type,NON_REGISTERED,holding DLR.TO,book_value_totals,0.0
@@ -2946,7 +2841,7 @@ CAD,type,NON_REGISTERED,holding JNJ,closed,False
 CAD,type,NON_REGISTERED,holding JNJ,closed_total,649.2227
 CAD,type,NON_REGISTERED,holding JNJ,currency,CAD
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl,-3.97440
-CAD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+CAD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-3.97440
 CAD,type,NON_REGISTERED,holding JNJ,dividends,649.2227
 CAD,type,NON_REGISTERED,holding JNJ,dividends_totals,649.2227
@@ -2973,44 +2868,44 @@ CAD,type,NON_REGISTERED,holding JNJ,unrealized,8280.71300
 CAD,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4594307785481655104895604621
 CAD,type,NON_REGISTERED,holding JNJ,unrealized_totals,8280.71300
 CAD,type,NON_REGISTERED,holding JNJ,weight_in_folio,0.09317618769917871925273887125
-CAD,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1627130172428363703536644933
-CAD,type,NON_REGISTERED,holding KO,avg_cost,95.6621991651759
-CAD,type,NON_REGISTERED,holding KO,book_value,12340.423692307691
-CAD,type,NON_REGISTERED,holding KO,book_value_totals,12340.423692307691
+CAD,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1510581842440568619000892499
+CAD,type,NON_REGISTERED,holding KO,avg_cost,92.27269816109816
+CAD,type,NON_REGISTERED,holding KO,book_value,21591.81136969697
+CAD,type,NON_REGISTERED,holding KO,book_value_totals,21591.81136969697
 CAD,type,NON_REGISTERED,holding KO,change,-0.1242
 CAD,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,type,NON_REGISTERED,holding KO,closed,False
-CAD,type,NON_REGISTERED,holding KO,closed_total,557.96730
+CAD,type,NON_REGISTERED,holding KO,closed_total,1400.6657696969697
 CAD,type,NON_REGISTERED,holding KO,currency,CAD
-CAD,type,NON_REGISTERED,holding KO,day_pnl,-16.02180
-CAD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
-CAD,type,NON_REGISTERED,holding KO,day_pnl_totals,-16.02180
-CAD,type,NON_REGISTERED,holding KO,dividends,557.96730
-CAD,type,NON_REGISTERED,holding KO,dividends_totals,557.96730
+CAD,type,NON_REGISTERED,holding KO,day_pnl,-29.06280
+CAD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+CAD,type,NON_REGISTERED,holding KO,day_pnl_totals,-29.06280
+CAD,type,NON_REGISTERED,holding KO,dividends,1016.53080
+CAD,type,NON_REGISTERED,holding KO,dividends_totals,1016.53080
 CAD,type,NON_REGISTERED,holding KO,flags,
-CAD,type,NON_REGISTERED,holding KO,market_value,15323.96160
-CAD,type,NON_REGISTERED,holding KO,market_value_cad,15323.96160
-CAD,type,NON_REGISTERED,holding KO,market_value_totals,15323.96160
+CAD,type,NON_REGISTERED,holding KO,market_value,27796.95360
+CAD,type,NON_REGISTERED,holding KO,market_value_cad,27796.95360
+CAD,type,NON_REGISTERED,holding KO,market_value_totals,27796.95360
 CAD,type,NON_REGISTERED,holding KO,name,KO
 CAD,type,NON_REGISTERED,holding KO,pool,NON_REGISTERED
 CAD,type,NON_REGISTERED,holding KO,prev_close,118.9146
 CAD,type,NON_REGISTERED,holding KO,price,118.7904
 CAD,type,NON_REGISTERED,holding KO,priced,True
-CAD,type,NON_REGISTERED,holding KO,realized,0.0
-CAD,type,NON_REGISTERED,holding KO,realized_totals,0.0
+CAD,type,NON_REGISTERED,holding KO,realized,384.1349696969697
+CAD,type,NON_REGISTERED,holding KO,realized_totals,384.1349696969697
 CAD,type,NON_REGISTERED,holding KO,sector,
 CAD,type,NON_REGISTERED,holding KO,symbol,KO
-CAD,type,NON_REGISTERED,holding KO,total_pnl,3541.505207692309
-CAD,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
-CAD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2869840854734898011276950611
-CAD,type,NON_REGISTERED,holding KO,total_pnl_totals,3541.505207692309
-CAD,type,NON_REGISTERED,holding KO,units,129.0
+CAD,type,NON_REGISTERED,holding KO,total_pnl,7605.8079999999997
+CAD,type,NON_REGISTERED,holding KO,total_pnl_cad,7605.8079999999997
+CAD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.3522542814853584613785234349
+CAD,type,NON_REGISTERED,holding KO,total_pnl_totals,7605.8079999999997
+CAD,type,NON_REGISTERED,holding KO,units,234.0
 CAD,type,NON_REGISTERED,holding KO,units_suspect,False
-CAD,type,NON_REGISTERED,holding KO,unrealized,2983.537907692309
-CAD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2417694871815523321271407916
-CAD,type,NON_REGISTERED,holding KO,unrealized_totals,2983.537907692309
-CAD,type,NON_REGISTERED,holding KO,weight_in_folio,0.05428062567633150742093780181
-CAD,type,NON_REGISTERED,holding KO,weight_in_pool,0.09478993077222373125234001630
+CAD,type,NON_REGISTERED,holding KO,unrealized,6205.14223030303
+CAD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2873840514840564758565327182
+CAD,type,NON_REGISTERED,holding KO,unrealized_totals,6205.14223030303
+CAD,type,NON_REGISTERED,holding KO,weight_in_folio,0.09846253029660133904263136141
+CAD,type,NON_REGISTERED,holding KO,weight_in_pool,0.1596284566900254879699666410
 CAD,type,NON_REGISTERED,holding META,avg_cost,0.0
 CAD,type,NON_REGISTERED,holding META,book_value,0.0
 CAD,type,NON_REGISTERED,holding META,book_value_totals,0.0
@@ -3057,7 +2952,7 @@ CAD,type,NON_REGISTERED,holding MSFT,closed,False
 CAD,type,NON_REGISTERED,holding MSFT,closed_total,160.21685
 CAD,type,NON_REGISTERED,holding MSFT,currency,CAD
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl,6.03060
-CAD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+CAD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl_totals,6.03060
 CAD,type,NON_REGISTERED,holding MSFT,dividends,160.21685
 CAD,type,NON_REGISTERED,holding MSFT,dividends_totals,160.21685
@@ -3084,7 +2979,7 @@ CAD,type,NON_REGISTERED,holding MSFT,unrealized,2718.1222
 CAD,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.2004319224351829133377082258
 CAD,type,NON_REGISTERED,holding MSFT,unrealized_totals,2718.1222
 CAD,type,NON_REGISTERED,holding MSFT,weight_in_folio,0.05766514806093303269291383593
-CAD,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.1007003018951805865162819038
+CAD,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.09348732519914011980185920643
 CAD,type,NON_REGISTERED,holding NFLX,avg_cost,118.80754545454545
 CAD,type,NON_REGISTERED,holding NFLX,book_value,9148.181
 CAD,type,NON_REGISTERED,holding NFLX,book_value_totals,9148.181
@@ -3094,7 +2989,7 @@ CAD,type,NON_REGISTERED,holding NFLX,closed,False
 CAD,type,NON_REGISTERED,holding NFLX,closed_total,0.0
 CAD,type,NON_REGISTERED,holding NFLX,currency,CAD
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl,-40.37880
-CAD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+CAD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-40.37880
 CAD,type,NON_REGISTERED,holding NFLX,dividends,0
 CAD,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -3121,7 +3016,7 @@ CAD,type,NON_REGISTERED,holding NFLX,unrealized,-1754.61020
 CAD,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.1917988067791837524858767005
 CAD,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1754.61020
 CAD,type,NON_REGISTERED,holding NFLX,weight_in_folio,0.02618954937907537463337346395
-CAD,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04573465286493114355326683775
+CAD,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04245876412271440777994091533
 CAD,type,NON_REGISTERED,holding NVDA,avg_cost,195.69568841285297
 CAD,type,NON_REGISTERED,holding NVDA,book_value,15459.959384615384
 CAD,type,NON_REGISTERED,holding NVDA,book_value_totals,15459.959384615384
@@ -3131,7 +3026,7 @@ CAD,type,NON_REGISTERED,holding NVDA,closed,False
 CAD,type,NON_REGISTERED,holding NVDA,closed_total,2625.8969846153847
 CAD,type,NON_REGISTERED,holding NVDA,currency,CAD
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl,27.25500
-CAD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+CAD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl_totals,27.25500
 CAD,type,NON_REGISTERED,holding NVDA,dividends,59.41110
 CAD,type,NON_REGISTERED,holding NVDA,dividends_totals,59.41110
@@ -3158,7 +3053,7 @@ CAD,type,NON_REGISTERED,holding NVDA,unrealized,9438.028215384616
 CAD,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.6104820834637281407717931895
 CAD,type,NON_REGISTERED,holding NVDA,unrealized_totals,9438.028215384616
 CAD,type,NON_REGISTERED,holding NVDA,weight_in_folio,0.08819379611402468440379133877
-CAD,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1540122967269563560604650821
+CAD,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1429806802740927568105944747
 CAD,type,NON_REGISTERED,holding O,avg_cost,81.45607577777778
 CAD,type,NON_REGISTERED,holding O,book_value,18327.61705
 CAD,type,NON_REGISTERED,holding O,book_value_totals,18327.61705
@@ -3168,7 +3063,7 @@ CAD,type,NON_REGISTERED,holding O,closed,False
 CAD,type,NON_REGISTERED,holding O,closed_total,1095.85495
 CAD,type,NON_REGISTERED,holding O,currency,CAD
 CAD,type,NON_REGISTERED,holding O,day_pnl,-71.41500
-CAD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+CAD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
 CAD,type,NON_REGISTERED,holding O,day_pnl_totals,-71.41500
 CAD,type,NON_REGISTERED,holding O,dividends,1095.85495
 CAD,type,NON_REGISTERED,holding O,dividends_totals,1095.85495
@@ -3195,7 +3090,7 @@ CAD,type,NON_REGISTERED,holding O,unrealized,-1467.46705
 CAD,type,NON_REGISTERED,holding O,unrealized_pct,-0.08006862245083847384294839356
 CAD,type,NON_REGISTERED,holding O,unrealized_totals,-1467.46705
 CAD,type,NON_REGISTERED,holding O,weight_in_folio,0.05972212113849206362166324399
-CAD,type,NON_REGISTERED,holding O,weight_in_pool,0.1042923816325217065588405368
+CAD,type,NON_REGISTERED,holding O,weight_in_pool,0.09682211089715720614063380899
 CAD,type,NON_REGISTERED,holding XYZ,avg_cost,96.29027103658537
 CAD,type,NON_REGISTERED,holding XYZ,book_value,15791.60445
 CAD,type,NON_REGISTERED,holding XYZ,book_value_totals,15791.60445
@@ -3205,7 +3100,7 @@ CAD,type,NON_REGISTERED,holding XYZ,closed,False
 CAD,type,NON_REGISTERED,holding XYZ,closed_total,0.0
 CAD,type,NON_REGISTERED,holding XYZ,currency,CAD
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl,-63.36960
-CAD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+CAD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-63.36960
 CAD,type,NON_REGISTERED,holding XYZ,dividends,0
 CAD,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -3232,11 +3127,11 @@ CAD,type,NON_REGISTERED,holding XYZ,unrealized,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.05380739827231424860062271887
 CAD,type,NON_REGISTERED,holding XYZ,unrealized_totals,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
-CAD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
-CAD,type,NON_REGISTERED,return,gain,32847.4588076923097
-CAD,type,NON_REGISTERED,return,ratio,0.2412040566148924609125500024
-CAD,type,NON_REGISTERED,return CAD,gain,32847.4588076923097
-CAD,type,NON_REGISTERED,return CAD,ratio,0.2412040566148924609125500024
+CAD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.09556538486105561500089313296
+CAD,type,NON_REGISTERED,return,gain,36911.7616000000004
+CAD,type,NON_REGISTERED,return,ratio,0.2494037945945945972972972973
+CAD,type,NON_REGISTERED,return CAD,gain,36911.7616000000004
+CAD,type,NON_REGISTERED,return CAD,ratio,0.2494037945945945972972972973
 CAD,type,NON_REGISTERED,totals,deposits_measurable,True
 CAD,type,NON_REGISTERED,totals,display_currency,CAD
 CAD,type,NON_REGISTERED,totals,excluded,0
@@ -3246,37 +3141,37 @@ CAD,type,NON_REGISTERED,totals,fx_rate,1.38
 CAD,type,NON_REGISTERED,totals,grain,type
 CAD,type,NON_REGISTERED,totals,mixed_currency,False
 CAD,type,NON_REGISTERED,totals,pool,NON_REGISTERED
-CAD,type,NON_REGISTERED,totals,total_book,134272.073726923075
-CAD,type,NON_REGISTERED,totals,total_day_pnl,-132.56280
-CAD,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008193262044163439457371667041
-CAD,type,NON_REGISTERED,totals,total_dividends,2740.55725
-CAD,type,NON_REGISTERED,totals,total_market,161662.33560
-CAD,type,NON_REGISTERED,totals,total_pnl,32847.4588076923097
-CAD,type,NON_REGISTERED,totals,total_pnl_cad,32847.4588076923097
-CAD,type,NON_REGISTERED,totals,total_realized,2716.6396846153847
-CAD,type,NON_REGISTERED,totals,total_unrealized,27390.261873076925
-CAD,type,NON_REGISTERED,totals,total_unrealized_pct,0.2039907563264576777599589233
-CAD,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+CAD,type,NON_REGISTERED,totals,total_book,143523.461404312354
+CAD,type,NON_REGISTERED,totals,total_day_pnl,-145.60380
+CAD,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008354545665458843192755624670
+CAD,type,NON_REGISTERED,totals,total_dividends,3199.12075
+CAD,type,NON_REGISTERED,totals,total_market,174135.32760
+CAD,type,NON_REGISTERED,totals,total_pnl,36911.7616000000004
+CAD,type,NON_REGISTERED,totals,total_pnl_cad,36911.7616000000004
+CAD,type,NON_REGISTERED,totals,total_realized,3100.7746543123544
+CAD,type,NON_REGISTERED,totals,total_unrealized,30611.866195687646
+CAD,type,NON_REGISTERED,totals,total_unrealized_pct,0.2132882380076702331656186717
+CAD,type,NON_REGISTERED,totals,total_weight_in_folio,0.6168231676122810573309473196
 CAD,type,NON_REGISTERED,totals,total_weight_in_pool,1
 CAD,type,NON_REGISTERED,totals,totals_currency,CAD
 CAD,type,NON_REGISTERED,totals,unpriced,
-CAD,type,NON_REGISTERED,totals CAD,book,134272.073726923075
+CAD,type,NON_REGISTERED,totals CAD,book,143523.461404312354
 CAD,type,NON_REGISTERED,totals CAD,closed_totals.count,4
 CAD,type,NON_REGISTERED,totals CAD,closed_totals.dividends,35.51500
 CAD,type,NON_REGISTERED,totals CAD,closed_totals.realized,150.1538
 CAD,type,NON_REGISTERED,totals CAD,closed_totals.total,185.66880
 CAD,type,NON_REGISTERED,totals CAD,count,9
 CAD,type,NON_REGISTERED,totals CAD,currency,CAD
-CAD,type,NON_REGISTERED,totals CAD,day_pnl,-132.56280
-CAD,type,NON_REGISTERED,totals CAD,day_pnl_pct,-0.0008193262044163439457371667041
-CAD,type,NON_REGISTERED,totals CAD,dividends,2740.55725
-CAD,type,NON_REGISTERED,totals CAD,market,161662.33560
-CAD,type,NON_REGISTERED,totals CAD,realized,2716.6396846153847
-CAD,type,NON_REGISTERED,totals CAD,total_pnl,32847.4588076923097
-CAD,type,NON_REGISTERED,totals CAD,total_pnl_pct,0.2446335853462433069893385469
-CAD,type,NON_REGISTERED,totals CAD,unrealized,27390.261873076925
-CAD,type,NON_REGISTERED,totals CAD,unrealized_pct,0.2039907563264576777599589233
-CAD,type,NON_REGISTERED,totals CAD,weight_in_folio,0.5726412629920112257092537600
+CAD,type,NON_REGISTERED,totals CAD,day_pnl,-145.60380
+CAD,type,NON_REGISTERED,totals CAD,day_pnl_pct,-0.0008354545665458843192755624670
+CAD,type,NON_REGISTERED,totals CAD,dividends,3199.12075
+CAD,type,NON_REGISTERED,totals CAD,market,174135.32760
+CAD,type,NON_REGISTERED,totals CAD,realized,3100.7746543123544
+CAD,type,NON_REGISTERED,totals CAD,total_pnl,36911.7616000000004
+CAD,type,NON_REGISTERED,totals CAD,total_pnl_pct,0.2571827716446848267412742096
+CAD,type,NON_REGISTERED,totals CAD,unrealized,30611.866195687646
+CAD,type,NON_REGISTERED,totals CAD,unrealized_pct,0.2132882380076702331656186717
+CAD,type,NON_REGISTERED,totals CAD,weight_in_folio,0.6168231676122810573309473196
 CAD,type,NON_REGISTERED,totals CAD,weight_in_pool,1.000000000000000000000000000
 CAD,type,RRSP,disclosure Converted,into,CAD
 CAD,type,RRSP,disclosure Converted,rate,1.38
@@ -3974,7 +3869,7 @@ USD,acct,MOCK-MARGIN,disclosure Converted,into,CAD
 USD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 USD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 USD,acct,MOCK-MARGIN,disclosure Converted,what,total_return
-USD,acct,MOCK-MARGIN,flows,account_type,MARGIN
+USD,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
 USD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 USD,acct,MOCK-MARGIN,flows,cash USD,4076.45
 USD,acct,MOCK-MARGIN,flows,contributions CAD,10000.0
@@ -5746,129 +5641,24 @@ USD,type,CORPORATE,totals USD,unrealized,970.080
 USD,type,CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 USD,type,CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 USD,type,CORPORATE,totals USD,weight_in_pool,1
-USD,type,MARGIN,disclosure Converted,into,CAD
-USD,type,MARGIN,disclosure Converted,rate,1.38
-USD,type,MARGIN,disclosure Converted,rate_date,2026-09-30
-USD,type,MARGIN,disclosure Converted,what,total_return
-USD,type,MARGIN,flows,account_type,MARGIN
-USD,type,MARGIN,flows,cash CAD,315.16
-USD,type,MARGIN,flows,cash USD,4076.45
-USD,type,MARGIN,flows,contributions CAD,10000.0
-USD,type,MARGIN,flows,contributions USD,2000.0
-USD,type,MARGIN,flows,dividends USD,335.25
-USD,type,MARGIN,flows,fees USD,6.0
-USD,type,MARGIN,flows,grain,type
-USD,type,MARGIN,flows,negative_currencies,
-USD,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
-USD,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
-USD,type,MARGIN,flows,net_deposits USD,2000.0
-USD,type,MARGIN,flows,pool,MARGIN
-USD,type,MARGIN,flows,realized USD,335.60
-USD,type,MARGIN,flows,room,
-USD,type,MARGIN,flows,transfers CAD,1818.79613187137233093329647
-USD,type,MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
-USD,type,MARGIN,holding KO,avg_cost,65.47761172161172
-USD,type,MARGIN,holding KO,book_value,6875.149230769231
-USD,type,MARGIN,holding KO,book_value_totals,6875.149230769231
-USD,type,MARGIN,holding KO,change,-0.09
-USD,type,MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
-USD,type,MARGIN,holding KO,closed,False
-USD,type,MARGIN,holding KO,closed_total,670.85
-USD,type,MARGIN,holding KO,currency,USD
-USD,type,MARGIN,holding KO,day_pnl,-9.450
-USD,type,MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
-USD,type,MARGIN,holding KO,day_pnl_totals,-9.450
-USD,type,MARGIN,holding KO,dividends,335.25
-USD,type,MARGIN,holding KO,dividends_totals,335.25
-USD,type,MARGIN,holding KO,flags,
-USD,type,MARGIN,holding KO,market_value,9038.400
-USD,type,MARGIN,holding KO,market_value_cad,12472.99200
-USD,type,MARGIN,holding KO,market_value_totals,9038.400
-USD,type,MARGIN,holding KO,name,KO
-USD,type,MARGIN,holding KO,pool,MARGIN
-USD,type,MARGIN,holding KO,prev_close,86.17
-USD,type,MARGIN,holding KO,price,86.08
-USD,type,MARGIN,holding KO,priced,True
-USD,type,MARGIN,holding KO,realized,335.6
-USD,type,MARGIN,holding KO,realized_totals,335.6
-USD,type,MARGIN,holding KO,sector,
-USD,type,MARGIN,holding KO,symbol,KO
-USD,type,MARGIN,holding KO,total_pnl,2834.100769230769
-USD,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
-USD,type,MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
-USD,type,MARGIN,holding KO,total_pnl_totals,2834.100769230769
-USD,type,MARGIN,holding KO,units,105.0
-USD,type,MARGIN,holding KO,units_suspect,False
-USD,type,MARGIN,holding KO,unrealized,2163.250769230769
-USD,type,MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
-USD,type,MARGIN,holding KO,unrealized_totals,2163.250769230769
-USD,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
-USD,type,MARGIN,holding KO,weight_in_pool,1
-USD,type,MARGIN,return,gain,2834.100769230769
-USD,type,MARGIN,return,ratio,0.3438846687056066298312706820
-USD,type,MARGIN,return USD,gain,4064.302792307692
-USD,type,MARGIN,return USD,ratio,0.3438846687056066298312706820
-USD,type,MARGIN,totals,closed,
-USD,type,MARGIN,totals,deposits_measurable,True
-USD,type,MARGIN,totals,display_currency,USD
-USD,type,MARGIN,totals,excluded,0
-USD,type,MARGIN,totals,flags,
-USD,type,MARGIN,totals,fx_date,2026-09-30
-USD,type,MARGIN,totals,fx_rate,1.38
-USD,type,MARGIN,totals,grain,type
-USD,type,MARGIN,totals,mixed_currency,False
-USD,type,MARGIN,totals,pool,MARGIN
-USD,type,MARGIN,totals,total_book,6875.149230769231
-USD,type,MARGIN,totals,total_day_pnl,-9.450
-USD,type,MARGIN,totals,total_day_pnl_pct,-0.001044447023325983520946965301
-USD,type,MARGIN,totals,total_dividends,335.25
-USD,type,MARGIN,totals,total_market,9038.400
-USD,type,MARGIN,totals,total_pnl,2834.100769230769
-USD,type,MARGIN,totals,total_pnl_cad,4064.302792307692
-USD,type,MARGIN,totals,total_realized,335.6
-USD,type,MARGIN,totals,total_unrealized,2163.250769230769
-USD,type,MARGIN,totals,total_unrealized_pct,0.3146478275044994386254051379
-USD,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
-USD,type,MARGIN,totals,total_weight_in_pool,1
-USD,type,MARGIN,totals,totals_currency,USD
-USD,type,MARGIN,totals,unpriced,
-USD,type,MARGIN,totals USD,book,6875.149230769231
-USD,type,MARGIN,totals USD,closed_members,
-USD,type,MARGIN,totals USD,closed_totals.count,0
-USD,type,MARGIN,totals USD,closed_totals.dividends,0
-USD,type,MARGIN,totals USD,closed_totals.realized,0
-USD,type,MARGIN,totals USD,closed_totals.total,0
-USD,type,MARGIN,totals USD,count,1
-USD,type,MARGIN,totals USD,currency,USD
-USD,type,MARGIN,totals USD,day_pnl,-9.450
-USD,type,MARGIN,totals USD,day_pnl_pct,-0.001044447023325983520946965301
-USD,type,MARGIN,totals USD,dividends,335.25
-USD,type,MARGIN,totals USD,market,9038.400
-USD,type,MARGIN,totals USD,realized,335.6
-USD,type,MARGIN,totals USD,total_pnl,2834.100769230769
-USD,type,MARGIN,totals USD,total_pnl_pct,0.4122238913079816310933035532
-USD,type,MARGIN,totals USD,unrealized,2163.250769230769
-USD,type,MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
-USD,type,MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
-USD,type,MARGIN,totals USD,weight_in_pool,1
 USD,type,NON_REGISTERED,disclosure TotalReturnHidden,excluded,1
 USD,type,NON_REGISTERED,disclosure TotalReturnHidden,shown,USD
 USD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
-USD,type,NON_REGISTERED,flows,cash CAD,6012.79
-USD,type,NON_REGISTERED,flows,cash USD,572.19
-USD,type,NON_REGISTERED,flows,contributions CAD,152000.0
-USD,type,NON_REGISTERED,flows,dividends USD,2008.27
+USD,type,NON_REGISTERED,flows,cash CAD,6327.95
+USD,type,NON_REGISTERED,flows,cash USD,4648.64
+USD,type,NON_REGISTERED,flows,contributions CAD,162000.0
+USD,type,NON_REGISTERED,flows,contributions USD,2000.0
+USD,type,NON_REGISTERED,flows,dividends USD,2343.52
 USD,type,NON_REGISTERED,flows,fees CAD,94.13
-USD,type,NON_REGISTERED,flows,fees USD,182.13
+USD,type,NON_REGISTERED,flows,fees USD,188.13
 USD,type,NON_REGISTERED,flows,grain,type
 USD,type,NON_REGISTERED,flows,negative_currencies,
-USD,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
-USD,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
+USD,type,NON_REGISTERED,flows,net_deposit_denominator,148000.0
+USD,type,NON_REGISTERED,flows,net_deposits CAD,148000.0
+USD,type,NON_REGISTERED,flows,net_deposits USD,2000.0
 USD,type,NON_REGISTERED,flows,pool,NON_REGISTERED
-USD,type,NON_REGISTERED,flows,realized USD,1747.991557175187433173138830
+USD,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 USD,type,NON_REGISTERED,flows,room,
-USD,type,NON_REGISTERED,flows,transfers CAD,-1818.7961318713723309332965
-USD,type,NON_REGISTERED,flows,transfers_value CAD,-1875.40670769230769230769231
 USD,type,NON_REGISTERED,flows,withdrawals CAD,14000.0
 USD,type,NON_REGISTERED,holding AAPL,avg_cost,251.61568965517242
 USD,type,NON_REGISTERED,holding AAPL,book_value,14593.71
@@ -5879,7 +5669,7 @@ USD,type,NON_REGISTERED,holding AAPL,closed,False
 USD,type,NON_REGISTERED,holding AAPL,closed_total,81.38
 USD,type,NON_REGISTERED,holding AAPL,currency,USD
 USD,type,NON_REGISTERED,holding AAPL,day_pnl,31.320
-USD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+USD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
 USD,type,NON_REGISTERED,holding AAPL,day_pnl_totals,31.320
 USD,type,NON_REGISTERED,holding AAPL,dividends,81.38
 USD,type,NON_REGISTERED,holding AAPL,dividends_totals,81.38
@@ -5906,7 +5696,7 @@ USD,type,NON_REGISTERED,holding AAPL,unrealized,4721.450
 USD,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 USD,type,NON_REGISTERED,holding AAPL,unrealized_totals,4721.450
 USD,type,NON_REGISTERED,holding AAPL,weight_in_folio,0.09441721508732198629691876602
-USD,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1648802159208690784249686419
+USD,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1530701504822046230210210372
 USD,type,NON_REGISTERED,holding COST,avg_cost,961.1055555555556
 USD,type,NON_REGISTERED,holding COST,book_value,8649.95
 USD,type,NON_REGISTERED,holding COST,book_value_totals,8649.95
@@ -5916,7 +5706,7 @@ USD,type,NON_REGISTERED,holding COST,closed,False
 USD,type,NON_REGISTERED,holding COST,closed_total,52.01
 USD,type,NON_REGISTERED,holding COST,currency,USD
 USD,type,NON_REGISTERED,holding COST,day_pnl,-10.080
-USD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+USD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
 USD,type,NON_REGISTERED,holding COST,day_pnl_totals,-10.080
 USD,type,NON_REGISTERED,holding COST,dividends,52.01
 USD,type,NON_REGISTERED,holding COST,dividends_totals,52.01
@@ -5943,7 +5733,7 @@ USD,type,NON_REGISTERED,holding COST,unrealized,-456.890
 USD,type,NON_REGISTERED,holding COST,unrealized_pct,-0.05281995849686992410360753530
 USD,type,NON_REGISTERED,holding COST,unrealized_totals,-456.890
 USD,type,NON_REGISTERED,holding COST,weight_in_folio,0.04004967643257080309196679008
-USD,type,NON_REGISTERED,holding COST,weight_in_pool,0.06993850953616928939136272135
+USD,type,NON_REGISTERED,holding COST,weight_in_pool,0.06492894322955292157500153346
 USD,type,NON_REGISTERED,holding DLR.U.TO,avg_cost,0.0
 USD,type,NON_REGISTERED,holding DLR.U.TO,book_value,0.0
 USD,type,NON_REGISTERED,holding DLR.U.TO,book_value_totals,0.0
@@ -6027,7 +5817,7 @@ USD,type,NON_REGISTERED,holding JNJ,closed,False
 USD,type,NON_REGISTERED,holding JNJ,closed_total,476.38
 USD,type,NON_REGISTERED,holding JNJ,currency,USD
 USD,type,NON_REGISTERED,holding JNJ,day_pnl,-2.880
-USD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+USD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
 USD,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-2.880
 USD,type,NON_REGISTERED,holding JNJ,dividends,476.38
 USD,type,NON_REGISTERED,holding JNJ,dividends_totals,476.38
@@ -6054,44 +5844,44 @@ USD,type,NON_REGISTERED,holding JNJ,unrealized,5853.990
 USD,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 USD,type,NON_REGISTERED,holding JNJ,unrealized_totals,5853.990
 USD,type,NON_REGISTERED,holding JNJ,weight_in_folio,0.09317618769917871925273887125
-USD,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1627130172428363703536644933
-USD,type,NON_REGISTERED,holding KO,avg_cost,70.37814549791294
-USD,type,NON_REGISTERED,holding KO,book_value,9078.780769230769
-USD,type,NON_REGISTERED,holding KO,book_value_totals,9078.780769230769
+USD,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1510581842440568619000892499
+USD,type,NON_REGISTERED,holding KO,avg_cost,67.86623802123802
+USD,type,NON_REGISTERED,holding KO,book_value,15880.699696969697
+USD,type,NON_REGISTERED,holding KO,book_value_totals,15880.699696969697
 USD,type,NON_REGISTERED,holding KO,change,-0.09
 USD,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 USD,type,NON_REGISTERED,holding KO,closed,False
-USD,type,NON_REGISTERED,holding KO,closed_total,408.49
+USD,type,NON_REGISTERED,holding KO,closed_total,1006.109696969697
 USD,type,NON_REGISTERED,holding KO,currency,USD
-USD,type,NON_REGISTERED,holding KO,day_pnl,-11.610
-USD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
-USD,type,NON_REGISTERED,holding KO,day_pnl_totals,-11.610
-USD,type,NON_REGISTERED,holding KO,dividends,408.49
-USD,type,NON_REGISTERED,holding KO,dividends_totals,408.49
+USD,type,NON_REGISTERED,holding KO,day_pnl,-21.060
+USD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+USD,type,NON_REGISTERED,holding KO,day_pnl_totals,-21.060
+USD,type,NON_REGISTERED,holding KO,dividends,743.74
+USD,type,NON_REGISTERED,holding KO,dividends_totals,743.74
 USD,type,NON_REGISTERED,holding KO,flags,
-USD,type,NON_REGISTERED,holding KO,market_value,11104.320
-USD,type,NON_REGISTERED,holding KO,market_value_cad,15323.96160
-USD,type,NON_REGISTERED,holding KO,market_value_totals,11104.320
+USD,type,NON_REGISTERED,holding KO,market_value,20142.720
+USD,type,NON_REGISTERED,holding KO,market_value_cad,27796.95360
+USD,type,NON_REGISTERED,holding KO,market_value_totals,20142.720
 USD,type,NON_REGISTERED,holding KO,name,KO
 USD,type,NON_REGISTERED,holding KO,pool,NON_REGISTERED
 USD,type,NON_REGISTERED,holding KO,prev_close,86.17
 USD,type,NON_REGISTERED,holding KO,price,86.08
 USD,type,NON_REGISTERED,holding KO,priced,True
-USD,type,NON_REGISTERED,holding KO,realized,0.0
-USD,type,NON_REGISTERED,holding KO,realized_totals,0.0
+USD,type,NON_REGISTERED,holding KO,realized,262.369696969697
+USD,type,NON_REGISTERED,holding KO,realized_totals,262.369696969697
 USD,type,NON_REGISTERED,holding KO,sector,
 USD,type,NON_REGISTERED,holding KO,symbol,KO
-USD,type,NON_REGISTERED,holding KO,total_pnl,2434.029230769231
-USD,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
-USD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2681008929104764050772886628
-USD,type,NON_REGISTERED,holding KO,total_pnl_totals,2434.029230769231
-USD,type,NON_REGISTERED,holding KO,units,129.0
+USD,type,NON_REGISTERED,holding KO,total_pnl,5268.130000000000
+USD,type,NON_REGISTERED,holding KO,total_pnl_cad,7605.8079999999997
+USD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.3317316050630468932056794821
+USD,type,NON_REGISTERED,holding KO,total_pnl_totals,5268.130000000000
+USD,type,NON_REGISTERED,holding KO,units,234.0
 USD,type,NON_REGISTERED,holding KO,units_suspect,False
-USD,type,NON_REGISTERED,holding KO,unrealized,2025.539230769231
-USD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2231069658201309110832054072
-USD,type,NON_REGISTERED,holding KO,unrealized_totals,2025.539230769231
-USD,type,NON_REGISTERED,holding KO,weight_in_folio,0.05428062567633150742093780181
-USD,type,NON_REGISTERED,holding KO,weight_in_pool,0.09478993077222373125234001630
+USD,type,NON_REGISTERED,holding KO,unrealized,4262.020303030303
+USD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2683773627331777911159945213
+USD,type,NON_REGISTERED,holding KO,unrealized_totals,4262.020303030303
+USD,type,NON_REGISTERED,holding KO,weight_in_folio,0.09846253029660133904263136141
+USD,type,NON_REGISTERED,holding KO,weight_in_pool,0.1596284566900254879699666410
 USD,type,NON_REGISTERED,holding META,avg_cost,0.0
 USD,type,NON_REGISTERED,holding META,book_value,0.0
 USD,type,NON_REGISTERED,holding META,book_value_totals,0.0
@@ -6138,7 +5928,7 @@ USD,type,NON_REGISTERED,holding MSFT,closed,False
 USD,type,NON_REGISTERED,holding MSFT,closed_total,117.62
 USD,type,NON_REGISTERED,holding MSFT,currency,USD
 USD,type,NON_REGISTERED,holding MSFT,day_pnl,4.370
-USD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+USD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
 USD,type,NON_REGISTERED,holding MSFT,day_pnl_totals,4.370
 USD,type,NON_REGISTERED,holding MSFT,dividends,117.62
 USD,type,NON_REGISTERED,holding MSFT,dividends_totals,117.62
@@ -6165,7 +5955,7 @@ USD,type,NON_REGISTERED,holding MSFT,unrealized,1860.36
 USD,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 USD,type,NON_REGISTERED,holding MSFT,unrealized_totals,1860.36
 USD,type,NON_REGISTERED,holding MSFT,weight_in_folio,0.05766514806093303269291383593
-USD,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.1007003018951805865162819038
+USD,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.09348732519914011980185920643
 USD,type,NON_REGISTERED,holding NFLX,avg_cost,87.52077922077922
 USD,type,NON_REGISTERED,holding NFLX,book_value,6739.1
 USD,type,NON_REGISTERED,holding NFLX,book_value_totals,6739.1
@@ -6175,7 +5965,7 @@ USD,type,NON_REGISTERED,holding NFLX,closed,False
 USD,type,NON_REGISTERED,holding NFLX,closed_total,0.0
 USD,type,NON_REGISTERED,holding NFLX,currency,USD
 USD,type,NON_REGISTERED,holding NFLX,day_pnl,-29.260
-USD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+USD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
 USD,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-29.260
 USD,type,NON_REGISTERED,holding NFLX,dividends,0
 USD,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -6202,7 +5992,7 @@ USD,type,NON_REGISTERED,holding NFLX,unrealized,-1381.440
 USD,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 USD,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1381.440
 USD,type,NON_REGISTERED,holding NFLX,weight_in_folio,0.02618954937907537463337346395
-USD,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04573465286493114355326683775
+USD,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04245876412271440777994091533
 USD,type,NON_REGISTERED,holding NVDA,avg_cost,143.73058283488663
 USD,type,NON_REGISTERED,holding NVDA,book_value,11354.716043956045
 USD,type,NON_REGISTERED,holding NVDA,book_value_totals,11354.716043956045
@@ -6212,7 +6002,7 @@ USD,type,NON_REGISTERED,holding NVDA,closed,False
 USD,type,NON_REGISTERED,holding NVDA,closed_total,1952.516043956044
 USD,type,NON_REGISTERED,holding NVDA,currency,USD
 USD,type,NON_REGISTERED,holding NVDA,day_pnl,19.750
-USD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+USD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
 USD,type,NON_REGISTERED,holding NVDA,day_pnl_totals,19.750
 USD,type,NON_REGISTERED,holding NVDA,dividends,43.66
 USD,type,NON_REGISTERED,holding NVDA,dividends_totals,43.66
@@ -6239,7 +6029,7 @@ USD,type,NON_REGISTERED,holding NVDA,unrealized,6687.303956043955
 USD,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 USD,type,NON_REGISTERED,holding NVDA,unrealized_totals,6687.303956043955
 USD,type,NON_REGISTERED,holding NVDA,weight_in_folio,0.08819379611402468440379133877
-USD,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1540122967269563560604650821
+USD,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1429806802740927568105944747
 USD,type,NON_REGISTERED,holding O,avg_cost,59.736266666666666
 USD,type,NON_REGISTERED,holding O,book_value,13440.66
 USD,type,NON_REGISTERED,holding O,book_value_totals,13440.66
@@ -6249,7 +6039,7 @@ USD,type,NON_REGISTERED,holding O,closed,False
 USD,type,NON_REGISTERED,holding O,closed_total,802.73
 USD,type,NON_REGISTERED,holding O,currency,USD
 USD,type,NON_REGISTERED,holding O,day_pnl,-51.750
-USD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+USD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
 USD,type,NON_REGISTERED,holding O,day_pnl_totals,-51.750
 USD,type,NON_REGISTERED,holding O,dividends,802.73
 USD,type,NON_REGISTERED,holding O,dividends_totals,802.73
@@ -6276,7 +6066,7 @@ USD,type,NON_REGISTERED,holding O,unrealized,-1223.16
 USD,type,NON_REGISTERED,holding O,unrealized_pct,-0.09100445960243023780082228105
 USD,type,NON_REGISTERED,holding O,unrealized_totals,-1223.16
 USD,type,NON_REGISTERED,holding O,weight_in_folio,0.05972212113849206362166324399
-USD,type,NON_REGISTERED,holding O,weight_in_pool,0.1042923816325217065588405368
+USD,type,NON_REGISTERED,holding O,weight_in_pool,0.09682211089715720614063380899
 USD,type,NON_REGISTERED,holding XYZ,avg_cost,70.10646341463415
 USD,type,NON_REGISTERED,holding XYZ,book_value,11497.46
 USD,type,NON_REGISTERED,holding XYZ,book_value_totals,11497.46
@@ -6286,7 +6076,7 @@ USD,type,NON_REGISTERED,holding XYZ,closed,False
 USD,type,NON_REGISTERED,holding XYZ,closed_total,0.0
 USD,type,NON_REGISTERED,holding XYZ,currency,USD
 USD,type,NON_REGISTERED,holding XYZ,day_pnl,-45.920
-USD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+USD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
 USD,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-45.920
 USD,type,NON_REGISTERED,holding XYZ,dividends,0
 USD,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -6313,8 +6103,8 @@ USD,type,NON_REGISTERED,holding XYZ,unrealized,561.460
 USD,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 USD,type,NON_REGISTERED,holding XYZ,unrealized_totals,561.460
 USD,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
-USD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
-USD,type,NON_REGISTERED,return,gain,22404.8747439883734
+USD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.09556538486105561500089313296
+USD,type,NON_REGISTERED,return,gain,25238.9755132191424
 USD,type,NON_REGISTERED,return,ratio,
 USD,type,NON_REGISTERED,return USD,gain,
 USD,type,NON_REGISTERED,return USD,ratio,
@@ -6327,37 +6117,37 @@ USD,type,NON_REGISTERED,totals,fx_rate,1.38
 USD,type,NON_REGISTERED,totals,grain,type
 USD,type,NON_REGISTERED,totals,mixed_currency,False
 USD,type,NON_REGISTERED,totals,pool,NON_REGISTERED
-USD,type,NON_REGISTERED,totals,total_book,98498.006813186814
-USD,type,NON_REGISTERED,totals,total_day_pnl,-96.060
-USD,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008193262044163439457371667041
-USD,type,NON_REGISTERED,totals,total_dividends,2008.27
-USD,type,NON_REGISTERED,totals,total_market,117146.620
-USD,type,NON_REGISTERED,totals,total_pnl,22404.8747439883734
-USD,type,NON_REGISTERED,totals,total_pnl_cad,32847.4588076923097
-USD,type,NON_REGISTERED,totals,total_realized,1747.9915571751874
-USD,type,NON_REGISTERED,totals,total_unrealized,18648.613186813186
-USD,type,NON_REGISTERED,totals,total_unrealized_pct,0.1893298533662970369773144192
-USD,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+USD,type,NON_REGISTERED,totals,total_book,105299.925740925742
+USD,type,NON_REGISTERED,totals,total_day_pnl,-105.510
+USD,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008354545665458843192755624670
+USD,type,NON_REGISTERED,totals,total_dividends,2343.52
+USD,type,NON_REGISTERED,totals,total_market,126185.020
+USD,type,NON_REGISTERED,totals,total_pnl,25238.9755132191424
+USD,type,NON_REGISTERED,totals,total_pnl_cad,36911.7616000000004
+USD,type,NON_REGISTERED,totals,total_realized,2010.3612541448844
+USD,type,NON_REGISTERED,totals,total_unrealized,20885.094259074258
+USD,type,NON_REGISTERED,totals,total_unrealized_pct,0.1983391166909159792673973263
+USD,type,NON_REGISTERED,totals,total_weight_in_folio,0.6168231676122810573309473196
 USD,type,NON_REGISTERED,totals,total_weight_in_pool,1
 USD,type,NON_REGISTERED,totals,totals_currency,USD
 USD,type,NON_REGISTERED,totals,unpriced,
-USD,type,NON_REGISTERED,totals USD,book,98498.006813186814
+USD,type,NON_REGISTERED,totals USD,book,105299.925740925742
 USD,type,NON_REGISTERED,totals USD,closed_totals.count,3
 USD,type,NON_REGISTERED,totals USD,closed_totals.dividends,26.00
 USD,type,NON_REGISTERED,totals USD,closed_totals.realized,-160.8644867808566
 USD,type,NON_REGISTERED,totals USD,closed_totals.total,-134.8644867808566
 USD,type,NON_REGISTERED,totals USD,count,9
 USD,type,NON_REGISTERED,totals USD,currency,USD
-USD,type,NON_REGISTERED,totals USD,day_pnl,-96.060
-USD,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008193262044163439457371667041
-USD,type,NON_REGISTERED,totals USD,dividends,2008.27
-USD,type,NON_REGISTERED,totals USD,market,117146.620
-USD,type,NON_REGISTERED,totals USD,realized,1747.9915571751874
-USD,type,NON_REGISTERED,totals USD,total_pnl,22404.8747439883734
-USD,type,NON_REGISTERED,totals USD,total_pnl_pct,0.2274652601496991035857621615
-USD,type,NON_REGISTERED,totals USD,unrealized,18648.613186813186
-USD,type,NON_REGISTERED,totals USD,unrealized_pct,0.1893298533662970369773144192
-USD,type,NON_REGISTERED,totals USD,weight_in_folio,0.5726412629920112257092537600
+USD,type,NON_REGISTERED,totals USD,day_pnl,-105.510
+USD,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008354545665458843192755624670
+USD,type,NON_REGISTERED,totals USD,dividends,2343.52
+USD,type,NON_REGISTERED,totals USD,market,126185.020
+USD,type,NON_REGISTERED,totals USD,realized,2010.3612541448844
+USD,type,NON_REGISTERED,totals USD,total_pnl,25238.9755132191424
+USD,type,NON_REGISTERED,totals USD,total_pnl_pct,0.2396865461739807538193977715
+USD,type,NON_REGISTERED,totals USD,unrealized,20885.094259074258
+USD,type,NON_REGISTERED,totals USD,unrealized_pct,0.1983391166909159792673973263
+USD,type,NON_REGISTERED,totals USD,weight_in_folio,0.6168231676122810573309473196
 USD,type,NON_REGISTERED,totals USD,weight_in_pool,1.000000000000000000000000000
 USD,type,RRSP,disclosure Converted,into,CAD
 USD,type,RRSP,disclosure Converted,rate,1.38
@@ -6794,7 +6584,7 @@ native,acct,MOCK-MARGIN,disclosure Converted,into,CAD
 native,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 native,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-MARGIN,disclosure Converted,what,total_return
-native,acct,MOCK-MARGIN,flows,account_type,MARGIN
+native,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
 native,acct,MOCK-MARGIN,flows,cash CAD,315.16
 native,acct,MOCK-MARGIN,flows,cash USD,4076.45
 native,acct,MOCK-MARGIN,flows,contributions CAD,10000.0
@@ -9399,131 +9189,26 @@ native,type,CORPORATE,totals USD,unrealized,970.080
 native,type,CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 native,type,CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 native,type,CORPORATE,totals USD,weight_in_pool,1
-native,type,MARGIN,disclosure Converted,into,CAD
-native,type,MARGIN,disclosure Converted,rate,1.38
-native,type,MARGIN,disclosure Converted,rate_date,2026-09-30
-native,type,MARGIN,disclosure Converted,what,total_return
-native,type,MARGIN,flows,account_type,MARGIN
-native,type,MARGIN,flows,cash CAD,315.16
-native,type,MARGIN,flows,cash USD,4076.45
-native,type,MARGIN,flows,contributions CAD,10000.0
-native,type,MARGIN,flows,contributions USD,2000.0
-native,type,MARGIN,flows,dividends USD,335.25
-native,type,MARGIN,flows,fees USD,6.0
-native,type,MARGIN,flows,grain,type
-native,type,MARGIN,flows,negative_currencies,
-native,type,MARGIN,flows,net_deposit_denominator,11818.79613187137233093329647
-native,type,MARGIN,flows,net_deposits CAD,11818.79613187137233093329647
-native,type,MARGIN,flows,net_deposits USD,2000.0
-native,type,MARGIN,flows,pool,MARGIN
-native,type,MARGIN,flows,realized USD,335.60
-native,type,MARGIN,flows,room,
-native,type,MARGIN,flows,transfers CAD,1818.79613187137233093329647
-native,type,MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
-native,type,MARGIN,holding KO,avg_cost,65.47761172161172
-native,type,MARGIN,holding KO,book_value,6875.149230769231
-native,type,MARGIN,holding KO,book_value_totals,9345.943707692308
-native,type,MARGIN,holding KO,change,-0.09
-native,type,MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
-native,type,MARGIN,holding KO,closed,False
-native,type,MARGIN,holding KO,closed_total,670.85
-native,type,MARGIN,holding KO,currency,USD
-native,type,MARGIN,holding KO,day_pnl,-9.450
-native,type,MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
-native,type,MARGIN,holding KO,day_pnl_totals,-13.04100
-native,type,MARGIN,holding KO,dividends,335.25
-native,type,MARGIN,holding KO,dividends_totals,458.56350
-native,type,MARGIN,holding KO,flags,
-native,type,MARGIN,holding KO,market_value,9038.400
-native,type,MARGIN,holding KO,market_value_cad,12472.99200
-native,type,MARGIN,holding KO,market_value_totals,12472.99200
-native,type,MARGIN,holding KO,name,KO
-native,type,MARGIN,holding KO,pool,MARGIN
-native,type,MARGIN,holding KO,prev_close,86.17
-native,type,MARGIN,holding KO,price,86.08
-native,type,MARGIN,holding KO,priced,True
-native,type,MARGIN,holding KO,realized,335.6
-native,type,MARGIN,holding KO,realized_totals,478.691
-native,type,MARGIN,holding KO,sector,
-native,type,MARGIN,holding KO,symbol,KO
-native,type,MARGIN,holding KO,total_pnl,2834.100769230769
-native,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
-native,type,MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
-native,type,MARGIN,holding KO,total_pnl_totals,4064.302792307692
-native,type,MARGIN,holding KO,units,105.0
-native,type,MARGIN,holding KO,units_suspect,False
-native,type,MARGIN,holding KO,unrealized,2163.250769230769
-native,type,MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
-native,type,MARGIN,holding KO,unrealized_totals,3127.048292307692
-native,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
-native,type,MARGIN,holding KO,weight_in_pool,1
-native,type,MARGIN,return,gain,4064.302792307692
-native,type,MARGIN,return,ratio,0.3438846687056066298312706820
-native,type,MARGIN,return USD,gain,4064.302792307692
-native,type,MARGIN,return USD,ratio,0.3438846687056066298312706820
-native,type,MARGIN,totals,closed,
-native,type,MARGIN,totals,deposits_measurable,True
-native,type,MARGIN,totals,display_currency,native
-native,type,MARGIN,totals,excluded,0
-native,type,MARGIN,totals,flags,
-native,type,MARGIN,totals,fx_date,2026-09-30
-native,type,MARGIN,totals,fx_rate,1.38
-native,type,MARGIN,totals,grain,type
-native,type,MARGIN,totals,mixed_currency,False
-native,type,MARGIN,totals,pool,MARGIN
-native,type,MARGIN,totals,total_book,9345.943707692308
-native,type,MARGIN,totals,total_day_pnl,-13.04100
-native,type,MARGIN,totals,total_day_pnl_pct,-0.001044447023325983520946965301
-native,type,MARGIN,totals,total_dividends,458.56350
-native,type,MARGIN,totals,total_market,12472.99200
-native,type,MARGIN,totals,total_pnl,4064.302792307692
-native,type,MARGIN,totals,total_pnl_cad,4064.302792307692
-native,type,MARGIN,totals,total_realized,478.691
-native,type,MARGIN,totals,total_unrealized,3127.048292307692
-native,type,MARGIN,totals,total_unrealized_pct,0.3345888216439749931895564498
-native,type,MARGIN,totals,total_weight_in_folio,0.04418190462026983162169355961
-native,type,MARGIN,totals,total_weight_in_pool,1
-native,type,MARGIN,totals,totals_currency,CAD
-native,type,MARGIN,totals,unpriced,
-native,type,MARGIN,totals USD,book,6875.149230769231
-native,type,MARGIN,totals USD,closed_members,
-native,type,MARGIN,totals USD,closed_totals.count,0
-native,type,MARGIN,totals USD,closed_totals.dividends,0
-native,type,MARGIN,totals USD,closed_totals.realized,0
-native,type,MARGIN,totals USD,closed_totals.total,0
-native,type,MARGIN,totals USD,count,1
-native,type,MARGIN,totals USD,currency,USD
-native,type,MARGIN,totals USD,day_pnl,-9.450
-native,type,MARGIN,totals USD,day_pnl_pct,-0.001044447023325983520946965301
-native,type,MARGIN,totals USD,dividends,335.25
-native,type,MARGIN,totals USD,market,9038.400
-native,type,MARGIN,totals USD,realized,335.6
-native,type,MARGIN,totals USD,total_pnl,2834.100769230769
-native,type,MARGIN,totals USD,total_pnl_pct,0.4122238913079816310933035532
-native,type,MARGIN,totals USD,unrealized,2163.250769230769
-native,type,MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
-native,type,MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
-native,type,MARGIN,totals USD,weight_in_pool,1
 native,type,NON_REGISTERED,disclosure Converted,into,CAD
 native,type,NON_REGISTERED,disclosure Converted,rate,1.38
 native,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
 native,type,NON_REGISTERED,disclosure Converted,what,total
 native,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
-native,type,NON_REGISTERED,flows,cash CAD,6012.79
-native,type,NON_REGISTERED,flows,cash USD,572.19
-native,type,NON_REGISTERED,flows,contributions CAD,152000.0
-native,type,NON_REGISTERED,flows,dividends USD,2008.27
+native,type,NON_REGISTERED,flows,cash CAD,6327.95
+native,type,NON_REGISTERED,flows,cash USD,4648.64
+native,type,NON_REGISTERED,flows,contributions CAD,162000.0
+native,type,NON_REGISTERED,flows,contributions USD,2000.0
+native,type,NON_REGISTERED,flows,dividends USD,2343.52
 native,type,NON_REGISTERED,flows,fees CAD,94.13
-native,type,NON_REGISTERED,flows,fees USD,182.13
+native,type,NON_REGISTERED,flows,fees USD,188.13
 native,type,NON_REGISTERED,flows,grain,type
 native,type,NON_REGISTERED,flows,negative_currencies,
-native,type,NON_REGISTERED,flows,net_deposit_denominator,136181.2038681286276690667035
-native,type,NON_REGISTERED,flows,net_deposits CAD,136181.2038681286276690667035
+native,type,NON_REGISTERED,flows,net_deposit_denominator,148000.0
+native,type,NON_REGISTERED,flows,net_deposits CAD,148000.0
+native,type,NON_REGISTERED,flows,net_deposits USD,2000.0
 native,type,NON_REGISTERED,flows,pool,NON_REGISTERED
-native,type,NON_REGISTERED,flows,realized USD,1747.991557175187433173138830
+native,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 native,type,NON_REGISTERED,flows,room,
-native,type,NON_REGISTERED,flows,transfers CAD,-1818.7961318713723309332965
-native,type,NON_REGISTERED,flows,transfers_value CAD,-1875.40670769230769230769231
 native,type,NON_REGISTERED,flows,withdrawals CAD,14000.0
 native,type,NON_REGISTERED,holding AAPL,avg_cost,251.61568965517242
 native,type,NON_REGISTERED,holding AAPL,book_value,14593.71
@@ -9534,7 +9219,7 @@ native,type,NON_REGISTERED,holding AAPL,closed,False
 native,type,NON_REGISTERED,holding AAPL,closed_total,81.38
 native,type,NON_REGISTERED,holding AAPL,currency,USD
 native,type,NON_REGISTERED,holding AAPL,day_pnl,31.320
-native,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+native,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
 native,type,NON_REGISTERED,holding AAPL,day_pnl_totals,43.22160
 native,type,NON_REGISTERED,holding AAPL,dividends,81.38
 native,type,NON_REGISTERED,holding AAPL,dividends_totals,111.2485
@@ -9561,7 +9246,7 @@ native,type,NON_REGISTERED,holding AAPL,unrealized,4721.450
 native,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 native,type,NON_REGISTERED,holding AAPL,unrealized_totals,6804.72275
 native,type,NON_REGISTERED,holding AAPL,weight_in_folio,0.09441721508732198629691876602
-native,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1648802159208690784249686419
+native,type,NON_REGISTERED,holding AAPL,weight_in_pool,0.1530701504822046230210210372
 native,type,NON_REGISTERED,holding COST,avg_cost,961.1055555555556
 native,type,NON_REGISTERED,holding COST,book_value,8649.95
 native,type,NON_REGISTERED,holding COST,book_value_totals,11768.9129
@@ -9571,7 +9256,7 @@ native,type,NON_REGISTERED,holding COST,closed,False
 native,type,NON_REGISTERED,holding COST,closed_total,52.01
 native,type,NON_REGISTERED,holding COST,currency,USD
 native,type,NON_REGISTERED,holding COST,day_pnl,-10.080
-native,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+native,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
 native,type,NON_REGISTERED,holding COST,day_pnl_totals,-13.91040
 native,type,NON_REGISTERED,holding COST,dividends,52.01
 native,type,NON_REGISTERED,holding COST,dividends_totals,71.12085
@@ -9598,7 +9283,7 @@ native,type,NON_REGISTERED,holding COST,unrealized,-456.890
 native,type,NON_REGISTERED,holding COST,unrealized_pct,-0.05281995849686992410360753530
 native,type,NON_REGISTERED,holding COST,unrealized_totals,-462.49010
 native,type,NON_REGISTERED,holding COST,weight_in_folio,0.04004967643257080309196679008
-native,type,NON_REGISTERED,holding COST,weight_in_pool,0.06993850953616928939136272135
+native,type,NON_REGISTERED,holding COST,weight_in_pool,0.06492894322955292157500153346
 native,type,NON_REGISTERED,holding DLR.TO,avg_cost,0.0
 native,type,NON_REGISTERED,holding DLR.TO,book_value,0.0
 native,type,NON_REGISTERED,holding DLR.TO,book_value_totals,0.0
@@ -9719,7 +9404,7 @@ native,type,NON_REGISTERED,holding JNJ,closed,False
 native,type,NON_REGISTERED,holding JNJ,closed_total,476.38
 native,type,NON_REGISTERED,holding JNJ,currency,USD
 native,type,NON_REGISTERED,holding JNJ,day_pnl,-2.880
-native,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+native,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
 native,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-3.97440
 native,type,NON_REGISTERED,holding JNJ,dividends,476.38
 native,type,NON_REGISTERED,holding JNJ,dividends_totals,649.2227
@@ -9746,44 +9431,44 @@ native,type,NON_REGISTERED,holding JNJ,unrealized,5853.990
 native,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 native,type,NON_REGISTERED,holding JNJ,unrealized_totals,8280.71300
 native,type,NON_REGISTERED,holding JNJ,weight_in_folio,0.09317618769917871925273887125
-native,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1627130172428363703536644933
-native,type,NON_REGISTERED,holding KO,avg_cost,70.37814549791294
-native,type,NON_REGISTERED,holding KO,book_value,9078.780769230769
-native,type,NON_REGISTERED,holding KO,book_value_totals,12340.423692307691
+native,type,NON_REGISTERED,holding JNJ,weight_in_pool,0.1510581842440568619000892499
+native,type,NON_REGISTERED,holding KO,avg_cost,67.86623802123802
+native,type,NON_REGISTERED,holding KO,book_value,15880.699696969697
+native,type,NON_REGISTERED,holding KO,book_value_totals,21591.81136969697
 native,type,NON_REGISTERED,holding KO,change,-0.09
 native,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 native,type,NON_REGISTERED,holding KO,closed,False
-native,type,NON_REGISTERED,holding KO,closed_total,408.49
+native,type,NON_REGISTERED,holding KO,closed_total,1006.109696969697
 native,type,NON_REGISTERED,holding KO,currency,USD
-native,type,NON_REGISTERED,holding KO,day_pnl,-11.610
-native,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
-native,type,NON_REGISTERED,holding KO,day_pnl_totals,-16.02180
-native,type,NON_REGISTERED,holding KO,dividends,408.49
-native,type,NON_REGISTERED,holding KO,dividends_totals,557.96730
+native,type,NON_REGISTERED,holding KO,day_pnl,-21.060
+native,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+native,type,NON_REGISTERED,holding KO,day_pnl_totals,-29.06280
+native,type,NON_REGISTERED,holding KO,dividends,743.74
+native,type,NON_REGISTERED,holding KO,dividends_totals,1016.53080
 native,type,NON_REGISTERED,holding KO,flags,
-native,type,NON_REGISTERED,holding KO,market_value,11104.320
-native,type,NON_REGISTERED,holding KO,market_value_cad,15323.96160
-native,type,NON_REGISTERED,holding KO,market_value_totals,15323.96160
+native,type,NON_REGISTERED,holding KO,market_value,20142.720
+native,type,NON_REGISTERED,holding KO,market_value_cad,27796.95360
+native,type,NON_REGISTERED,holding KO,market_value_totals,27796.95360
 native,type,NON_REGISTERED,holding KO,name,KO
 native,type,NON_REGISTERED,holding KO,pool,NON_REGISTERED
 native,type,NON_REGISTERED,holding KO,prev_close,86.17
 native,type,NON_REGISTERED,holding KO,price,86.08
 native,type,NON_REGISTERED,holding KO,priced,True
-native,type,NON_REGISTERED,holding KO,realized,0.0
-native,type,NON_REGISTERED,holding KO,realized_totals,0.0
+native,type,NON_REGISTERED,holding KO,realized,262.369696969697
+native,type,NON_REGISTERED,holding KO,realized_totals,384.1349696969697
 native,type,NON_REGISTERED,holding KO,sector,
 native,type,NON_REGISTERED,holding KO,symbol,KO
-native,type,NON_REGISTERED,holding KO,total_pnl,2434.029230769231
-native,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
-native,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2681008929104764050772886628
-native,type,NON_REGISTERED,holding KO,total_pnl_totals,3541.505207692309
-native,type,NON_REGISTERED,holding KO,units,129.0
+native,type,NON_REGISTERED,holding KO,total_pnl,5268.130000000000
+native,type,NON_REGISTERED,holding KO,total_pnl_cad,7605.8079999999997
+native,type,NON_REGISTERED,holding KO,total_pnl_pct,0.3317316050630468932056794821
+native,type,NON_REGISTERED,holding KO,total_pnl_totals,7605.8079999999997
+native,type,NON_REGISTERED,holding KO,units,234.0
 native,type,NON_REGISTERED,holding KO,units_suspect,False
-native,type,NON_REGISTERED,holding KO,unrealized,2025.539230769231
-native,type,NON_REGISTERED,holding KO,unrealized_pct,0.2231069658201309110832054072
-native,type,NON_REGISTERED,holding KO,unrealized_totals,2983.537907692309
-native,type,NON_REGISTERED,holding KO,weight_in_folio,0.05428062567633150742093780181
-native,type,NON_REGISTERED,holding KO,weight_in_pool,0.09478993077222373125234001630
+native,type,NON_REGISTERED,holding KO,unrealized,4262.020303030303
+native,type,NON_REGISTERED,holding KO,unrealized_pct,0.2683773627331777911159945213
+native,type,NON_REGISTERED,holding KO,unrealized_totals,6205.14223030303
+native,type,NON_REGISTERED,holding KO,weight_in_folio,0.09846253029660133904263136141
+native,type,NON_REGISTERED,holding KO,weight_in_pool,0.1596284566900254879699666410
 native,type,NON_REGISTERED,holding META,avg_cost,0.0
 native,type,NON_REGISTERED,holding META,book_value,0.0
 native,type,NON_REGISTERED,holding META,book_value_totals,0.0
@@ -9830,7 +9515,7 @@ native,type,NON_REGISTERED,holding MSFT,closed,False
 native,type,NON_REGISTERED,holding MSFT,closed_total,117.62
 native,type,NON_REGISTERED,holding MSFT,currency,USD
 native,type,NON_REGISTERED,holding MSFT,day_pnl,4.370
-native,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+native,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
 native,type,NON_REGISTERED,holding MSFT,day_pnl_totals,6.03060
 native,type,NON_REGISTERED,holding MSFT,dividends,117.62
 native,type,NON_REGISTERED,holding MSFT,dividends_totals,160.21685
@@ -9857,7 +9542,7 @@ native,type,NON_REGISTERED,holding MSFT,unrealized,1860.36
 native,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 native,type,NON_REGISTERED,holding MSFT,unrealized_totals,2718.1222
 native,type,NON_REGISTERED,holding MSFT,weight_in_folio,0.05766514806093303269291383593
-native,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.1007003018951805865162819038
+native,type,NON_REGISTERED,holding MSFT,weight_in_pool,0.09348732519914011980185920643
 native,type,NON_REGISTERED,holding NFLX,avg_cost,87.52077922077922
 native,type,NON_REGISTERED,holding NFLX,book_value,6739.1
 native,type,NON_REGISTERED,holding NFLX,book_value_totals,9148.181
@@ -9867,7 +9552,7 @@ native,type,NON_REGISTERED,holding NFLX,closed,False
 native,type,NON_REGISTERED,holding NFLX,closed_total,0.0
 native,type,NON_REGISTERED,holding NFLX,currency,USD
 native,type,NON_REGISTERED,holding NFLX,day_pnl,-29.260
-native,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+native,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
 native,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-40.37880
 native,type,NON_REGISTERED,holding NFLX,dividends,0
 native,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -9894,7 +9579,7 @@ native,type,NON_REGISTERED,holding NFLX,unrealized,-1381.440
 native,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 native,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1754.61020
 native,type,NON_REGISTERED,holding NFLX,weight_in_folio,0.02618954937907537463337346395
-native,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04573465286493114355326683775
+native,type,NON_REGISTERED,holding NFLX,weight_in_pool,0.04245876412271440777994091533
 native,type,NON_REGISTERED,holding NVDA,avg_cost,143.73058283488663
 native,type,NON_REGISTERED,holding NVDA,book_value,11354.716043956045
 native,type,NON_REGISTERED,holding NVDA,book_value_totals,15459.959384615384
@@ -9904,7 +9589,7 @@ native,type,NON_REGISTERED,holding NVDA,closed,False
 native,type,NON_REGISTERED,holding NVDA,closed_total,1952.516043956044
 native,type,NON_REGISTERED,holding NVDA,currency,USD
 native,type,NON_REGISTERED,holding NVDA,day_pnl,19.750
-native,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+native,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
 native,type,NON_REGISTERED,holding NVDA,day_pnl_totals,27.25500
 native,type,NON_REGISTERED,holding NVDA,dividends,43.66
 native,type,NON_REGISTERED,holding NVDA,dividends_totals,59.41110
@@ -9931,7 +9616,7 @@ native,type,NON_REGISTERED,holding NVDA,unrealized,6687.303956043955
 native,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 native,type,NON_REGISTERED,holding NVDA,unrealized_totals,9438.028215384616
 native,type,NON_REGISTERED,holding NVDA,weight_in_folio,0.08819379611402468440379133877
-native,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1540122967269563560604650821
+native,type,NON_REGISTERED,holding NVDA,weight_in_pool,0.1429806802740927568105944747
 native,type,NON_REGISTERED,holding O,avg_cost,59.736266666666666
 native,type,NON_REGISTERED,holding O,book_value,13440.66
 native,type,NON_REGISTERED,holding O,book_value_totals,18327.61705
@@ -9941,7 +9626,7 @@ native,type,NON_REGISTERED,holding O,closed,False
 native,type,NON_REGISTERED,holding O,closed_total,802.73
 native,type,NON_REGISTERED,holding O,currency,USD
 native,type,NON_REGISTERED,holding O,day_pnl,-51.750
-native,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+native,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
 native,type,NON_REGISTERED,holding O,day_pnl_totals,-71.41500
 native,type,NON_REGISTERED,holding O,dividends,802.73
 native,type,NON_REGISTERED,holding O,dividends_totals,1095.85495
@@ -9968,7 +9653,7 @@ native,type,NON_REGISTERED,holding O,unrealized,-1223.16
 native,type,NON_REGISTERED,holding O,unrealized_pct,-0.09100445960243023780082228105
 native,type,NON_REGISTERED,holding O,unrealized_totals,-1467.46705
 native,type,NON_REGISTERED,holding O,weight_in_folio,0.05972212113849206362166324399
-native,type,NON_REGISTERED,holding O,weight_in_pool,0.1042923816325217065588405368
+native,type,NON_REGISTERED,holding O,weight_in_pool,0.09682211089715720614063380899
 native,type,NON_REGISTERED,holding XYZ,avg_cost,70.10646341463415
 native,type,NON_REGISTERED,holding XYZ,book_value,11497.46
 native,type,NON_REGISTERED,holding XYZ,book_value_totals,15791.60445
@@ -9978,7 +9663,7 @@ native,type,NON_REGISTERED,holding XYZ,closed,False
 native,type,NON_REGISTERED,holding XYZ,closed_total,0.0
 native,type,NON_REGISTERED,holding XYZ,currency,USD
 native,type,NON_REGISTERED,holding XYZ,day_pnl,-45.920
-native,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+native,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
 native,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-63.36960
 native,type,NON_REGISTERED,holding XYZ,dividends,0
 native,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -10005,13 +9690,13 @@ native,type,NON_REGISTERED,holding XYZ,unrealized,561.460
 native,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 native,type,NON_REGISTERED,holding XYZ,unrealized_totals,849.70515
 native,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
-native,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
-native,type,NON_REGISTERED,return,gain,32847.4588076923097
-native,type,NON_REGISTERED,return,ratio,0.2412040566148924609125500024
+native,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.09556538486105561500089313296
+native,type,NON_REGISTERED,return,gain,36911.7616000000004
+native,type,NON_REGISTERED,return,ratio,0.2494037945945945972972972973
 native,type,NON_REGISTERED,return CAD,gain,0.0
 native,type,NON_REGISTERED,return CAD,ratio,
-native,type,NON_REGISTERED,return USD,gain,22404.8747439883734
-native,type,NON_REGISTERED,return USD,ratio,0.2274652601496991035857621615
+native,type,NON_REGISTERED,return USD,gain,25238.9755132191424
+native,type,NON_REGISTERED,return USD,ratio,0.2396865461739807538193977715
 native,type,NON_REGISTERED,totals,deposits_measurable,True
 native,type,NON_REGISTERED,totals,display_currency,native
 native,type,NON_REGISTERED,totals,excluded,0
@@ -10021,17 +9706,17 @@ native,type,NON_REGISTERED,totals,fx_rate,1.38
 native,type,NON_REGISTERED,totals,grain,type
 native,type,NON_REGISTERED,totals,mixed_currency,True
 native,type,NON_REGISTERED,totals,pool,NON_REGISTERED
-native,type,NON_REGISTERED,totals,total_book,134272.073726923075
-native,type,NON_REGISTERED,totals,total_day_pnl,-132.56280
-native,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008193262044163439457371667041
-native,type,NON_REGISTERED,totals,total_dividends,2740.55725
-native,type,NON_REGISTERED,totals,total_market,161662.33560
-native,type,NON_REGISTERED,totals,total_pnl,32847.4588076923097
-native,type,NON_REGISTERED,totals,total_pnl_cad,32847.4588076923097
-native,type,NON_REGISTERED,totals,total_realized,2716.6396846153847
-native,type,NON_REGISTERED,totals,total_unrealized,27390.261873076925
-native,type,NON_REGISTERED,totals,total_unrealized_pct,0.2039907563264576777599589233
-native,type,NON_REGISTERED,totals,total_weight_in_folio,0.5726412629920112257092537600
+native,type,NON_REGISTERED,totals,total_book,143523.461404312354
+native,type,NON_REGISTERED,totals,total_day_pnl,-145.60380
+native,type,NON_REGISTERED,totals,total_day_pnl_pct,-0.0008354545665458843192755624670
+native,type,NON_REGISTERED,totals,total_dividends,3199.12075
+native,type,NON_REGISTERED,totals,total_market,174135.32760
+native,type,NON_REGISTERED,totals,total_pnl,36911.7616000000004
+native,type,NON_REGISTERED,totals,total_pnl_cad,36911.7616000000004
+native,type,NON_REGISTERED,totals,total_realized,3100.7746543123544
+native,type,NON_REGISTERED,totals,total_unrealized,30611.866195687646
+native,type,NON_REGISTERED,totals,total_unrealized_pct,0.2132882380076702331656186717
+native,type,NON_REGISTERED,totals,total_weight_in_folio,0.6168231676122810573309473196
 native,type,NON_REGISTERED,totals,total_weight_in_pool,1
 native,type,NON_REGISTERED,totals,totals_currency,CAD
 native,type,NON_REGISTERED,totals,unpriced,
@@ -10054,23 +9739,23 @@ native,type,NON_REGISTERED,totals CAD,unrealized,
 native,type,NON_REGISTERED,totals CAD,unrealized_pct,
 native,type,NON_REGISTERED,totals CAD,weight_in_folio,
 native,type,NON_REGISTERED,totals CAD,weight_in_pool,
-native,type,NON_REGISTERED,totals USD,book,98498.006813186814
+native,type,NON_REGISTERED,totals USD,book,105299.925740925742
 native,type,NON_REGISTERED,totals USD,closed_totals.count,3
 native,type,NON_REGISTERED,totals USD,closed_totals.dividends,26.00
 native,type,NON_REGISTERED,totals USD,closed_totals.realized,-160.8644867808566
 native,type,NON_REGISTERED,totals USD,closed_totals.total,-134.8644867808566
 native,type,NON_REGISTERED,totals USD,count,9
 native,type,NON_REGISTERED,totals USD,currency,USD
-native,type,NON_REGISTERED,totals USD,day_pnl,-96.060
-native,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008193262044163439457371667041
-native,type,NON_REGISTERED,totals USD,dividends,2008.27
-native,type,NON_REGISTERED,totals USD,market,117146.620
-native,type,NON_REGISTERED,totals USD,realized,1747.9915571751874
-native,type,NON_REGISTERED,totals USD,total_pnl,22404.8747439883734
-native,type,NON_REGISTERED,totals USD,total_pnl_pct,0.2274652601496991035857621615
-native,type,NON_REGISTERED,totals USD,unrealized,18648.613186813186
-native,type,NON_REGISTERED,totals USD,unrealized_pct,0.1893298533662970369773144192
-native,type,NON_REGISTERED,totals USD,weight_in_folio,0.5726412629920112257092537600
+native,type,NON_REGISTERED,totals USD,day_pnl,-105.510
+native,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008354545665458843192755624670
+native,type,NON_REGISTERED,totals USD,dividends,2343.52
+native,type,NON_REGISTERED,totals USD,market,126185.020
+native,type,NON_REGISTERED,totals USD,realized,2010.3612541448844
+native,type,NON_REGISTERED,totals USD,total_pnl,25238.9755132191424
+native,type,NON_REGISTERED,totals USD,total_pnl_pct,0.2396865461739807538193977715
+native,type,NON_REGISTERED,totals USD,unrealized,20885.094259074258
+native,type,NON_REGISTERED,totals USD,unrealized_pct,0.1983391166909159792673973263
+native,type,NON_REGISTERED,totals USD,weight_in_folio,0.6168231676122810573309473196
 native,type,NON_REGISTERED,totals USD,weight_in_pool,1.000000000000000000000000000
 native,type,RRSP,disclosure Converted,into,CAD
 native,type,RRSP,disclosure Converted,rate,1.38

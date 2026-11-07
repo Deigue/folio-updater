@@ -186,6 +186,7 @@ is recorded.
 | `TRANSFER_UNPAIRED`        | A transfer leg with no counterpart                           |
 | `TRANSFER_IN_BEFORE_OUT`   | An in-kind in leg dated before its out leg                   |
 | `TRANSFER_ACROSS_YEAR_END` | An in-kind transfer whose legs fall in different years       |
+| `TRANSFER_ACROSS_TYPES`    | A transfer whose legs are in different account types         |
 | `SUPERFICIAL_LOSS_SUSPECT` | A realized loss with a buy of the same symbol within 30 days |
 
 `folio acb` reports these; it does not fail on them. It always exits zero once it has

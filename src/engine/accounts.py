@@ -1,4 +1,4 @@
-"""Infer an account's type and fee convention from its name.
+"""Infer an account's type, margin and fee convention from its name.
 
 Convention `<BROKER>-<TYPE>`
 """
@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from functools import cache
 
 from app import get_config
 from domain import (
     ACCOUNT_TYPE_ALIASES,
+    MARGIN_MARKER,
     AccountType,
     FeeConvention,
 )
@@ -22,87 +24,102 @@ logger = logging.getLogger(__name__)
 _TOKEN_SPLIT = re.compile(r"[-_\s]+")
 
 
-def _override_key() -> tuple[tuple[str, AccountType], ...]:
-    """Snapshot every config input to resolution as a hashable cache key."""
-    return tuple(sorted(get_config().account_types.items()))
+@dataclass(frozen=True)
+class Account:
+    """One account at one broker, as read from its name or `accounts.map`.
+
+    Attributes:
+        name: The account name as stored on its transactions.
+        account_type: Its tax treatment.
+        margin: Whether it is a margin account: non-registered, allowed to borrow.
+    """
+
+    name: str
+    account_type: AccountType
+    margin: bool = False
 
 
-def resolve_account_type(account: str) -> AccountType:
-    """Determine the account type of an account from its name.
+# Every word an account name may carry that says what the account is: each
+# type's own name, its aliases, and `MARGIN`, which means non-registered with
+# margin. Each maps to the type and margin it means.
+_MARKERS: dict[str, tuple[AccountType, bool]] = {
+    **{
+        str(member): (member, False)
+        for member in AccountType
+        if member is not AccountType.UNKNOWN
+    },
+    **{alias: (member, False) for alias, member in ACCOUNT_TYPE_ALIASES.items()},
+    MARGIN_MARKER: (AccountType.NON_REGISTERED, True),
+}
 
-    Resolution order: an exact match in `accounts.map`, then a right-to-left
-    scan of the name's tokens (so `IBKR-TFSA` resolves on `TFSA`, not on a
-    broker code that happens to collide), then a substring scan of the whole
-    name (which catches `WSTFSA`), then UNKNOWN.
+# Every `accounts.map` input to resolution, as a hashable cache key: each mapped
+# account's name, type and margin.
+_Overrides = tuple[tuple[str, AccountType, bool], ...]
+
+
+def resolve_account(name: str) -> Account:
+    """Read what an account is from its name, or from its `accounts.map` entry.
+
+    Resolution order: an exact match in `accounts.map` (then its upper-cased
+    name), then a right-to-left scan of the name's tokens (so `IBKR-TFSA`
+    resolves on `TFSA`, not on a broker code that happens to collide), then a
+    substring scan of the whole name (which catches `WSTFSA`), then UNKNOWN. A
+    `MARGIN` token or map value means non-registered with margin: margin is not
+    a tax treatment.
 
     Args:
-        account: The account name as stored on the transaction.
+        name: The account name as stored on the transaction.
 
     Returns:
-        The resolved `AccountType`, or `AccountType.UNKNOWN`.
+        The account, typed `AccountType.UNKNOWN` when nothing resolves it.
     """
-    config = get_config()
-    return _resolve_account_type(
-        account,
+    return _resolve_against(
+        name,
         _override_key(),
-        naming=config.account_naming_convention,
+        naming=get_config().account_naming_convention,
+    )
+
+
+def _override_key() -> _Overrides:
+    """Snapshot every `accounts.map` type and margin as a hashable cache key."""
+    return tuple(
+        (name, entry["type"], bool(entry.get("margin")))
+        for name, entry in sorted(get_config().account_map.items())
+        if entry.get("type")
     )
 
 
 @cache
-def _resolve_account_type(
-    account: str,
-    overrides: tuple[tuple[str, AccountType], ...],
+def _resolve_against(
+    name: str,
+    overrides: _Overrides,
     *,
     naming: bool,
-) -> AccountType:
-    """Resolve a type against fixed config inputs."""
-    override = dict(overrides).get(account) or dict(overrides).get(account.upper())
+) -> Account:
+    """Resolve an account against fixed config inputs, once per input."""
+    mapped = {key: (account_type, margin) for key, account_type, margin in overrides}
+    override = mapped.get(name) or mapped.get(name.upper())
     if override is not None:
-        return override
+        return Account(name, *override)
 
     if not naming:
-        logger.debug("Naming convention disabled; %s is UNKNOWN", account)
-        return AccountType.UNKNOWN
+        logger.debug("Naming convention disabled; %s is UNKNOWN", name)
+        return Account(name, AccountType.UNKNOWN)
 
-    name = account.upper()
-    tokens = [token for token in _TOKEN_SPLIT.split(name) if token]
+    upper = name.upper()
+    tokens = [token for token in _TOKEN_SPLIT.split(upper) if token]
     for token in reversed(tokens):
-        matched = _match_token(token)
-        if matched is not None:
-            return matched
+        if token in _MARKERS:
+            return Account(name, *_MARKERS[token])
 
-    for candidate, matched in _substring_candidates():
-        if candidate in name:
-            return matched
+    # Longest first, so `NONREGISTERED` is not shadowed by `NONREG`.
+    for marker in sorted(_MARKERS, key=len, reverse=True):
+        if marker in upper:
+            return Account(name, *_MARKERS[marker])
 
     # The cache dedupes this, so an unknown account is reported once.
-    logger.warning("Could not infer an account type for '%s'", account)
-    return AccountType.UNKNOWN
-
-
-def _match_token(token: str) -> AccountType | None:
-    """Match one name token against the type names and their aliases."""
-    if token in ACCOUNT_TYPE_ALIASES:
-        return ACCOUNT_TYPE_ALIASES[token]
-    try:
-        return AccountType(token)
-    except ValueError:
-        return None
-
-
-def _substring_candidates() -> list[tuple[str, AccountType]]:
-    """Type names and aliases to scan for inside an unpunctuated name.
-
-    Longest first, so `NONREGISTERED` is not shadowed by `NONREG`.
-    """
-    candidates: list[tuple[str, AccountType]] = [
-        (str(member), member)
-        for member in AccountType
-        if member is not AccountType.UNKNOWN
-    ]
-    candidates.extend(ACCOUNT_TYPE_ALIASES.items())
-    return sorted(candidates, key=lambda pair: len(pair[0]), reverse=True)
+    logger.warning("Could not infer an account type for '%s'", name)
+    return Account(name, AccountType.UNKNOWN)
 
 
 def fee_convention_for(account: str) -> FeeConvention:

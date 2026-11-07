@@ -64,6 +64,7 @@ ACCOUNT_TYPES = {
     "QT-TFSA": AccountType.TFSA,
     "IBKR-RRSP": AccountType.RRSP,
     "QT-RRSP": AccountType.RRSP,
+    "BROKER-MYSTERY": AccountType.UNKNOWN,
 }
 
 
@@ -851,6 +852,69 @@ def test_a_transfer_taking_days_within_one_year_passes() -> None:
     result = check(_moved_in_kind("2025-03-10", "2025-03-14"), "transfers")
 
     assert result.status is CheckStatus.OK
+
+
+def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[TxnRow]:
+    """Move 40 units in kind, or 600 CAD of cash, from one account to another."""
+    units, amount, ticker = ("40", "0", "VFV.TO") if in_kind else ("0", "600", None)
+    return [
+        make_row(
+            1,
+            "2025-02-10",
+            Action.BUY,
+            amount="-400",
+            units="40",
+            price="10",
+            ticker="VFV.TO",
+            account=sender,
+        ),
+        make_row(
+            2,
+            "2025-02-11",
+            Action.TFR_OUT,
+            amount=f"-{amount}",
+            units=f"-{units}",
+            ticker=ticker,
+            account=sender,
+        ),
+        make_row(
+            3,
+            "2025-02-11",
+            Action.TFR_IN,
+            amount=amount,
+            units=units,
+            ticker=ticker,
+            account=receiver,
+        ),
+    ]
+
+
+@pytest.mark.parametrize("in_kind", [True, False], ids=["in-kind", "cash"])
+@pytest.mark.parametrize(
+    "sender",
+    ["WS-PERSONAL", "BROKER-MYSTERY"],
+    ids=["non-registered", "unknown"],
+)
+def test_a_transfer_between_account_types_is_reported(
+    sender: str,
+    *,
+    in_kind: bool,
+) -> None:
+    """Moving holdings between tax treatments is not a transfer."""
+    result = check(_moved(sender, "WS-TFSA", in_kind=in_kind), "transfers")
+
+    assert result.status is CheckStatus.WARN
+    [finding] = result.findings
+    assert finding.txn_ids == (3,)
+    assert sender in finding.detail
+    assert "WS-TFSA" in finding.detail
+    assert "a sale, a withdrawal, a contribution and a buy" in finding.detail
+
+
+def test_a_transfer_within_one_account_type_passes() -> None:
+    rows = _moved("WS-PERSONAL", "IBKR-PERSONAL", in_kind=False)
+
+    assert check(rows, "transfers").status is CheckStatus.OK
 
 
 # --- fee conventions ----------------------------------------------------------

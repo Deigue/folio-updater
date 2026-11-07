@@ -43,6 +43,37 @@ def test_a_pool_names_itself_from_its_grain(pool: Pool, label: str) -> None:
     assert pool.label == label
 
 
+@pytest.mark.parametrize(
+    ("pool", "taxed"),
+    [
+        (Pool(Grain.TYPE, "NON_REGISTERED"), True),
+        (Pool(Grain.TYPE, "CORPORATE"), True),
+        (Pool(Grain.TYPE, "TFSA"), False),
+        (Pool(Grain.TYPE, "UNKNOWN"), False),
+        (Pool(Grain.ACCOUNT, "QT-MARGIN"), True),
+        (Pool(Grain.ACCOUNT, "WS-TFSA"), False),
+        (FOLIO, False),
+    ],
+    ids=[
+        "non-registered",
+        "corporate",
+        "tfsa",
+        "unknown",
+        "margin",
+        "account",
+        "folio",
+    ],
+)
+def test_a_pool_is_taxed_when_the_cra_taxes_its_sales(
+    temp_ctx: TempContext,
+    pool: Pool,
+    *,
+    taxed: bool,
+) -> None:
+    with temp_ctx():
+        assert pool.taxed is taxed
+
+
 def _usd_only(currency: DisplayCurrency = "native") -> ValuedPool:
     """Fund a TFSA with 10,000 CAD and buy 10 TESTTKR at 100 USD.
 

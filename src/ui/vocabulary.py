@@ -129,7 +129,6 @@ ACCOUNT_TYPE_COLORS = {
     AccountType.LIRA: "light_steel_blue",
     AccountType.RESP: "plum2",
     AccountType.NON_REGISTERED: "light_coral",
-    AccountType.MARGIN: "salmon1",
     AccountType.CORPORATE: "tan",
 }
 

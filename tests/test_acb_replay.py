@@ -26,14 +26,17 @@ from engine.frames import (
 )
 from engine.fx_rates import FxRates
 from engine.replay import (
+    ReplayConfig,
     detect_fee_conventions,
     detect_fee_signs,
+    replay,
     resolve_trade_cash,
 )
 from engine.transfers import pair_transfers
 from engine.types import ReplayResult, TxnRow, to_txn_rows
+from services.symbols import SymbolResolver
 
-from .helpers.replay import make_row, run
+from .helpers.replay import FLAT_FX, make_row, run
 
 if TYPE_CHECKING:
     from .helpers.context import TempContext
@@ -1685,7 +1688,7 @@ def test_unknown_account_type_is_reported_once() -> None:
     assert unknown[0].txn_id is None
 
 
-def test_margin_accounts_are_allowed_to_go_negative() -> None:
+def test_only_a_margin_account_is_allowed_to_go_negative() -> None:
     result = run(
         [
             make_row(
@@ -1695,12 +1698,47 @@ def test_margin_accounts_are_allowed_to_go_negative() -> None:
                 amount="-1000",
                 units="100",
                 price="10",
-                account="IBKR-MARGIN",
-            ),
+                account=account,
+            )
+            for account in ("IBKR-MARGIN", "IBKR-PERSONAL")
         ],
-        types={"IBKR-MARGIN": AccountType.MARGIN},
+        margin={"IBKR-MARGIN"},
     )
-    assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
+    negative = [w for w in result.diagnostics if w.code is DiagnosticCode.CASH_NEGATIVE]
+    assert [w.account for w in negative] == ["IBKR-PERSONAL"]
+
+
+def test_a_margin_sale_uses_the_cost_pooled_with_non_registered_accounts(
+    temp_ctx: TempContext,
+) -> None:
+    rows = [
+        make_row(1, "2024-01-02", Action.BUY, amount="-100", units="10", price="10"),
+        make_row(
+            2,
+            "2024-01-03",
+            Action.BUY,
+            amount="-200",
+            units="10",
+            price="20",
+            account="IBKR-MARGIN",
+        ),
+        make_row(
+            3,
+            "2024-01-04",
+            Action.SELL,
+            amount="150",
+            units="-5",
+            price="30",
+            account="IBKR-MARGIN",
+        ),
+    ]
+    with temp_ctx():
+        result = replay(rows, FLAT_FX, ReplayConfig.build(rows, SymbolResolver([])))
+    sale = result.rows[2]
+    # Five units at the pooled 15 each, not at the margin account's own 20.
+    assert sale.type.avg_cad == D("15")
+    assert sale.type.realized_cad == D("75")
+    assert sale.acct.realized_cad == D("50")
 
 
 def test_empty_replay_produces_an_empty_frame() -> None:

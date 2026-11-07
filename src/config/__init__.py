@@ -295,22 +295,10 @@ class Config:
 
         The shorthand `WS-PERSONAL: NON_REGISTERED` is expanded during
         validation, so every entry here carries a `type` key and may carry an
-        `amount_includes_fees` key.
+        `amount_includes_fees` key. A `MARGIN` entry becomes a `NON_REGISTERED`
+        type with `margin: True`.
         """
         return self._settings["accounts"]["map"]
-
-    @property
-    def account_types(self) -> dict[str, AccountType]:
-        """Explicit account name to `AccountType` overrides.
-
-        Only accounts the `<BROKER>-<TYPE>` naming convention cannot resolve
-        need an entry here.
-        """
-        return {
-            name: entry["type"]
-            for name, entry in self.account_map.items()
-            if entry.get("type")
-        }
 
     @property
     def account_naming_convention(self) -> bool:

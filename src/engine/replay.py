@@ -40,7 +40,7 @@ from domain import (
     Grain,
 )
 from domain.numeric import ONE, ZERO, q2, safe_div
-from engine.accounts import fee_convention_for, resolve_account_type
+from engine.accounts import Account, fee_convention_for, resolve_account
 from engine.deposits import DepositTracker, PoolId
 from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, pair_transfers
 from engine.types import (
@@ -325,7 +325,7 @@ class ReplayConfig:
     """Per-account facts the replay needs, resolved before it starts.
 
     Attributes:
-        account_types: Account type of each account.
+        accounts: Each account, with its type and whether it is margin.
         fee_conventions: Resolved fee convention of each account.
         fee_signs: Fee multiplier turning each account's stored fee into a
             commission. Defaults to positive-means-charged for any account not
@@ -333,14 +333,14 @@ class ReplayConfig:
         symbols: Resolver for ticker renames.
     """
 
-    account_types: Mapping[str, AccountType]
+    accounts: Mapping[str, Account]
     fee_conventions: Mapping[str, FeeConvention]
     symbols: SymbolResolver
     fee_signs: Mapping[str, Decimal] = field(default_factory=dict)
 
     @classmethod
     def build(cls, rows: Sequence[TxnRow], symbols: SymbolResolver) -> ReplayConfig:
-        """Resolve account types and fee conventions for a set of rows.
+        """Resolve each account and its fee convention for a set of rows.
 
         Args:
             rows: All transactions about to be replayed.
@@ -349,10 +349,10 @@ class ReplayConfig:
         Returns:
             A populated `ReplayConfig`.
         """
-        accounts = {row.account for row in rows}
+        names = {row.account for row in rows}
         signs = detect_fee_signs(rows)
         return cls(
-            account_types={name: resolve_account_type(name) for name in accounts},
+            accounts={name: resolve_account(name) for name in names},
             fee_conventions=detect_fee_conventions(rows, signs),
             symbols=symbols,
             fee_signs=signs,
@@ -497,7 +497,8 @@ class _Replay:
 
     def _type_of(self, account: str) -> AccountType:
         """Return an account's type, UNKNOWN when it was never resolved."""
-        return self.cfg.account_types.get(account, AccountType.UNKNOWN)
+        known = self.cfg.accounts.get(account)
+        return known.account_type if known is not None else AccountType.UNKNOWN
 
     def _leg_pools(self, pair: TransferPair, grain: Grain) -> tuple[str, str]:
         """Name the pools a pair's out leg and in leg sit in at one grain."""
@@ -541,6 +542,7 @@ class _Replay:
         self._settlement_lag_check()
         self._superficial_loss_check()
         self._transfer_dates_check()
+        self._transfer_types_check()
         self._attach_flags()
         return self.result
 
@@ -597,8 +599,8 @@ class _Replay:
 
     def _diagnose_unknown_accounts(self) -> None:
         """Report accounts whose account type could not be inferred."""
-        for account, acct_type in sorted(self.cfg.account_types.items()):
-            if acct_type is AccountType.UNKNOWN:
+        for account, known in sorted(self.cfg.accounts.items()):
+            if known.account_type is AccountType.UNKNOWN:
                 self.diagnose(
                     DiagnosticCode.UNKNOWN_ACCOUNT_TYPE,
                     grain=Grain.ACCOUNT,
@@ -1401,7 +1403,7 @@ class _Replay:
         precision every other reading of a balance already uses.
         """
         for account in sorted({row.account for row in rows}):
-            if self._type_of(account) is AccountType.MARGIN:
+            if self.cfg.accounts[account].margin:
                 continue
             for currency in (Currency.CAD, Currency.USD):
                 if (account, currency) in self.reported_negative:
@@ -1631,6 +1633,36 @@ class _Replay:
                 ),
                 symbol=self._symbol_of(later),
                 as_of=earlier.txn_date,
+            )
+
+    def _transfer_types_check(self) -> None:
+        """Flag transfers whose two legs sit in different account types.
+
+        Moving cash or units between tax treatments is not a transfer but a
+        sale, a withdrawal, a contribution and a buy. Report only: the pair
+        still replays as a transfer. Unknown accounts count as one type of
+        their own, apart from every known type, since their tax treatment
+        can't be told yet. The in leg is tagged,
+        and the diagnostic names the out leg's account.
+        """
+        for pair in self.pair_by_id.values():
+            out_leg, in_leg = pair.out_leg, pair.in_leg
+            sent, received = (
+                self._type_of(out_leg.account),
+                self._type_of(in_leg.account),
+            )
+            if sent is received:
+                continue
+            self.diagnose(
+                DiagnosticCode.TRANSFER_ACROSS_TYPES,
+                in_leg,
+                detail=(
+                    f"{in_leg.account} ({received}) received from "
+                    f"{out_leg.account} ({sent}), TxnId {out_leg.txn_id}"
+                ),
+                account=out_leg.account,
+                symbol=self._symbol_of(in_leg),
+                as_of=out_leg.txn_date,
             )
 
 

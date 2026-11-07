@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Generator
 
 
-def _supports_unicode() -> bool:
+def _detect_unicode() -> bool:
     """Check if the current console supports Unicode characters.
 
     Returns:
@@ -45,7 +45,7 @@ def _supports_unicode() -> bool:
     return True
 
 
-_UNICODE_SUPPORTED = _supports_unicode()
+_UNICODE_SUPPORTED = _detect_unicode()
 
 
 class StatusMark(StrEnum):

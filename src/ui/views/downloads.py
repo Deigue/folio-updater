@@ -10,7 +10,7 @@ from ui.widgets import show_data_table
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from models.wealthsimple import Account, ActivityFeedItem
+    from models.wealthsimple import ActivityFeedItem, WealthsimpleAccount
 
 PREVIEW_ROWS = 10
 DESCRIPTION_WIDTH = 30
@@ -18,7 +18,7 @@ DESCRIPTION_WIDTH = 30
 
 def show_activities_preview(
     activities: Sequence[ActivityFeedItem],
-    accounts: Sequence[Account],
+    accounts: Sequence[WealthsimpleAccount],
 ) -> None:
     """Show the first few Wealthsimple source rows a download retrieved.
 

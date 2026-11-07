@@ -12,6 +12,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from domain import (
+    MARGIN_MARKER,
     ROOM_BEARING_TYPES,
     SUPPORTED_CURRENCIES,
     AccountType,
@@ -135,10 +136,15 @@ def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
     normalized: dict[str, Any] = {}
 
     if account_type is not None:
-        try:
-            normalized["type"] = AccountType(str(account_type).upper())
-        except ValueError:
-            return None
+        name = str(account_type).upper()
+        if name == MARGIN_MARKER:
+            normalized["type"] = AccountType.NON_REGISTERED
+            normalized["margin"] = True
+        else:
+            try:
+                normalized["type"] = AccountType(name)
+            except ValueError:
+                return None
 
     if "amount_includes_fees" in entry:
         fees = str(entry["amount_includes_fees"]).lower()

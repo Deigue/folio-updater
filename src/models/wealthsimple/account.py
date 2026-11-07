@@ -221,7 +221,7 @@ class CustodianAccount(SerializableModel):
 
 
 @dataclass
-class Account(SerializableModel):
+class WealthsimpleAccount(SerializableModel):
     """Wealthsimple account data.
 
     Attributes:
@@ -257,9 +257,9 @@ class Account(SerializableModel):
         return self.nickname or self.id
 
     @staticmethod
-    def from_dict(obj: dict) -> "Account":
-        """Create Account from a dictionary."""
-        return Account(
+    def from_dict(obj: dict) -> "WealthsimpleAccount":
+        """Create a WealthsimpleAccount from a dictionary."""
+        return WealthsimpleAccount(
             id=from_str_strict(obj.get("id")),
             archived_at=from_datetime_optional(obj.get("archivedAt")),
             branch=from_str(obj.get("branch")),

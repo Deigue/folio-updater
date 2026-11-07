@@ -38,6 +38,11 @@ class PoolLine:
     pool: Pool
     holding: Holding
 
+    @property
+    def taxed(self) -> bool:
+        """Whether the CRA taxes the pool's sales."""
+        return self.pool.taxed
+
 
 @dataclass(frozen=True)
 class FirstBuy:

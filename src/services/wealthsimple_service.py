@@ -31,9 +31,9 @@ from ws_api import (
 from app import get_config
 from domain import TXN_ESSENTIALS, Action
 from models.wealthsimple import (
-    Account,
     ActivityFeedItem,
     BrokerageMonthlyStatementTransaction,
+    WealthsimpleAccount,
 )
 from services.symbols import normalize_canadian_ticker
 
@@ -407,18 +407,18 @@ class WealthsimpleService:
                 raise WealthsimpleAuthenticationError(msg)
         return self._ws_api
 
-    def get_accounts(self) -> list[Account]:
+    def get_accounts(self) -> list[WealthsimpleAccount]:
         """Get all Wealthsimple accounts.
 
         Returns:
-            List of Account objects
+            List of WealthsimpleAccount objects
 
         Raises:
             WealthsimpleServiceError: If API not initialized
         """
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
-        accounts = [Account.from_dict(a) for a in accounts]
+        accounts = [WealthsimpleAccount.from_dict(a) for a in accounts]
         config = get_config()
         ws_config = config.brokers.get("wealthsimple", {})
         if ws_config.get("exclude_accounts"):
@@ -526,7 +526,7 @@ class WealthsimpleService:
         self,
         activities: list[ActivityFeedItem],
         csv_name: str,
-        accounts: list[Account],
+        accounts: list[WealthsimpleAccount],
     ) -> None:
         """Export activity feed items to a CSV file.
 

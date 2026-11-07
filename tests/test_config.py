@@ -318,10 +318,8 @@ def test_accounts_map_accepts_both_forms(temp_ctx: TempContext) -> None:
         },
     }
     with temp_ctx(overrides) as ctx:
-        assert ctx.config.account_types == {
-            "WS-PERSONAL": "NON_REGISTERED",
-            "QT-TFSA": "TFSA",
-        }
+        assert ctx.config.account_map["WS-PERSONAL"]["type"] == "NON_REGISTERED"
+        assert ctx.config.account_map["QT-TFSA"]["type"] == "TFSA"
         assert ctx.config.fee_convention_for("QT-TFSA") is FeeConvention.INCLUDED
         assert ctx.config.fee_convention_for("WS-PERSONAL") is FeeConvention.AUTO
 
@@ -338,9 +336,9 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
     }
     with temp_ctx(overrides) as ctx:
         assert "BAD" not in ctx.config.account_map
-        assert ctx.config.account_types["GOOD-TFSA"] == "TFSA"
+        assert ctx.config.account_map["GOOD-TFSA"]["type"] == "TFSA"
         # The bad fee value is dropped, but the usable type survives.
-        assert ctx.config.account_types["ODD-RRSP"] == "RRSP"
+        assert ctx.config.account_map["ODD-RRSP"]["type"] == "RRSP"
         assert ctx.config.fee_convention_for("ODD-RRSP") is FeeConvention.AUTO
 
 
