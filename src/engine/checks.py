@@ -689,12 +689,53 @@ def _check_transfers(folio: _LedgerIndex) -> _Outcome:
                 txn_ids=(row.txn_id,),
             ),
         )
+    unpaired = len(findings)
+
+    for diagnostic, computed in folio.tagged(
+        DiagnosticCode.TRANSFER_IN_BEFORE_OUT,
+        DiagnosticCode.TRANSFER_ACROSS_YEAR_END,
+    ):
+        row = computed.row
+        moved = f"{_units(abs(row.units))} {computed.symbol}"
+        if diagnostic.code is DiagnosticCode.TRANSFER_IN_BEFORE_OUT:
+            problem = (
+                f"{row.account} sent {moved} out on {row.txn_date}, after they "
+                f"arrived on {diagnostic.as_of}, so their cost base is lost."
+            )
+        else:
+            problem = (
+                f"{row.account} received {moved} on {row.txn_date}, but they "
+                f"left on {diagnostic.as_of}, so at the year end they were in "
+                f"neither account."
+            )
+        findings.append(
+            CheckFinding(
+                subject=f"TxnId {row.txn_id}",
+                detail=(
+                    f"{problem} Give this leg {diagnostic.as_of} as its "
+                    f"transaction and settlement date."
+                ),
+                txn_ids=(row.txn_id,),
+            ),
+        )
+
+    misdated = len(findings) - unpaired
+    problems = []
+    if unpaired:
+        problems.append(
+            f"{_plural(unpaired, 'transfer leg has', 'transfer legs have')} "
+            f"no counterpart",
+        )
+    if misdated:
+        problems.append(
+            f"{_plural(misdated, 'transfer leg needs', 'transfer legs need')} "
+            f"the other leg's date",
+        )
     return _Outcome(
         findings,
         f"{_plural(folio.counting(Action.TFR_IN, Action.TFR_OUT), 'transfer leg')} "
         f"all paired up",
-        f"{_plural(len(findings), 'transfer leg has', 'transfer legs have')} "
-        f"no counterpart",
+        ", ".join(problems),
         CheckStatus.WARN,
     )
 

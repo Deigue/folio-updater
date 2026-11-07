@@ -662,11 +662,15 @@ def test_transfer_pair_moves_acb_across_a_currency_journal() -> None:
         ],
         fx,
     )
-    in_leg = result.rows[2]
+    out_leg, in_leg = result.rows[1], result.rows[2]
     # CAD is the invariant; the USD figure derives from it at that day's rate.
     assert in_leg.acct.acb_cad == D("1300")
     assert in_leg.acct.acb_usd == D("1040")
     assert in_leg.acct.realized_cad == D("0")
+    # One pool holds both legs at every grain, but the holding changes symbol.
+    for grain in Grain:
+        assert out_leg.measures(grain).units == D("0")
+        assert in_leg.measures(grain).acb_cad == D("1300")
 
 
 def test_transfer_never_reads_amount_on_a_leg() -> None:
@@ -2511,6 +2515,49 @@ def test_a_paired_cross_broker_transfer_carries_its_cost_base() -> None:
     assert DiagnosticCode.TRANSFER_UNPAIRED not in codes(result)
     assert result.rows[2].acct.units == D("100")
     assert result.rows[2].acct.acb_cad == D("1000")
+
+
+def test_units_in_transit_stay_in_a_pool_holding_both_legs() -> None:
+    """Between the legs the units are in neither account, but never left the pool.
+
+    Both accounts are TFSAs, so the type and folio pools hold both legs: a buy
+    landing in between must count the units in transit, at their cost base.
+    """
+    rows = [
+        make_row(
+            1,
+            "2024-04-01",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+            account="QT-TFSA",
+        ),
+        make_row(2, "2024-05-01", Action.TFR_OUT, units="-100", account="QT-TFSA"),
+        make_row(
+            3,
+            "2024-05-02",
+            Action.BUY,
+            amount="-200",
+            units="10",
+            price="20",
+            account="IBKR-TFSA",
+        ),
+        make_row(4, "2024-05-03", Action.TFR_IN, units="100", account="WS-TFSA"),
+    ]
+    accounts = ("QT-TFSA", "IBKR-TFSA", "WS-TFSA")
+    result = run(rows, types=dict.fromkeys(accounts, AccountType.TFSA))
+    out_leg, between, in_leg = result.rows[1], result.rows[2], result.rows[3]
+
+    assert (out_leg.acct.units, out_leg.acct.acb_cad) == (D("0"), D("0"))
+    for grain in (Grain.TYPE, Grain.FOLIO):
+        assert out_leg.measures(grain).units == D("100")
+        assert out_leg.measures(grain).delta_cad == D("0")
+        assert between.measures(grain).units == D("110")
+        assert between.measures(grain).acb_cad == D("1200")
+        assert in_leg.measures(grain).acb_cad == D("1200")
+        assert in_leg.measures(grain).delta_cad == D("0")
+    assert (in_leg.acct.units, in_leg.acct.acb_cad) == (D("100"), D("1000"))
 
 
 def test_a_same_account_journal_still_needs_one_settle_date() -> None:

@@ -883,18 +883,21 @@ class _Simulation:
         )
         self._add(account, currency, amount)
 
-    def transfer(
+    def transfer(  # noqa: PLR0913 - the move, then when its in leg lands
         self,
         day: date,
         source: _Account,
         target: _Account,
         symbol: str,
         units: int,
+        *,
+        lands_after: timedelta = _TRANSFER_DAYS,
     ) -> None:
         """Move units of one holding to another account, in kind.
 
         They carry their share of the cost base. The out leg leaves today; the
-        in leg arrives three days later, the way a transfer between brokers lands.
+        in leg arrives `lands_after` later, by default three days, the way a
+        transfer between brokers lands.
         """
         key = (source.name, symbol)
         held = self._held(source, symbol)
@@ -910,7 +913,7 @@ class _Simulation:
             symbol=symbol,
         )
         self.at(
-            day + _TRANSFER_DAYS,
+            day + lands_after,
             self.arrive,
             target,
             symbol,
@@ -1056,9 +1059,18 @@ def _script(sim: _Simulation) -> None:
     at(date(2025, 8, 1), sim.contribute, MARGIN, 2_000, currency=Currency.USD)
     at(date(2025, 8, 15), sim.buy, MARGIN, "KO", units=25)
 
-    # Part of the non-registered KO moved in kind to the margin account, across
-    # the year-end: it leaves in December and lands in January.
-    at(date(2025, 12, 29), sim.transfer, PERSONAL, MARGIN, "KO", units=20)
+    # Part of the non-registered KO moved in kind to the margin account at the
+    # year end. The broker landed it in January, but both legs carry the out
+    # leg's date, so the units sit in an account on Dec 31 and count there.
+    at(
+        date(2025, 12, 29),
+        sim.transfer,
+        PERSONAL,
+        MARGIN,
+        "KO",
+        units=20,
+        lands_after=timedelta(0),
+    )
 
     # A broker reverses a KO dividend and books it again.
     at(date(2025, 7, 21), sim.rebook_dividend, PERSONAL, "KO")

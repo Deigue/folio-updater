@@ -74,7 +74,7 @@ alone still exit zero.
 | **Income sanity**         | Dividends and returns of capital land on holdings actually held.                  |
 | **Fee conventions**       | Every trade's amount reconciles against its price, units and commission.          |
 | **Settlement dates**      | No trade settles before it was made, or far outside its account's usual lag.      |
-| **Transfers**             | Every `TFR_OUT` has a matching `TFR_IN`, so the cost base can follow the units.   |
+| **Transfers**             | Every `TFR_OUT` has a matching `TFR_IN`, so the cost base can follow the units, and both legs of an in-kind transfer fall in one year, out before in. |
 
 ### Unit balances
 

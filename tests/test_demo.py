@@ -104,14 +104,6 @@ def _showcase(
         )
         for legs in (out, into)
     )
-    # In-kind legs pair by symbol and size, and may land in another year.
-    kind_out, kind_in = (
-        legs[legs[Column.Txn.TICKER].notna()].assign(
-            Size=pd.to_numeric(legs[Column.Txn.UNITS]).abs(),
-            Year=legs[Column.Txn.TXN_DATE].str[:4],
-        )
-        for legs in (out, into)
-    )
     usd = txns[Column.Txn.CURRENCY] == Currency.USD
     # A fee-included broker's buy costs its price times units plus the commission.
     amount, price, units, fee = (
@@ -182,12 +174,6 @@ def _showcase(
             (Action.TFR_IN, AccountType.MARGIN),
         }
         <= transfer_types,
-        "units leaving in one year and landing in the next": not kind_out.merge(
-            kind_in,
-            on=[Column.Txn.TICKER, "Size"],
-        )
-        .query("Year_x != Year_y")
-        .empty,
         "a US dollar contribution": bool((usd & (action == Action.CONTRIBUTION)).any()),
         "a US dollar trade with its commission inside the amount": bool(
             (fee_inside[Column.Txn.CURRENCY] == Currency.USD).any(),

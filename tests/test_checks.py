@@ -793,6 +793,66 @@ def test_a_paired_transfer_passes() -> None:
     assert check(rows, "transfers").status is CheckStatus.OK
 
 
+def _moved_in_kind(out_date: str, in_date: str) -> list[TxnRow]:
+    """Buy 40 units, then move them in kind to another broker on two dates."""
+    return [
+        make_row(
+            1,
+            "2024-11-04",
+            Action.BUY,
+            amount="-400",
+            units="40",
+            price="10",
+            ticker="VFV.TO",
+            account="WS-TFSA",
+        ),
+        make_row(
+            2,
+            out_date,
+            Action.TFR_OUT,
+            units="-40",
+            ticker="VFV.TO",
+            account="WS-TFSA",
+        ),
+        make_row(
+            3,
+            in_date,
+            Action.TFR_IN,
+            units="40",
+            ticker="VFV.TO",
+            account="IBKR-TFSA",
+        ),
+    ]
+
+
+def test_a_transfer_landing_in_the_next_year_is_reported() -> None:
+    """In transit at the year end, the units count in neither account."""
+    result = check(_moved_in_kind("2024-12-30", "2025-01-03"), "transfers")
+
+    assert result.status is CheckStatus.WARN
+    [finding] = result.findings
+    assert finding.txn_ids == (3,)
+    assert "IBKR-TFSA" in finding.detail
+    assert "2024-12-30" in finding.detail
+
+
+def test_a_transfer_arriving_before_it_left_is_reported() -> None:
+    """Its in leg would claim a cost base the out leg has not handed over yet."""
+    result = check(_moved_in_kind("2025-03-12", "2025-03-10"), "transfers")
+
+    assert result.status is CheckStatus.WARN
+    [finding] = result.findings
+    assert finding.txn_ids == (2,)
+    assert "WS-TFSA" in finding.detail
+    assert "2025-03-10" in finding.detail
+
+
+def test_a_transfer_taking_days_within_one_year_passes() -> None:
+    result = check(_moved_in_kind("2025-03-10", "2025-03-14"), "transfers")
+
+    assert result.status is CheckStatus.OK
+
+
 # --- fee conventions ----------------------------------------------------------
 
 

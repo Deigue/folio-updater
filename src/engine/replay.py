@@ -449,6 +449,14 @@ class _Replay:
             self.pair_of[pair.in_leg.txn_id] = pair.pair_id
             self.pair_by_id[pair.pair_id] = pair
         self.unpaired = {row.txn_id for row in unpaired}
+        # The grains each pair moves anything at. Where it stays put neither leg
+        # touches that grain, so nothing goes missing between the two legs.
+        self.moves_at: dict[int, tuple[Grain, ...]] = {
+            pair.pair_id: tuple(
+                grain for grain in Grain if not self._stays_put(pair, grain)
+            )
+            for pair in pairs
+        }
         # Cost base carried by an out leg, waiting for its in leg to claim it.
         self.carried: dict[tuple[int, Grain], tuple[Decimal, Decimal]] = {}
         # Net deposits, tracked only for the pools dealing with transfers.
@@ -499,6 +507,29 @@ class _Replay:
             _pool_key(grain, in_leg, self._type_of(in_leg.account)),
         )
 
+    def _stays_put(self, pair: TransferPair, grain: Grain) -> bool:
+        """Whether a pair moves nothing at one grain.
+
+        True when both legs sit in one pool there and touch the same holding (the
+        same symbol, or for cash the same currency). The units or cash then never
+        leave that pool, so applying each leg on its own date would only drop them
+        from it between the two. A journal stays in one pool but changes symbol or
+        currency, so it still moves.
+        """
+        out_pool, in_pool = self._leg_pools(pair, grain)
+        if out_pool != in_pool:
+            return False
+        out_leg, in_leg = pair.out_leg, pair.in_leg
+        if not pair.moves_units:
+            return out_leg.currency is in_leg.currency
+        return self._symbol_of(out_leg) == self._symbol_of(in_leg)
+
+    def _symbol_of(self, row: TxnRow) -> str | None:
+        """Resolve a row's ticker to its symbol on its own date, if it has one."""
+        return (
+            self.cfg.symbols.canonical(row.ticker, row.txn_date) if row.ticker else None
+        )
+
     def run(self) -> ReplayResult:
         """Walk the ledger and return everything it produced."""
         self._diagnose_unknown_accounts()
@@ -509,6 +540,7 @@ class _Replay:
         self._mixed_currency_check()
         self._settlement_lag_check()
         self._superficial_loss_check()
+        self._transfer_dates_check()
         self._attach_flags()
         return self.result
 
@@ -628,9 +660,7 @@ class _Replay:
     def _apply(self, row: TxnRow) -> LedgerRow:
         """Apply one row to all three pools and emit a ledger row."""
         acct_type = self._type_of(row.account)
-        symbol = (
-            self.cfg.symbols.canonical(row.ticker, row.txn_date) if row.ticker else None
-        )
+        symbol = self._symbol_of(row)
         rate, rate_date = self.rate_for(row)
         self._row_checks(row)
         if row.action is Action.SPLIT and symbol is not None:
@@ -921,6 +951,8 @@ class _Replay:
             # Already reported by `_row_checks`; units still have to move, but
             # with no counterpart there is nowhere for the cost base to go.
             self._move_units_only(row, state)
+            return
+        if grain not in self.moves_at[pair_id]:
             return
 
         if row.action is Action.TFR_OUT:
@@ -1220,8 +1252,14 @@ class _Replay:
         withdrawals: Decimal = ZERO,
         dividends: Decimal = ZERO,
         fees: Decimal = ZERO,
+        grains: Iterable[Grain] = Grain,
     ) -> None:
-        """Apply one cash movement to all three pool grains at once."""
+        """Apply one cash movement to the pool grains it moves at, all three by default.
+
+        A paired transfer leg passes only the grains its pair moves at: where the
+        pair stays put the cash never leaves the pool, so neither its cash nor its
+        pool basis changes there between the two legs.
+        """
         acct_type = self._type_of(row.account)
         # Pool basis follows cash in CAD. Converted at the row's own settlement-date
         # rate, the same one the cost base used
@@ -1235,7 +1273,11 @@ class _Replay:
                 else self.fx.to_cad(cash, row.fx_date, currency).value
             )
         for grain in Grain:
+            # Opened even where the pair stays put, so the pool still reports
+            # its (unchanged) cash.
             state = self._cash(grain, _pool_key(grain, row, acct_type), currency)
+            if grain not in grains:
+                continue
             state.cash += cash
             state.contributions += contributions
             state.withdrawals += withdrawals
@@ -1246,6 +1288,8 @@ class _Replay:
         # of the ledger is the whole cost of this feature.
         if basis != ZERO:
             for grain in self.deposits.grains:
+                if grain not in grains:
+                    continue
                 state = self.deposits.resolve(grain, _pool_key(grain, row, acct_type))
                 if state is not None:
                     state.basis_cad += basis
@@ -1289,7 +1333,17 @@ class _Replay:
             # Real cash moves, but how much of it counts as the holder's own
             # money is not its face value -> left to `_apply_deposits` and its
             # proportional rule.
-            self._credit(row, row.currency, cash=row.amount)
+            self._credit(
+                row,
+                row.currency,
+                cash=row.amount,
+                grains=self._moving_grains(row),
+            )
+
+    def _moving_grains(self, row: TxnRow) -> tuple[Grain, ...] | type[Grain]:
+        """Return the grains a transfer leg moves cash at: all three if unpaired."""
+        pair_id = self.pair_of.get(row.txn_id)
+        return Grain if pair_id is None else self.moves_at[pair_id]
 
     def _apply_fxt_cash(self, row: TxnRow) -> None:
         """Book a currency conversion, in whichever of its two shapes it is.
@@ -1534,6 +1588,50 @@ class _Replay:
                         f"{SUPERFICIAL_LOSS_DAYS} days"
                     ),
                 )
+
+    def _transfer_dates_check(self) -> None:
+        """Flag in-kind transfers whose two legs are dated so figures go wrong.
+
+        Either case is fixed by giving the later leg the earlier leg's transaction
+        and settlement date, so the later leg is the one tagged:
+
+        - An in leg dated before its out leg is applied first, before the out leg
+          has handed over any cost base, so the cost base is lost.
+        - Legs in different calendar years leave the units in neither account at
+          the year end, so neither account's year-end figures count them.
+        """
+        for pair in self.pair_by_id.values():
+            if not pair.moves_units:
+                continue
+            out_leg, in_leg = pair.out_leg, pair.in_leg
+            if in_leg.txn_date < out_leg.txn_date:
+                code, later, earlier = (
+                    DiagnosticCode.TRANSFER_IN_BEFORE_OUT,
+                    out_leg,
+                    in_leg,
+                )
+            elif (
+                out_leg.account != in_leg.account
+                and out_leg.txn_date[:4] != in_leg.txn_date[:4]
+            ):
+                code, later, earlier = (
+                    DiagnosticCode.TRANSFER_ACROSS_YEAR_END,
+                    in_leg,
+                    out_leg,
+                )
+            else:
+                continue
+            self.diagnose(
+                code,
+                later,
+                detail=(
+                    f"{later.action} on {later.txn_date}, its {earlier.action} "
+                    f"(TxnId {earlier.txn_id}, {earlier.account}) on "
+                    f"{earlier.txn_date}"
+                ),
+                symbol=self._symbol_of(later),
+                as_of=earlier.txn_date,
+            )
 
 
 def _weekdays_between(start: str, end: str) -> int:

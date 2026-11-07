@@ -33,6 +33,9 @@ history when no answer received.
 
 ### Fixed
 
+- Units and cost base moved by a transfer no longer go missing from the type and portfolio
+totals between its two legs; `folio check` warns when an in-kind transfer's legs fall in
+different years or arrive before they leave.
 - Quote refreshes in which nothing is priced are treated as an outage instead of 
 negative-caching every symbol.
 

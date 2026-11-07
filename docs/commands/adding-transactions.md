@@ -123,6 +123,13 @@ folio add -t TFR_IN  -s SCHD -u 100 -a IBKR-RRSP -c USD -d 2023-09-18
 
 Signs are corrected for you, so `-m 1000` on the `TFR_OUT` is stored as `-1000`.
 
+> [!IMPORTANT]
+> Between the out leg and the in leg, the units are in neither account. They still count in
+> any pool holding both accounts, such as your TFSA total. Keep both legs of an in-kind
+> transfer in one calendar year: if a broker lands it in January, give both legs the
+> **earlier** date (transaction and settlement), so the units count at the year end. Do the
+> same if the in leg is dated before the out leg. `folio check` warns about both.
+
 These rules apply to every ingest path, not just `folio add`: imports from brokers and
 spreadsheets are corrected the same way, and the [audit log](../audit.md) shows each row as read (`>`) and as stored (`+`).
 

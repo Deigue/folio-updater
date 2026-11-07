@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))

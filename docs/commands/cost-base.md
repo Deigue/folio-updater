@@ -184,6 +184,8 @@ is recorded.
 | `FXT_AMOUNT_INCONSISTENT`  | A conversion whose `Amount` and `Units * Price` disagree     |
 | `UNKNOWN_ACCOUNT_TYPE`     | An account name the convention could not resolve             |
 | `TRANSFER_UNPAIRED`        | A transfer leg with no counterpart                           |
+| `TRANSFER_IN_BEFORE_OUT`   | An in-kind in leg dated before its out leg                   |
+| `TRANSFER_ACROSS_YEAR_END` | An in-kind transfer whose legs fall in different years       |
 | `SUPERFICIAL_LOSS_SUSPECT` | A realized loss with a buy of the same symbol within 30 days |
 
 `folio acb` reports these; it does not fail on them. It always exits zero once it has
