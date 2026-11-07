@@ -21,7 +21,6 @@ EXPECTED_SIGNS: dict[str, dict[str, int]] = {
     Action.SELL: {Column.Txn.AMOUNT: 1, Column.Txn.UNITS: -1},
     Action.WITHDRAWAL: {Column.Txn.AMOUNT: -1},
     Action.CONTRIBUTION: {Column.Txn.AMOUNT: 1},
-    Action.DIVIDEND: {Column.Txn.AMOUNT: 1},
     Action.ROC: {Column.Txn.AMOUNT: 1},
     Action.SPLIT: {Column.Txn.UNITS: 1},
 }

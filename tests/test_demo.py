@@ -23,7 +23,7 @@ from db import (
     get_distinct_set,
     get_rows,
 )
-from domain import AccountType, Action, CheckStatus, Column, Table
+from domain import AccountType, Action, CheckStatus, Column, Currency, Table
 from engine.checks import run_checks
 from engine.ledger import open_ledger
 from exporters import ParquetExporter
@@ -104,6 +104,32 @@ def _showcase(
         )
         for legs in (out, into)
     )
+    # In-kind legs pair by symbol and size, and may land in another year.
+    kind_out, kind_in = (
+        legs[legs[Column.Txn.TICKER].notna()].assign(
+            Size=pd.to_numeric(legs[Column.Txn.UNITS]).abs(),
+            Year=legs[Column.Txn.TXN_DATE].str[:4],
+        )
+        for legs in (out, into)
+    )
+    usd = txns[Column.Txn.CURRENCY] == Currency.USD
+    # A fee-included broker's buy costs its price times units plus the commission.
+    amount, price, units, fee = (
+        pd.to_numeric(trades[column]).abs()
+        for column in (
+            Column.Txn.AMOUNT,
+            Column.Txn.PRICE,
+            Column.Txn.UNITS,
+            Column.Txn.FEE,
+        )
+    )
+    fee_inside = trades[(amount - price * units).round(2) == fee]
+    transfer_types = {
+        (row.Action, row.AcctType)
+        for row in frame[
+            frame[Column.Txn.ACTION].isin([Action.TFR_IN, Action.TFR_OUT])
+        ].itertuples()
+    }
     sells = frame[frame[Column.Txn.ACTION] == Action.SELL]
     last = frame.groupby([Column.Txn.ACCOUNT, "Symbol"]).tail(1)
     taxable_gains = last.loc[
@@ -148,6 +174,27 @@ def _showcase(
         "cash moved between accounts": not cash_out.merge(cash_in, on="Size")
         .query("Account_x != Account_y")
         .empty,
+        "US dollar cash moved between accounts": not cash_out.merge(cash_in, on="Size")
+        .query("Account_x != Account_y and `$_x` == 'USD'")
+        .empty,
+        "units moved in kind from a non-registered account to a margin one": {
+            (Action.TFR_OUT, AccountType.NON_REGISTERED),
+            (Action.TFR_IN, AccountType.MARGIN),
+        }
+        <= transfer_types,
+        "units leaving in one year and landing in the next": not kind_out.merge(
+            kind_in,
+            on=[Column.Txn.TICKER, "Size"],
+        )
+        .query("Year_x != Year_y")
+        .empty,
+        "a US dollar contribution": bool((usd & (action == Action.CONTRIBUTION)).any()),
+        "a US dollar trade with its commission inside the amount": bool(
+            (fee_inside[Column.Txn.CURRENCY] == Currency.USD).any(),
+        ),
+        "a dividend reversed and booked again": bool(
+            ((action == Action.DIVIDEND) & (txns[Column.Txn.AMOUNT] < 0)).any(),
+        ),
         "a taxable gain and a taxable loss": (
             bool((taxable_gains > 0).any()) and bool((taxable_gains < 0).any())
         ),

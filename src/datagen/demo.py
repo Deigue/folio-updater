@@ -337,6 +337,8 @@ ACCOUNTS: tuple[_Account, ...] = (PERSONAL, RRSP, TFSA, TFSA2, MARGIN, CORPORATE
 # Dividends reinvested on the day they are paid.
 _DRIP: frozenset[tuple[str, str]] = frozenset({(TFSA.name, "REI.UN.TO")})
 _FX_FEE = Decimal(2)
+# How long an in-kind transfer takes to land, as between brokers.
+_TRANSFER_DAYS = timedelta(days=3)
 # What a gain or loss must clear, as a share of the cost base, to count as one.
 _EXPECTED_MARGIN = Decimal("0.05")
 
@@ -582,8 +584,18 @@ class _Simulation:
 
     # -- what the investor does -----------------------------------------------
 
-    def contribute(self, day: date, account: _Account, amount: int) -> None:
-        """Contribute new money, within the account type's contribution room."""
+    def contribute(
+        self,
+        day: date,
+        account: _Account,
+        amount: int,
+        currency: Currency = Currency.CAD,
+    ) -> None:
+        """Contribute new money, within the account type's contribution room.
+
+        Room is counted in Canadian dollars, so only an account with no room
+        limit takes US dollars.
+        """
         cash = Decimal(amount)
         limits = CRA_ROOM.get(account.account_type.value)
         if limits is not None:
@@ -596,8 +608,8 @@ class _Simulation:
                     "pass the CRA limit"
                 )
                 raise DemoScenarioError(msg)
-        self._emit(day, Action.CONTRIBUTION, account, Currency.CAD, amount=cash)
-        self._add(account, Currency.CAD, cash)
+        self._emit(day, Action.CONTRIBUTION, account, currency, amount=cash)
+        self._add(account, currency, cash)
 
     def withdraw(self, day: date, account: _Account, amount: int) -> None:
         """Take money out of the folio."""
@@ -837,46 +849,111 @@ class _Simulation:
         )
         self.at(day + timedelta(days=1), self.sell, account, "DLR.U.TO", rank=_ARRIVAL)
 
-    def transfer_all(self, day: date, source: _Account, target: _Account) -> None:
-        """Move an account's every holding and its cash to another, in kind.
+    def rebook_dividend(self, day: date, account: _Account, symbol: str) -> None:
+        """Reverse the last dividend `symbol` paid `account`, and book it again.
 
-        The out legs leave today; the in legs arrive three days later, the way
-        an institutional transfer between brokers lands.
+        A broker corrects a dividend this way: a negative row cancels it and a
+        new row replaces it, so nothing changes in the end.
         """
-        arrives = day + timedelta(days=3)
-        for (name, symbol), held in sorted(self._units.items()):
-            if name != source.name or not held:
-                continue
-            cost = self._cost.pop((name, symbol))
-            self._units[(name, symbol)] = 0
-            currency = currency_of(symbol)
-            self._emit(
-                day,
-                Action.TFR_OUT,
-                source,
-                currency,
-                units=-held,
-                symbol=symbol,
-            )
-            self.at(arrives, self.arrive, target, symbol, held, cost, rank=_ARRIVAL)
-        cash = self._balance(source, Currency.CAD)
-        if cash > 0:
-            self._add(source, Currency.CAD, -cash)
-            self._emit(day, Action.TFR_OUT, source, Currency.CAD, amount=-cash)
-            self.at(arrives, self.arrive, target, None, 0, cash, rank=_ARRIVAL)
+        ticker = ticker_on(symbol, day)
+        amount = next(
+            Decimal(str(row[Column.Txn.AMOUNT]))
+            for row in reversed(self.rows)
+            if row[Column.Txn.ACTION] == Action.DIVIDEND
+            and row[Column.Txn.ACCOUNT] == account.name
+            and row[Column.Txn.TICKER] == ticker
+        )
+        currency = currency_of(symbol)
+        self._add(account, currency, -amount)
+        self._emit(
+            day,
+            Action.DIVIDEND,
+            account,
+            currency,
+            amount=-amount,
+            symbol=symbol,
+        )
+        self._emit(
+            day,
+            Action.DIVIDEND,
+            account,
+            currency,
+            amount=amount,
+            symbol=symbol,
+        )
+        self._add(account, currency, amount)
 
-    def arrive(
+    def transfer(
+        self,
+        day: date,
+        source: _Account,
+        target: _Account,
+        symbol: str,
+        units: int,
+    ) -> None:
+        """Move units of one holding to another account, in kind.
+
+        They carry their share of the cost base. The out leg leaves today; the
+        in leg arrives three days later, the way a transfer between brokers lands.
+        """
+        key = (source.name, symbol)
+        held = self._held(source, symbol)
+        cost = self._cost[key] if units == held else self._cost[key] * units / held
+        self._units[key] = held - units
+        self._cost[key] -= cost
+        self._emit(
+            day,
+            Action.TFR_OUT,
+            source,
+            currency_of(symbol),
+            units=-units,
+            symbol=symbol,
+        )
+        self.at(
+            day + _TRANSFER_DAYS,
+            self.arrive,
+            target,
+            symbol,
+            units,
+            cost,
+            rank=_ARRIVAL,
+        )
+
+    def transfer_all(self, day: date, source: _Account, target: _Account) -> None:
+        """Move an account's every holding, and its cash in each currency, elsewhere."""
+        for (name, symbol), held in sorted(self._units.items()):
+            if name == source.name and held:
+                self.transfer(day, source, target, symbol, held)
+        for currency in (Currency.CAD, Currency.USD):
+            cash = self._balance(source, currency)
+            if cash > 0:
+                self._add(source, currency, -cash)
+                self._emit(day, Action.TFR_OUT, source, currency, amount=-cash)
+                self.at(
+                    day + _TRANSFER_DAYS,
+                    self.arrive,
+                    target,
+                    None,
+                    0,
+                    cash,
+                    currency=currency,
+                    rank=_ARRIVAL,
+                )
+
+    def arrive(  # noqa: PLR0913 - a holding or cash, and where it lands
         self,
         day: date,
         target: _Account,
         symbol: str | None,
         units: int,
         value: Decimal,
+        *,
+        currency: Currency = Currency.CAD,
     ) -> None:
         """Land one leg of a transfer: a holding and its cost base, or cash."""
         if symbol is None:
-            self._add(target, Currency.CAD, value)
-            self._emit(day, Action.TFR_IN, target, Currency.CAD, amount=value)
+            self._add(target, currency, value)
+            self._emit(day, Action.TFR_IN, target, currency, amount=value)
             return
         key = (target.name, symbol)
         self._units[key] = self._held(target, symbol) + units
@@ -974,8 +1051,24 @@ def _script(sim: _Simulation) -> None:
     at(date(2025, 9, 15), sim.buy, CORPORATE, "KO", units=40)
     at(date(2026, 2, 17), sim.sell, CORPORATE, "KO", units=40, expect="gain")
 
+    # US dollars wired straight into the margin account, no conversion, and
+    # spent on more KO.
+    at(date(2025, 8, 1), sim.contribute, MARGIN, 2_000, currency=Currency.USD)
+    at(date(2025, 8, 15), sim.buy, MARGIN, "KO", units=25)
+
+    # Part of the non-registered KO moved in kind to the margin account, across
+    # the year-end: it leaves in December and lands in January.
+    at(date(2025, 12, 29), sim.transfer, PERSONAL, MARGIN, "KO", units=20)
+
+    # A broker reverses a KO dividend and books it again.
+    at(date(2025, 7, 21), sim.rebook_dividend, PERSONAL, "KO")
+
+    # A US dollar trade at the second broker, its commission inside the amount.
+    at(date(2025, 3, 3), sim.convert, TFSA2, keep=100)
+    at(date(2025, 3, 10), sim.buy, TFSA2, "O", units=3)
+
     # Consolidating brokers: the second TFSA moves everything to the first, in
-    # kind, and is left empty.
+    # kind, and its cash in both currencies, and is left empty.
     at(date(2025, 9, 15), sim.transfer_all, TFSA2, TFSA)
 
     # A withdrawal from a TFSA: room comes back the next year.

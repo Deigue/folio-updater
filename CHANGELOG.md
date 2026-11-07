@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - `folio update --offline` runs all steps offline (no downloads, no fx, no quotes)
 - Ticker alias changes from `folio symbol` are recorded in the audit log.
+- Demo folio now includes a US dollar deposit, US dollar trade at a broker who prices
+its commission into the amount, a dividend reversal and rebook, and an in-kind transfer
+between a non-registered and margin account.
 
 ### Changed
 

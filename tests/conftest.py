@@ -39,6 +39,15 @@ if TYPE_CHECKING:
 FX_WINDOW_DAYS = 60
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add `--update-baseline`, which `tests/test_baseline.py` reads."""
+    parser.addoption(
+        "--update-baseline",
+        action="store_true",
+        help="Rewrite tests/baselines/ from the demo folio instead of comparing.",
+    )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def nondurable_sqlite() -> Generator[None, Any]:
     """Drop SQLite's crash-durability for testing scope.

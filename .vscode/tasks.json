@@ -33,6 +33,18 @@
             "problemMatcher": []
         },
         {
+            "label": "update baseline",
+            "detail": "Rewrites tests/baselines/ from the demo folio. Read the git diff before staging.",
+            "type": "process",
+            "command": "uv",
+            "args": ["run", "pytest", "tests/test_baseline.py", "--update-baseline"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "prepare release (version + changelog)",
             "type": "process",
             "command": "uv",

@@ -58,6 +58,13 @@
     "reveal": "always"
   },
   {
+    // Rewrites tests/baselines/ from the demo folio. Read the git diff before staging.
+    "label": "update baseline",
+    "command": "uv",
+    "args": ["run", "pytest", "tests/test_baseline.py", "--update-baseline"],
+    "reveal": "always"
+  },
+  {
     // Put the cursor inside a test function first
     "label": "pytest (test at cursor)",
     "command": "uv",
