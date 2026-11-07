@@ -23,7 +23,7 @@ from datagen.demo import END, START
 from domain import TORONTO_TZ, Column, Currency
 from engine.settlement import settlement_calculator
 from services import FxService
-from services.quotes_service import QuotesService
+from services.quotes_service import PriceFetch, QuotesService
 from term.console import override_console
 
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
@@ -251,8 +251,8 @@ def mock_quotes(
             yield
         return
 
-    def prices(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
-        return _cached_prices(cached_quote_data, provider_symbols)
+    def prices(provider_symbols: list[str]) -> PriceFetch:
+        return PriceFetch(prices=_cached_prices(cached_quote_data, provider_symbols))
 
     def metadata(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
         return {
@@ -290,8 +290,8 @@ def quotes_fetch(
         The mock standing in for `QuotesService._fetch_prices`.
     """
 
-    def prices(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
-        return _cached_prices(cached_quote_data, provider_symbols)
+    def prices(provider_symbols: list[str]) -> PriceFetch:
+        return PriceFetch(prices=_cached_prices(cached_quote_data, provider_symbols))
 
     with (
         patch.object(QuotesService, "_fetch_metadata", return_value={}),

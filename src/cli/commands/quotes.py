@@ -77,7 +77,7 @@ def _refresh(wanted: Sequence[str]) -> None:
     result = QuotesService.refresh(symbols, load_symbol_resolver())
     console_success(
         f"Fetched {result.fetched} quote(s); "
-        f"{result.not_found} not found, {result.failed} failed.",
+        f"{result.not_found} not found, {len(result.failed)} failed.",
     )
     if result.used_fallback:
         console_info(

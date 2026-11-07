@@ -22,7 +22,7 @@ from cli.commands.common import (
     resolve_pool,
     write_or_exit,
 )
-from domain import Column, Currency, Grain
+from domain import Column, Currency, Grain, QuoteStatus
 from engine.panels import FolioValuation
 from engine.performance import fetch_moves
 from engine.ticker import (
@@ -163,6 +163,12 @@ def _report_one(
         if offline:
             console_error(
                 f"Nothing is cached for '{canonical}'. Look it up without --offline.",
+            )
+        elif quote.status is not QuoteStatus.NOT_FOUND:
+            # The lookup failed, which says nothing about the symbol.
+            console_error(
+                f"Could not get a quote for '{canonical}' from Yahoo Finance. "
+                "Try again later.",
             )
         else:
             # Asking created a "not found" row in the cache. That row is how a

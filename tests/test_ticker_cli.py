@@ -5,9 +5,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from yfinance.exceptions import YFPricesMissingError
 
 from cli.main import app
+from domain import QuoteStatus
+from services.quotes_service import QuotesService
+from services.symbols import SymbolResolver
 
+from .fixtures.yfinance_mocking import (
+    FailingFastInfo,
+    FakeTicker,
+    stand_in_provider,
+)
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
@@ -105,6 +114,31 @@ def test_ticker_refuses_what_it_cannot_show(
 
     assert result.exit_code == 1
     assert_in_output(reason, result)
+
+
+@pytest.mark.no_mock_quotes
+def test_a_failed_lookup_is_not_reported_as_not_found(temp_ctx: TempContext) -> None:
+    resolver = SymbolResolver([])
+    not_found = FailingFastInfo(YFPricesMissingError("MSFT", ""))
+    failing = FailingFastInfo(OSError("connection reset by peer"))
+    with temp_ctx() as ctx:
+        _seed()
+        # An earlier answer, cached: the provider did not know the symbol then.
+        with stand_in_provider({"MSFT": FakeTicker(not_found)}):
+            QuotesService.refresh(["MSFT"], resolver)
+
+        with stand_in_provider({"MSFT": FakeTicker(failing)}):
+            result = run_cli_with_config(
+                ctx.config,
+                app,
+                ["ticker", "MSFT", "--refresh"],
+            )
+        cached = QuotesService.cached(["MSFT"])
+
+    assert result.exit_code == 1
+    assert_in_output("Could not get a quote for 'MSFT' from Yahoo Finance", result)
+    assert_not_in_output("does not know", result)
+    assert cached["MSFT"].status is QuoteStatus.NOT_FOUND, "the cached row was cleared"
 
 
 def test_comparing_an_empty_folio_says_there_is_nothing_held(

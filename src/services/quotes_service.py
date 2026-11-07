@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from functools import cache
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from app import get_config
 from db.queries import (
@@ -51,8 +51,6 @@ logger = logging.getLogger(__name__)
 
 SOURCE = "yfinance"
 NOT_FOUND_TTL_DAYS = 7
-_RATE_LIMIT_MARKERS = ("rate limit", "too many requests", "429")
-
 # Fetches are network-bound, so cap the workers: a large folio must not open a
 # hundred connections.
 _MAX_FETCH_WORKERS = 8
@@ -73,6 +71,8 @@ def load_yfinance() -> ModuleType:
     import yfinance as yf  # noqa: PLC0415 (heavy, and unused when offline)
 
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="^yfinance")
+    # Hidden, a failed request looks exactly like a symbol Yahoo does not know.
+    yf.config.debug.hide_exceptions = False
     return yf
 
 
@@ -392,14 +392,14 @@ class RefreshResult:
 
     Attributes:
         fetched: Symbols priced successfully.
-        failed: Symbols whose fetch errored, leaving any cached row in place.
+        failed: Symbols whose fetch failed, leaving any cached row in place.
         not_found: Symbols the provider does not know.
         used_fallback: Whether throttling forced the batched daily-close path,
             which yields the previous close rather than an intraday price.
     """
 
     fetched: int = 0
-    failed: int = 0
+    failed: frozenset[str] = frozenset()
     not_found: int = 0
     used_fallback: bool = False
 
@@ -409,10 +409,38 @@ def _unique_upper(symbols: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(symbol.upper() for symbol in symbols))
 
 
-def _is_rate_limited(error: Exception) -> bool:
-    """Whether an exception reads as provider throttling."""
-    message = str(error).lower()
-    return any(marker in message for marker in _RATE_LIMIT_MARKERS)
+@dataclass(frozen=True)
+class PriceFetch:
+    """What one batch of price requests came back with.
+
+    A provider symbol in none of these is one the provider does not know.
+
+    Attributes:
+        prices: Each priced provider symbol mapped to its raw price fields.
+        throttled: Provider symbols that failed on a rate limit, which the
+            daily-close download may still price.
+        failed: Provider symbols that failed any other way.
+    """
+
+    prices: dict[str, dict] = field(default_factory=dict)
+    throttled: frozenset[str] = frozenset()
+    failed: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class _PriceAttempt:
+    """How pricing one provider symbol came out.
+
+    Attributes:
+        provider_symbol: The provider spelling asked for.
+        raw: The raw price fields, when it priced.
+        outcome: "throttled" or "failed" when the request failed, and None when
+            it priced or the provider does not know the symbol.
+    """
+
+    provider_symbol: str
+    raw: dict | None = None
+    outcome: Literal["throttled", "failed"] | None = None
 
 
 def _text(value: object) -> str | None:
@@ -535,11 +563,19 @@ class QuotesService:
             or _is_due(cached.get(symbol))
             or (fundamentals and cached[symbol].meta_older_than(max_age))
         ]
-        if due:
-            cls.refresh(due, resolver, cached=cached, fundamentals=fundamentals)
-            cached = cls.cached(wanted)
+        if not due:
+            return _fill_gaps(wanted, cached, resolver)
 
-        return _fill_gaps(wanted, cached, resolver)
+        result = cls.refresh(due, resolver, cached=cached, fundamentals=fundamentals)
+        quotes = _fill_gaps(wanted, cls.cached(wanted), resolver)
+        # A row left saying "not found" is an older answer: this time the fetch
+        # failed, and the caller must not report the provider's verdict.
+        return {
+            symbol: replace(quote, status=QuoteStatus.ERROR)
+            if symbol in result.failed and quote.status is QuoteStatus.NOT_FOUND
+            else quote
+            for symbol, quote in quotes.items()
+        }
 
     @classmethod
     def refresh(
@@ -565,40 +601,30 @@ class QuotesService:
         if not wanted:
             return RefreshResult()
         if not _provider_reachable():
-            return RefreshResult(failed=len(wanted))
+            return RefreshResult(failed=frozenset(wanted))
 
         known = dict(cached) if cached is not None else cls.cached(wanted)
         provider_symbols = {
             symbol: resolver.provider_symbol(symbol) for symbol in wanted
         }
 
-        used_fallback = False
-        try:
-            prices = cls._fetch_prices(list(provider_symbols.values()))
-        except Exception as error:  # noqa: BLE001 (provider raises freely)
-            if not _is_rate_limited(error):
-                logger.warning(
-                    "Could not fetch quotes (%s); using what is cached",
-                    error,
-                )
-                return RefreshResult(failed=len(wanted))
+        fetch = cls._fetch_prices(list(provider_symbols.values()))
+        prices = dict(fetch.prices)
+        failed = set(fetch.failed)
+        if fetch.throttled:
             logger.info("Quote provider is throttling; falling back to daily closes")
-            used_fallback = True
-            try:
-                prices = cls._fetch_daily(list(provider_symbols.values()))
-            except Exception as fallback_error:  # noqa: BLE001
-                logger.warning(
-                    "Quote fallback also failed (%s); using what is cached",
-                    fallback_error,
-                )
-                return RefreshResult(failed=len(wanted))
+            daily = cls._fetch_throttled(fetch.throttled)
+            prices.update(daily)
+            # Absent from the download, a symbol may still be throttled or not
+            # be found at all, and only the second is worth caching.
+            failed |= fetch.throttled - daily.keys()
 
         if not prices and any(known[s].priced for s in wanted if s in known):
-            # yfinance reports a request it could not make as a symbol with no
-            # price. Symbols that priced before do not all vanish at once, so
-            # this is an outage, not a batch of delistings to negative-cache.
+            # A request can still fail without raising (an empty response, say).
+            # Symbols that priced before do not all vanish at once, so this is
+            # an outage, not a batch of delistings to negative-cache.
             logger.warning("No quote came back; using what is cached")
-            return RefreshResult(failed=len(wanted))
+            return RefreshResult(failed=frozenset(wanted))
 
         metadata = cls._collect_metadata(
             wanted,
@@ -609,9 +635,13 @@ class QuotesService:
         )
 
         now = datetime.now(UTC)
-        result = RefreshResult(used_fallback=used_fallback)
+        result = RefreshResult(used_fallback=bool(fetch.throttled))
         rows: list[dict[str, Any]] = []
         for symbol in wanted:
+            if provider_symbols[symbol] in failed:
+                # Left as it was: a failed request says nothing about the symbol.
+                result = replace(result, failed=result.failed | {symbol})
+                continue
             quote, outcome = _merge(
                 symbol,
                 provider_symbols[symbol],
@@ -818,35 +848,77 @@ class QuotesService:
     # -- NETWORK ---------------------------------------------------------
 
     @classmethod
-    def _fetch_prices(cls, provider_symbols: Sequence[str]) -> dict[str, dict]:
+    def _fetch_prices(cls, provider_symbols: Sequence[str]) -> PriceFetch:
         """Fetch the price and previous close for a batch of symbols.
 
         Args:
             provider_symbols: Provider spellings to price.
 
         Returns:
-            Each provider symbol mapped to its raw price fields. A symbol the
-            provider does not know is simply absent.
+            The prices, and which symbols were throttled or failed.
         """
-        tickers = load_yfinance().Tickers(" ".join(provider_symbols))
+        yf = load_yfinance()
+        provider_errors = yf.exceptions
+        tickers = yf.Tickers(" ".join(provider_symbols))
         now = datetime.now(UTC).isoformat()
 
-        def _price(provider_symbol: str) -> tuple[str, dict] | None:
+        def _price(provider_symbol: str) -> _PriceAttempt:
             ticker = tickers.tickers.get(provider_symbol)
             if ticker is None:
-                return None
+                return _PriceAttempt(provider_symbol)
             fast = ticker.fast_info
-            price = _attr(fast, "last_price")
+            try:
+                price = fast.last_price
+            except provider_errors.YFTickerMissingError:
+                # Also raised for an HTTP error body, which yfinance cannot tell
+                # apart from a symbol with no prices.
+                return _PriceAttempt(provider_symbol)
+            except Exception as error:  # noqa: BLE001 (any request can fail)
+                logger.debug("No price for %s: %r", provider_symbol, error)
+                throttled = isinstance(error, provider_errors.YFRateLimitError)
+                return _PriceAttempt(
+                    provider_symbol,
+                    outcome="throttled" if throttled else "failed",
+                )
             if price is None:
-                return None
-            return provider_symbol, {
-                "price": price,
-                "prev_close": _previous_close(fast),
-                "currency": _attr(fast, "currency"),
-                "quote_time": now,
-            }
+                return _PriceAttempt(provider_symbol)
+            return _PriceAttempt(
+                provider_symbol,
+                {
+                    "price": price,
+                    "prev_close": _previous_close(fast),
+                    "currency": _attr(fast, "currency"),
+                    "quote_time": now,
+                },
+            )
 
-        return dict(_run_concurrently(_price, provider_symbols))
+        prices: dict[str, dict] = {}
+        throttled: set[str] = set()
+        failed: set[str] = set()
+        for attempt in _run_concurrently(_price, provider_symbols):
+            if attempt.raw is not None:
+                prices[attempt.provider_symbol] = attempt.raw
+            elif attempt.outcome == "throttled":
+                throttled.add(attempt.provider_symbol)
+            elif attempt.outcome == "failed":
+                failed.add(attempt.provider_symbol)
+        return PriceFetch(prices, frozenset(throttled), frozenset(failed))
+
+    @classmethod
+    def _fetch_throttled(cls, provider_symbols: Iterable[str]) -> dict[str, dict]:
+        """Price throttled symbols from their daily close, or none of them.
+
+        Args:
+            provider_symbols: Provider spellings a rate limit refused.
+
+        Returns:
+            Each provider symbol the download priced, mapped to its raw fields.
+        """
+        try:
+            return cls._fetch_daily(sorted(provider_symbols))
+        except Exception as error:  # noqa: BLE001 (the whole download can fail)
+            logger.warning("Quote fallback failed (%s); using what is cached", error)
+            return {}
 
     @classmethod
     def _fetch_daily(cls, provider_symbols: Sequence[str]) -> dict[str, dict]:
@@ -1260,9 +1332,8 @@ def _merge(  # noqa: PLR0913, PLR0917
 def _tally(result: RefreshResult, outcome: QuoteStatus) -> RefreshResult:
     """Count one symbol's outcome into the running tally.
 
-    Only `OK` and `NOT_FOUND` reach here. The provider is called once per batch,
-    so a fetch that errored fails every symbol at once and returns before any
-    row is merged.
+    Only `OK` and `NOT_FOUND` reach here: a failed symbol is counted before its
+    row would be merged, since it has none to write.
     """
     if outcome is QuoteStatus.OK:
         return replace(result, fetched=result.fetched + 1)

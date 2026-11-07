@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import socket
 import sys
-from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from types import ModuleType
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from yfinance.exceptions import YFPricesMissingError, YFRateLimitError
 
 from db import get_connection, get_rows
 from domain import Column, Currency, PriceRange, QuoteStatus, Table
@@ -20,6 +19,7 @@ from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
     Fundamentals,
+    PriceFetch,
     Quote,
     QuoteSplit,
     QuotesService,
@@ -27,17 +27,22 @@ from services.quotes_service import (
     _attr,
     _connect_within,
     _daily_closes,
-    _is_rate_limited,
     _previous_close,
     _provider_reachable,
     _run_concurrently,
+    load_yfinance,
 )
 from services.symbols import SymbolResolver
 
+from .fixtures.yfinance_mocking import (
+    FailingFastInfo,
+    FakeTicker,
+    FastInfo,
+    stand_in_provider,
+)
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
     from unittest.mock import MagicMock
 
     from .helpers.context import TempContext
@@ -159,32 +164,15 @@ def test_a_negative_cache_expires_eventually(
         assert quotes_fetch.call_count == 2
 
 
-def test_a_network_failure_keeps_the_cached_row(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        QuotesService.refresh(["TESTTKR"], RESOLVER)
-
-        with patch.object(
-            QuotesService,
-            "_fetch_prices",
-            side_effect=OSError("connection reset"),
-        ):
-            result = QuotesService.refresh(["TESTTKR"], RESOLVER)
-
-        assert result.failed == 1
-        assert result.fetched == 0
-        # The price survives: a dashboard still renders, marked stale.
-        assert QuotesService.cached(["TESTTKR"])["TESTTKR"].price == 200
-
-
 def test_prices_that_all_vanish_at_once_are_an_outage(temp_ctx: TempContext) -> None:
     with temp_ctx():
         QuotesService.refresh(["TESTTKR"], RESOLVER)
 
-        # How yfinance reports requests it could not make: no price for anyone.
-        with patch.object(QuotesService, "_fetch_prices", return_value={}):
+        # Requests that failed without raising: no price for anyone.
+        with patch.object(QuotesService, "_fetch_prices", return_value=PriceFetch()):
             result = QuotesService.refresh(["TESTTKR"], RESOLVER)
 
-        assert result.failed == 1
+        assert result.failed == {"TESTTKR"}
         cached = QuotesService.cached(["TESTTKR"])["TESTTKR"]
         assert cached.status is QuoteStatus.OK, "an outage was negative-cached"
         assert cached.price == 200
@@ -237,50 +225,6 @@ def test_the_probe_gives_up_once_its_budget_is_spent() -> None:
         pytest.raises(TimeoutError, match="within 0s"),
     ):
         _connect_within(server.getsockname()[:2], 0)
-
-
-def test_throttling_falls_back_to_daily_closes(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        daily = {
-            "TESTTKR": {
-                "price": 111.0,
-                "prev_close": 110.0,
-                "currency": "USD",
-                "quote_time": datetime.now(UTC).isoformat(),
-            },
-        }
-        with (
-            patch.object(
-                QuotesService,
-                "_fetch_prices",
-                side_effect=RuntimeError("Too Many Requests. Rate limited."),
-            ),
-            patch.object(QuotesService, "_fetch_daily", return_value=daily) as fallback,
-        ):
-            result = QuotesService.refresh(["TESTTKR"], RESOLVER)
-
-        assert fallback.called
-        assert result.used_fallback
-        assert result.fetched == 1
-        assert QuotesService.cached(["TESTTKR"])["TESTTKR"].price == 111
-
-
-@pytest.mark.parametrize(
-    ("message", "throttled"),
-    [
-        ("Too Many Requests", True),
-        ("429 Client Error", True),
-        ("YFRateLimitError: rate limit exceeded", True),
-        ("connection reset by peer", False),
-        ("No data found for this symbol", False),
-    ],
-)
-def test_only_throttling_triggers_the_fallback(
-    message: str,
-    *,
-    throttled: bool,
-) -> None:
-    assert _is_rate_limited(RuntimeError(message)) is throttled
 
 
 def test_offline_never_imports_yfinance(temp_ctx: TempContext) -> None:
@@ -392,7 +336,11 @@ def test_a_quote_in_an_unsupported_currency_is_not_a_crash(
             },
         }
         with (
-            patch.object(QuotesService, "_fetch_prices", return_value=priced),
+            patch.object(
+                QuotesService,
+                "_fetch_prices",
+                return_value=PriceFetch(prices=priced),
+            ),
             patch.object(QuotesService, "_fetch_metadata", return_value={}),
         ):
             QuotesService.refresh(["TESTTKR"], RESOLVER)
@@ -454,75 +402,100 @@ def test_asking_for_nothing_fetches_nothing(
         assert not quotes_fetch.called
 
 
-class _FastInfo:
-    """Stands in for yfinance's lazily-computed `fast_info`."""
-
-    def __init__(self, price: float | None, prev: float, currency: str) -> None:
-        self.last_price = price
-        self.previous_close = prev
-        self.currency = currency
+def test_loading_the_provider_lets_a_failed_request_raise() -> None:
+    # Hidden, yfinance reports a failed request as a symbol with no price.
+    assert load_yfinance().config.debug.hide_exceptions is False
 
 
-class _FakeTicker:
-    """Stands in for one `yf.Ticker`."""
+@pytest.mark.no_mock_quotes
+def test_a_failed_request_leaves_the_cached_quote_as_it_was(
+    temp_ctx: TempContext,
+) -> None:
+    # SPY still prices, so this is one failed symbol, not an outage.
+    spy = FakeTicker(FastInfo(587.25, 584.0, "USD"))
+    with temp_ctx():
+        with stand_in_provider({"MSFT": FakeTicker(FastInfo(406.75, 401.5, "USD"))}):
+            QuotesService.refresh(["MSFT"], RESOLVER)
+        before = QuotesService.cached(["MSFT"])["MSFT"]
 
-    def __init__(
-        self,
-        fast: _FastInfo,
-        info: dict | None = None,
-        splits: pd.Series | None = None,
-    ) -> None:
-        self.fast_info = fast
-        self.info = info if info is not None else {}
-        self.splits = pd.Series(dtype=float) if splits is None else splits
+        failing = FailingFastInfo(OSError("connection reset by peer"))
+        with stand_in_provider({"MSFT": FakeTicker(failing), "SPY": spy}):
+            result = QuotesService.refresh(["MSFT", "SPY"], RESOLVER)
 
-
-class _FakeTickers:
-    """Stands in for `yf.Tickers`, which exposes a `.tickers` mapping."""
-
-    def __init__(self, tickers: dict[str, _FakeTicker]) -> None:
-        self.tickers = tickers
+        assert result == RefreshResult(fetched=1, failed=frozenset({"MSFT"}))
+        assert QuotesService.cached(["MSFT"])["MSFT"] == before
 
 
-def _fake_yfinance(
-    tickers: dict[str, Any],
-    frame: pd.DataFrame | None = None,
-) -> ModuleType:
-    """Build a stand-in `yfinance` module the fetch seams can import.
+@pytest.mark.no_mock_quotes
+def test_a_symbol_the_provider_has_no_prices_for_is_not_found(
+    temp_ctx: TempContext,
+) -> None:
+    missing = FailingFastInfo(YFPricesMissingError("NOSUCH", ""))
+    tickers = {
+        "NOSUCH": FakeTicker(missing),
+        "SPY": FakeTicker(FastInfo(587.25, 584.0, "USD")),
+    }
 
-    The seams import `yfinance` lazily by name, so putting a module here in
-    `sys.modules` exercises the real adapter code: how attributes are read off
-    `fast_info`, how a miss is recognised, how the raw dict is shaped. Only the
-    provider itself is replaced, never our own logic.
-    """
-    module = ModuleType("yfinance")
-    module.Tickers = lambda names: _FakeTickers(  # ty: ignore[unresolved-attribute]
-        {name: tickers[name] for name in names.split() if name in tickers},
+    with temp_ctx(), stand_in_provider(tickers):
+        result = QuotesService.refresh(["NOSUCH", "SPY"], RESOLVER)
+        cached = QuotesService.cached(["NOSUCH"])["NOSUCH"]
+
+    assert result == RefreshResult(fetched=1, not_found=1)
+    assert cached.status is QuoteStatus.NOT_FOUND
+
+
+@pytest.mark.no_mock_quotes
+def test_only_the_throttled_symbols_fall_back_to_daily_closes(
+    temp_ctx: TempContext,
+) -> None:
+    tickers = {
+        "MSFT": FakeTicker(FailingFastInfo(YFRateLimitError())),
+        "SPY": FakeTicker(FastInfo(587.25, 584.0, "USD")),
+    }
+    frame = pd.DataFrame({("MSFT", "Close"): [412.5, 418.25]})
+
+    with temp_ctx(), stand_in_provider(tickers, frame) as provider:
+        result = QuotesService.refresh(["MSFT", "SPY"], RESOLVER)
+        cached = QuotesService.cached(["MSFT", "SPY"])
+
+    assert provider.downloaded == [["MSFT"]]
+    assert result == RefreshResult(fetched=2, used_fallback=True)
+    assert cached["MSFT"].price == Decimal("418.25")
+    # SPY keeps its intraday price rather than a daily close.
+    assert cached["SPY"].price == Decimal("587.25")
+
+
+@pytest.mark.no_mock_quotes
+def test_a_throttled_symbol_the_fallback_also_misses_has_failed(
+    temp_ctx: TempContext,
+) -> None:
+    tickers = {
+        "MSFT": FakeTicker(FailingFastInfo(YFRateLimitError())),
+        "SPY": FakeTicker(FastInfo(587.25, 584.0, "USD")),
+    }
+    empty = pd.DataFrame()
+
+    with temp_ctx(), stand_in_provider(tickers, empty):
+        result = QuotesService.refresh(["MSFT", "SPY"], RESOLVER)
+        cached = QuotesService.cached(["MSFT", "SPY"])
+
+    assert result == RefreshResult(
+        fetched=1,
+        failed=frozenset({"MSFT"}),
+        used_fallback=True,
     )
-    module.Ticker = lambda name: tickers[name]  # ty: ignore[unresolved-attribute]
-    module.download = lambda *_args, **_kwargs: frame  # ty: ignore[unresolved-attribute]
-    return module
-
-
-@contextmanager
-def _provider(
-    tickers: dict[str, Any],
-    frame: pd.DataFrame | None = None,
-) -> Generator[None]:
-    """Install the stand-in provider for the duration of a block."""
-    with patch.dict(sys.modules, {"yfinance": _fake_yfinance(tickers, frame)}):
-        yield
+    assert "MSFT" not in cached, "a failed symbol was cached"
 
 
 @pytest.mark.no_mock_quotes
 def test_fetching_prices_reads_fast_info() -> None:
     tickers = {
-        "AAA": _FakeTicker(_FastInfo(200.0, 190.0, "USD")),
-        "BBB": _FakeTicker(_FastInfo(50.0, 55.0, "CAD")),
+        "AAA": FakeTicker(FastInfo(200.0, 190.0, "USD")),
+        "BBB": FakeTicker(FastInfo(50.0, 55.0, "CAD")),
     }
 
-    with _provider(tickers):
-        fetched = QuotesService._fetch_prices(["AAA", "BBB"])  # noqa: SLF001
+    with stand_in_provider(tickers):
+        fetched = QuotesService._fetch_prices(["AAA", "BBB"]).prices  # noqa: SLF001
 
     assert fetched["AAA"]["price"] == 200.0
     assert fetched["AAA"]["prev_close"] == 190.0
@@ -534,24 +507,24 @@ def test_fetching_prices_reads_fast_info() -> None:
 @pytest.mark.no_mock_quotes
 def test_fetching_prices_skips_a_symbol_with_no_price() -> None:
     tickers = {
-        "AAA": _FakeTicker(_FastInfo(200.0, 190.0, "USD")),
+        "AAA": FakeTicker(FastInfo(200.0, 190.0, "USD")),
         # A symbol the provider knows of but has no price for.
-        "GHOST": _FakeTicker(_FastInfo(None, 0.0, "USD")),
+        "GHOST": FakeTicker(FastInfo(None, 0.0, "USD")),
     }
 
-    with _provider(tickers):
-        fetched = QuotesService._fetch_prices(["AAA", "GHOST", "UNKNOWN"])  # noqa: SLF001
+    with stand_in_provider(tickers):
+        fetched = QuotesService._fetch_prices(["AAA", "GHOST", "UNKNOWN"]).prices  # noqa: SLF001
 
-    # A missing price and an unknown symbol are both simply absent, which is
-    # what `_merge` reads as NOT_FOUND.
+    # A symbol with no price and one the provider does not know are both
+    # absent, which is what `_merge` reads as NOT_FOUND.
     assert set(fetched) == {"AAA"}
 
 
 @pytest.mark.no_mock_quotes
 def test_fetching_metadata_reads_info() -> None:
     tickers = {
-        "AAA": _FakeTicker(
-            _FastInfo(200.0, 190.0, "USD"),
+        "AAA": FakeTicker(
+            FastInfo(200.0, 190.0, "USD"),
             {
                 "shortName": "Alpha Inc",
                 "sector": "Technology",
@@ -562,7 +535,7 @@ def test_fetching_metadata_reads_info() -> None:
         ),
     }
 
-    with _provider(tickers):
+    with stand_in_provider(tickers):
         described = QuotesService._fetch_metadata(["AAA"])  # noqa: SLF001
 
     assert described["AAA"]["name"] == "Alpha Inc"
@@ -591,11 +564,11 @@ def test_fundamentals_are_cached_in_one_set_of_units(temp_ctx: TempContext) -> N
         "netAssets": 35_000_000_000,
     }
     tickers = {
-        "AAA": _FakeTicker(_FastInfo(100.0, 99.0, "USD"), stock),
-        "FFF": _FakeTicker(_FastInfo(50.0, 49.0, "CAD"), fund),
+        "AAA": FakeTicker(FastInfo(100.0, 99.0, "USD"), stock),
+        "FFF": FakeTicker(FastInfo(50.0, 49.0, "CAD"), fund),
     }
 
-    with temp_ctx(), _provider(tickers):
+    with temp_ctx(), stand_in_provider(tickers):
         QuotesService.refresh(["AAA", "FFF"], RESOLVER)
         cached = QuotesService.cached()
 
@@ -618,7 +591,7 @@ def test_fundamentals_are_cached_in_one_set_of_units(temp_ctx: TempContext) -> N
 @pytest.mark.no_mock_quotes
 def test_split_history_is_cached_with_the_metadata(temp_ctx: TempContext) -> None:
     info = {"shortName": "Alpha"}
-    fast = _FastInfo(100.0, 99.0, "USD")
+    fast = FastInfo(100.0, 99.0, "USD")
 
     class SplitsFail:
         """A ticker that describes itself but cannot give its splits."""
@@ -638,12 +611,12 @@ def test_split_history_is_cached_with_the_metadata(temp_ctx: TempContext) -> Non
         index=pd.DatetimeIndex(["2022-06-10", "2024-03-01"], tz="America/New_York"),
     )
     tickers: dict[str, Any] = {
-        "SPLIT": _FakeTicker(fast, info, history),
-        "FLAT": _FakeTicker(fast, info),
+        "SPLIT": FakeTicker(fast, info, history),
+        "FLAT": FakeTicker(fast, info),
         "FAIL": SplitsFail(),
     }
 
-    with temp_ctx(), _provider(tickers):
+    with temp_ctx(), stand_in_provider(tickers):
         QuotesService.refresh(["SPLIT", "FLAT", "FAIL"], RESOLVER)
         cached = QuotesService.cached()
 
@@ -694,10 +667,10 @@ def test_a_failed_split_fetch_keeps_the_history_already_cached(
 @pytest.mark.no_mock_quotes
 def test_fetching_metadata_falls_back_to_the_long_name() -> None:
     tickers = {
-        "AAA": _FakeTicker(_FastInfo(1.0, 1.0, "USD"), {"longName": "Alpha Inc"}),
+        "AAA": FakeTicker(FastInfo(1.0, 1.0, "USD"), {"longName": "Alpha Inc"}),
     }
 
-    with _provider(tickers):
+    with stand_in_provider(tickers):
         described = QuotesService._fetch_metadata(["AAA"])  # noqa: SLF001
 
     assert described["AAA"]["name"] == "Alpha Inc"
@@ -708,7 +681,7 @@ def test_fetching_metadata_survives_a_symbol_that_raises() -> None:
     class Exploding:
         """A ticker whose `.info` scrape fails, as a throttled one does."""
 
-        fast_info = _FastInfo(1.0, 1.0, "USD")
+        fast_info = FastInfo(1.0, 1.0, "USD")
 
         @property
         def info(self) -> dict:
@@ -716,13 +689,13 @@ def test_fetching_metadata_survives_a_symbol_that_raises() -> None:
             raise RuntimeError(message)
 
     tickers: dict[str, Any] = {
-        "AAA": _FakeTicker(_FastInfo(1.0, 1.0, "USD"), {"shortName": "Alpha"}),
+        "AAA": FakeTicker(FastInfo(1.0, 1.0, "USD"), {"shortName": "Alpha"}),
         "BOOM": Exploding(),
         # An empty `.info` is a miss, not a name of "".
-        "EMPTY": _FakeTicker(_FastInfo(1.0, 1.0, "USD"), {}),
+        "EMPTY": FakeTicker(FastInfo(1.0, 1.0, "USD"), {}),
     }
 
-    with _provider(tickers):
+    with stand_in_provider(tickers):
         described = QuotesService._fetch_metadata(["AAA", "BOOM", "EMPTY"])  # noqa: SLF001
 
     # A failed scrape costs a name, never a price.
@@ -737,7 +710,7 @@ def test_the_daily_fallback_reads_a_batched_download(
         {("AAA", "Close"): [10.0, 11.0], ("BBB", "Close"): [20.0, 21.0]},
     )
 
-    with temp_ctx(), _provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         fetched = QuotesService._fetch_daily(["AAA", "BBB"])  # noqa: SLF001
 
     assert fetched["AAA"]["price"] == 11.0
@@ -754,7 +727,7 @@ def test_the_daily_fallback_skips_what_the_download_missed(
     # A batch can come back covering fewer symbols than were asked for.
     frame = pd.DataFrame({("AAA", "Close"): [10.0, 11.0]})
 
-    with temp_ctx(), _provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         fetched = QuotesService._fetch_daily(["AAA", "MISSING"])  # noqa: SLF001
 
     assert set(fetched) == {"AAA"}
@@ -765,7 +738,7 @@ def test_the_daily_fallback_handles_a_single_close(temp_ctx: TempContext) -> Non
     # A flat frame, with the fields alone, is read as the one symbol asked for.
     frame = pd.DataFrame({"Close": [11.0]})
 
-    with temp_ctx(), _provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         fetched = QuotesService._fetch_daily(["AAA"])  # noqa: SLF001
 
     assert fetched["AAA"]["price"] == 11.0
@@ -774,10 +747,10 @@ def test_the_daily_fallback_handles_a_single_close(temp_ctx: TempContext) -> Non
 
 @pytest.mark.no_mock_quotes
 def test_the_daily_fallback_on_an_empty_download(temp_ctx: TempContext) -> None:
-    with temp_ctx(), _provider({}, pd.DataFrame()):
+    with temp_ctx(), stand_in_provider({}, pd.DataFrame()):
         assert QuotesService._fetch_daily(["AAA"]) == {}  # noqa: SLF001
 
-    with temp_ctx(), _provider({}, None):
+    with temp_ctx(), stand_in_provider({}, None):
         assert QuotesService._fetch_daily(["AAA"]) == {}  # noqa: SLF001
 
 
@@ -939,7 +912,7 @@ def test_fetching_history_condenses_the_downloads(temp_ctx: TempContext) -> None
     frame = pd.DataFrame({"Close": [float(n) for n in range(1, len(days) + 1)]}, days)
 
     # The stand-in hands back the same closes for every interval asked for.
-    with temp_ctx(), _provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         fetched = QuotesService._fetch_history(["AAA"], today=date(2026, 9, 30))  # noqa: SLF001
 
     ranges = fetched["AAA"]
@@ -960,12 +933,12 @@ def test_fetching_intraday_stamps_each_bar_in_utc(temp_ctx: TempContext) -> None
         bars,
     )
 
-    with temp_ctx(), _provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         fetched = QuotesService._fetch_intraday(["AAA", "BBB", "MISSING"])  # noqa: SLF001
 
     # A batch can come back covering fewer symbols than were asked for, or none.
     assert set(fetched) == {"AAA", "BBB"}
-    with temp_ctx(), _provider({}, pd.DataFrame()):
+    with temp_ctx(), stand_in_provider({}, pd.DataFrame()):
         assert QuotesService._fetch_intraday(["AAA"]) == {}  # noqa: SLF001
     assert (
         fetched["AAA"][PriceRange.DAY_1].points[-1].when == "2026-09-30T19:55:00+00:00"
