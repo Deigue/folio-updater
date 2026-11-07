@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Currency, DiagnosticCode
-from engine.pools import account_type_of
+from engine.pools import (
+    Conversion,
+    Converted,
+    TotalReturnHidden,
+    UnitsSuspect,
+    Unpriced,
+    account_type_of,
+)
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
 from exporters.sheet_spec import (
     Col,
@@ -22,18 +28,12 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from decimal import Decimal
 
+    from domain import Currency
     from engine.holdings import CurrencyTotals, Holding, HoldingSet
-    from engine.pools import Pool, ValuedPool
+    from engine.pools import Disclosure, Pool, ValuedPool
 
 OPEN = "Open"
 CLOSED = "Closed"
-
-_UNITS_SUSPECT = frozenset(
-    {
-        DiagnosticCode.OVERSELL,
-        DiagnosticCode.NEGATIVE_FINAL_UNITS,
-    },
-)
 
 _WEIGHT = "Wt%"
 POOL = "Pool"
@@ -65,44 +65,6 @@ COLUMNS: tuple[Col, ...] = (
 )
 
 
-def dashboard_sheet(
-    holdings: HoldingSet,
-    name: str,
-    *,
-    net_deposits: Decimal | None = None,
-    tab_color: str | None = None,
-    notes: Sequence[str] = (),
-) -> Sheet:
-    """Print one pool's valued holdings as a sheet.
-
-    Args:
-        holdings: The pool's valued holdings and totals.
-        name: What the sheet is called.
-        net_deposits: The pool's net CAD deposits, which is what an overall
-            return is measured against. Read from its `Flows`; without it the
-            overall `Total%` is left blank rather than measured against a book
-            value that anything sold has already left.
-        tab_color: An accent for the sheet tab, as `RRGGBB`.
-        notes: Lines to disclose above the ones the table derives itself, such
-            as how old the prices are.
-
-    Returns:
-        The sheet, with the open holdings first, then the closed ones, then the
-        per-currency subtotals and the overall total below a spacer.
-    """
-    return Sheet(
-        name=name,
-        tables=(
-            SheetTable(
-                COLUMNS,
-                tuple(_pool_rows(COLUMNS, holdings, net_deposits, spacer=True)),
-                notes=(*notes, *_notes(holdings)),
-            ),
-        ),
-        tab_color=tab_color,
-    )
-
-
 def _tab_color(pool: Pool) -> str | None:
     """Accent a sheet tab the way the terminal accents the pool's title.
 
@@ -127,14 +89,19 @@ def pool_sheet(valued: ValuedPool, *, notes: Sequence[str] = ()) -> Sheet:
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The sheet.
+        The sheet, with the open holdings first, then the closed ones, then the
+        per-currency subtotals and the overall total below a spacer.
     """
-    return dashboard_sheet(
-        valued.holdings,
-        valued.pool.label,
-        net_deposits=valued.flows.net_deposit_denominator,
+    return Sheet(
+        name=valued.pool.label,
+        tables=(
+            SheetTable(
+                COLUMNS,
+                tuple(_pool_rows(COLUMNS, valued, spacer=True)),
+                notes=(*notes, *_notes(valued)),
+            ),
+        ),
         tab_color=_tab_color(valued.pool),
-        notes=notes,
     )
 
 
@@ -159,15 +126,9 @@ def pooled_dashboard_sheet(
     derived: list[str] = []
     for each in valued:
         rows.extend(
-            _pool_rows(
-                columns,
-                each.holdings,
-                each.flows.net_deposit_denominator,
-                pool=each.pool.label,
-                spacer=False,
-            ),
+            _pool_rows(columns, each, pool=each.pool.label, spacer=False),
         )
-        derived.extend(note for note in _notes(each.holdings) if note not in derived)
+        derived.extend(note for note in _notes(each) if note not in derived)
     return Sheet(
         name=name,
         tables=(SheetTable(columns, tuple(rows), notes=(*notes, *derived)),),
@@ -176,13 +137,13 @@ def pooled_dashboard_sheet(
 
 def _pool_rows(
     columns: Sequence[Col],
-    holdings: HoldingSet,
-    net_deposits: Decimal | None,
+    valued: ValuedPool,
     *,
     pool: str | None = None,
     spacer: bool,
 ) -> list[Row]:
     """List one pool's rows: its holdings, then what they total to."""
+    holdings = valued.holdings
     rows = [
         row_of(columns, _named(cells, pool), role)
         for cells, role in _holding_cells(holdings)
@@ -190,14 +151,14 @@ def _pool_rows(
     if rows and spacer:
         rows.append(blank_row(columns))
     for group in holdings.by_currency:
-        total = _subtotal_return(holdings, group, net_deposits)
+        total = valued.subtotal_return(group).ratio
         cells = _named(_subtotal_cells(group, total), pool)
         rows.append(row_of(columns, cells, Role.SUBTOTAL))
     if holdings.mixed_currency:
         rows.append(
             row_of(
                 columns,
-                _named(_total_cells(holdings, net_deposits), pool),
+                _named(_total_cells(valued), pool),
                 Role.TOTAL,
             ),
         )
@@ -302,11 +263,9 @@ def _subtotal_cells(group: CurrencyTotals, total: Decimal | None) -> dict[str, o
     }
 
 
-def _total_cells(
-    holdings: HoldingSet,
-    net_deposits: Decimal | None,
-) -> dict[str, object]:
+def _total_cells(valued: ValuedPool) -> dict[str, object]:
     """Total across every currency, converted into the totals currency."""
+    holdings = valued.holdings
     return {
         "Symbol": "Total",
         "$": f"({holdings.totals_currency})",
@@ -317,30 +276,11 @@ def _total_cells(
         "Realized": holdings.total_realized,
         "Divs": holdings.total_dividends,
         "Total": holdings.total_pnl,
-        # Against net deposits rather than book value: see `HoldingSet.return_on`.
-        "Total%": holdings.return_on(net_deposits),
+        "Total%": valued.total_return.ratio,
         "Book": holdings.total_book,
         "Market": holdings.total_market,
         "Folio%": holdings.total_weight_in_folio,
     }
-
-
-def _subtotal_return(
-    holdings: HoldingSet,
-    group: CurrencyTotals,
-    net_deposits: Decimal | None,
-) -> Decimal | None:
-    """Decide whether a currency subtotal is really the pool's overall total.
-
-    The same rule the printed table follows: a single-currency pool has one
-    deposit history, so its subtotal is promoted to the deposit-based return.
-    """
-    if holdings.mixed_currency:
-        return group.total_pnl_pct
-    if not holdings.deposits_measurable:
-        return None
-    promoted = holdings.return_on(net_deposits)
-    return group.total_pnl_pct if promoted is None else promoted
 
 
 def _flags(holding: Holding) -> str:
@@ -348,32 +288,42 @@ def _flags(holding: Holding) -> str:
     return ",".join(str(code) for code in holding.flags)
 
 
-def _notes(holdings: HoldingSet) -> list[str]:
-    """Disclose what the table could not show, and what it converted at."""
-    notes: list[str] = []
-    if holdings.unpriced:
-        listed = ", ".join(holdings.unpriced)
-        notes.append(
-            f"{len(holdings.unpriced)} holding(s) unpriced and excluded from "
-            f"totals: {listed}",
-        )
-    if not holdings.deposits_measurable:
-        notes.append(
-            f"Total% is blank: it measures the pool against its net deposits, "
-            f"and {holdings.excluded} CAD holding(s) are hidden by the "
-            f"{holdings.totals_currency} currency filter.",
-        )
-    converts = holdings.mixed_currency or holdings.display_currency is Currency.CAD
-    if holdings.fx_rate is not None and converts:
-        notes.append(
-            f"Converted at USDCAD {float(holdings.fx_rate):,.4f} "
-            f"({holdings.fx_date}). Cost base keeps its own historical rates.",
-        )
-    suspect = [code for code in holdings.flags if code in _UNITS_SUSPECT]
-    if suspect:
-        codes = ", ".join(str(code) for code in suspect)
-        notes.append(
-            f"Flagged holdings carry {codes}; their units are known to be "
-            f"wrong. Run `folio check`.",
-        )
-    return notes
+def _notes(valued: ValuedPool) -> list[str]:
+    """Word what the table could not show, and what it converted at."""
+    return [_note(disclosure) for disclosure in valued.disclosures]
+
+
+def _note(disclosure: Disclosure) -> str:
+    """Word one disclosure as a line under the table."""
+    match disclosure:
+        case Unpriced(symbols):
+            return (
+                f"{len(symbols)} holding(s) unpriced and excluded from totals: "
+                f"{', '.join(symbols)}"
+            )
+        case TotalReturnHidden(excluded, shown):
+            return (
+                f"Total% is blank: it measures the pool against its net deposits, "
+                f"and {excluded} CAD holding(s) are hidden by the {shown} currency "
+                f"filter."
+            )
+        case Converted(what, into, rate, rate_date):
+            return (
+                f"{_converted_what(what, into)} at USDCAD {float(rate):,.4f} "
+                f"({rate_date}). Cost base keeps its own historical rates."
+            )
+        case UnitsSuspect(codes):
+            listed = ", ".join(str(code) for code in codes)
+            return (
+                f"Flagged holdings carry {listed}; their units are known to be "
+                f"wrong. Run `folio check`."
+            )
+
+
+def _converted_what(what: Conversion, into: Currency) -> str:
+    """Say which figures a conversion produced, as the note opens."""
+    if what is Conversion.TOTAL:
+        return f"Total ({into}) converted"
+    if what is Conversion.TOTAL_RETURN:
+        return f"Total% ({into}) converted"
+    return "Valued"

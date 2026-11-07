@@ -132,7 +132,7 @@ def show_types(
         _export(valued, export, _note(valuation))
         return
     show_by_type(
-        [(each.holdings, each.flows, each.pool.label) for each in valued],
+        valued,
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),
@@ -220,9 +220,7 @@ def show_dash(
         return
 
     show_dashboard(
-        valued.holdings,
-        valued.flows,
-        valued.pool.label,
+        valued,
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),

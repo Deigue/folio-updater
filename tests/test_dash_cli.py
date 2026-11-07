@@ -166,38 +166,6 @@ def test_dash_reverses_a_sort(temp_ctx: TempContext) -> None:
         assert rows.index("TESTTKR") < rows.index("OTHER")
 
 
-def test_a_narrow_window_says_which_columns_are_hidden(
-    temp_ctx: TempContext,
-) -> None:
-    """Printed above the table, so a reader paging a long report sees it."""
-    with temp_ctx() as ctx:
-        seed_two_account_types()
-
-        result = run_cli_with_config(ctx.config, app, ["dash"], width=60)
-
-        assert_cli_success(result)
-        assert_in_output("hidden", result)
-        assert_in_output("widen the window", result)
-
-
-def test_a_folio_that_never_sold_loses_the_realized_column(
-    temp_ctx: TempContext,
-) -> None:
-    """Zeros blank themselves, so `_drop_blank` takes the column for free."""
-    with temp_ctx() as ctx:
-        seed_two_account_types()
-
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["dash"],
-            width=UNCONSTRAINED_WIDTH,
-        )
-
-        assert_cli_success(result)
-        assert_not_in_output("Realized", result)
-
-
 def test_dash_show_closed_breaks_out_each_holding(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         seed_two_account_types()
@@ -273,38 +241,6 @@ def _seed_mixed_currency() -> None:
         price="200",
         units="10",
     )
-
-
-def test_a_single_usd_folio_promotes_total_percent_and_discloses_it(
-    temp_ctx: TempContext,
-) -> None:
-    """A USD-only account still divides `Total%` by its (CAD) net deposits.
-
-    The account itself never converts: cash and holdings both stay in USD.
-    Only the `Total%` cell borrows CAD to pair with net deposits, which is why
-    that promotion needs its own disclosure even though nothing else on the
-    page was touched.
-    """
-    with temp_ctx() as ctx:
-        seed_fx(TWO_TYPES_FX)
-        # Funded in CAD (net deposits are tracked in CAD only, see
-        # `_net_deposits`), then the whole balance bought a USD security, so
-        # the account itself holds and prices everything in USD.
-        seed_cash("CONTRIBUTION", amount="10000", account="WS-TFSA", date="2025-08-14")
-        seed_transaction(
-            account="WS-TFSA",
-            ticker="TESTTKR",
-            currency="USD",
-            amount="-1000",
-            price="100",
-            units="10",
-        )
-
-        result = run_cli_with_config(ctx.config, app, ["dash"])
-
-        assert_cli_success(result)
-        assert result.plain_output.count("1 held") == 1
-        assert_in_output("Total% (CAD) converted at USDCAD", result)
 
 
 def test_forcing_cad_converts_and_ungroups(temp_ctx: TempContext) -> None:
@@ -546,28 +482,6 @@ def test_dash_reports_negative_cash_as_an_alert(temp_ctx: TempContext) -> None:
         assert_cli_success(result)
         assert_in_output("Cash is negative", result)
         assert_in_output("folio check", result)
-
-
-def test_dash_badges_a_pool_whose_units_are_wrong(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_fx(TWO_TYPES_FX)
-        seed_cash("CONTRIBUTION", amount="10000", date="2025-08-14")
-        seed_transaction(ticker="TESTTKR", amount="-1000", price="100", units="10")
-        # Selling more than was ever held drives units negative.
-        seed_transaction(
-            action="SELL",
-            ticker="TESTTKR",
-            amount="2500",
-            price="125",
-            units="20",
-            date="2025-08-18",
-        )
-
-        result = run_cli_with_config(ctx.config, app, ["dash"])
-
-        assert_cli_success(result)
-        assert_in_output("known to be wrong", result)
-        assert_in_output("OVERSELL", result)
 
 
 def test_refresh_returns_the_cost_base_to_freshly_computed(

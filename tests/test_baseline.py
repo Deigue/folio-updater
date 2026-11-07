@@ -254,6 +254,15 @@ def _dashboard_rows(display: str, valued: Iterable[ValuedPool]) -> list[list[str
             ("totals", held),
             *((f"totals {group.currency}", group) for group in held.by_currency),
             ("flows", each.flows),
+            ("return", each.total_return),
+            *(
+                (f"return {group.currency}", each.subtotal_return(group))
+                for group in held.by_currency
+            ),
+            *(
+                (f"disclosure {type(disclosure).__name__}", disclosure)
+                for disclosure in each.disclosures
+            ),
         ]
         for item, record in records:
             rows.extend(_record_rows([*pool, item], record))

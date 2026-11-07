@@ -26,6 +26,11 @@ if TYPE_CHECKING:
 # The currency a report shows its figures in
 DisplayCurrency = Currency | Literal["native"]
 
+# Diagnostics that mean a holding's units are known to be wrong.
+UNITS_SUSPECT = frozenset(
+    {DiagnosticCode.OVERSELL, DiagnosticCode.NEGATIVE_FINAL_UNITS},
+)
+
 
 @dataclass(frozen=True)
 class Holding:
@@ -107,6 +112,11 @@ class Holding:
     def closed_total(self) -> Decimal:
         """What a closed holding earned over its whole life."""
         return self.realized + self.dividends
+
+    @property
+    def units_suspect(self) -> bool:
+        """Whether the replay found this holding's units to be wrong."""
+        return not UNITS_SUSPECT.isdisjoint(self.flags)
 
 
 @dataclass(frozen=True)

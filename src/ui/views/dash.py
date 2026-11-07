@@ -12,8 +12,15 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.table import Table as RichTable
 
-from domain import Currency, DiagnosticCode, Grain
+from domain import Currency, Grain
 from domain.numeric import ZERO, q2
+from engine.pools import (
+    Conversion,
+    Converted,
+    TotalReturnHidden,
+    UnitsSuspect,
+    Unpriced,
+)
 from term import console_print
 from ui.cells import (
     UNICODE,
@@ -62,16 +69,8 @@ if TYPE_CHECKING:
 
     from engine.flows import Flows, Room
     from engine.holdings import ClosedTotals, CurrencyTotals, Holding, HoldingSet
+    from engine.pools import Disclosure, Return, ValuedPool
     from ui.layout.fit import FitResult
-
-
-# Diagnostics that make a pool's units untrustworthy.
-_UNITS_SUSPECT = frozenset(
-    {
-        DiagnosticCode.OVERSELL,
-        DiagnosticCode.NEGATIVE_FINAL_UNITS,
-    },
-)
 
 
 @dataclass(frozen=True)
@@ -109,7 +108,7 @@ def _weight_bar(holding: Holding) -> str:
 
 def _symbol_cell(holding: Holding) -> str:
     """Render the symbol, badged when its units are known to be wrong."""
-    if set(holding.flags) & _UNITS_SUSPECT:
+    if holding.units_suspect:
         return f"[red]{holding.symbol} {WARN_GLYPH}[/red]"
     return holding.symbol
 
@@ -181,10 +180,9 @@ def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_HoldingColumn, ...]:
 
 
 def holdings_table(
-    holdings: HoldingSet,
+    valued: ValuedPool,
     title: str | None = None,
     *,
-    flows: Flows | None = None,
     wide: bool = False,
     show_closed: bool = False,
 ) -> FitResult:
@@ -198,10 +196,8 @@ def holdings_table(
     bottom. You can see them all when `show_closed` is True.
 
     Args:
-        holdings: The valued holdings to show.
+        valued: The pool whose holdings to show.
         title: Table title.
-        flows: The pool's cash movements, so the grand total can state its
-            return against net deposits. Without it that one cell is blank.
         wide: Offer the wide-only columns as well.
         show_closed: Break the aggregate "Closed" row open into one row per
             closed holding instead.
@@ -210,6 +206,7 @@ def holdings_table(
         The fitted table alongside the columns it had to give up, so the
         caller can say what is missing.
     """
+    holdings = valued.holdings
     specs = _columns(holdings, wide=wide)
     table = RichTable(
         title=title,
@@ -224,7 +221,6 @@ def holdings_table(
             no_wrap=spec.header != "Name",
         )
 
-    deposited = _net_deposits(flows)
     for group in holdings.by_currency:
         for holding in group.members:
             table.add_row(*[spec.render(holding) for spec in specs])
@@ -240,11 +236,7 @@ def holdings_table(
         # in one line rather than a blank one, keeping the table short.
         table.add_section()
         table.add_row(
-            *_subtotal_cells(
-                group,
-                specs,
-                _subtotal_return(holdings, group, deposited),
-            ),
+            *_subtotal_cells(group, specs, valued.subtotal_return(group)),
             style=SUBTOTAL_ROW_STYLE,
         )
         table.add_section()
@@ -252,7 +244,7 @@ def holdings_table(
     # For multiple currencies, show an additional grand-total row.
     if holdings.mixed_currency:
         table.add_row(
-            *_grand_total_cells(holdings, specs, flows),
+            *_grand_total_cells(valued, specs),
             style=GRAND_TOTAL_ROW_STYLE,
         )
 
@@ -289,57 +281,10 @@ def _closed_summary_cells(
     return [cells.get(spec.header, "") for spec in specs]
 
 
-@dataclass(frozen=True)
-class _Return:
-    """What one totals row's `Total%` states, and what colours it.
-
-    Attributes:
-        ratio: The percentage to print, or None to leave the cell blank.
-        earned: The gain the ratio came from, whose sign picks the colour.
-    """
-
-    ratio: Decimal | None = None
-    earned: Decimal | None = None
-
-
-def _subtotal_return(
-    holdings: HoldingSet,
-    group: CurrencyTotals,
-    deposited: Decimal | None,
-) -> _Return:
-    """Decide whether a currency subtotal is really the pool's overall total.
-
-    A USD-only pool is still one pool with one deposit history, so it earns the
-    same promotion a CAD-only one does, and `return_on` keeps both sides of the
-    ratio in CAD however the pool is displayed.
-
-    Args:
-        holdings: The set being rendered.
-        group: The currency group this row totals.
-        deposited: Net CAD deposits, when the caller could supply them.
-
-    Returns:
-        The promoted return when this row is the pool's overall total, the
-        group's own book-based ratio when a grand total is coming anyway, and a
-        blank when `-c USD` has hidden part of the pool from a whole-pool
-        denominator.
-    """
-    # no need to promote, we are going to show a grand total anyway
-    if holdings.mixed_currency:
-        return _Return(group.total_pnl_pct, group.total_pnl)
-    if not holdings.deposits_measurable:
-        # Holdings are being hidden, we cant calculate truthful `Total%`
-        return _Return()
-    promoted = holdings.return_on(deposited)
-    if promoted is None:
-        return _Return(group.total_pnl_pct, group.total_pnl)
-    return _Return(promoted, holdings.total_pnl_cad)
-
-
 def _subtotal_cells(
     group: CurrencyTotals,
     specs: Sequence[_HoldingColumn],
-    total: _Return,
+    total: Return,
 ) -> list[str]:
     """Subtotal one currency group, in that group's own currency.
 
@@ -348,7 +293,7 @@ def _subtotal_cells(
     Args:
         group: The currency group's totals.
         specs: The columns this table is rendering.
-        total: What the `Total%` cell should say, from `_subtotal_return`.
+        total: What the `Total%` cell says, from `ValuedPool.subtotal_return`.
 
     Returns:
         One cell per column in `specs`.
@@ -370,7 +315,7 @@ def _subtotal_cells(
         ),
         "Divs": income(group.dividends),
         "Total": signed(money(group.total_pnl), group.total_pnl),
-        "Total%": lifetime_return(total.ratio, total.earned),
+        "Total%": lifetime_return(total.ratio, total.gain),
         "Wt%": percent(group.weight_in_pool),
         "Folio%": percent(group.weight_in_folio),
     }
@@ -378,13 +323,13 @@ def _subtotal_cells(
 
 
 def _grand_total_cells(
-    holdings: HoldingSet,
+    valued: ValuedPool,
     specs: Sequence[_HoldingColumn],
-    flows: Flows | None = None,
 ) -> list[str]:
     """Total across every currency, converted into the totals currency."""
+    holdings = valued.holdings
     totals = holdings.totals_currency
-    deposited = _net_deposits(flows)
+    total = valued.total_return
     whole = percent(Decimal(1)) if holdings.total_market else ""
     cells = {
         "Symbol": "[bold]Total[/bold]",
@@ -407,19 +352,9 @@ def _grand_total_cells(
             holdings.total_unrealized_pct,
             holdings.total_unrealized,
         ),
-        # Against net deposits rather than book value: see `return_on`.
-        "Total%": lifetime_return(holdings.return_on(deposited), holdings.total_pnl),
+        "Total%": lifetime_return(total.ratio, total.gain),
     }
     return [cells.get(spec.header, "") for spec in specs]
-
-
-def _net_deposits(flows: Flows | None) -> Decimal | None:
-    """Read the return denominator, for a caller that may have no flows at all.
-
-    The rule itself (CAD only, judged at cent precision) belongs to the engine:
-    see `Flows.net_deposit_denominator`.
-    """
-    return flows.net_deposit_denominator if flows else None
 
 
 def flows_panel(flows: Flows, title: str | None = None) -> Panel:
@@ -596,7 +531,7 @@ def _cash_alerts(flows: Flows) -> list[RenderableType]:
 
 
 def show_by_type(
-    panels: Sequence[tuple[HoldingSet, Flows, str]],
+    valued: Sequence[ValuedPool],
     *,
     wide: bool = False,
     show_closed: bool = False,
@@ -610,7 +545,7 @@ def show_by_type(
     each under a heading of its own.
 
     Args:
-        panels: Each type's valued holdings, flows and label.
+        valued: Each account type's pool, valued.
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
@@ -618,10 +553,7 @@ def show_by_type(
     if badge:
         console_print(badge)
 
-    by_tile = {
-        Tile(flows_panel(flows, title)): (holdings, flows, title)
-        for holdings, flows, title in panels
-    }
+    by_tile = {Tile(flows_panel(each.flows, each.pool.label)): each for each in valued}
     layout = TilingLayout(list(by_tile))
     layout.render()
 
@@ -629,42 +561,41 @@ def show_by_type(
     # rather than the given one. Split from its flows panel, each table needs a
     # heading to say whose it is.
     for tile in layout.reading_order:
-        holdings, flows, title = by_tile[tile]
+        each = by_tile[tile]
         console_print("")
         console_print(
-            Rule(_panel_title(flows, title), align="left", style=_accent(flows) or ""),
+            Rule(
+                _panel_title(each.flows, each.pool.label),
+                align="left",
+                style=_accent(each.flows) or "",
+            ),
         )
-        _print_holdings(holdings, flows, wide=wide, show_closed=show_closed)
+        _print_holdings(each, wide=wide, show_closed=show_closed)
 
 
 def show_dashboard(
-    holdings: HoldingSet,
-    flows: Flows,
-    title: str,
+    valued: ValuedPool,
     *,
     wide: bool = False,
     show_closed: bool = False,
     badge: str | None = None,
 ) -> None:
-    """Print one grain's dashboard: badge, flows panel, then holdings.
+    """Print one pool's dashboard: badge, flows panel, then holdings.
 
     Args:
-        holdings: The valued holdings.
-        flows: The pool's cash and income figures.
-        title: Heading for both the panel and the table.
+        valued: The pool, valued. Its label heads both the panel and the table.
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
     """
     if badge:
         console_print(badge)
-    console_print(flows_panel(flows, title))
-    _print_holdings(holdings, flows, wide=wide, show_closed=show_closed)
+    console_print(flows_panel(valued.flows, valued.pool.label))
+    _print_holdings(valued, wide=wide, show_closed=show_closed)
 
 
 def _print_holdings(
-    holdings: HoldingSet,
-    flows: Flows,
+    valued: ValuedPool,
     *,
     wide: bool,
     show_closed: bool,
@@ -672,74 +603,53 @@ def _print_holdings(
     """Print one pool's holdings table with everything it has to disclose.
 
     Args:
-        holdings: The valued holdings.
-        flows: The pool's cash and income figures.
+        valued: The pool, valued.
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
     """
-    if not holdings.holdings and not holdings.closed:
+    if not valued.occupied:
         console_print("[yellow]No open holdings in this pool.[/yellow]")
         return
 
-    fitted = holdings_table(holdings, flows=flows, wide=wide, show_closed=show_closed)
+    fitted = holdings_table(valued, wide=wide, show_closed=show_closed)
     if fitted.note:
         console_print(fitted.note)
     console_print(fitted.table)
-    for note in _footnotes(holdings, flows):
-        console_print(note)
+    for disclosure in valued.disclosures:
+        console_print(_disclosure_line(disclosure))
 
 
-def _footnotes(holdings: HoldingSet, flows: Flows | None = None) -> list[str]:
-    """Disclose what the table could not show and what it converted at."""
-    notes: list[str] = []
-    if holdings.unpriced:
-        listed = ", ".join(holdings.unpriced)
-        notes.append(
-            f"[yellow]{WARN_GLYPH} {len(holdings.unpriced)} holding(s) unpriced "
-            f"and excluded from totals: {listed}[/yellow]",
-        )
-    if not holdings.deposits_measurable and _net_deposits(flows) is not None:
-        notes.append(
-            f"[dim]Total% is blank: it measures the pool against its net "
-            f"deposits, and {holdings.excluded} CAD holding(s) are hidden by "
-            f"--currency {holdings.totals_currency}. Drop the flag to see "
-            f"it.[/dim]",
-        )
-    # A single-currency pool that isn't CAD still gets its `Total%` promoted to
-    # net deposits (see `_subtotal_return`), which is a CAD figure, so that one cell
-    # is a conversion even though every other column stays untouched. Only worth
-    # disclosing when the promotion actually filled the cell: with no CAD deposits to
-    # divide by, `Total%` is blank and there is nothing to have converted.
-    single_promoted = (
-        not holdings.mixed_currency
-        and holdings.deposits_measurable
-        and holdings.by_currency
-        and holdings.by_currency[0].currency is not Currency.CAD
-        and _net_deposits(flows) is not None
-    )
-    # `-c USD` converts nothing: the CAD holdings are eliminated.
-    converts = (
-        holdings.mixed_currency
-        or holdings.display_currency == Currency.CAD
-        or single_promoted
-    )
-    if holdings.fx_rate is not None and converts:
-        if holdings.mixed_currency:
-            what = f"Total ({holdings.totals_currency}) converted"
-        elif single_promoted:
-            what = "Total% (CAD) converted"
-        else:
-            what = "Valued"
-        notes.append(
-            f"[dim]{what} at USDCAD {float(holdings.fx_rate):,.4f} "
-            f"({holdings.fx_date}). Cost base keeps its own historical "
-            f"rates.[/dim]",
-        )
-    suspect = [code for code in holdings.flags if code in _UNITS_SUSPECT]
-    if suspect:
-        codes = ", ".join(str(code) for code in suspect)
-        notes.append(
-            f"[red]{WARN_GLYPH} Badged holdings carry {codes}; their units are "
-            f"known to be wrong. Run `folio check`.[/red]",
-        )
-    return notes
+def _disclosure_line(disclosure: Disclosure) -> str:
+    """Word one disclosure as the line printed under the table."""
+    match disclosure:
+        case Unpriced(symbols):
+            return (
+                f"[yellow]{WARN_GLYPH} {len(symbols)} holding(s) unpriced and "
+                f"excluded from totals: {', '.join(symbols)}[/yellow]"
+            )
+        case TotalReturnHidden(excluded, shown):
+            return (
+                f"[dim]Total% is blank: it measures the pool against its net "
+                f"deposits, and {excluded} CAD holding(s) are hidden by "
+                f"--currency {shown}. Drop the flag to see it.[/dim]"
+            )
+        case Converted(what, into, rate, rate_date):
+            return (
+                f"[dim]{_converted_what(what, into)} at USDCAD {float(rate):,.4f} "
+                f"({rate_date}). Cost base keeps its own historical rates.[/dim]"
+            )
+        case UnitsSuspect(codes):
+            listed = ", ".join(str(code) for code in codes)
+            return (
+                f"[red]{WARN_GLYPH} Badged holdings carry {listed}; their units "
+                f"are known to be wrong. Run `folio check`.[/red]"
+            )
+
+
+def _converted_what(what: Conversion, into: Currency) -> str:
+    """Say which figures a conversion produced, as the line opens."""
+    if what is Conversion.TOTAL:
+        return f"Total ({into}) converted"
+    if what is Conversion.TOTAL_RETURN:
+        return f"Total% ({into}) converted"
+    return "Valued"

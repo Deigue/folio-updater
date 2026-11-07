@@ -203,7 +203,7 @@ def _headline_list(folio: ValuedPool) -> SheetList:
         Line("Total gain", holdings.total_pnl, Fmt.MONEY_SIGNED, totals),
         Line(
             "Total return",
-            holdings.return_on(flows.net_deposit_denominator),
+            folio.total_return.ratio,
             Fmt.PERCENT_SIGNED,
             "on net deposits",
         ),
@@ -262,8 +262,7 @@ def _pool_cells(valued: ValuedPool) -> dict[str, object]:
         "Realized": holdings.total_realized,
         "Divs": holdings.total_dividends,
         "Total": holdings.total_pnl,
-        # Against net deposits rather than book value: see `HoldingSet.return_on`.
-        "Total%": holdings.return_on(valued.flows.net_deposit_denominator),
+        "Total%": valued.total_return.ratio,
         "Folio%": holdings.total_weight_in_folio,
     }
 

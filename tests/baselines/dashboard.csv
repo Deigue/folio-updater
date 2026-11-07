@@ -1,4 +1,8 @@
 Display,Grain,Pool,Item,Figure,Value
+CAD,acct,MOCK-CORPORATE,disclosure Converted,into,CAD
+CAD,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
+CAD,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK-CORPORATE,disclosure Converted,what,valued
 CAD,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
 CAD,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 CAD,acct,MOCK-CORPORATE,flows,cash USD,4839.2
@@ -44,11 +48,16 @@ CAD,acct,MOCK-CORPORATE,holding KO,total_pnl_cad,2049.02900
 CAD,acct,MOCK-CORPORATE,holding KO,total_pnl_pct,0.3564704986302784504925155650
 CAD,acct,MOCK-CORPORATE,holding KO,total_pnl_totals,2049.02900
 CAD,acct,MOCK-CORPORATE,holding KO,units,60.0
+CAD,acct,MOCK-CORPORATE,holding KO,units_suspect,False
 CAD,acct,MOCK-CORPORATE,holding KO,unrealized,1379.32140
 CAD,acct,MOCK-CORPORATE,holding KO,unrealized_pct,0.2399611656201126263821386904
 CAD,acct,MOCK-CORPORATE,holding KO,unrealized_totals,1379.32140
 CAD,acct,MOCK-CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 CAD,acct,MOCK-CORPORATE,holding KO,weight_in_pool,1
+CAD,acct,MOCK-CORPORATE,return,gain,2049.02900
+CAD,acct,MOCK-CORPORATE,return,ratio,0.1707524166666666666666666667
+CAD,acct,MOCK-CORPORATE,return CAD,gain,2049.02900
+CAD,acct,MOCK-CORPORATE,return CAD,ratio,0.1707524166666666666666666667
 CAD,acct,MOCK-CORPORATE,totals,closed,
 CAD,acct,MOCK-CORPORATE,totals,deposits_measurable,True
 CAD,acct,MOCK-CORPORATE,totals,display_currency,CAD
@@ -91,6 +100,10 @@ CAD,acct,MOCK-CORPORATE,totals CAD,unrealized,1379.32140
 CAD,acct,MOCK-CORPORATE,totals CAD,unrealized_pct,0.2399611656201126263821386904
 CAD,acct,MOCK-CORPORATE,totals CAD,weight_in_folio,0.02524680264015418949811060549
 CAD,acct,MOCK-CORPORATE,totals CAD,weight_in_pool,1
+CAD,acct,MOCK-MARGIN,disclosure Converted,into,CAD
+CAD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
+CAD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK-MARGIN,disclosure Converted,what,valued
 CAD,acct,MOCK-MARGIN,flows,account_type,MARGIN
 CAD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 CAD,acct,MOCK-MARGIN,flows,cash USD,4076.45
@@ -140,11 +153,16 @@ CAD,acct,MOCK-MARGIN,holding KO,total_pnl_cad,4064.302792307692
 CAD,acct,MOCK-MARGIN,holding KO,total_pnl_pct,0.4348734509242241074561559262
 CAD,acct,MOCK-MARGIN,holding KO,total_pnl_totals,4064.302792307692
 CAD,acct,MOCK-MARGIN,holding KO,units,105.0
+CAD,acct,MOCK-MARGIN,holding KO,units_suspect,False
 CAD,acct,MOCK-MARGIN,holding KO,unrealized,3127.048292307692
 CAD,acct,MOCK-MARGIN,holding KO,unrealized_pct,0.3345888216439749931895564498
 CAD,acct,MOCK-MARGIN,holding KO,unrealized_totals,3127.048292307692
 CAD,acct,MOCK-MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 CAD,acct,MOCK-MARGIN,holding KO,weight_in_pool,1
+CAD,acct,MOCK-MARGIN,return,gain,4064.302792307692
+CAD,acct,MOCK-MARGIN,return,ratio,0.3438846687056066298312706820
+CAD,acct,MOCK-MARGIN,return CAD,gain,4064.302792307692
+CAD,acct,MOCK-MARGIN,return CAD,ratio,0.3438846687056066298312706820
 CAD,acct,MOCK-MARGIN,totals,closed,
 CAD,acct,MOCK-MARGIN,totals,deposits_measurable,True
 CAD,acct,MOCK-MARGIN,totals,display_currency,CAD
@@ -187,6 +205,10 @@ CAD,acct,MOCK-MARGIN,totals CAD,unrealized,3127.048292307692
 CAD,acct,MOCK-MARGIN,totals CAD,unrealized_pct,0.3345888216439749931895564498
 CAD,acct,MOCK-MARGIN,totals CAD,weight_in_folio,0.04418190462026983162169355961
 CAD,acct,MOCK-MARGIN,totals CAD,weight_in_pool,1
+CAD,acct,MOCK-PERSONAL,disclosure Converted,into,CAD
+CAD,acct,MOCK-PERSONAL,disclosure Converted,rate,1.38
+CAD,acct,MOCK-PERSONAL,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK-PERSONAL,disclosure Converted,what,valued
 CAD,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
 CAD,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 CAD,acct,MOCK-PERSONAL,flows,cash USD,572.19
@@ -236,6 +258,7 @@ CAD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_cad,6915.97125
 CAD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_pct,0.3484081736907405818049256189
 CAD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_totals,6915.97125
 CAD,acct,MOCK-PERSONAL,holding AAPL,units,58.0
+CAD,acct,MOCK-PERSONAL,holding AAPL,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding AAPL,unrealized,6804.72275
 CAD,acct,MOCK-PERSONAL,holding AAPL,unrealized_pct,0.3428037711694266949643860102
 CAD,acct,MOCK-PERSONAL,holding AAPL,unrealized_totals,6804.72275
@@ -272,6 +295,7 @@ CAD,acct,MOCK-PERSONAL,holding COST,total_pnl_cad,-391.36925
 CAD,acct,MOCK-PERSONAL,holding COST,total_pnl_pct,-0.03325449455913638378613542122
 CAD,acct,MOCK-PERSONAL,holding COST,total_pnl_totals,-391.36925
 CAD,acct,MOCK-PERSONAL,holding COST,units,9.0
+CAD,acct,MOCK-PERSONAL,holding COST,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding COST,unrealized,-462.49010
 CAD,acct,MOCK-PERSONAL,holding COST,unrealized_pct,-0.03929760581370264028379375635
 CAD,acct,MOCK-PERSONAL,holding COST,unrealized_totals,-462.49010
@@ -308,6 +332,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_cad,0.0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,units,0.0
+CAD,acct,MOCK-PERSONAL,holding DLR.TO,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,unrealized,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,unrealized_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,unrealized_totals,
@@ -344,6 +369,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.3642
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,units,0.0
+CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_totals,
@@ -380,6 +406,7 @@ CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.89
 CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding INTC,units,0.0
+CAD,acct,MOCK-PERSONAL,holding INTC,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding INTC,unrealized,
 CAD,acct,MOCK-PERSONAL,holding INTC,unrealized_pct,
 CAD,acct,MOCK-PERSONAL,holding INTC,unrealized_totals,
@@ -416,6 +443,7 @@ CAD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_cad,8929.93570
 CAD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_pct,0.4954509727647917952994446792
 CAD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_totals,8929.93570
 CAD,acct,MOCK-PERSONAL,holding JNJ,units,72.0
+CAD,acct,MOCK-PERSONAL,holding JNJ,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding JNJ,unrealized,8280.71300
 CAD,acct,MOCK-PERSONAL,holding JNJ,unrealized_pct,0.4594307785481655104895604621
 CAD,acct,MOCK-PERSONAL,holding JNJ,unrealized_totals,8280.71300
@@ -452,6 +480,7 @@ CAD,acct,MOCK-PERSONAL,holding KO,total_pnl_cad,3541.505207692309
 CAD,acct,MOCK-PERSONAL,holding KO,total_pnl_pct,0.2869840854734898011276950611
 CAD,acct,MOCK-PERSONAL,holding KO,total_pnl_totals,3541.505207692309
 CAD,acct,MOCK-PERSONAL,holding KO,units,129.0
+CAD,acct,MOCK-PERSONAL,holding KO,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding KO,unrealized,2983.537907692309
 CAD,acct,MOCK-PERSONAL,holding KO,unrealized_pct,0.2417694871815523321271407916
 CAD,acct,MOCK-PERSONAL,holding KO,unrealized_totals,2983.537907692309
@@ -488,6 +517,7 @@ CAD,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 CAD,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding META,units,0.0
+CAD,acct,MOCK-PERSONAL,holding META,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding META,unrealized,
 CAD,acct,MOCK-PERSONAL,holding META,unrealized_pct,
 CAD,acct,MOCK-PERSONAL,holding META,unrealized_totals,
@@ -524,6 +554,7 @@ CAD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_cad,2878.33905
 CAD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_pct,0.2122461709822163526543035570
 CAD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_totals,2878.33905
 CAD,acct,MOCK-PERSONAL,holding MSFT,units,23.0
+CAD,acct,MOCK-PERSONAL,holding MSFT,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding MSFT,unrealized,2718.1222
 CAD,acct,MOCK-PERSONAL,holding MSFT,unrealized_pct,0.2004319224351829133377082258
 CAD,acct,MOCK-PERSONAL,holding MSFT,unrealized_totals,2718.1222
@@ -560,6 +591,7 @@ CAD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_cad,-1754.61020
 CAD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_pct,-0.1917988067791837524858767005
 CAD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_totals,-1754.61020
 CAD,acct,MOCK-PERSONAL,holding NFLX,units,77.0
+CAD,acct,MOCK-PERSONAL,holding NFLX,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding NFLX,unrealized,-1754.61020
 CAD,acct,MOCK-PERSONAL,holding NFLX,unrealized_pct,-0.1917988067791837524858767005
 CAD,acct,MOCK-PERSONAL,holding NFLX,unrealized_totals,-1754.61020
@@ -596,6 +628,7 @@ CAD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_cad,12063.9252000000007
 CAD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_pct,0.7803335636188755403968247511
 CAD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_totals,12063.9252000000007
 CAD,acct,MOCK-PERSONAL,holding NVDA,units,79.0
+CAD,acct,MOCK-PERSONAL,holding NVDA,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding NVDA,unrealized,9438.028215384616
 CAD,acct,MOCK-PERSONAL,holding NVDA,unrealized_pct,0.6104820834637281407717931895
 CAD,acct,MOCK-PERSONAL,holding NVDA,unrealized_totals,9438.028215384616
@@ -632,6 +665,7 @@ CAD,acct,MOCK-PERSONAL,holding O,total_pnl_cad,-371.61210
 CAD,acct,MOCK-PERSONAL,holding O,total_pnl_pct,-0.02027607293333314163719936521
 CAD,acct,MOCK-PERSONAL,holding O,total_pnl_totals,-371.61210
 CAD,acct,MOCK-PERSONAL,holding O,units,225.0
+CAD,acct,MOCK-PERSONAL,holding O,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding O,unrealized,-1467.46705
 CAD,acct,MOCK-PERSONAL,holding O,unrealized_pct,-0.08006862245083847384294839356
 CAD,acct,MOCK-PERSONAL,holding O,unrealized_totals,-1467.46705
@@ -668,11 +702,16 @@ CAD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_cad,849.70515
 CAD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_pct,0.05380739827231424860062271887
 CAD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_totals,849.70515
 CAD,acct,MOCK-PERSONAL,holding XYZ,units,164.0
+CAD,acct,MOCK-PERSONAL,holding XYZ,units_suspect,False
 CAD,acct,MOCK-PERSONAL,holding XYZ,unrealized,849.70515
 CAD,acct,MOCK-PERSONAL,holding XYZ,unrealized_pct,0.05380739827231424860062271887
 CAD,acct,MOCK-PERSONAL,holding XYZ,unrealized_totals,849.70515
 CAD,acct,MOCK-PERSONAL,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 CAD,acct,MOCK-PERSONAL,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+CAD,acct,MOCK-PERSONAL,return,gain,32847.4588076923097
+CAD,acct,MOCK-PERSONAL,return,ratio,0.2412040566148924609125500024
+CAD,acct,MOCK-PERSONAL,return CAD,gain,32847.4588076923097
+CAD,acct,MOCK-PERSONAL,return CAD,ratio,0.2412040566148924609125500024
 CAD,acct,MOCK-PERSONAL,totals,deposits_measurable,True
 CAD,acct,MOCK-PERSONAL,totals,display_currency,CAD
 CAD,acct,MOCK-PERSONAL,totals,excluded,0
@@ -713,6 +752,10 @@ CAD,acct,MOCK-PERSONAL,totals CAD,unrealized,27390.261873076925
 CAD,acct,MOCK-PERSONAL,totals CAD,unrealized_pct,0.2039907563264576777599589233
 CAD,acct,MOCK-PERSONAL,totals CAD,weight_in_folio,0.5726412629920112257092537600
 CAD,acct,MOCK-PERSONAL,totals CAD,weight_in_pool,1.000000000000000000000000000
+CAD,acct,MOCK-RRSP,disclosure Converted,into,CAD
+CAD,acct,MOCK-RRSP,disclosure Converted,rate,1.38
+CAD,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK-RRSP,disclosure Converted,what,valued
 CAD,acct,MOCK-RRSP,flows,account_type,RRSP
 CAD,acct,MOCK-RRSP,flows,cash CAD,400.70
 CAD,acct,MOCK-RRSP,flows,cash USD,477.44
@@ -766,6 +809,7 @@ CAD,acct,MOCK-RRSP,holding NFLX,total_pnl_cad,-369.04665
 CAD,acct,MOCK-RRSP,holding NFLX,total_pnl_pct,-0.2776351096762676023517460759
 CAD,acct,MOCK-RRSP,holding NFLX,total_pnl_totals,-369.04665
 CAD,acct,MOCK-RRSP,holding NFLX,units,10.0
+CAD,acct,MOCK-RRSP,holding NFLX,units_suspect,False
 CAD,acct,MOCK-RRSP,holding NFLX,unrealized,-369.04665
 CAD,acct,MOCK-RRSP,holding NFLX,unrealized_pct,-0.2776351096762676023517460759
 CAD,acct,MOCK-RRSP,holding NFLX,unrealized_totals,-369.04665
@@ -802,6 +846,7 @@ CAD,acct,MOCK-RRSP,holding QQQ,total_pnl_cad,7293.78085
 CAD,acct,MOCK-RRSP,holding QQQ,total_pnl_pct,0.3974103166944038143208669452
 CAD,acct,MOCK-RRSP,holding QQQ,total_pnl_totals,7293.78085
 CAD,acct,MOCK-RRSP,holding QQQ,units,25.0
+CAD,acct,MOCK-RRSP,holding QQQ,units_suspect,False
 CAD,acct,MOCK-RRSP,holding QQQ,unrealized,7168.78995
 CAD,acct,MOCK-RRSP,holding QQQ,unrealized_pct,0.3906000389832331314622781725
 CAD,acct,MOCK-RRSP,holding QQQ,unrealized_totals,7168.78995
@@ -838,6 +883,7 @@ CAD,acct,MOCK-RRSP,holding SCHD,total_pnl_cad,4381.09245
 CAD,acct,MOCK-RRSP,holding SCHD,total_pnl_pct,0.1666450009280629803631686983
 CAD,acct,MOCK-RRSP,holding SCHD,total_pnl_totals,4381.09245
 CAD,acct,MOCK-RRSP,holding SCHD,units,662.0
+CAD,acct,MOCK-RRSP,holding SCHD,units_suspect,False
 CAD,acct,MOCK-RRSP,holding SCHD,unrealized,3428.13455
 CAD,acct,MOCK-RRSP,holding SCHD,unrealized_pct,0.1303970395023904979587797016
 CAD,acct,MOCK-RRSP,holding SCHD,unrealized_totals,3428.13455
@@ -874,11 +920,16 @@ CAD,acct,MOCK-RRSP,holding SPY,total_pnl_cad,4215.34370
 CAD,acct,MOCK-RRSP,holding SPY,total_pnl_pct,0.2200192255548650351089430972
 CAD,acct,MOCK-RRSP,holding SPY,total_pnl_totals,4215.34370
 CAD,acct,MOCK-RRSP,holding SPY,units,22.0
+CAD,acct,MOCK-RRSP,holding SPY,units_suspect,False
 CAD,acct,MOCK-RRSP,holding SPY,unrealized,3994.46790
 CAD,acct,MOCK-RRSP,holding SPY,unrealized_pct,0.2084906466492324390001807455
 CAD,acct,MOCK-RRSP,holding SPY,unrealized_totals,3994.46790
 CAD,acct,MOCK-RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 CAD,acct,MOCK-RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+CAD,acct,MOCK-RRSP,return,gain,15521.17035
+CAD,acct,MOCK-RRSP,return,ratio,0.2351692477272727272727272727
+CAD,acct,MOCK-RRSP,return CAD,gain,15521.17035
+CAD,acct,MOCK-RRSP,return CAD,ratio,0.2351692477272727272727272727
 CAD,acct,MOCK-RRSP,totals,closed,
 CAD,acct,MOCK-RRSP,totals,deposits_measurable,True
 CAD,acct,MOCK-RRSP,totals,display_currency,CAD
@@ -921,6 +972,10 @@ CAD,acct,MOCK-RRSP,totals CAD,unrealized,14222.34575
 CAD,acct,MOCK-RRSP,totals CAD,unrealized_pct,0.2183636305799505297107354015
 CAD,acct,MOCK-RRSP,totals CAD,weight_in_folio,0.2810875707582440991415484786
 CAD,acct,MOCK-RRSP,totals CAD,weight_in_pool,1.000000000000000000000000000
+CAD,acct,MOCK-TFSA,disclosure Converted,into,CAD
+CAD,acct,MOCK-TFSA,disclosure Converted,rate,1.38
+CAD,acct,MOCK-TFSA,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK-TFSA,disclosure Converted,what,valued
 CAD,acct,MOCK-TFSA,flows,account_type,TFSA
 CAD,acct,MOCK-TFSA,flows,cash CAD,3649.32
 CAD,acct,MOCK-TFSA,flows,cash USD,34.77
@@ -979,6 +1034,7 @@ CAD,acct,MOCK-TFSA,holding CNR.TO,total_pnl_cad,146.88
 CAD,acct,MOCK-TFSA,holding CNR.TO,total_pnl_pct,0.09275948088035618428115823045
 CAD,acct,MOCK-TFSA,holding CNR.TO,total_pnl_totals,146.88
 CAD,acct,MOCK-TFSA,holding CNR.TO,units,10.0
+CAD,acct,MOCK-TFSA,holding CNR.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding CNR.TO,unrealized,110.55
 CAD,acct,MOCK-TFSA,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 CAD,acct,MOCK-TFSA,holding CNR.TO,unrealized_totals,110.55
@@ -1015,6 +1071,7 @@ CAD,acct,MOCK-TFSA,holding ENB.TO,total_pnl_cad,444.540
 CAD,acct,MOCK-TFSA,holding ENB.TO,total_pnl_pct,0.2685149950167618012140980339
 CAD,acct,MOCK-TFSA,holding ENB.TO,total_pnl_totals,444.540
 CAD,acct,MOCK-TFSA,holding ENB.TO,units,30.0
+CAD,acct,MOCK-TFSA,holding ENB.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding ENB.TO,unrealized,328.950
 CAD,acct,MOCK-TFSA,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 CAD,acct,MOCK-TFSA,holding ENB.TO,unrealized_totals,328.950
@@ -1051,6 +1108,7 @@ CAD,acct,MOCK-TFSA,holding O,total_pnl_cad,-6.19020
 CAD,acct,MOCK-TFSA,holding O,total_pnl_pct,-0.02534266764922623434045689020
 CAD,acct,MOCK-TFSA,holding O,total_pnl_totals,-6.19020
 CAD,acct,MOCK-TFSA,holding O,units,3.0
+CAD,acct,MOCK-TFSA,holding O,units_suspect,False
 CAD,acct,MOCK-TFSA,holding O,unrealized,-19.4580
 CAD,acct,MOCK-TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 CAD,acct,MOCK-TFSA,holding O,unrealized_totals,-19.4580
@@ -1087,6 +1145,7 @@ CAD,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_cad,1437.260
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_totals,1437.260
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,units,320.0
+CAD,acct,MOCK-TFSA,holding REI.UN.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,unrealized,841.120
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,unrealized_totals,841.120
@@ -1123,6 +1182,7 @@ CAD,acct,MOCK-TFSA,holding RY.TO,total_pnl_cad,1172.550
 CAD,acct,MOCK-TFSA,holding RY.TO,total_pnl_pct,0.6927303340915133075355212241
 CAD,acct,MOCK-TFSA,holding RY.TO,total_pnl_totals,1172.550
 CAD,acct,MOCK-TFSA,holding RY.TO,units,10.0
+CAD,acct,MOCK-TFSA,holding RY.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding RY.TO,unrealized,1106.750
 CAD,acct,MOCK-TFSA,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 CAD,acct,MOCK-TFSA,holding RY.TO,unrealized_totals,1106.750
@@ -1159,6 +1219,7 @@ CAD,acct,MOCK-TFSA,holding TD.TO,total_pnl_cad,1728.850
 CAD,acct,MOCK-TFSA,holding TD.TO,total_pnl_pct,1.014374981664564203361985508
 CAD,acct,MOCK-TFSA,holding TD.TO,total_pnl_totals,1728.850
 CAD,acct,MOCK-TFSA,holding TD.TO,units,20.0
+CAD,acct,MOCK-TFSA,holding TD.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding TD.TO,unrealized,1642.250
 CAD,acct,MOCK-TFSA,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 CAD,acct,MOCK-TFSA,holding TD.TO,unrealized_totals,1642.250
@@ -1195,6 +1256,7 @@ CAD,acct,MOCK-TFSA,holding VFV.TO,total_pnl_cad,255.810
 CAD,acct,MOCK-TFSA,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 CAD,acct,MOCK-TFSA,holding VFV.TO,total_pnl_totals,255.810
 CAD,acct,MOCK-TFSA,holding VFV.TO,units,4.0
+CAD,acct,MOCK-TFSA,holding VFV.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding VFV.TO,unrealized,12.360
 CAD,acct,MOCK-TFSA,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 CAD,acct,MOCK-TFSA,holding VFV.TO,unrealized_totals,12.360
@@ -1231,11 +1293,16 @@ CAD,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_cad,536.260
 CAD,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 CAD,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_totals,536.260
 CAD,acct,MOCK-TFSA,holding XEQT.TO,units,93.0
+CAD,acct,MOCK-TFSA,holding XEQT.TO,units_suspect,False
 CAD,acct,MOCK-TFSA,holding XEQT.TO,unrealized,487.660
 CAD,acct,MOCK-TFSA,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 CAD,acct,MOCK-TFSA,holding XEQT.TO,unrealized_totals,487.660
 CAD,acct,MOCK-TFSA,holding XEQT.TO,weight_in_folio,0.01501190360739025160210585580
 CAD,acct,MOCK-TFSA,holding XEQT.TO,weight_in_pool,0.1953594901156997485685963726
+CAD,acct,MOCK-TFSA,return,gain,5715.95980
+CAD,acct,MOCK-TFSA,return,ratio,0.2931261435897435897435897436
+CAD,acct,MOCK-TFSA,return CAD,gain,5715.95980
+CAD,acct,MOCK-TFSA,return CAD,ratio,0.2931261435897435897435897436
 CAD,acct,MOCK-TFSA,totals,closed,
 CAD,acct,MOCK-TFSA,totals,deposits_measurable,True
 CAD,acct,MOCK-TFSA,totals,display_currency,CAD
@@ -1278,6 +1345,10 @@ CAD,acct,MOCK-TFSA,totals CAD,unrealized,4510.1820
 CAD,acct,MOCK-TFSA,totals CAD,unrealized_pct,0.2624761031262494027600198100
 CAD,acct,MOCK-TFSA,totals CAD,weight_in_folio,0.07684245898932065402939359638
 CAD,acct,MOCK-TFSA,totals CAD,weight_in_pool,1.000000000000000000000000000
+CAD,acct,MOCK2-TFSA,disclosure Converted,into,CAD
+CAD,acct,MOCK2-TFSA,disclosure Converted,rate,1.38
+CAD,acct,MOCK2-TFSA,disclosure Converted,rate_date,2026-09-30
+CAD,acct,MOCK2-TFSA,disclosure Converted,what,valued
 CAD,acct,MOCK2-TFSA,flows,account_type,TFSA
 CAD,acct,MOCK2-TFSA,flows,cash CAD,8.88
 CAD,acct,MOCK2-TFSA,flows,cash USD,0.81
@@ -1335,6 +1406,7 @@ CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_cad,35.09
 CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,units,0.0
+CAD,acct,MOCK2-TFSA,holding CNR.TO,units_suspect,False
 CAD,acct,MOCK2-TFSA,holding CNR.TO,unrealized,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,unrealized_pct,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,unrealized_totals,
@@ -1371,6 +1443,7 @@ CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_cad,112.32
 CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,units,0.0
+CAD,acct,MOCK2-TFSA,holding ENB.TO,units_suspect,False
 CAD,acct,MOCK2-TFSA,holding ENB.TO,unrealized,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,unrealized_pct,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,unrealized_totals,
@@ -1407,6 +1480,7 @@ CAD,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 CAD,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding O,total_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding O,units,0.0
+CAD,acct,MOCK2-TFSA,holding O,units_suspect,False
 CAD,acct,MOCK2-TFSA,holding O,unrealized,
 CAD,acct,MOCK2-TFSA,holding O,unrealized_pct,
 CAD,acct,MOCK2-TFSA,holding O,unrealized_totals,
@@ -1443,6 +1517,7 @@ CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_cad,59.2
 CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding RY.TO,units,0.0
+CAD,acct,MOCK2-TFSA,holding RY.TO,units_suspect,False
 CAD,acct,MOCK2-TFSA,holding RY.TO,unrealized,
 CAD,acct,MOCK2-TFSA,holding RY.TO,unrealized_pct,
 CAD,acct,MOCK2-TFSA,holding RY.TO,unrealized_totals,
@@ -1479,11 +1554,16 @@ CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_cad,83.4
 CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding TD.TO,units,0.0
+CAD,acct,MOCK2-TFSA,holding TD.TO,units_suspect,False
 CAD,acct,MOCK2-TFSA,holding TD.TO,unrealized,
 CAD,acct,MOCK2-TFSA,holding TD.TO,unrealized_pct,
 CAD,acct,MOCK2-TFSA,holding TD.TO,unrealized_totals,
 CAD,acct,MOCK2-TFSA,holding TD.TO,weight_in_folio,
 CAD,acct,MOCK2-TFSA,holding TD.TO,weight_in_pool,
+CAD,acct,MOCK2-TFSA,return,gain,296.64390
+CAD,acct,MOCK2-TFSA,return,ratio,
+CAD,acct,MOCK2-TFSA,return CAD,gain,296.64390
+CAD,acct,MOCK2-TFSA,return CAD,ratio,
 CAD,acct,MOCK2-TFSA,totals,deposits_measurable,True
 CAD,acct,MOCK2-TFSA,totals,display_currency,CAD
 CAD,acct,MOCK2-TFSA,totals,excluded,0
@@ -1526,6 +1606,10 @@ CAD,acct,MOCK2-TFSA,totals CAD,unrealized,
 CAD,acct,MOCK2-TFSA,totals CAD,unrealized_pct,
 CAD,acct,MOCK2-TFSA,totals CAD,weight_in_folio,
 CAD,acct,MOCK2-TFSA,totals CAD,weight_in_pool,
+CAD,folio,,disclosure Converted,into,CAD
+CAD,folio,,disclosure Converted,rate,1.38
+CAD,folio,,disclosure Converted,rate_date,2026-09-30
+CAD,folio,,disclosure Converted,what,valued
 CAD,folio,,flows,account_type,
 CAD,folio,,flows,cash CAD,10712.10
 CAD,folio,,flows,cash USD,10000.86
@@ -1577,6 +1661,7 @@ CAD,folio,,holding AAPL,total_pnl_cad,6915.97125
 CAD,folio,,holding AAPL,total_pnl_pct,0.3484081736907405818049256189
 CAD,folio,,holding AAPL,total_pnl_totals,6915.97125
 CAD,folio,,holding AAPL,units,58.0
+CAD,folio,,holding AAPL,units_suspect,False
 CAD,folio,,holding AAPL,unrealized,6804.72275
 CAD,folio,,holding AAPL,unrealized_pct,0.3428037711694266949643860102
 CAD,folio,,holding AAPL,unrealized_totals,6804.72275
@@ -1613,6 +1698,7 @@ CAD,folio,,holding CNR.TO,total_pnl_cad,181.97
 CAD,folio,,holding CNR.TO,total_pnl_pct,0.1149199532666014083172818845
 CAD,folio,,holding CNR.TO,total_pnl_totals,181.97
 CAD,folio,,holding CNR.TO,units,10.0
+CAD,folio,,holding CNR.TO,units_suspect,False
 CAD,folio,,holding CNR.TO,unrealized,110.55
 CAD,folio,,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 CAD,folio,,holding CNR.TO,unrealized_totals,110.55
@@ -1649,6 +1735,7 @@ CAD,folio,,holding COST,total_pnl_cad,-391.36925
 CAD,folio,,holding COST,total_pnl_pct,-0.03325449455913638378613542122
 CAD,folio,,holding COST,total_pnl_totals,-391.36925
 CAD,folio,,holding COST,units,9.0
+CAD,folio,,holding COST,units_suspect,False
 CAD,folio,,holding COST,unrealized,-462.49010
 CAD,folio,,holding COST,unrealized_pct,-0.03929760581370264028379375635
 CAD,folio,,holding COST,unrealized_totals,-462.49010
@@ -1685,6 +1772,7 @@ CAD,folio,,holding DLR.TO,total_pnl_cad,0.0
 CAD,folio,,holding DLR.TO,total_pnl_pct,
 CAD,folio,,holding DLR.TO,total_pnl_totals,
 CAD,folio,,holding DLR.TO,units,0.0
+CAD,folio,,holding DLR.TO,units_suspect,False
 CAD,folio,,holding DLR.TO,unrealized,
 CAD,folio,,holding DLR.TO,unrealized_pct,
 CAD,folio,,holding DLR.TO,unrealized_totals,
@@ -1721,6 +1809,7 @@ CAD,folio,,holding DLR.U.TO,total_pnl_cad,-984.3642
 CAD,folio,,holding DLR.U.TO,total_pnl_pct,
 CAD,folio,,holding DLR.U.TO,total_pnl_totals,
 CAD,folio,,holding DLR.U.TO,units,0.0
+CAD,folio,,holding DLR.U.TO,units_suspect,False
 CAD,folio,,holding DLR.U.TO,unrealized,
 CAD,folio,,holding DLR.U.TO,unrealized_pct,
 CAD,folio,,holding DLR.U.TO,unrealized_totals,
@@ -1757,6 +1846,7 @@ CAD,folio,,holding ENB.TO,total_pnl_cad,556.860
 CAD,folio,,holding ENB.TO,total_pnl_pct,0.3363595179849596810727552777
 CAD,folio,,holding ENB.TO,total_pnl_totals,556.860
 CAD,folio,,holding ENB.TO,units,30.0
+CAD,folio,,holding ENB.TO,units_suspect,False
 CAD,folio,,holding ENB.TO,unrealized,328.950
 CAD,folio,,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 CAD,folio,,holding ENB.TO,unrealized_totals,328.950
@@ -1793,6 +1883,7 @@ CAD,folio,,holding INTC,total_pnl_cad,-233.89
 CAD,folio,,holding INTC,total_pnl_pct,
 CAD,folio,,holding INTC,total_pnl_totals,
 CAD,folio,,holding INTC,units,0.0
+CAD,folio,,holding INTC,units_suspect,False
 CAD,folio,,holding INTC,unrealized,
 CAD,folio,,holding INTC,unrealized_pct,
 CAD,folio,,holding INTC,unrealized_totals,
@@ -1829,6 +1920,7 @@ CAD,folio,,holding JNJ,total_pnl_cad,8929.93570
 CAD,folio,,holding JNJ,total_pnl_pct,0.4954509727647917952994446792
 CAD,folio,,holding JNJ,total_pnl_totals,8929.93570
 CAD,folio,,holding JNJ,units,72.0
+CAD,folio,,holding JNJ,units_suspect,False
 CAD,folio,,holding JNJ,unrealized,8280.71300
 CAD,folio,,holding JNJ,unrealized_pct,0.4594307785481655104895604621
 CAD,folio,,holding JNJ,unrealized_totals,8280.71300
@@ -1865,6 +1957,7 @@ CAD,folio,,holding KO,total_pnl_cad,9654.8369999999989
 CAD,folio,,holding KO,total_pnl_pct,0.3514573288510214664400318310
 CAD,folio,,holding KO,total_pnl_totals,9654.8369999999989
 CAD,folio,,holding KO,units,294.0
+CAD,folio,,holding KO,units_suspect,False
 CAD,folio,,holding KO,unrealized,7453.512128042327
 CAD,folio,,holding KO,unrealized_pct,0.2713242557156013341410197510
 CAD,folio,,holding KO,unrealized_totals,7453.512128042327
@@ -1901,6 +1994,7 @@ CAD,folio,,holding META,total_pnl_cad,1403.92300
 CAD,folio,,holding META,total_pnl_pct,
 CAD,folio,,holding META,total_pnl_totals,
 CAD,folio,,holding META,units,0.0
+CAD,folio,,holding META,units_suspect,False
 CAD,folio,,holding META,unrealized,
 CAD,folio,,holding META,unrealized_pct,
 CAD,folio,,holding META,unrealized_totals,
@@ -1937,6 +2031,7 @@ CAD,folio,,holding MSFT,total_pnl_cad,2878.33905
 CAD,folio,,holding MSFT,total_pnl_pct,0.2122461709822163526543035570
 CAD,folio,,holding MSFT,total_pnl_totals,2878.33905
 CAD,folio,,holding MSFT,units,23.0
+CAD,folio,,holding MSFT,units_suspect,False
 CAD,folio,,holding MSFT,unrealized,2718.1222
 CAD,folio,,holding MSFT,unrealized_pct,0.2004319224351829133377082258
 CAD,folio,,holding MSFT,unrealized_totals,2718.1222
@@ -1973,6 +2068,7 @@ CAD,folio,,holding NFLX,total_pnl_cad,-2123.65685
 CAD,folio,,holding NFLX,total_pnl_pct,-0.2026886856379540304612724436
 CAD,folio,,holding NFLX,total_pnl_totals,-2123.65685
 CAD,folio,,holding NFLX,units,87.0
+CAD,folio,,holding NFLX,units_suspect,False
 CAD,folio,,holding NFLX,unrealized,-2123.65685
 CAD,folio,,holding NFLX,unrealized_pct,-0.2026886856379540304612724436
 CAD,folio,,holding NFLX,unrealized_totals,-2123.65685
@@ -2009,6 +2105,7 @@ CAD,folio,,holding NVDA,total_pnl_cad,12063.9252000000007
 CAD,folio,,holding NVDA,total_pnl_pct,0.7803335636188755403968247511
 CAD,folio,,holding NVDA,total_pnl_totals,12063.9252000000007
 CAD,folio,,holding NVDA,units,79.0
+CAD,folio,,holding NVDA,units_suspect,False
 CAD,folio,,holding NVDA,unrealized,9438.028215384616
 CAD,folio,,holding NVDA,unrealized_pct,0.6104820834637281407717931895
 CAD,folio,,holding NVDA,unrealized_totals,9438.028215384616
@@ -2045,6 +2142,7 @@ CAD,folio,,holding O,total_pnl_cad,-371.16840
 CAD,folio,,holding O,total_pnl_pct,-0.01998550814226933512894433037
 CAD,folio,,holding O,total_pnl_totals,-371.16840
 CAD,folio,,holding O,units,228.0
+CAD,folio,,holding O,units_suspect,False
 CAD,folio,,holding O,unrealized,-1486.92505
 CAD,folio,,holding O,unrealized_pct,-0.08006326156461390099499931807
 CAD,folio,,holding O,unrealized_totals,-1486.92505
@@ -2081,6 +2179,7 @@ CAD,folio,,holding QQQ,total_pnl_cad,7293.78085
 CAD,folio,,holding QQQ,total_pnl_pct,0.3974103166944038143208669452
 CAD,folio,,holding QQQ,total_pnl_totals,7293.78085
 CAD,folio,,holding QQQ,units,25.0
+CAD,folio,,holding QQQ,units_suspect,False
 CAD,folio,,holding QQQ,unrealized,7168.78995
 CAD,folio,,holding QQQ,unrealized_pct,0.3906000389832331314622781725
 CAD,folio,,holding QQQ,unrealized_totals,7168.78995
@@ -2117,6 +2216,7 @@ CAD,folio,,holding REI.UN.TO,total_pnl_cad,1437.260
 CAD,folio,,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 CAD,folio,,holding REI.UN.TO,total_pnl_totals,1437.260
 CAD,folio,,holding REI.UN.TO,units,320.0
+CAD,folio,,holding REI.UN.TO,units_suspect,False
 CAD,folio,,holding REI.UN.TO,unrealized,841.120
 CAD,folio,,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 CAD,folio,,holding REI.UN.TO,unrealized_totals,841.120
@@ -2153,6 +2253,7 @@ CAD,folio,,holding RY.TO,total_pnl_cad,1231.750
 CAD,folio,,holding RY.TO,total_pnl_pct,0.7277050778365285203674711252
 CAD,folio,,holding RY.TO,total_pnl_totals,1231.750
 CAD,folio,,holding RY.TO,units,10.0
+CAD,folio,,holding RY.TO,units_suspect,False
 CAD,folio,,holding RY.TO,unrealized,1106.750
 CAD,folio,,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 CAD,folio,,holding RY.TO,unrealized_totals,1106.750
@@ -2189,6 +2290,7 @@ CAD,folio,,holding SCHD,total_pnl_cad,4381.09245
 CAD,folio,,holding SCHD,total_pnl_pct,0.1666450009280629803631686983
 CAD,folio,,holding SCHD,total_pnl_totals,4381.09245
 CAD,folio,,holding SCHD,units,662.0
+CAD,folio,,holding SCHD,units_suspect,False
 CAD,folio,,holding SCHD,unrealized,3428.13455
 CAD,folio,,holding SCHD,unrealized_pct,0.1303970395023904979587797016
 CAD,folio,,holding SCHD,unrealized_totals,3428.13455
@@ -2225,6 +2327,7 @@ CAD,folio,,holding SPY,total_pnl_cad,4215.34370
 CAD,folio,,holding SPY,total_pnl_pct,0.2200192255548650351089430972
 CAD,folio,,holding SPY,total_pnl_totals,4215.34370
 CAD,folio,,holding SPY,units,22.0
+CAD,folio,,holding SPY,units_suspect,False
 CAD,folio,,holding SPY,unrealized,3994.46790
 CAD,folio,,holding SPY,unrealized_pct,0.2084906466492324390001807455
 CAD,folio,,holding SPY,unrealized_totals,3994.46790
@@ -2261,6 +2364,7 @@ CAD,folio,,holding TD.TO,total_pnl_cad,1812.250
 CAD,folio,,holding TD.TO,total_pnl_pct,1.063308592718631736439111685
 CAD,folio,,holding TD.TO,total_pnl_totals,1812.250
 CAD,folio,,holding TD.TO,units,20.0
+CAD,folio,,holding TD.TO,units_suspect,False
 CAD,folio,,holding TD.TO,unrealized,1642.250
 CAD,folio,,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 CAD,folio,,holding TD.TO,unrealized_totals,1642.250
@@ -2297,6 +2401,7 @@ CAD,folio,,holding VFV.TO,total_pnl_cad,255.810
 CAD,folio,,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 CAD,folio,,holding VFV.TO,total_pnl_totals,255.810
 CAD,folio,,holding VFV.TO,units,4.0
+CAD,folio,,holding VFV.TO,units_suspect,False
 CAD,folio,,holding VFV.TO,unrealized,12.360
 CAD,folio,,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 CAD,folio,,holding VFV.TO,unrealized_totals,12.360
@@ -2333,6 +2438,7 @@ CAD,folio,,holding XEQT.TO,total_pnl_cad,536.260
 CAD,folio,,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 CAD,folio,,holding XEQT.TO,total_pnl_totals,536.260
 CAD,folio,,holding XEQT.TO,units,93.0
+CAD,folio,,holding XEQT.TO,units_suspect,False
 CAD,folio,,holding XEQT.TO,unrealized,487.660
 CAD,folio,,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 CAD,folio,,holding XEQT.TO,unrealized_totals,487.660
@@ -2369,11 +2475,16 @@ CAD,folio,,holding XYZ,total_pnl_cad,849.70515
 CAD,folio,,holding XYZ,total_pnl_pct,0.05380739827231424860062271887
 CAD,folio,,holding XYZ,total_pnl_totals,849.70515
 CAD,folio,,holding XYZ,units,164.0
+CAD,folio,,holding XYZ,units_suspect,False
 CAD,folio,,holding XYZ,unrealized,849.70515
 CAD,folio,,holding XYZ,unrealized_pct,0.05380739827231424860062271887
 CAD,folio,,holding XYZ,unrealized_totals,849.70515
 CAD,folio,,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 CAD,folio,,holding XYZ,weight_in_pool,0.05894694340408305429494964815
+CAD,folio,,return,gain,60494.5646499999996
+CAD,folio,,return,ratio,0.2464137052953156806517311609
+CAD,folio,,return CAD,gain,60494.5646499999996
+CAD,folio,,return CAD,ratio,0.2464137052953156806517311609
 CAD,folio,,totals,deposits_measurable,True
 CAD,folio,,totals,display_currency,CAD
 CAD,folio,,totals,excluded,0
@@ -2414,6 +2525,10 @@ CAD,folio,,totals CAD,unrealized,50592.763843426943
 CAD,folio,,totals CAD,unrealized_pct,0.2183384027119978398689875414
 CAD,folio,,totals CAD,weight_in_folio,0.9999999999999999999999999998
 CAD,folio,,totals CAD,weight_in_pool,0.9999999999999999999999999998
+CAD,type,CORPORATE,disclosure Converted,into,CAD
+CAD,type,CORPORATE,disclosure Converted,rate,1.38
+CAD,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
+CAD,type,CORPORATE,disclosure Converted,what,valued
 CAD,type,CORPORATE,flows,account_type,CORPORATE
 CAD,type,CORPORATE,flows,cash CAD,325.25
 CAD,type,CORPORATE,flows,cash USD,4839.2
@@ -2459,11 +2574,16 @@ CAD,type,CORPORATE,holding KO,total_pnl_cad,2049.02900
 CAD,type,CORPORATE,holding KO,total_pnl_pct,0.3564704986302784504925155650
 CAD,type,CORPORATE,holding KO,total_pnl_totals,2049.02900
 CAD,type,CORPORATE,holding KO,units,60.0
+CAD,type,CORPORATE,holding KO,units_suspect,False
 CAD,type,CORPORATE,holding KO,unrealized,1379.32140
 CAD,type,CORPORATE,holding KO,unrealized_pct,0.2399611656201126263821386904
 CAD,type,CORPORATE,holding KO,unrealized_totals,1379.32140
 CAD,type,CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 CAD,type,CORPORATE,holding KO,weight_in_pool,1
+CAD,type,CORPORATE,return,gain,2049.02900
+CAD,type,CORPORATE,return,ratio,0.1707524166666666666666666667
+CAD,type,CORPORATE,return CAD,gain,2049.02900
+CAD,type,CORPORATE,return CAD,ratio,0.1707524166666666666666666667
 CAD,type,CORPORATE,totals,closed,
 CAD,type,CORPORATE,totals,deposits_measurable,True
 CAD,type,CORPORATE,totals,display_currency,CAD
@@ -2506,6 +2626,10 @@ CAD,type,CORPORATE,totals CAD,unrealized,1379.32140
 CAD,type,CORPORATE,totals CAD,unrealized_pct,0.2399611656201126263821386904
 CAD,type,CORPORATE,totals CAD,weight_in_folio,0.02524680264015418949811060549
 CAD,type,CORPORATE,totals CAD,weight_in_pool,1
+CAD,type,MARGIN,disclosure Converted,into,CAD
+CAD,type,MARGIN,disclosure Converted,rate,1.38
+CAD,type,MARGIN,disclosure Converted,rate_date,2026-09-30
+CAD,type,MARGIN,disclosure Converted,what,valued
 CAD,type,MARGIN,flows,account_type,MARGIN
 CAD,type,MARGIN,flows,cash CAD,315.16
 CAD,type,MARGIN,flows,cash USD,4076.45
@@ -2555,11 +2679,16 @@ CAD,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
 CAD,type,MARGIN,holding KO,total_pnl_pct,0.4348734509242241074561559262
 CAD,type,MARGIN,holding KO,total_pnl_totals,4064.302792307692
 CAD,type,MARGIN,holding KO,units,105.0
+CAD,type,MARGIN,holding KO,units_suspect,False
 CAD,type,MARGIN,holding KO,unrealized,3127.048292307692
 CAD,type,MARGIN,holding KO,unrealized_pct,0.3345888216439749931895564498
 CAD,type,MARGIN,holding KO,unrealized_totals,3127.048292307692
 CAD,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 CAD,type,MARGIN,holding KO,weight_in_pool,1
+CAD,type,MARGIN,return,gain,4064.302792307692
+CAD,type,MARGIN,return,ratio,0.3438846687056066298312706820
+CAD,type,MARGIN,return CAD,gain,4064.302792307692
+CAD,type,MARGIN,return CAD,ratio,0.3438846687056066298312706820
 CAD,type,MARGIN,totals,closed,
 CAD,type,MARGIN,totals,deposits_measurable,True
 CAD,type,MARGIN,totals,display_currency,CAD
@@ -2602,6 +2731,10 @@ CAD,type,MARGIN,totals CAD,unrealized,3127.048292307692
 CAD,type,MARGIN,totals CAD,unrealized_pct,0.3345888216439749931895564498
 CAD,type,MARGIN,totals CAD,weight_in_folio,0.04418190462026983162169355961
 CAD,type,MARGIN,totals CAD,weight_in_pool,1
+CAD,type,NON_REGISTERED,disclosure Converted,into,CAD
+CAD,type,NON_REGISTERED,disclosure Converted,rate,1.38
+CAD,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
+CAD,type,NON_REGISTERED,disclosure Converted,what,valued
 CAD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
 CAD,type,NON_REGISTERED,flows,cash CAD,6012.79
 CAD,type,NON_REGISTERED,flows,cash USD,572.19
@@ -2651,6 +2784,7 @@ CAD,type,NON_REGISTERED,holding AAPL,total_pnl_cad,6915.97125
 CAD,type,NON_REGISTERED,holding AAPL,total_pnl_pct,0.3484081736907405818049256189
 CAD,type,NON_REGISTERED,holding AAPL,total_pnl_totals,6915.97125
 CAD,type,NON_REGISTERED,holding AAPL,units,58.0
+CAD,type,NON_REGISTERED,holding AAPL,units_suspect,False
 CAD,type,NON_REGISTERED,holding AAPL,unrealized,6804.72275
 CAD,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3428037711694266949643860102
 CAD,type,NON_REGISTERED,holding AAPL,unrealized_totals,6804.72275
@@ -2687,6 +2821,7 @@ CAD,type,NON_REGISTERED,holding COST,total_pnl_cad,-391.36925
 CAD,type,NON_REGISTERED,holding COST,total_pnl_pct,-0.03325449455913638378613542122
 CAD,type,NON_REGISTERED,holding COST,total_pnl_totals,-391.36925
 CAD,type,NON_REGISTERED,holding COST,units,9.0
+CAD,type,NON_REGISTERED,holding COST,units_suspect,False
 CAD,type,NON_REGISTERED,holding COST,unrealized,-462.49010
 CAD,type,NON_REGISTERED,holding COST,unrealized_pct,-0.03929760581370264028379375635
 CAD,type,NON_REGISTERED,holding COST,unrealized_totals,-462.49010
@@ -2723,6 +2858,7 @@ CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_cad,0.0
 CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_totals,
 CAD,type,NON_REGISTERED,holding DLR.TO,units,0.0
+CAD,type,NON_REGISTERED,holding DLR.TO,units_suspect,False
 CAD,type,NON_REGISTERED,holding DLR.TO,unrealized,
 CAD,type,NON_REGISTERED,holding DLR.TO,unrealized_pct,
 CAD,type,NON_REGISTERED,holding DLR.TO,unrealized_totals,
@@ -2759,6 +2895,7 @@ CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.3642
 CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,units,0.0
+CAD,type,NON_REGISTERED,holding DLR.U.TO,units_suspect,False
 CAD,type,NON_REGISTERED,holding DLR.U.TO,unrealized,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,unrealized_pct,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,unrealized_totals,
@@ -2795,6 +2932,7 @@ CAD,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.89
 CAD,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding INTC,total_pnl_totals,
 CAD,type,NON_REGISTERED,holding INTC,units,0.0
+CAD,type,NON_REGISTERED,holding INTC,units_suspect,False
 CAD,type,NON_REGISTERED,holding INTC,unrealized,
 CAD,type,NON_REGISTERED,holding INTC,unrealized_pct,
 CAD,type,NON_REGISTERED,holding INTC,unrealized_totals,
@@ -2831,6 +2969,7 @@ CAD,type,NON_REGISTERED,holding JNJ,total_pnl_cad,8929.93570
 CAD,type,NON_REGISTERED,holding JNJ,total_pnl_pct,0.4954509727647917952994446792
 CAD,type,NON_REGISTERED,holding JNJ,total_pnl_totals,8929.93570
 CAD,type,NON_REGISTERED,holding JNJ,units,72.0
+CAD,type,NON_REGISTERED,holding JNJ,units_suspect,False
 CAD,type,NON_REGISTERED,holding JNJ,unrealized,8280.71300
 CAD,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4594307785481655104895604621
 CAD,type,NON_REGISTERED,holding JNJ,unrealized_totals,8280.71300
@@ -2867,6 +3006,7 @@ CAD,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
 CAD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2869840854734898011276950611
 CAD,type,NON_REGISTERED,holding KO,total_pnl_totals,3541.505207692309
 CAD,type,NON_REGISTERED,holding KO,units,129.0
+CAD,type,NON_REGISTERED,holding KO,units_suspect,False
 CAD,type,NON_REGISTERED,holding KO,unrealized,2983.537907692309
 CAD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2417694871815523321271407916
 CAD,type,NON_REGISTERED,holding KO,unrealized_totals,2983.537907692309
@@ -2903,6 +3043,7 @@ CAD,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 CAD,type,NON_REGISTERED,holding META,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding META,total_pnl_totals,
 CAD,type,NON_REGISTERED,holding META,units,0.0
+CAD,type,NON_REGISTERED,holding META,units_suspect,False
 CAD,type,NON_REGISTERED,holding META,unrealized,
 CAD,type,NON_REGISTERED,holding META,unrealized_pct,
 CAD,type,NON_REGISTERED,holding META,unrealized_totals,
@@ -2939,6 +3080,7 @@ CAD,type,NON_REGISTERED,holding MSFT,total_pnl_cad,2878.33905
 CAD,type,NON_REGISTERED,holding MSFT,total_pnl_pct,0.2122461709822163526543035570
 CAD,type,NON_REGISTERED,holding MSFT,total_pnl_totals,2878.33905
 CAD,type,NON_REGISTERED,holding MSFT,units,23.0
+CAD,type,NON_REGISTERED,holding MSFT,units_suspect,False
 CAD,type,NON_REGISTERED,holding MSFT,unrealized,2718.1222
 CAD,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.2004319224351829133377082258
 CAD,type,NON_REGISTERED,holding MSFT,unrealized_totals,2718.1222
@@ -2975,6 +3117,7 @@ CAD,type,NON_REGISTERED,holding NFLX,total_pnl_cad,-1754.61020
 CAD,type,NON_REGISTERED,holding NFLX,total_pnl_pct,-0.1917988067791837524858767005
 CAD,type,NON_REGISTERED,holding NFLX,total_pnl_totals,-1754.61020
 CAD,type,NON_REGISTERED,holding NFLX,units,77.0
+CAD,type,NON_REGISTERED,holding NFLX,units_suspect,False
 CAD,type,NON_REGISTERED,holding NFLX,unrealized,-1754.61020
 CAD,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.1917988067791837524858767005
 CAD,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1754.61020
@@ -3011,6 +3154,7 @@ CAD,type,NON_REGISTERED,holding NVDA,total_pnl_cad,12063.9252000000007
 CAD,type,NON_REGISTERED,holding NVDA,total_pnl_pct,0.7803335636188755403968247511
 CAD,type,NON_REGISTERED,holding NVDA,total_pnl_totals,12063.9252000000007
 CAD,type,NON_REGISTERED,holding NVDA,units,79.0
+CAD,type,NON_REGISTERED,holding NVDA,units_suspect,False
 CAD,type,NON_REGISTERED,holding NVDA,unrealized,9438.028215384616
 CAD,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.6104820834637281407717931895
 CAD,type,NON_REGISTERED,holding NVDA,unrealized_totals,9438.028215384616
@@ -3047,6 +3191,7 @@ CAD,type,NON_REGISTERED,holding O,total_pnl_cad,-371.61210
 CAD,type,NON_REGISTERED,holding O,total_pnl_pct,-0.02027607293333314163719936521
 CAD,type,NON_REGISTERED,holding O,total_pnl_totals,-371.61210
 CAD,type,NON_REGISTERED,holding O,units,225.0
+CAD,type,NON_REGISTERED,holding O,units_suspect,False
 CAD,type,NON_REGISTERED,holding O,unrealized,-1467.46705
 CAD,type,NON_REGISTERED,holding O,unrealized_pct,-0.08006862245083847384294839356
 CAD,type,NON_REGISTERED,holding O,unrealized_totals,-1467.46705
@@ -3083,11 +3228,16 @@ CAD,type,NON_REGISTERED,holding XYZ,total_pnl_cad,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,total_pnl_pct,0.05380739827231424860062271887
 CAD,type,NON_REGISTERED,holding XYZ,total_pnl_totals,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,units,164.0
+CAD,type,NON_REGISTERED,holding XYZ,units_suspect,False
 CAD,type,NON_REGISTERED,holding XYZ,unrealized,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.05380739827231424860062271887
 CAD,type,NON_REGISTERED,holding XYZ,unrealized_totals,849.70515
 CAD,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 CAD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+CAD,type,NON_REGISTERED,return,gain,32847.4588076923097
+CAD,type,NON_REGISTERED,return,ratio,0.2412040566148924609125500024
+CAD,type,NON_REGISTERED,return CAD,gain,32847.4588076923097
+CAD,type,NON_REGISTERED,return CAD,ratio,0.2412040566148924609125500024
 CAD,type,NON_REGISTERED,totals,deposits_measurable,True
 CAD,type,NON_REGISTERED,totals,display_currency,CAD
 CAD,type,NON_REGISTERED,totals,excluded,0
@@ -3128,6 +3278,10 @@ CAD,type,NON_REGISTERED,totals CAD,unrealized,27390.261873076925
 CAD,type,NON_REGISTERED,totals CAD,unrealized_pct,0.2039907563264576777599589233
 CAD,type,NON_REGISTERED,totals CAD,weight_in_folio,0.5726412629920112257092537600
 CAD,type,NON_REGISTERED,totals CAD,weight_in_pool,1.000000000000000000000000000
+CAD,type,RRSP,disclosure Converted,into,CAD
+CAD,type,RRSP,disclosure Converted,rate,1.38
+CAD,type,RRSP,disclosure Converted,rate_date,2026-09-30
+CAD,type,RRSP,disclosure Converted,what,valued
 CAD,type,RRSP,flows,account_type,RRSP
 CAD,type,RRSP,flows,cash CAD,400.70
 CAD,type,RRSP,flows,cash USD,477.44
@@ -3181,6 +3335,7 @@ CAD,type,RRSP,holding NFLX,total_pnl_cad,-369.04665
 CAD,type,RRSP,holding NFLX,total_pnl_pct,-0.2776351096762676023517460759
 CAD,type,RRSP,holding NFLX,total_pnl_totals,-369.04665
 CAD,type,RRSP,holding NFLX,units,10.0
+CAD,type,RRSP,holding NFLX,units_suspect,False
 CAD,type,RRSP,holding NFLX,unrealized,-369.04665
 CAD,type,RRSP,holding NFLX,unrealized_pct,-0.2776351096762676023517460759
 CAD,type,RRSP,holding NFLX,unrealized_totals,-369.04665
@@ -3217,6 +3372,7 @@ CAD,type,RRSP,holding QQQ,total_pnl_cad,7293.78085
 CAD,type,RRSP,holding QQQ,total_pnl_pct,0.3974103166944038143208669452
 CAD,type,RRSP,holding QQQ,total_pnl_totals,7293.78085
 CAD,type,RRSP,holding QQQ,units,25.0
+CAD,type,RRSP,holding QQQ,units_suspect,False
 CAD,type,RRSP,holding QQQ,unrealized,7168.78995
 CAD,type,RRSP,holding QQQ,unrealized_pct,0.3906000389832331314622781725
 CAD,type,RRSP,holding QQQ,unrealized_totals,7168.78995
@@ -3253,6 +3409,7 @@ CAD,type,RRSP,holding SCHD,total_pnl_cad,4381.09245
 CAD,type,RRSP,holding SCHD,total_pnl_pct,0.1666450009280629803631686983
 CAD,type,RRSP,holding SCHD,total_pnl_totals,4381.09245
 CAD,type,RRSP,holding SCHD,units,662.0
+CAD,type,RRSP,holding SCHD,units_suspect,False
 CAD,type,RRSP,holding SCHD,unrealized,3428.13455
 CAD,type,RRSP,holding SCHD,unrealized_pct,0.1303970395023904979587797016
 CAD,type,RRSP,holding SCHD,unrealized_totals,3428.13455
@@ -3289,11 +3446,16 @@ CAD,type,RRSP,holding SPY,total_pnl_cad,4215.34370
 CAD,type,RRSP,holding SPY,total_pnl_pct,0.2200192255548650351089430972
 CAD,type,RRSP,holding SPY,total_pnl_totals,4215.34370
 CAD,type,RRSP,holding SPY,units,22.0
+CAD,type,RRSP,holding SPY,units_suspect,False
 CAD,type,RRSP,holding SPY,unrealized,3994.46790
 CAD,type,RRSP,holding SPY,unrealized_pct,0.2084906466492324390001807455
 CAD,type,RRSP,holding SPY,unrealized_totals,3994.46790
 CAD,type,RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 CAD,type,RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+CAD,type,RRSP,return,gain,15521.17035
+CAD,type,RRSP,return,ratio,0.2351692477272727272727272727
+CAD,type,RRSP,return CAD,gain,15521.17035
+CAD,type,RRSP,return CAD,ratio,0.2351692477272727272727272727
 CAD,type,RRSP,totals,closed,
 CAD,type,RRSP,totals,deposits_measurable,True
 CAD,type,RRSP,totals,display_currency,CAD
@@ -3336,6 +3498,10 @@ CAD,type,RRSP,totals CAD,unrealized,14222.34575
 CAD,type,RRSP,totals CAD,unrealized_pct,0.2183636305799505297107354015
 CAD,type,RRSP,totals CAD,weight_in_folio,0.2810875707582440991415484786
 CAD,type,RRSP,totals CAD,weight_in_pool,1.000000000000000000000000000
+CAD,type,TFSA,disclosure Converted,into,CAD
+CAD,type,TFSA,disclosure Converted,rate,1.38
+CAD,type,TFSA,disclosure Converted,rate_date,2026-09-30
+CAD,type,TFSA,disclosure Converted,what,valued
 CAD,type,TFSA,flows,account_type,TFSA
 CAD,type,TFSA,flows,cash CAD,3658.20
 CAD,type,TFSA,flows,cash USD,35.58
@@ -3392,6 +3558,7 @@ CAD,type,TFSA,holding CNR.TO,total_pnl_cad,181.97
 CAD,type,TFSA,holding CNR.TO,total_pnl_pct,0.1149199532666014083172818845
 CAD,type,TFSA,holding CNR.TO,total_pnl_totals,181.97
 CAD,type,TFSA,holding CNR.TO,units,10.0
+CAD,type,TFSA,holding CNR.TO,units_suspect,False
 CAD,type,TFSA,holding CNR.TO,unrealized,110.55
 CAD,type,TFSA,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 CAD,type,TFSA,holding CNR.TO,unrealized_totals,110.55
@@ -3428,6 +3595,7 @@ CAD,type,TFSA,holding ENB.TO,total_pnl_cad,556.860
 CAD,type,TFSA,holding ENB.TO,total_pnl_pct,0.3363595179849596810727552777
 CAD,type,TFSA,holding ENB.TO,total_pnl_totals,556.860
 CAD,type,TFSA,holding ENB.TO,units,30.0
+CAD,type,TFSA,holding ENB.TO,units_suspect,False
 CAD,type,TFSA,holding ENB.TO,unrealized,328.950
 CAD,type,TFSA,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 CAD,type,TFSA,holding ENB.TO,unrealized_totals,328.950
@@ -3464,6 +3632,7 @@ CAD,type,TFSA,holding O,total_pnl_cad,0.44370
 CAD,type,TFSA,holding O,total_pnl_pct,0.001816507000736919675755342668
 CAD,type,TFSA,holding O,total_pnl_totals,0.44370
 CAD,type,TFSA,holding O,units,3.0
+CAD,type,TFSA,holding O,units_suspect,False
 CAD,type,TFSA,holding O,unrealized,-19.4580
 CAD,type,TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 CAD,type,TFSA,holding O,unrealized_totals,-19.4580
@@ -3500,6 +3669,7 @@ CAD,type,TFSA,holding REI.UN.TO,total_pnl_cad,1437.260
 CAD,type,TFSA,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 CAD,type,TFSA,holding REI.UN.TO,total_pnl_totals,1437.260
 CAD,type,TFSA,holding REI.UN.TO,units,320.0
+CAD,type,TFSA,holding REI.UN.TO,units_suspect,False
 CAD,type,TFSA,holding REI.UN.TO,unrealized,841.120
 CAD,type,TFSA,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 CAD,type,TFSA,holding REI.UN.TO,unrealized_totals,841.120
@@ -3536,6 +3706,7 @@ CAD,type,TFSA,holding RY.TO,total_pnl_cad,1231.750
 CAD,type,TFSA,holding RY.TO,total_pnl_pct,0.7277050778365285203674711252
 CAD,type,TFSA,holding RY.TO,total_pnl_totals,1231.750
 CAD,type,TFSA,holding RY.TO,units,10.0
+CAD,type,TFSA,holding RY.TO,units_suspect,False
 CAD,type,TFSA,holding RY.TO,unrealized,1106.750
 CAD,type,TFSA,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 CAD,type,TFSA,holding RY.TO,unrealized_totals,1106.750
@@ -3572,6 +3743,7 @@ CAD,type,TFSA,holding TD.TO,total_pnl_cad,1812.250
 CAD,type,TFSA,holding TD.TO,total_pnl_pct,1.063308592718631736439111685
 CAD,type,TFSA,holding TD.TO,total_pnl_totals,1812.250
 CAD,type,TFSA,holding TD.TO,units,20.0
+CAD,type,TFSA,holding TD.TO,units_suspect,False
 CAD,type,TFSA,holding TD.TO,unrealized,1642.250
 CAD,type,TFSA,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 CAD,type,TFSA,holding TD.TO,unrealized_totals,1642.250
@@ -3608,6 +3780,7 @@ CAD,type,TFSA,holding VFV.TO,total_pnl_cad,255.810
 CAD,type,TFSA,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 CAD,type,TFSA,holding VFV.TO,total_pnl_totals,255.810
 CAD,type,TFSA,holding VFV.TO,units,4.0
+CAD,type,TFSA,holding VFV.TO,units_suspect,False
 CAD,type,TFSA,holding VFV.TO,unrealized,12.360
 CAD,type,TFSA,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 CAD,type,TFSA,holding VFV.TO,unrealized_totals,12.360
@@ -3644,11 +3817,16 @@ CAD,type,TFSA,holding XEQT.TO,total_pnl_cad,536.260
 CAD,type,TFSA,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 CAD,type,TFSA,holding XEQT.TO,total_pnl_totals,536.260
 CAD,type,TFSA,holding XEQT.TO,units,93.0
+CAD,type,TFSA,holding XEQT.TO,units_suspect,False
 CAD,type,TFSA,holding XEQT.TO,unrealized,487.660
 CAD,type,TFSA,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 CAD,type,TFSA,holding XEQT.TO,unrealized_totals,487.660
 CAD,type,TFSA,holding XEQT.TO,weight_in_folio,0.01501190360739025160210585580
 CAD,type,TFSA,holding XEQT.TO,weight_in_pool,0.1953594901156997485685963726
+CAD,type,TFSA,return,gain,6012.60370
+CAD,type,TFSA,return,ratio,0.3083386512820512820512820513
+CAD,type,TFSA,return CAD,gain,6012.60370
+CAD,type,TFSA,return CAD,ratio,0.3083386512820512820512820513
 CAD,type,TFSA,totals,closed,
 CAD,type,TFSA,totals,deposits_measurable,True
 CAD,type,TFSA,totals,display_currency,CAD
@@ -3691,6 +3869,10 @@ CAD,type,TFSA,totals CAD,unrealized,4510.1820
 CAD,type,TFSA,totals CAD,unrealized_pct,0.2624761031262494027600198100
 CAD,type,TFSA,totals CAD,weight_in_folio,0.07684245898932065402939359638
 CAD,type,TFSA,totals CAD,weight_in_pool,1.000000000000000000000000000
+USD,acct,MOCK-CORPORATE,disclosure Converted,into,CAD
+USD,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
+USD,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
+USD,acct,MOCK-CORPORATE,disclosure Converted,what,total_return
 USD,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
 USD,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 USD,acct,MOCK-CORPORATE,flows,cash USD,4839.2
@@ -3736,11 +3918,16 @@ USD,acct,MOCK-CORPORATE,holding KO,total_pnl_cad,2049.02900
 USD,acct,MOCK-CORPORATE,holding KO,total_pnl_pct,0.3590227714841515047488270969
 USD,acct,MOCK-CORPORATE,holding KO,total_pnl_totals,1506.000
 USD,acct,MOCK-CORPORATE,holding KO,units,60.0
+USD,acct,MOCK-CORPORATE,holding KO,units_suspect,False
 USD,acct,MOCK-CORPORATE,holding KO,unrealized,970.080
 USD,acct,MOCK-CORPORATE,holding KO,unrealized_pct,0.2312621581416638059274516535
 USD,acct,MOCK-CORPORATE,holding KO,unrealized_totals,970.080
 USD,acct,MOCK-CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 USD,acct,MOCK-CORPORATE,holding KO,weight_in_pool,1
+USD,acct,MOCK-CORPORATE,return,gain,1506.000
+USD,acct,MOCK-CORPORATE,return,ratio,0.1707524166666666666666666667
+USD,acct,MOCK-CORPORATE,return USD,gain,2049.02900
+USD,acct,MOCK-CORPORATE,return USD,ratio,0.1707524166666666666666666667
 USD,acct,MOCK-CORPORATE,totals,closed,
 USD,acct,MOCK-CORPORATE,totals,deposits_measurable,True
 USD,acct,MOCK-CORPORATE,totals,display_currency,USD
@@ -3783,6 +3970,10 @@ USD,acct,MOCK-CORPORATE,totals USD,unrealized,970.080
 USD,acct,MOCK-CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 USD,acct,MOCK-CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 USD,acct,MOCK-CORPORATE,totals USD,weight_in_pool,1
+USD,acct,MOCK-MARGIN,disclosure Converted,into,CAD
+USD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
+USD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
+USD,acct,MOCK-MARGIN,disclosure Converted,what,total_return
 USD,acct,MOCK-MARGIN,flows,account_type,MARGIN
 USD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 USD,acct,MOCK-MARGIN,flows,cash USD,4076.45
@@ -3832,11 +4023,16 @@ USD,acct,MOCK-MARGIN,holding KO,total_pnl_cad,4064.302792307692
 USD,acct,MOCK-MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
 USD,acct,MOCK-MARGIN,holding KO,total_pnl_totals,2834.100769230769
 USD,acct,MOCK-MARGIN,holding KO,units,105.0
+USD,acct,MOCK-MARGIN,holding KO,units_suspect,False
 USD,acct,MOCK-MARGIN,holding KO,unrealized,2163.250769230769
 USD,acct,MOCK-MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
 USD,acct,MOCK-MARGIN,holding KO,unrealized_totals,2163.250769230769
 USD,acct,MOCK-MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 USD,acct,MOCK-MARGIN,holding KO,weight_in_pool,1
+USD,acct,MOCK-MARGIN,return,gain,2834.100769230769
+USD,acct,MOCK-MARGIN,return,ratio,0.3438846687056066298312706820
+USD,acct,MOCK-MARGIN,return USD,gain,4064.302792307692
+USD,acct,MOCK-MARGIN,return USD,ratio,0.3438846687056066298312706820
 USD,acct,MOCK-MARGIN,totals,closed,
 USD,acct,MOCK-MARGIN,totals,deposits_measurable,True
 USD,acct,MOCK-MARGIN,totals,display_currency,USD
@@ -3879,6 +4075,8 @@ USD,acct,MOCK-MARGIN,totals USD,unrealized,2163.250769230769
 USD,acct,MOCK-MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
 USD,acct,MOCK-MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
 USD,acct,MOCK-MARGIN,totals USD,weight_in_pool,1
+USD,acct,MOCK-PERSONAL,disclosure TotalReturnHidden,excluded,1
+USD,acct,MOCK-PERSONAL,disclosure TotalReturnHidden,shown,USD
 USD,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
 USD,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 USD,acct,MOCK-PERSONAL,flows,cash USD,572.19
@@ -3928,6 +4126,7 @@ USD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_cad,6915.97125
 USD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 USD,acct,MOCK-PERSONAL,holding AAPL,total_pnl_totals,4802.830
 USD,acct,MOCK-PERSONAL,holding AAPL,units,58.0
+USD,acct,MOCK-PERSONAL,holding AAPL,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding AAPL,unrealized,4721.450
 USD,acct,MOCK-PERSONAL,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 USD,acct,MOCK-PERSONAL,holding AAPL,unrealized_totals,4721.450
@@ -3964,6 +4163,7 @@ USD,acct,MOCK-PERSONAL,holding COST,total_pnl_cad,-391.36925
 USD,acct,MOCK-PERSONAL,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 USD,acct,MOCK-PERSONAL,holding COST,total_pnl_totals,-404.880
 USD,acct,MOCK-PERSONAL,holding COST,units,9.0
+USD,acct,MOCK-PERSONAL,holding COST,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding COST,unrealized,-456.890
 USD,acct,MOCK-PERSONAL,holding COST,unrealized_pct,-0.05281995849686992410360753530
 USD,acct,MOCK-PERSONAL,holding COST,unrealized_totals,-456.890
@@ -4000,6 +4200,7 @@ USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.3642
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,units,0.0
+USD,acct,MOCK-PERSONAL,holding DLR.U.TO,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_pct,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_totals,
@@ -4036,6 +4237,7 @@ USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.89
 USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding INTC,units,0.0
+USD,acct,MOCK-PERSONAL,holding INTC,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding INTC,unrealized,
 USD,acct,MOCK-PERSONAL,holding INTC,unrealized_pct,
 USD,acct,MOCK-PERSONAL,holding INTC,unrealized_totals,
@@ -4072,6 +4274,7 @@ USD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_cad,8929.93570
 USD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 USD,acct,MOCK-PERSONAL,holding JNJ,total_pnl_totals,6330.370
 USD,acct,MOCK-PERSONAL,holding JNJ,units,72.0
+USD,acct,MOCK-PERSONAL,holding JNJ,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding JNJ,unrealized,5853.990
 USD,acct,MOCK-PERSONAL,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 USD,acct,MOCK-PERSONAL,holding JNJ,unrealized_totals,5853.990
@@ -4108,6 +4311,7 @@ USD,acct,MOCK-PERSONAL,holding KO,total_pnl_cad,3541.505207692309
 USD,acct,MOCK-PERSONAL,holding KO,total_pnl_pct,0.2681008929104764050772886628
 USD,acct,MOCK-PERSONAL,holding KO,total_pnl_totals,2434.029230769231
 USD,acct,MOCK-PERSONAL,holding KO,units,129.0
+USD,acct,MOCK-PERSONAL,holding KO,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding KO,unrealized,2025.539230769231
 USD,acct,MOCK-PERSONAL,holding KO,unrealized_pct,0.2231069658201309110832054072
 USD,acct,MOCK-PERSONAL,holding KO,unrealized_totals,2025.539230769231
@@ -4144,6 +4348,7 @@ USD,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 USD,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding META,units,0.0
+USD,acct,MOCK-PERSONAL,holding META,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding META,unrealized,
 USD,acct,MOCK-PERSONAL,holding META,unrealized_pct,
 USD,acct,MOCK-PERSONAL,holding META,unrealized_totals,
@@ -4180,6 +4385,7 @@ USD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_cad,2878.33905
 USD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 USD,acct,MOCK-PERSONAL,holding MSFT,total_pnl_totals,1977.98
 USD,acct,MOCK-PERSONAL,holding MSFT,units,23.0
+USD,acct,MOCK-PERSONAL,holding MSFT,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding MSFT,unrealized,1860.36
 USD,acct,MOCK-PERSONAL,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 USD,acct,MOCK-PERSONAL,holding MSFT,unrealized_totals,1860.36
@@ -4216,6 +4422,7 @@ USD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_cad,-1754.61020
 USD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_pct,-0.2049887967235981065720941966
 USD,acct,MOCK-PERSONAL,holding NFLX,total_pnl_totals,-1381.440
 USD,acct,MOCK-PERSONAL,holding NFLX,units,77.0
+USD,acct,MOCK-PERSONAL,holding NFLX,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding NFLX,unrealized,-1381.440
 USD,acct,MOCK-PERSONAL,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 USD,acct,MOCK-PERSONAL,holding NFLX,unrealized_totals,-1381.440
@@ -4252,6 +4459,7 @@ USD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_cad,12063.9252000000007
 USD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 USD,acct,MOCK-PERSONAL,holding NVDA,total_pnl_totals,8639.819999999999
 USD,acct,MOCK-PERSONAL,holding NVDA,units,79.0
+USD,acct,MOCK-PERSONAL,holding NVDA,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding NVDA,unrealized,6687.303956043955
 USD,acct,MOCK-PERSONAL,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 USD,acct,MOCK-PERSONAL,holding NVDA,unrealized_totals,6687.303956043955
@@ -4288,6 +4496,7 @@ USD,acct,MOCK-PERSONAL,holding O,total_pnl_cad,-371.61210
 USD,acct,MOCK-PERSONAL,holding O,total_pnl_pct,-0.03128045795370167834020055563
 USD,acct,MOCK-PERSONAL,holding O,total_pnl_totals,-420.43
 USD,acct,MOCK-PERSONAL,holding O,units,225.0
+USD,acct,MOCK-PERSONAL,holding O,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding O,unrealized,-1223.16
 USD,acct,MOCK-PERSONAL,holding O,unrealized_pct,-0.09100445960243023780082228105
 USD,acct,MOCK-PERSONAL,holding O,unrealized_totals,-1223.16
@@ -4324,11 +4533,16 @@ USD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_cad,849.70515
 USD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 USD,acct,MOCK-PERSONAL,holding XYZ,total_pnl_totals,561.460
 USD,acct,MOCK-PERSONAL,holding XYZ,units,164.0
+USD,acct,MOCK-PERSONAL,holding XYZ,units_suspect,False
 USD,acct,MOCK-PERSONAL,holding XYZ,unrealized,561.460
 USD,acct,MOCK-PERSONAL,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 USD,acct,MOCK-PERSONAL,holding XYZ,unrealized_totals,561.460
 USD,acct,MOCK-PERSONAL,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 USD,acct,MOCK-PERSONAL,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+USD,acct,MOCK-PERSONAL,return,gain,22404.8747439883734
+USD,acct,MOCK-PERSONAL,return,ratio,
+USD,acct,MOCK-PERSONAL,return USD,gain,
+USD,acct,MOCK-PERSONAL,return USD,ratio,
 USD,acct,MOCK-PERSONAL,totals,deposits_measurable,False
 USD,acct,MOCK-PERSONAL,totals,display_currency,USD
 USD,acct,MOCK-PERSONAL,totals,excluded,1
@@ -4369,6 +4583,10 @@ USD,acct,MOCK-PERSONAL,totals USD,unrealized,18648.613186813186
 USD,acct,MOCK-PERSONAL,totals USD,unrealized_pct,0.1893298533662970369773144192
 USD,acct,MOCK-PERSONAL,totals USD,weight_in_folio,0.5726412629920112257092537600
 USD,acct,MOCK-PERSONAL,totals USD,weight_in_pool,1.000000000000000000000000000
+USD,acct,MOCK-RRSP,disclosure Converted,into,CAD
+USD,acct,MOCK-RRSP,disclosure Converted,rate,1.38
+USD,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
+USD,acct,MOCK-RRSP,disclosure Converted,what,total_return
 USD,acct,MOCK-RRSP,flows,account_type,RRSP
 USD,acct,MOCK-RRSP,flows,cash CAD,400.70
 USD,acct,MOCK-RRSP,flows,cash USD,477.44
@@ -4422,6 +4640,7 @@ USD,acct,MOCK-RRSP,holding NFLX,total_pnl_cad,-369.04665
 USD,acct,MOCK-RRSP,holding NFLX,total_pnl_pct,-0.2854869019623951284131401403
 USD,acct,MOCK-RRSP,holding NFLX,total_pnl_totals,-278.010
 USD,acct,MOCK-RRSP,holding NFLX,units,10.0
+USD,acct,MOCK-RRSP,holding NFLX,units_suspect,False
 USD,acct,MOCK-RRSP,holding NFLX,unrealized,-278.010
 USD,acct,MOCK-RRSP,holding NFLX,unrealized_pct,-0.2854869019623951284131401403
 USD,acct,MOCK-RRSP,holding NFLX,unrealized_totals,-278.010
@@ -4458,6 +4677,7 @@ USD,acct,MOCK-RRSP,holding QQQ,total_pnl_cad,7293.78085
 USD,acct,MOCK-RRSP,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 USD,acct,MOCK-RRSP,holding QQQ,total_pnl_totals,5160.510
 USD,acct,MOCK-RRSP,holding QQQ,units,25.0
+USD,acct,MOCK-RRSP,holding QQQ,units_suspect,False
 USD,acct,MOCK-RRSP,holding QQQ,unrealized,5068.860
 USD,acct,MOCK-RRSP,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 USD,acct,MOCK-RRSP,holding QQQ,unrealized_totals,5068.860
@@ -4494,6 +4714,7 @@ USD,acct,MOCK-RRSP,holding SCHD,total_pnl_cad,4381.09245
 USD,acct,MOCK-RRSP,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 USD,acct,MOCK-RRSP,holding SCHD,total_pnl_totals,3008.920
 USD,acct,MOCK-RRSP,holding SCHD,units,662.0
+USD,acct,MOCK-RRSP,holding SCHD,units_suspect,False
 USD,acct,MOCK-RRSP,holding SCHD,unrealized,2308.340
 USD,acct,MOCK-RRSP,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 USD,acct,MOCK-RRSP,holding SCHD,unrealized_totals,2308.340
@@ -4530,11 +4751,16 @@ USD,acct,MOCK-RRSP,holding SPY,total_pnl_cad,4215.34370
 USD,acct,MOCK-RRSP,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 USD,acct,MOCK-RRSP,holding SPY,total_pnl_totals,2916.790
 USD,acct,MOCK-RRSP,holding SPY,units,22.0
+USD,acct,MOCK-RRSP,holding SPY,units_suspect,False
 USD,acct,MOCK-RRSP,holding SPY,unrealized,2755.220
 USD,acct,MOCK-RRSP,holding SPY,unrealized_pct,0.1964836863814517095211743295
 USD,acct,MOCK-RRSP,holding SPY,unrealized_totals,2755.220
 USD,acct,MOCK-RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 USD,acct,MOCK-RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+USD,acct,MOCK-RRSP,return,gain,10808.210
+USD,acct,MOCK-RRSP,return,ratio,0.2351692477272727272727272727
+USD,acct,MOCK-RRSP,return USD,gain,15521.17035
+USD,acct,MOCK-RRSP,return USD,ratio,0.2351692477272727272727272727
 USD,acct,MOCK-RRSP,totals,closed,
 USD,acct,MOCK-RRSP,totals,deposits_measurable,True
 USD,acct,MOCK-RRSP,totals,display_currency,USD
@@ -4577,6 +4803,8 @@ USD,acct,MOCK-RRSP,totals USD,unrealized,9854.410
 USD,acct,MOCK-RRSP,totals USD,unrealized_pct,0.2068153027722255288534589648
 USD,acct,MOCK-RRSP,totals USD,weight_in_folio,0.2810875707582440991415484786
 USD,acct,MOCK-RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
+USD,acct,MOCK-TFSA,disclosure TotalReturnHidden,excluded,7
+USD,acct,MOCK-TFSA,disclosure TotalReturnHidden,shown,USD
 USD,acct,MOCK-TFSA,flows,account_type,TFSA
 USD,acct,MOCK-TFSA,flows,cash CAD,3649.32
 USD,acct,MOCK-TFSA,flows,cash USD,34.77
@@ -4635,11 +4863,16 @@ USD,acct,MOCK-TFSA,holding O,total_pnl_cad,-6.19020
 USD,acct,MOCK-TFSA,holding O,total_pnl_pct,-0.02474576271186440677966101695
 USD,acct,MOCK-TFSA,holding O,total_pnl_totals,-4.38
 USD,acct,MOCK-TFSA,holding O,units,3.0
+USD,acct,MOCK-TFSA,holding O,units_suspect,False
 USD,acct,MOCK-TFSA,holding O,unrealized,-14.10
 USD,acct,MOCK-TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 USD,acct,MOCK-TFSA,holding O,unrealized_totals,-14.10
 USD,acct,MOCK-TFSA,holding O,weight_in_folio,0.0007962949485132275149555099199
 USD,acct,MOCK-TFSA,holding O,weight_in_pool,1
+USD,acct,MOCK-TFSA,return,gain,-4.38
+USD,acct,MOCK-TFSA,return,ratio,
+USD,acct,MOCK-TFSA,return USD,gain,
+USD,acct,MOCK-TFSA,return USD,ratio,
 USD,acct,MOCK-TFSA,totals,closed,
 USD,acct,MOCK-TFSA,totals,deposits_measurable,False
 USD,acct,MOCK-TFSA,totals,display_currency,USD
@@ -4739,11 +4972,16 @@ USD,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 USD,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 USD,acct,MOCK2-TFSA,holding O,total_pnl_totals,
 USD,acct,MOCK2-TFSA,holding O,units,0.0
+USD,acct,MOCK2-TFSA,holding O,units_suspect,False
 USD,acct,MOCK2-TFSA,holding O,unrealized,
 USD,acct,MOCK2-TFSA,holding O,unrealized_pct,
 USD,acct,MOCK2-TFSA,holding O,unrealized_totals,
 USD,acct,MOCK2-TFSA,holding O,weight_in_folio,
 USD,acct,MOCK2-TFSA,holding O,weight_in_pool,
+USD,acct,MOCK2-TFSA,return,gain,4.86
+USD,acct,MOCK2-TFSA,return,ratio,
+USD,acct,MOCK2-TFSA,return USD,gain,
+USD,acct,MOCK2-TFSA,return USD,ratio,
 USD,acct,MOCK2-TFSA,totals,deposits_measurable,False
 USD,acct,MOCK2-TFSA,totals,display_currency,USD
 USD,acct,MOCK2-TFSA,totals,excluded,4
@@ -4786,6 +5024,8 @@ USD,acct,MOCK2-TFSA,totals USD,unrealized,
 USD,acct,MOCK2-TFSA,totals USD,unrealized_pct,
 USD,acct,MOCK2-TFSA,totals USD,weight_in_folio,
 USD,acct,MOCK2-TFSA,totals USD,weight_in_pool,
+USD,folio,,disclosure TotalReturnHidden,excluded,8
+USD,folio,,disclosure TotalReturnHidden,shown,USD
 USD,folio,,flows,account_type,
 USD,folio,,flows,cash CAD,10712.10
 USD,folio,,flows,cash USD,10000.86
@@ -4837,6 +5077,7 @@ USD,folio,,holding AAPL,total_pnl_cad,6915.97125
 USD,folio,,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 USD,folio,,holding AAPL,total_pnl_totals,4802.830
 USD,folio,,holding AAPL,units,58.0
+USD,folio,,holding AAPL,units_suspect,False
 USD,folio,,holding AAPL,unrealized,4721.450
 USD,folio,,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 USD,folio,,holding AAPL,unrealized_totals,4721.450
@@ -4873,6 +5114,7 @@ USD,folio,,holding COST,total_pnl_cad,-391.36925
 USD,folio,,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 USD,folio,,holding COST,total_pnl_totals,-404.880
 USD,folio,,holding COST,units,9.0
+USD,folio,,holding COST,units_suspect,False
 USD,folio,,holding COST,unrealized,-456.890
 USD,folio,,holding COST,unrealized_pct,-0.05281995849686992410360753530
 USD,folio,,holding COST,unrealized_totals,-456.890
@@ -4909,6 +5151,7 @@ USD,folio,,holding DLR.U.TO,total_pnl_cad,-984.3642
 USD,folio,,holding DLR.U.TO,total_pnl_pct,
 USD,folio,,holding DLR.U.TO,total_pnl_totals,
 USD,folio,,holding DLR.U.TO,units,0.0
+USD,folio,,holding DLR.U.TO,units_suspect,False
 USD,folio,,holding DLR.U.TO,unrealized,
 USD,folio,,holding DLR.U.TO,unrealized_pct,
 USD,folio,,holding DLR.U.TO,unrealized_totals,
@@ -4945,6 +5188,7 @@ USD,folio,,holding INTC,total_pnl_cad,-233.89
 USD,folio,,holding INTC,total_pnl_pct,
 USD,folio,,holding INTC,total_pnl_totals,
 USD,folio,,holding INTC,units,0.0
+USD,folio,,holding INTC,units_suspect,False
 USD,folio,,holding INTC,unrealized,
 USD,folio,,holding INTC,unrealized_pct,
 USD,folio,,holding INTC,unrealized_totals,
@@ -4981,6 +5225,7 @@ USD,folio,,holding JNJ,total_pnl_cad,8929.93570
 USD,folio,,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 USD,folio,,holding JNJ,total_pnl_totals,6330.370
 USD,folio,,holding JNJ,units,72.0
+USD,folio,,holding JNJ,units_suspect,False
 USD,folio,,holding JNJ,unrealized,5853.990
 USD,folio,,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 USD,folio,,holding JNJ,unrealized_totals,5853.990
@@ -5017,6 +5262,7 @@ USD,folio,,holding KO,total_pnl_cad,9654.8369999999989
 USD,folio,,holding KO,total_pnl_pct,0.3361073330887188061140475749
 USD,folio,,holding KO,total_pnl_totals,6774.1300000000001
 USD,folio,,holding KO,units,294.0
+USD,folio,,holding KO,units_suspect,False
 USD,folio,,holding KO,unrealized,5152.85708994709
 USD,folio,,holding KO,unrealized_pct,0.2556657540214629531084886001
 USD,folio,,holding KO,unrealized_totals,5152.85708994709
@@ -5053,6 +5299,7 @@ USD,folio,,holding META,total_pnl_cad,1403.92300
 USD,folio,,holding META,total_pnl_pct,
 USD,folio,,holding META,total_pnl_totals,
 USD,folio,,holding META,units,0.0
+USD,folio,,holding META,units_suspect,False
 USD,folio,,holding META,unrealized,
 USD,folio,,holding META,unrealized_pct,
 USD,folio,,holding META,unrealized_totals,
@@ -5089,6 +5336,7 @@ USD,folio,,holding MSFT,total_pnl_cad,2878.33905
 USD,folio,,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 USD,folio,,holding MSFT,total_pnl_totals,1977.98
 USD,folio,,holding MSFT,units,23.0
+USD,folio,,holding MSFT,units_suspect,False
 USD,folio,,holding MSFT,unrealized,1860.36
 USD,folio,,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 USD,folio,,holding MSFT,unrealized_totals,1860.36
@@ -5125,6 +5373,7 @@ USD,folio,,holding NFLX,total_pnl_cad,-2123.65685
 USD,folio,,holding NFLX,total_pnl_pct,-0.2151522577081801810211709977
 USD,folio,,holding NFLX,total_pnl_totals,-1659.450
 USD,folio,,holding NFLX,units,87.0
+USD,folio,,holding NFLX,units_suspect,False
 USD,folio,,holding NFLX,unrealized,-1659.450
 USD,folio,,holding NFLX,unrealized_pct,-0.2151522577081801810211709977
 USD,folio,,holding NFLX,unrealized_totals,-1659.450
@@ -5161,6 +5410,7 @@ USD,folio,,holding NVDA,total_pnl_cad,12063.9252000000007
 USD,folio,,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 USD,folio,,holding NVDA,total_pnl_totals,8639.819999999999
 USD,folio,,holding NVDA,units,79.0
+USD,folio,,holding NVDA,units_suspect,False
 USD,folio,,holding NVDA,unrealized,6687.303956043955
 USD,folio,,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 USD,folio,,holding NVDA,unrealized_totals,6687.303956043955
@@ -5197,6 +5447,7 @@ USD,folio,,holding O,total_pnl_cad,-371.16840
 USD,folio,,holding O,total_pnl_pct,-0.03083863160043649202579591501
 USD,folio,,holding O,total_pnl_totals,-419.95
 USD,folio,,holding O,units,228.0
+USD,folio,,holding O,units_suspect,False
 USD,folio,,holding O,unrealized,-1237.26
 USD,folio,,holding O,unrealized_pct,-0.09085701948792964430012204740
 USD,folio,,holding O,unrealized_totals,-1237.26
@@ -5233,6 +5484,7 @@ USD,folio,,holding QQQ,total_pnl_cad,7293.78085
 USD,folio,,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 USD,folio,,holding QQQ,total_pnl_totals,5160.510
 USD,folio,,holding QQQ,units,25.0
+USD,folio,,holding QQQ,units_suspect,False
 USD,folio,,holding QQQ,unrealized,5068.860
 USD,folio,,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 USD,folio,,holding QQQ,unrealized_totals,5068.860
@@ -5269,6 +5521,7 @@ USD,folio,,holding SCHD,total_pnl_cad,4381.09245
 USD,folio,,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 USD,folio,,holding SCHD,total_pnl_totals,3008.920
 USD,folio,,holding SCHD,units,662.0
+USD,folio,,holding SCHD,units_suspect,False
 USD,folio,,holding SCHD,unrealized,2308.340
 USD,folio,,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 USD,folio,,holding SCHD,unrealized_totals,2308.340
@@ -5305,6 +5558,7 @@ USD,folio,,holding SPY,total_pnl_cad,4215.34370
 USD,folio,,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 USD,folio,,holding SPY,total_pnl_totals,2916.790
 USD,folio,,holding SPY,units,22.0
+USD,folio,,holding SPY,units_suspect,False
 USD,folio,,holding SPY,unrealized,2755.220
 USD,folio,,holding SPY,unrealized_pct,0.1964836863814517095211743295
 USD,folio,,holding SPY,unrealized_totals,2755.220
@@ -5341,11 +5595,16 @@ USD,folio,,holding XYZ,total_pnl_cad,849.70515
 USD,folio,,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 USD,folio,,holding XYZ,total_pnl_totals,561.460
 USD,folio,,holding XYZ,units,164.0
+USD,folio,,holding XYZ,units_suspect,False
 USD,folio,,holding XYZ,unrealized,561.460
 USD,folio,,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 USD,folio,,holding XYZ,unrealized_totals,561.460
 USD,folio,,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 USD,folio,,holding XYZ,weight_in_pool,0.06379858074065781592820778868
+USD,folio,,return,gain,37553.6655132191425
+USD,folio,,return,ratio,
+USD,folio,,return USD,gain,
+USD,folio,,return USD,ratio,
 USD,folio,,totals,deposits_measurable,False
 USD,folio,,totals,display_currency,USD
 USD,folio,,totals,excluded,8
@@ -5386,6 +5645,10 @@ USD,folio,,totals USD,unrealized,31616.241045991045
 USD,folio,,totals USD,unrealized_pct,0.2008665305336311143693328714
 USD,folio,,totals USD,weight_in_folio,0.9239538359591925734855619134
 USD,folio,,totals USD,weight_in_pool,1.000000000000000000000000000
+USD,type,CORPORATE,disclosure Converted,into,CAD
+USD,type,CORPORATE,disclosure Converted,rate,1.38
+USD,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
+USD,type,CORPORATE,disclosure Converted,what,total_return
 USD,type,CORPORATE,flows,account_type,CORPORATE
 USD,type,CORPORATE,flows,cash CAD,325.25
 USD,type,CORPORATE,flows,cash USD,4839.2
@@ -5431,11 +5694,16 @@ USD,type,CORPORATE,holding KO,total_pnl_cad,2049.02900
 USD,type,CORPORATE,holding KO,total_pnl_pct,0.3590227714841515047488270969
 USD,type,CORPORATE,holding KO,total_pnl_totals,1506.000
 USD,type,CORPORATE,holding KO,units,60.0
+USD,type,CORPORATE,holding KO,units_suspect,False
 USD,type,CORPORATE,holding KO,unrealized,970.080
 USD,type,CORPORATE,holding KO,unrealized_pct,0.2312621581416638059274516535
 USD,type,CORPORATE,holding KO,unrealized_totals,970.080
 USD,type,CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 USD,type,CORPORATE,holding KO,weight_in_pool,1
+USD,type,CORPORATE,return,gain,1506.000
+USD,type,CORPORATE,return,ratio,0.1707524166666666666666666667
+USD,type,CORPORATE,return USD,gain,2049.02900
+USD,type,CORPORATE,return USD,ratio,0.1707524166666666666666666667
 USD,type,CORPORATE,totals,closed,
 USD,type,CORPORATE,totals,deposits_measurable,True
 USD,type,CORPORATE,totals,display_currency,USD
@@ -5478,6 +5746,10 @@ USD,type,CORPORATE,totals USD,unrealized,970.080
 USD,type,CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 USD,type,CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 USD,type,CORPORATE,totals USD,weight_in_pool,1
+USD,type,MARGIN,disclosure Converted,into,CAD
+USD,type,MARGIN,disclosure Converted,rate,1.38
+USD,type,MARGIN,disclosure Converted,rate_date,2026-09-30
+USD,type,MARGIN,disclosure Converted,what,total_return
 USD,type,MARGIN,flows,account_type,MARGIN
 USD,type,MARGIN,flows,cash CAD,315.16
 USD,type,MARGIN,flows,cash USD,4076.45
@@ -5527,11 +5799,16 @@ USD,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
 USD,type,MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
 USD,type,MARGIN,holding KO,total_pnl_totals,2834.100769230769
 USD,type,MARGIN,holding KO,units,105.0
+USD,type,MARGIN,holding KO,units_suspect,False
 USD,type,MARGIN,holding KO,unrealized,2163.250769230769
 USD,type,MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
 USD,type,MARGIN,holding KO,unrealized_totals,2163.250769230769
 USD,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 USD,type,MARGIN,holding KO,weight_in_pool,1
+USD,type,MARGIN,return,gain,2834.100769230769
+USD,type,MARGIN,return,ratio,0.3438846687056066298312706820
+USD,type,MARGIN,return USD,gain,4064.302792307692
+USD,type,MARGIN,return USD,ratio,0.3438846687056066298312706820
 USD,type,MARGIN,totals,closed,
 USD,type,MARGIN,totals,deposits_measurable,True
 USD,type,MARGIN,totals,display_currency,USD
@@ -5574,6 +5851,8 @@ USD,type,MARGIN,totals USD,unrealized,2163.250769230769
 USD,type,MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
 USD,type,MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
 USD,type,MARGIN,totals USD,weight_in_pool,1
+USD,type,NON_REGISTERED,disclosure TotalReturnHidden,excluded,1
+USD,type,NON_REGISTERED,disclosure TotalReturnHidden,shown,USD
 USD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
 USD,type,NON_REGISTERED,flows,cash CAD,6012.79
 USD,type,NON_REGISTERED,flows,cash USD,572.19
@@ -5623,6 +5902,7 @@ USD,type,NON_REGISTERED,holding AAPL,total_pnl_cad,6915.97125
 USD,type,NON_REGISTERED,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 USD,type,NON_REGISTERED,holding AAPL,total_pnl_totals,4802.830
 USD,type,NON_REGISTERED,holding AAPL,units,58.0
+USD,type,NON_REGISTERED,holding AAPL,units_suspect,False
 USD,type,NON_REGISTERED,holding AAPL,unrealized,4721.450
 USD,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 USD,type,NON_REGISTERED,holding AAPL,unrealized_totals,4721.450
@@ -5659,6 +5939,7 @@ USD,type,NON_REGISTERED,holding COST,total_pnl_cad,-391.36925
 USD,type,NON_REGISTERED,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 USD,type,NON_REGISTERED,holding COST,total_pnl_totals,-404.880
 USD,type,NON_REGISTERED,holding COST,units,9.0
+USD,type,NON_REGISTERED,holding COST,units_suspect,False
 USD,type,NON_REGISTERED,holding COST,unrealized,-456.890
 USD,type,NON_REGISTERED,holding COST,unrealized_pct,-0.05281995849686992410360753530
 USD,type,NON_REGISTERED,holding COST,unrealized_totals,-456.890
@@ -5695,6 +5976,7 @@ USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.3642
 USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
 USD,type,NON_REGISTERED,holding DLR.U.TO,units,0.0
+USD,type,NON_REGISTERED,holding DLR.U.TO,units_suspect,False
 USD,type,NON_REGISTERED,holding DLR.U.TO,unrealized,
 USD,type,NON_REGISTERED,holding DLR.U.TO,unrealized_pct,
 USD,type,NON_REGISTERED,holding DLR.U.TO,unrealized_totals,
@@ -5731,6 +6013,7 @@ USD,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.89
 USD,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 USD,type,NON_REGISTERED,holding INTC,total_pnl_totals,
 USD,type,NON_REGISTERED,holding INTC,units,0.0
+USD,type,NON_REGISTERED,holding INTC,units_suspect,False
 USD,type,NON_REGISTERED,holding INTC,unrealized,
 USD,type,NON_REGISTERED,holding INTC,unrealized_pct,
 USD,type,NON_REGISTERED,holding INTC,unrealized_totals,
@@ -5767,6 +6050,7 @@ USD,type,NON_REGISTERED,holding JNJ,total_pnl_cad,8929.93570
 USD,type,NON_REGISTERED,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 USD,type,NON_REGISTERED,holding JNJ,total_pnl_totals,6330.370
 USD,type,NON_REGISTERED,holding JNJ,units,72.0
+USD,type,NON_REGISTERED,holding JNJ,units_suspect,False
 USD,type,NON_REGISTERED,holding JNJ,unrealized,5853.990
 USD,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 USD,type,NON_REGISTERED,holding JNJ,unrealized_totals,5853.990
@@ -5803,6 +6087,7 @@ USD,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
 USD,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2681008929104764050772886628
 USD,type,NON_REGISTERED,holding KO,total_pnl_totals,2434.029230769231
 USD,type,NON_REGISTERED,holding KO,units,129.0
+USD,type,NON_REGISTERED,holding KO,units_suspect,False
 USD,type,NON_REGISTERED,holding KO,unrealized,2025.539230769231
 USD,type,NON_REGISTERED,holding KO,unrealized_pct,0.2231069658201309110832054072
 USD,type,NON_REGISTERED,holding KO,unrealized_totals,2025.539230769231
@@ -5839,6 +6124,7 @@ USD,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 USD,type,NON_REGISTERED,holding META,total_pnl_pct,
 USD,type,NON_REGISTERED,holding META,total_pnl_totals,
 USD,type,NON_REGISTERED,holding META,units,0.0
+USD,type,NON_REGISTERED,holding META,units_suspect,False
 USD,type,NON_REGISTERED,holding META,unrealized,
 USD,type,NON_REGISTERED,holding META,unrealized_pct,
 USD,type,NON_REGISTERED,holding META,unrealized_totals,
@@ -5875,6 +6161,7 @@ USD,type,NON_REGISTERED,holding MSFT,total_pnl_cad,2878.33905
 USD,type,NON_REGISTERED,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 USD,type,NON_REGISTERED,holding MSFT,total_pnl_totals,1977.98
 USD,type,NON_REGISTERED,holding MSFT,units,23.0
+USD,type,NON_REGISTERED,holding MSFT,units_suspect,False
 USD,type,NON_REGISTERED,holding MSFT,unrealized,1860.36
 USD,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 USD,type,NON_REGISTERED,holding MSFT,unrealized_totals,1860.36
@@ -5911,6 +6198,7 @@ USD,type,NON_REGISTERED,holding NFLX,total_pnl_cad,-1754.61020
 USD,type,NON_REGISTERED,holding NFLX,total_pnl_pct,-0.2049887967235981065720941966
 USD,type,NON_REGISTERED,holding NFLX,total_pnl_totals,-1381.440
 USD,type,NON_REGISTERED,holding NFLX,units,77.0
+USD,type,NON_REGISTERED,holding NFLX,units_suspect,False
 USD,type,NON_REGISTERED,holding NFLX,unrealized,-1381.440
 USD,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 USD,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1381.440
@@ -5947,6 +6235,7 @@ USD,type,NON_REGISTERED,holding NVDA,total_pnl_cad,12063.9252000000007
 USD,type,NON_REGISTERED,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 USD,type,NON_REGISTERED,holding NVDA,total_pnl_totals,8639.819999999999
 USD,type,NON_REGISTERED,holding NVDA,units,79.0
+USD,type,NON_REGISTERED,holding NVDA,units_suspect,False
 USD,type,NON_REGISTERED,holding NVDA,unrealized,6687.303956043955
 USD,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 USD,type,NON_REGISTERED,holding NVDA,unrealized_totals,6687.303956043955
@@ -5983,6 +6272,7 @@ USD,type,NON_REGISTERED,holding O,total_pnl_cad,-371.61210
 USD,type,NON_REGISTERED,holding O,total_pnl_pct,-0.03128045795370167834020055563
 USD,type,NON_REGISTERED,holding O,total_pnl_totals,-420.43
 USD,type,NON_REGISTERED,holding O,units,225.0
+USD,type,NON_REGISTERED,holding O,units_suspect,False
 USD,type,NON_REGISTERED,holding O,unrealized,-1223.16
 USD,type,NON_REGISTERED,holding O,unrealized_pct,-0.09100445960243023780082228105
 USD,type,NON_REGISTERED,holding O,unrealized_totals,-1223.16
@@ -6019,11 +6309,16 @@ USD,type,NON_REGISTERED,holding XYZ,total_pnl_cad,849.70515
 USD,type,NON_REGISTERED,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 USD,type,NON_REGISTERED,holding XYZ,total_pnl_totals,561.460
 USD,type,NON_REGISTERED,holding XYZ,units,164.0
+USD,type,NON_REGISTERED,holding XYZ,units_suspect,False
 USD,type,NON_REGISTERED,holding XYZ,unrealized,561.460
 USD,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 USD,type,NON_REGISTERED,holding XYZ,unrealized_totals,561.460
 USD,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 USD,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+USD,type,NON_REGISTERED,return,gain,22404.8747439883734
+USD,type,NON_REGISTERED,return,ratio,
+USD,type,NON_REGISTERED,return USD,gain,
+USD,type,NON_REGISTERED,return USD,ratio,
 USD,type,NON_REGISTERED,totals,deposits_measurable,False
 USD,type,NON_REGISTERED,totals,display_currency,USD
 USD,type,NON_REGISTERED,totals,excluded,1
@@ -6064,6 +6359,10 @@ USD,type,NON_REGISTERED,totals USD,unrealized,18648.613186813186
 USD,type,NON_REGISTERED,totals USD,unrealized_pct,0.1893298533662970369773144192
 USD,type,NON_REGISTERED,totals USD,weight_in_folio,0.5726412629920112257092537600
 USD,type,NON_REGISTERED,totals USD,weight_in_pool,1.000000000000000000000000000
+USD,type,RRSP,disclosure Converted,into,CAD
+USD,type,RRSP,disclosure Converted,rate,1.38
+USD,type,RRSP,disclosure Converted,rate_date,2026-09-30
+USD,type,RRSP,disclosure Converted,what,total_return
 USD,type,RRSP,flows,account_type,RRSP
 USD,type,RRSP,flows,cash CAD,400.70
 USD,type,RRSP,flows,cash USD,477.44
@@ -6117,6 +6416,7 @@ USD,type,RRSP,holding NFLX,total_pnl_cad,-369.04665
 USD,type,RRSP,holding NFLX,total_pnl_pct,-0.2854869019623951284131401403
 USD,type,RRSP,holding NFLX,total_pnl_totals,-278.010
 USD,type,RRSP,holding NFLX,units,10.0
+USD,type,RRSP,holding NFLX,units_suspect,False
 USD,type,RRSP,holding NFLX,unrealized,-278.010
 USD,type,RRSP,holding NFLX,unrealized_pct,-0.2854869019623951284131401403
 USD,type,RRSP,holding NFLX,unrealized_totals,-278.010
@@ -6153,6 +6453,7 @@ USD,type,RRSP,holding QQQ,total_pnl_cad,7293.78085
 USD,type,RRSP,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 USD,type,RRSP,holding QQQ,total_pnl_totals,5160.510
 USD,type,RRSP,holding QQQ,units,25.0
+USD,type,RRSP,holding QQQ,units_suspect,False
 USD,type,RRSP,holding QQQ,unrealized,5068.860
 USD,type,RRSP,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 USD,type,RRSP,holding QQQ,unrealized_totals,5068.860
@@ -6189,6 +6490,7 @@ USD,type,RRSP,holding SCHD,total_pnl_cad,4381.09245
 USD,type,RRSP,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 USD,type,RRSP,holding SCHD,total_pnl_totals,3008.920
 USD,type,RRSP,holding SCHD,units,662.0
+USD,type,RRSP,holding SCHD,units_suspect,False
 USD,type,RRSP,holding SCHD,unrealized,2308.340
 USD,type,RRSP,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 USD,type,RRSP,holding SCHD,unrealized_totals,2308.340
@@ -6225,11 +6527,16 @@ USD,type,RRSP,holding SPY,total_pnl_cad,4215.34370
 USD,type,RRSP,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 USD,type,RRSP,holding SPY,total_pnl_totals,2916.790
 USD,type,RRSP,holding SPY,units,22.0
+USD,type,RRSP,holding SPY,units_suspect,False
 USD,type,RRSP,holding SPY,unrealized,2755.220
 USD,type,RRSP,holding SPY,unrealized_pct,0.1964836863814517095211743295
 USD,type,RRSP,holding SPY,unrealized_totals,2755.220
 USD,type,RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 USD,type,RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+USD,type,RRSP,return,gain,10808.210
+USD,type,RRSP,return,ratio,0.2351692477272727272727272727
+USD,type,RRSP,return USD,gain,15521.17035
+USD,type,RRSP,return USD,ratio,0.2351692477272727272727272727
 USD,type,RRSP,totals,closed,
 USD,type,RRSP,totals,deposits_measurable,True
 USD,type,RRSP,totals,display_currency,USD
@@ -6272,6 +6579,8 @@ USD,type,RRSP,totals USD,unrealized,9854.410
 USD,type,RRSP,totals USD,unrealized_pct,0.2068153027722255288534589648
 USD,type,RRSP,totals USD,weight_in_folio,0.2810875707582440991415484786
 USD,type,RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
+USD,type,TFSA,disclosure TotalReturnHidden,excluded,7
+USD,type,TFSA,disclosure TotalReturnHidden,shown,USD
 USD,type,TFSA,flows,account_type,TFSA
 USD,type,TFSA,flows,cash CAD,3658.20
 USD,type,TFSA,flows,cash USD,35.58
@@ -6328,11 +6637,16 @@ USD,type,TFSA,holding O,total_pnl_cad,0.44370
 USD,type,TFSA,holding O,total_pnl_pct,0.002711864406779661016949152542
 USD,type,TFSA,holding O,total_pnl_totals,0.48
 USD,type,TFSA,holding O,units,3.0
+USD,type,TFSA,holding O,units_suspect,False
 USD,type,TFSA,holding O,unrealized,-14.10
 USD,type,TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 USD,type,TFSA,holding O,unrealized_totals,-14.10
 USD,type,TFSA,holding O,weight_in_folio,0.0007962949485132275149555099199
 USD,type,TFSA,holding O,weight_in_pool,1
+USD,type,TFSA,return,gain,0.48
+USD,type,TFSA,return,ratio,
+USD,type,TFSA,return USD,gain,
+USD,type,TFSA,return USD,ratio,
 USD,type,TFSA,totals,closed,
 USD,type,TFSA,totals,deposits_measurable,False
 USD,type,TFSA,totals,display_currency,USD
@@ -6375,6 +6689,10 @@ USD,type,TFSA,totals USD,unrealized,-14.10
 USD,type,TFSA,totals USD,unrealized_pct,-0.07966101694915254237288135593
 USD,type,TFSA,totals USD,weight_in_folio,0.0007962949485132275149555099199
 USD,type,TFSA,totals USD,weight_in_pool,1
+native,acct,MOCK-CORPORATE,disclosure Converted,into,CAD
+native,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
+native,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK-CORPORATE,disclosure Converted,what,total_return
 native,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
 native,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 native,acct,MOCK-CORPORATE,flows,cash USD,4839.2
@@ -6420,11 +6738,16 @@ native,acct,MOCK-CORPORATE,holding KO,total_pnl_cad,2049.02900
 native,acct,MOCK-CORPORATE,holding KO,total_pnl_pct,0.3590227714841515047488270969
 native,acct,MOCK-CORPORATE,holding KO,total_pnl_totals,2049.02900
 native,acct,MOCK-CORPORATE,holding KO,units,60.0
+native,acct,MOCK-CORPORATE,holding KO,units_suspect,False
 native,acct,MOCK-CORPORATE,holding KO,unrealized,970.080
 native,acct,MOCK-CORPORATE,holding KO,unrealized_pct,0.2312621581416638059274516535
 native,acct,MOCK-CORPORATE,holding KO,unrealized_totals,1379.32140
 native,acct,MOCK-CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 native,acct,MOCK-CORPORATE,holding KO,weight_in_pool,1
+native,acct,MOCK-CORPORATE,return,gain,2049.02900
+native,acct,MOCK-CORPORATE,return,ratio,0.1707524166666666666666666667
+native,acct,MOCK-CORPORATE,return USD,gain,2049.02900
+native,acct,MOCK-CORPORATE,return USD,ratio,0.1707524166666666666666666667
 native,acct,MOCK-CORPORATE,totals,closed,
 native,acct,MOCK-CORPORATE,totals,deposits_measurable,True
 native,acct,MOCK-CORPORATE,totals,display_currency,native
@@ -6467,6 +6790,10 @@ native,acct,MOCK-CORPORATE,totals USD,unrealized,970.080
 native,acct,MOCK-CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 native,acct,MOCK-CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 native,acct,MOCK-CORPORATE,totals USD,weight_in_pool,1
+native,acct,MOCK-MARGIN,disclosure Converted,into,CAD
+native,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
+native,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK-MARGIN,disclosure Converted,what,total_return
 native,acct,MOCK-MARGIN,flows,account_type,MARGIN
 native,acct,MOCK-MARGIN,flows,cash CAD,315.16
 native,acct,MOCK-MARGIN,flows,cash USD,4076.45
@@ -6516,11 +6843,16 @@ native,acct,MOCK-MARGIN,holding KO,total_pnl_cad,4064.302792307692
 native,acct,MOCK-MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
 native,acct,MOCK-MARGIN,holding KO,total_pnl_totals,4064.302792307692
 native,acct,MOCK-MARGIN,holding KO,units,105.0
+native,acct,MOCK-MARGIN,holding KO,units_suspect,False
 native,acct,MOCK-MARGIN,holding KO,unrealized,2163.250769230769
 native,acct,MOCK-MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
 native,acct,MOCK-MARGIN,holding KO,unrealized_totals,3127.048292307692
 native,acct,MOCK-MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 native,acct,MOCK-MARGIN,holding KO,weight_in_pool,1
+native,acct,MOCK-MARGIN,return,gain,4064.302792307692
+native,acct,MOCK-MARGIN,return,ratio,0.3438846687056066298312706820
+native,acct,MOCK-MARGIN,return USD,gain,4064.302792307692
+native,acct,MOCK-MARGIN,return USD,ratio,0.3438846687056066298312706820
 native,acct,MOCK-MARGIN,totals,closed,
 native,acct,MOCK-MARGIN,totals,deposits_measurable,True
 native,acct,MOCK-MARGIN,totals,display_currency,native
@@ -6563,6 +6895,10 @@ native,acct,MOCK-MARGIN,totals USD,unrealized,2163.250769230769
 native,acct,MOCK-MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
 native,acct,MOCK-MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
 native,acct,MOCK-MARGIN,totals USD,weight_in_pool,1
+native,acct,MOCK-PERSONAL,disclosure Converted,into,CAD
+native,acct,MOCK-PERSONAL,disclosure Converted,rate,1.38
+native,acct,MOCK-PERSONAL,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK-PERSONAL,disclosure Converted,what,total
 native,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
 native,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 native,acct,MOCK-PERSONAL,flows,cash USD,572.19
@@ -6612,6 +6948,7 @@ native,acct,MOCK-PERSONAL,holding AAPL,total_pnl_cad,6915.97125
 native,acct,MOCK-PERSONAL,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 native,acct,MOCK-PERSONAL,holding AAPL,total_pnl_totals,6915.97125
 native,acct,MOCK-PERSONAL,holding AAPL,units,58.0
+native,acct,MOCK-PERSONAL,holding AAPL,units_suspect,False
 native,acct,MOCK-PERSONAL,holding AAPL,unrealized,4721.450
 native,acct,MOCK-PERSONAL,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 native,acct,MOCK-PERSONAL,holding AAPL,unrealized_totals,6804.72275
@@ -6648,6 +6985,7 @@ native,acct,MOCK-PERSONAL,holding COST,total_pnl_cad,-391.36925
 native,acct,MOCK-PERSONAL,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 native,acct,MOCK-PERSONAL,holding COST,total_pnl_totals,-391.36925
 native,acct,MOCK-PERSONAL,holding COST,units,9.0
+native,acct,MOCK-PERSONAL,holding COST,units_suspect,False
 native,acct,MOCK-PERSONAL,holding COST,unrealized,-456.890
 native,acct,MOCK-PERSONAL,holding COST,unrealized_pct,-0.05281995849686992410360753530
 native,acct,MOCK-PERSONAL,holding COST,unrealized_totals,-462.49010
@@ -6684,6 +7022,7 @@ native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_cad,0.0
 native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_totals,
 native,acct,MOCK-PERSONAL,holding DLR.TO,units,0.0
+native,acct,MOCK-PERSONAL,holding DLR.TO,units_suspect,False
 native,acct,MOCK-PERSONAL,holding DLR.TO,unrealized,
 native,acct,MOCK-PERSONAL,holding DLR.TO,unrealized_pct,
 native,acct,MOCK-PERSONAL,holding DLR.TO,unrealized_totals,
@@ -6720,6 +7059,7 @@ native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.3642
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,units,0.0
+native,acct,MOCK-PERSONAL,holding DLR.U.TO,units_suspect,False
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_pct,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,unrealized_totals,
@@ -6756,6 +7096,7 @@ native,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.89
 native,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
 native,acct,MOCK-PERSONAL,holding INTC,units,0.0
+native,acct,MOCK-PERSONAL,holding INTC,units_suspect,False
 native,acct,MOCK-PERSONAL,holding INTC,unrealized,
 native,acct,MOCK-PERSONAL,holding INTC,unrealized_pct,
 native,acct,MOCK-PERSONAL,holding INTC,unrealized_totals,
@@ -6792,6 +7133,7 @@ native,acct,MOCK-PERSONAL,holding JNJ,total_pnl_cad,8929.93570
 native,acct,MOCK-PERSONAL,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 native,acct,MOCK-PERSONAL,holding JNJ,total_pnl_totals,8929.93570
 native,acct,MOCK-PERSONAL,holding JNJ,units,72.0
+native,acct,MOCK-PERSONAL,holding JNJ,units_suspect,False
 native,acct,MOCK-PERSONAL,holding JNJ,unrealized,5853.990
 native,acct,MOCK-PERSONAL,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 native,acct,MOCK-PERSONAL,holding JNJ,unrealized_totals,8280.71300
@@ -6828,6 +7170,7 @@ native,acct,MOCK-PERSONAL,holding KO,total_pnl_cad,3541.505207692309
 native,acct,MOCK-PERSONAL,holding KO,total_pnl_pct,0.2681008929104764050772886628
 native,acct,MOCK-PERSONAL,holding KO,total_pnl_totals,3541.505207692309
 native,acct,MOCK-PERSONAL,holding KO,units,129.0
+native,acct,MOCK-PERSONAL,holding KO,units_suspect,False
 native,acct,MOCK-PERSONAL,holding KO,unrealized,2025.539230769231
 native,acct,MOCK-PERSONAL,holding KO,unrealized_pct,0.2231069658201309110832054072
 native,acct,MOCK-PERSONAL,holding KO,unrealized_totals,2983.537907692309
@@ -6864,6 +7207,7 @@ native,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 native,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
 native,acct,MOCK-PERSONAL,holding META,units,0.0
+native,acct,MOCK-PERSONAL,holding META,units_suspect,False
 native,acct,MOCK-PERSONAL,holding META,unrealized,
 native,acct,MOCK-PERSONAL,holding META,unrealized_pct,
 native,acct,MOCK-PERSONAL,holding META,unrealized_totals,
@@ -6900,6 +7244,7 @@ native,acct,MOCK-PERSONAL,holding MSFT,total_pnl_cad,2878.33905
 native,acct,MOCK-PERSONAL,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 native,acct,MOCK-PERSONAL,holding MSFT,total_pnl_totals,2878.33905
 native,acct,MOCK-PERSONAL,holding MSFT,units,23.0
+native,acct,MOCK-PERSONAL,holding MSFT,units_suspect,False
 native,acct,MOCK-PERSONAL,holding MSFT,unrealized,1860.36
 native,acct,MOCK-PERSONAL,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 native,acct,MOCK-PERSONAL,holding MSFT,unrealized_totals,2718.1222
@@ -6936,6 +7281,7 @@ native,acct,MOCK-PERSONAL,holding NFLX,total_pnl_cad,-1754.61020
 native,acct,MOCK-PERSONAL,holding NFLX,total_pnl_pct,-0.2049887967235981065720941966
 native,acct,MOCK-PERSONAL,holding NFLX,total_pnl_totals,-1754.61020
 native,acct,MOCK-PERSONAL,holding NFLX,units,77.0
+native,acct,MOCK-PERSONAL,holding NFLX,units_suspect,False
 native,acct,MOCK-PERSONAL,holding NFLX,unrealized,-1381.440
 native,acct,MOCK-PERSONAL,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 native,acct,MOCK-PERSONAL,holding NFLX,unrealized_totals,-1754.61020
@@ -6972,6 +7318,7 @@ native,acct,MOCK-PERSONAL,holding NVDA,total_pnl_cad,12063.9252000000007
 native,acct,MOCK-PERSONAL,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 native,acct,MOCK-PERSONAL,holding NVDA,total_pnl_totals,12063.9252000000007
 native,acct,MOCK-PERSONAL,holding NVDA,units,79.0
+native,acct,MOCK-PERSONAL,holding NVDA,units_suspect,False
 native,acct,MOCK-PERSONAL,holding NVDA,unrealized,6687.303956043955
 native,acct,MOCK-PERSONAL,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 native,acct,MOCK-PERSONAL,holding NVDA,unrealized_totals,9438.028215384616
@@ -7008,6 +7355,7 @@ native,acct,MOCK-PERSONAL,holding O,total_pnl_cad,-371.61210
 native,acct,MOCK-PERSONAL,holding O,total_pnl_pct,-0.03128045795370167834020055563
 native,acct,MOCK-PERSONAL,holding O,total_pnl_totals,-371.61210
 native,acct,MOCK-PERSONAL,holding O,units,225.0
+native,acct,MOCK-PERSONAL,holding O,units_suspect,False
 native,acct,MOCK-PERSONAL,holding O,unrealized,-1223.16
 native,acct,MOCK-PERSONAL,holding O,unrealized_pct,-0.09100445960243023780082228105
 native,acct,MOCK-PERSONAL,holding O,unrealized_totals,-1467.46705
@@ -7044,11 +7392,18 @@ native,acct,MOCK-PERSONAL,holding XYZ,total_pnl_cad,849.70515
 native,acct,MOCK-PERSONAL,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 native,acct,MOCK-PERSONAL,holding XYZ,total_pnl_totals,849.70515
 native,acct,MOCK-PERSONAL,holding XYZ,units,164.0
+native,acct,MOCK-PERSONAL,holding XYZ,units_suspect,False
 native,acct,MOCK-PERSONAL,holding XYZ,unrealized,561.460
 native,acct,MOCK-PERSONAL,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 native,acct,MOCK-PERSONAL,holding XYZ,unrealized_totals,849.70515
 native,acct,MOCK-PERSONAL,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 native,acct,MOCK-PERSONAL,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+native,acct,MOCK-PERSONAL,return,gain,32847.4588076923097
+native,acct,MOCK-PERSONAL,return,ratio,0.2412040566148924609125500024
+native,acct,MOCK-PERSONAL,return CAD,gain,0.0
+native,acct,MOCK-PERSONAL,return CAD,ratio,
+native,acct,MOCK-PERSONAL,return USD,gain,22404.8747439883734
+native,acct,MOCK-PERSONAL,return USD,ratio,0.2274652601496991035857621615
 native,acct,MOCK-PERSONAL,totals,deposits_measurable,True
 native,acct,MOCK-PERSONAL,totals,display_currency,native
 native,acct,MOCK-PERSONAL,totals,excluded,0
@@ -7108,6 +7463,10 @@ native,acct,MOCK-PERSONAL,totals USD,unrealized,18648.613186813186
 native,acct,MOCK-PERSONAL,totals USD,unrealized_pct,0.1893298533662970369773144192
 native,acct,MOCK-PERSONAL,totals USD,weight_in_folio,0.5726412629920112257092537600
 native,acct,MOCK-PERSONAL,totals USD,weight_in_pool,1.000000000000000000000000000
+native,acct,MOCK-RRSP,disclosure Converted,into,CAD
+native,acct,MOCK-RRSP,disclosure Converted,rate,1.38
+native,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK-RRSP,disclosure Converted,what,total_return
 native,acct,MOCK-RRSP,flows,account_type,RRSP
 native,acct,MOCK-RRSP,flows,cash CAD,400.70
 native,acct,MOCK-RRSP,flows,cash USD,477.44
@@ -7161,6 +7520,7 @@ native,acct,MOCK-RRSP,holding NFLX,total_pnl_cad,-369.04665
 native,acct,MOCK-RRSP,holding NFLX,total_pnl_pct,-0.2854869019623951284131401403
 native,acct,MOCK-RRSP,holding NFLX,total_pnl_totals,-369.04665
 native,acct,MOCK-RRSP,holding NFLX,units,10.0
+native,acct,MOCK-RRSP,holding NFLX,units_suspect,False
 native,acct,MOCK-RRSP,holding NFLX,unrealized,-278.010
 native,acct,MOCK-RRSP,holding NFLX,unrealized_pct,-0.2854869019623951284131401403
 native,acct,MOCK-RRSP,holding NFLX,unrealized_totals,-369.04665
@@ -7197,6 +7557,7 @@ native,acct,MOCK-RRSP,holding QQQ,total_pnl_cad,7293.78085
 native,acct,MOCK-RRSP,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 native,acct,MOCK-RRSP,holding QQQ,total_pnl_totals,7293.78085
 native,acct,MOCK-RRSP,holding QQQ,units,25.0
+native,acct,MOCK-RRSP,holding QQQ,units_suspect,False
 native,acct,MOCK-RRSP,holding QQQ,unrealized,5068.860
 native,acct,MOCK-RRSP,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 native,acct,MOCK-RRSP,holding QQQ,unrealized_totals,7168.78995
@@ -7233,6 +7594,7 @@ native,acct,MOCK-RRSP,holding SCHD,total_pnl_cad,4381.09245
 native,acct,MOCK-RRSP,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 native,acct,MOCK-RRSP,holding SCHD,total_pnl_totals,4381.09245
 native,acct,MOCK-RRSP,holding SCHD,units,662.0
+native,acct,MOCK-RRSP,holding SCHD,units_suspect,False
 native,acct,MOCK-RRSP,holding SCHD,unrealized,2308.340
 native,acct,MOCK-RRSP,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 native,acct,MOCK-RRSP,holding SCHD,unrealized_totals,3428.13455
@@ -7269,11 +7631,16 @@ native,acct,MOCK-RRSP,holding SPY,total_pnl_cad,4215.34370
 native,acct,MOCK-RRSP,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 native,acct,MOCK-RRSP,holding SPY,total_pnl_totals,4215.34370
 native,acct,MOCK-RRSP,holding SPY,units,22.0
+native,acct,MOCK-RRSP,holding SPY,units_suspect,False
 native,acct,MOCK-RRSP,holding SPY,unrealized,2755.220
 native,acct,MOCK-RRSP,holding SPY,unrealized_pct,0.1964836863814517095211743295
 native,acct,MOCK-RRSP,holding SPY,unrealized_totals,3994.46790
 native,acct,MOCK-RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 native,acct,MOCK-RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+native,acct,MOCK-RRSP,return,gain,15521.17035
+native,acct,MOCK-RRSP,return,ratio,0.2351692477272727272727272727
+native,acct,MOCK-RRSP,return USD,gain,15521.17035
+native,acct,MOCK-RRSP,return USD,ratio,0.2351692477272727272727272727
 native,acct,MOCK-RRSP,totals,closed,
 native,acct,MOCK-RRSP,totals,deposits_measurable,True
 native,acct,MOCK-RRSP,totals,display_currency,native
@@ -7316,6 +7683,10 @@ native,acct,MOCK-RRSP,totals USD,unrealized,9854.410
 native,acct,MOCK-RRSP,totals USD,unrealized_pct,0.2068153027722255288534589648
 native,acct,MOCK-RRSP,totals USD,weight_in_folio,0.2810875707582440991415484786
 native,acct,MOCK-RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
+native,acct,MOCK-TFSA,disclosure Converted,into,CAD
+native,acct,MOCK-TFSA,disclosure Converted,rate,1.38
+native,acct,MOCK-TFSA,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK-TFSA,disclosure Converted,what,total
 native,acct,MOCK-TFSA,flows,account_type,TFSA
 native,acct,MOCK-TFSA,flows,cash CAD,3649.32
 native,acct,MOCK-TFSA,flows,cash USD,34.77
@@ -7374,6 +7745,7 @@ native,acct,MOCK-TFSA,holding CNR.TO,total_pnl_cad,146.88
 native,acct,MOCK-TFSA,holding CNR.TO,total_pnl_pct,0.09275948088035618428115823045
 native,acct,MOCK-TFSA,holding CNR.TO,total_pnl_totals,146.88
 native,acct,MOCK-TFSA,holding CNR.TO,units,10.0
+native,acct,MOCK-TFSA,holding CNR.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding CNR.TO,unrealized,110.55
 native,acct,MOCK-TFSA,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 native,acct,MOCK-TFSA,holding CNR.TO,unrealized_totals,110.55
@@ -7410,6 +7782,7 @@ native,acct,MOCK-TFSA,holding ENB.TO,total_pnl_cad,444.540
 native,acct,MOCK-TFSA,holding ENB.TO,total_pnl_pct,0.2685149950167618012140980339
 native,acct,MOCK-TFSA,holding ENB.TO,total_pnl_totals,444.540
 native,acct,MOCK-TFSA,holding ENB.TO,units,30.0
+native,acct,MOCK-TFSA,holding ENB.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding ENB.TO,unrealized,328.950
 native,acct,MOCK-TFSA,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 native,acct,MOCK-TFSA,holding ENB.TO,unrealized_totals,328.950
@@ -7446,6 +7819,7 @@ native,acct,MOCK-TFSA,holding O,total_pnl_cad,-6.19020
 native,acct,MOCK-TFSA,holding O,total_pnl_pct,-0.02474576271186440677966101695
 native,acct,MOCK-TFSA,holding O,total_pnl_totals,-6.19020
 native,acct,MOCK-TFSA,holding O,units,3.0
+native,acct,MOCK-TFSA,holding O,units_suspect,False
 native,acct,MOCK-TFSA,holding O,unrealized,-14.10
 native,acct,MOCK-TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 native,acct,MOCK-TFSA,holding O,unrealized_totals,-19.4580
@@ -7482,6 +7856,7 @@ native,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_cad,1437.260
 native,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 native,acct,MOCK-TFSA,holding REI.UN.TO,total_pnl_totals,1437.260
 native,acct,MOCK-TFSA,holding REI.UN.TO,units,320.0
+native,acct,MOCK-TFSA,holding REI.UN.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding REI.UN.TO,unrealized,841.120
 native,acct,MOCK-TFSA,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 native,acct,MOCK-TFSA,holding REI.UN.TO,unrealized_totals,841.120
@@ -7518,6 +7893,7 @@ native,acct,MOCK-TFSA,holding RY.TO,total_pnl_cad,1172.550
 native,acct,MOCK-TFSA,holding RY.TO,total_pnl_pct,0.6927303340915133075355212241
 native,acct,MOCK-TFSA,holding RY.TO,total_pnl_totals,1172.550
 native,acct,MOCK-TFSA,holding RY.TO,units,10.0
+native,acct,MOCK-TFSA,holding RY.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding RY.TO,unrealized,1106.750
 native,acct,MOCK-TFSA,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 native,acct,MOCK-TFSA,holding RY.TO,unrealized_totals,1106.750
@@ -7554,6 +7930,7 @@ native,acct,MOCK-TFSA,holding TD.TO,total_pnl_cad,1728.850
 native,acct,MOCK-TFSA,holding TD.TO,total_pnl_pct,1.014374981664564203361985508
 native,acct,MOCK-TFSA,holding TD.TO,total_pnl_totals,1728.850
 native,acct,MOCK-TFSA,holding TD.TO,units,20.0
+native,acct,MOCK-TFSA,holding TD.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding TD.TO,unrealized,1642.250
 native,acct,MOCK-TFSA,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 native,acct,MOCK-TFSA,holding TD.TO,unrealized_totals,1642.250
@@ -7590,6 +7967,7 @@ native,acct,MOCK-TFSA,holding VFV.TO,total_pnl_cad,255.810
 native,acct,MOCK-TFSA,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 native,acct,MOCK-TFSA,holding VFV.TO,total_pnl_totals,255.810
 native,acct,MOCK-TFSA,holding VFV.TO,units,4.0
+native,acct,MOCK-TFSA,holding VFV.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding VFV.TO,unrealized,12.360
 native,acct,MOCK-TFSA,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 native,acct,MOCK-TFSA,holding VFV.TO,unrealized_totals,12.360
@@ -7626,11 +8004,18 @@ native,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_cad,536.260
 native,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 native,acct,MOCK-TFSA,holding XEQT.TO,total_pnl_totals,536.260
 native,acct,MOCK-TFSA,holding XEQT.TO,units,93.0
+native,acct,MOCK-TFSA,holding XEQT.TO,units_suspect,False
 native,acct,MOCK-TFSA,holding XEQT.TO,unrealized,487.660
 native,acct,MOCK-TFSA,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 native,acct,MOCK-TFSA,holding XEQT.TO,unrealized_totals,487.660
 native,acct,MOCK-TFSA,holding XEQT.TO,weight_in_folio,0.01501190360739025160210585580
 native,acct,MOCK-TFSA,holding XEQT.TO,weight_in_pool,0.1953594901156997485685963726
+native,acct,MOCK-TFSA,return,gain,5715.95980
+native,acct,MOCK-TFSA,return,ratio,0.2931261435897435897435897436
+native,acct,MOCK-TFSA,return CAD,gain,5722.150
+native,acct,MOCK-TFSA,return CAD,ratio,0.3378101948467880240510775461
+native,acct,MOCK-TFSA,return USD,gain,-4.38
+native,acct,MOCK-TFSA,return USD,ratio,-0.02474576271186440677966101695
 native,acct,MOCK-TFSA,totals,closed,
 native,acct,MOCK-TFSA,totals,deposits_measurable,True
 native,acct,MOCK-TFSA,totals,display_currency,native
@@ -7692,6 +8077,10 @@ native,acct,MOCK-TFSA,totals USD,unrealized,-14.10
 native,acct,MOCK-TFSA,totals USD,unrealized_pct,-0.07966101694915254237288135593
 native,acct,MOCK-TFSA,totals USD,weight_in_folio,0.0007962949485132275149555099199
 native,acct,MOCK-TFSA,totals USD,weight_in_pool,0.01036269477820711486705260293
+native,acct,MOCK2-TFSA,disclosure Converted,into,CAD
+native,acct,MOCK2-TFSA,disclosure Converted,rate,1.38
+native,acct,MOCK2-TFSA,disclosure Converted,rate_date,2026-09-30
+native,acct,MOCK2-TFSA,disclosure Converted,what,total
 native,acct,MOCK2-TFSA,flows,account_type,TFSA
 native,acct,MOCK2-TFSA,flows,cash CAD,8.88
 native,acct,MOCK2-TFSA,flows,cash USD,0.81
@@ -7749,6 +8138,7 @@ native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_cad,35.09
 native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_totals,
 native,acct,MOCK2-TFSA,holding CNR.TO,units,0.0
+native,acct,MOCK2-TFSA,holding CNR.TO,units_suspect,False
 native,acct,MOCK2-TFSA,holding CNR.TO,unrealized,
 native,acct,MOCK2-TFSA,holding CNR.TO,unrealized_pct,
 native,acct,MOCK2-TFSA,holding CNR.TO,unrealized_totals,
@@ -7785,6 +8175,7 @@ native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_cad,112.32
 native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_totals,
 native,acct,MOCK2-TFSA,holding ENB.TO,units,0.0
+native,acct,MOCK2-TFSA,holding ENB.TO,units_suspect,False
 native,acct,MOCK2-TFSA,holding ENB.TO,unrealized,
 native,acct,MOCK2-TFSA,holding ENB.TO,unrealized_pct,
 native,acct,MOCK2-TFSA,holding ENB.TO,unrealized_totals,
@@ -7821,6 +8212,7 @@ native,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 native,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding O,total_pnl_totals,
 native,acct,MOCK2-TFSA,holding O,units,0.0
+native,acct,MOCK2-TFSA,holding O,units_suspect,False
 native,acct,MOCK2-TFSA,holding O,unrealized,
 native,acct,MOCK2-TFSA,holding O,unrealized_pct,
 native,acct,MOCK2-TFSA,holding O,unrealized_totals,
@@ -7857,6 +8249,7 @@ native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_cad,59.2
 native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_totals,
 native,acct,MOCK2-TFSA,holding RY.TO,units,0.0
+native,acct,MOCK2-TFSA,holding RY.TO,units_suspect,False
 native,acct,MOCK2-TFSA,holding RY.TO,unrealized,
 native,acct,MOCK2-TFSA,holding RY.TO,unrealized_pct,
 native,acct,MOCK2-TFSA,holding RY.TO,unrealized_totals,
@@ -7893,11 +8286,18 @@ native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_cad,83.4
 native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_totals,
 native,acct,MOCK2-TFSA,holding TD.TO,units,0.0
+native,acct,MOCK2-TFSA,holding TD.TO,units_suspect,False
 native,acct,MOCK2-TFSA,holding TD.TO,unrealized,
 native,acct,MOCK2-TFSA,holding TD.TO,unrealized_pct,
 native,acct,MOCK2-TFSA,holding TD.TO,unrealized_totals,
 native,acct,MOCK2-TFSA,holding TD.TO,weight_in_folio,
 native,acct,MOCK2-TFSA,holding TD.TO,weight_in_pool,
+native,acct,MOCK2-TFSA,return,gain,296.64390
+native,acct,MOCK2-TFSA,return,ratio,
+native,acct,MOCK2-TFSA,return CAD,gain,290.01
+native,acct,MOCK2-TFSA,return CAD,ratio,
+native,acct,MOCK2-TFSA,return USD,gain,4.86
+native,acct,MOCK2-TFSA,return USD,ratio,
 native,acct,MOCK2-TFSA,totals,deposits_measurable,True
 native,acct,MOCK2-TFSA,totals,display_currency,native
 native,acct,MOCK2-TFSA,totals,excluded,0
@@ -7959,6 +8359,10 @@ native,acct,MOCK2-TFSA,totals USD,unrealized,
 native,acct,MOCK2-TFSA,totals USD,unrealized_pct,
 native,acct,MOCK2-TFSA,totals USD,weight_in_folio,
 native,acct,MOCK2-TFSA,totals USD,weight_in_pool,
+native,folio,,disclosure Converted,into,CAD
+native,folio,,disclosure Converted,rate,1.38
+native,folio,,disclosure Converted,rate_date,2026-09-30
+native,folio,,disclosure Converted,what,total
 native,folio,,flows,account_type,
 native,folio,,flows,cash CAD,10712.10
 native,folio,,flows,cash USD,10000.86
@@ -8010,6 +8414,7 @@ native,folio,,holding AAPL,total_pnl_cad,6915.97125
 native,folio,,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 native,folio,,holding AAPL,total_pnl_totals,6915.97125
 native,folio,,holding AAPL,units,58.0
+native,folio,,holding AAPL,units_suspect,False
 native,folio,,holding AAPL,unrealized,4721.450
 native,folio,,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 native,folio,,holding AAPL,unrealized_totals,6804.72275
@@ -8046,6 +8451,7 @@ native,folio,,holding CNR.TO,total_pnl_cad,181.97
 native,folio,,holding CNR.TO,total_pnl_pct,0.1149199532666014083172818845
 native,folio,,holding CNR.TO,total_pnl_totals,181.97
 native,folio,,holding CNR.TO,units,10.0
+native,folio,,holding CNR.TO,units_suspect,False
 native,folio,,holding CNR.TO,unrealized,110.55
 native,folio,,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 native,folio,,holding CNR.TO,unrealized_totals,110.55
@@ -8082,6 +8488,7 @@ native,folio,,holding COST,total_pnl_cad,-391.36925
 native,folio,,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 native,folio,,holding COST,total_pnl_totals,-391.36925
 native,folio,,holding COST,units,9.0
+native,folio,,holding COST,units_suspect,False
 native,folio,,holding COST,unrealized,-456.890
 native,folio,,holding COST,unrealized_pct,-0.05281995849686992410360753530
 native,folio,,holding COST,unrealized_totals,-462.49010
@@ -8118,6 +8525,7 @@ native,folio,,holding DLR.TO,total_pnl_cad,0.0
 native,folio,,holding DLR.TO,total_pnl_pct,
 native,folio,,holding DLR.TO,total_pnl_totals,
 native,folio,,holding DLR.TO,units,0.0
+native,folio,,holding DLR.TO,units_suspect,False
 native,folio,,holding DLR.TO,unrealized,
 native,folio,,holding DLR.TO,unrealized_pct,
 native,folio,,holding DLR.TO,unrealized_totals,
@@ -8154,6 +8562,7 @@ native,folio,,holding DLR.U.TO,total_pnl_cad,-984.3642
 native,folio,,holding DLR.U.TO,total_pnl_pct,
 native,folio,,holding DLR.U.TO,total_pnl_totals,
 native,folio,,holding DLR.U.TO,units,0.0
+native,folio,,holding DLR.U.TO,units_suspect,False
 native,folio,,holding DLR.U.TO,unrealized,
 native,folio,,holding DLR.U.TO,unrealized_pct,
 native,folio,,holding DLR.U.TO,unrealized_totals,
@@ -8190,6 +8599,7 @@ native,folio,,holding ENB.TO,total_pnl_cad,556.860
 native,folio,,holding ENB.TO,total_pnl_pct,0.3363595179849596810727552777
 native,folio,,holding ENB.TO,total_pnl_totals,556.860
 native,folio,,holding ENB.TO,units,30.0
+native,folio,,holding ENB.TO,units_suspect,False
 native,folio,,holding ENB.TO,unrealized,328.950
 native,folio,,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 native,folio,,holding ENB.TO,unrealized_totals,328.950
@@ -8226,6 +8636,7 @@ native,folio,,holding INTC,total_pnl_cad,-233.89
 native,folio,,holding INTC,total_pnl_pct,
 native,folio,,holding INTC,total_pnl_totals,
 native,folio,,holding INTC,units,0.0
+native,folio,,holding INTC,units_suspect,False
 native,folio,,holding INTC,unrealized,
 native,folio,,holding INTC,unrealized_pct,
 native,folio,,holding INTC,unrealized_totals,
@@ -8262,6 +8673,7 @@ native,folio,,holding JNJ,total_pnl_cad,8929.93570
 native,folio,,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 native,folio,,holding JNJ,total_pnl_totals,8929.93570
 native,folio,,holding JNJ,units,72.0
+native,folio,,holding JNJ,units_suspect,False
 native,folio,,holding JNJ,unrealized,5853.990
 native,folio,,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 native,folio,,holding JNJ,unrealized_totals,8280.71300
@@ -8298,6 +8710,7 @@ native,folio,,holding KO,total_pnl_cad,9654.8369999999989
 native,folio,,holding KO,total_pnl_pct,0.3361073330887188061140475749
 native,folio,,holding KO,total_pnl_totals,9654.8369999999989
 native,folio,,holding KO,units,294.0
+native,folio,,holding KO,units_suspect,False
 native,folio,,holding KO,unrealized,5152.85708994709
 native,folio,,holding KO,unrealized_pct,0.2556657540214629531084886001
 native,folio,,holding KO,unrealized_totals,7453.512128042327
@@ -8334,6 +8747,7 @@ native,folio,,holding META,total_pnl_cad,1403.92300
 native,folio,,holding META,total_pnl_pct,
 native,folio,,holding META,total_pnl_totals,
 native,folio,,holding META,units,0.0
+native,folio,,holding META,units_suspect,False
 native,folio,,holding META,unrealized,
 native,folio,,holding META,unrealized_pct,
 native,folio,,holding META,unrealized_totals,
@@ -8370,6 +8784,7 @@ native,folio,,holding MSFT,total_pnl_cad,2878.33905
 native,folio,,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 native,folio,,holding MSFT,total_pnl_totals,2878.33905
 native,folio,,holding MSFT,units,23.0
+native,folio,,holding MSFT,units_suspect,False
 native,folio,,holding MSFT,unrealized,1860.36
 native,folio,,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 native,folio,,holding MSFT,unrealized_totals,2718.1222
@@ -8406,6 +8821,7 @@ native,folio,,holding NFLX,total_pnl_cad,-2123.65685
 native,folio,,holding NFLX,total_pnl_pct,-0.2151522577081801810211709977
 native,folio,,holding NFLX,total_pnl_totals,-2123.65685
 native,folio,,holding NFLX,units,87.0
+native,folio,,holding NFLX,units_suspect,False
 native,folio,,holding NFLX,unrealized,-1659.450
 native,folio,,holding NFLX,unrealized_pct,-0.2151522577081801810211709977
 native,folio,,holding NFLX,unrealized_totals,-2123.65685
@@ -8442,6 +8858,7 @@ native,folio,,holding NVDA,total_pnl_cad,12063.9252000000007
 native,folio,,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 native,folio,,holding NVDA,total_pnl_totals,12063.9252000000007
 native,folio,,holding NVDA,units,79.0
+native,folio,,holding NVDA,units_suspect,False
 native,folio,,holding NVDA,unrealized,6687.303956043955
 native,folio,,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 native,folio,,holding NVDA,unrealized_totals,9438.028215384616
@@ -8478,6 +8895,7 @@ native,folio,,holding O,total_pnl_cad,-371.16840
 native,folio,,holding O,total_pnl_pct,-0.03083863160043649202579591501
 native,folio,,holding O,total_pnl_totals,-371.16840
 native,folio,,holding O,units,228.0
+native,folio,,holding O,units_suspect,False
 native,folio,,holding O,unrealized,-1237.26
 native,folio,,holding O,unrealized_pct,-0.09085701948792964430012204740
 native,folio,,holding O,unrealized_totals,-1486.92505
@@ -8514,6 +8932,7 @@ native,folio,,holding QQQ,total_pnl_cad,7293.78085
 native,folio,,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 native,folio,,holding QQQ,total_pnl_totals,7293.78085
 native,folio,,holding QQQ,units,25.0
+native,folio,,holding QQQ,units_suspect,False
 native,folio,,holding QQQ,unrealized,5068.860
 native,folio,,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 native,folio,,holding QQQ,unrealized_totals,7168.78995
@@ -8550,6 +8969,7 @@ native,folio,,holding REI.UN.TO,total_pnl_cad,1437.260
 native,folio,,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 native,folio,,holding REI.UN.TO,total_pnl_totals,1437.260
 native,folio,,holding REI.UN.TO,units,320.0
+native,folio,,holding REI.UN.TO,units_suspect,False
 native,folio,,holding REI.UN.TO,unrealized,841.120
 native,folio,,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 native,folio,,holding REI.UN.TO,unrealized_totals,841.120
@@ -8586,6 +9006,7 @@ native,folio,,holding RY.TO,total_pnl_cad,1231.750
 native,folio,,holding RY.TO,total_pnl_pct,0.7277050778365285203674711252
 native,folio,,holding RY.TO,total_pnl_totals,1231.750
 native,folio,,holding RY.TO,units,10.0
+native,folio,,holding RY.TO,units_suspect,False
 native,folio,,holding RY.TO,unrealized,1106.750
 native,folio,,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 native,folio,,holding RY.TO,unrealized_totals,1106.750
@@ -8622,6 +9043,7 @@ native,folio,,holding SCHD,total_pnl_cad,4381.09245
 native,folio,,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 native,folio,,holding SCHD,total_pnl_totals,4381.09245
 native,folio,,holding SCHD,units,662.0
+native,folio,,holding SCHD,units_suspect,False
 native,folio,,holding SCHD,unrealized,2308.340
 native,folio,,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 native,folio,,holding SCHD,unrealized_totals,3428.13455
@@ -8658,6 +9080,7 @@ native,folio,,holding SPY,total_pnl_cad,4215.34370
 native,folio,,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 native,folio,,holding SPY,total_pnl_totals,4215.34370
 native,folio,,holding SPY,units,22.0
+native,folio,,holding SPY,units_suspect,False
 native,folio,,holding SPY,unrealized,2755.220
 native,folio,,holding SPY,unrealized_pct,0.1964836863814517095211743295
 native,folio,,holding SPY,unrealized_totals,3994.46790
@@ -8694,6 +9117,7 @@ native,folio,,holding TD.TO,total_pnl_cad,1812.250
 native,folio,,holding TD.TO,total_pnl_pct,1.063308592718631736439111685
 native,folio,,holding TD.TO,total_pnl_totals,1812.250
 native,folio,,holding TD.TO,units,20.0
+native,folio,,holding TD.TO,units_suspect,False
 native,folio,,holding TD.TO,unrealized,1642.250
 native,folio,,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 native,folio,,holding TD.TO,unrealized_totals,1642.250
@@ -8730,6 +9154,7 @@ native,folio,,holding VFV.TO,total_pnl_cad,255.810
 native,folio,,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 native,folio,,holding VFV.TO,total_pnl_totals,255.810
 native,folio,,holding VFV.TO,units,4.0
+native,folio,,holding VFV.TO,units_suspect,False
 native,folio,,holding VFV.TO,unrealized,12.360
 native,folio,,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 native,folio,,holding VFV.TO,unrealized_totals,12.360
@@ -8766,6 +9191,7 @@ native,folio,,holding XEQT.TO,total_pnl_cad,536.260
 native,folio,,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 native,folio,,holding XEQT.TO,total_pnl_totals,536.260
 native,folio,,holding XEQT.TO,units,93.0
+native,folio,,holding XEQT.TO,units_suspect,False
 native,folio,,holding XEQT.TO,unrealized,487.660
 native,folio,,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 native,folio,,holding XEQT.TO,unrealized_totals,487.660
@@ -8802,11 +9228,18 @@ native,folio,,holding XYZ,total_pnl_cad,849.70515
 native,folio,,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 native,folio,,holding XYZ,total_pnl_totals,849.70515
 native,folio,,holding XYZ,units,164.0
+native,folio,,holding XYZ,units_suspect,False
 native,folio,,holding XYZ,unrealized,561.460
 native,folio,,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 native,folio,,holding XYZ,unrealized_totals,849.70515
 native,folio,,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 native,folio,,holding XYZ,weight_in_pool,0.05894694340408305429494964815
+native,folio,,return,gain,60494.5646499999996
+native,folio,,return,ratio,0.2464137052953156806517311609
+native,folio,,return CAD,gain,6012.160
+native,folio,,return CAD,ratio,0.3549310907700890551067214910
+native,folio,,return USD,gain,37553.6655132191425
+native,folio,,return USD,ratio,0.2385885940548044245475481446
 native,folio,,totals,deposits_measurable,True
 native,folio,,totals,display_currency,native
 native,folio,,totals,excluded,0
@@ -8865,6 +9298,10 @@ native,folio,,totals USD,unrealized,31616.241045991045
 native,folio,,totals USD,unrealized_pct,0.2008665305336311143693328714
 native,folio,,totals USD,weight_in_folio,0.9239538359591925734855619134
 native,folio,,totals USD,weight_in_pool,0.9239538359591925734855619134
+native,type,CORPORATE,disclosure Converted,into,CAD
+native,type,CORPORATE,disclosure Converted,rate,1.38
+native,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
+native,type,CORPORATE,disclosure Converted,what,total_return
 native,type,CORPORATE,flows,account_type,CORPORATE
 native,type,CORPORATE,flows,cash CAD,325.25
 native,type,CORPORATE,flows,cash USD,4839.2
@@ -8910,11 +9347,16 @@ native,type,CORPORATE,holding KO,total_pnl_cad,2049.02900
 native,type,CORPORATE,holding KO,total_pnl_pct,0.3590227714841515047488270969
 native,type,CORPORATE,holding KO,total_pnl_totals,2049.02900
 native,type,CORPORATE,holding KO,units,60.0
+native,type,CORPORATE,holding KO,units_suspect,False
 native,type,CORPORATE,holding KO,unrealized,970.080
 native,type,CORPORATE,holding KO,unrealized_pct,0.2312621581416638059274516535
 native,type,CORPORATE,holding KO,unrealized_totals,1379.32140
 native,type,CORPORATE,holding KO,weight_in_folio,0.02524680264015418949811060549
 native,type,CORPORATE,holding KO,weight_in_pool,1
+native,type,CORPORATE,return,gain,2049.02900
+native,type,CORPORATE,return,ratio,0.1707524166666666666666666667
+native,type,CORPORATE,return USD,gain,2049.02900
+native,type,CORPORATE,return USD,ratio,0.1707524166666666666666666667
 native,type,CORPORATE,totals,closed,
 native,type,CORPORATE,totals,deposits_measurable,True
 native,type,CORPORATE,totals,display_currency,native
@@ -8957,6 +9399,10 @@ native,type,CORPORATE,totals USD,unrealized,970.080
 native,type,CORPORATE,totals USD,unrealized_pct,0.2312621581416638059274516535
 native,type,CORPORATE,totals USD,weight_in_folio,0.02524680264015418949811060549
 native,type,CORPORATE,totals USD,weight_in_pool,1
+native,type,MARGIN,disclosure Converted,into,CAD
+native,type,MARGIN,disclosure Converted,rate,1.38
+native,type,MARGIN,disclosure Converted,rate_date,2026-09-30
+native,type,MARGIN,disclosure Converted,what,total_return
 native,type,MARGIN,flows,account_type,MARGIN
 native,type,MARGIN,flows,cash CAD,315.16
 native,type,MARGIN,flows,cash USD,4076.45
@@ -9006,11 +9452,16 @@ native,type,MARGIN,holding KO,total_pnl_cad,4064.302792307692
 native,type,MARGIN,holding KO,total_pnl_pct,0.4122238913079816310933035532
 native,type,MARGIN,holding KO,total_pnl_totals,4064.302792307692
 native,type,MARGIN,holding KO,units,105.0
+native,type,MARGIN,holding KO,units_suspect,False
 native,type,MARGIN,holding KO,unrealized,2163.250769230769
 native,type,MARGIN,holding KO,unrealized_pct,0.3146478275044994386254051379
 native,type,MARGIN,holding KO,unrealized_totals,3127.048292307692
 native,type,MARGIN,holding KO,weight_in_folio,0.04418190462026983162169355961
 native,type,MARGIN,holding KO,weight_in_pool,1
+native,type,MARGIN,return,gain,4064.302792307692
+native,type,MARGIN,return,ratio,0.3438846687056066298312706820
+native,type,MARGIN,return USD,gain,4064.302792307692
+native,type,MARGIN,return USD,ratio,0.3438846687056066298312706820
 native,type,MARGIN,totals,closed,
 native,type,MARGIN,totals,deposits_measurable,True
 native,type,MARGIN,totals,display_currency,native
@@ -9053,6 +9504,10 @@ native,type,MARGIN,totals USD,unrealized,2163.250769230769
 native,type,MARGIN,totals USD,unrealized_pct,0.3146478275044994386254051379
 native,type,MARGIN,totals USD,weight_in_folio,0.04418190462026983162169355961
 native,type,MARGIN,totals USD,weight_in_pool,1
+native,type,NON_REGISTERED,disclosure Converted,into,CAD
+native,type,NON_REGISTERED,disclosure Converted,rate,1.38
+native,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
+native,type,NON_REGISTERED,disclosure Converted,what,total
 native,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
 native,type,NON_REGISTERED,flows,cash CAD,6012.79
 native,type,NON_REGISTERED,flows,cash USD,572.19
@@ -9102,6 +9557,7 @@ native,type,NON_REGISTERED,holding AAPL,total_pnl_cad,6915.97125
 native,type,NON_REGISTERED,holding AAPL,total_pnl_pct,0.3291027435792543499905096100
 native,type,NON_REGISTERED,holding AAPL,total_pnl_totals,6915.97125
 native,type,NON_REGISTERED,holding AAPL,units,58.0
+native,type,NON_REGISTERED,holding AAPL,units_suspect,False
 native,type,NON_REGISTERED,holding AAPL,unrealized,4721.450
 native,type,NON_REGISTERED,holding AAPL,unrealized_pct,0.3235263685519309346286859202
 native,type,NON_REGISTERED,holding AAPL,unrealized_totals,6804.72275
@@ -9138,6 +9594,7 @@ native,type,NON_REGISTERED,holding COST,total_pnl_cad,-391.36925
 native,type,NON_REGISTERED,holding COST,total_pnl_pct,-0.04680720697807501777466921774
 native,type,NON_REGISTERED,holding COST,total_pnl_totals,-391.36925
 native,type,NON_REGISTERED,holding COST,units,9.0
+native,type,NON_REGISTERED,holding COST,units_suspect,False
 native,type,NON_REGISTERED,holding COST,unrealized,-456.890
 native,type,NON_REGISTERED,holding COST,unrealized_pct,-0.05281995849686992410360753530
 native,type,NON_REGISTERED,holding COST,unrealized_totals,-462.49010
@@ -9174,6 +9631,7 @@ native,type,NON_REGISTERED,holding DLR.TO,total_pnl_cad,0.0
 native,type,NON_REGISTERED,holding DLR.TO,total_pnl_pct,
 native,type,NON_REGISTERED,holding DLR.TO,total_pnl_totals,
 native,type,NON_REGISTERED,holding DLR.TO,units,0.0
+native,type,NON_REGISTERED,holding DLR.TO,units_suspect,False
 native,type,NON_REGISTERED,holding DLR.TO,unrealized,
 native,type,NON_REGISTERED,holding DLR.TO,unrealized_pct,
 native,type,NON_REGISTERED,holding DLR.TO,unrealized_totals,
@@ -9210,6 +9668,7 @@ native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.3642
 native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
 native,type,NON_REGISTERED,holding DLR.U.TO,units,0.0
+native,type,NON_REGISTERED,holding DLR.U.TO,units_suspect,False
 native,type,NON_REGISTERED,holding DLR.U.TO,unrealized,
 native,type,NON_REGISTERED,holding DLR.U.TO,unrealized_pct,
 native,type,NON_REGISTERED,holding DLR.U.TO,unrealized_totals,
@@ -9246,6 +9705,7 @@ native,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.89
 native,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 native,type,NON_REGISTERED,holding INTC,total_pnl_totals,
 native,type,NON_REGISTERED,holding INTC,units,0.0
+native,type,NON_REGISTERED,holding INTC,units_suspect,False
 native,type,NON_REGISTERED,holding INTC,unrealized,
 native,type,NON_REGISTERED,holding INTC,unrealized_pct,
 native,type,NON_REGISTERED,holding INTC,unrealized_totals,
@@ -9282,6 +9742,7 @@ native,type,NON_REGISTERED,holding JNJ,total_pnl_cad,8929.93570
 native,type,NON_REGISTERED,holding JNJ,total_pnl_pct,0.4793087756837322418149370537
 native,type,NON_REGISTERED,holding JNJ,total_pnl_totals,8929.93570
 native,type,NON_REGISTERED,holding JNJ,units,72.0
+native,type,NON_REGISTERED,holding JNJ,units_suspect,False
 native,type,NON_REGISTERED,holding JNJ,unrealized,5853.990
 native,type,NON_REGISTERED,holding JNJ,unrealized_pct,0.4432393019309790274916353014
 native,type,NON_REGISTERED,holding JNJ,unrealized_totals,8280.71300
@@ -9318,6 +9779,7 @@ native,type,NON_REGISTERED,holding KO,total_pnl_cad,3541.505207692309
 native,type,NON_REGISTERED,holding KO,total_pnl_pct,0.2681008929104764050772886628
 native,type,NON_REGISTERED,holding KO,total_pnl_totals,3541.505207692309
 native,type,NON_REGISTERED,holding KO,units,129.0
+native,type,NON_REGISTERED,holding KO,units_suspect,False
 native,type,NON_REGISTERED,holding KO,unrealized,2025.539230769231
 native,type,NON_REGISTERED,holding KO,unrealized_pct,0.2231069658201309110832054072
 native,type,NON_REGISTERED,holding KO,unrealized_totals,2983.537907692309
@@ -9354,6 +9816,7 @@ native,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 native,type,NON_REGISTERED,holding META,total_pnl_pct,
 native,type,NON_REGISTERED,holding META,total_pnl_totals,
 native,type,NON_REGISTERED,holding META,units,0.0
+native,type,NON_REGISTERED,holding META,units_suspect,False
 native,type,NON_REGISTERED,holding META,unrealized,
 native,type,NON_REGISTERED,holding META,unrealized_pct,
 native,type,NON_REGISTERED,holding META,unrealized_totals,
@@ -9390,6 +9853,7 @@ native,type,NON_REGISTERED,holding MSFT,total_pnl_cad,2878.33905
 native,type,NON_REGISTERED,holding MSFT,total_pnl_pct,0.1990652493775374031081867166
 native,type,NON_REGISTERED,holding MSFT,total_pnl_totals,2878.33905
 native,type,NON_REGISTERED,holding MSFT,units,23.0
+native,type,NON_REGISTERED,holding MSFT,units_suspect,False
 native,type,NON_REGISTERED,holding MSFT,unrealized,1860.36
 native,type,NON_REGISTERED,holding MSFT,unrealized_pct,0.1872278927653441810566063561
 native,type,NON_REGISTERED,holding MSFT,unrealized_totals,2718.1222
@@ -9426,6 +9890,7 @@ native,type,NON_REGISTERED,holding NFLX,total_pnl_cad,-1754.61020
 native,type,NON_REGISTERED,holding NFLX,total_pnl_pct,-0.2049887967235981065720941966
 native,type,NON_REGISTERED,holding NFLX,total_pnl_totals,-1754.61020
 native,type,NON_REGISTERED,holding NFLX,units,77.0
+native,type,NON_REGISTERED,holding NFLX,units_suspect,False
 native,type,NON_REGISTERED,holding NFLX,unrealized,-1381.440
 native,type,NON_REGISTERED,holding NFLX,unrealized_pct,-0.2049887967235981065720941966
 native,type,NON_REGISTERED,holding NFLX,unrealized_totals,-1754.61020
@@ -9462,6 +9927,7 @@ native,type,NON_REGISTERED,holding NVDA,total_pnl_cad,12063.9252000000007
 native,type,NON_REGISTERED,holding NVDA,total_pnl_pct,0.7609014586145334013262799490
 native,type,NON_REGISTERED,holding NVDA,total_pnl_totals,12063.9252000000007
 native,type,NON_REGISTERED,holding NVDA,units,79.0
+native,type,NON_REGISTERED,holding NVDA,units_suspect,False
 native,type,NON_REGISTERED,holding NVDA,unrealized,6687.303956043955
 native,type,NON_REGISTERED,holding NVDA,unrealized_pct,0.5889450630166583917653183032
 native,type,NON_REGISTERED,holding NVDA,unrealized_totals,9438.028215384616
@@ -9498,6 +9964,7 @@ native,type,NON_REGISTERED,holding O,total_pnl_cad,-371.61210
 native,type,NON_REGISTERED,holding O,total_pnl_pct,-0.03128045795370167834020055563
 native,type,NON_REGISTERED,holding O,total_pnl_totals,-371.61210
 native,type,NON_REGISTERED,holding O,units,225.0
+native,type,NON_REGISTERED,holding O,units_suspect,False
 native,type,NON_REGISTERED,holding O,unrealized,-1223.16
 native,type,NON_REGISTERED,holding O,unrealized_pct,-0.09100445960243023780082228105
 native,type,NON_REGISTERED,holding O,unrealized_totals,-1467.46705
@@ -9534,11 +10001,18 @@ native,type,NON_REGISTERED,holding XYZ,total_pnl_cad,849.70515
 native,type,NON_REGISTERED,holding XYZ,total_pnl_pct,0.04883339450626486197821083961
 native,type,NON_REGISTERED,holding XYZ,total_pnl_totals,849.70515
 native,type,NON_REGISTERED,holding XYZ,units,164.0
+native,type,NON_REGISTERED,holding XYZ,units_suspect,False
 native,type,NON_REGISTERED,holding XYZ,unrealized,561.460
 native,type,NON_REGISTERED,holding XYZ,unrealized_pct,0.04883339450626486197821083961
 native,type,NON_REGISTERED,holding XYZ,unrealized_totals,849.70515
 native,type,NON_REGISTERED,holding XYZ,weight_in_folio,0.05894694340408305429494964815
 native,type,NON_REGISTERED,holding XYZ,weight_in_pool,0.1029386934083117378888097668
+native,type,NON_REGISTERED,return,gain,32847.4588076923097
+native,type,NON_REGISTERED,return,ratio,0.2412040566148924609125500024
+native,type,NON_REGISTERED,return CAD,gain,0.0
+native,type,NON_REGISTERED,return CAD,ratio,
+native,type,NON_REGISTERED,return USD,gain,22404.8747439883734
+native,type,NON_REGISTERED,return USD,ratio,0.2274652601496991035857621615
 native,type,NON_REGISTERED,totals,deposits_measurable,True
 native,type,NON_REGISTERED,totals,display_currency,native
 native,type,NON_REGISTERED,totals,excluded,0
@@ -9598,6 +10072,10 @@ native,type,NON_REGISTERED,totals USD,unrealized,18648.613186813186
 native,type,NON_REGISTERED,totals USD,unrealized_pct,0.1893298533662970369773144192
 native,type,NON_REGISTERED,totals USD,weight_in_folio,0.5726412629920112257092537600
 native,type,NON_REGISTERED,totals USD,weight_in_pool,1.000000000000000000000000000
+native,type,RRSP,disclosure Converted,into,CAD
+native,type,RRSP,disclosure Converted,rate,1.38
+native,type,RRSP,disclosure Converted,rate_date,2026-09-30
+native,type,RRSP,disclosure Converted,what,total_return
 native,type,RRSP,flows,account_type,RRSP
 native,type,RRSP,flows,cash CAD,400.70
 native,type,RRSP,flows,cash USD,477.44
@@ -9651,6 +10129,7 @@ native,type,RRSP,holding NFLX,total_pnl_cad,-369.04665
 native,type,RRSP,holding NFLX,total_pnl_pct,-0.2854869019623951284131401403
 native,type,RRSP,holding NFLX,total_pnl_totals,-369.04665
 native,type,RRSP,holding NFLX,units,10.0
+native,type,RRSP,holding NFLX,units_suspect,False
 native,type,RRSP,holding NFLX,unrealized,-278.010
 native,type,RRSP,holding NFLX,unrealized_pct,-0.2854869019623951284131401403
 native,type,RRSP,holding NFLX,unrealized_totals,-369.04665
@@ -9687,6 +10166,7 @@ native,type,RRSP,holding QQQ,total_pnl_cad,7293.78085
 native,type,RRSP,holding QQQ,total_pnl_pct,0.3843843642531054963766415724
 native,type,RRSP,holding QQQ,total_pnl_totals,7293.78085
 native,type,RRSP,holding QQQ,units,25.0
+native,type,RRSP,holding QQQ,units_suspect,False
 native,type,RRSP,holding QQQ,unrealized,5068.860
 native,type,RRSP,holding QQQ,unrealized_pct,0.3775577469257876307503916087
 native,type,RRSP,holding QQQ,unrealized_totals,7168.78995
@@ -9723,6 +10203,7 @@ native,type,RRSP,holding SCHD,total_pnl_cad,4381.09245
 native,type,RRSP,holding SCHD,total_pnl_pct,0.1564984198908590842232499693
 native,type,RRSP,holding SCHD,total_pnl_totals,4381.09245
 native,type,RRSP,holding SCHD,units,662.0
+native,type,RRSP,holding SCHD,units_suspect,False
 native,type,RRSP,holding SCHD,unrealized,2308.340
 native,type,RRSP,holding SCHD,unrealized_pct,0.1200602085036709711377826044
 native,type,RRSP,holding SCHD,unrealized_totals,3428.13455
@@ -9759,11 +10240,16 @@ native,type,RRSP,holding SPY,total_pnl_cad,4215.34370
 native,type,RRSP,holding SPY,total_pnl_pct,0.2080057678154755452610920626
 native,type,RRSP,holding SPY,total_pnl_totals,4215.34370
 native,type,RRSP,holding SPY,units,22.0
+native,type,RRSP,holding SPY,units_suspect,False
 native,type,RRSP,holding SPY,unrealized,2755.220
 native,type,RRSP,holding SPY,unrealized_pct,0.1964836863814517095211743295
 native,type,RRSP,holding SPY,unrealized_totals,3994.46790
 native,type,RRSP,holding SPY,weight_in_folio,0.08201427357189772494825937179
 native,type,RRSP,holding SPY,weight_in_pool,0.2917748136307172680550867376
+native,type,RRSP,return,gain,15521.17035
+native,type,RRSP,return,ratio,0.2351692477272727272727272727
+native,type,RRSP,return USD,gain,15521.17035
+native,type,RRSP,return USD,ratio,0.2351692477272727272727272727
 native,type,RRSP,totals,closed,
 native,type,RRSP,totals,deposits_measurable,True
 native,type,RRSP,totals,display_currency,native
@@ -9806,6 +10292,10 @@ native,type,RRSP,totals USD,unrealized,9854.410
 native,type,RRSP,totals USD,unrealized_pct,0.2068153027722255288534589648
 native,type,RRSP,totals USD,weight_in_folio,0.2810875707582440991415484786
 native,type,RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
+native,type,TFSA,disclosure Converted,into,CAD
+native,type,TFSA,disclosure Converted,rate,1.38
+native,type,TFSA,disclosure Converted,rate_date,2026-09-30
+native,type,TFSA,disclosure Converted,what,total
 native,type,TFSA,flows,account_type,TFSA
 native,type,TFSA,flows,cash CAD,3658.20
 native,type,TFSA,flows,cash USD,35.58
@@ -9862,6 +10352,7 @@ native,type,TFSA,holding CNR.TO,total_pnl_cad,181.97
 native,type,TFSA,holding CNR.TO,total_pnl_pct,0.1149199532666014083172818845
 native,type,TFSA,holding CNR.TO,total_pnl_totals,181.97
 native,type,TFSA,holding CNR.TO,units,10.0
+native,type,TFSA,holding CNR.TO,units_suspect,False
 native,type,TFSA,holding CNR.TO,unrealized,110.55
 native,type,TFSA,holding CNR.TO,unrealized_pct,0.06981590830149357415769364363
 native,type,TFSA,holding CNR.TO,unrealized_totals,110.55
@@ -9898,6 +10389,7 @@ native,type,TFSA,holding ENB.TO,total_pnl_cad,556.860
 native,type,TFSA,holding ENB.TO,total_pnl_pct,0.3363595179849596810727552777
 native,type,TFSA,holding ENB.TO,total_pnl_totals,556.860
 native,type,TFSA,holding ENB.TO,units,30.0
+native,type,TFSA,holding ENB.TO,units_suspect,False
 native,type,TFSA,holding ENB.TO,unrealized,328.950
 native,type,TFSA,holding ENB.TO,unrealized_pct,0.1986952976352269638488719761
 native,type,TFSA,holding ENB.TO,unrealized_totals,328.950
@@ -9934,6 +10426,7 @@ native,type,TFSA,holding O,total_pnl_cad,0.44370
 native,type,TFSA,holding O,total_pnl_pct,0.002711864406779661016949152542
 native,type,TFSA,holding O,total_pnl_totals,0.44370
 native,type,TFSA,holding O,units,3.0
+native,type,TFSA,holding O,units_suspect,False
 native,type,TFSA,holding O,unrealized,-14.10
 native,type,TFSA,holding O,unrealized_pct,-0.07966101694915254237288135593
 native,type,TFSA,holding O,unrealized_totals,-19.4580
@@ -9970,6 +10463,7 @@ native,type,TFSA,holding REI.UN.TO,total_pnl_cad,1437.260
 native,type,TFSA,holding REI.UN.TO,total_pnl_pct,0.2481251553738640444162086015
 native,type,TFSA,holding REI.UN.TO,total_pnl_totals,1437.260
 native,type,TFSA,holding REI.UN.TO,units,320.0
+native,type,TFSA,holding REI.UN.TO,units_suspect,False
 native,type,TFSA,holding REI.UN.TO,unrealized,841.120
 native,type,TFSA,holding REI.UN.TO,unrealized_pct,0.1452089605833770681987680579
 native,type,TFSA,holding REI.UN.TO,unrealized_totals,841.120
@@ -10006,6 +10500,7 @@ native,type,TFSA,holding RY.TO,total_pnl_cad,1231.750
 native,type,TFSA,holding RY.TO,total_pnl_pct,0.7277050778365285203674711252
 native,type,TFSA,holding RY.TO,total_pnl_totals,1231.750
 native,type,TFSA,holding RY.TO,units,10.0
+native,type,TFSA,holding RY.TO,units_suspect,False
 native,type,TFSA,holding RY.TO,unrealized,1106.750
 native,type,TFSA,holding RY.TO,unrealized_pct,0.6538563790506011284081174490
 native,type,TFSA,holding RY.TO,unrealized_totals,1106.750
@@ -10042,6 +10537,7 @@ native,type,TFSA,holding TD.TO,total_pnl_cad,1812.250
 native,type,TFSA,holding TD.TO,total_pnl_pct,1.063308592718631736439111685
 native,type,TFSA,holding TD.TO,total_pnl_totals,1812.250
 native,type,TFSA,holding TD.TO,units,20.0
+native,type,TFSA,holding TD.TO,units_suspect,False
 native,type,TFSA,holding TD.TO,unrealized,1642.250
 native,type,TFSA,holding TD.TO,unrealized_pct,0.9635638219849209376008448969
 native,type,TFSA,holding TD.TO,unrealized_totals,1642.250
@@ -10078,6 +10574,7 @@ native,type,TFSA,holding VFV.TO,total_pnl_cad,255.810
 native,type,TFSA,holding VFV.TO,total_pnl_pct,0.3365389675314424038309740567
 native,type,TFSA,holding VFV.TO,total_pnl_totals,255.810
 native,type,TFSA,holding VFV.TO,units,4.0
+native,type,TFSA,holding VFV.TO,units_suspect,False
 native,type,TFSA,holding VFV.TO,unrealized,12.360
 native,type,TFSA,holding VFV.TO,unrealized_pct,0.01626059043308951218228700731
 native,type,TFSA,holding VFV.TO,unrealized_totals,12.360
@@ -10114,11 +10611,18 @@ native,type,TFSA,holding XEQT.TO,total_pnl_cad,536.260
 native,type,TFSA,holding XEQT.TO,total_pnl_pct,0.1429893209967069740157585292
 native,type,TFSA,holding XEQT.TO,total_pnl_totals,536.260
 native,type,TFSA,holding XEQT.TO,units,93.0
+native,type,TFSA,holding XEQT.TO,units_suspect,False
 native,type,TFSA,holding XEQT.TO,unrealized,487.660
 native,type,TFSA,holding XEQT.TO,unrealized_pct,0.1300305304838215099924007093
 native,type,TFSA,holding XEQT.TO,unrealized_totals,487.660
 native,type,TFSA,holding XEQT.TO,weight_in_folio,0.01501190360739025160210585580
 native,type,TFSA,holding XEQT.TO,weight_in_pool,0.1953594901156997485685963726
+native,type,TFSA,return,gain,6012.60370
+native,type,TFSA,return,ratio,0.3083386512820512820512820513
+native,type,TFSA,return CAD,gain,6012.160
+native,type,TFSA,return CAD,ratio,0.3549310907700890551067214910
+native,type,TFSA,return USD,gain,0.48
+native,type,TFSA,return USD,ratio,0.002711864406779661016949152542
 native,type,TFSA,totals,closed,
 native,type,TFSA,totals,deposits_measurable,True
 native,type,TFSA,totals,display_currency,native

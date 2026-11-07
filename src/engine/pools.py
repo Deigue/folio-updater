@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING, NamedTuple
 
 from app import get_config
-from domain import AccountType, Column, Currency, Grain
+from domain import AccountType, Column, Currency, DiagnosticCode, Grain
 from domain.constants import TORONTO_TZ
 from engine.accounts import resolve_account_type
 from engine.flows import (
@@ -17,7 +18,7 @@ from engine.flows import (
     withdrawals_by_type_year,
 )
 from engine.fx_rates import load_fx_rates
-from engine.holdings import FolioHoldings
+from engine.holdings import UNITS_SUSPECT, FolioHoldings
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.flows import Flows, Room
-    from engine.holdings import DisplayCurrency, HoldingSet
+    from engine.holdings import CurrencyTotals, DisplayCurrency, HoldingSet
     from engine.ledger import Ledger
     from services.quotes_service import Quote
 
@@ -67,6 +68,87 @@ FOLIO = Pool(Grain.FOLIO, "")
 
 
 @dataclass(frozen=True)
+class Return:
+    """What one totals row's `Total%` states.
+
+    Attributes:
+        ratio: The return, or None to leave the cell blank.
+        gain: The gain the ratio was measured on, in the currency of that
+            measurement.
+    """
+
+    ratio: Decimal | None = None
+    gain: Decimal | None = None
+
+
+class Conversion(StrEnum):
+    """Which figures a conversion at the current rate produced."""
+
+    TOTAL = "total"  # The grand total, summed across currencies
+    TOTAL_RETURN = "total_return"  # Only `Total%`, a CAD ratio beside native figures
+    VALUED = "valued"  # Every figure, the whole pool shown in CAD
+
+
+@dataclass(frozen=True)
+class Converted:
+    """Some figures were converted at the current USDCAD rate.
+
+    Attributes:
+        what: Which figures the conversion produced.
+        into: The currency they were converted into.
+        rate: The USDCAD rate used.
+        rate_date: The date that rate is from.
+    """
+
+    what: Conversion
+    into: Currency
+    rate: Decimal
+    rate_date: str | None
+
+
+@dataclass(frozen=True)
+class Unpriced:
+    """Holdings with no price, left out of every total.
+
+    Attributes:
+        symbols: The holdings left out.
+    """
+
+    symbols: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TotalReturnHidden:
+    """`Total%` is blank because the currency filter hid part of the pool.
+
+    It measures the whole pool against its net deposits, so no ratio describes
+    the part left on show.
+
+    Attributes:
+        excluded: How many holdings the filter hid.
+        shown: The currency left on show.
+    """
+
+    excluded: int
+    shown: Currency
+
+
+@dataclass(frozen=True)
+class UnitsSuspect:
+    """Some holdings carry diagnostics that mean their units are wrong.
+
+    Attributes:
+        codes: The diagnostics found, in the order the holdings carry them.
+    """
+
+    codes: tuple[DiagnosticCode, ...]
+
+
+# A statement of what a pool's figures leave out or were converted at.
+Disclosure = Unpriced | TotalReturnHidden | Converted | UnitsSuspect
+
+
+@dataclass(frozen=True)
 class ValuedPool:
     """One pool, valued: what it holds and what moved through it.
 
@@ -94,6 +176,89 @@ class ValuedPool:
     def open_symbols(self) -> list[str]:
         """Symbols of the open holdings, in the order the pool lists them."""
         return [holding.symbol for holding in self.holdings.holdings]
+
+    @property
+    def total_return(self) -> Return:
+        """The pool's total gain as a share of its net deposits.
+
+        Against net deposits rather than book value: see `HoldingSet.return_on`.
+        """
+        holdings = self.holdings
+        ratio = holdings.return_on(self.flows.net_deposit_denominator)
+        return Return(ratio, holdings.total_pnl)
+
+    def subtotal_return(self, group: CurrencyTotals) -> Return:
+        """Say what one currency group's subtotal reports as its `Total%`.
+
+        A pool with one currency group has no grand total below it, so its
+        subtotal is the pool's overall total and is promoted to the return on
+        net deposits. A USD-only pool is still one pool with one deposit
+        history, so it is promoted the same way, and both sides of the ratio
+        stay in CAD however the pool is displayed.
+
+        Args:
+            group: One of the pool's currency groups.
+
+        Returns:
+            The group's own book-based return when a grand total follows, the
+            promoted return when this is the only group, and a blank when the
+            currency filter hides part of the pool from a whole-pool
+            denominator.
+        """
+        holdings = self.holdings
+        if holdings.mixed_currency:
+            return Return(group.total_pnl_pct, group.total_pnl)
+        if not holdings.deposits_measurable:
+            return Return()
+        promoted = holdings.return_on(self.flows.net_deposit_denominator)
+        if promoted is None:
+            return Return(group.total_pnl_pct, group.total_pnl)
+        return Return(promoted, holdings.total_pnl_cad)
+
+    @property
+    def disclosures(self) -> tuple[Disclosure, ...]:
+        """State what the pool's figures leave out or were converted at."""
+        holdings = self.holdings
+        found: list[Disclosure] = []
+        if holdings.unpriced:
+            found.append(Unpriced(holdings.unpriced))
+        deposited = self.flows.net_deposit_denominator
+        if not holdings.deposits_measurable and deposited is not None:
+            found.append(TotalReturnHidden(holdings.excluded, holdings.totals_currency))
+        converted = self._conversion()
+        if converted is not None:
+            found.append(converted)
+        suspect = tuple(code for code in holdings.flags if code in UNITS_SUSPECT)
+        if suspect:
+            found.append(UnitsSuspect(suspect))
+        return tuple(found)
+
+    def _conversion(self) -> Converted | None:
+        """Say what the current rate converted, when it converted anything.
+
+        `-c USD` converts nothing, since the CAD holdings are dropped rather
+        than converted. A single-currency pool that isn't CAD still has its
+        `Total%` promoted to net deposits, a CAD figure, so that one cell is a
+        conversion even though every other figure keeps its own currency.
+        """
+        holdings = self.holdings
+        if holdings.fx_rate is None:
+            return None
+        if holdings.mixed_currency:
+            what, into = Conversion.TOTAL, holdings.totals_currency
+        elif holdings.display_currency == Currency.CAD:
+            what, into = Conversion.VALUED, Currency.CAD
+        elif self._promoted_from(holdings.by_currency):
+            what, into = Conversion.TOTAL_RETURN, Currency.CAD
+        else:
+            return None
+        return Converted(what, into, holdings.fx_rate, holdings.fx_date)
+
+    def _promoted_from(self, groups: tuple[CurrencyTotals, ...]) -> bool:
+        """Whether a lone non-CAD group's `Total%` was promoted to a CAD ratio."""
+        if len(groups) != 1 or groups[0].currency is Currency.CAD:
+            return False
+        return self.holdings.return_on(self.flows.net_deposit_denominator) is not None
 
 
 def account_type_of(pool: Pool) -> AccountType | None:
