@@ -20,6 +20,14 @@ class Currency(StrEnum):
 SUPPORTED_CURRENCIES: tuple[Currency, ...] = (Currency.USD, Currency.CAD)
 
 
+class CurrencyColumns(StrEnum):
+    """Which currency's figures a buildup or cost base summary carries."""
+
+    CAD = "CAD"
+    USD = "USD"
+    BOTH = "both"
+
+
 class Action(StrEnum):
     """Transaction actions."""
 

@@ -5,7 +5,6 @@ from exporters.sheets.acb import (
     acb_buildup_sheet,
     acb_summary_sheet,
     cost_base_sheet,
-    has_usd,
 )
 from exporters.sheets.dashboard import pool_sheet, pooled_dashboard_sheet
 from exporters.sheets.ledger import LEDGER_SHEET, ledger_sheet
@@ -29,7 +28,6 @@ __all__ = [
     "cost_base_sheet",
     "flows_sheet",
     "fx_sheet",
-    "has_usd",
     "ledger_sheet",
     "performance_sheet",
     "pool_sheet",

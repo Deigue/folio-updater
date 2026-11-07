@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from db import get_connection, get_distinct_values, get_rows
-from domain import Column, Grain
+from domain import Column, CurrencyColumns, Grain
 from domain import Table as DbTable
-from engine.gain_since_buy import with_gains_since_buy
+from engine.acb_report import AcbReport, AcbShape
 from engine.pools import FOLIO, Pool
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
 from exporters.sheet_spec import Link
@@ -197,15 +197,15 @@ def folio_sheets(
         dashboards = _dashboard_sheets(valued_pools, chosen, notes)
         if Section.ACB in chosen and sources.valuation is not None:
             frame = sources.valuation.frame
-            with_gains = with_gains_since_buy(
+            report = AcbReport.build(
                 frame,
-                sources.quotes,
-                sources.valuation.folio_holdings.fx,
-            )
-            cost_base = [
-                ledger_sheet(with_gains, txns=sources.txns),
-                cost_base_sheet(frame),
-            ]
+                FOLIO,
+                AcbShape.LEDGER,
+                currencies=CurrencyColumns.BOTH,
+                income=True,
+                txns=sources.txns,
+            ).priced(sources.quotes, sources.valuation.folio_holdings.fx)
+            cost_base = [ledger_sheet(report), cost_base_sheet(frame)]
     performance: list[Sheet] = []
     if valued_pools is not None and Section.PERF in chosen:
         performance = [_performance_sheet(valued_pools.folio, sources, notes)]

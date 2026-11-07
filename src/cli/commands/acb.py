@@ -13,17 +13,18 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import require_ledger, resolve_pool, write_or_exit
-from domain import Column, Grain, Impact
-from engine.fx_rates import load_fx_rates
-from engine.gain_since_buy import bought_symbols, with_gains_since_buy
-from exporters.output import PARQUET_SUFFIX, write_frame_parquet
-from exporters.sheets import (
-    acb_buildup_sheet,
-    acb_summary_sheet,
-    has_usd,
-    ledger_sheet,
+from cli.commands.common import (
+    parse_currency_choice,
+    require_ledger,
+    resolve_pool,
+    write_or_exit,
 )
+from domain import CurrencyColumns
+from engine.acb_report import AcbReport, AcbShape, NoUsdFiguresError
+from engine.fx_rates import load_fx_rates
+from engine.gain_since_buy import bought_symbols
+from exporters.output import PARQUET_SUFFIX, write_frame_parquet
+from exporters.sheets import acb_buildup_sheet, acb_summary_sheet, ledger_sheet
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
@@ -33,150 +34,57 @@ from ui.format import (
     freshness_badge,
     freshness_note,
 )
-from ui.views.acb import AcbView, NoUsdFiguresError, show_buildup, show_summary
+from ui.views.acb import show_buildup, show_summary
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from exporters.sheet_spec import Sheet
     from services.quotes_service import Quote
 
-
-def resolve_view(
-    account: str | None,
-    account_type: str | None,
-) -> AcbView:
-    """Decide which pool a request is asking about.
-
-    A bare `folio acb MSFT` reports the non-registered pool, which is where the
-    CRA-relevant figures live.
-
-    Args:
-        account: A single broker account, when `--account` was given.
-        account_type: An account type, or `all` for the folio pool,
-            when `--type` was given.
-
-    Returns:
-        The resolved view.
-
-    Raises:
-        typer.Exit: If the requested account type is not one the engine knows.
-    """
-    pool = resolve_pool(account, account_type, default_type="nreg")
-    label = pool.label if pool.grain is Grain.ACCOUNT else pool.label.lower()
-    return AcbView(pool.grain, pool.name, label)
+_CURRENCY_CHOICES = (CurrencyColumns.BOTH, CurrencyColumns.CAD, CurrencyColumns.USD)
 
 
-def _filter_rows(
-    frame: pd.DataFrame,
-    view: AcbView,
-    symbol: str | None,
-    *,
-    date_from: str | None,
-    date_to: str | None,
-    show_all: bool,
-) -> pd.DataFrame:
-    """Narrow the ledger to the rows a request asked for."""
-    rows = frame
-    if view.grain is Grain.ACCOUNT:
-        rows = rows[rows[str(Column.Txn.ACCOUNT)] == view.pool]
-    elif view.grain is Grain.TYPE:
-        rows = rows[rows[Column.Ledger.ACCT_TYPE] == view.pool]
-    if symbol is not None:
-        rows = rows[rows[Column.Ledger.SYMBOL] == symbol]
-    if not show_all:
-        # A dividend never touches the cost base, so it is noise in a buildup.
-        rows = rows[rows[Column.Ledger.IMPACT] != Impact.INCOME]
-    if date_from:
-        rows = rows[rows[str(Column.Txn.TXN_DATE)] >= date_from]
-    if date_to:
-        rows = rows[rows[str(Column.Txn.TXN_DATE)] <= date_to]
-    return rows
-
-
-def _sheet(
-    rows: pd.DataFrame,
-    view: AcbView,
-    *,
-    symbol: str | None,
-    currency: str,
-    badge: str,
-    summary: bool,
-) -> Sheet:
+def _sheet(report: AcbReport, *, badge: str) -> Sheet:
     """Build the shape the other flags asked for.
 
     The same three shapes the command prints: a summary, one symbol's buildup,
     or the whole ledger when neither was asked for.
     """
-    if summary:
-        return acb_summary_sheet(
-            rows,
-            grain=view.grain,
-            name=f"ACB Summary - {view.label}",
-            currency=currency,
-            notes=[badge],
-        )
-    if symbol:
-        return acb_buildup_sheet(
-            rows,
-            grain=view.grain,
-            name=f"ACB {symbol}",
-            currency=currency,
-            notes=[badge],
-        )
-    return ledger_sheet(
-        rows,
-        name=f"Ledger - {view.label}",
-        currency=currency,
-        notes=[badge],
-    )
+    label = report.pool.label
+    match report.shape:
+        case AcbShape.SUMMARY:
+            return acb_summary_sheet(report, name=f"ACB - {label}", notes=[badge])
+        case AcbShape.BUILDUP:
+            return acb_buildup_sheet(
+                report,
+                name=f"ACB {report.symbol}",
+                notes=[badge],
+            )
+        case AcbShape.LEDGER:
+            return ledger_sheet(report, name=f"Ledger - {label}", notes=[badge])
 
 
-def _export(
-    rows: pd.DataFrame,
-    view: AcbView,
-    path: str,
-    *,
-    symbol: str | None,
-    currency: str,
-    badge: str,
-    summary: bool,
-) -> None:
-    """Write the reported rows out, choosing the format from the suffix.
+def _export(report: AcbReport, path: str, *, parquet: bool, badge: str) -> None:
+    """Write the report out, choosing the format from the suffix.
 
-    Parquet stays the raw frame at full precision, for a reader that is another
+    Parquet is the report's data at full precision, for a reader that is another
     program. Everything else is the sheet the command reports.
 
     Args:
-        rows: The filtered rows from the ledger.
-        view: The pool being reported, which names the sheet.
+        report: The report to write.
         path: Where to write. A path with no suffix becomes a workbook.
-        symbol: The security asked about, when one was.
-        currency: `CAD`, `USD` or `both`.
+        parquet: Whether the path names a Parquet file.
         badge: The freshness line, as plain text for the sheet's notes.
-        summary: Whether one row per symbol was asked for.
 
     Raises:
-        NoUsdFiguresError: If USD figures alone were asked for where nothing is
-            USD-denominated, which would write a file of blank figures.
         typer.Exit: If the path names a format that cannot be written.
     """
-    if currency.strip().upper() == "USD" and not has_usd(rows, tuple(Grain)):
-        raise NoUsdFiguresError
     target = Path(path)
-    if target.suffix.lower() == PARQUET_SUFFIX:
-        write_frame_parquet(target, rows)
-        console_info(f"Exported {len(rows)} row(s) to {target}")
+    if parquet:
+        write_frame_parquet(target, report.data)
+        console_info(f"Exported {len(report.data)} row(s) to {target}")
         return
 
-    sheet = _sheet(
-        rows,
-        view,
-        symbol=symbol,
-        currency=currency,
-        badge=badge,
-        summary=summary,
-    )
+    sheet = _sheet(report, badge=badge)
     written = write_or_exit(target, [sheet])
     console_info(f"Exported {len(sheet.main_table.rows)} row(s) to {written}")
 
@@ -231,58 +139,64 @@ def show_acb(  # noqa: PLR0917
         console_warning("No transactions to compute a cost base from.")
         return
 
-    view: AcbView = resolve_view(account, account_type)
+    pool = resolve_pool(account, account_type, default_type="nreg")
+    shape = (
+        AcbShape.SUMMARY if summary else AcbShape.BUILDUP if symbol else AcbShape.LEDGER
+    )
     canonical = load_symbol_resolver().canonical(symbol) if symbol else None
     if year is not None:
         date_from, date_to = f"{year}-01-01", f"{year}-12-31"
-
-    rows = _filter_rows(
-        ledger.frame,
-        view,
-        canonical,
-        date_from=date_from,
-        date_to=date_to,
-        show_all=show_all,
+    # A file for another program carries every currency, so it never refuses one.
+    parquet = bool(export) and Path(export).suffix.lower() == PARQUET_SUFFIX
+    choice = (
+        CurrencyColumns.BOTH
+        if parquet
+        else parse_currency_choice(currency, _CURRENCY_CHOICES)
     )
+
+    try:
+        report = AcbReport.build(
+            ledger.frame,
+            pool,
+            shape,
+            symbol=canonical,
+            dates=(date_from, date_to),
+            currencies=choice,
+            income=show_all,
+        )
+    except NoUsdFiguresError as error:
+        console_error(f"{error} Drop --currency USD.")
+        raise typer.Exit(1) from error
 
     quotes: dict[str, Quote] = {}
     if not summary:
         quotes = QuotesService.get_quotes(
-            bought_symbols(rows),
+            bought_symbols(report.rows),
             load_symbol_resolver(),
             refresh=refresh,
             offline=offline,
         )
-        # Worked out over the whole ledger: a split any account reported counts.
-        valued = with_gains_since_buy(ledger.frame, quotes, load_fx_rates())
-        rows = valued.loc[rows.index]
+        report = report.priced(quotes, load_fx_rates())
 
-    try:
-        if export:
-            _export(
-                rows,
-                view,
-                export,
-                symbol=canonical,
-                currency=currency,
-                badge=(
-                    freshness_note(ledger.computed_at, quotes)
-                    if quotes
-                    else f"Cost base {format_freshness(ledger.computed_at)}."
-                ),
-                summary=summary,
-            )
-        elif summary:
-            show_summary(rows, view, currency, ledger)
-        elif rows.empty:
-            console_warning(f"No {canonical} transactions in the {view.label} pool.")
-        else:
-            badge = (
-                cache_badge(quotes, computed_at=ledger.computed_at, offline=offline)
+    if export:
+        _export(
+            report,
+            export,
+            parquet=parquet,
+            badge=(
+                freshness_note(ledger.computed_at, quotes)
                 if quotes
-                else freshness_badge(ledger.computed_at)
-            )
-            show_buildup(rows, view, canonical or "", currency, badge)
-    except NoUsdFiguresError as error:
-        console_error(str(error))
-        raise typer.Exit(1) from error
+                else f"Cost base {format_freshness(ledger.computed_at)}."
+            ),
+        )
+    elif summary:
+        show_summary(report, freshness_badge(ledger.computed_at))
+    elif report.rows.empty:
+        console_warning(f"No {canonical} transactions in the {pool.label} pool.")
+    else:
+        badge = (
+            cache_badge(quotes, computed_at=ledger.computed_at, offline=offline)
+            if quotes
+            else freshness_badge(ledger.computed_at)
+        )
+        show_buildup(report, badge)

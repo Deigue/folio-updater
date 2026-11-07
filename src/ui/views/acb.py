@@ -1,23 +1,23 @@
 """Rendering the adjusted cost base, as a buildup and as a summary.
 
-Two shapes over the same replayed frame: one row per transaction for a single
-symbol, and one row per symbol across a pool. Both carry the same movement
-arrows and the same currency choice, so they share their formatting here.
+Two shapes over the same `AcbReport`: one row per transaction for a single
+symbol, and one row per symbol across a pool. The report has already decided
+the rows, their order, the currency columns, the movement arrows and the flag
+counts; this only lays them out.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from rich.table import Table as RichTable
 
-from domain import Action, Column, Currency, DiagnosticCode, Grain
-from engine.frames import acb_summary_frame, grain_column
+from domain import Action, Column, DiagnosticCode, Grain
+from engine.frames import grain_column
 from term import console_print, console_warning, supports_unicode
 from ui.cells import graded, lifetime_return
-from ui.format import freshness_badge
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
 from ui.vocabulary import (
@@ -36,10 +36,10 @@ from ui.vocabulary import (
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
-    from collections.abc import Container, Hashable
+    from collections.abc import Hashable, Mapping
     from typing import Any
 
-    from engine.ledger import Ledger
+    from engine.acb_report import AcbReport
 
 # Column families the buildup renders, by ledger measure (also the header).
 _MEASURES = ("Delta", "ACB", "Avg", "Realized")
@@ -63,78 +63,8 @@ _BUILDUP_DROP_ORDER = (
 
 _SUMMARY_DROP_ORDER = ("Realized\nUSD", "ACB\nUSD", "Avg\nUSD")
 
-# Running measures whose direction of travel is worth marking, compared against
-# the chronologically preceding row.
-_MOVING_MEASURES = ("Units", "Avg", "Avg_USD")
-
 _RISE, _FALL = ("▲", "▼") if supports_unicode() else ("^", "v")
 _SUPERFICIAL_LOSS_GLYPH = " ⚠" if supports_unicode() else " !"
-
-
-class AcbView(NamedTuple):
-    """One resolved request for a cost-base buildup.
-
-    Attributes:
-        grain: The pool grain to report at.
-        pool: The account name or account type the rows are filtered to. Empty
-            at folio grain, where nothing is filtered out.
-        label: How the grain reads in the table title.
-    """
-
-    grain: Grain
-    pool: str
-    label: str
-
-
-def _holding_currency(rows: pd.DataFrame) -> Currency:
-    """Report the currency a symbol trades in, taken from its own rows."""
-    currencies = set(rows[str(Column.Txn.CURRENCY)].dropna())
-    return Currency.USD if str(Currency.USD) in currencies else Currency.CAD
-
-
-class NoUsdFiguresError(ValueError):
-    """`--currency USD` was asked for where nothing is USD-denominated."""
-
-    MESSAGE = (
-        "Nothing here is USD-denominated, so there are no USD figures. "
-        "Drop --currency USD."
-    )
-
-    def __init__(self) -> None:
-        """Carry the one message this error ever has."""
-        super().__init__(self.MESSAGE)
-
-
-def _resolve_currencies(
-    requested: str,
-    holding: Currency,
-) -> tuple[bool, bool]:
-    """Decide which currency variants render.
-
-    Args:
-        requested: The `--currency` argument: `CAD`, `USD` or `both`.
-        holding: The currency traded in. For a buildup that is the symbol's own
-            currency; for a summary it is USD when *any* symbol in the pool is
-            USD, since one such holding is enough to earn the columns.
-
-    Returns:
-        Whether to show the CAD columns and whether to show the USD ones.
-
-    Raises:
-        NoUsdFiguresError: If USD columns were demanded where nothing is USD-
-            denominated, which would render an empty table rather than say
-            anything.
-    """
-    choice = requested.strip().upper()
-    if choice == "USD":
-        if holding is not Currency.USD:
-            raise NoUsdFiguresError
-        return False, True
-    if choice == "CAD":
-        return True, False
-    # `both` shows both variants where something is USD. Where nothing is, the
-    # `_USD` columns are blank by design and are pure noise.
-    return True, holding is Currency.USD
 
 
 def _format(value: float | None, precision: int, *, blank_zero: bool = False) -> str:
@@ -170,40 +100,6 @@ def _signed(text: str, value: float | None) -> str:
     return f"[{colour}]{text}[/{colour}]"
 
 
-def movements(rows: pd.DataFrame, view: AcbView) -> dict[tuple[str, int], int]:
-    """Record which way each running measure moved, row by row.
-
-    Compared against the *chronologically* preceding row, so the result still
-    reads correctly once the table is flipped into newest-first order. The two
-    currency variants of the average are tracked apart: a rate move can push the
-    CAD average one way while the USD average goes the other.
-
-    Args:
-        rows: The view's rows, in chronological order.
-        view: The pool grain being reported.
-
-    Returns:
-        `(measure, TxnId)` to `+1` where the measure rose and `-1` where it fell.
-        A measure that held still is absent, as is the first row of each series,
-        which has nothing to compare against.
-    """
-    moves: dict[tuple[str, int], int] = {}
-    for measure in _MOVING_MEASURES:
-        column = grain_column(view.grain, measure)
-        if column not in rows.columns:
-            continue
-        previous: float | None = None
-        for _, row in rows.iterrows():
-            current = row[column]
-            if current is None or pd.isna(current):
-                continue
-            txn_id = int(row[str(Column.Txn.TXN_ID)])
-            if previous is not None and float(current) != previous:
-                moves[(measure, txn_id)] = 1 if float(current) > previous else -1
-            previous = float(current)
-    return moves
-
-
 def _by_direction(text: str, direction: int | None) -> str:
     """Colour a cell by which way its running value moved.
 
@@ -218,9 +114,9 @@ def _by_direction(text: str, direction: int | None) -> str:
 
 def _build_table(
     rows: pd.DataFrame,
-    view: AcbView,
+    grain: Grain,
     title: str | None,
-    moves: dict[tuple[str, int], int],
+    moves: Mapping[tuple[str, int], int],
     *,
     show_cad: bool,
     show_usd: bool,
@@ -252,7 +148,7 @@ def _build_table(
 
     for _, row in rows.iterrows():
         table.add_row(
-            *_render_row(row, view, moves, show_cad=show_cad, show_usd=show_usd),
+            *_render_row(row, grain, moves, show_cad=show_cad, show_usd=show_usd),
         )
     return fit_table(table, _BUILDUP_DROP_ORDER)
 
@@ -261,7 +157,7 @@ def _measure_cell(
     row: pd.Series,
     column: str,
     measure: str,
-    moves: dict[tuple[str, int], int],
+    moves: Mapping[tuple[str, int], int],
 ) -> str:
     """Render one per-grain measure, coloured as that measure wants."""
     precision = PRICE_PRECISION if measure.startswith("Avg") else MONEY_PRECISION
@@ -283,7 +179,7 @@ def _measure_cell(
 
 def _gain_cells(
     row: pd.Series,
-    view: AcbView,
+    grain: Grain,
     suffix: str,
     *,
     superficial_loss: bool,
@@ -292,7 +188,7 @@ def _gain_cells(
 
     Args:
         row: The buildup row.
-        view: The pool grain being reported.
+        grain: The pool grain being reported.
         suffix: `_USD` for the USD figures, empty for the CAD ones.
         superficial_loss: Whether the row is flagged as a suspect superficial
             loss, marked on the sale's own gain.
@@ -300,8 +196,8 @@ def _gain_cells(
     Returns:
         The Gain cell, then the Gain% cell.
     """
-    gain = row[grain_column(view.grain, f"Gain{suffix}")]
-    ratio = row[grain_column(view.grain, f"GainPct{suffix}")]
+    gain = row[grain_column(grain, f"Gain{suffix}")]
+    ratio = row[grain_column(grain, f"GainPct{suffix}")]
     text = _format(gain, MONEY_PRECISION)
     if pd.isna(ratio):
         # Nothing to grade by: a buy with no quote, or a sale that removed no cost.
@@ -329,8 +225,8 @@ def _arrow(direction: int | None) -> str:
 
 def _render_row(
     row: pd.Series,
-    view: AcbView,
-    moves: dict[tuple[str, int], int],
+    grain: Grain,
+    moves: Mapping[tuple[str, int], int],
     *,
     show_cad: bool,
     show_usd: bool,
@@ -348,7 +244,7 @@ def _render_row(
         f"[{colour}]{action}[/{colour}]",
         _signed(_units(units, blank_zero=True), units),
         _by_direction(
-            _units(row[grain_column(view.grain, "Units")]),
+            _units(row[grain_column(grain, "Units")]),
             moves.get(("Units", int(row[str(Column.Txn.TXN_ID)]))),
         ),
         _format(row[str(Column.Txn.PRICE)], MONEY_PRECISION, blank_zero=True),
@@ -358,17 +254,17 @@ def _render_row(
     for measure in _MEASURES:
         if show_cad:
             cells.append(
-                _measure_cell(row, grain_column(view.grain, measure), measure, moves),
+                _measure_cell(row, grain_column(grain, measure), measure, moves),
             )
         if show_usd:
             usd = f"{measure}_USD"
             cells.append(
-                _measure_cell(row, grain_column(view.grain, usd), usd, moves),
+                _measure_cell(row, grain_column(grain, usd), usd, moves),
             )
     cells.extend(
         _gain_cells(
             row,
-            view,
+            grain,
             "_USD" if show_usd else "",
             superficial_loss=superficial_loss,
         ),
@@ -381,28 +277,16 @@ def _render_row(
     return cells
 
 
-def _print_footer(
-    rows: pd.DataFrame,
-    exclude: Container[str] = (),
-) -> None:
+def _print_footer(flag_counts: Mapping[str, int]) -> None:
     """Print the flag roll-up and conversion note.
 
     Footer line printed once after `page_frame` returns.
 
     Args:
-        rows: The rows whose `Flags` column is rolled up.
-        exclude: Flag codes to leave out of the roll-up, e.g. a code that is
-            only meaningful per transaction and would just be noise once pooled across
-            symbols.
+        flag_counts: How many rows carry each flag, as the report counted them.
     """
-    flags: dict[str, int] = {}
-    for value in rows["Flags"]:
-        for code in str(value or "").split(","):
-            if code and code not in exclude:
-                flags[code] = flags.get(code, 0) + 1
-
-    if flags:
-        summary = "  ".join(f"{code} x{count}" for code, count in sorted(flags.items()))
+    if flag_counts:
+        summary = "  ".join(f"{code} x{count}" for code, count in flag_counts.items())
         console_warning(f"Flags: {summary}")
 
     console_print(
@@ -411,46 +295,9 @@ def _print_footer(
     )
 
 
-def _summary_currency(summary: pd.DataFrame, view: AcbView) -> Currency:
-    """Report whether a summarised pool holds anything USD-denominated.
-
-    A pool is normally mixed, so the question is not "which currency" but
-    "are the `_USD` columns worth the width". One USD holding is enough.
-    """
-    column = grain_column(view.grain, "ACB_USD")
-    if column in summary.columns and summary[column].notna().any():
-        return Currency.USD
-    return Currency.CAD
-
-
-def _open_holdings_first(summary: pd.DataFrame, view: AcbView) -> pd.DataFrame:
-    """Sink closed holdings to the bottom, alphabetical within each group.
-
-    A closed holding is history: its row is a realized gain and four blanks.
-    Interleaving those alphabetically pushes what is actually held apart and
-    makes the list of current holdings something you have to hunt for.
-    """
-    units = grain_column(view.grain, "Units")
-    ordered = summary.assign(_closed=summary[units].fillna(0) == 0)
-    return ordered.sort_values(
-        ["_closed", "Symbol"],
-        kind="stable",
-    ).drop(columns="_closed")
-
-
-def _drop_cad_only(summary: pd.DataFrame, view: AcbView) -> pd.DataFrame:
-    """Keep only USD-denominated holdings, for a USD-only request.
-
-    Asked for USD figures alone, a CAD holding has none to give and renders as
-    an entirely blank row. Applied only when the CAD columns are hidden: with
-    them showing, a CAD holding still has everything to say.
-    """
-    return summary[summary[grain_column(view.grain, "ACB_USD")].notna()]
-
-
 def _summary_record(
     record: dict[Hashable, Any],
-    view: AcbView,
+    grain: Grain,
     *,
     show_cad: bool,
     show_usd: bool,
@@ -458,13 +305,13 @@ def _summary_record(
     """Render one symbol's closing holding for the summary table."""
 
     def cell(measure: str, precision: int) -> str:
-        value = record[grain_column(view.grain, measure)]
+        value = record[grain_column(grain, measure)]
         text = _format(value, precision, blank_zero=True)
         return _signed(text, value) if measure.startswith("Realized") else text
 
     cells = {
         "Symbol": str(record["Symbol"]),
-        "Units": _units(record[grain_column(view.grain, "Units")], blank_zero=True),
+        "Units": _units(record[grain_column(grain, "Units")], blank_zero=True),
     }
     for measure, precision in (
         ("ACB", MONEY_PRECISION),
@@ -478,71 +325,63 @@ def _summary_record(
     return cells
 
 
-def show_summary(
-    rows: pd.DataFrame,
-    view: AcbView,
-    currency: str,
-    ledger: Ledger,
-) -> None:
-    """Print one row per symbol, all three grains side by side."""
-    summary = acb_summary_frame(rows)
-    if summary.empty:
-        console_warning(f"No holdings in the {view.label} pool.")
+def show_summary(report: AcbReport, badge: str) -> None:
+    """Print one row per symbol, all three grains side by side.
+
+    Args:
+        report: The pool's cost base summary report.
+        badge: The freshness line printed above the table.
+    """
+    label = report.pool.label
+    if report.holdings.empty:
+        console_warning(f"No holdings in the {label} pool.")
         return
 
-    show_cad, show_usd = _resolve_currencies(
-        currency,
-        _summary_currency(summary, view),
-    )
-    if show_usd and not show_cad:
-        summary = _drop_cad_only(summary, view)
+    show_cad, show_usd = report.currencies
     records = [
-        _summary_record(record, view, show_cad=show_cad, show_usd=show_usd)
-        for record in _open_holdings_first(summary, view).to_dict("records")
+        _summary_record(
+            record,
+            report.pool.grain,
+            show_cad=show_cad,
+            show_usd=show_usd,
+        )
+        for record in report.holdings.to_dict("records")
     ]
-    console_print(freshness_badge(ledger.computed_at))
+    console_print(badge)
     show_data_table(
         records,
-        title=f"ACB summary - {view.label}",
+        title=f"Cost base summary - {label}",
         max_rows=len(records),
         drop_order=_SUMMARY_DROP_ORDER,
     )
-    _print_footer(rows, exclude={str(DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT)})
+    _print_footer(report.flag_counts)
 
 
-def show_buildup(
-    rows: pd.DataFrame,
-    view: AcbView,
-    symbol: str,
-    currency: str,
-    badge: str,
-) -> None:
-    """Print the per-transaction buildup for one symbol.
+def show_buildup(report: AcbReport, badge: str) -> None:
+    """Print the per-transaction buildup for one symbol, newest first.
 
     Rows are dated and ordered by *settlement* date (the date the cash and the FX
     rate belong to) and shown newest first, the way adjustedcostbase.ca lists
     them. The cost base itself is still replayed in transaction-date order; this is
     presentation only, and the two orders disagree on a handful of rows where a
     same-day action settles before a trade made earlier.
+
+    Args:
+        report: The symbol's report, priced, its rows oldest first.
+        badge: The freshness line printed above the table.
     """
-    show_cad, show_usd = _resolve_currencies(currency, _holding_currency(rows))
-    title = f"ACB - {symbol} ({view.label})"
-    chronological = rows.sort_values(
-        [str(Column.Txn.SETTLE_DATE), str(Column.Txn.TXN_ID)],
-        kind="stable",
-    )
-    # Movements are computed oldest-first so they survive the flip below.
-    moves = movements(chronological, view)
-    ordered = chronological.iloc[::-1]
+    show_cad, show_usd = report.currencies
+    title = f"ACB - {report.symbol} ({report.pool.label})"
+    ordered = report.rows.iloc[::-1]
 
     def render(start: int, end: int) -> None:
         page = ordered.iloc[start:end]
         console_print(
             _build_table(
                 page,
-                view,
+                report.pool.grain,
                 page_title(title, start, end, len(ordered)),
-                moves,
+                report.directions,
                 show_cad=show_cad,
                 show_usd=show_usd,
             ),
@@ -557,4 +396,4 @@ def show_buildup(
         # Showing both currencies stacks each measure's header onto a second line
         reserved=1 if show_usd else 0,
     )
-    _print_footer(ordered)
+    _print_footer(report.flag_counts)

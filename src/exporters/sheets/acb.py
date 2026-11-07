@@ -5,12 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import Column, Grain
-from engine.frames import (
-    acb_summary_frame,
-    acb_summary_frames_by_pool,
-    grain_column,
-)
-from engine.pools import FOLIO, Pool
+from engine.acb_report import AcbReport
+from engine.frames import grain_column
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheet_spec import Col, Fmt, Sheet, SheetTable, row_of
 from exporters.sheets.summary import GRAIN_NAMES
@@ -56,11 +52,9 @@ _CONVERSION_NOTE = (
 
 
 def acb_buildup_sheet(
-    rows: pd.DataFrame,
+    report: AcbReport,
     *,
-    grain: Grain,
     name: str,
-    currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Sheet:
     """Print a symbol's cost-base buildup as a sheet.
@@ -70,16 +64,15 @@ def acb_buildup_sheet(
     and `Avg` columns can step out of sequence where the two orders differ.
 
     Args:
-        rows: The symbol's rows from the ledger.
-        grain: The pool grain being reported.
+        report: The symbol's report, its rows oldest first.
         name: What the sheet is called.
-        currency: `CAD`, `USD` or `both`.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
         The sheet, in settlement-date order.
     """
-    cad, usd = families(currency, usd=has_usd(rows, (grain,)))
+    grain = report.pool.grain
+    cad, usd = report.currencies
     columns = [
         Col(_TXN_DATE, Fmt.DATE),
         Col(_SETTLE_DATE, Fmt.DATE),
@@ -104,10 +97,6 @@ def acb_buildup_sheet(
         columns.append(Col("Rate", Fmt.RATE))
     columns.append(Col("Flags", width=16))
 
-    ordered = rows.sort_values(
-        [str(Column.Txn.SETTLE_DATE), str(Column.Txn.TXN_ID)],
-        kind="stable",
-    )
     built = tuple(columns)
     return Sheet(
         name=name,
@@ -116,40 +105,32 @@ def acb_buildup_sheet(
                 built,
                 tuple(
                     row_of(built, _buildup_cells(record, grain))
-                    for record in ordered.to_dict("records")
+                    for record in report.rows.to_dict("records")
                 ),
-                notes=(*notes, *acb_notes(rows)),
+                notes=(*notes, *acb_notes(report)),
             ),
         ),
     )
 
 
 def acb_summary_sheet(
-    rows: pd.DataFrame,
+    report: AcbReport,
     *,
-    grain: Grain,
     name: str,
-    currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Sheet:
     """Collapse a pool to one row per symbol: its closing holding.
 
     Args:
-        rows: The pool's rows from the ledger.
-        grain: The pool grain being reported.
+        report: The pool's cost base summary report.
         name: What the sheet is called.
-        currency: `CAD`, `USD` or `both`. `USD` drops the CAD-denominated
-            holdings, which have no USD figures to show.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
-        The sheet, open holdings first and alphabetical within each group.
+        The sheet, one row per holding in the report's order.
     """
-    summary = acb_summary_frame(rows)
-    cad, usd = families(currency, usd=has_usd(summary, (grain,)))
-    if usd and not cad and not summary.empty:
-        summary = summary[summary[grain_column(grain, "ACB" + USD)].notna()]
-
+    grain = report.pool.grain
+    cad, usd = report.currencies
     columns: list[Col] = [Col("Symbol"), Col("Units", Fmt.UNITS)]
     for measure in ("ACB", "Avg", "Realized"):
         if cad:
@@ -165,9 +146,9 @@ def acb_summary_sheet(
                 built,
                 tuple(
                     row_of(built, _summary_cells(record, grain))
-                    for record in _open_first(summary, grain).to_dict("records")
+                    for record in report.holdings.to_dict("records")
                 ),
-                notes=(*notes, *acb_notes(rows)),
+                notes=(*notes, *acb_notes(report)),
             ),
         ),
     )
@@ -203,18 +184,13 @@ def cost_base_sheet(
         The sheet, one row per pool and symbol: the folio first, then each
         account type, then each account. Open holdings lead within each pool.
     """
-    pools: list[tuple[str, Grain, pd.DataFrame]] = [
-        (FOLIO.label, Grain.FOLIO, acb_summary_frame(frame)),
-    ]
-    for grain in (Grain.TYPE, Grain.ACCOUNT):
-        for pool, summary in sorted(acb_summary_frames_by_pool(frame, grain).items()):
-            label = Pool(Grain.TYPE, pool).label if grain is Grain.TYPE else pool
-            pools.append((label, grain, summary))
-
     rows = [
-        row_of(COST_BASE_COLUMNS, _cost_base_cells(label, grain, record))
-        for label, grain, summary in pools
-        for record in _open_first(summary, grain).to_dict("records")
+        row_of(
+            COST_BASE_COLUMNS,
+            _cost_base_cells(report.pool.label, report.pool.grain, record),
+        )
+        for report in AcbReport.for_every_pool(frame)
+        for record in report.holdings.to_dict("records")
     ]
     return Sheet(
         name=name,
@@ -245,32 +221,6 @@ def _cost_base_cells(
         "Avg": record[grain_column(grain, "Avg")],
         "Realized": record[grain_column(grain, "Realized")],
     }
-
-
-def families(currency: str, *, usd: bool) -> tuple[bool, bool]:
-    """Decide which currency variants the sheet carries.
-
-    Args:
-        currency: The `--currency` argument: `CAD`, `USD` or `both`.
-        usd: Whether the rows hold any USD-denominated figures at all.
-
-    Returns:
-        Whether to carry the CAD columns, and whether to carry the USD ones.
-    """
-    choice = currency.strip().upper()
-    if choice == "USD":
-        return False, True
-    if choice == "CAD":
-        return True, False
-    return True, usd
-
-
-def has_usd(frame: pd.DataFrame, grains: Sequence[Grain]) -> bool:
-    """Report whether any row carries a USD-denominated cost base."""
-    return any(
-        column in frame.columns and frame[column].notna().any()
-        for column in (grain_column(grain, "ACB" + USD) for grain in grains)
-    )
 
 
 def _buildup_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, object]:
@@ -307,32 +257,13 @@ def _summary_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, ob
     return cells
 
 
-def _open_first(summary: pd.DataFrame, grain: Grain) -> pd.DataFrame:
-    """Sink closed holdings to the bottom, alphabetical within each group.
-
-    A closed holding is history: a realized gain and four blanks. Interleaving
-    those alphabetically pushes what is actually held apart.
-    """
-    if summary.empty:
-        return summary
-    units = grain_column(grain, "Units")
-    ordered = summary.assign(_closed=summary[units].fillna(0) == 0)
-    return ordered.sort_values(["_closed", "Symbol"], kind="stable").drop(
-        columns="_closed",
-    )
-
-
-def acb_notes(rows: pd.DataFrame) -> list[str]:
+def acb_notes(report: AcbReport) -> list[str]:
     """Roll the diagnostics up, and say what the CAD figures were converted at."""
     notes: list[str] = []
-    flags: dict[str, int] = {}
-    if "Flags" in rows.columns:
-        for value in rows["Flags"]:
-            for code in str(value or "").split(","):
-                if code:
-                    flags[code] = flags.get(code, 0) + 1
-    if flags:
-        listed = "  ".join(f"{code} x{count}" for code, count in sorted(flags.items()))
+    if report.flag_counts:
+        listed = "  ".join(
+            f"{code} x{count}" for code, count in report.flag_counts.items()
+        )
         notes.append(f"Flags: {listed}")
     notes.append(_CONVERSION_NOTE)
     return notes

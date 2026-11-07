@@ -12,7 +12,6 @@ from engine.frames import (
     SHARED_COLUMNS,
     SOURCE_COLUMNS,
     grain_column,
-    replay_ordered,
 )
 from exporters.excel_style import COST_BASE_TAB
 from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable
@@ -20,8 +19,6 @@ from exporters.sheets.acb import (
     MEASURE_FORMATS,
     USD,
     acb_notes,
-    families,
-    has_usd,
     measure_header,
 )
 from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
@@ -29,7 +26,7 @@ from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    import pandas as pd
+    from engine.acb_report import AcbReport
 
 LEDGER_SHEET = "Ledger"
 
@@ -89,30 +86,24 @@ LEDGER_ORDER: tuple[str, ...] = (
 
 
 def ledger_sheet(
-    frame: pd.DataFrame,
+    report: AcbReport,
     *,
-    txns: pd.DataFrame | None = None,
     name: str = LEDGER_SHEET,
-    currency: str = "both",
     notes: Sequence[str] = (),
 ) -> Sheet:
     """Generate the Ledger: one row per transaction, every grain at once.
 
     Args:
-        frame: Rows from the ledger.
-        txns: The stored transactions, whose columns the frame does not carry
-            are added to the transaction band.
+        report: The ledger's report, priced, its rows in replay order and
+            carrying any stored columns the ledger leaves out.
         name: What the sheet is called.
-        currency: `CAD`, `USD` or `both`.
         notes: Lines to disclose above the ones the table derives itself.
 
     Returns:
         The sheet, in transaction order, its columns banded by pool grain.
     """
-    cad, usd = families(currency, usd=has_usd(frame, tuple(Grain)))
-    extra: list[str] = []
-    if txns is not None:
-        frame, extra = _with_stored_columns(frame, txns)
+    cad, usd = report.currencies
+    extra = list(report.stored_columns)
     keys = [
         column for column in _ordered_columns() if _wanted(column, cad=cad, usd=usd)
     ]
@@ -143,9 +134,8 @@ def ledger_sheet(
                 ),
             )
 
-    # Earliest first, in the order the replay applied them, so every running
-    # column reads down the page as the accumulation it is.
-    ordered = replay_ordered(frame)
+    # The report's rows run earliest first, in the order the replay applied them,
+    # so every running column reads down the page as the accumulation it is.
     return Sheet(
         name=name,
         tables=(
@@ -154,38 +144,14 @@ def ledger_sheet(
                 # Keys and columns are built in step, so the row is already in order.
                 tuple(
                     Row(values)
-                    for values in ordered[keys].itertuples(index=False, name=None)
+                    for values in report.rows[keys].itertuples(index=False, name=None)
                 ),
-                notes=(*notes, *acb_notes(frame)),
+                notes=(*notes, *acb_notes(report)),
             ),
         ),
         tab_color=COST_BASE_TAB,
         freeze=keys.index(str(Column.Txn.TXN_ID)),
     )
-
-
-def _with_stored_columns(
-    frame: pd.DataFrame,
-    txns: pd.DataFrame,
-) -> tuple[pd.DataFrame, list[str]]:
-    """Join the stored columns the ledger leaves out, keyed on `TxnId`.
-
-    Every stored transaction is listed, so one the replay dropped still is, with
-    the columns it was stored with and none of the replay's.
-
-    Returns:
-        The joined rows, and the names of the columns the join added.
-    """
-    txn_id = str(Column.Txn.TXN_ID)
-    extra = [
-        column
-        for column in txns.columns
-        if column not in frame.columns and column != txn_id
-    ]
-    # The frame's figures win; a transaction the replay dropped has none, so
-    # it keeps what was stored.
-    joined = frame.set_index(txn_id).combine_first(txns.set_index(txn_id)).reset_index()
-    return joined, extra
 
 
 def _ordered_columns() -> list[str]:

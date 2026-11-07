@@ -88,7 +88,7 @@ underneath.
 
 The `USD` columns will only appear if the pool contains USD-denominated holdings.
 
-`--currency USD` additionally **drops the CAD-denominated holdings**, and is refused where the pool holds nothing in USD, on screen and in an export, since every figure would be blank.
+`--currency USD` additionally **drops the CAD-denominated holdings**, and is refused where the pool holds nothing in USD, on screen and in a `.xlsx` or `.csv` export, since every figure would be blank.
 
 `--currency CAD` keeps both denominated holdings, but only shows the CAD columns. Since
 CAD is the tax currency, the converted figures for a USD holding belong in it.
@@ -103,9 +103,11 @@ choosing the format from the suffix (a path with none becomes a workbook):
   `--currency` and the row filters (`--type`, `--account`, `--from`, `--to`,
   `--year`, `--all`) apply as they do on screen. Cells keep full precision; only
   their display is rounded.
-- `.parquet`: the raw rows behind it, every column the engine computed at all
-  three grains, with each buy's Gain since buy and every row's Gain%, for another
-  program to read.
+- `.parquet`: the report's data in full, for another program to read: the summary's
+  holdings for `--summary`, the rows otherwise, with every column the engine computed
+  at all three grains (CAD and USD) and each buy's Gain since buy and every row's
+  Gain% where quotes priced them. The row filters (`--type`, `--account`, `--from`,
+  `--to`, `--year`, `--all`) apply; `--currency` does not, so it never refuses.
 
 ```bash
 folio acb NVDA --export nvda.xlsx             # one symbol's buildup

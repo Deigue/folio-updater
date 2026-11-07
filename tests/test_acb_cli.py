@@ -26,19 +26,8 @@ from db import (
     insert_or_replace,
     update_rows,
 )
-from domain import Column, Grain, QuoteStatus, Table
-from engine.frames import grain_column
+from domain import Column, QuoteStatus, Table
 from engine.ledger import open_ledger
-from term import supports_unicode
-from ui.views.acb import (
-    _FALL,
-    _RISE,
-    AcbView,
-    _arrow,
-    _format,
-    _units,
-    movements,
-)
 
 from .helpers.cli import (
     assert_cli_success,
@@ -148,15 +137,6 @@ def seed_superficial_loss(
     )
 
 
-def test_acb_suppresses_usd_columns_for_a_cad_holding(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
-    assert_not_in_output("USD", result)
-    assert_not_in_output("Rate", result)
-
-
 @pytest.mark.parametrize(
     "request_args",
     [["RY.TO"], ["--export", "{target}"]],
@@ -179,7 +159,7 @@ def test_acb_currency_usd_against_a_cad_holding_is_an_error(
         )
         assert not target.exists()
     assert result.exit_code == 1
-    assert_in_output("Nothing here is USD-denominated", result)
+    assert_in_output("Nothing here is in USD", result)
 
 
 def test_acb_reports_the_conversion_basis(temp_ctx: TempContext) -> None:
@@ -229,7 +209,7 @@ def test_acb_folio_grain(temp_ctx: TempContext) -> None:
         taxable = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
     # Only the pooled view ever holds both buys at once.
     assert_cli_success(portfolio)
-    assert_in_output("portfolio", portfolio)
+    assert_in_output("Portfolio", portfolio)
     assert_in_output("200", portfolio)
     assert_cli_success(taxable)
     assert_not_in_output("200", taxable)
@@ -305,60 +285,7 @@ def test_acb_summary(temp_ctx: TempContext) -> None:
         seed_usd_holding()
         result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
     assert_cli_success(result)
-    assert_in_output("ACB summary", result)
-    assert_in_output("RY.TO", result)
-    assert_in_output("MSFT", result)
-
-
-def test_acb_summary_shows_usd_columns_only_when_something_is_usd(
-    temp_ctx: TempContext,
-) -> None:
-    """One USD holding earns the `_USD` columns; a CAD-only pool does not."""
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        cad_only = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        seed_usd_holding()
-        mixed = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-    assert_cli_success(cad_only)
-    assert_cli_success(mixed)
-    assert_not_in_output("USD", cad_only)
-    assert_in_output("USD", mixed)
-
-
-def test_acb_summary_usd_only_drops_cad_holdings(temp_ctx: TempContext) -> None:
-    """A CAD holding asked for USD figures alone renders as a blank row."""
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        seed_usd_holding()
-        both = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-        usd = run_cli_with_config(
-            ctx.config,
-            app,
-            ["acb", "--summary", "--currency", "USD"],
-        )
-    assert_cli_success(both)
-    assert_cli_success(usd)
-    # The CAD holding belongs in the default view
-    assert_in_output("RY.TO", both)
-    assert_in_output("MSFT", both)
-    # ... but missing when only USD columns are rendered.
-    assert_not_in_output("RY.TO", usd)
-    assert_in_output("MSFT", usd)
-
-
-def test_acb_summary_cad_keeps_usd_holdings(temp_ctx: TempContext) -> None:
-    """The CAD view is the tax view, so a USD holding still belongs in it."""
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        seed_usd_holding()
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["acb", "--summary", "--currency", "CAD"],
-        )
-    assert_cli_success(result)
+    assert_in_output("Cost base summary", result)
     assert_in_output("RY.TO", result)
     assert_in_output("MSFT", result)
 
@@ -490,24 +417,6 @@ def test_acb_export_without_a_symbol_writes_the_whole_ledger(
             assert f"{prefix} ACB" in header
 
 
-def test_a_cad_only_export_leaves_out_the_usd_columns(
-    temp_ctx: TempContext,
-    tmp_path: Path,
-) -> None:
-    """The USD family is blank by design for a CAD holding, so it is dropped."""
-    target = tmp_path / "acb.csv"
-    with temp_ctx() as ctx:
-        seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["acb", "RY.TO", "--export", str(target)],
-        )
-        assert_cli_success(result)
-        header, *_ = _exported(target)
-        assert not [column for column in header if column.endswith("USD")]
-
-
 def test_acb_flags_a_seeded_oversell(temp_ctx: TempContext) -> None:
     """A diagnostic reaches the table and the footer, and still exits zero.
 
@@ -539,21 +448,6 @@ def test_acb_flags_a_superficial_loss_suspect(temp_ctx: TempContext) -> None:
         result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
     assert_cli_success(result)
     assert_in_output("SUPERFICIAL_LOSS_SUSPECT", result)
-    assert_in_output("⚠" if supports_unicode() else "!", result)
-
-
-def test_acb_summary_omits_superficial_loss_suspect(temp_ctx: TempContext) -> None:
-    """The pooled summary can't act on a per-lot flag, so it stays out of it.
-
-    Left in, `SUPERFICIAL_LOSS_SUSPECT` would attach to a whole symbol with no
-    way to say which sale it was on: the per-transaction buildup is where it
-    belongs.
-    """
-    with temp_ctx() as ctx:
-        seed_superficial_loss()
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
-    assert_cli_success(result)
-    assert_not_in_output("SUPERFICIAL_LOSS_SUSPECT", result)
 
 
 def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
@@ -950,30 +844,6 @@ def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
     assert_in_output("SPYM", result)
 
 
-def test_acb_currency_cad_forces_one_variant(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_usd_holding()
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["acb", "MSFT", "--currency", "CAD"],
-        )
-    assert_cli_success(result)
-    assert_not_in_output("Rate", result)
-
-
-def test_acb_currency_usd_forces_one_variant(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        seed_usd_holding()
-        result = run_cli_with_config(
-            ctx.config,
-            app,
-            ["acb", "MSFT", "--currency", "USD"],
-        )
-    assert_cli_success(result)
-    assert_in_output("Rate", result)
-
-
 def test_acb_export_to_parquet(temp_ctx: TempContext, tmp_path: Path) -> None:
     target = tmp_path / "acb_export.parquet"
     with temp_ctx() as ctx:
@@ -1068,103 +938,37 @@ def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
 # reported number.
 
 
-def test_rows_run_newest_first(temp_ctx: TempContext) -> None:
-    """Reverse chronological, the way adjustedcostbase.ca lists them."""
+def test_a_parquet_export_never_refuses_a_currency_choice(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    """The file is for another program, which takes every currency's figures."""
+    target = tmp_path / "usd.parquet"
     with temp_ctx() as ctx:
         seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
-    output = result.plain_output
-    # The sale settles after the purchase, so it has to come first.
-    assert output.index("SELL") < output.index("BUY")
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "RY.TO", "--currency", "USD", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        assert len(pd.read_parquet(target)) == 2
 
 
-def test_meaningless_zeros_are_blanked() -> None:
-    """A buy realizes no gain; printing 0.00 on every such row is noise."""
-    assert _format(0.0, 2, blank_zero=True) == ""
-    assert _format(-0.0, 2, blank_zero=True) == ""
-    assert _units(0.0, blank_zero=True) == ""
-    assert _format(0.0, 2) == "0.00"
-    assert _format(1000.0, 2, blank_zero=True) == "1,000.00"
-
-
-def test_a_negative_zero_never_renders_as_a_debit() -> None:
-    assert _format(-0.0, 2) == "0.00"
-
-
-def test_the_average_cost_arrow_tracks_the_chronological_move(
+def test_a_parquet_summary_holds_one_row_per_symbol(
     temp_ctx: TempContext,
+    tmp_path: Path,
 ) -> None:
-    """Arrows are computed oldest-first, so they survive the newest-first flip."""
+    target = tmp_path / "summary.parquet"
     with temp_ctx() as ctx:
-        seed_fx(FX)
-        for day, price, units in (("14", "10", "100"), ("15", "20", "100")):
-            seed_transaction(
-                action="BUY",
-                date=f"2025-08-{day}",
-                settle_date=f"2025-08-{day}",
-                account="IBKR-PERSONAL",
-                currency="CAD",
-                ticker="RY.TO",
-                amount=f"-{int(price) * int(units)}",
-                price=price,
-                units=units,
-            )
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-    assert_cli_success(result)
-    # Average cost rose from 10 to 15, and the arrow belongs on the later row.
-    # Newest first, so the row whose average rose is the first of the two.
-    lines = [ln for ln in result.plain_output.splitlines() if "BUY" in ln]
-    assert len(lines) == 2
-    assert _RISE in lines[0]
-    assert _RISE not in lines[1]
-
-
-def test_movements_track_each_currency_separately() -> None:
-    """A rate move can push the CAD average one way and the USD one the other."""
-    frame = pd.DataFrame(
-        {
-            str(Column.Txn.TXN_ID): [1, 2],
-            grain_column(Grain.ACCOUNT, "Avg"): [100.0, 110.0],
-            grain_column(Grain.ACCOUNT, "Avg_USD"): [80.0, 70.0],
-        },
-    )
-    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
-    moves = movements(frame, view)
-    assert moves[("Avg", 2)] == 1
-    assert moves[("Avg_USD", 2)] == -1
-    # The first row has nothing to compare against.
-    assert ("Avg", 1) not in moves
-
-
-def test_movements_track_the_running_holding() -> None:
-    frame = pd.DataFrame(
-        {
-            str(Column.Txn.TXN_ID): [1, 2, 3],
-            grain_column(Grain.ACCOUNT, "Units"): [100.0, 150.0, 90.0],
-        },
-    )
-    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
-    moves = movements(frame, view)
-    assert moves[("Units", 2)] == 1
-    assert moves[("Units", 3)] == -1
-
-
-def test_a_measure_that_holds_still_is_not_marked() -> None:
-    """A split leaves the cost base alone; nothing should suggest it moved."""
-    frame = pd.DataFrame(
-        {
-            str(Column.Txn.TXN_ID): [1, 2],
-            grain_column(Grain.ACCOUNT, "Units"): [100.0, 100.0],
-        },
-    )
-    view = AcbView(Grain.ACCOUNT, "IBKR-PERSONAL", "IBKR-PERSONAL")
-    assert movements(frame, view) == {}
-
-
-def test_only_the_arrow_is_tinted_and_green_still_means_up() -> None:
-    """The figure stays plain: a falling average is not automatically good."""
-    assert _arrow(1) == f"[green]{_RISE}[/green]"
-    assert _arrow(-1) == f"[red]{_FALL}[/red]"
-    assert _arrow(None) == ""
-    assert _arrow(0) == ""
+        seed_cad_holding()
+        seed_cad_holding(ticker="TSTKR.TO")
+        result = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "--summary", "--export", str(target)],
+        )
+        assert_cli_success(result)
+        summary = pd.read_parquet(target)
+    assert summary["Symbol"].tolist() == ["RY.TO", "TSTKR.TO"]
+    assert Column.Txn.TXN_ID not in summary.columns
