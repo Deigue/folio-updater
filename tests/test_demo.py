@@ -113,6 +113,8 @@ def _showcase(
     rrsp_deposits = txns[
         (action == Action.CONTRIBUTION) & account.str.endswith("RRSP")
     ][Column.Txn.TXN_DATE]
+    held = last[last["AcctUnits"] > 0]
+    partly_sold = set(sells.loc[sells["AcctUnits"] > 0, "AcctType"])
     return {
         "every kind of transaction": set(action) == {str(a) for a in Action},
         "one account type held at two brokers": bool(
@@ -155,6 +157,19 @@ def _showcase(
         ),
         "an RRSP deposit counted toward the previous year": bool(
             rrsp_deposits.str[5:7].isin(["01", "02"]).any(),
+        ),
+        "one symbol held in non-registered, margin and corporate accounts": any(
+            {
+                AccountType.NON_REGISTERED,
+                AccountType.MARGIN,
+                AccountType.CORPORATE,
+            }
+            <= set(types)
+            for _, types in held.groupby("Symbol")["AcctType"]
+        ),
+        "a partial sale from a margin account": AccountType.MARGIN in partly_sold,
+        "a partial sale from a corporate account": (
+            AccountType.CORPORATE in partly_sold
         ),
     }
 

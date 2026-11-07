@@ -328,7 +328,11 @@ TFSA2 = _Account(
     fee_included=True,
     broker_settles=True,
 )
-ACCOUNTS: tuple[_Account, ...] = (PERSONAL, RRSP, TFSA, TFSA2)
+# Taxable accounts beside PERSONAL: a margin account shares the non-registered
+# pool under ITA s.47, a corporation is a separate taxpayer with a pool of its own.
+MARGIN = _Account("MOCK-MARGIN", AccountType.MARGIN)
+CORPORATE = _Account("MOCK-CORPORATE", AccountType.CORPORATE)
+ACCOUNTS: tuple[_Account, ...] = (PERSONAL, RRSP, TFSA, TFSA2, MARGIN, CORPORATE)
 
 # Dividends reinvested on the day they are paid.
 _DRIP: frozenset[tuple[str, str]] = frozenset({(TFSA.name, "REI.UN.TO")})
@@ -954,6 +958,21 @@ def _script(sim: _Simulation) -> None:
     at(date(2025, 4, 29), sim.sell, PERSONAL, "INTC", expect="loss")
     at(date(2025, 10, 14), sim.sell, PERSONAL, "NVDA", units=30, expect="gain")
     at(date(2026, 2, 17), sim.sell, PERSONAL, "META", expect="gain")
+
+    # KO, which the non-registered account holds throughout, in a margin account
+    # and a corporate one too. The margin account buys near the year's low and
+    # sells part at a gain, so its own cost base and the non-registered pool give
+    # different gains. The corporation keeps a pool of its own.
+    at(date(2024, 12, 2), sim.contribute, MARGIN, 10_000)
+    at(date(2024, 12, 2), sim.convert, MARGIN, keep=200)
+    at(date(2024, 12, 16), sim.buy, MARGIN, "KO", units=50)
+    at(date(2025, 1, 15), sim.buy, MARGIN, "KO", units=50)
+    at(date(2025, 3, 17), sim.sell, MARGIN, "KO", units=40, expect="gain")
+    at(date(2025, 6, 2), sim.contribute, CORPORATE, 12_000)
+    at(date(2025, 6, 2), sim.convert, CORPORATE, keep=200)
+    at(date(2025, 6, 16), sim.buy, CORPORATE, "KO", units=60)
+    at(date(2025, 9, 15), sim.buy, CORPORATE, "KO", units=40)
+    at(date(2026, 2, 17), sim.sell, CORPORATE, "KO", units=40, expect="gain")
 
     # Consolidating brokers: the second TFSA moves everything to the first, in
     # kind, and is left empty.
