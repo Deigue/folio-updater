@@ -189,14 +189,14 @@ def _build_table(
     return fit_table(table, _txn_drop_order(shown, context))
 
 
-def build_source_rows_table(
-    df: pd.DataFrame,
+def build_transactions_table(
+    txns: Sequence[TxnFields],
     title: str | None = None,
     max_rows: int = 50,
     context: TransactionContext = TransactionContext.GENERAL,
 ) -> Table:
-    """Build rows held in a frame as a Rich table, fitted to the terminal."""
-    return _build_table(_source_rows(df), title, max_rows, context)
+    """Build transactions as a Rich table, fitted to the terminal."""
+    return _build_table(_txn_rows(txns), title, max_rows, context)
 
 
 def _show(

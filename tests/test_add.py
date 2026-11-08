@@ -10,7 +10,7 @@ import pytest
 
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import get_columns, get_connection
+from db import get_columns, get_connection, txns
 from domain import TORONTO_TZ, Action, Column, Currency, Table
 
 from .helpers.cli import (
@@ -304,7 +304,7 @@ class TestAddValidation:
         temp_ctx: TempContext,
         audit_trail: list[str],
     ) -> None:
-        """An empty Account is refused cleanly, the table's reason logged as FAILED."""
+        """An empty Account is refused cleanly, the reason logged as FAILED."""
         with temp_ctx() as ctx:
             ensure_data_exists()
             before = txn_total()
@@ -316,12 +316,10 @@ class TestAddValidation:
             )
 
             assert cli_result.exit_code == 1
-            assert_in_output("Database rejected the transaction", cli_result)
+            assert_in_output("MISSING Account", cli_result)
             assert txn_total() == before
 
-        assert audit_trail[-3].startswith(
-            "FAILED: the table refused the transaction: CHECK constraint failed",
-        )
+        assert audit_trail[-3] == "FAILED: the transaction is invalid"
 
     def test_invalid_set_value_is_rejected(self, temp_ctx: TempContext) -> None:
         """A --set argument that is not KEY=VALUE aborts the add."""
@@ -360,6 +358,20 @@ class TestAddValidation:
             assert txn_total() == before
 
         assert audit_trail == []
+
+    def test_dry_run_adds_no_column_for_an_extra(self, temp_ctx: TempContext) -> None:
+        """Only a real write may widen the table."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                [*BUY_ARGS, "--set", "BrokerRef=R-52", "--dry-run"],
+            )
+
+            assert_cli_success(cli_result)
+            assert "BrokerRef" not in txns.columns()
 
 
 class TestAddDuplicates:

@@ -10,7 +10,6 @@ calculation and audit logging all behave identically.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from contextlib import nullcontext
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -21,14 +20,8 @@ import typer
 from app import audit, bootstrap, get_config
 from app.audit import AuditMark
 from cli.commands.common import export_to_parquet
-from db import backup_folio, txns
-from db.helpers import audit_rows, generate_keys
-from db.queries import (
-    append_rows,
-    get_connection,
-    get_last_insert_rowid,
-    get_rows,
-)
+from db import IntegrityError, current_backup, txns
+from db.helpers import audit_txns, generate_keys, txns_with_keys
 from domain import (
     ACTION_PROFILES,
     ALWAYS_REQUIRED,
@@ -37,16 +30,15 @@ from domain import (
     TXN_ESSENTIALS,
     Action,
     Column,
-    Table,
 )
 from ingest import prepare_transactions
 from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
-from ui.transaction_table import show_source_rows
+from ui.transaction_table import show_transactions
 
 if TYPE_CHECKING:
     from app.audit import AuditEntry
-    from models import ImportResults
+    from models import ImportResults, NewTxn, Txn
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +202,7 @@ def _show_rejections(results: ImportResults) -> None:
         console_error(f"  {reason}")
 
 
-def _find_existing_duplicates(prepared_df: pd.DataFrame) -> pd.DataFrame:
+def _find_existing_duplicates(prepared_df: pd.DataFrame) -> list[Txn]:
     """Find transactions already in the database matching the prepared row.
 
     Uses the same synthetic key the duplicate filter uses, so the rows shown are
@@ -222,12 +214,7 @@ def _find_existing_duplicates(prepared_df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         Matching transactions from the database, empty if none.
     """
-    with get_connection() as conn:
-        existing = get_rows(conn, Table.TXNS)
-
-    new_key = generate_keys(prepared_df).iloc[0]
-    existing_keys = generate_keys(existing)
-    return existing[existing_keys == new_key]
+    return txns_with_keys(txns.read(), {generate_keys(prepared_df).iloc[0]})
 
 
 def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
@@ -237,44 +224,40 @@ def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
     console_warning(
         f"This transaction matches {count} existing transaction(s) in the folio:",
     )
-    if not matches.empty:
-        show_source_rows(matches, max_rows=len(matches))
+    if matches:
+        show_transactions(matches, max_rows=len(matches))
 
     return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
 
-def _insert_transaction(final_df: pd.DataFrame, entry: AuditEntry) -> int:
-    """Insert the prepared transaction and return its assigned TxnId.
+def _insert_transaction(approved: NewTxn, entry: AuditEntry) -> Txn:
+    """Store the prepared transaction and return it with its TxnId.
 
     Args:
-        final_df: Single-row DataFrame with columns aligned to the Txns table.
+        approved: The transaction ingest passed.
         entry: The audit entry the insert is recorded in.
 
     Raises:
         typer.Exit: If the database rejects the row.
 
     Returns:
-        The TxnId assigned by SQLite.
+        The stored transaction.
     """
-    backup = backup_folio()
-    with get_connection() as conn:
-        try:
-            append_rows(conn, Table.TXNS, final_df)
-        except sqlite3.IntegrityError as e:
-            console_error(f"Database rejected the transaction: {e}")
-            entry.failed(f"the table refused the transaction: {e}")
-            raise typer.Exit(1) from e
+    try:
+        [txn_id] = txns.append([approved])
+    except IntegrityError as e:
+        console_error(f"Database rejected the transaction: {e}")
+        entry.failed(f"the table refused the transaction: {e}")
+        raise typer.Exit(1) from e
 
-        txn_id = get_last_insert_rowid(conn)
-
-    stored = final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})
+    stored = approved.stored_as(txn_id)
     audit.stage(
         "STORE 1 transaction (TxnId %d); %s",
         txn_id,
-        audit.describe_backup(backup),
+        audit.describe_backup(current_backup()),
     )
-    audit_rows(AuditMark.STORED, stored)
-    return txn_id
+    audit_txns(AuditMark.STORED, [stored])
+    return stored
 
 
 def _prepare(fields: dict[str, str], *, approve_duplicate: bool) -> ImportResults:
@@ -350,14 +333,13 @@ def add_transaction(  # noqa: PLR0917
 
         if dry_run:
             console_info("Dry run - nothing was written to the folio.")
-            show_source_rows(results.final_df, title="Would Add")
+            show_transactions(results.approved, title="Would Add")
             return
 
-        txn_id = _insert_transaction(results.final_df, entry)
+        added = _insert_transaction(results.approved[0], entry)
         entry.done("1 added; folio holds %d transactions", txns.count())
 
-    console_success(f"Added transaction (TxnId {txn_id})")
-    added = results.final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})
-    show_source_rows(added, title="Added Transaction")
+    console_success(f"Added transaction (TxnId {added.txn_id})")
+    show_transactions([added], title="Added Transaction")
 
     export_to_parquet()

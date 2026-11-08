@@ -9,7 +9,6 @@ arithmetic operation against the row's current value (`Price*=10`)
 from __future__ import annotations
 
 import logging
-import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, localcontext
 from typing import TYPE_CHECKING, Any
@@ -26,20 +25,17 @@ from cli.commands.common import (
 )
 from cli.query_parser import get_valid_column_names
 from config.optional_fields import FieldType
-from db import backup_folio
-from db.catalog import get_columns
-from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_connection, get_rows, update_rows
-from domain import Column, Table
+from db import IntegrityError, current_backup, txns
+from db.helpers import format_transaction_summary, generate_keys, txns_with_keys
+from domain import Column
 from ingest.validation import TransactionFormatter, parse_date
-from models import txns_frame
+from models import txns_frame, txns_from_frame
 from term import console_error, console_info, console_success, console_warning
-from ui.transaction_table import page_changes, show_source_rows
+from ui.transaction_table import page_changes, show_transactions
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from app.audit import AuditEntry
+    from models import Txn
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +100,6 @@ class Arithmetic:
 
 
 SetOperation = Assign | Arithmetic
-
-
-def _live_columns() -> list[str]:
-    """Get the columns currently present on the Txns table."""
-    with get_connection() as conn:
-        return get_columns(conn, Table.TXNS)
 
 
 def _numeric_columns(live_columns: list[str]) -> set[str]:
@@ -210,7 +200,7 @@ def _parse_set_options(values: list[str]) -> list[SetOperation]:
     Returns:
         The parsed operations, in the order given.
     """
-    live_columns = _live_columns()
+    live_columns = txns.columns()
     valid_columns = get_valid_column_names(live_columns)
     numeric_columns = _numeric_columns(live_columns)
     date_columns = _date_columns(live_columns)
@@ -401,7 +391,7 @@ def _validate(edited: pd.DataFrame) -> pd.DataFrame:
     return formatted
 
 
-def _find_conflicts(formatted: pd.DataFrame, edited_ids: set[int]) -> pd.DataFrame:
+def _find_conflicts(formatted: pd.DataFrame, edited_ids: set[int]) -> list[Txn]:
     """Find transactions the edited rows would collide with.
 
     Checks the edited rows against each other and against every row in the
@@ -416,20 +406,8 @@ def _find_conflicts(formatted: pd.DataFrame, edited_ids: set[int]) -> pd.DataFra
     Returns:
         Existing transactions that clash, empty if there are none.
     """
-    new_keys = generate_keys(formatted)
-
-    with get_connection() as conn:
-        existing = get_rows(conn, Table.TXNS)
-
-    others = existing[~existing[Column.Txn.TXN_ID].astype(int).isin(list(edited_ids))]
-    if others.empty:
-        return others
-
-    clashing = set(new_keys) & set(generate_keys(others))
-    if not clashing:
-        return others.iloc[0:0]
-
-    return others[generate_keys(others).isin(list(clashing))]
+    others = [txn for txn in txns.read() if txn.txn_id not in edited_ids]
+    return txns_with_keys(others, set(generate_keys(formatted)))
 
 
 def _has_internal_duplicates(formatted: pd.DataFrame) -> bool:
@@ -463,16 +441,11 @@ def _changed_columns(before: pd.DataFrame, after: pd.DataFrame) -> list[str]:
     ]
 
 
-def _update(
-    formatted: pd.DataFrame,
-    set_columns: list[str],
-    entry: AuditEntry,
-) -> int:
+def _write_edits(formatted: pd.DataFrame, entry: AuditEntry) -> int:
     """Write the edited rows, keyed on TxnId.
 
     Args:
         formatted: The validated, post-edit rows.
-        set_columns: Columns to write.
         entry: The audit entry the edit is recorded in.
 
     Raises:
@@ -481,29 +454,18 @@ def _update(
     Returns:
         Number of rows updated.
     """
-    payload = formatted[[Column.Txn.TXN_ID, *set_columns]]
-    updates = payload.astype(object).where(payload.notna(), None).to_dict("records")
-
-    with get_connection() as conn:
-        try:
-            return update_rows(
-                conn,
-                Table.TXNS,
-                updates,
-                where_columns=[Column.Txn.TXN_ID],
-                set_columns=set_columns,
-            )
-        except sqlite3.IntegrityError as e:
-            console_error(f"Database rejected the edit: {e}")
-            entry.failed(f"the table refused the edit: {e}")
-            raise typer.Exit(1) from e
+    try:
+        return txns.update(txns_from_frame(formatted))
+    except IntegrityError as e:
+        console_error(f"Database rejected the edit: {e}")
+        entry.failed(f"the table refused the edit: {e}")
+        raise typer.Exit(1) from e
 
 
 def _log_updated(
     before: pd.DataFrame,
     after: pd.DataFrame,
     changed: list[str],
-    backup: Path | None,
 ) -> None:
     """Write the UPDATE stage: each change field by field, then the old and new row.
 
@@ -514,12 +476,11 @@ def _log_updated(
         before: The matched rows as they stood.
         after: The matched rows as they were meant to end up.
         changed: Columns the edit touches.
-        backup: The backup taken before the write, if any.
     """
     audit.stage(
         "UPDATE %d transaction(s); %s",
         len(after),
-        audit.describe_backup(backup),
+        audit.describe_backup(current_backup()),
     )
     for position in range(len(after)):
         old_row = before.iloc[position]
@@ -534,17 +495,17 @@ def _log_updated(
         audit.row(AuditMark.STORED, format_transaction_summary(new_row), depth=3)
 
 
-def _confirm_conflicts(conflicts: pd.DataFrame, *, internal: bool) -> bool:
+def _confirm_conflicts(conflicts: list[Txn], *, internal: bool) -> bool:
     """Show what the edit would duplicate and ask whether to go ahead."""
     if internal:
         console_warning(
             "This edit would make two of the selected transactions identical.",
         )
-    if not conflicts.empty:
+    if conflicts:
         console_warning(
             f"This edit matches {len(conflicts)} existing transaction(s) in the folio:",
         )
-        show_source_rows(conflicts, max_rows=len(conflicts))
+        show_transactions(conflicts, max_rows=len(conflicts))
 
     return typer.confirm(
         "Apply anyway and create duplicate transaction(s)?",
@@ -594,16 +555,15 @@ def edit_transactions(
 
     conflicts = _find_conflicts(after, set(selection.txn_ids))
     internal = _has_internal_duplicates(after)
-    duplicating = (not conflicts.empty or internal) and not force
+    duplicating = (bool(conflicts) or internal) and not force
     if duplicating and not _confirm_conflicts(conflicts, internal=internal):
         console_info("No transactions edited.")
         return
 
     sets = ", ".join(operation.raw for operation in operations)
     with audit.entry("EDIT TXNS %s SET %s", selection.describe(), sets) as entry:
-        backup = backup_folio()
-        updated = _update(after, changed, entry)
-        _log_updated(before, after, changed, backup)
+        updated = _write_edits(after, entry)
+        _log_updated(before, after, changed)
         if updated == len(after):
             entry.done("%d updated", updated)
         else:

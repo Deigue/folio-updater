@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
+from db import txns as txn_store
 from db.catalog import get_columns
-from db.helpers import sync_txns_table_columns
 from db.queries import append_rows, get_connection, get_rows
 from db.schema import (
     create_fx_table,
@@ -44,14 +44,9 @@ _EXTRA = "BrokerRef"
 
 
 def _store_txns(new: list[NewTxn]) -> list[Txn]:
-    """Write transactions the way an import does today, then read them back."""
-    frame = pd.DataFrame([txn.to_row() for txn in new])
+    """Write transactions the way an import does, then read them back."""
     create_txns_table()
-    sync_txns_table_columns(frame)
-    with get_connection() as conn:
-        append_rows(conn, Table.TXNS, frame)
-        stored = get_rows(conn, Table.TXNS, order_by=f'"{Column.Txn.TXN_ID}"')
-    return [Txn.from_row(record) for record in _records(stored)]
+    return txn_store.by_ids(txn_store.append(new))
 
 
 def _store(table: Table, rows: list[dict[str, object]]) -> list[dict[str, object]]:

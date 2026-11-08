@@ -169,6 +169,7 @@ class TransactionFormatter:
         self._format_dates()
         self._format_actions()
         self._format_currencies()
+        self._reject_blank_accounts()
         self._format_rule_columns()
         self._normalize_signs()
         self._reject_invalid_rows()
@@ -423,6 +424,16 @@ class TransactionFormatter:
             blank_is_missing=False,
             invalid_debug="%d - Invalid optional currency field '%s': '%s'",
         )
+
+    def _reject_blank_accounts(self) -> None:
+        """Reject a row that names no account: no transaction exists without one."""
+        if Column.Txn.ACCOUNT in self.formatted_df.columns:
+            self._apply_column_rules(
+                Column.Txn.ACCOUNT,
+                self.formatted_df.index,
+                str,
+                required=True,
+            )
 
     def _format_rule_columns(self) -> None:
         """Format rule based columns."""

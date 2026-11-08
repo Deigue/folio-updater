@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
-import pandas as pd
+from typing import TYPE_CHECKING
 
 from app import audit
 
 # Local imports, don;t get from db package
-from db import helpers, schema
+from db import schema
 from ingest.dedupe import TransactionFilter
 from ingest.mappers import TransactionMapper
 from ingest.rules import TransactionTransformer
 from ingest.validation import TransactionFormatter
-from models import ImportResults
+from models import ImportResults, new_txns_from_frame
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def prepare_transactions(
@@ -51,20 +54,13 @@ def prepare_transactions(
     intra_approved_df = TransactionFilter.filter_intra_import_duplicates(formatted_df)
     db_approved_df = TransactionFilter.filter_db_duplicates(intra_approved_df)
     cleaned_df = TransactionFilter.remove_approval_column(db_approved_df)
-    final_columns = helpers.sync_txns_table_columns(cleaned_df)
-
-    # A new frame: the source and rejected frames must not gain the synced columns.
-    final_df = cleaned_df.reindex(
-        columns=final_columns,
-        fill_value=pd.NA,  # ty: ignore[invalid-argument-type]
-    )
 
     return ImportResults(
         read_df=read_df,
         invalid_df=invalid_df,
         intra_rejected_df=_rejected(formatted_df, intra_approved_df),
         db_rejected_df=_rejected(intra_approved_df, db_approved_df),
-        final_df=final_df,
+        approved=new_txns_from_frame(cleaned_df),
         merge_events=ruled.merges,
         cancel_events=ruled.cancels,
         transform_events=ruled.transforms,

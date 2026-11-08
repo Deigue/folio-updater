@@ -30,7 +30,11 @@ from term.keys import getch
 from ui.format import safe_str
 from ui.layout.paging import available_height
 from ui.layout.tiles import Tile, TilingLayout
-from ui.transaction_table import build_source_rows_table, page_source_rows
+from ui.transaction_table import (
+    build_transactions_table,
+    page_source_rows,
+    page_transactions,
+)
 from ui.vocabulary import (
     RULE_STATEMENT,
     SETTLEMENT_HEADER,
@@ -63,6 +67,7 @@ if TYPE_CHECKING:
         SettlementMatch,
         StatementImportResult,
         TransformEvent,
+        Txn,
     )
 
 # Minimum columns always shown for invalid rows
@@ -492,19 +497,33 @@ def _build_audit_sections(
         if not rows.empty
     )
 
-    if verbose and not results.final_df.empty:
-        sections.append(
-            _rows_section(
-                "Imported",
-                "v",
-                results.final_df,
-                max_rows,
-                _imported_table,
-                is_full_width=True,
-            ),
-        )
+    if verbose and results.stored:
+        sections.append(_imported_section(results.stored, max_rows))
 
     return sections
+
+
+def _imported_section(stored: list[Txn], max_rows: int) -> _AuditSection:
+    """Build the section listing what an import stored, paged when it is expanded."""
+    name = "Imported"
+    total = len(stored)
+    shown = min(total, max_rows)
+    table = build_transactions_table(
+        stored[:shown],
+        f"{name} ({total})",
+        shown,
+        TransactionContext.IMPORT,
+    )
+
+    def show() -> None:
+        page_transactions(
+            stored,
+            title=name,
+            page_size=available_height(table=True, pages=True),
+            context=TransactionContext.IMPORT,
+        )
+
+    return _section(name, "v", table, total, shown, show, is_full_width=True)
 
 
 def _merge_table(
@@ -614,14 +633,6 @@ def _transform_table(
         table.add_row(e.field_name, str(e.row_count), old_val, new_val)
 
     return table
-
-
-def _imported_table(
-    df: pd.DataFrame,
-    title: str,
-) -> Table:
-    """Build a table for the transactions an import stored."""
-    return build_source_rows_table(df, title, len(df), TransactionContext.IMPORT)
 
 
 def _invalid_table(

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from db.backup import backup_folio
 from db.queries import (
     delete_rows,
+    drop_table,
     get_connection,
     get_records,
     insert_or_replace_many,
@@ -55,6 +56,12 @@ def write(aliases: Sequence[TickerAlias]) -> bool:
             [alias.to_row() for alias in aliases],
         )
     return written > 0
+
+
+def drop() -> None:
+    """Drop the table along with every rename."""
+    with get_connection() as conn:
+        drop_table(conn, Table.TICKER_ALIASES)
 
 
 def delete(old_ticker: str) -> int:

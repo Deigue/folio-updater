@@ -209,6 +209,25 @@ class Txn(TxnFields):
         return {str(Column.Txn.TXN_ID): self.txn_id, **super().to_row()}
 
 
+def new_txns_from_frame(frame: pd.DataFrame) -> list[NewTxn]:
+    """Read approved source rows as transactions not stored yet."""
+    return [NewTxn.from_row(row) for row in _records(frame)]
+
+
+def txns_from_frame(frame: pd.DataFrame) -> list[Txn]:
+    """Read rows carrying their TxnIds as stored transactions."""
+    return [Txn.from_row(row) for row in _records(frame)]
+
+
+def _records(frame: pd.DataFrame) -> list[dict[str, object]]:
+    """Read a frame's rows, every empty cell as None."""
+    cells = frame.astype(object).where(frame.notna(), None)
+    return [
+        {str(column): value for column, value in record.items()}
+        for record in cells.to_dict("records")
+    ]
+
+
 def txns_frame(txns: Sequence[Txn]) -> pd.DataFrame:
     """Lay stored transactions out as a frame, in table columns."""
     return pd.DataFrame([_frame_row(txn) for txn in txns])

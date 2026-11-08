@@ -16,9 +16,8 @@ from db import (
     create_fx_table,
     create_txns_table,
     get_connection,
-    get_last_insert_rowid,
-    helpers,
     insert_or_replace_many,
+    queries,
 )
 from domain import ACTION_PROFILES, Action, Column, Currency, Sign, Table
 from engine.settlement import settlement_calculator
@@ -38,8 +37,8 @@ STATEMENT_TRADE_DATE = "2026-04-10"
 STATEMENT_SETTLE_DATE = "2026-04-13"
 STATEMENT_PRICE = "42.25"
 
-# keep track of prepared columns by database, reseed only when needed.
-_prepared_txn_columns: dict[str, frozenset[str]] = {}
+# Databases whose Txns table is built, so each is built once.
+_prepared_databases: set[str] = set()
 
 # settlement dates derived from the triplet are always the same. Repeatedly called.
 # memoized by key: (date, action, currency)
@@ -48,21 +47,15 @@ _settlement_dates: dict[tuple[str, str, str], tuple[object, object]] = {}
 
 def reset_seed_state() -> None:
     """Forget which databases have been prepared. Called between tests."""
-    _prepared_txn_columns.clear()
+    _prepared_databases.clear()
 
 
-def _prepare_txns_table(settled: pd.DataFrame) -> None:
-    """Build the Txns table and widen it, skipping what is already done."""
+def _prepare_txns_table() -> None:
+    """Build the Txns table, unless this database already has it."""
     db_path = str(get_config().db_path)
-    columns = frozenset(settled.columns)
-    known = _prepared_txn_columns.get(db_path)
-    if known is not None and columns <= known:
-        return
-
-    if known is None:
+    if db_path not in _prepared_databases:
         create_txns_table()
-    helpers.sync_txns_table_columns(settled)
-    _prepared_txn_columns[db_path] = columns | (known or frozenset())
+        _prepared_databases.add(db_path)
 
 
 def _apply_settlement(
@@ -131,8 +124,7 @@ def seed_transaction(
         amount: Total cash amount, or None to leave it blank.
         price: Optional price per unit.
         units: Optional number of units.
-        fee: Optional fee. Supplying one adds the Fee column to the table, the
-            same way an `add` carrying a fee would.
+        fee: Optional fee.
         settle_date: Explicit settlement date. Left to the market calendars
             when omitted, which is what an imported row gets.
 
@@ -169,11 +161,10 @@ def seed_transaction(
     settled = pd.DataFrame([row])
     row = {str(key): value for key, value in settled.iloc[0].to_dict().items()}
 
-    # Mirrors the pipeline's original setup.
-    _prepare_txns_table(settled)
+    _prepare_txns_table()
     with get_connection() as conn:
-        insert_or_replace_many(conn, Table.TXNS, [row])
-        return get_last_insert_rowid(conn)
+        [txn_id] = queries.insert_rows(conn, Table.TXNS, [row])
+    return txn_id
 
 
 def statement_buy(

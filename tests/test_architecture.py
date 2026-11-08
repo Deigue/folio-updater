@@ -145,3 +145,29 @@ def test_sql_stays_in_the_db_package() -> None:
         and (name in _SQL_CALLS or name.startswith("read_sql"))
     ]
     assert not violations, "SQL outside src/db:\n  " + "\n  ".join(violations)
+
+
+# What only `src/db` may import.
+_DATABASE_INTERNALS = frozenset({"sqlite3", "db.queries", "db.get_connection"})
+
+
+def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
+    """Every dotted name an import statement reaches."""
+    if isinstance(node, ast.Import):
+        return {alias.name for alias in node.names}
+    return {str(node.module), *(f"{node.module}.{alias.name}" for alias in node.names)}
+
+
+def test_only_db_reaches_the_database() -> None:
+    """Above `db`, code asks a repository and never holds a connection."""
+    violations = [
+        f"{path.relative_to(SRC).as_posix()}:{node.lineno} imports {reached}"
+        for path in SRC.rglob("*.py")
+        if path.relative_to(SRC).parts[0] != "db"
+        for node in ast.walk(_tree(path))
+        if isinstance(node, ast.Import | ast.ImportFrom)
+        for reached in _imported_names(node) & _DATABASE_INTERNALS
+    ]
+    assert not violations, "Database reached outside src/db:\n  " + "\n  ".join(
+        violations,
+    )

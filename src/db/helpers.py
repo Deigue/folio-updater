@@ -13,47 +13,22 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import audit
-from db.catalog import get_columns
-from db.queries import add_column_to_table, get_connection
-from domain import TXN_ESSENTIALS, Column, Table
+from domain import TXN_ESSENTIALS, Column
 from domain.cells import is_blank
+from models import txns_frame
 
 if TYPE_CHECKING:
+    from collections.abc import Collection, Mapping, Sequence
+
     from app.audit import AuditMark
-
-logger = logging.getLogger(__name__)
-
-
-def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:
-    """Ensure the Txns table has all columns in txn_df, return final column order.
-
-    Args:
-        txn_df: DataFrame with transaction data to be inserted into the database.
-
-    Returns:
-        List of columns in the Txns table after synchronization
-
-    Raises:
-        sqlite3.OperationalError: If there is an error altering the table.
-    """
-    with get_connection() as conn:
-        existing_columns = get_columns(conn, Table.TXNS)
-        new_columns = [col for col in txn_df.columns if col not in existing_columns]
-
-        if new_columns:
-            for column in new_columns:
-                add_column_to_table(conn, Table.TXNS, column, "TEXT")
-
-    final_columns = existing_columns + new_columns
-    logger.debug("Final ordered columns: %s", final_columns)
-    return final_columns
+    from models import Txn
 
 
-def format_transaction_summary(row: pd.Series) -> str:
+def format_transaction_summary(row: pd.Series | Mapping[str, object]) -> str:
     """Format a transaction row as one line of the audit trail.
 
     Args:
-        row: A pandas Series containing transaction data.
+        row: The row, keyed by column name.
 
     Returns:
         The fields as `name=value`, joined by `|`.
@@ -90,6 +65,13 @@ def audit_rows(
             audit.row(mark, summary, level=level)
 
 
+def audit_txns(mark: AuditMark, transactions: Sequence[Txn]) -> None:
+    """Write each transaction as one marked row of the audit trail, under its stage."""
+    if audit.enabled(logging.INFO):
+        for txn in transactions:
+            audit.row(mark, format_transaction_summary(txn.to_row()))
+
+
 def _is_set(value: object) -> bool:
     """Whether a field holds a value, rather than nothing or an empty cell."""
     return not is_blank(value) and value != ""
@@ -99,6 +81,16 @@ def _is_set(value: object) -> bool:
 # observed drift is ~1e-6/1e-7.
 # 4 decimals (a hundredth of a cent) is well above that noise floor
 _KEY_DECIMALS = 4
+
+
+def txn_keys(txns: Sequence[Txn]) -> list[str]:
+    """Generate the synthetic key of each stored transaction, in order."""
+    return generate_keys(txns_frame(txns)).tolist()
+
+
+def txns_with_keys(txns: Sequence[Txn], keys: Collection[str]) -> list[Txn]:
+    """Pick out the stored transactions whose synthetic key is one of `keys`."""
+    return [txn for txn, key in zip(txns, txn_keys(txns), strict=True) if key in keys]
 
 
 def generate_keys(txn_df: pd.DataFrame) -> pd.Series:

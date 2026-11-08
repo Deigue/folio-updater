@@ -15,7 +15,7 @@ from db.migrations import bring_up_to_date
 from domain import Column, Table
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Sequence
+    from collections.abc import Generator, Mapping, Sequence
 
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -151,12 +151,6 @@ def get_records(  # noqa: PLR0913
         return []
     names = [description[0] for description in cursor.description]
     return [dict(zip(names, row, strict=True)) for row in cursor]
-
-
-def get_last_insert_rowid(connection: sqlite3.Connection) -> int:
-    """Return the rowid of the most recent successful INSERT on this connection."""
-    result = connection.execute("SELECT last_insert_rowid()").fetchone()
-    return int(result[0])
 
 
 def get_row_count(
@@ -496,34 +490,51 @@ def append_rows(
     return len(frame) if written is None else written
 
 
+def insert_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    rows: Sequence[Mapping[str, object]],
+) -> list[int]:
+    """Insert rows all or none, returning each one's rowid (`append_rows` cannot)."""
+    with connection:
+        return [_insert(connection, table_name, row) for row in rows]
+
+
+def _insert(
+    connection: sqlite3.Connection,
+    table_name: str,
+    row: Mapping[str, object],
+) -> int:
+    """Insert one row without committing, returning its rowid."""
+    columns = ", ".join(f'"{column}"' for column in row)
+    marks = ", ".join("?" for _ in row)
+    query = f'INSERT INTO "{table_name}" ({columns}) VALUES ({marks})'
+    return int(connection.execute(query, tuple(row.values())).lastrowid)  # ty: ignore[invalid-argument-type]
+
+
 def trial_insert_rows(
     connection: sqlite3.Connection,
     table_name: str,
-    frame: pd.DataFrame,
+    rows: Sequence[Mapping[str, object]],
 ) -> list[sqlite3.IntegrityError | None]:
-    """Try a frame's rows one at a time, then undo every one of them.
+    """Try rows one at a time, then undo every one of them.
 
     Args:
         connection: Database connection
         table_name: Name of the table to try the rows against
-        frame: The rows, keyed by column name.
+        rows: The rows, keyed by column name.
 
     Returns:
         One entry per row tried: None for a row that went in, the error for one
         the table refused. It stops at the first refusal, so that is the last
         entry.
     """
-    columns = ", ".join(f'"{column}"' for column in frame.columns)
-    marks = ", ".join("?" for _ in frame.columns)
-    query = f'INSERT INTO "{table_name}" ({columns}) VALUES ({marks})'
-    values = frame.astype(object).where(frame.notna(), None)
-
     outcomes: list[sqlite3.IntegrityError | None] = []
     connection.execute("SAVEPOINT trial")
     try:
-        for row in values.itertuples(index=False, name=None):
+        for row in rows:
             try:
-                connection.execute(query, row)
+                _insert(connection, table_name, row)
             except sqlite3.IntegrityError as error:
                 outcomes.append(error)
                 break

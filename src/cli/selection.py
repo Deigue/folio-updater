@@ -13,7 +13,6 @@ testable outside the CLI.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -25,7 +24,7 @@ from cli.query_parser import (
     get_valid_column_names,
     parse_query_terms,
 )
-from db import aliases, txns
+from db import DatabaseError, aliases, txns
 from domain import Column
 from models import Txn, TxnFilter, TxnOperator, TxnSearch, TxnSelection, TxnSort
 from services.symbols import SymbolResolver
@@ -167,7 +166,7 @@ def get_transactions_by_filters(query: ParsedQuery) -> list[Txn]:
     """
     try:
         return txns.matching(to_txn_selection(query))
-    except sqlite3.OperationalError as error:
+    except DatabaseError as error:
         logger.exception("Error querying transactions")
         msg = "Could not run the query; see the log for details."
         raise SelectionError(msg) from error

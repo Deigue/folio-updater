@@ -5,7 +5,6 @@ Handles querying settlement date information for transactions in the database.
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -14,7 +13,7 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import refuse_unsupported_file
 from datagen import is_demo_folio
-from db import txns
+from db import DatabaseError, txns
 from exporters import ParquetExporter
 from importers import import_statements
 from services.broker_files import SUPPORTED_SUFFIXES, archive, waiting_files
@@ -301,5 +300,5 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
                 "No transactions found with calculated settlement dates.",
             )
 
-    except sqlite3.DatabaseError as e:
+    except DatabaseError as e:
         console_error(f"Database error querying settlement info: {e}")

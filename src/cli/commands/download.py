@@ -6,14 +6,13 @@ Handles downloading statements from brokers like IBKR.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import datetime
 from typing import TYPE_CHECKING
 
 import typer
 
 from app import bootstrap, get_config
-from db import txns
+from db import DatabaseError, txns
 from domain import TORONTO_TZ
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 from services.broker_files import ws_activities_file_name, ws_statement_file_name
@@ -350,7 +349,7 @@ def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
                 f"{latest_date_str}",
             )
             return resolved_date
-    except (ValueError, OSError, sqlite3.Error) as e:
+    except (ValueError, OSError, DatabaseError) as e:
         console_warning(f"Warning: Could not determine latest transaction date: {e}")
 
     current_date = datetime.now(tz=TORONTO_TZ)

@@ -4,26 +4,16 @@ from __future__ import annotations
 
 import logging
 import re
-import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from app import audit
 from app.audit import AuditMark
-from db import (
-    append_rows,
-    backup_folio,
-    get_connection,
-    get_max_value,
-    get_rows,
-    trial_insert_rows,
-    txns,
-    update_rows,
-)
-from db.helpers import audit_rows, format_transaction_summary
-from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome, Table
+from db import DatabaseError, IntegrityError, current_backup, txns
+from db.helpers import audit_txns, format_transaction_summary
+from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
@@ -32,7 +22,10 @@ from services.symbols import normalize_canadian_ticker
 from term import console_info, console_warning
 
 if TYPE_CHECKING:
+    from decimal import Decimal
     from pathlib import Path
+
+    from models import NewTxn, Txn
 
 logger = logging.getLogger(__name__)
 
@@ -113,53 +106,40 @@ def insert_transactions(
         import filled in.
 
     Raises:
-        sqlite3.IntegrityError: If the table refuses a row that ingest passed.
-            The audit log names the row, and none of the batch is stored.
+        IntegrityError: If the table refuses a row that ingest passed. The audit
+            log names the row, and none of the batch is stored.
     """
     import_results = prepare_transactions(txns_df, account, map_headers=map_headers)
-    prepared_df = import_results.final_df
+    approved = import_results.approved
 
-    if not prepared_df.empty:
-        backup = backup_folio()
-        with get_connection() as conn:
-            last_id = get_max_value(conn, Table.TXNS, Column.Txn.TXN_ID) or 0
-            try:
-                append_rows(conn, Table.TXNS, prepared_df)
-            except sqlite3.IntegrityError:
-                _log_refused_row(conn, prepared_df)
-                raise
-            stored = get_rows(
-                conn,
-                Table.TXNS,
-                where=f'"{Column.Txn.TXN_ID}" > ?',
-                params=(last_id,),
-                order_by=f'"{Column.Txn.TXN_ID}"',
-            )
-        _log_stored(stored, backup)
+    if approved:
+        try:
+            txn_ids = txns.append(approved)
+        except IntegrityError:
+            _log_refused_row(approved)
+            raise
+        import_results.stored = [
+            new.stored_as(txn_id) for new, txn_id in zip(approved, txn_ids, strict=True)
+        ]
+        _log_stored(import_results.stored)
 
     import_results.final_db_count = txns.count()
     return import_results
 
 
-def _log_stored(stored: pd.DataFrame, backup: Path | None) -> None:
-    """Write the STORE stage: the TxnIds given, the backup that undoes it, each row.
-
-    Args:
-        stored: The rows as the table now holds them, TxnIds included.
-        backup: The backup taken before the write, if any.
-    """
-    ids = stored[Column.Txn.TXN_ID]
+def _log_stored(stored: list[Txn]) -> None:
+    """Write the STORE stage: the TxnIds given, the backup that undoes it, each row."""
     audit.stage(
         "STORE %d transaction(s) (TxnIds %s-%s); %s",
         len(stored),
-        ids.iloc[0],
-        ids.iloc[-1],
-        audit.describe_backup(backup),
+        stored[0].txn_id,
+        stored[-1].txn_id,
+        audit.describe_backup(current_backup()),
     )
-    audit_rows(AuditMark.STORED, stored)
+    audit_txns(AuditMark.STORED, stored)
 
 
-def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> None:
+def _log_refused_row(approved: list[NewTxn]) -> None:
     """Name, in the audit log, the transaction of a refused batch that breaks the table.
 
     The rows are tried one at a time in a transaction that is rolled back, so
@@ -167,22 +147,21 @@ def _log_refused_row(conn: sqlite3.Connection, prepared_df: pd.DataFrame) -> Non
     with one before it in the batch, and nothing is left stored.
 
     Args:
-        conn: Database connection.
-        prepared_df: The rows the table refused as a batch.
+        approved: The transactions the table refused as a batch.
     """
     audit.stage(
         "TRY %d row(s) one at a time: the table refused the batch",
-        len(prepared_df),
+        len(approved),
         level=logging.ERROR,
     )
     try:
-        outcomes = trial_insert_rows(conn, Table.TXNS, prepared_df)
-    except sqlite3.Error:
+        outcomes = txns.trial_append(approved)
+    except DatabaseError:
         # The batch's own error is what the caller raises; this is only a guide.
         logger.exception("Could not try the rows one at a time")
         return
-    for position, refusal in enumerate(outcomes):
-        summary = format_transaction_summary(prepared_df.iloc[position])
+    for txn, refusal in zip(approved, outcomes, strict=False):
+        summary = format_transaction_summary(txn.to_row())
         if refusal is None:
             audit.row(AuditMark.STORED, summary)
         else:
@@ -295,67 +274,59 @@ def _confirm_settlement_dates(
             level=logging.WARNING,
         )
 
-    with get_connection() as conn:
-        all_txns = get_rows(
-            conn,
-            Table.TXNS,
-            order_by=f'"{Column.Txn.TXN_DATE}", "{Column.Txn.TXN_ID}"',
-        )
-        calculated = all_txns[Column.Txn.SETTLE_CALCULATED] == 1
-        existing_txns = all_txns[calculated]
-        actual_txns = all_txns[~calculated]
+    all_txns = txns.read()
+    if not all_txns:  # pragma: no cover
+        console_info("No transactions found to confirm")
+        audit.stage("CONFIRM nothing: the folio holds no transactions")
+        return 0, []
 
-        if all_txns.empty:  # pragma: no cover
-            console_info("No transactions found to confirm")
-            audit.stage("CONFIRM nothing: the folio holds no transactions")
-            return 0, []
+    existing_txns = [txn for txn in all_txns if txn.settle_calculated]
+    actual_txns = [txn for txn in all_txns if not txn.settle_calculated]
 
-        updates: list[dict] = []
-        results: list[SettlementMatch] = []
-        pending: list[_PendingRow] = []
-        for _, row in df.iterrows():
-            try:
-                statement_row = _extract_statement_row_data(row, account)
-                if statement_row is None:
-                    continue
-                matches = _match_transactions(existing_txns, statement_row)
-                result, update, held = _resolve_statement_match(
-                    statement_row,
-                    matches,
-                    actual_txns,
-                )
-                results.append(result)
-                pending.append(held)
-                if update is not None:
-                    updates.append(update)
-            except (ValueError, TypeError) as e:
-                console_warning(f"Skipping invalid statement row: {e}")
-                pending.append(
-                    _PendingRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
-                )
+    updates: list[Txn] = []
+    results: list[SettlementMatch] = []
+    pending: list[_PendingRow] = []
+    for _, row in df.iterrows():
+        try:
+            statement_row = _extract_statement_row_data(row, account)
+            if statement_row is None:
                 continue
-
-        confirmed, backup = (
-            _apply_confirmed_dates_to_db(conn, updates) if updates else (0, None)
-        )
-        if results:
-            console_info(f"Matched {len(updates)} out of {len(results)} candidates.")
-            audit.stage(
-                "CONFIRM %d of %d settlement date(s)%s",
-                len(updates),
-                len(results),
-                f"; {audit.describe_backup(backup)}" if updates else "",
+            matches = _match_transactions(existing_txns, statement_row)
+            result, update, held = _resolve_statement_match(
+                statement_row,
+                matches,
+                actual_txns,
             )
-        for held in pending:
-            audit.row(held.mark, held.text, level=held.level)
-        return confirmed, results
+            results.append(result)
+            pending.append(held)
+            if update is not None:
+                updates.append(update)
+        except (ValueError, TypeError) as e:
+            console_warning(f"Skipping invalid statement row: {e}")
+            pending.append(
+                _PendingRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
+            )
+            continue
+
+    confirmed = txns.update(updates)
+    if results:
+        console_info(f"Matched {len(updates)} out of {len(results)} candidates.")
+        audit.stage(
+            "CONFIRM %d of %d settlement date(s)%s",
+            len(updates),
+            len(results),
+            f"; {audit.describe_backup(current_backup())}" if updates else "",
+        )
+    for held in pending:
+        audit.row(held.mark, held.text, level=held.level)
+    return confirmed, results
 
 
 def _resolve_statement_match(
     statement_row: _StatementRow,
-    matches: pd.DataFrame,
-    actual_txns: pd.DataFrame,
-) -> tuple[SettlementMatch, dict | None, _PendingRow]:
+    matches: list[Txn],
+    actual_txns: list[Txn],
+) -> tuple[SettlementMatch, Txn | None, _PendingRow]:
     """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
@@ -381,17 +352,17 @@ def _resolve_statement_match(
     )
 
     if len(matches) == 1:
-        transaction_row = matches.iloc[0]
-        result.txn_id = int(transaction_row[Column.Txn.TXN_ID])
+        matched = matches[0]
+        result.txn_id = matched.txn_id
         result.outcome = SettlementOutcome.CONFIRMED
-        update = {
-            Column.Txn.TXN_ID: result.txn_id,
-            Column.Txn.SETTLE_DATE: statement_row.settlement_date,
-            Column.Txn.SETTLE_CALCULATED: 0,
-        }
+        update = replace(
+            matched,
+            settle_date=statement_row.settlement_date,
+            settle_calculated=False,
+        )
         change = (
             f"{Column.Txn.TXN_ID} {result.txn_id}: {Column.Txn.SETTLE_DATE} "
-            f"{transaction_row[Column.Txn.SETTLE_DATE]} -> "
+            f"{matched.settle_date} -> "
             f"{statement_row.settlement_date}"
         )
         return result, update, _PendingRow(AuditMark.CHANGED, change, logging.INFO)
@@ -407,7 +378,7 @@ def _resolve_statement_match(
     already = _match_transactions(actual_txns, statement_row)
     if len(already) == 1:
         result.outcome = SettlementOutcome.ALREADY_CONFIRMED
-        result.txn_id = int(already.iloc[0][Column.Txn.TXN_ID])
+        result.txn_id = already[0].txn_id
         result.candidates = 1
         held = _PendingRow(
             AuditMark.UNCHANGED,
@@ -577,10 +548,19 @@ def _parse_transaction_description(
     return ticker, units, txn_date
 
 
+_AMOUNT_TOLERANCE = 0.01
+_UNITS_TOLERANCE = 0.0001
+
+
+def _within(stored: Decimal | None, stated: float, tolerance: float) -> bool:
+    """Whether a stored magnitude is the one a statement states; a blank is not."""
+    return stored is not None and abs(abs(float(stored)) - stated) < tolerance
+
+
 def _match_transactions(
-    existing_txns: pd.DataFrame,
+    existing_txns: list[Txn],
     statement_row: _StatementRow,
-) -> pd.DataFrame:
+) -> list[Txn]:
     """Find transactions matching the statement data.
 
     Args:
@@ -591,58 +571,20 @@ def _match_transactions(
     Returns:
         Every transaction the row matches.
     """
-    conditions = (
-        (existing_txns[Column.Txn.ACTION] == statement_row.action)
-        & (existing_txns[Column.Txn.TXN_DATE] == statement_row.txn_date)
-        & (existing_txns[Column.Txn.TICKER] == statement_row.ticker)
-        & (existing_txns[Column.Txn.CURRENCY] == statement_row.currency)
-    )
+    units = statement_row.units
 
-    if statement_row.account:
-        conditions &= existing_txns[Column.Txn.ACCOUNT] == statement_row.account
+    def matches(txn: Txn) -> bool:
+        return (
+            str(txn.action) == statement_row.action
+            and txn.txn_date == statement_row.txn_date
+            and txn.ticker == statement_row.ticker
+            and str(txn.currency) == statement_row.currency
+            and (not statement_row.account or txn.account == statement_row.account)
+            and _within(txn.amount, statement_row.amount, _AMOUNT_TOLERANCE)
+            and (not units or units <= 0 or _within(txn.units, units, _UNITS_TOLERANCE))
+        )
 
-    # Matching tolerance for numeric amounts
-    amount_tolerance = 0.01
-    stmt_amount = statement_row.amount
-
-    def amount_matches(x: float) -> bool:
-        return abs(abs(float(x)) - stmt_amount) < amount_tolerance
-
-    amount_conditions = existing_txns[Column.Txn.AMOUNT].apply(amount_matches)
-    conditions &= amount_conditions
-
-    # Units matching if available
-    if statement_row.units and statement_row.units > 0:
-        units_tolerance = 0.0001
-        stmt_units = statement_row.units
-
-        def units_matches(x: float) -> bool:
-            return abs(abs(float(x)) - stmt_units) < units_tolerance
-
-        units_conditions = existing_txns[Column.Txn.UNITS].apply(units_matches)
-        conditions &= units_conditions
-
-    return existing_txns[conditions]
-
-
-def _apply_confirmed_dates_to_db(
-    conn: sqlite3.Connection,
-    updates: list[dict],
-) -> tuple[int, Path | None]:
-    """Back up the folio, then apply confirmed settlement dates in one batch.
-
-    Returns:
-        How many transactions were updated, and the backup taken first.
-    """
-    backup = backup_folio()
-    updated = update_rows(
-        conn,
-        Table.TXNS,
-        updates,
-        where_columns=[Column.Txn.TXN_ID],
-        set_columns=[Column.Txn.SETTLE_DATE, Column.Txn.SETTLE_CALCULATED],
-    )
-    return updated, backup
+    return [txn for txn in existing_txns if matches(txn)]
 
 
 _TRANSFER_OUT_PREFIX = "TRFOUT"

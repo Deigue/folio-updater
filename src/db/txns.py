@@ -6,11 +6,15 @@ from typing import TYPE_CHECKING
 
 from app import get_config
 from config.optional_fields import FieldType
+from db.backup import backup_folio
 from db.catalog import get_columns
 from db.queries import (
+    add_column_to_table,
     build_comparison_clause,
     build_in_clause,
     build_sort_clause,
+    delete_rows,
+    drop_table,
     earliest_transaction_date,
     get_broker_latest_txn_date,
     get_connection,
@@ -19,14 +23,18 @@ from db.queries import (
     get_max_value,
     get_records,
     get_row_count,
+    insert_rows,
+    trial_insert_rows,
+    update_rows,
 )
 from domain import Column, Table
 from models import Txn, TxnOperator, TxnSort
 
 if TYPE_CHECKING:
+    import sqlite3
     from collections.abc import Sequence
 
-    from models import TxnFilter, TxnSearch, TxnSelection
+    from models import NewTxn, TxnFilter, TxnSearch, TxnSelection
 
 _TXN_ID = f'"{Column.Txn.TXN_ID}"'
 _IS_CALCULATED = f'"{Column.Txn.SETTLE_CALCULATED}" = ?'
@@ -200,6 +208,64 @@ def latest_date_for(broker: str) -> str | None:
     """Return a broker's latest transaction date, or None when it has none."""
     with get_connection() as conn:
         return get_broker_latest_txn_date(conn, broker)
+
+
+def append(new: Sequence[NewTxn]) -> list[int]:
+    """Back up, then store transactions (all or none), returning their TxnIds."""
+    if not new:
+        return []
+    backup_folio()
+    with get_connection() as conn:
+        _add_extra_columns(conn, new)
+        return insert_rows(conn, Table.TXNS, [txn.to_row() for txn in new])
+
+
+def update(changed: Sequence[Txn]) -> int:
+    """Back up, then rewrite transactions whole by TxnId, returning how many."""
+    if not changed:
+        return 0
+    backup_folio()
+    rows = [txn.to_row() for txn in changed]
+    columns = [column for column in rows[0] if column != Column.Txn.TXN_ID]
+    with get_connection() as conn:
+        return update_rows(conn, Table.TXNS, rows, [Column.Txn.TXN_ID], columns)
+
+
+def delete(txn_ids: Sequence[int]) -> int:
+    """Back up the folio, then remove transactions, returning how many went."""
+    backup_folio()
+    with get_connection() as conn:
+        return delete_rows(
+            conn,
+            Table.TXNS,
+            where=build_in_clause(Column.Txn.TXN_ID, txn_ids),
+            params=txn_ids,
+        )
+
+
+def trial_append(new: Sequence[NewTxn]) -> list[sqlite3.IntegrityError | None]:
+    """Try transactions one at a time, storing none, to find which the table refuses.
+
+    Returns:
+        One entry per transaction tried: None for one that went in, the error for
+        the one refused, which is the last entry.
+    """
+    with get_connection() as conn:
+        return trial_insert_rows(conn, Table.TXNS, [txn.to_row() for txn in new])
+
+
+def drop() -> None:
+    """Drop the table, so the next transaction starts again from TxnId 1."""
+    with get_connection() as conn:
+        drop_table(conn, Table.TXNS)
+
+
+def _add_extra_columns(conn: sqlite3.Connection, new: Sequence[NewTxn]) -> None:
+    """Give the table a column for every extra these transactions carry."""
+    live = get_columns(conn, Table.TXNS)
+    for column in dict.fromkeys(name for txn in new for name in txn.extras):
+        if column not in live:
+            add_column_to_table(conn, Table.TXNS, column)
 
 
 def _numbers_held_as_text(live: list[str]) -> set[str]:

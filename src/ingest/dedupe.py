@@ -13,9 +13,8 @@ import pandas as pd
 
 from app import audit, get_config
 from app.audit import AuditMark
-from db.helpers import audit_rows, generate_keys
-from db.queries import get_connection, get_rows
-from domain import TXN_ESSENTIALS, Table
+from db import txns
+from db.helpers import audit_rows, generate_keys, txn_keys
 
 
 class TransactionFilter:
@@ -189,6 +188,4 @@ class TransactionFilter:
         Returns:
             Set of synthetic keys for existing transactions.
         """
-        with get_connection() as conn:
-            existing_df = get_rows(conn, Table.TXNS, columns=TXN_ESSENTIALS)
-        return set(generate_keys(existing_df))
+        return set(txn_keys(txns.read()))

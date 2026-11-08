@@ -11,11 +11,11 @@ import pytest
 
 from app.audit import audit_command
 from app.logging_setup import AUDIT_LOGGER
-from db import create_txns_table, get_connection, get_rows, helpers, txns
+from db import backup_scope, create_txns_table, get_connection, get_rows, txns
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions, insert_transactions
 from ingest import prepare_transactions
-from models import ImportResults
+from models import ImportResults, new_txns_from_frame
 
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.dataframe import verify_db_contents
@@ -538,7 +538,7 @@ def test_an_import_entry_names_its_stages_rows_and_txn_ids(
         repeating = _register(folder / "repeating.xlsx", REPEATING_ROWS, sheet)
         caplog.clear()
 
-        with audit_command("folio import"):
+        with audit_command("folio import"), backup_scope():
             _imported(repeating, sheet)
 
     lines = _audit_lines(caplog)
@@ -607,7 +607,7 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
                 Column.Txn.SETTLE_CALCULATED: [1] * 3,
             },
         )
-        passed = ImportResults(final_df=rows)
+        passed = ImportResults(approved=new_txns_from_frame(rows))
         monkeypatch.setattr(
             "importers.excel_importer.prepare_transactions",
             lambda *_args, **_kwargs: passed,
@@ -622,18 +622,16 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
         assert "CHECK constraint failed" in refused[-1]
 
 
-def test_only_the_final_frame_gains_the_columns_the_table_has(
-    temp_ctx: TempContext,
-) -> None:
-    """A table column the file lacks is added to `final_df`, not to `read_df`."""
+def test_a_row_with_a_blank_account_is_rejected_by_name(temp_ctx: TempContext) -> None:
+    """A transaction cannot exist without its account, so only that row is lost."""
+    rows = _valid_rows()
+    rows.loc[1, Column.Txn.ACCOUNT] = None
+
     with temp_ctx():
-        create_txns_table()
-        helpers.sync_txns_table_columns(_valid_rows().assign(Memo="note"))
+        results = prepare_transactions(rows, map_headers=False)
 
-        results = prepare_transactions(_valid_rows(), map_headers=False)
-
-    assert "Memo" in results.final_df.columns
-    assert "Memo" not in results.read_df.columns
+    assert len(results.approved) == 2
+    assert results.invalid_df[Column.REJECTION_REASON].tolist() == ["MISSING Account"]
 
 
 def test_a_fallback_account_is_not_written_into_the_source_frame(
@@ -647,7 +645,7 @@ def test_a_fallback_account_is_not_written_into_the_source_frame(
 
     assert Column.Txn.ACCOUNT not in results.read_df.columns
     assert Column.Txn.ACCOUNT not in source.columns
-    assert results.final_df[Column.Txn.ACCOUNT].eq("TEST-ACCOUNT").all()
+    assert {txn.account for txn in results.approved} == {"TEST-ACCOUNT"}
 
 
 def test_import_missing_essential_column(

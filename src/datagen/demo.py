@@ -34,10 +34,6 @@ from db import (
     backup_folio,
     backup_scope,
     create_txns_table,
-    drop_table,
-    get_connection,
-    get_distinct_set,
-    get_row_count,
     txns,
 )
 from db.helpers import generate_keys
@@ -49,7 +45,6 @@ from domain import (
     Action,
     Column,
     Currency,
-    Table,
 )
 from domain.numeric import dec
 from engine.flows import room_year
@@ -1215,14 +1210,13 @@ class DemoFolio:
 
         if config.db_path.exists():
             create_txns_table()
-            with get_connection() as conn:
-                if get_row_count(conn, Table.TXNS) > 0:
-                    console_warning(
-                        "Transaction data already exists in the database: "
-                        f'"{config.db_path}". Back up or delete this file first '
-                        "if you want to generate a fresh demo folio.",
-                    )
-                    return False
+            if txns.count() > 0:
+                console_warning(
+                    "Transaction data already exists in the database: "
+                    f'"{config.db_path}". Back up or delete this file first '
+                    "if you want to generate a fresh demo folio.",
+                )
+                return False
 
         folder = config.folio_path.parent
         if folder.is_relative_to(config.project_root / "data"):
@@ -1267,10 +1261,8 @@ class DemoFolio:
         # One scope: the folio is empty at its start, so the demo takes no backup.
         with backup_scope():
             results = insert_transactions(rows, map_headers=False)
-            if len(results.final_df) != len(rows):
-                msg = (
-                    f"The import kept {len(results.final_df)} of {len(rows)} demo rows"
-                )
+            if len(results.stored) != len(rows):
+                msg = f"The import kept {len(results.stored)} of {len(rows)} demo rows"
                 raise DemoScenarioError(msg)
 
             aliases.write(
@@ -1316,9 +1308,8 @@ class DemoFolio:
     @staticmethod
     def _remove() -> None:
         """Drop the folio's transactions and ticker aliases, and their exports."""
-        with get_connection() as conn:
-            drop_table(conn, Table.TXNS)
-            drop_table(conn, Table.TICKER_ALIASES)
+        txns.drop()
+        aliases.drop()
         config = get_config()
         config.txn_parquet.unlink(missing_ok=True)
         config.tickers_parquet.unlink(missing_ok=True)
@@ -1336,8 +1327,7 @@ def is_demo_folio() -> bool:
         True when it has transactions and every one is in a demo account. A
         folio the user has added any account of their own to is theirs.
     """
-    with get_connection() as conn:
-        accounts = get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT)
+    accounts = txns.accounts()
     return bool(accounts) and all(_is_demo_account(str(name)) for name in accounts)
 
 

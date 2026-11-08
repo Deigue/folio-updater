@@ -17,6 +17,8 @@ from domain import SettlementOutcome
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from models.txn import NewTxn, Txn
+
 
 @dataclass(eq=False)
 class MergeEvent:
@@ -78,7 +80,8 @@ class ImportResults:
     invalid_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     intra_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
     db_rejected_df: pd.DataFrame = field(default_factory=pd.DataFrame)
-    final_df: pd.DataFrame = field(default_factory=pd.DataFrame)
+    approved: list[NewTxn] = field(default_factory=list)
+    stored: list[Txn] = field(default_factory=list)
 
     merge_events: list[MergeEvent] = field(default_factory=list)
     transform_events: list[TransformEvent] = field(default_factory=list)
@@ -89,7 +92,7 @@ class ImportResults:
 
     def imported_count(self) -> int:
         """Return number of transactions imported."""
-        return len(self.final_df)
+        return len(self.stored)
 
     def read_count(self) -> int:
         """Return number of source rows read from source file."""

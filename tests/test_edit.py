@@ -669,7 +669,7 @@ class TestEditFlow:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(edit_module, "_update", return_value=0):
+            with patch.object(edit_module, "_write_edits", return_value=0):
                 cli_result = run_cli_with_config(
                     ctx.config,
                     cli_app,

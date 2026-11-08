@@ -20,51 +20,26 @@ from cli.commands.common import (
     export_to_parquet,
     resolve_selection,
 )
-from db import backup_folio, txns
-from db.helpers import audit_rows
-from db.queries import delete_rows, get_connection
-from domain import Column, Table
-from models import txns_frame
+from db import current_backup, txns
+from db.helpers import audit_txns
 from term import console_error, console_info, console_success
 from ui.transaction_table import page_transactions
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from pathlib import Path
-
     from cli.selection import Selection
     from models import Txn
 
 logger = logging.getLogger(__name__)
 
 
-def _delete_by_ids(txn_ids: Sequence[int]) -> int:
-    """Delete transactions by TxnId.
-
-    Args:
-        txn_ids: TxnIds of the transactions to remove.
-
-    Returns:
-        Number of rows deleted.
-    """
-    placeholders = ",".join("?" * len(txn_ids))
-    with get_connection() as conn:
-        return delete_rows(
-            conn,
-            Table.TXNS,
-            where=f'"{Column.Txn.TXN_ID}" IN ({placeholders})',
-            params=list(txn_ids),
-        )
-
-
-def _log_removed(transactions: list[Txn], backup: Path | None) -> None:
+def _log_removed(transactions: list[Txn]) -> None:
     """Write the REMOVE stage: the backup that undoes it, then each removed row."""
     audit.stage(
         "REMOVE %d transaction(s); %s",
         len(transactions),
-        audit.describe_backup(backup),
+        audit.describe_backup(current_backup()),
     )
-    audit_rows(AuditMark.REMOVED, txns_frame(transactions))
+    audit_txns(AuditMark.REMOVED, transactions)
 
 
 def delete_transactions(
@@ -99,9 +74,8 @@ def delete_transactions(
         return
 
     with audit.entry("DELETE TXNS %s", selection.describe()) as entry:
-        backup = backup_folio()
-        deleted = _delete_by_ids(selection.txn_ids)
-        _log_removed(matched, backup)
+        deleted = txns.delete(selection.txn_ids)
+        _log_removed(matched)
         if deleted == len(matched):
             entry.done("%d deleted; folio holds %d transactions", deleted, txns.count())
         else:

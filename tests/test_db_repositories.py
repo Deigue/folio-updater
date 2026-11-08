@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import closing
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -14,6 +15,7 @@ from db import (
     add_column_to_table,
     aliases,
     backup_scope,
+    create_txns_table,
     current_backup,
     drop_table,
     fx_rates,
@@ -25,9 +27,10 @@ from db import (
     txns,
     update_rows,
 )
-from domain import Action, Column, PriceRange, QuoteStatus, Table
+from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
 from models import (
     FxRate,
+    NewTxn,
     Quote,
     QuoteHistory,
     TickerAlias,
@@ -601,3 +604,162 @@ def test_latest_date_for_a_broker(temp_ctx: TempContext) -> None:
 
         assert txns.latest_date_for("zed") == _FEB
         assert txns.latest_date_for("nobroker") is None
+
+
+# -- TXN WRITES -----------------------------------------------------------------
+
+
+def _new_txn(ticker: str = "SPY", **changes: object) -> NewTxn:
+    """Build a purchase nothing has stored yet."""
+    fields: dict[str, object] = {
+        "txn_date": _JAN,
+        "action": Action.BUY,
+        "amount": Decimal("-312.75"),
+        "currency": Currency.USD,
+        "price": Decimal("20.85"),
+        "units": Decimal(15),
+        "fee": None,
+        "ticker": ticker,
+        "account": "ZED-TFSA",
+        "settle_date": _FEB,
+        "settle_calculated": False,
+    }
+    return NewTxn(**{**fields, **changes})  # ty: ignore[invalid-argument-type]
+
+
+def test_append_returns_the_new_ids_in_order(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        create_txns_table()
+        first, second = _new_txn("SPY"), _new_txn("MSFT")
+
+        ids = txns.append([first, second])
+
+        assert txns.by_ids(ids) == [first.stored_as(ids[0]), second.stored_as(ids[1])]
+        assert ids[1] > ids[0]
+
+
+def _txn_count(backup: Path | None) -> int:
+    """Count the transactions a backup file holds."""
+    assert backup is not None, "no backup was taken"
+    with closing(sqlite3.connect(backup)) as conn:
+        query = f'SELECT COUNT(*) FROM "{Table.TXNS}"'
+        return int(conn.execute(query).fetchone()[0])
+
+
+def test_append_backs_up_the_folio_as_it_was(temp_ctx: TempContext) -> None:
+    with temp_ctx(backup={"enabled": True}):
+        seed_transaction(ticker="AAA")
+        with backup_scope():
+            txns.append([_new_txn()])
+            backup = current_backup()
+
+        assert _txn_count(backup) == 1
+        assert txns.count() == 2
+
+
+def test_append_adds_a_column_for_a_new_extra(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        create_txns_table()
+
+        [txn_id] = txns.append([_new_txn(extras={"BrokerRef": "R-31"})])
+
+        assert txns.columns()[-1] == "BrokerRef"
+        assert txns.by_ids([txn_id])[0].extras == {"BrokerRef": "R-31"}
+
+
+def test_an_append_of_nothing_takes_no_backup(temp_ctx: TempContext) -> None:
+    with temp_ctx(backup={"enabled": True}):
+        seed_transaction(ticker="AAA")
+        with backup_scope():
+            assert txns.append([]) == []
+
+            assert current_backup() is None
+
+
+def test_a_refused_batch_stores_nothing(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        create_txns_table()
+
+        with pytest.raises(sqlite3.IntegrityError):
+            txns.append([_new_txn(), _new_txn("MSFT", account="")])
+
+        assert txns.count() == 0
+
+
+def test_update_rewrites_a_row_and_keeps_a_none_as_null(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        kept = seed_transaction(ticker="MSFT")
+        edited = seed_transaction(ticker="SPY", fee="4.95")
+        (txn,) = txns.by_ids([edited])
+        wanted = replace(txn, amount=Decimal("-99.5"), fee=None)
+
+        assert txns.update([wanted]) == 1
+
+        assert txns.by_ids([edited]) == [wanted]
+        assert txns.by_ids([kept])[0].ticker == "MSFT"
+
+
+def test_update_backs_up_the_folio_as_it_was(temp_ctx: TempContext) -> None:
+    with temp_ctx(backup={"enabled": True}):
+        txn_id = seed_transaction(ticker="AAA", amount="-50.25")
+        (txn,) = txns.by_ids([txn_id])
+        with backup_scope():
+            txns.update([replace(txn, amount=Decimal("-75.5"))])
+            backup = current_backup()
+
+        assert backup is not None, "no backup was taken"
+        with closing(sqlite3.connect(backup)) as conn:
+            query = f'SELECT "{Column.Txn.AMOUNT}" FROM "{Table.TXNS}"'
+            assert conn.execute(query).fetchone()[0] == pytest.approx(-50.25)
+
+
+def test_delete_removes_only_the_ids_named(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        gone = seed_transaction(ticker="SPY")
+        kept = seed_transaction(ticker="MSFT")
+
+        assert txns.delete([gone]) == 1
+
+        assert [txn.txn_id for txn in txns.read()] == [kept]
+
+
+def test_delete_backs_up_the_folio_as_it_was(temp_ctx: TempContext) -> None:
+    with temp_ctx(backup={"enabled": True}):
+        gone = seed_transaction(ticker="SPY")
+        seed_transaction(ticker="MSFT")
+        with backup_scope():
+            txns.delete([gone])
+            backup = current_backup()
+
+        assert _txn_count(backup) == 2
+        assert txns.count() == 1
+
+
+def test_trial_append_names_the_refused_row_and_stores_nothing(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        create_txns_table()
+
+        outcomes = txns.trial_append(
+            [_new_txn(), _new_txn("MSFT", account=""), _new_txn("NFLX")],
+        )
+
+        assert outcomes[0] is None
+        assert isinstance(outcomes[1], sqlite3.IntegrityError)
+        assert len(outcomes) == 2, "the trial stops at the first refusal"
+        assert txns.count() == 0
+
+
+def test_dropping_txns_and_aliases_removes_their_tables(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(ticker="AAA")
+        aliases.write([OLDER])
+
+        txns.drop()
+        aliases.drop()
+
+        with get_connection() as conn:
+            tables = get_tables(conn)
+        assert Table.TXNS not in tables
+        assert Table.TICKER_ALIASES not in tables

@@ -106,12 +106,25 @@ def _txn(
     }
 
 
+def _stored_txn() -> Txn:
+    """Build one transaction an import stored."""
+    row = _txn("2026-09-02", Action.BUY, -1.0)
+    return Txn.from_row(
+        {
+            **row,
+            Column.Txn.TXN_ID: 1,
+            Column.Txn.SETTLE_DATE: "2026-09-03",
+            Column.Txn.SETTLE_CALCULATED: 1,
+        },
+    )
+
+
 def _results(
     *,
     invalid: pd.DataFrame | None = None,
     intra: pd.DataFrame | None = None,
     db: pd.DataFrame | None = None,
-    final: pd.DataFrame | None = None,
+    stored: list[Txn] | None = None,
     merges: list[MergeEvent] | None = None,
     cancels: list[CancelEvent] | None = None,
 ) -> ImportResults:
@@ -121,7 +134,7 @@ def _results(
         invalid_df=empty if invalid is None else invalid,
         intra_rejected_df=empty if intra is None else intra,
         db_rejected_df=empty if db is None else db,
-        final_df=empty if final is None else final,
+        stored=stored or [],
         merge_events=merges or [],
         cancel_events=cancels or [],
     )
@@ -281,8 +294,8 @@ class TestImportReview:
 
     def test_tally_mismatch_is_a_concern(self) -> None:
         """Rows unaccounted for by any stage are raised."""
-        results = _results(final=pd.DataFrame([_txn("2026-09-02", Action.BUY, -1.0)]))
-        results.final_df = pd.DataFrame()
+        results = _results(stored=[_stored_txn()])
+        results.stored = []
         concerns = review_import("trades.csv", results, None).concerns
         assert [c.title for c in concerns] == [
             "Import tally does not add up for trades.csv",
@@ -290,10 +303,8 @@ class TestImportReview:
 
     def test_clean_import_raises_nothing(self) -> None:
         """An import with nothing unusual reports nothing."""
-        final = pd.DataFrame([_txn("2026-09-02", Action.BUY, -1.0)])
-        assert (
-            review_import("trades.csv", _results(final=final), None) == ImportReview()
-        )
+        results = _results(stored=[_stored_txn()])
+        assert review_import("trades.csv", results, None) == ImportReview()
 
 
 class TestMerges:

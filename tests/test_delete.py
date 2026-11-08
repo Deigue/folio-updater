@@ -363,7 +363,7 @@ class TestDeleteSideEffects:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(delete_module, "_delete_by_ids", return_value=0):
+            with patch.object(delete_module.txns, "delete", return_value=0):
                 cli_result = run_cli_with_config(
                     ctx.config,
                     cli_app,

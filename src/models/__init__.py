@@ -16,7 +16,14 @@ from models.import_results import (
 from models.quote import Fundamentals, Quote, QuoteSplit
 from models.quote_history import QuoteHistory
 from models.ticker_alias import TickerAlias
-from models.txn import NewTxn, Txn, TxnFields, txns_frame
+from models.txn import (
+    NewTxn,
+    Txn,
+    TxnFields,
+    new_txns_from_frame,
+    txns_frame,
+    txns_from_frame,
+)
 from models.txn_selection import (
     TxnFilter,
     TxnOperator,
@@ -52,5 +59,7 @@ __all__ = [
     "TxnSort",
     "UpdateReport",
     "UpdateStage",
+    "new_txns_from_frame",
     "txns_frame",
+    "txns_from_frame",
 ]

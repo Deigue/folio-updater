@@ -3,6 +3,8 @@
 This module exports the API for commonly used database operations.
 """
 
+from sqlite3 import DatabaseError, IntegrityError
+
 # Also export module references for less common operations
 from db import (
     aliases,
@@ -25,7 +27,6 @@ from db.queries import (
     drop_table,
     get_connection,
     get_distinct_set,
-    get_last_insert_rowid,
     get_max_value,
     get_min_value,
     get_row_count,
@@ -42,6 +43,8 @@ from db.schema import (
 )
 
 __all__ = [
+    "DatabaseError",
+    "IntegrityError",
     "add_column_to_table",
     "aliases",
     "append_rows",
@@ -59,7 +62,6 @@ __all__ = [
     "get_columns",
     "get_connection",
     "get_distinct_set",
-    "get_last_insert_rowid",
     "get_max_value",
     "get_min_value",
     "get_row_count",
