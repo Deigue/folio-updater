@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self
 
 from domain import Column
 from models.cells import required_text
+from models.columns import Kind, stored
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -22,9 +23,13 @@ class TickerAlias:
         effective_date: The day the rename took effect, `YYYY-MM-DD`.
     """
 
-    old_ticker: str
-    new_ticker: str
-    effective_date: str
+    old_ticker: str = field(metadata=stored(Column.Aliases.OLD_TICKER, key=True))
+    new_ticker: str = field(
+        metadata=stored(Column.Aliases.NEW_TICKER, required=True),
+    )
+    effective_date: str = field(
+        metadata=stored(Column.Aliases.EFFECTIVE_DATE, Kind.DATE, required=True),
+    )
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:

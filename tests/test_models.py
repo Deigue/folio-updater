@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
+from db.catalog import get_columns
 from db.helpers import sync_txns_table_columns
 from db.queries import append_rows, get_connection, get_rows
 from db.schema import (
@@ -30,8 +31,13 @@ from models import (
     TickerAlias,
     Txn,
 )
+from models.columns import stored_columns
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from _typeshed import DataclassInstance
+
     from tests.helpers.context import TempContext
 
 _EXTRA = "BrokerRef"
@@ -207,3 +213,28 @@ def test_a_txn_row_with_an_unknown_action_is_refused() -> None:
 
     with pytest.raises(ValueError, match="NOT_AN_ACTION"):
         Txn.from_row(row)
+
+
+@pytest.mark.parametrize(
+    ("create", "table", "model"),
+    [
+        (create_txns_table, Table.TXNS, Txn),
+        (create_fx_table, Table.FX, FxRate),
+        (create_ticker_aliases_table, Table.TICKER_ALIASES, TickerAlias),
+        (create_quotes_table, Table.QUOTES, Quote),
+        (create_quote_history_table, Table.QUOTE_HISTORY, QuoteHistory),
+    ],
+)
+def test_each_table_is_built_from_its_model(
+    temp_ctx: TempContext,
+    create: Callable[[], None],
+    table: Table,
+    model: type[DataclassInstance],
+) -> None:
+    """A fresh table holds exactly the columns its model declares, in order."""
+    with temp_ctx():
+        create()
+        with get_connection() as conn:
+            built = get_columns(conn, table)
+
+    assert built == [column.name for column in stored_columns(model)]

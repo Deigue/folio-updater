@@ -1,8 +1,4 @@
-"""Value types the cost-base replay consumes and produces.
-
-The replay reads `Txn`s, whose money is already Decimal: nothing downstream touches
-a float.
-"""
+"""Value types the cost-base replay consumes and produces."""
 
 from __future__ import annotations
 

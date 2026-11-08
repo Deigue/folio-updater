@@ -12,8 +12,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app import get_config
-from db.helpers import txn_count as get_txn_count
-from domain import TORONTO_TZ
+from domain import TORONTO_TZ, Table
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -79,7 +78,7 @@ def backup_database(max_backups: int | None = None) -> Path | None:
     subdir, timestamp, keep = slot
 
     backup_path = (
-        subdir / f"{db_path.stem}_{timestamp}_{get_txn_count()}{db_path.suffix}"
+        subdir / f"{db_path.stem}_{timestamp}_{_count_in_file(db_path)}{db_path.suffix}"
     )
     try:
         # A connection used as a context manager only commits; it is never
@@ -96,6 +95,18 @@ def backup_database(max_backups: int | None = None) -> Path | None:
         raise
     _rotate(subdir, db_path.stem, db_path.suffix, keep)
     return backup_path
+
+
+def _count_in_file(db_path: Path) -> int:
+    """Count a folio file's transactions on a connection that skips migrations."""
+    if not db_path.exists():
+        return 0
+    with closing(sqlite3.connect(db_path)) as conn:
+        try:
+            (count,) = conn.execute(f'SELECT COUNT(*) FROM "{Table.TXNS}"').fetchone()
+        except sqlite3.OperationalError:
+            return 0
+    return int(count)
 
 
 def _backup_slot(
@@ -175,7 +186,7 @@ def backup_folio() -> Path | None:
     if scope is not None and scope.taken:
         logger.debug("Folio already backed up for this command")
         return scope.path
-    path = backup_database() if get_txn_count() > 0 else None
+    path = backup_database() if _count_in_file(get_config().db_path) > 0 else None
     if scope is not None:
         scope.taken = True
         scope.path = path

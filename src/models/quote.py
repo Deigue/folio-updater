@@ -17,23 +17,11 @@ from models.cells import (
     stored_moment,
     stored_number,
 )
+from models.columns import Kind, column_of, flattened, stored
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import timedelta
-
-
-def _stored_in(column: Column.Quote, *, numeric: bool = True) -> dict[str, object]:
-    """Say where a `Fundamentals` field is stored, and whether it is a number.
-
-    Args:
-        column: The quotes table column that holds it.
-        numeric: True for a number, False for text.
-
-    Returns:
-        The field's metadata.
-    """
-    return {"column": column, "numeric": numeric}
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -65,83 +53,83 @@ class Fundamentals:
 
     quote_type: str | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.QUOTE_TYPE, numeric=False),
+        metadata=stored(Column.Quote.QUOTE_TYPE),
     )
     trailing_pe: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.TRAILING_PE),
+        metadata=stored(Column.Quote.TRAILING_PE, Kind.NUMBER),
     )
     forward_pe: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.FORWARD_PE),
+        metadata=stored(Column.Quote.FORWARD_PE, Kind.NUMBER),
     )
     eps: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.EPS),
+        metadata=stored(Column.Quote.EPS, Kind.NUMBER),
     )
     beta: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.BETA),
+        metadata=stored(Column.Quote.BETA, Kind.NUMBER),
     )
     dividend_rate: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.DIVIDEND_RATE),
+        metadata=stored(Column.Quote.DIVIDEND_RATE, Kind.NUMBER),
     )
     dividend_yield: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.DIVIDEND_YIELD),
+        metadata=stored(Column.Quote.DIVIDEND_YIELD, Kind.NUMBER),
     )
     last_dividend: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.LAST_DIVIDEND),
+        metadata=stored(Column.Quote.LAST_DIVIDEND, Kind.NUMBER),
     )
     ex_dividend_date: str | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.EX_DIVIDEND_DATE, numeric=False),
+        metadata=stored(Column.Quote.EX_DIVIDEND_DATE),
     )
     earnings_date: str | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.EARNINGS_DATE, numeric=False),
+        metadata=stored(Column.Quote.EARNINGS_DATE),
     )
     high_52: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.HIGH_52),
+        metadata=stored(Column.Quote.HIGH_52, Kind.NUMBER),
     )
     low_52: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.LOW_52),
+        metadata=stored(Column.Quote.LOW_52, Kind.NUMBER),
     )
     avg_50: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.AVG_50),
+        metadata=stored(Column.Quote.AVG_50, Kind.NUMBER),
     )
     avg_200: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.AVG_200),
+        metadata=stored(Column.Quote.AVG_200, Kind.NUMBER),
     )
     volume: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.VOLUME),
+        metadata=stored(Column.Quote.VOLUME, Kind.NUMBER),
     )
     avg_volume: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.AVG_VOLUME),
+        metadata=stored(Column.Quote.AVG_VOLUME, Kind.NUMBER),
     )
     expense_ratio: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.EXPENSE_RATIO),
+        metadata=stored(Column.Quote.EXPENSE_RATIO, Kind.NUMBER),
     )
     total_assets: Decimal | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.TOTAL_ASSETS),
+        metadata=stored(Column.Quote.TOTAL_ASSETS, Kind.NUMBER),
     )
     category: str | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.CATEGORY, numeric=False),
+        metadata=stored(Column.Quote.CATEGORY),
     )
     fund_family: str | None = field(
         default=None,
-        metadata=_stored_in(Column.Quote.FUND_FAMILY, numeric=False),
+        metadata=stored(Column.Quote.FUND_FAMILY),
     )
 
     @classmethod
@@ -156,9 +144,10 @@ class Fundamentals:
         """
         read: dict[str, object] = {}
         for item in fields(cls):
-            value = row.get(item.metadata["column"])
+            column = column_of(item)
+            value = row.get(column.name)
             read[item.name] = (
-                _figure(value) if item.metadata["numeric"] else read_text(value)
+                _figure(value) if column.kind is Kind.NUMBER else read_text(value)
             )
         return cls(**read)  # ty: ignore[invalid-argument-type]
 
@@ -167,8 +156,9 @@ class Fundamentals:
         row: dict[str, object] = {}
         for item in fields(self):
             value = getattr(self, item.name)
-            row[str(item.metadata["column"])] = (
-                stored_number(value) if item.metadata["numeric"] else value
+            column = column_of(item)
+            row[column.name] = (
+                stored_number(value) if column.kind is Kind.NUMBER else value
             )
         return row
 
@@ -211,22 +201,56 @@ class Quote:
         status: How the last fetch attempt came out.
     """
 
-    symbol: str
-    provider_symbol: str
-    price: Decimal | None = None
-    prev_close: Decimal | None = None
-    currency: Currency | None = None
-    name: str | None = None
-    sector: str | None = None
-    exchange: str | None = None
-    market_cap: Decimal | None = None
-    fundamentals: Fundamentals = field(default_factory=Fundamentals)
-    splits: tuple[QuoteSplit, ...] | None = None
-    quote_time: str | None = None
-    fetched_at: datetime | None = None
-    meta_fetched_at: datetime | None = None
-    source: str | None = None
-    status: QuoteStatus = QuoteStatus.ERROR
+    symbol: str = field(
+        metadata=stored(Column.Quote.SYMBOL, key=True, upper=True, non_empty=True),
+    )
+    provider_symbol: str = field(
+        metadata=stored(Column.Quote.PROVIDER_SYMBOL, required=True),
+    )
+    price: Decimal | None = field(
+        default=None,
+        metadata=stored(Column.Quote.PRICE, Kind.NUMBER),
+    )
+    prev_close: Decimal | None = field(
+        default=None,
+        metadata=stored(Column.Quote.PREV_CLOSE, Kind.NUMBER),
+    )
+    currency: Currency | None = field(
+        default=None,
+        metadata=stored(Column.Quote.CURRENCY),
+    )
+    name: str | None = field(default=None, metadata=stored(Column.Quote.NAME))
+    sector: str | None = field(default=None, metadata=stored(Column.Quote.SECTOR))
+    exchange: str | None = field(default=None, metadata=stored(Column.Quote.EXCHANGE))
+    market_cap: Decimal | None = field(
+        default=None,
+        metadata=stored(Column.Quote.MARKET_CAP, Kind.NUMBER),
+    )
+    fundamentals: Fundamentals = field(
+        default_factory=Fundamentals,
+        metadata=flattened(Fundamentals),
+    )
+    splits: tuple[QuoteSplit, ...] | None = field(
+        default=None,
+        metadata=stored(Column.Quote.SPLITS),
+    )
+    quote_time: str | None = field(
+        default=None,
+        metadata=stored(Column.Quote.QUOTE_TIME),
+    )
+    fetched_at: datetime | None = field(
+        default=None,
+        metadata=stored(Column.Quote.FETCHED_AT),
+    )
+    meta_fetched_at: datetime | None = field(
+        default=None,
+        metadata=stored(Column.Quote.META_FETCHED_AT),
+    )
+    source: str | None = field(default=None, metadata=stored(Column.Quote.SOURCE))
+    status: QuoteStatus = field(
+        default=QuoteStatus.ERROR,
+        metadata=stored(Column.Quote.STATUS),
+    )
 
     @property
     def age(self) -> timedelta | None:
@@ -280,17 +304,7 @@ class Quote:
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:
-        """Read a cached quote out of its row.
-
-        A currency or status this build does not know reads as unknown rather
-        than failing: the quote is only a cache, and its next fetch rewrites it.
-
-        Args:
-            row: The row, keyed by column name.
-
-        Returns:
-            The quote.
-        """
+        """Read a cached quote; an unknown currency is None, an unknown status ERROR."""
         return cls(
             symbol=required_text(row.get(Column.Quote.SYMBOL), Column.Quote.SYMBOL),
             provider_symbol=required_text(

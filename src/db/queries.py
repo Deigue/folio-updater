@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
+from db.catalog import get_columns
+from db.migrations import bring_up_to_date
 from domain import Column, Table
 
 if TYPE_CHECKING:
@@ -21,7 +23,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 @contextmanager
 def get_connection() -> Generator[sqlite3.Connection]:
-    """Open the folio's SQLite file, closing it on exit."""
+    """Open the folio's SQLite file, migrated to the latest schema."""
     db_path = get_config().db_path
     try:
         conn: sqlite3.Connection = sqlite3.connect(db_path)
@@ -29,31 +31,10 @@ def get_connection() -> Generator[sqlite3.Connection]:
         logger.exception("Error connecting to database: %s", str(db_path))
         raise
     try:
+        bring_up_to_date(conn)
         yield conn
     finally:
         conn.close()
-
-
-def get_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:
-    """Return list of column names for a table (in defined order)."""
-    cursor = connection.execute(f"PRAGMA table_info('{table_name}')")
-    return [row[1] for row in cursor.fetchall()]
-
-
-def _schema_names(connection: sqlite3.Connection, kind: str) -> list[str]:
-    """Return the names of every schema object of one kind, such as `table`."""
-    cursor = connection.execute("SELECT name FROM sqlite_master WHERE type=?", (kind,))
-    return [row[0] for row in cursor.fetchall()]
-
-
-def get_tables(connection: sqlite3.Connection) -> list[str]:
-    """Return list of table names in the database."""
-    return _schema_names(connection, "table")
-
-
-def get_triggers(connection: sqlite3.Connection) -> list[str]:
-    """Return list of trigger names in the database."""
-    return _schema_names(connection, "trigger")
 
 
 def _as_float(value: str) -> float | None:
@@ -302,32 +283,6 @@ def get_alias_edges(
         for old, new, effective in rows
         if old and new
     ]
-
-
-def change_token_statement(table_name: str) -> str:
-    """Build the statement that gives a table a fresh change token.
-
-    The token is random rather than counted, so a backup restored over a newer
-    folio can never collide with a token the newer folio already used. The
-    statement binds no parameters, so a trigger body can carry it.
-
-    Args:
-        table_name: The watched table whose token moves.
-
-    Returns:
-        One SQL statement, without a trailing semicolon.
-    """
-    return (
-        f'INSERT OR REPLACE INTO "{Table.REVISIONS}" '
-        f'("{Column.Revision.TABLE_NAME}", "{Column.Revision.TOKEN}") '
-        f"VALUES ('{table_name}', hex(randomblob(16)))"
-    )
-
-
-def refresh_change_token(connection: sqlite3.Connection, table_name: str) -> None:
-    """Give a watched table a fresh change token, as one of its writes would."""
-    connection.execute(change_token_statement(table_name))
-    connection.commit()
 
 
 def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:

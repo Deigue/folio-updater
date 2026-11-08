@@ -8,7 +8,8 @@ import pandas as pd
 import pandas.testing as pd_testing
 
 from db import get_connection
-from domain import TXN_ESSENTIALS, Action, Column, Table
+from db.ddl import model_columns
+from domain import Action, Column, Table
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -85,9 +86,9 @@ def _drop_calculated_columns(
 
 
 def _verify_column_order(table_df: pd.DataFrame) -> None:
-    """Verify that the database table has expected column ordering."""
+    """Verify that the database table starts with its model's columns, in order."""
     table_cols = list(table_df.columns)
-    expected_start = [Column.Txn.TXN_ID, *TXN_ESSENTIALS]
+    expected_start = model_columns(Table.TXNS)
     actual_start = table_cols[: len(expected_start)]
 
     if actual_start != expected_start:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self
 
 from domain import Column, PriceRange
@@ -13,6 +13,7 @@ from models.cells import (
     stored_moment,
     stored_number,
 )
+from models.columns import Kind, stored
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -35,12 +36,27 @@ class QuoteHistory:
         fetched_at: When this symbol's history was fetched.
     """
 
-    symbol: str
-    range: PriceRange
-    seq: int
-    date: str
-    close: Decimal
-    fetched_at: datetime
+    symbol: str = field(
+        metadata=stored(Column.QuoteHistory.SYMBOL, key=True, required=True),
+    )
+    range: PriceRange = field(
+        metadata=stored(Column.QuoteHistory.RANGE, key=True, required=True),
+    )
+    seq: int = field(
+        metadata=stored(
+            Column.QuoteHistory.SEQ,
+            Kind.INTEGER,
+            key=True,
+            required=True,
+        ),
+    )
+    date: str = field(metadata=stored(Column.QuoteHistory.DATE, required=True))
+    close: Decimal = field(
+        metadata=stored(Column.QuoteHistory.CLOSE, Kind.NUMBER, required=True),
+    )
+    fetched_at: datetime = field(
+        metadata=stored(Column.QuoteHistory.FETCHED_AT, required=True),
+    )
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:

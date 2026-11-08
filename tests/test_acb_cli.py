@@ -645,10 +645,12 @@ def test_a_ledger_saved_before_change_tokens_replays_once(
             for trigger in get_triggers(conn):
                 conn.execute(f'DROP TRIGGER "{trigger}"')
             drop_table(conn, Table.REVISIONS)
+            # Such a folio is from before migrations too.
+            conn.execute("PRAGMA user_version = 0")
 
         assert _replays()
         assert not _replays()
-        # The upgrade put the triggers back, so an edit is seen again.
+        # The migration put the triggers back, so an edit is seen again.
         seed_cad_holding()
         assert _replays()
 

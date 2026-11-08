@@ -294,16 +294,15 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert_in_output("sheets to", cli_result)
         assert config.folio_path.exists()
         transactions_parquet = pd.read_parquet(config.txn_parquet, engine="pyarrow")
-        # A column added after the table was made is stored as text, and the
-        # workbook writes it back as the number it holds.
-        transactions_parquet[Column.Txn.FEE] = pd.to_numeric(
-            transactions_parquet[Column.Txn.FEE],
-        )
         tickers_parquet = pd.read_parquet(config.tickers_parquet, engine="pyarrow")
         transactions_excel = pd.read_excel(
             config.folio_path,
             sheet_name=config.txn_sheet,
         )
+        # A column no row fills reads back from Excel as numbers, whatever it holds.
+        transactions_excel[Column.Txn.DESCRIPTION] = transactions_excel[
+            Column.Txn.DESCRIPTION
+        ].astype(object)
         # The link back to the Summary, then the column bands, then the header.
         tickers_excel = pd.read_excel(
             config.folio_path,

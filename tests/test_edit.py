@@ -347,11 +347,6 @@ _REFUSED_SETS = [
     pytest.param(["justakey"], "Expected Field=VALUE", id="set-without-an-equals"),
     pytest.param(["Prcie=1"], "Unknown field 'Prcie'", id="a-typo-invents-nothing"),
     pytest.param(
-        ["Fee=1.50"],
-        "is not a column in this folio",
-        id="known-field-this-folio-lacks",
-    ),
-    pytest.param(
         ["Price=1", "Price=2"],
         "was given more than once",
         id="a-repeat-is-not-last-wins",

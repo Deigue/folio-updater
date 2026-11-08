@@ -27,8 +27,9 @@ from cli.commands.common import (
 from cli.query_parser import get_valid_column_names
 from config.optional_fields import FieldType
 from db import backup_folio
+from db.catalog import get_columns
 from db.helpers import format_transaction_summary, generate_keys
-from db.queries import get_columns, get_connection, get_rows, update_rows
+from db.queries import get_connection, get_rows, update_rows
 from domain import Column, Table
 from ingest.validation import TransactionFormatter, parse_date
 from term import console_error, console_info, console_success, console_warning
@@ -175,8 +176,7 @@ def _resolve_column(
         raw: The original `--set` text, for the error message.
 
     Raises:
-        typer.Exit: If the field is unknown, absent from the table, or must
-            not be edited.
+        typer.Exit: If the field is unknown or must not be edited.
 
     Returns:
         The real column name.
@@ -190,14 +190,6 @@ def _resolve_column(
 
     if column in PROTECTED_COLUMNS:
         console_error(f"'{column}' cannot be edited directly.")
-        raise typer.Exit(1)
-
-    # Editing never invents schema the way `folio add --set` does: a column
-    # the folio does not have is a mistake, not a new column.
-    if column not in live_columns:
-        console_error(
-            f"'{column}' is not a column in this folio. Editable fields: {known}",
-        )
         raise typer.Exit(1)
 
     return column

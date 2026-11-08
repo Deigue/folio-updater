@@ -603,6 +603,8 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
                 # The table keeps tickers in upper case; the third is not.
                 Column.Txn.TICKER: ["MSFT", "MSFT", "msft"],
                 Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 3,
+                Column.Txn.SETTLE_DATE: ["2024-01-03", "2024-01-06", "2024-01-07"],
+                Column.Txn.SETTLE_CALCULATED: [1] * 3,
             },
         )
         passed = ImportResults(final_df=rows)
@@ -618,25 +620,6 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
         refused = [r.message for r in caplog.records if r.levelno == logging.ERROR]
         assert refused[-1].strip().startswith("- TxnDate=2024-01-04")
         assert "CHECK constraint failed" in refused[-1]
-
-
-def test_the_table_refuses_a_currency_the_folio_does_not_support(
-    temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """EUR is priced for quotes, but no write path may put it on a transaction."""
-    with temp_ctx():
-        create_txns_table()
-        rows = _valid_rows().assign(**{Column.Txn.CURRENCY: ["USD", "EUR", "USD"]})
-        monkeypatch.setattr(
-            "importers.excel_importer.prepare_transactions",
-            lambda *_args, **_kwargs: ImportResults(final_df=rows),
-        )
-
-        with pytest.raises(sqlite3.IntegrityError):
-            insert_transactions(rows)
-
-        assert txn_count() == 0
 
 
 def test_only_the_final_frame_gains_the_columns_the_table_has(

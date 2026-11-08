@@ -6,6 +6,7 @@ This module exports the API for commonly used database operations.
 # Also export module references for less common operations
 from db import backup, helpers, queries, schema
 from db.backup import backup_folio, backup_scope
+from db.catalog import get_columns, get_tables, get_triggers
 from db.helpers import txn_count
 from db.queries import (
     add_column_to_table,
@@ -15,7 +16,6 @@ from db.queries import (
     earliest_transaction_date,
     get_alias_edges,
     get_broker_latest_txn_date,
-    get_columns,
     get_connection,
     get_distinct_set,
     get_distinct_values,
@@ -24,8 +24,6 @@ from db.queries import (
     get_min_value,
     get_row_count,
     get_rows,
-    get_tables,
-    get_triggers,
     insert_or_replace,
     insert_or_replace_many,
     trial_insert_rows,

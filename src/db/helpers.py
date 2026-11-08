@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import audit
-from db.queries import add_column_to_table, get_columns, get_connection, get_row_count
+from db.catalog import get_columns
+from db.queries import add_column_to_table, get_connection, get_row_count
 from domain import TXN_ESSENTIALS, Column, Table
 from domain.cells import is_blank
 

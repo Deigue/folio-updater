@@ -13,7 +13,7 @@ import typer
 
 from app import bootstrap
 from config import Config
-from term import console_info, console_print
+from term import console_error, console_info, console_print
 
 __version__ = _pkg_version("folio-updater")
 
@@ -741,7 +741,14 @@ def show_version() -> None:
 
 def main() -> None:
     """Entry point for the CLI application."""
-    app()
+    from db.migrations import MigrationError
+
+    try:
+        app()
+    except MigrationError as error:
+        # Opening the folio is where it is migrated, so any command can stop here.
+        console_error(str(error))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

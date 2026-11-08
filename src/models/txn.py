@@ -1,10 +1,4 @@
-"""A transaction as the `Txns` table stores it: one model, 1:1 with its columns.
-
-`TxnFields` holds every column but the ID. A transaction that is not stored yet
-is a `NewTxn`; once SQLite has given it an ID it is a `Txn`. The two are
-siblings rather than one a subclass of the other, so a stored transaction can
-never be appended again.
-"""
+"""A transaction as `Txns` stores it: `NewTxn` before it has an ID, `Txn` after."""
 
 from __future__ import annotations
 
@@ -20,6 +14,7 @@ from models.cells import (
     required_text,
     stored_number,
 )
+from models.columns import Kind, stored
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -54,18 +49,31 @@ class TxnFields:
             column name in table order.
     """
 
-    txn_date: str
-    action: Action
-    amount: Decimal | None
-    currency: Currency
-    price: Decimal | None
-    units: Decimal | None
-    fee: Decimal | None
-    ticker: str | None
-    account: str
-    settle_date: str
-    settle_calculated: bool
-    description: str | None = None
+    txn_date: str = field(
+        metadata=stored(Column.Txn.TXN_DATE, Kind.DATE, required=True),
+    )
+    action: Action = field(metadata=stored(Column.Txn.ACTION, required=True))
+    amount: Decimal | None = field(metadata=stored(Column.Txn.AMOUNT, Kind.NUMBER))
+    currency: Currency = field(metadata=stored(Column.Txn.CURRENCY, required=True))
+    price: Decimal | None = field(metadata=stored(Column.Txn.PRICE, Kind.NUMBER))
+    units: Decimal | None = field(metadata=stored(Column.Txn.UNITS, Kind.NUMBER))
+    fee: Decimal | None = field(metadata=stored(Column.Txn.FEE, Kind.NUMBER))
+    ticker: str | None = field(
+        metadata=stored(Column.Txn.TICKER, upper=True, non_empty=True),
+    )
+    account: str = field(
+        metadata=stored(Column.Txn.ACCOUNT, required=True, non_empty=True),
+    )
+    settle_date: str = field(
+        metadata=stored(Column.Txn.SETTLE_DATE, Kind.DATE, required=True),
+    )
+    settle_calculated: bool = field(
+        metadata=stored(Column.Txn.SETTLE_CALCULATED, Kind.FLAG, required=True),
+    )
+    description: str | None = field(
+        default=None,
+        metadata=stored(Column.Txn.DESCRIPTION),
+    )
     extras: Mapping[str, str | None] = field(default_factory=dict)
 
     @property
@@ -92,11 +100,11 @@ class TxnFields:
             str(Column.Txn.CURRENCY): str(self.currency),
             str(Column.Txn.PRICE): stored_number(self.price),
             str(Column.Txn.UNITS): stored_number(self.units),
+            str(Column.Txn.FEE): stored_number(self.fee),
             str(Column.Txn.TICKER): self.ticker,
             str(Column.Txn.ACCOUNT): self.account,
             str(Column.Txn.SETTLE_DATE): self.settle_date,
             str(Column.Txn.SETTLE_CALCULATED): int(self.settle_calculated),
-            str(Column.Txn.FEE): stored_number(self.fee),
             str(Column.Txn.DESCRIPTION): self.description,
         }
         row.update(self.extras)
@@ -177,7 +185,9 @@ class Txn(TxnFields):
         txn_id: Primary key, given by SQLite when the transaction was stored.
     """
 
-    txn_id: int
+    txn_id: int = field(
+        metadata=stored(Column.Txn.TXN_ID, Kind.INTEGER, key=True, autoincrement=True),
+    )
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:

@@ -20,11 +20,11 @@ from functools import cache
 from typing import TYPE_CHECKING, Any, Literal
 
 from app import get_config
+from db.catalog import get_tables
 from db.queries import (
     delete_rows,
     get_connection,
     get_rows,
-    get_tables,
     insert_or_replace_many,
     replace_rows,
 )
@@ -33,6 +33,7 @@ from domain import TORONTO_TZ, Column, Currency, PriceRange, QuoteStatus, Table
 from domain.numeric import dec
 from models import Fundamentals, Quote, QuoteSplit
 from models.cells import read_moment
+from models.columns import Kind, column_of
 from services.price_history import (
     PricePoint,
     RangeHistory,
@@ -1132,7 +1133,8 @@ def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
     read: dict[str, Any] = {}
     for item in fields(Fundamentals):
         raw = values.get(item.name)
-        read[item.name] = _number(raw) if item.metadata["numeric"] else _text(raw)
+        numeric = column_of(item).kind is Kind.NUMBER
+        read[item.name] = _number(raw) if numeric else _text(raw)
     return Fundamentals(**read)
 
 

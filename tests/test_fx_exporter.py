@@ -38,6 +38,8 @@ def _seed_usd_buy(days_ago: int) -> str:
             Column.Txn.PRICE: [100.0],
             Column.Txn.UNITS: [10.0],
             Column.Txn.ACCOUNT: ["TEST"],
+            Column.Txn.SETTLE_DATE: [txn_date],
+            Column.Txn.SETTLE_CALCULATED: [1],
         },
     )
     with get_connection() as conn:

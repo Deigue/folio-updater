@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Self
 
 from domain import Column
 from models.cells import required_number, required_text, stored_number
+from models.columns import Kind, stored
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -23,9 +24,13 @@ class FxRate:
         cad_usd: USD per CAD.
     """
 
-    date: str
-    usd_cad: Decimal
-    cad_usd: Decimal
+    date: str = field(metadata=stored(Column.FX.DATE, Kind.DATE, key=True))
+    usd_cad: Decimal = field(
+        metadata=stored(Column.FX.FXUSDCAD, Kind.NUMBER, required=True),
+    )
+    cad_usd: Decimal = field(
+        metadata=stored(Column.FX.FXCADUSD, Kind.NUMBER, required=True),
+    )
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:

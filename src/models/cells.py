@@ -1,13 +1,4 @@
-"""Reading and writing the cells of a stored row.
-
-A row arrives as a mapping of column name to cell. Until every read goes
-through the repositories it may come from a pandas frame, where a NULL reads as
-NaN, so each reader treats NaN as a missing cell too.
-
-A stored cell is read exactly as it was written. Text from a provider or a
-source file, which may carry padding or a "nan", is cleaned where it arrives,
-not here.
-"""
+"""Reading and writing stored cells exactly as written; a frame's NaN reads as NULL."""
 
 from __future__ import annotations
 
@@ -37,11 +28,7 @@ def read_number(value: object) -> Decimal | None:
 
 
 def read_moment(value: object) -> datetime | None:
-    """Read an ISO-8601 timestamp cell, taking one without a zone as UTC.
-
-    A cell that is not a timestamp reads as None: every timestamp column says
-    when something was fetched, and an unknown time only makes it due again.
-    """
+    """Read an ISO-8601 timestamp cell as UTC when zoneless, None when unreadable."""
     read = read_text(value)
     if read is None:
         return None

@@ -28,11 +28,11 @@ from cli.query_parser import (
     parse_query_terms,
 )
 from config.optional_fields import FieldType
+from db.catalog import get_columns
 from db.queries import (
     build_comparison_clause,
     build_sort_clause,
     get_alias_edges,
-    get_columns,
     get_connection,
     get_distinct_set,
     get_rows,

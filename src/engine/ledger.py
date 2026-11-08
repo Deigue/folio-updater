@@ -39,7 +39,6 @@ from db.queries import (
     get_max_value,
     get_revisions,
 )
-from db.schema import ensure_change_tokens
 from domain import TORONTO_TZ, Column, Table
 from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import FxRateUnavailableError, load_fx_rates
@@ -193,9 +192,6 @@ def open_ledger(
     """
     if not offline:
         _top_up_fx(priced=priced)
-    # Opening the ledger is what upgrades a folio from before change tokens: its
-    # tables get them here, so the first command after the upgrade replays.
-    ensure_change_tokens()
 
     parquet = get_config().acb_parquet
     if not refresh and (saved := _read(parquet)) is not None:
