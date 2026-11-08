@@ -29,8 +29,8 @@ from cli.commands.import_data import (
     import_directory,
 )
 from cli.commands.settle_info import archive_statement, import_single_statement
-from db import get_connection, get_max_value, get_rows
-from domain import TORONTO_TZ, Column, SettlementOutcome, Table
+from db import txns
+from domain import TORONTO_TZ, SettlementOutcome
 from engine.checks import CheckReport, run_checks
 from engine.pools import FolioValuation
 from engine.update_review import (
@@ -66,8 +66,6 @@ if TYPE_CHECKING:
     from datetime import date
     from pathlib import Path
 
-    import pandas as pd
-
     from config import Config
     from models import FileImport
 
@@ -92,7 +90,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> None:
     config = bootstrap.reload_config()
     today = datetime.now(TORONTO_TZ).date()
     report = UpdateReport()
-    first_new_id = _max_txn_id()
+    first_new_id = txns.latest_id()
     overlap_days = {IBKR: latest_txn_date(IBKR), WS: latest_txn_date(WS)}
 
     if offline:
@@ -108,7 +106,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> None:
     if not report.failed:
         _statement_stage(config, report, today, offline=offline)
 
-    report.new_txns = _txns_since(first_new_id)
+    report.new_txns = txns.since(first_new_id)
 
     if not report.failed:
         _review_transfers(report)
@@ -297,10 +295,9 @@ def _review_late_cancellations(
         and any(event.cancelled is None for event in outcome.results.cancel_events)
     ]
     if late:  # pragma: no cover
-        with get_connection() as conn:
-            txns = get_rows(conn, Table.TXNS)
+        stored = txns.read()
         for filename, events in late:
-            report.concerns.extend(review_late_cancellations(filename, events, txns))
+            report.concerns.extend(review_late_cancellations(filename, events, stored))
 
 
 def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
@@ -348,21 +345,6 @@ def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
 # -- STATEMENTS -----------------------------------------------------------------
 
 
-def _calculated_ws() -> pd.DataFrame:
-    """Return the Wealthsimple transactions whose settlement date is calculated."""
-    with get_connection() as conn:
-        return get_rows(
-            conn,
-            Table.TXNS,
-            where=(
-                f'"{Column.Txn.SETTLE_CALCULATED}" = ? '
-                f'AND UPPER("{Column.Txn.ACCOUNT}") LIKE ?'
-            ),
-            params=[1, f"%{WS.upper()}%"],
-            order_by=f'"{Column.Txn.SETTLE_DATE}", "{Column.Txn.TXN_ID}"',
-        )
-
-
 def _statement_stage(
     config: Config,
     report: UpdateReport,
@@ -383,8 +365,8 @@ def _statement_stage(
         offline: Import only the statements already waiting, fetching none.
     """
     console_rule("Statements", style=RULE_UPDATE)
-    calculated = _calculated_ws()
-    months = statement_months(calculated[Column.Txn.SETTLE_DATE], today)
+    calculated = txns.calculated_settlements(WS)
+    months = statement_months([txn.settle_date for txn in calculated], today)
     if not months:  # pragma: no cover
         console_info("No calculated settlement date waits on a published statement.")
 
@@ -424,16 +406,16 @@ def _statement_stage(
             progress.add_task("Exporting to Parquet...", total=None)
             ParquetExporter().export_all()
 
-    remaining = _calculated_ws()
+    remaining = txns.calculated_settlements(WS)
     on_hand = {
         month
-        for month in statement_months(remaining[Column.Txn.SETTLE_DATE], today)
+        for month in statement_months([txn.settle_date for txn in remaining], today)
         if month in imported or statements_for_month(config.statements_path, month)
     }
     stuck, pending = split_remaining(remaining, on_hand, today)
     if (concern := review_stuck(stuck)) is not None:
         report.concerns.append(concern)
-    if not pending.empty:
+    if pending:
         report.pending.append(
             f"{len(pending)} settlement date(s) wait on statements not out yet",
         )
@@ -476,11 +458,12 @@ def _fetch_statement(month: str, report: UpdateReport) -> list[Path]:
 
 def _review_transfers(report: UpdateReport) -> None:
     """Raise new withdrawals and contributions that look like transfers."""
-    if report.new_txns.empty:
+    if not report.new_txns:
         return
-    with get_connection() as conn:
-        txns = get_rows(conn, Table.TXNS)
-    concern = review_transfer_pairs(txns, report.new_txns[Column.Txn.TXN_ID])
+    concern = review_transfer_pairs(
+        txns.read(),
+        [txn.txn_id for txn in report.new_txns],
+    )
     if concern is not None:  # pragma: no cover
         report.concerns.append(concern)
 
@@ -515,26 +498,4 @@ def _dashboard_stage(*, offline: bool) -> None:
         show_types(
             FolioValuation.build(ledger, currency="native", offline=offline),
             offline=offline,
-        )
-
-
-# -- FOLIO STATE ----------------------------------------------------------------
-
-
-def _max_txn_id() -> int:
-    """Return the highest TxnId stored, or 0 for an empty folio."""
-    with get_connection() as conn:
-        latest = get_max_value(conn, Table.TXNS, Column.Txn.TXN_ID)
-    return int(latest) if latest else 0
-
-
-def _txns_since(txn_id: int) -> pd.DataFrame:
-    """Return the transactions stored after a TxnId, oldest first."""
-    with get_connection() as conn:
-        return get_rows(
-            conn,
-            Table.TXNS,
-            where=f'"{Column.Txn.TXN_ID}" > ?',
-            params=[txn_id],
-            order_by=f'"{Column.Txn.TXN_ID}"',
         )

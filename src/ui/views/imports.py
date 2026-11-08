@@ -30,7 +30,7 @@ from term.keys import getch
 from ui.format import safe_str
 from ui.layout.paging import available_height
 from ui.layout.tiles import Tile, TilingLayout
-from ui.transaction_table import build_transactions_table, page_transactions
+from ui.transaction_table import build_source_rows_table, page_source_rows
 from ui.vocabulary import (
     RULE_STATEMENT,
     SETTLEMENT_HEADER,
@@ -621,7 +621,7 @@ def _imported_table(
     title: str,
 ) -> Table:
     """Build a table for the transactions an import stored."""
-    return build_transactions_table(df, title, len(df), TransactionContext.IMPORT)
+    return build_source_rows_table(df, title, len(df), TransactionContext.IMPORT)
 
 
 def _invalid_table(
@@ -771,7 +771,7 @@ def _show_in_full(table: Table) -> None:
 
 def _page_rows(rows: pd.DataFrame, title: str) -> None:
     """Page through every row of a section."""
-    page_transactions(
+    page_source_rows(
         rows,
         title=title,
         page_size=available_height(table=True, pages=True),

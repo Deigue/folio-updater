@@ -6,15 +6,14 @@ Handles exporting database to Parquet files.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+
+import pandas as pd
 
 from app import get_config
-from db import get_connection, get_distinct_values, get_rows
-from domain import INTERNAL_COLUMNS, Column, Table
+from db import fx_rates, txns
+from domain import INTERNAL_COLUMNS, Column
+from models import txns_frame
 from services import FxService
-
-if TYPE_CHECKING:
-    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +34,11 @@ class ParquetExporter:
         Returns:
             int: Number of transactions exported.
         """
-        with get_connection() as conn:
-            txn_df = get_rows(conn, Table.TXNS)
-
-        if txn_df.empty:  # pragma: no cover
+        stored = sorted(txns.read(), key=lambda txn: txn.txn_id)
+        if not stored:  # pragma: no cover
             return 0
 
-        txn_df = self._remove_internal_columns(txn_df)
+        txn_df = self._remove_internal_columns(txns_frame(stored))
         txn_count = len(txn_df)
         logger.debug("Found %d transactions to export...", txn_count)
         txn_df.to_parquet(self.txn_parquet, engine="pyarrow", index=False)
@@ -62,13 +59,19 @@ class ParquetExporter:
             int: Number of FX rate records exported.
         """
         FxService.ensure_coverage(start_date)
-        fx_df = FxService.get_fx_rates_from_db()
-        if fx_df.empty:  # pragma: no cover
+        rates = fx_rates.read()
+        if not rates:  # pragma: no cover
             logger.debug("No FX rates available for export")
             return 0
 
-        fx_count = len(fx_df)
-        fx_df.to_parquet(self.fx_parquet, engine="pyarrow", index=False)
+        fx_count = len(rates)
+        pd.DataFrame(
+            {
+                str(Column.FX.DATE): [rate.date for rate in rates],
+                str(Column.FX.FXUSDCAD): [float(rate.usd_cad) for rate in rates],
+                str(Column.FX.FXCADUSD): [float(rate.cad_usd) for rate in rates],
+            },
+        ).to_parquet(self.fx_parquet, engine="pyarrow", index=False)
         logger.debug("Exported %d FX rates to Parquet", fx_count)
         return fx_count
 
@@ -78,23 +81,16 @@ class ParquetExporter:
         Returns:
             int: Number of tickers exported.
         """
-        with get_connection() as conn:
-            filter_condition = (
-                f'"{Column.Txn.TICKER}" IS NOT NULL AND "{Column.Txn.TICKER}" != \'\''
-            )
-            tickers_df = get_distinct_values(
-                conn,
-                Table.TXNS,
-                Column.Txn.TICKER,
-                filter_condition=filter_condition,
-                order_by=f'"{Column.Txn.TICKER}"',
-            )
-
-        if tickers_df.empty:  # pragma: no cover
+        tickers = txns.traded_tickers()
+        if not tickers:  # pragma: no cover
             return 0
 
-        ticker_count = len(tickers_df)
-        tickers_df.to_parquet(self.tickers_parquet, engine="pyarrow", index=False)
+        ticker_count = len(tickers)
+        pd.DataFrame({str(Column.Txn.TICKER): tickers}).to_parquet(
+            self.tickers_parquet,
+            engine="pyarrow",
+            index=False,
+        )
         logger.debug("Exported %d tickers to Parquet", ticker_count)
         return ticker_count
 

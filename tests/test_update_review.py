@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import ClassVar
 
 import pandas as pd
 
@@ -30,9 +31,11 @@ from models import (
     ImportResults,
     MergeEvent,
     SettlementMatch,
+    Txn,
     UpdateStage,
 )
 
+from .helpers.replay import make_row
 from .helpers.seed import ACCOUNT, TICKER, TSX_TICKER, VENTURE_TICKER
 
 OTHER_ACCOUNT = "OTHERACCT"
@@ -89,10 +92,9 @@ def _txn(
     ticker: str = TICKER,
     account: str = ACCOUNT,
     currency: str = "USD",
-    txn_id: int | None = None,
 ) -> dict[str, object]:
     """Build one transaction row."""
-    row: dict[str, object] = {
+    return {
         Column.Txn.TXN_DATE: txn_date,
         Column.Txn.ACTION: action.value,
         Column.Txn.AMOUNT: amount,
@@ -102,9 +104,6 @@ def _txn(
         Column.Txn.TICKER: ticker,
         Column.Txn.ACCOUNT: account,
     }
-    if txn_id is not None:
-        row[Column.Txn.TXN_ID] = txn_id
-    return row
 
 
 def _results(
@@ -327,6 +326,31 @@ class TestMerges:
         assert concerns[0].commands == (f"folio query {TICKER} 2026-09-10",)
 
 
+def _stored(
+    txn_id: int,
+    day: str,
+    action: Action,
+    amount: str,
+    account: str,
+    currency: str = CAD,
+) -> Txn:
+    """Build a stored transaction carrying no security."""
+    return make_row(
+        txn_id,
+        day,
+        action,
+        amount=amount,
+        account=account,
+        currency=currency,
+        ticker=None,
+    )
+
+
+def _settling(txn_id: int, settle_date: str) -> Txn:
+    """Build a transaction settling on a date."""
+    return make_row(txn_id, settle_date, Action.BUY, settle_date=settle_date)
+
+
 class TestTransferPairs:
     """Withdrawal/contribution pairs that look like transfers."""
 
@@ -334,22 +358,13 @@ class TestTransferPairs:
         self,
         in_account: str = OTHER_ACCOUNT,
         in_date: str = "2026-09-03",
-    ) -> pd.DataFrame:
-        return pd.DataFrame(
-            [
-                _txn("2026-09-01", Action.WITHDRAWAL, -2600.0, "", ACCOUNT, CAD, 1),
-                _txn(in_date, Action.CONTRIBUTION, 2600.0, "", in_account, CAD, 2),
-                _txn(
-                    "2026-09-01",
-                    Action.CONTRIBUTION,
-                    999.0,
-                    "",
-                    OTHER_ACCOUNT,
-                    CAD,
-                    3,
-                ),
-            ],
-        )
+        in_currency: str = CAD,
+    ) -> list[Txn]:
+        return [
+            _stored(1, "2026-09-01", Action.WITHDRAWAL, "-2600", ACCOUNT),
+            _stored(2, in_date, Action.CONTRIBUTION, "2600", in_account, in_currency),
+            _stored(3, "2026-09-01", Action.CONTRIBUTION, "999", OTHER_ACCOUNT),
+        ]
 
     def test_pair_across_accounts(self) -> None:
         """Same amount, different account, within the window, one leg new."""
@@ -366,14 +381,16 @@ class TestTransferPairs:
 
     def test_other_currency_is_not_a_pair(self) -> None:
         """Legs in different currencies never pair."""
-        txns = self._txns()
-        txns.loc[txns[Column.Txn.TXN_ID] != 1, Column.Txn.CURRENCY] = "USD"
-        assert transfer_like_pairs(txns, [1]).empty
+        assert transfer_like_pairs(self._txns(in_currency="USD"), [1]).empty
 
     def test_old_pairs_are_left_alone(self) -> None:
         """Pairs with no leg from this run are not raised again."""
         assert transfer_like_pairs(self._txns(), new_ids=[3]).empty
         assert transfer_like_pairs(self._txns(), new_ids=[]).empty
+
+    def test_a_date_the_calendar_lacks_is_not_a_pair(self) -> None:
+        """A stored date like the 30th of February is skipped, not fatal."""
+        assert transfer_like_pairs(self._txns(in_date="2026-02-30"), [2]).empty
 
     def test_concern_relabels_both_legs(self) -> None:
         """The concern names an edit for each leg."""
@@ -396,29 +413,25 @@ class TestStatements:
 
     def test_split_remaining(self) -> None:
         """Dates in a month already on hand are stuck; the rest are pending."""
-        calculated = pd.DataFrame(
-            {
-                Column.Txn.TXN_ID: [1, 2, 3],
-                Column.Txn.SETTLE_DATE: ["2026-08-04", "2026-09-04", "2026-10-02"],
-            },
-        )
+        calculated = [
+            _settling(1, "2026-08-04"),
+            _settling(2, "2026-09-04"),
+            _settling(3, "2026-10-02"),
+        ]
         stuck, pending = split_remaining(calculated, {"2026-08", "2026-10"}, TODAY)
-        assert stuck[Column.Txn.TXN_ID].tolist() == [1]
-        assert pending[Column.Txn.TXN_ID].tolist() == [2, 3]
+        assert [txn.txn_id for txn in stuck] == [1]
+        assert [txn.txn_id for txn in pending] == [2, 3]
 
     def test_split_nothing(self) -> None:
         """No calculated dates leaves nothing stuck or pending."""
-        stuck, pending = split_remaining(pd.DataFrame(), set(), TODAY)
-        assert stuck.empty
-        assert pending.empty
+        assert split_remaining([], set(), TODAY) == ([], [])
 
     def test_stuck_concern(self) -> None:
         """Each stuck date gets an edit naming its TxnId."""
-        stuck = pd.DataFrame({Column.Txn.TXN_ID: [7]})
-        concern = review_stuck(stuck)
+        concern = review_stuck([_settling(7, "2026-08-04")])
         assert concern is not None
         assert concern.commands == ("folio edit 7 --set SettleDate=<date>",)
-        assert review_stuck(pd.DataFrame()) is None
+        assert review_stuck([]) is None
 
     def test_unplaced_rows_and_rejected_transfers(self) -> None:
         """Unmatched and ambiguous rows are raised; matched ones are not."""
@@ -487,21 +500,11 @@ class TestChecksAndPrices:
 class TestLateCancellations:
     """Cancellations whose voided row was imported by an earlier run."""
 
-    STORED = pd.DataFrame(
-        [
-            _txn("2026-08-01", Action.CONTRIBUTION, 8000.0, "", ACCOUNT, CAD, 5),
-            _txn("2026-09-07", Action.CONTRIBUTION, 8000.0, "", ACCOUNT, CAD, 9),
-            _txn(
-                "2026-09-07",
-                Action.CONTRIBUTION,
-                8000.0,
-                "",
-                OTHER_ACCOUNT,
-                CAD,
-                10,
-            ),
-        ],
-    )
+    STORED: ClassVar[list[Txn]] = [
+        _stored(5, "2026-08-01", Action.CONTRIBUTION, "8000", ACCOUNT),
+        _stored(9, "2026-09-07", Action.CONTRIBUTION, "8000", ACCOUNT),
+        _stored(10, "2026-09-07", Action.CONTRIBUTION, "8000", OTHER_ACCOUNT),
+    ]
 
     def test_offers_the_stored_row(self) -> None:
         """Only a recent stored row of the same account and currency is offered."""
@@ -512,6 +515,25 @@ class TestLateCancellations:
         )
         assert [c.commands for c in concerns] == [("folio delete 9",)]
 
+    def test_a_stored_date_the_calendar_lacks_is_never_offered(self) -> None:
+        """A stored date like the 30th of February is skipped, not fatal."""
+        impossible = _stored(11, "2026-02-30", Action.CONTRIBUTION, "8000", ACCOUNT)
+        concerns = review_late_cancellations(
+            "cash.csv",
+            [CancelEvent(cancellation=CANCEL_ROW)],
+            [*self.STORED, impossible],
+        )
+        assert [c.commands for c in concerns] == [("folio delete 9",)]
+
+    def test_a_cancellation_with_no_readable_amount_offers_nothing(self) -> None:
+        """Without an amount to match, no stored row can be named."""
+        concerns = review_late_cancellations(
+            "cash.csv",
+            [CancelEvent(cancellation={**CANCEL_ROW, Column.Txn.AMOUNT: "n/a"})],
+            self.STORED,
+        )
+        assert [c.commands for c in concerns] == [()]
+
     def test_nothing_stored_to_void(self) -> None:
         """With nothing to offer, the concern says to check the broker."""
         concerns = review_late_cancellations(
@@ -520,7 +542,7 @@ class TestLateCancellations:
                 CancelEvent(cancellation=CANCEL_ROW),
                 CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW),
             ],
-            self.STORED.iloc[0:0],
+            [],
         )
         assert len(concerns) == 1
         assert concerns[0].commands == ()

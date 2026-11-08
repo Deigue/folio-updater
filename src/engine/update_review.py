@@ -10,16 +10,16 @@ the commands required to fix them.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from domain import TXN_ESSENTIALS, Action, CheckStatus, Column, SettlementOutcome
-from models import Concern, UpdateStage
+from models import Concern, Txn, UpdateStage, txns_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
-    from datetime import date
+    from collections.abc import Iterable, Mapping, Sequence
 
     from engine.checks import CheckResult
     from models import CancelEvent, ImportResults, MergeEvent, SettlementMatch
@@ -403,7 +403,7 @@ def _review_tally(filename: str, results: ImportResults) -> ImportReview:
 def review_late_cancellations(
     filename: str,
     events: Iterable[CancelEvent],
-    txns: pd.DataFrame,
+    txns: Sequence[Txn],
 ) -> list[Concern]:
     """Raise cancellations whose voided row was not in the same file.
 
@@ -425,7 +425,7 @@ def review_late_cancellations(
             continue
         row = event.cancellation
         candidates = _cancelled_candidates(row, txns)
-        found = not candidates.empty
+        found = bool(candidates)
         concerns.append(
             Concern(
                 stage=UpdateStage.IMPORT,
@@ -438,45 +438,53 @@ def review_late_cancellations(
                     else "The broker cancelled a row that is neither in this file "
                     "nor in the folio. Check the broker's activity for it."
                 ),
-                rows=candidates,
-                commands=tuple(
-                    f"folio delete {int(txn_id)}"
-                    for txn_id in candidates.get(Column.Txn.TXN_ID, [])
-                ),
+                rows=txns_frame(candidates),
+                commands=tuple(f"folio delete {txn.txn_id}" for txn in candidates),
             ),
         )
     return concerns
 
 
-def _cancelled_candidates(row: dict[str, object], txns: pd.DataFrame) -> pd.DataFrame:
-    """Find stored rows a cancellation could void.
+def _day(text: str) -> date | None:
+    """Read a stored date, or None for one the calendar lacks."""
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _cancelled_candidates(row: dict[str, object], txns: Sequence[Txn]) -> list[Txn]:
+    """Find stored transactions a cancellation could void.
 
     Args:
         row: The cancelling row.
         txns: Every stored transaction.
 
     Returns:
-        Matching stored rows, earliest first.
+        The matching transactions, earliest first.
     """
     amount = pd.to_numeric(pd.Series([row.get(Column.Txn.AMOUNT)]), errors="coerce")
     when = pd.to_datetime(str(row.get(Column.Txn.TXN_DATE)), errors="coerce")
-    if txns.empty or amount.isna().iloc[0] or pd.isna(when):
-        return txns.iloc[0:0]
-    stored = pd.to_numeric(txns[Column.Txn.AMOUNT], errors="coerce")
-    days = pd.to_datetime(txns[Column.Txn.TXN_DATE], errors="coerce")
-    match = (
-        ((stored + amount.iloc[0]).abs() < _AMOUNT_TOLERANCE)
-        & (days <= when)
-        & (days >= when - pd.Timedelta(days=CANCEL_WINDOW_DAYS))
-    )
-    for column in (Column.Txn.ACCOUNT, Column.Txn.CURRENCY):
-        if _present(row.get(column)):
-            match &= txns[column].astype(str) == str(row.get(column))
-    return txns[match].sort_values(Column.Txn.TXN_DATE, kind="stable")
+    if amount.isna().iloc[0] or pd.isna(when):
+        return []
+    last = when.date()
+    first = last - timedelta(days=CANCEL_WINDOW_DAYS)
+    account, currency = row.get(Column.Txn.ACCOUNT), row.get(Column.Txn.CURRENCY)
+    found = [
+        txn
+        for txn in txns
+        if txn.amount is not None
+        and abs(float(txn.amount) + amount.iloc[0]) < _AMOUNT_TOLERANCE
+        and (day := _day(txn.txn_date)) is not None
+        and first <= day <= last
+        and (not _present(account) or txn.account == str(account))
+        and (not _present(currency) or str(txn.currency) == str(currency))
+    ]
+    return sorted(found, key=lambda txn: txn.txn_date)
 
 
 def transfer_like_pairs(
-    txns: pd.DataFrame,
+    txns: Sequence[Txn],
     new_ids: Iterable[int],
     days: int = LOOKALIKE_TRANSFER_DAYS,
 ) -> pd.DataFrame:
@@ -490,53 +498,54 @@ def transfer_like_pairs(
     Returns:
         One row per pair: both TxnIds, dates, accounts, currency and amount.
     """
-    columns = [
-        Column.Txn.TXN_ID,
-        Column.Txn.TXN_DATE,
-        Column.Txn.ACCOUNT,
-        Column.Txn.CURRENCY,
-        Column.Txn.AMOUNT,
-    ]
     out_cols = ["Out", "In", "Date Out", "Date In", "From", "To", "$", "Amount"]
     new = set(new_ids)
-    if txns.empty or not new:
-        return pd.DataFrame(columns=out_cols)
+    by_id = sorted(txns, key=lambda txn: txn.txn_id)
+    pairs = [
+        _pair_row(out, into)
+        for out in by_id
+        if out.action is Action.WITHDRAWAL and out.amount is not None
+        for into in by_id
+        if into.action is Action.CONTRIBUTION
+        and into.amount is not None
+        and _is_transfer_like(out, into, days)
+        and {out.txn_id, into.txn_id} & new
+    ]
+    return pd.DataFrame(pairs, columns=out_cols)
 
-    action = txns[Column.Txn.ACTION]
-    outs = txns.loc[action == Action.WITHDRAWAL, columns].copy()
-    ins = txns.loc[action == Action.CONTRIBUTION, columns].copy()
-    for frame in (outs, ins):
-        frame["_abs"] = pd.to_numeric(frame[Column.Txn.AMOUNT], errors="coerce").abs()
-        frame["_day"] = pd.to_datetime(frame[Column.Txn.TXN_DATE], errors="coerce")
 
-    pairs = outs.merge(ins, on=Column.Txn.CURRENCY, suffixes=("_out", "_in"))
-    if pairs.empty:
-        return pd.DataFrame(columns=out_cols)
-    keep = (
-        ((pairs["_abs_out"] - pairs["_abs_in"]).abs() < _AMOUNT_TOLERANCE)
-        & (pairs[f"{Column.Txn.ACCOUNT}_out"] != pairs[f"{Column.Txn.ACCOUNT}_in"])
-        & ((pairs["_day_out"] - pairs["_day_in"]).abs().dt.days <= days)
-        & (
-            pairs[f"{Column.Txn.TXN_ID}_out"].isin(new)
-            | pairs[f"{Column.Txn.TXN_ID}_in"].isin(new)
-        )
+def _is_transfer_like(out: Txn, into: Txn, days: int) -> bool:
+    """Whether a withdrawal and a contribution could be one transfer."""
+    day_out, day_in = _day(out.txn_date), _day(into.txn_date)
+    return (
+        out.currency is into.currency
+        and out.account != into.account
+        and abs(abs(float(out.amount or 0)) - abs(float(into.amount or 0)))
+        < _AMOUNT_TOLERANCE
+        and day_out is not None
+        and day_in is not None
+        and abs((day_out - day_in).days) <= days
     )
-    pairs = pairs[keep]
-    return pd.DataFrame(
-        {
-            "Out": pairs[f"{Column.Txn.TXN_ID}_out"].astype(int),
-            "In": pairs[f"{Column.Txn.TXN_ID}_in"].astype(int),
-            "Date Out": pairs[f"{Column.Txn.TXN_DATE}_out"],
-            "Date In": pairs[f"{Column.Txn.TXN_DATE}_in"],
-            "From": pairs[f"{Column.Txn.ACCOUNT}_out"],
-            "To": pairs[f"{Column.Txn.ACCOUNT}_in"],
-            "$": pairs[Column.Txn.CURRENCY],
-            "Amount": pairs["_abs_out"],
-        },
-    ).reset_index(drop=True)
 
 
-def review_transfer_pairs(txns: pd.DataFrame, new_ids: Iterable[int]) -> Concern | None:
+def _pair_row(out: Txn, into: Txn) -> list[object]:
+    """Describe a withdrawal and contribution pair on one row."""
+    return [
+        out.txn_id,
+        into.txn_id,
+        out.txn_date,
+        into.txn_date,
+        out.account,
+        into.account,
+        str(out.currency),
+        abs(float(out.amount or 0)),
+    ]
+
+
+def review_transfer_pairs(
+    txns: Sequence[Txn],
+    new_ids: Iterable[int],
+) -> Concern | None:
     """Raise the withdrawal/contribution pairs that look like transfers.
 
     Args:
@@ -591,10 +600,10 @@ def statement_months(settle_dates: Iterable[object], today: date) -> list[str]:
 
 
 def split_remaining(
-    calculated: pd.DataFrame,
+    calculated: Sequence[Txn],
     months_on_hand: Iterable[str],
     today: date,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[list[Txn], list[Txn]]:
     """Split the calculated dates left after an update into stuck and pending.
 
     A date is stuck when its month's statement is already on hand and still
@@ -607,15 +616,16 @@ def split_remaining(
         today: The date the run happens on.
 
     Returns:
-        The stuck rows, then the pending rows.
+        The stuck transactions, then the pending ones.
     """
-    if calculated.empty:
-        return calculated, calculated
     current = today.strftime(_MONTH)
     on_hand = set(months_on_hand)
-    months = calculated[Column.Txn.SETTLE_DATE].map(_month).fillna("")
-    stuck = months.isin(on_hand) & (months < current)
-    return calculated[stuck], calculated[~stuck]
+    stuck: list[Txn] = []
+    pending: list[Txn] = []
+    for txn in calculated:
+        month = _month(txn.settle_date) or ""
+        (stuck if month in on_hand and month < current else pending).append(txn)
+    return stuck, pending
 
 
 def review_statement(
@@ -691,7 +701,7 @@ def review_statement(
     return concerns
 
 
-def review_stuck(stuck: pd.DataFrame) -> Concern | None:
+def review_stuck(stuck: Sequence[Txn]) -> Concern | None:
     """Raise the calculated dates their own month's statement could not confirm.
 
     Args:
@@ -700,7 +710,7 @@ def review_stuck(stuck: pd.DataFrame) -> Concern | None:
     Returns:
         The concern, or None when nothing is stuck.
     """
-    if stuck.empty:
+    if not stuck:
         return None
     return Concern(
         stage=UpdateStage.STATEMENTS,
@@ -709,10 +719,9 @@ def review_stuck(stuck: pd.DataFrame) -> Concern | None:
             "Their month's statement is already imported but has no row for "
             "them. Check the broker and set the date by hand."
         ),
-        rows=stuck,
+        rows=txns_frame(stuck),
         commands=tuple(
-            f"folio edit {int(row[Column.Txn.TXN_ID])} --set SettleDate=<date>"
-            for _, row in stuck.iterrows()
+            f"folio edit {txn.txn_id} --set SettleDate=<date>" for txn in stuck
         ),
     )
 

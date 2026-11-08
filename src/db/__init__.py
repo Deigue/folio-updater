@@ -18,16 +18,13 @@ from db import (
 )
 from db.backup import backup_folio, backup_scope, current_backup
 from db.catalog import get_columns, get_tables, get_triggers
-from db.helpers import txn_count
 from db.queries import (
     add_column_to_table,
     append_rows,
     delete_rows,
     drop_table,
-    get_broker_latest_txn_date,
     get_connection,
     get_distinct_set,
-    get_distinct_values,
     get_last_insert_rowid,
     get_max_value,
     get_min_value,
@@ -59,11 +56,9 @@ __all__ = [
     "delete_rows",
     "drop_table",
     "fx_rates",
-    "get_broker_latest_txn_date",
     "get_columns",
     "get_connection",
     "get_distinct_set",
-    "get_distinct_values",
     "get_last_insert_rowid",
     "get_max_value",
     "get_min_value",
@@ -79,7 +74,6 @@ __all__ = [
     "revisions",
     "schema",
     "trial_insert_rows",
-    "txn_count",
     "txns",
     "update_rows",
 ]

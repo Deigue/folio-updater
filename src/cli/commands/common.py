@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from cli.selection import Selection, SelectionError, select_transactions
-from db import txn_count
+from db import txns
 from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.pools import FOLIO, Pool
@@ -217,7 +217,7 @@ def resolve_selection(terms: Sequence[str], *, verb: str) -> Selection:
         )
         raise typer.Exit(1)
 
-    if selection.transactions.empty:
+    if not selection.transactions:
         console_error(f"No transactions matched: {selection.describe()}")
         raise typer.Exit(1)
 
@@ -238,7 +238,7 @@ def confirm_selection(count: int, *, verb: str, force: bool) -> bool:
     if force:
         return True
 
-    total = txn_count()
+    total = txns.count()
     if count > BULK_WARNING_ROWS or (total and count / total > BULK_WARNING_SHARE):
         share = count / total * 100 if total else 0
         console_warning(

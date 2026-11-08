@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from models.import_results import SettlementMatch
+    from models.txn import Txn
 
 
 class UpdateStage(StrEnum):
@@ -83,7 +84,7 @@ class UpdateReport:
         failure: Set when a stage stopped the update.
     """
 
-    new_txns: pd.DataFrame = field(default_factory=pd.DataFrame)
+    new_txns: list[Txn] = field(default_factory=list)
     confirmed: list[SettlementMatch] = field(default_factory=list)
     workbook: Path | None = None
     concerns: list[Concern] = field(default_factory=list)

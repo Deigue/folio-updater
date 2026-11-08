@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import pytest
 
 from domain import Action, Column, Currency, CurrencyColumns, Grain, QuoteStatus
@@ -19,6 +19,8 @@ from models import Quote
 from .helpers.replay import FLAT_FX, make_row, run
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from models import Txn
 
 NREG = Pool(Grain.TYPE, "NON_REGISTERED")
@@ -140,11 +142,14 @@ def test_rows_are_the_pool_symbol_dates_and_income_asked_for() -> None:
 
 def test_stored_columns_the_ledger_lacks_are_joined_with_the_dropped_rows() -> None:
     frame = _frame([_buy(1, "2024-01-02")])
-    txns = pd.DataFrame({TXN_ID: [1, 2], "Notes": ["kept", "dropped"]})
+    txns = [
+        replace(make_row(1, "2024-01-02", Action.BUY), extras={"Notes": "kept"}),
+        replace(make_row(2, "2024-01-03", Action.BUY), extras={"Notes": "dropped"}),
+    ]
 
     report = AcbReport.build(frame, FOLIO, AcbShape.LEDGER, income=True, txns=txns)
 
-    assert report.stored_columns == ("Notes",)
+    assert "Notes" in report.stored_columns
     assert report.rows[TXN_ID].tolist() == [1, 2]
     assert report.rows["Notes"].tolist() == ["kept", "dropped"]
 

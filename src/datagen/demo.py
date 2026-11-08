@@ -38,8 +38,9 @@ from db import (
     get_connection,
     get_distinct_set,
     get_row_count,
+    txns,
 )
-from db.helpers import generate_keys, txn_count
+from db.helpers import generate_keys
 from domain import (
     TAXABLE_ACCOUNT_TYPES,
     TORONTO_TZ,
@@ -1256,7 +1257,7 @@ class DemoFolio:
                 " transactions",
                 len(rows),
                 len(RENAMES),
-                txn_count(),
+                txns.count(),
             )
         logger.info("CREATED demo folio: %d transactions", len(rows))
 
@@ -1302,7 +1303,7 @@ class DemoFolio:
         real data, and so does any contribution room the demo wrote to config.
         """
         with audit.entry("CLEAR DEMO folio") as entry:
-            removed = txn_count()
+            removed = txns.count()
             audit.stage(
                 "REMOVE %d transaction(s) and the ticker aliases; %s",
                 removed,

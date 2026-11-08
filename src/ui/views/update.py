@@ -16,7 +16,7 @@ from domain import Column, SettlementOutcome
 from models import UpdateStage
 from term import StatusMark, console_print, console_rule, get_symbol
 from term.console import console_panel
-from ui.transaction_table import show_transactions
+from ui.transaction_table import show_source_rows, show_transactions
 from ui.vocabulary import (
     RULE_UPDATE,
     SETTLEMENT_HEADER,
@@ -65,7 +65,7 @@ def show_update_report(report: UpdateReport) -> None:
 def _show_changes(report: UpdateReport) -> None:
     """Print the transactions added and the settlement dates confirmed."""
     console_rule("What changed", style=THEME_SUCCESS)
-    if report.new_txns.empty:
+    if not report.new_txns:
         console_print(f"{get_symbol(StatusMark.INFO)}No new transactions.")
     else:
         show_transactions(
@@ -136,7 +136,7 @@ def _show_concern_rows(concern: Concern) -> None:
             if concern.stage is UpdateStage.STATEMENTS
             else TransactionContext.IMPORT
         )
-        show_transactions(rows, None, len(rows), context)
+        show_source_rows(rows, None, len(rows), context)
         return
     show_data_table(
         [

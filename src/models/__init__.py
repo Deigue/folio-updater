@@ -16,7 +16,14 @@ from models.import_results import (
 from models.quote import Fundamentals, Quote, QuoteSplit
 from models.quote_history import QuoteHistory
 from models.ticker_alias import TickerAlias
-from models.txn import NewTxn, Txn, TxnFields
+from models.txn import NewTxn, Txn, TxnFields, txns_frame
+from models.txn_selection import (
+    TxnFilter,
+    TxnOperator,
+    TxnSearch,
+    TxnSelection,
+    TxnSort,
+)
 from models.update_report import Concern, HardFailure, UpdateReport, UpdateStage
 
 __all__ = [
@@ -38,6 +45,12 @@ __all__ = [
     "TransformEvent",
     "Txn",
     "TxnFields",
+    "TxnFilter",
+    "TxnOperator",
+    "TxnSearch",
+    "TxnSelection",
+    "TxnSort",
     "UpdateReport",
     "UpdateStage",
+    "txns_frame",
 ]

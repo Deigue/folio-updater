@@ -19,7 +19,7 @@ from db import (
     get_max_value,
     get_rows,
     trial_insert_rows,
-    txn_count,
+    txns,
     update_rows,
 )
 from db.helpers import audit_rows, format_transaction_summary
@@ -65,7 +65,7 @@ def import_transactions(
         audit.stage(
             "READ %d source rows; folio holds %d transactions",
             len(txns_df),
-            txn_count(),
+            txns.count(),
         )
         import_results = insert_transactions(txns_df, account)
         entry.done(
@@ -137,7 +137,7 @@ def insert_transactions(
             )
         _log_stored(stored, backup)
 
-    import_results.final_db_count = txn_count()
+    import_results.final_db_count = txns.count()
     return import_results
 
 

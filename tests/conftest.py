@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
@@ -20,8 +21,9 @@ from app import AppContext, get_config
 from app.logging_setup import AUDIT_LOGGER
 from datagen import DemoFolio
 from datagen.demo import END, START
-from domain import TORONTO_TZ, Column, Currency
+from domain import TORONTO_TZ, Currency
 from engine.settlement import settlement_calculator
+from models import FxRate
 from services import FxService
 from services.quotes_service import PriceFetch, QuotesService
 from term.console import override_console
@@ -167,7 +169,7 @@ def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
 @pytest.fixture(autouse=True)
 def mock_fx_data(
     request: pytest.FixtureRequest,
-    cached_fx_data: Callable[[str | None], pd.DataFrame],
+    cached_fx_data: Callable[[str | None], list[FxRate]],
 ) -> Generator[None, Any]:
     """Keep the test suite off the Bank of Canada API endpoint."""
     if request.node.get_closest_marker("no_mock_fx"):
@@ -311,7 +313,7 @@ def quotes_fetch(
 
 @pytest.fixture
 def boc_fetch(
-    cached_fx_data: Callable[[str | None], pd.DataFrame],
+    cached_fx_data: Callable[[str | None], list[FxRate]],
 ) -> Generator[MagicMock, Any]:
     """Stub the BoC fetch the usual way, but hand back the spy.
 
@@ -394,14 +396,14 @@ def temp_ctx(tmp_path: Path) -> TempContext:
 
 
 @pytest.fixture(scope="session")
-def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
-    """Fixture returning a function to slice a synthetic Bank of Canada FX frame.
+def cached_fx_data() -> Callable[[str | None], list[FxRate]]:
+    """Fixture returning a function to slice synthetic Bank of Canada rates.
 
-    Generated FX dataframe for full offline testing.
+    Generated FX rates for full offline testing.
 
     Returns:
         A callable taking an optional inclusive start date (YYYY-MM-DD) and
-        returning the matching slice of the cached frame.
+        returning the rates from then on.
     """
     end = pd.Timestamp(datetime.now(TORONTO_TZ).date())
     start = min(
@@ -409,22 +411,19 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
         pd.Timestamp(START) - pd.Timedelta(days=14),
     )
     dates = pd.bdate_range(start, end)
-    fx_df = pd.DataFrame(
-        {
-            Column.FX.DATE: dates.strftime("%Y-%m-%d"),
-            # A deterministic ripple through a plausible USD/CAD band.
-            Column.FX.FXUSDCAD: [
-                round(1.35 + 0.005 * (i % 7), 10) for i in range(len(dates))
-            ],
-        },
-    )
-    fx_df[Column.FX.FXCADUSD] = (1.0 / fx_df[Column.FX.FXUSDCAD]).round(10)
+    # A deterministic ripple through a plausible USD/CAD band.
+    usd_cads = [round(1.35 + 0.005 * (i % 7), 10) for i in range(len(dates))]
+    rates = [
+        FxRate(
+            date=day,
+            usd_cad=Decimal(str(usd_cad)),
+            cad_usd=Decimal(str(round(1.0 / usd_cad, 10))),
+        )
+        for day, usd_cad in zip(dates.strftime("%Y-%m-%d"), usd_cads, strict=True)
+    ]
 
-    def get_fx_data(start_date: str | None = None) -> pd.DataFrame:
-        df = fx_df.copy()
-        if start_date is not None:
-            df = df[df[Column.FX.DATE] >= start_date]
-        return df
+    def get_fx_data(start_date: str | None = None) -> list[FxRate]:
+        return [rate for rate in rates if start_date is None or rate.date >= start_date]
 
     return get_fx_data
 
@@ -432,7 +431,7 @@ def cached_fx_data() -> Callable[[str | None], pd.DataFrame]:
 @pytest.fixture(scope="session")
 def cached_demo(
     tmp_path_factory: pytest.TempPathFactory,
-    cached_fx_data: Callable[[str | None], pd.DataFrame],
+    cached_fx_data: Callable[[str | None], list[FxRate]],
     preload_settlement_schedules: None,  # noqa: ARG001 (built over its calendars)
 ) -> Path:
     """Build the real demo folio once per session, for tests to copy.

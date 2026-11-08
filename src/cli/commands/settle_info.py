@@ -14,8 +14,7 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import refuse_unsupported_file
 from datagen import is_demo_folio
-from db import get_connection, get_row_count, get_rows
-from domain import Column, Table
+from db import txns
 from exporters import ParquetExporter
 from importers import import_statements
 from services.broker_files import SUPPORTED_SUFFIXES, archive, waiting_files
@@ -275,47 +274,32 @@ def _display_settlement_statistics(*, import_flag: bool = False) -> None:
         console_rule(style=RULE_STATEMENT)
 
     try:
-        with get_connection() as conn:
-            # Get total number of transactions with calculated settlement dates
-            calculated_count = get_row_count(
-                conn,
-                Table.TXNS,
-                where=f'"{Column.Txn.SETTLE_CALCULATED}" = ?',
-                params=[1],
+        calculated_count = txns.count_calculated()
+        total_count = txns.count()
+
+        stats: dict[str, int | str] = {
+            "Total transactions": total_count,
+            "Calculated settlement dates": calculated_count,
+            "Provided settlement dates": total_count - calculated_count,
+        }
+        show_stats_panel(stats)
+
+        if calculated_count > 0:
+            newest_first = sorted(
+                txns.calculated_settlements(),
+                key=lambda txn: (txn.txn_date, txn.txn_id),
+                reverse=True,
             )
-
-            # Get total number of transactions
-            total_count = get_row_count(conn, Table.TXNS)
-
-            # Show statistics panel
-            stats: dict[str, int | str] = {
-                "Total transactions": total_count,
-                "Calculated settlement dates": calculated_count,
-                "Provided settlement dates": total_count - calculated_count,
-            }
-            show_stats_panel(stats)
-
-            if calculated_count > 0:
-                df = get_rows(
-                    conn,
-                    Table.TXNS,
-                    where=f'"{Column.Txn.SETTLE_CALCULATED}" = ?',
-                    params=[1],
-                    order_by=(
-                        f'"{Column.Txn.TXN_DATE}" DESC, "{Column.Txn.TXN_ID}" DESC'
-                    ),
-                )
-
-                page_transactions(
-                    df,
-                    "Transactions with Calculated Settlement Dates",
-                    30,
-                    TransactionContext.SETTLEMENT,
-                )
-            else:
-                console_warning(
-                    "No transactions found with calculated settlement dates.",
-                )
+            page_transactions(
+                newest_first,
+                "Transactions with Calculated Settlement Dates",
+                30,
+                TransactionContext.SETTLEMENT,
+            )
+        else:
+            console_warning(
+                "No transactions found with calculated settlement dates.",
+            )
 
     except sqlite3.DatabaseError as e:
         console_error(f"Database error querying settlement info: {e}")

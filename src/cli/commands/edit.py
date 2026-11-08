@@ -32,8 +32,9 @@ from db.helpers import format_transaction_summary, generate_keys
 from db.queries import get_connection, get_rows, update_rows
 from domain import Column, Table
 from ingest.validation import TransactionFormatter, parse_date
+from models import txns_frame
 from term import console_error, console_info, console_success, console_warning
-from ui.transaction_table import page_changes, show_transactions
+from ui.transaction_table import page_changes, show_source_rows
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -543,7 +544,7 @@ def _confirm_conflicts(conflicts: pd.DataFrame, *, internal: bool) -> bool:
         console_warning(
             f"This edit matches {len(conflicts)} existing transaction(s) in the folio:",
         )
-        show_transactions(conflicts, max_rows=len(conflicts))
+        show_source_rows(conflicts, max_rows=len(conflicts))
 
     return typer.confirm(
         "Apply anyway and create duplicate transaction(s)?",
@@ -571,7 +572,7 @@ def edit_transactions(
     operations = _parse_set_options(set_values)
     selection = resolve_selection(terms, verb="edit")
 
-    before = selection.transactions.reset_index(drop=True)
+    before = txns_frame(selection.transactions)
     edited = _build_edited(before, operations)
     _apply_settlement_rules(edited, operations)
     after = _validate(edited)

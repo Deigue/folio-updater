@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, Self
 
+import pandas as pd
+
 from domain import ACTION_PROFILES, Action, Column, Currency, Impact
 from models.cells import (
     read_number,
@@ -17,7 +19,7 @@ from models.cells import (
 from models.columns import Kind, stored
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from decimal import Decimal
 
 # The typed Txns columns. Any other column is an extra one an import added, and
@@ -205,3 +207,28 @@ class Txn(TxnFields):
     def to_row(self) -> dict[str, object]:
         """Return the row this transaction is stored as, keyed by column name."""
         return {str(Column.Txn.TXN_ID): self.txn_id, **super().to_row()}
+
+
+def txns_frame(txns: Sequence[Txn]) -> pd.DataFrame:
+    """Lay stored transactions out as a frame, in table columns."""
+    return pd.DataFrame([_frame_row(txn) for txn in txns])
+
+
+def _frame_row(txn: Txn) -> dict[str, object]:
+    """Return a transaction's row with its numbers as numbers."""
+    row = txn.to_row()
+    for column, value in (
+        (Column.Txn.AMOUNT, txn.amount),
+        (Column.Txn.PRICE, txn.price),
+        (Column.Txn.UNITS, txn.units),
+        (Column.Txn.FEE, txn.fee),
+    ):
+        row[str(column)] = _frame_number(value)
+    return row
+
+
+def _frame_number(value: Decimal | None) -> int | float | None:
+    """Give a number the type SQLite holds it as: a whole one is an integer."""
+    if value is None:
+        return None
+    return int(value) if value == value.to_integral_value() else float(value)

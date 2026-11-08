@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import pytest
 
-from domain import Column
 from services import FxService
 
 # * The rest of the suite runs with `get_fx_rates_from_boc` stubbed out; this
@@ -53,34 +52,29 @@ EXPECTED_USDCAD = [1.3750, 1.3785, 1.3702]
 
 
 def test_boc_response_is_parsed_into_fx_rates() -> None:
-    """A Bank of Canada CSV becomes a sorted, inverted, gap-free FX frame."""
+    """A Bank of Canada CSV becomes sorted, inverted, gap-free FX rates."""
     with patch("services.fx_service.requests.get") as mock_get:
         mock_get.return_value.text = BOC_CSV_RESPONSE
-        fx_df = FxService.get_fx_rates_from_boc("2025-08-01")
+        rates = FxService.get_fx_rates_from_boc("2025-08-01")
 
     # The requested start date is threaded into the query string.
     requested_url = mock_get.call_args.args[0]
     assert requested_url.endswith("?start_date=2025-08-01")
     assert mock_get.call_args.kwargs["timeout"] == 30
 
-    assert list(fx_df.columns) == [
-        Column.FX.DATE,
-        Column.FX.FXUSDCAD,
-        Column.FX.FXCADUSD,
-    ]
-    assert list(fx_df[Column.FX.DATE]) == EXPECTED_DATES
-    assert list(fx_df[Column.FX.FXUSDCAD]) == EXPECTED_USDCAD
+    assert [rate.date for rate in rates] == EXPECTED_DATES
+    assert [float(rate.usd_cad) for rate in rates] == EXPECTED_USDCAD
 
     # The CAD->USD leg is the inverse, rounded the same way as the raw rate.
-    assert list(fx_df[Column.FX.FXCADUSD]) == [
+    assert [float(rate.cad_usd) for rate in rates] == [
         round(1.0 / rate, 10) for rate in EXPECTED_USDCAD
     ]
 
 
-def test_missing_observations_section_yields_empty_frame() -> None:
+def test_missing_observations_section_yields_no_rates() -> None:
     """A response without an OBSERVATIONS block is discarded, not guessed at."""
     with patch("services.fx_service.requests.get") as mock_get:
         mock_get.return_value.text = '"TERMS AND CONDITIONS"\n"nothing useful"\n'
-        fx_df = FxService.get_fx_rates_from_boc("2025-08-01")
+        rates = FxService.get_fx_rates_from_boc("2025-08-01")
 
-    assert fx_df.empty
+    assert rates == []

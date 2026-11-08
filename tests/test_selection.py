@@ -88,7 +88,7 @@ class TestSelectionMode:
 
             selection = select_transactions(["ticker:NOSUCHTICKER"])
 
-            assert selection.transactions.empty
+            assert selection.transactions == []
             assert selection.txn_ids == []
 
 
@@ -351,7 +351,7 @@ class TestTextNumericColumns:
 
             selection = select_transactions([_SEEDED, "fee:notanumber"])
 
-            assert selection.transactions.empty
+            assert selection.transactions == []
 
     def test_optional_numeric_column_compares_numerically(
         self,

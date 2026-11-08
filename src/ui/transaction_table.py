@@ -30,10 +30,14 @@ from ui.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Container, Sequence
+    from collections.abc import Container, Mapping, Sequence
 
     import pandas as pd
     from rich.console import JustifyMethod
+
+    from models import TxnFields
+
+    type _Row = Mapping[str, object]
 
 
 @dataclass(frozen=True)
@@ -70,25 +74,46 @@ _DIFF_EXTRA_WIDTH = 6
 # Optional Description Column
 _DESCRIPTION = "Description"
 
-# Columns with special handling: the rest of a frame's columns are non-standard.
+# Columns with special handling: any other column a row carries is non-standard.
 _KNOWN_COLUMNS = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED}
 
 _NOTHING_TO_SHOW = "[yellow]No transactions to display[/yellow]"
 
 
+def _txn_rows(txns: Sequence[TxnFields]) -> list[_Row]:
+    """Read transactions as rows of cells, keyed by column."""
+    return [txn.to_row() for txn in txns]
+
+
+def _source_rows(df: pd.DataFrame) -> list[_Row]:
+    """Read a frame's rows as rows of cells, keyed by column."""
+    return [
+        {str(column): value for column, value in record.items()}
+        for record in df.to_dict("records")
+    ]
+
+
+def _extra_columns(rows: Sequence[_Row]) -> list[str]:
+    """List the non-standard columns the rows carry, in first-seen order."""
+    seen: dict[str, None] = {}
+    for row in rows:
+        seen.update(dict.fromkeys(key for key in row if key not in _KNOWN_COLUMNS))
+    return list(seen)
+
+
 def _ordered_columns(
-    display_df: pd.DataFrame,
+    rows: Sequence[_Row],
     context: TransactionContext,
 ) -> list[str]:
     """List the columns a transaction table shows, in display order.
 
     Args:
-        display_df: DataFrame being displayed
+        rows: The rows being displayed.
         context: Context to determine which columns to show
 
     Returns:
         Standard columns for the context, followed by any non-standard
-        columns present in the DataFrame (GENERAL context only).
+        columns the rows carry (GENERAL context only).
     """
     columns = [
         column
@@ -98,15 +123,15 @@ def _ordered_columns(
     if context != TransactionContext.GENERAL:
         return columns
 
-    columns.extend(str(col) for col in display_df.columns if col not in _KNOWN_COLUMNS)
+    columns.extend(_extra_columns(rows))
     return columns
 
 
-def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> list[str]:
+def _txn_drop_order(rows: Sequence[_Row], context: TransactionContext) -> list[str]:
     """List what columns a transactions table may drop in order.
 
     Args:
-        display_df: DataFrame being displayed.
+        rows: The rows being displayed.
         context: Context deciding which columns show.
 
     Returns:
@@ -114,7 +139,7 @@ def _txn_drop_order(display_df: pd.DataFrame, context: TransactionContext) -> li
     """
     optional = [
         column
-        for column in _ordered_columns(display_df, context)
+        for column in _ordered_columns(rows, context)
         if column not in _TXN_COLUMN_SPECS
     ]
     ordered = [column for column in optional if column != _DESCRIPTION]
@@ -142,24 +167,14 @@ def _amount_cell(value: object) -> str:
     return style(text, colour)
 
 
-def build_transactions_table(
-    df: pd.DataFrame,
-    title: str | None = None,
-    max_rows: int = 50,
-    context: TransactionContext = TransactionContext.GENERAL,
+def _build_table(
+    rows: Sequence[_Row],
+    title: str | None,
+    max_rows: int,
+    context: TransactionContext,
 ) -> Table:
-    """Build transactions as a Rich table with color coding, fitted to the terminal.
-
-    Args:
-        df: DataFrame containing transaction data, not empty
-        title: Optional title for the table
-        max_rows: Maximum number of rows to include
-        context: Transaction context to control column visibility
-
-    Returns:
-        The fitted table.
-    """
-    display_df = df.head(max_rows)
+    """Build rows as a Rich table with color coding, fitted to the terminal."""
+    shown = rows[:max_rows]
 
     table = Table(
         title=title,
@@ -169,21 +184,42 @@ def build_transactions_table(
         show_lines=False,
     )
 
-    _add_table_columns(
-        display_df,
-        table,
-        context,
-    )
-    _add_table_rows(
-        display_df,
-        table,
-        context,
-    )
-    return fit_table(table, _txn_drop_order(display_df, context))
+    _add_table_columns(shown, table, context)
+    _add_table_rows(shown, table, context)
+    return fit_table(table, _txn_drop_order(shown, context))
+
+
+def build_source_rows_table(
+    df: pd.DataFrame,
+    title: str | None = None,
+    max_rows: int = 50,
+    context: TransactionContext = TransactionContext.GENERAL,
+) -> Table:
+    """Build rows held in a frame as a Rich table, fitted to the terminal."""
+    return _build_table(_source_rows(df), title, max_rows, context)
+
+
+def _show(
+    rows: Sequence[_Row],
+    title: str | None,
+    max_rows: int,
+    context: TransactionContext,
+) -> None:
+    """Print rows in a Rich table, saying so when there are none."""
+    if not rows:
+        console_print(_NOTHING_TO_SHOW)
+        return
+
+    console_print(_build_table(rows, title, max_rows, context))
+
+    if len(rows) > max_rows:
+        console_print(
+            f"\n[dim]... showing first {max_rows} of {len(rows)} transactions[/dim]",
+        )
 
 
 def show_transactions(
-    df: pd.DataFrame,
+    txns: Sequence[TxnFields],
     title: str | None = None,
     max_rows: int = 50,
     context: TransactionContext = TransactionContext.GENERAL,
@@ -191,21 +227,22 @@ def show_transactions(
     """Print transactions in a Rich table, saying so when there are none.
 
     Args:
-        df: DataFrame containing transaction data
+        txns: The transactions.
         title: Optional title for the table
         max_rows: Maximum number of rows to display
         context: Transaction context to control column visibility
     """
-    if df.empty:
-        console_print(_NOTHING_TO_SHOW)
-        return
+    _show(_txn_rows(txns), title, max_rows, context)
 
-    console_print(build_transactions_table(df, title, max_rows, context))
 
-    if len(df) > max_rows:
-        console_print(
-            f"\n[dim]... showing first {max_rows} of {len(df)} transactions[/dim]",
-        )
+def show_source_rows(
+    df: pd.DataFrame,
+    title: str | None = None,
+    max_rows: int = 50,
+    context: TransactionContext = TransactionContext.GENERAL,
+) -> None:
+    """Print rows held in a frame in a Rich table, saying so when there are none."""
+    _show(_source_rows(df), title, max_rows, context)
 
 
 def build_changes_table(
@@ -227,7 +264,8 @@ def build_changes_table(
         The fitted table.
     """
     context = TransactionContext.GENERAL
-    columns = _ordered_columns(before, context)
+    before_rows, after_rows = _source_rows(before), _source_rows(after)
+    columns = _ordered_columns(before_rows, context)
     changed = [column for column in changed_columns if column in columns]
 
     table = Table(
@@ -237,11 +275,11 @@ def build_changes_table(
         border_style=THEME_TRANSFORMS,
         show_lines=False,
     )
-    _add_table_columns(before, table, context, widen=set(changed))
+    _add_table_columns(before_rows, table, context, widen=set(changed))
 
-    for position in range(len(before)):
-        old_cells = _row_cells(before.iloc[position], columns)
-        new_cells = _row_cells(after.iloc[position], columns)
+    for old_row, new_row in zip(before_rows, after_rows, strict=True):
+        old_cells = _row_cells(old_row, columns)
+        new_cells = _row_cells(new_row, columns)
         row_data = []
         for column in columns:
             old = old_cells[column]
@@ -253,7 +291,7 @@ def build_changes_table(
             else:
                 row_data.append(old)
         table.add_row(*row_data)
-    return fit_table(table, _txn_drop_order(before, context))
+    return fit_table(table, _txn_drop_order(before_rows, context))
 
 
 def show_changes(
@@ -279,7 +317,7 @@ def show_changes(
 
 
 def _add_table_columns(
-    display_df: pd.DataFrame,
+    rows: Sequence[_Row],
     table: Table,
     context: TransactionContext,
     widen: Container[str] = (),
@@ -287,13 +325,13 @@ def _add_table_columns(
     """Add columns to transaction table based on context.
 
     Args:
-        display_df: DataFrame containing transaction data
+        rows: The rows being displayed.
         table: Rich Table to add columns to
         context: Context to determine which columns to show
         widen: Columns needing extra width to hold an inline before/after
             diff, and which therefore wrap instead of truncating
     """
-    for column in _ordered_columns(display_df, context):
+    for column in _ordered_columns(rows, context):
         spec = _TXN_COLUMN_SPECS.get(column)
         if spec is None:  # non-standard column, handled below
             continue
@@ -320,18 +358,17 @@ def _add_table_columns(
     if context != TransactionContext.GENERAL:
         return
 
-    # Add any additional (non-standard) columns present in the DataFrame
-    for col in display_df.columns:
-        if col not in _KNOWN_COLUMNS:
-            table.add_column(
-                str(col),
-                no_wrap=col not in widen,
-                max_width=15 if col not in widen else 33,
-                overflow="ellipsis" if col not in widen else "fold",
-            )
+    # Add any additional (non-standard) columns the rows carry
+    for col in _extra_columns(rows):
+        table.add_column(
+            col,
+            no_wrap=col not in widen,
+            max_width=15 if col not in widen else 33,
+            overflow="ellipsis" if col not in widen else "fold",
+        )
 
 
-def _row_cells(row: pd.Series, columns: Sequence[str]) -> dict[str, str]:
+def _row_cells(row: _Row, columns: Sequence[str]) -> dict[str, str]:
     """Render one transaction into display strings, keyed by column.
 
     Args:
@@ -375,52 +412,64 @@ def _row_cells(row: pd.Series, columns: Sequence[str]) -> dict[str, str]:
 
 
 def _add_table_rows(
-    display_df: pd.DataFrame,
+    rows: Sequence[_Row],
     table: Table,
     context: TransactionContext,
 ) -> None:
     """Add rows to transaction table with conditional formatting.
 
     Args:
-        display_df: DataFrame with rows to display
+        rows: The rows to display.
         table: Rich Table to add rows to
         context: Context to determine which columns to show
     """
-    columns = _ordered_columns(display_df, context)
-    for _, row in display_df.iterrows():
+    columns = _ordered_columns(rows, context)
+    for row in rows:
         cells = _row_cells(row, columns)
         table.add_row(*(cells[column] for column in columns))
 
 
+def _page(
+    rows: Sequence[_Row],
+    title: str,
+    page_size: int | None,
+    context: TransactionContext,
+) -> None:
+    """Display rows a page at a time."""
+
+    def render(start: int, end: int) -> None:
+        page = rows[start:end]
+        _show(page, page_title(title, start, end, len(rows)), len(page), context)
+
+    page_frame(len(rows), title, page_size, render)
+
+
 def page_transactions(
-    df: pd.DataFrame,
+    txns: Sequence[TxnFields],
     title: str = "Transactions",
     page_size: int | None = None,
     context: TransactionContext = TransactionContext.GENERAL,
 ) -> None:
     """Display transactions with paging support for large datasets.
 
-    This function displays transaction data in pageable format, allowing
-    navigation through large transaction lists without overwhelming the console.
-
     Args:
-        df: DataFrame containing transaction data
+        txns: The transactions.
         title: Title for the transaction display
         page_size: Number of transactions per page. If None, calculated dynamically
             based on available console height
         context: Transaction context to specify column visibility
     """
+    _page(_txn_rows(txns), title, page_size, context)
 
-    def render(start: int, end: int) -> None:
-        page_df = df.iloc[start:end]
-        show_transactions(
-            page_df,
-            title=page_title(title, start, end, len(df)),
-            max_rows=len(page_df),
-            context=context,
-        )
 
-    page_frame(len(df), title, page_size, render)
+def page_source_rows(
+    df: pd.DataFrame,
+    title: str = "Transactions",
+    page_size: int | None = None,
+    context: TransactionContext = TransactionContext.GENERAL,
+) -> None:
+    """Display rows held in a frame a page at a time."""
+    _page(_source_rows(df), title, page_size, context)
 
 
 def page_changes(

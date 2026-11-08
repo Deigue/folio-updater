@@ -44,7 +44,6 @@ from engine.saved_ledger import (
     encode_cash_and_totals,
     encode_diagnostics,
 )
-from engine.types import load_txns
 from services import FxService
 from services.symbols import load_symbol_resolver
 from term import announce
@@ -259,7 +258,7 @@ def _is_current(saved: object) -> bool:
 def _build() -> tuple[Ledger, dict[str, object]]:
     """Replay the folio, describing its inputs as they stood when each was read."""
     inputs = _inputs()
-    rows = load_txns()
+    rows = txns.read()
     inputs |= _fx_inputs(max((row.fx_date for row in rows), default=None))
     resolver = load_symbol_resolver()
     result = replay(rows, load_fx_rates(), ReplayConfig.build(rows, resolver))

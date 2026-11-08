@@ -20,10 +20,11 @@ from cli.commands.common import (
     export_to_parquet,
     resolve_selection,
 )
-from db import backup_folio
-from db.helpers import audit_rows, txn_count
+from db import backup_folio, txns
+from db.helpers import audit_rows
 from db.queries import delete_rows, get_connection
 from domain import Column, Table
+from models import txns_frame
 from term import console_error, console_info, console_success
 from ui.transaction_table import page_transactions
 
@@ -31,9 +32,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    import pandas as pd
-
     from cli.selection import Selection
+    from models import Txn
 
 logger = logging.getLogger(__name__)
 
@@ -57,14 +57,14 @@ def _delete_by_ids(txn_ids: Sequence[int]) -> int:
         )
 
 
-def _log_removed(transactions: pd.DataFrame, backup: Path | None) -> None:
+def _log_removed(transactions: list[Txn], backup: Path | None) -> None:
     """Write the REMOVE stage: the backup that undoes it, then each removed row."""
     audit.stage(
         "REMOVE %d transaction(s); %s",
         len(transactions),
         audit.describe_backup(backup),
     )
-    audit_rows(AuditMark.REMOVED, transactions)
+    audit_rows(AuditMark.REMOVED, txns_frame(transactions))
 
 
 def delete_transactions(
@@ -103,7 +103,7 @@ def delete_transactions(
         deleted = _delete_by_ids(selection.txn_ids)
         _log_removed(matched, backup)
         if deleted == len(matched):
-            entry.done("%d deleted; folio holds %d transactions", deleted, txn_count())
+            entry.done("%d deleted; folio holds %d transactions", deleted, txns.count())
         else:
             entry.failed(f"{len(matched)} transaction(s) matched but {deleted} deleted")
 

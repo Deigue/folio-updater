@@ -36,10 +36,10 @@ def query_transactions(terms: list[str]) -> None:
         missing = ", ".join(str(txn_id) for txn_id in selection.missing_ids)
         announce.info(f"No transaction with TxnId {missing}.")
 
-    results_df = selection.transactions
+    results = selection.transactions
 
-    if results_df.empty:
-        announce.info("No transactions found matching the criteria.")
+    if results:
+        announce.info(f"Found {len(results)} matching transaction(s).")
+        page_transactions(results, title="Query Results")
     else:
-        announce.info(f"Found {len(results_df)} matching transaction(s).")
-        page_transactions(results_df, title="Query Results")
+        announce.info("No transactions found matching the criteria.")

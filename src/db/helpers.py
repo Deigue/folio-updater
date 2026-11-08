@@ -14,7 +14,7 @@ import pandas as pd
 
 from app import audit
 from db.catalog import get_columns
-from db.queries import add_column_to_table, get_connection, get_row_count
+from db.queries import add_column_to_table, get_connection
 from domain import TXN_ESSENTIALS, Column, Table
 from domain.cells import is_blank
 
@@ -22,12 +22,6 @@ if TYPE_CHECKING:
     from app.audit import AuditMark
 
 logger = logging.getLogger(__name__)
-
-
-def txn_count() -> int:
-    """Count the transactions currently in the folio."""
-    with get_connection() as conn:
-        return get_row_count(conn, Table.TXNS)
 
 
 def sync_txns_table_columns(txn_df: pd.DataFrame) -> list[str]:

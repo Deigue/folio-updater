@@ -23,20 +23,22 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from unittest.mock import MagicMock
 
+    from models import FxRate
+
     from .helpers.context import TempContext
 
 
 @pytest.fixture
-def rate_dates(cached_fx_data: Callable[[str | None], pd.DataFrame]) -> list[str]:
+def rate_dates(cached_fx_data: Callable[[str | None], list[FxRate]]) -> list[str]:
     """Every date the stubbed Bank of Canada response can offer, in order.
 
     Args:
-        cached_fx_data: The session-wide synthetic FX frame.
+        cached_fx_data: The session-wide synthetic FX rates.
 
     Returns:
         Dates in YYYY-MM-DD format, oldest first.
     """
-    return list(cached_fx_data(None)[Column.FX.DATE])
+    return [rate.date for rate in cached_fx_data(None)]
 
 
 def _seed_rates(dates: list[str]) -> None:
@@ -171,7 +173,7 @@ def test_ensure_coverage_handles_an_empty_response(
     with temp_ctx():
         _seed_rates(rate_dates[-1:])
         boc_fetch.side_effect = None
-        boc_fetch.return_value = pd.DataFrame()
+        boc_fetch.return_value = []
         assert FxService.ensure_coverage(rate_dates[0]) == 0
 
 

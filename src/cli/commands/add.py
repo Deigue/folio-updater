@@ -21,8 +21,8 @@ import typer
 from app import audit, bootstrap, get_config
 from app.audit import AuditMark
 from cli.commands.common import export_to_parquet
-from db import backup_folio
-from db.helpers import audit_rows, generate_keys, txn_count
+from db import backup_folio, txns
+from db.helpers import audit_rows, generate_keys
 from db.queries import (
     append_rows,
     get_connection,
@@ -42,7 +42,7 @@ from domain import (
 from ingest import prepare_transactions
 from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
-from ui.transaction_table import show_transactions
+from ui.transaction_table import show_source_rows
 
 if TYPE_CHECKING:
     from app.audit import AuditEntry
@@ -238,7 +238,7 @@ def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
         f"This transaction matches {count} existing transaction(s) in the folio:",
     )
     if not matches.empty:
-        show_transactions(matches, max_rows=len(matches))
+        show_source_rows(matches, max_rows=len(matches))
 
     return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
@@ -350,14 +350,14 @@ def add_transaction(  # noqa: PLR0917
 
         if dry_run:
             console_info("Dry run - nothing was written to the folio.")
-            show_transactions(results.final_df, title="Would Add")
+            show_source_rows(results.final_df, title="Would Add")
             return
 
         txn_id = _insert_transaction(results.final_df, entry)
-        entry.done("1 added; folio holds %d transactions", txn_count())
+        entry.done("1 added; folio holds %d transactions", txns.count())
 
     console_success(f"Added transaction (TxnId {txn_id})")
     added = results.final_df.assign(**{str(Column.Txn.TXN_ID): txn_id})
-    show_transactions(added, title="Added Transaction")
+    show_source_rows(added, title="Added Transaction")
 
     export_to_parquet()

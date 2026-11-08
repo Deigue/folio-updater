@@ -11,7 +11,7 @@ import pytest
 
 from app.audit import audit_command
 from app.logging_setup import AUDIT_LOGGER
-from db import create_txns_table, get_connection, get_rows, helpers, txn_count
+from db import create_txns_table, get_connection, get_rows, helpers, txns
 from domain import TXN_ESSENTIALS, Column, SettlementOutcome, Table
 from importers import import_statements, import_transactions, insert_transactions
 from ingest import prepare_transactions
@@ -616,7 +616,7 @@ def test_a_batch_the_table_refuses_is_not_stored_and_names_its_row(
         with pytest.raises(sqlite3.IntegrityError):
             insert_transactions(rows)
 
-        assert txn_count() == 0
+        assert txns.count() == 0
         refused = [r.message for r in caplog.records if r.levelno == logging.ERROR]
         assert refused[-1].strip().startswith("- TxnDate=2024-01-04")
         assert "CHECK constraint failed" in refused[-1]

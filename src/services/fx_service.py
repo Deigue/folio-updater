@@ -32,32 +32,15 @@ class FxService:
         "https://www.bankofcanada.ca/valet/observations/group/FX_RATES_DAILY/csv"
     )
 
-    @staticmethod
-    def get_fx_rates_from_db() -> pd.DataFrame:
-        """Get every FX rate held, as the frame the exports write.
-
-        Returns:
-            One row per date, with the rates as floats.
-        """
-        rates = fx_rates.read()
-        logger.debug("Retrieved %d FX rates from database", len(rates))
-        return pd.DataFrame(
-            {
-                str(Column.FX.DATE): [rate.date for rate in rates],
-                str(Column.FX.FXUSDCAD): [float(rate.usd_cad) for rate in rates],
-                str(Column.FX.FXCADUSD): [float(rate.cad_usd) for rate in rates],
-            },
-        )
-
     @classmethod
-    def get_fx_rates_from_boc(cls, start_date: str) -> pd.DataFrame:
+    def get_fx_rates_from_boc(cls, start_date: str) -> list[FxRate]:
         """Get FX rates from Bank of Canada web-query.
 
         Args:
             start_date: Start date in YYYY-MM-DD format.
 
         Returns:
-            DataFrame with Date, FXUSDCAD, and FXCADUSD columns.
+            The rates published since then, oldest first, none on a failure.
         """
         try:
             url = f"{cls.BOC_BASE_URL}?start_date={start_date}"
@@ -70,7 +53,7 @@ class FxService:
             csv_text = cls._extract_observations_csv(response.text)
             if not csv_text:  # pragma: no cover
                 logger.warning("No observations data found in response")
-                return pd.DataFrame()
+                return []
 
             csv_data = StringIO(csv_text)
             raw_df = pd.read_csv(csv_data)
@@ -78,39 +61,10 @@ class FxService:
 
         except requests.RequestException:
             logger.exception("Failed to fetch FX rates from Bank of Canada URL.")
-            return pd.DataFrame()
+            return []
         except (ValueError, KeyError):
             logger.exception("Error processing FX data from Bank of Canada URL.")
-            return pd.DataFrame()
-
-    @staticmethod
-    def insert_fx_data(fx_df: pd.DataFrame) -> int:
-        """Insert FX data into the database.
-
-        No backup is taken first: rates can always be fetched again.
-
-        Args:
-            fx_df: Prepared FX DataFrame to insert.
-
-        Returns:
-            Number of rows inserted.
-        """
-        if fx_df.empty:  # pragma: no cover
-            return 0
-
-        columns = [Column.FX.DATE, Column.FX.FXUSDCAD, Column.FX.FXCADUSD]
-        rows_inserted = fx_rates.write(
-            [
-                FxRate(date=str(date), usd_cad=dec(usd_cad), cad_usd=dec(cad_usd))
-                for date, usd_cad, cad_usd in fx_df[columns].itertuples(
-                    index=False,
-                    name=None,
-                )
-            ],
-        )
-
-        logger.debug("Inserted %d FX records into database", rows_inserted)
-        return rows_inserted
+            return []
 
     @staticmethod
     def _extract_observations_csv(response_text: str) -> str:
@@ -154,17 +108,17 @@ class FxService:
         return "\n".join(clean_lines)
 
     @staticmethod
-    def _process_fx_data(raw_df: pd.DataFrame) -> pd.DataFrame:
+    def _process_fx_data(raw_df: pd.DataFrame) -> list[FxRate]:
         """Process raw Bank of Canada FX data.
 
         Args:
             raw_df: Raw DataFrame from Bank of Canada CSV.
 
         Returns:
-            Processed DataFrame with required FX columns.
+            The rates, oldest first.
         """
         if raw_df.empty:  # pragma: no cover
-            return pd.DataFrame()
+            return []
 
         # The columns are fixed, so a KeyError here is a format change the
         # caller reports.
@@ -188,7 +142,12 @@ class FxService:
         fx_df = fx_df.sort_values(Column.FX.DATE).reset_index(drop=True)
 
         logger.debug("Processed %d FX records from API", len(fx_df))
-        return fx_df
+        return [
+            FxRate(date=str(day), usd_cad=dec(usd_cad), cad_usd=dec(cad_usd))
+            for day, usd_cad, cad_usd in fx_df[
+                [Column.FX.DATE, Column.FX.FXUSDCAD, Column.FX.FXCADUSD]
+            ].itertuples(index=False, name=None)
+        ]
 
     @staticmethod
     def effective_today() -> str:
@@ -254,12 +213,11 @@ class FxService:
             return 0
 
         fetched = cls.get_fx_rates_from_boc(fetch_from)
-        if fetched.empty:
-            return 0
-
         # Drop dates that we already have, so we only insert new ones.
         held = {rate.date for rate in fx_rates.read()}
-        fresh = fetched[~fetched[Column.FX.DATE].isin(held)]
-        if fresh.empty:
+        fresh = [rate for rate in fetched if rate.date not in held]
+        if not fresh:
             return 0
-        return cls.insert_fx_data(fresh)
+        written = fx_rates.write(fresh)
+        logger.debug("Inserted %d FX records into database", written)
+        return written

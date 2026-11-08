@@ -441,6 +441,24 @@ class TestEditDuplicates:
             assert_cli_success(cli_result)
             assert_in_output("No changes to apply.", cli_result)
 
+    def test_no_op_edit_of_a_whole_number_reports_no_changes(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """A stored whole number is the same value as the one typed."""
+        with temp_ctx() as ctx:
+            ensure_data_exists()
+            txn_id = seed_transaction(amount="-100")
+
+            cli_result = run_cli_with_config(
+                ctx.config,
+                cli_app,
+                ["edit", str(txn_id), "--set", "Amount=-100", "--force"],
+            )
+
+            assert_cli_success(cli_result)
+            assert_in_output("No changes to apply.", cli_result)
+
     def test_non_essential_edit_does_not_self_duplicate(
         self,
         temp_ctx: TempContext,

@@ -7,14 +7,13 @@ from typing import TYPE_CHECKING
 from domain import INTERNAL_COLUMNS, Column
 from exporters.excel_style import STORED_TAB
 from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable, row_of
+from models import txns_frame
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import datetime
 
-    import pandas as pd
-
-    from models import Quote
+    from models import FxRate, Quote, Txn
 
 # How a stored transaction column reads. Anything unlisted, including a user's
 # optional columns, is text.
@@ -41,7 +40,7 @@ FX_FORMATS: dict[str, Fmt] = {
 
 
 def transactions_sheet(
-    txns: pd.DataFrame,
+    txns: Sequence[Txn],
     name: str,
     *,
     hidden: bool = False,
@@ -49,7 +48,7 @@ def transactions_sheet(
     """Print the stored transactions as a sheet, ready to be imported again.
 
     Args:
-        txns: The `Txns` table, as read from the database.
+        txns: Every stored transaction, in the order the sheet lists them.
         name: What the sheet is called. `folio import` looks for it by name.
         hidden: Keep it out of the tab strip. A workbook's Ledger already
             shows every one of these columns to a reader; this sheet is for
@@ -59,7 +58,8 @@ def transactions_sheet(
         The sheet, one row per transaction, its heading on the first row, and
         nothing written below it that an importer could mistake for a row.
     """
-    keys = [column for column in txns.columns if column not in INTERNAL_COLUMNS]
+    frame = txns_frame(txns)
+    keys = [column for column in frame.columns if column not in INTERNAL_COLUMNS]
     return Sheet(
         name=name,
         tables=(
@@ -70,7 +70,7 @@ def transactions_sheet(
                 ),
                 tuple(
                     Row(values)
-                    for values in txns[keys].itertuples(index=False, name=None)
+                    for values in frame[keys].itertuples(index=False, name=None)
                 ),
             ),
         ),
@@ -79,25 +79,24 @@ def transactions_sheet(
     )
 
 
-def fx_sheet(rates: pd.DataFrame, name: str) -> Sheet:
+def fx_sheet(rates: Sequence[FxRate], name: str) -> Sheet:
     """Print the FX rates as a sheet, one row per date.
 
     Args:
-        rates: The `FX` table, as read from the database.
+        rates: Every rate held, oldest first.
         name: What the sheet is called.
 
     Returns:
         The sheet, oldest date first.
     """
-    keys = list(rates.columns)
-    ordered = rates.sort_values(str(Column.FX.DATE)) if keys else rates
     return Sheet(
         name=name,
         tables=(
             SheetTable(
-                tuple(Col(key, FX_FORMATS.get(key, Fmt.TEXT)) for key in keys),
+                tuple(Col(key, fmt) for key, fmt in FX_FORMATS.items()),
                 tuple(
-                    Row(values) for values in ordered.itertuples(index=False, name=None)
+                    Row((rate.date, float(rate.usd_cad), float(rate.cad_usd)))
+                    for rate in rates
                 ),
             ),
         ),

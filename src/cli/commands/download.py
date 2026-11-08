@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from db import get_broker_latest_txn_date, get_connection
+from db import txns
 from domain import TORONTO_TZ
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 from services.broker_files import ws_activities_file_name, ws_statement_file_name
@@ -318,8 +318,7 @@ def latest_txn_date(broker: str) -> str | None:
     Returns:
         The date as YYYY-MM-DD, or None when the broker has no transactions.
     """
-    with get_connection() as conn:
-        return get_broker_latest_txn_date(conn, broker)
+    return txns.latest_date_for(broker)
 
 
 def _resolve_from_date(from_date_str: str | None, broker: str) -> str:

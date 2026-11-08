@@ -17,14 +17,15 @@ from engine.frames import (
 )
 from engine.gain_since_buy import with_gains_since_buy
 from engine.pools import FOLIO, Pool
+from models import txns_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     import pandas as pd
 
     from engine.fx_rates import FxRates
-    from models import Quote
+    from models import Quote, Txn
 
 _TXN_ID = str(Column.Txn.TXN_ID)
 _TXN_DATE = str(Column.Txn.TXN_DATE)
@@ -111,7 +112,7 @@ class AcbReport:
         dates: tuple[str | None, str | None] = (None, None),
         currencies: CurrencyColumns = CurrencyColumns.BOTH,
         income: bool = False,
-        txns: pd.DataFrame | None = None,
+        txns: Sequence[Txn] | None = None,
     ) -> AcbReport:
         """Pick a pool's rows and decide which currency columns apply.
 
@@ -318,7 +319,7 @@ def _pick(
 
 def _with_stored_columns(
     frame: pd.DataFrame,
-    txns: pd.DataFrame,
+    txns: Sequence[Txn],
 ) -> tuple[pd.DataFrame, tuple[str, ...]]:
     """Join the stored columns the ledger leaves out, keyed on `TxnId`.
 
@@ -328,12 +329,13 @@ def _with_stored_columns(
     Returns:
         The joined rows, and the names of the columns the join added.
     """
+    stored = txns_frame(txns)
     extra = tuple(
         column
-        for column in txns.columns
+        for column in stored.columns
         if column not in frame.columns and column != _TXN_ID
     )
     # The frame's figures win; a transaction the replay dropped has none, so
     # it keeps what was stored.
-    joined = frame.set_index(_TXN_ID).combine_first(txns.set_index(_TXN_ID))
+    joined = frame.set_index(_TXN_ID).combine_first(stored.set_index(_TXN_ID))
     return index_by_txn_id(joined.reset_index()), extra

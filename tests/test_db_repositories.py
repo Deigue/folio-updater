@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from db import (
+    add_column_to_table,
     aliases,
     backup_scope,
     current_backup,
@@ -22,9 +23,20 @@ from db import (
     quotes,
     revisions,
     txns,
+    update_rows,
 )
-from domain import Column, PriceRange, QuoteStatus, Table
-from models import FxRate, Quote, QuoteHistory, TickerAlias
+from domain import Action, Column, PriceRange, QuoteStatus, Table
+from models import (
+    FxRate,
+    Quote,
+    QuoteHistory,
+    TickerAlias,
+    TxnFilter,
+    TxnOperator,
+    TxnSearch,
+    TxnSelection,
+    TxnSort,
+)
 
 from .helpers.seed import seed_transaction
 
@@ -365,3 +377,227 @@ def test_a_history_write_takes_no_backup(temp_ctx: TempContext) -> None:
             quote_history.replace("SPY", [_point("SPY", 0, "99.25")])
 
             assert current_backup() is None
+
+
+# -- TXNS -----------------------------------------------------------------------
+
+_JAN = "2024-01-15"
+_FEB = "2024-02-12"
+_MAR = "2024-03-11"
+
+
+def _ids(selection: TxnSelection) -> list[int]:
+    """Run a selection and name what it found."""
+    return [txn.txn_id for txn in txns.matching(selection)]
+
+
+def test_txns_read_in_date_then_id_order(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        later = seed_transaction(date=_MAR)
+        first = seed_transaction(date=_JAN)
+        second = seed_transaction(date=_JAN, ticker="MSFT")
+
+        assert [txn.txn_id for txn in txns.read()] == [first, second, later]
+
+
+def test_txns_read_nothing_before_the_table_exists(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        assert txns.read() == []
+
+
+def test_a_txn_reads_back_with_its_numbers_and_extras(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        txn_id = seed_transaction(
+            date=_JAN,
+            amount="-1000.50",
+            price="25.0125",
+            units="40",
+            ticker="SPY",
+        )
+        with get_connection() as conn:
+            add_column_to_table(conn, Table.TXNS, "BrokerRef")
+            update_rows(
+                conn,
+                Table.TXNS,
+                [{Column.Txn.TXN_ID: txn_id, "BrokerRef": "R-77"}],
+                [Column.Txn.TXN_ID],
+                ["BrokerRef"],
+            )
+
+        (txn,) = txns.read()
+
+    assert txn.action is Action.BUY
+    assert (txn.amount, txn.price, txn.units) == (
+        Decimal("-1000.5"),
+        Decimal("25.0125"),
+        Decimal(40),
+    )
+    assert txn.extras == {"BrokerRef": "R-77"}
+
+
+def test_txns_by_ids_are_in_id_order_and_skip_unknown_ids(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        first = seed_transaction(date=_MAR)
+        second = seed_transaction(date=_JAN)
+
+        found = txns.by_ids([second, 999, first])
+
+    assert [txn.txn_id for txn in found] == [first, second]
+
+
+def test_txns_since_are_those_after_an_id(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        first = seed_transaction(date=_MAR)
+        second = seed_transaction(date=_JAN)
+        third = seed_transaction(date=_FEB)
+
+        assert [txn.txn_id for txn in txns.since(first)] == [second, third]
+
+
+def test_a_selection_filters_by_exact_contains_and_any_of(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        spy = seed_transaction(ticker="SPY", account="YON-MARGIN")
+        msft = seed_transaction(ticker="MSFT", account="YON-RRSP")
+        seed_transaction(ticker="NFLX", account="ZED-TFSA")
+
+        equals = TxnFilter(Column.Txn.TICKER, TxnOperator.EQUALS, "SPY")
+        contains = TxnFilter(Column.Txn.ACCOUNT, TxnOperator.CONTAINS, "YON")
+        any_of = TxnFilter(Column.Txn.TICKER, TxnOperator.ANY_OF, ("MSFT", "SPY"))
+
+        assert _ids(TxnSelection(filters=(equals,))) == [spy]
+        assert sorted(_ids(TxnSelection(filters=(contains,)))) == [spy, msft]
+        assert sorted(_ids(TxnSelection(filters=(any_of,)))) == [spy, msft]
+
+
+def test_a_selection_compares_numbers_numerically(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        cheap = seed_transaction(fee="9.5", ticker="SPY")
+        dear = seed_transaction(fee="100", ticker="MSFT")
+
+        above = TxnFilter(Column.Txn.FEE, TxnOperator.ABOVE, "20")
+        at_most = TxnFilter(Column.Txn.FEE, TxnOperator.AT_MOST, "9.5")
+
+        assert _ids(TxnSelection(filters=(above,))) == [dear]
+        assert _ids(TxnSelection(filters=(at_most,))) == [cheap]
+
+
+def test_a_search_finds_a_ticker_or_an_account(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        by_ticker = seed_transaction(ticker="NEWCO", account="ZED-TFSA")
+        by_account = seed_transaction(ticker="SPY", account="NEWCO-CASH")
+        seed_transaction(ticker="MSFT", account="YON-RRSP")
+
+        search = TxnSearch(term="NEWCO", tickers=("NEWCO", "OLDCO"))
+
+        assert sorted(_ids(TxnSelection(searches=(search,)))) == [
+            by_ticker,
+            by_account,
+        ]
+
+
+def test_a_selection_is_newest_first_unless_told_otherwise(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        old = seed_transaction(date=_JAN)
+        new = seed_transaction(date=_MAR)
+
+        assert _ids(TxnSelection()) == [new, old]
+        assert _ids(TxnSelection(oldest_first=True)) == [old, new]
+
+
+def test_a_sort_breaks_ties_by_newest_date(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        old = seed_transaction(date=_JAN, ticker="SPY")
+        new = seed_transaction(date=_MAR, ticker="SPY")
+        other = seed_transaction(date=_FEB, ticker="MSFT")
+
+        selection = TxnSelection(sorts=(TxnSort(Column.Txn.TICKER, descending=False),))
+
+        assert _ids(selection) == [other, new, old]
+
+
+def test_first_takes_the_head_of_the_order(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(date=_JAN)
+        middle = seed_transaction(date=_FEB)
+        newest = seed_transaction(date=_MAR)
+
+        assert _ids(TxnSelection(first=2)) == [newest, middle]
+
+
+def test_last_takes_the_tail_and_keeps_the_order(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        oldest = seed_transaction(date=_JAN)
+        middle = seed_transaction(date=_FEB)
+        seed_transaction(date=_MAR)
+
+        assert _ids(TxnSelection(last=2)) == [middle, oldest]
+
+
+def test_calculated_settlements_can_be_narrowed_to_a_broker(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        seed_transaction(date=_JAN, settle_date=_FEB, account="ZED-TFSA")
+        second = seed_transaction(date="2025-09-08", account="YON-RRSP")
+        third = seed_transaction(date="2025-08-11", account="ZED-TFSA")
+
+        assert [txn.txn_id for txn in txns.calculated_settlements()] == [third, second]
+        assert [txn.txn_id for txn in txns.calculated_settlements("zed")] == [third]
+
+
+def test_txns_count_all_and_calculated(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(date=_JAN, settle_date=_FEB)
+        seed_transaction(date="2025-08-11")
+
+        assert txns.count() == 2
+        assert txns.count_calculated() == 1
+
+
+def test_latest_id_is_zero_for_an_empty_folio(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        assert txns.latest_id() == 0
+
+        newest = seed_transaction(date=_JAN)
+
+        assert txns.latest_id() == newest
+
+
+def test_traded_tickers_are_sorted_and_skip_blanks(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(ticker="SPY")
+        seed_transaction(ticker="MSFT")
+        seed_transaction(ticker="SPY", date=_JAN)
+        seed_transaction(ticker=None, action="CONTRIBUTION")
+
+        assert txns.traded_tickers() == ["MSFT", "SPY"]
+        assert txns.tickers() == {"MSFT", "SPY"}
+
+
+def test_txns_know_their_accounts_and_columns(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(account="YON-RRSP")
+        seed_transaction(account="ZED-TFSA")
+
+        with get_connection() as conn:
+            add_column_to_table(conn, Table.TXNS, "BrokerRef")
+
+        assert txns.accounts() == {"YON-RRSP", "ZED-TFSA"}
+        assert txns.columns()[0] == Column.Txn.TXN_ID
+        assert txns.columns()[-1] == "BrokerRef"
+
+
+def test_latest_date_for_a_broker(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_transaction(date=_JAN, account="ZED-TFSA")
+        seed_transaction(date=_FEB, account="ZED-RRSP")
+        seed_transaction(date=_MAR, account="YON-RRSP")
+
+        assert txns.latest_date_for("zed") == _FEB
+        assert txns.latest_date_for("nobroker") is None

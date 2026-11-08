@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from db.queries import get_connection, get_rows
 from domain import (
     AccountType,
     Action,
@@ -13,14 +12,14 @@ from domain import (
     DiagnosticCode,
     Grain,
     Impact,
-    Table,
 )
 from domain.numeric import ZERO
-from models import Txn
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Container
     from decimal import Decimal
+
+    from models import Txn
 
 
 @dataclass
@@ -290,18 +289,3 @@ class ReplayResult:
                     None,
                 )
         return {txn_id: tuple(codes) for txn_id, codes in grouped.items()}
-
-
-def load_txns() -> list[Txn]:
-    """Read the whole transactions table as `Txn`s.
-
-    Returns:
-        Every transaction in the folio, ordered by transaction date then TxnId.
-    """
-    with get_connection() as conn:
-        frame = get_rows(conn, Table.TXNS)
-    records = frame.to_dict("records")
-    # A frame's records are keyed by column name.
-    txns = [Txn.from_row(record) for record in records]  # ty: ignore[invalid-argument-type]
-    txns.sort(key=lambda txn: (txn.txn_date, txn.txn_id))
-    return txns

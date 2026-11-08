@@ -100,7 +100,6 @@ def get_rows(  # noqa: PLR0913
     where: str | None = None,
     params: list | tuple | None = None,
     order_by: str | None = None,
-    limit: int | None = None,
 ) -> pd.DataFrame:
     """Return rows from a table as a DataFrame with optional clauses.
 
@@ -112,7 +111,6 @@ def get_rows(  # noqa: PLR0913
         params: An optional list or tuple of parameters to substitute into the
             `where` clause.
         order_by: An optional SQL ORDER BY clause (e.g., "name ASC").
-        limit: An optional integer to limit the number of rows returned.
 
     Returns:
         A pandas DataFrame containing the query results.
@@ -123,8 +121,6 @@ def get_rows(  # noqa: PLR0913
         query += f" WHERE {where}"
     if order_by:
         query += f" ORDER BY {order_by}"
-    if limit is not None:
-        query += f" LIMIT {limit}"
     try:
         df = pd.read_sql_query(query, connection, params=params)
     except (pd.errors.DatabaseError, sqlite3.OperationalError):
@@ -132,13 +128,14 @@ def get_rows(  # noqa: PLR0913
     return df
 
 
-def get_records(
+def get_records(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,
     *,
     where: str | None = None,
     params: Sequence[object] | None = None,
     order_by: str | None = None,
+    limit: int | None = None,
 ) -> list[dict[str, object]]:
     """Return rows exactly as stored, keyed by column name; none without a table."""
     query = f'SELECT * FROM "{table_name}"'
@@ -146,6 +143,8 @@ def get_records(
         query += f" WHERE {where}"
     if order_by:
         query += f" ORDER BY {order_by}"
+    if limit is not None:
+        query += f" LIMIT {limit}"
     try:
         cursor = connection.execute(query, params or ())
     except sqlite3.OperationalError:
@@ -258,20 +257,17 @@ def get_distinct_values(
     column_name: str,
     filter_condition: str | None = None,
     order_by: str | None = None,
-) -> pd.DataFrame:
-    """Return distinct values from a column with optional filtering and ordering."""
+) -> list[object]:
+    """Return a column's distinct values, with optional filtering and ordering."""
     query = f'SELECT DISTINCT "{column_name}" FROM "{table_name}"'
-
     if filter_condition:
         query += f" WHERE {filter_condition}"
-
     if order_by:
         query += f" ORDER BY {order_by}"
-
     try:
-        return pd.read_sql_query(query, connection)
-    except (sqlite3.OperationalError, pd.errors.DatabaseError):
-        return pd.DataFrame()
+        return [row[0] for row in connection.execute(query)]
+    except sqlite3.OperationalError:
+        return []
 
 
 def get_distinct_set(
@@ -281,8 +277,8 @@ def get_distinct_set(
     filter_condition: str | None = None,
 ) -> set[str]:
     """Return distinct non-null values from a column as a set."""
-    df = get_distinct_values(connection, table_name, column_name, filter_condition)
-    return set(df[column_name].dropna()) if column_name in df else set()
+    values = get_distinct_values(connection, table_name, column_name, filter_condition)
+    return {str(value) for value in values if value is not None}
 
 
 def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:

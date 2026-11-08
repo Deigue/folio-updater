@@ -18,26 +18,16 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-import pandas as pd
-
-from app.app_context import get_config
 from cli.query_parser import (
     ParsedQuery,
+    QueryFilter,
     QueryVocabulary,
     get_valid_column_names,
     parse_query_terms,
 )
-from config.optional_fields import FieldType
-from db import aliases
-from db.catalog import get_columns
-from db.queries import (
-    build_comparison_clause,
-    build_sort_clause,
-    get_connection,
-    get_distinct_set,
-    get_rows,
-)
-from domain import Column, Table
+from db import aliases, txns
+from domain import Column
+from models import Txn, TxnFilter, TxnOperator, TxnSearch, TxnSelection, TxnSort
 from services.symbols import SymbolResolver
 
 if TYPE_CHECKING:
@@ -62,8 +52,8 @@ class Selection:
     """The transactions a command was pointed at, and how they were found.
 
     Attributes:
-        transactions: Matched rows with the full set of Txns columns. Ordered by
-            TxnId in IDS mode, by the query's ORDER BY in QUERY mode.
+        transactions: The matched transactions. Ordered by TxnId in IDS mode, by
+            the query's order in QUERY mode.
         mode: Which selection syntax the terms were interpreted as.
         terms: The original CLI terms, kept for audit log lines.
         requested_ids: TxnIds that were asked for. Empty in QUERY mode.
@@ -71,7 +61,7 @@ class Selection:
         query: The parsed query. None in IDS mode.
     """
 
-    transactions: pd.DataFrame
+    transactions: list[Txn]
     mode: SelectionMode
     terms: tuple[str, ...] = ()
     requested_ids: tuple[int, ...] = ()
@@ -81,9 +71,7 @@ class Selection:
     @property
     def txn_ids(self) -> list[int]:
         """TxnIds of the matched transactions."""
-        if self.transactions.empty:
-            return []
-        return [int(txn_id) for txn_id in self.transactions[Column.Txn.TXN_ID]]
+        return [txn.txn_id for txn in self.transactions]
 
     @property
     def is_unbounded(self) -> bool:
@@ -122,187 +110,64 @@ def load_vocabulary() -> QueryVocabulary:
     Returns:
         The live Txns columns, and the tickers and accounts in use.
     """
-    with get_connection() as conn:
-        return QueryVocabulary(
-            columns=get_valid_column_names(get_columns(conn, Table.TXNS)),
-            tickers=get_distinct_set(conn, Table.TXNS, Column.Txn.TICKER),
-            accounts=get_distinct_set(conn, Table.TXNS, Column.Txn.ACCOUNT),
-        )
-
-
-def _get_text_numeric_columns(conn: sqlite3.Connection) -> set[str]:
-    """Get the numeric columns that SQLite holds as TEXT.
-
-    Set of table columns that are configured as numeric and will require an
-    explicit CAST.
-
-    Args:
-        conn: The database connection.
-
-    Returns:
-        Names of the live Txns columns that hold numbers as text.
-    """
-    live_columns = get_columns(conn, Table.TXNS)
-    optional_fields = get_config().optional_fields
-    columns = set(optional_fields.columns_of_type(FieldType.NUMERIC, live_columns))
-    if str(Column.Txn.FEE) in live_columns:
-        columns.add(str(Column.Txn.FEE))
-    return columns
-
-
-def build_where_clause(
-    query: ParsedQuery,
-    conn: sqlite3.Connection,
-) -> tuple[str, list[str | int | float]]:
-    """Build the WHERE clause and parameters for the transaction query."""
-    where_clauses: list[str] = []
-    params: list[str | int | float] = []
-    optional_text_columns = get_config().optional_fields.columns_of_type(
-        FieldType.STRING,
-        get_columns(conn, Table.TXNS),
+    return QueryVocabulary(
+        columns=get_valid_column_names(txns.columns()),
+        tickers=txns.tickers(),
+        accounts=txns.accounts(),
     )
-    numeric_columns = _get_text_numeric_columns(conn)
-
-    # Process each filter
-    for f in query.filters:
-        if f.operator == ":":
-            if f.column == Column.Txn.TICKER:
-                ticker_family = get_ticker_family(f.value)
-                if ticker_family:
-                    placeholders = ",".join("?" * len(ticker_family))
-                    where_clauses.append(f'"{f.column}" IN ({placeholders})')
-                    params.extend(ticker_family)
-            else:
-                clause, param = build_comparison_clause(
-                    f.column,
-                    "=",
-                    f.value,
-                    text_numeric=f.column in numeric_columns,
-                )
-                where_clauses.append(clause)
-                params.append(param)
-        elif f.operator == "~":
-            where_clauses.append(f'"{f.column}" LIKE ?')
-            params.append(f"%{f.value}%")
-        elif f.operator in (">", "<", ">=", "<="):
-            clause, param = build_comparison_clause(
-                f.column,
-                f.operator,
-                f.value,
-                text_numeric=f.column in numeric_columns,
-            )
-            where_clauses.append(clause)
-            params.append(param)
-
-    # Process text searches
-    for search in query.text_searches:
-        optional_clauses = [f'"{col}" LIKE ?' for col in optional_text_columns]
-        optional_params = [f"%{search}%" for _ in optional_text_columns]
-
-        # get_ticker_family always includes the search term itself, so this
-        # is never empty.
-        ticker_family = get_ticker_family(search)
-        placeholders = ",".join("?" * len(ticker_family))
-        ticker_clause = f'"{Column.Txn.TICKER}" IN ({placeholders})'
-        account_clause = f'"{Column.Txn.ACCOUNT}" LIKE ?'
-        clauses = [ticker_clause, account_clause, *optional_clauses]
-        where_clauses.append(f"({' OR '.join(clauses)})")
-        params.extend(ticker_family)
-        params.append(f"%{search}%")
-        params.extend(optional_params)
-
-    where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
-    return where_clause, params
 
 
-def build_order_by_clause(query: ParsedQuery, conn: sqlite3.Connection) -> str:
-    """Build the ORDER BY clause for the transaction query.
-
-    Args:
-        query: The parsed query whose sorts drive the ordering.
-        conn: The database connection, used to find TEXT-stored numeric columns.
-
-    Returns:
-        The ORDER BY clause, always ending in a TxnDate tiebreak.
-    """
-    if not query.sorts:
-        if query.named_limiter:
-            return f'"{Column.Txn.TXN_DATE}" ASC'
-        return f'"{Column.Txn.TXN_DATE}" DESC'
-
-    numeric_columns = _get_text_numeric_columns(conn)
-    order_parts = []
-    for s in query.sorts:
-        direction = "DESC" if s.direction == "desc" else "ASC"
-        order_parts.append(
-            build_sort_clause(
-                s.column,
-                direction,
-                text_numeric=s.column in numeric_columns,
-            ),
-        )
-
-    if not any(s.column == Column.Txn.TXN_DATE for s in query.sorts):
-        order_parts.append(f'"{Column.Txn.TXN_DATE}" DESC')
-
-    return ", ".join(order_parts)
+_OPERATORS = {
+    ":": TxnOperator.EQUALS,
+    "~": TxnOperator.CONTAINS,
+    ">": TxnOperator.ABOVE,
+    "<": TxnOperator.BELOW,
+    ">=": TxnOperator.AT_LEAST,
+    "<=": TxnOperator.AT_MOST,
+}
 
 
-def _invert_order_by(order_by_clause: str) -> str:
-    """Flip ASC/DESC on every term of an ORDER BY clause.
-
-    Used to fetch the tail of a sort order via `LIMIT`: querying with the
-    inverted order and reverse result is equivalent to (but far cheaper
-    than) fetching everything and slicing off the last N rows.
-    """
-    inverted_parts = []
-    for raw_part in order_by_clause.split(","):
-        part = raw_part.strip()
-        if part.endswith(" DESC"):
-            inverted_parts.append(part.removesuffix(" DESC") + " ASC")
-        else:
-            inverted_parts.append(part.removesuffix(" ASC") + " DESC")
-    return ", ".join(inverted_parts)
+def _txn_filter(item: QueryFilter) -> TxnFilter:
+    """Describe one parsed filter; an exact ticker matches its whole rename family."""
+    if item.operator == ":" and item.column == Column.Txn.TICKER:
+        family = tuple(get_ticker_family(item.value))
+        return TxnFilter(item.column, TxnOperator.ANY_OF, family)
+    return TxnFilter(item.column, _OPERATORS[item.operator], item.value)
 
 
-def get_transactions_by_filters(query: ParsedQuery) -> pd.DataFrame:
+def to_txn_selection(query: ParsedQuery) -> TxnSelection:
+    """Describe a parsed query as the transactions it names."""
+    return TxnSelection(
+        filters=tuple(_txn_filter(item) for item in query.filters),
+        searches=tuple(
+            TxnSearch(term, tuple(get_ticker_family(term)))
+            for term in query.text_searches
+        ),
+        sorts=tuple(
+            TxnSort(sort.column, descending=sort.direction == "desc")
+            for sort in query.sorts
+        ),
+        first=query.start_limit,
+        last=query.end_limit,
+        oldest_first=query.named_limiter,
+    )
+
+
+def get_transactions_by_filters(query: ParsedQuery) -> list[Txn]:
     """Get transactions from the database based on a ParsedQuery.
 
     Args:
         query: A ParsedQuery object containing filters, text searches, and sorts.
 
     Returns:
-        A DataFrame with matching transactions.
+        The matching transactions.
 
     Raises:
         SelectionError: If the folio could not run the query.
     """
     try:
-        with get_connection() as conn:
-            where_clause, params = build_where_clause(query, conn)
-            order_by_clause = build_order_by_clause(query, conn)
-
-            if query.end_limit is not None:
-                # fetch with the order inverted, then reverse back to restore sort.
-                rows = get_rows(
-                    conn,
-                    Table.TXNS,
-                    where=where_clause,
-                    params=params,
-                    order_by=_invert_order_by(order_by_clause),
-                    limit=query.end_limit,
-                )
-                return rows.iloc[::-1].reset_index(drop=True)
-
-            return get_rows(
-                conn,
-                Table.TXNS,
-                where=where_clause,
-                params=params,
-                order_by=order_by_clause,
-                limit=query.start_limit,
-            )
-    except (sqlite3.OperationalError, pd.errors.DatabaseError) as error:
+        return txns.matching(to_txn_selection(query))
+    except sqlite3.OperationalError as error:
         logger.exception("Error querying transactions")
         msg = "Could not run the query; see the log for details."
         raise SelectionError(msg) from error
@@ -327,19 +192,6 @@ def _parse_txn_ids(terms: Sequence[str]) -> tuple[int, ...] | None:
     return tuple(seen)
 
 
-def _get_transactions_by_ids(txn_ids: Sequence[int]) -> pd.DataFrame:
-    """Fetch transactions for an explicit list of TxnIds, ordered by TxnId."""
-    placeholders = ",".join("?" * len(txn_ids))
-    with get_connection() as conn:
-        return get_rows(
-            conn,
-            Table.TXNS,
-            where=f'"{Column.Txn.TXN_ID}" IN ({placeholders})',
-            params=list(txn_ids),
-            order_by=f'"{Column.Txn.TXN_ID}" ASC',
-        )
-
-
 def select_transactions(terms: Sequence[str]) -> Selection:
     """Resolve positional CLI terms into the transactions they point at.
 
@@ -359,8 +211,8 @@ def select_transactions(terms: Sequence[str]) -> Selection:
     """
     txn_ids = _parse_txn_ids(terms)
     if txn_ids is not None:
-        transactions = _get_transactions_by_ids(txn_ids)
-        found = set(transactions[Column.Txn.TXN_ID].astype(int))
+        transactions = txns.by_ids(txn_ids)
+        found = {txn.txn_id for txn in transactions}
         return Selection(
             transactions=transactions,
             mode=SelectionMode.IDS,

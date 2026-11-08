@@ -7,9 +7,9 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from app import get_config
-from db import get_connection, get_distinct_values, get_rows
-from domain import Column, CurrencyColumns, Grain
-from domain import Table as DbTable
+from db import fx_rates
+from db import txns as stored_txns
+from domain import CurrencyColumns, Grain
 from engine.acb_report import AcbReport, AcbShape
 from engine.pools import FOLIO, Pool
 from engine.ticker import MARKET_SORT, performance_rows, sort_performance
@@ -30,21 +30,18 @@ from exporters.sheets import (
     traded_tickers_sheet,
     transactions_sheet,
 )
-from services import FxService
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    import pandas as pd
-
     from domain import PriceRange
     from engine.flows import Room
     from engine.performance import RangeMove
     from engine.pools import FolioValuation, ValuedPool
     from exporters.sheet_spec import Sheet
-    from models import Quote
+    from models import FxRate, Quote, Txn
 
 
 class Section(StrEnum):
@@ -119,8 +116,8 @@ class FolioSources:
     """
 
     valuation: FolioValuation | None
-    txns: pd.DataFrame
-    rates: pd.DataFrame
+    txns: list[Txn]
+    rates: list[FxRate]
     tickers: list[tuple[str, str]]
     quotes: Mapping[str, Quote]
     moves: Mapping[str, Mapping[PriceRange, RangeMove | None]] = field(
@@ -144,28 +141,15 @@ class FolioSources:
         Returns:
             The sources, ready to print.
         """
-        ticker = str(Column.Txn.TICKER)
-        with get_connection() as conn:
-            txns = get_rows(
-                conn,
-                DbTable.TXNS,
-                order_by=f'"{Column.Txn.TXN_ID}"',
-            )
-            traded = get_distinct_values(
-                conn,
-                DbTable.TXNS,
-                ticker,
-                filter_condition=f'"{ticker}" IS NOT NULL AND "{ticker}" != \'\'',
-                order_by=f'"{ticker}"',
-            )
-
         resolver = load_symbol_resolver()
-        names = [str(name) for name in traded.get(ticker, [])]
         return cls(
             valuation=valuation,
-            txns=txns,
-            rates=FxService.get_fx_rates_from_db(),
-            tickers=[(name, resolver.canonical(name)) for name in names],
+            txns=sorted(stored_txns.read(), key=lambda txn: txn.txn_id),
+            rates=fx_rates.read(),
+            tickers=[
+                (name, resolver.canonical(name))
+                for name in stored_txns.traded_tickers()
+            ],
             quotes=QuotesService.cached(),
             moves=moves or {},
         )
