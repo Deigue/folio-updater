@@ -15,11 +15,13 @@ import logging
 from typing import TYPE_CHECKING
 
 from app import get_config
-from db.queries import get_alias_edges, get_connection
+from db import aliases
 from term import announce
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+
+    from models import TickerAlias
 
 logger = logging.getLogger(__name__)
 
@@ -34,21 +36,22 @@ class SymbolResolver:
 
     def __init__(
         self,
-        edges: Sequence[tuple[str, str, str]],
+        renames: Sequence[TickerAlias],
         overrides: Mapping[str, str] | None = None,
     ) -> None:
-        """Build the resolver from raw alias rows.
+        """Build the resolver from stored renames.
 
         Args:
-            edges: `(old_ticker, new_ticker, effective_date)` triples, ordered
-                by effective date so multi-hop chains resolve deterministically.
+            renames: The renames, ordered by effective date so multi-hop chains
+                resolve deterministically. Their tickers may be in any case.
             overrides: Canonical symbol to provider symbol, for the handful the
                 spelling rule cannot derive. Keys are matched case-insensitively.
         """
         self._forward: dict[str, tuple[str, str]] = {}
         self._backward: dict[str, list[str]] = {}
-        for old, new, effective in edges:
-            self._forward[old] = (new, effective)
+        for rename in renames:
+            old, new = rename.old_ticker.upper(), rename.new_ticker.upper()
+            self._forward[old] = (new, rename.effective_date)
             self._backward.setdefault(new, []).append(old)
         self._overrides: dict[str, str] = {
             str(key).strip().upper(): str(value)
@@ -148,9 +151,7 @@ def load_symbol_resolver() -> SymbolResolver:
         A `SymbolResolver` over every rename recorded in the folio, carrying the
         configured provider-symbol overrides.
     """
-    with get_connection() as conn:
-        edges = get_alias_edges(conn)
-    return SymbolResolver(edges, get_config().quotes_symbol_overrides)
+    return SymbolResolver(aliases.read(), get_config().quotes_symbol_overrides)
 
 
 def normalize_canadian_ticker(ticker: str | None, currency: str | None) -> str | None:

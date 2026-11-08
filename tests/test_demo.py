@@ -26,7 +26,7 @@ from datagen.demo import (
 )
 from datagen.history import _window_events
 from db import (
-    get_alias_edges,
+    aliases,
     get_connection,
     get_distinct_set,
     get_rows,
@@ -49,6 +49,8 @@ from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from models import TickerAlias
 
     from .helpers.context import TempContext
 
@@ -88,14 +90,14 @@ def test_the_demo_exports_mirror_its_database(temp_ctx: TempContext) -> None:
 def _showcase(
     txns: pd.DataFrame,
     frame: pd.DataFrame,
-    renames: list[tuple[str, str, str]],
+    renames: list[TickerAlias],
 ) -> dict[str, bool]:
     """List whether each feature the demo exists to show actually exists.
 
     Args:
         txns: The stored transactions.
         frame: The replay's ledger, one row per transaction.
-        renames: The stored ticker renames, as (old, new, effective date).
+        renames: The stored ticker renames.
 
     Returns:
         Each feature, named, and whether the demo shows it.
@@ -150,7 +152,7 @@ def _showcase(
             (txns[action == Action.SPLIT].groupby([day, ticker]).size() > 1).any(),
         ),
         "a ticker traded under its old and its new name": any(
-            {old, new} <= set(ticker) for old, new, _ in renames
+            {rename.old_ticker, rename.new_ticker} <= set(ticker) for rename in renames
         ),
         "settlement dates both calculated and from the broker": (
             set(trades[Column.Txn.SETTLE_CALCULATED].astype(int)) == {0, 1}
@@ -219,7 +221,7 @@ def test_the_demo_shows_every_feature_it_exists_to_show(
         ensure_data_exists()
         with get_connection() as conn:
             txns = get_rows(conn, Table.TXNS)
-            renames = get_alias_edges(conn)
+        renames = aliases.read()
         features = _showcase(txns, open_ledger().frame, renames)
 
     assert [name for name, shown in features.items() if not shown] == []
@@ -306,7 +308,7 @@ def test_importing_your_own_transactions_can_replace_the_demo(
 
         with get_connection() as conn:
             txn_ids = sorted(get_rows(conn, Table.TXNS)[Column.Txn.TXN_ID])
-            renames = get_alias_edges(conn)
+        renames = aliases.read()
         backed_up = any(ctx.config.backup_path.rglob("folio_*.db"))
         accounts = _stored_accounts()
 

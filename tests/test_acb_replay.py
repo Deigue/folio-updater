@@ -27,6 +27,7 @@ from engine.frames import (
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, replay
 from engine.transfers import pair_transfers
+from models import TickerAlias
 from services.symbols import SymbolResolver
 
 from .helpers.replay import FLAT_FX, make_row, run
@@ -1398,7 +1399,13 @@ def test_decimal_precision_survives_replay() -> None:
 
 def test_alias_resolution_is_time_bounded() -> None:
     """A symbol reused after its rename date is a different security."""
-    aliases = [("OLDCO", "NEWCO", "2025-06-16")]
+    aliases = [
+        TickerAlias(
+            old_ticker="OLDCO",
+            new_ticker="NEWCO",
+            effective_date="2025-06-16",
+        ),
+    ]
     result = run(
         [
             make_row(

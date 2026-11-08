@@ -6,24 +6,16 @@ Handles fetching FX rates from Bank of Canada API.
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import datetime, timedelta
 from io import StringIO
 
 import pandas as pd
 import requests
 
-from db import (
-    append_rows,
-    create_fx_table,
-    earliest_transaction_date,
-    get_connection,
-    get_max_value,
-    get_min_value,
-    get_rows,
-    get_tables,
-)
-from domain import TORONTO_TZ, Column, Table
+from db import fx_rates, txns
+from domain import TORONTO_TZ, Column
+from domain.numeric import dec
+from models import FxRate
 from term import announce
 
 logger = logging.getLogger(__name__)
@@ -41,51 +33,21 @@ class FxService:
     )
 
     @staticmethod
-    def get_latest_fx_date_from_db() -> str | None:
-        """Get the latest FX rate date from the database.
-
-        Returns:
-            Latest FX rate date in YYYY-MM-DD format, or None if no rates exist.
-        """
-        try:
-            with get_connection() as conn:
-                tables = get_tables(conn)
-                if Table.FX not in tables:
-                    logger.debug("FX table does not exist")
-                    return None
-
-                result = get_max_value(conn, Table.FX, Column.FX.DATE)
-                if result:
-                    logger.debug("Latest FX date in database: %s", result)
-                    return result
-                logger.debug("No FX rates found in database")  # pragma: no cover
-                return None  # pragma: no cover
-        except sqlite3.Error as e:
-            logger.debug("Could not get latest FX date from database: %s", e)
-            return None
-
-    @staticmethod
     def get_fx_rates_from_db() -> pd.DataFrame:
-        """Get every FX rate held in the database.
+        """Get every FX rate held, as the frame the exports write.
 
         Returns:
-            DataFrame with FX rates from database.
+            One row per date, with the rates as floats.
         """
-        try:
-            with get_connection() as conn:
-                tables = get_tables(conn)
-                if Table.FX not in tables:  # pragma: no cover
-                    logger.debug("FX table does not exist")
-                    return pd.DataFrame()
-
-                df = get_rows(conn, Table.FX, order_by=Column.FX.DATE)
-
-                logger.debug("Retrieved %d FX rates from database", len(df))
-                return df
-
-        except sqlite3.Error as e:
-            logger.debug("Could not get FX rates from database: %s", e)
-            return pd.DataFrame()
+        rates = fx_rates.read()
+        logger.debug("Retrieved %d FX rates from database", len(rates))
+        return pd.DataFrame(
+            {
+                str(Column.FX.DATE): [rate.date for rate in rates],
+                str(Column.FX.FXUSDCAD): [float(rate.usd_cad) for rate in rates],
+                str(Column.FX.FXCADUSD): [float(rate.cad_usd) for rate in rates],
+            },
+        )
 
     @classmethod
     def get_fx_rates_from_boc(cls, start_date: str) -> pd.DataFrame:
@@ -136,10 +98,16 @@ class FxService:
         if fx_df.empty:  # pragma: no cover
             return 0
 
-        with get_connection() as conn:
-            if get_tables(conn).count(Table.FX) == 0:
-                create_fx_table()
-            rows_inserted = append_rows(conn, Table.FX, fx_df)
+        columns = [Column.FX.DATE, Column.FX.FXUSDCAD, Column.FX.FXCADUSD]
+        rows_inserted = fx_rates.write(
+            [
+                FxRate(date=str(date), usd_cad=dec(usd_cad), cad_usd=dec(cad_usd))
+                for date, usd_cad, cad_usd in fx_df[columns].itertuples(
+                    index=False,
+                    name=None,
+                )
+            ],
+        )
 
         logger.debug("Inserted %d FX records into database", rows_inserted)
         return rows_inserted
@@ -240,22 +208,6 @@ class FxService:
             current = current - timedelta(days=1)
         return current.strftime("%Y-%m-%d")
 
-    @staticmethod
-    def get_earliest_fx_date_from_db() -> str | None:
-        """Get the earliest FX rate date held in the database.
-
-        Returns:
-            Earliest FX rate date in YYYY-MM-DD format, or None if none exist.
-        """
-        try:
-            with get_connection() as conn:
-                if Table.FX not in get_tables(conn):
-                    return None
-                return get_min_value(conn, Table.FX, Column.FX.DATE)
-        except sqlite3.Error as e:
-            logger.debug("Could not get earliest FX date from database: %s", e)
-            return None
-
     @classmethod
     def _default_start(cls) -> str:
         """Work out how far back coverage has to reach for this folio.
@@ -263,8 +215,7 @@ class FxService:
         Returns:
             The earliest transaction date, or 30 days ago for an empty folio.
         """
-        with get_connection() as conn:
-            earliest = earliest_transaction_date(conn)
+        earliest = txns.earliest_date()
         if earliest is not None:
             return earliest
         fallback = (datetime.now(TORONTO_TZ) - timedelta(days=30)).strftime("%Y-%m-%d")
@@ -287,8 +238,8 @@ class FxService:
             Number of new rate rows inserted.
         """
         first_needed = start or cls._default_start()
-        existing_min = cls.get_earliest_fx_date_from_db()
-        existing_max = cls.get_latest_fx_date_from_db()
+        existing_min = fx_rates.earliest_date()
+        existing_max = fx_rates.latest_date()
         today = cls.effective_today()  # latest available boc date
         target_end = min(end, today) if end else today
 
@@ -307,9 +258,7 @@ class FxService:
             return 0
 
         # Drop dates that we already have, so we only insert new ones.
-        held: set[str] = set()
-        if existing_min is not None:
-            held = set(cls.get_fx_rates_from_db()[Column.FX.DATE])
+        held = {rate.date for rate in fx_rates.read()}
         fresh = fetched[~fetched[Column.FX.DATE].isin(held)]
         if fresh.empty:
             return 0

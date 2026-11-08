@@ -6,62 +6,42 @@ cost-base engine resolves through.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
 import typer
 
 from app import audit, bootstrap
 from app.audit import AuditMark
-from db import (
-    backup_folio,
-    create_ticker_aliases_table,
-    delete_rows,
-    get_connection,
-    get_rows,
-    get_tables,
-    insert_or_replace,
-)
-from domain import Column, Table
+from db import aliases, current_backup
+from domain import Column
+from models import TickerAlias
 from term import console_error, console_info, console_success, console_warning
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
-    import sqlite3
     from pathlib import Path
 
-logger = logging.getLogger(__name__)
 
-
-def _describe_alias(alias: dict) -> str:
+def _describe_alias(alias: TickerAlias) -> str:
     """Name an alias on one audit row: `OLD -> NEW from DATE`."""
-    return (
-        f"{alias[Column.Aliases.OLD_TICKER]} -> {alias[Column.Aliases.NEW_TICKER]}"
-        f" from {alias[Column.Aliases.EFFECTIVE_DATE]}"
-    )
+    return f"{alias.old_ticker} -> {alias.new_ticker} from {alias.effective_date}"
 
 
-def _existing_alias(conn: sqlite3.Connection, old_ticker: str) -> dict | None:
-    """Return the alias `old_ticker` already has, if any."""
-    rows = get_rows(
-        conn,
-        Table.TICKER_ALIASES,
-        where=f'"{Column.Aliases.OLD_TICKER}" = ?',
-        params=[old_ticker],
-    )
-    return None if rows.empty else rows.iloc[0].to_dict()
-
-
-def _alias_changes(previous: dict, alias: dict) -> str:
+def _alias_changes(previous: TickerAlias, alias: TickerAlias) -> str:
     """List what `alias` changes on the one already stored, as `Field old -> new`."""
+    before, after = previous.to_row(), alias.to_row()
     return "; ".join(
-        f"{column} {previous[column]} -> {alias[column]}"
+        f"{column} {before[column]} -> {after[column]}"
         for column in (Column.Aliases.NEW_TICKER, Column.Aliases.EFFECTIVE_DATE)
-        if str(previous[column]) != str(alias[column])
+        if before[column] != after[column]
     )
 
 
-def _log_alias_write(previous: dict | None, alias: dict, backup: Path | None) -> str:
+def _log_alias_write(
+    previous: TickerAlias | None,
+    alias: TickerAlias,
+    backup: Path | None,
+) -> str:
     """Write the stage and row for a stored alias, and return what the add did."""
     where = audit.describe_backup(backup)
     if previous is None:
@@ -70,7 +50,7 @@ def _log_alias_write(previous: dict | None, alias: dict, backup: Path | None) ->
         return "1 alias added"
     audit.stage("REPLACE 1 alias; %s", where)
     changes = _alias_changes(previous, alias)
-    audit.row(AuditMark.CHANGED, f"{alias[Column.Aliases.OLD_TICKER]}: {changes}")
+    audit.row(AuditMark.CHANGED, f"{alias.old_ticker}: {changes}")
     return "1 alias replaced"
 
 
@@ -79,34 +59,26 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
     console_info(
         f"Adding alias: {old_ticker} -> {new_ticker} (effective {effective_date})",
     )
-    alias = {
-        Column.Aliases.OLD_TICKER: old_ticker.upper(),
-        Column.Aliases.NEW_TICKER: new_ticker.upper(),
-        Column.Aliases.EFFECTIVE_DATE: effective_date,
-    }
-    with audit.entry("ADD ALIAS %s", alias[Column.Aliases.OLD_TICKER]) as entry:
+    alias = TickerAlias(
+        old_ticker=old_ticker.upper(),
+        new_ticker=new_ticker.upper(),
+        effective_date=effective_date,
+    )
+    with audit.entry("ADD ALIAS %s", alias.old_ticker) as entry:
         try:
-            with get_connection() as conn:
-                tables = get_tables(conn)
-                if Table.TICKER_ALIASES not in tables:
-                    msg = f"{Table.TICKER_ALIASES} table not found, creating it now."
-                    logger.debug(msg)
-                    create_ticker_aliases_table()
+            previous = aliases.find(alias.old_ticker)
+            if previous is not None and not _alias_changes(previous, alias):
+                audit.stage("KEEP 1 alias, already as given")
+                audit.row(AuditMark.UNCHANGED, _describe_alias(alias))
+                entry.done("alias unchanged")
+                console_success("Alias already set as given.")
+                return
 
-                previous = _existing_alias(conn, alias[Column.Aliases.OLD_TICKER])
-                if previous is not None and not _alias_changes(previous, alias):
-                    audit.stage("KEEP 1 alias, already as given")
-                    audit.row(AuditMark.UNCHANGED, _describe_alias(alias))
-                    entry.done("alias unchanged")
-                    console_success("Alias already set as given.")
-                    return
-
-                backup = backup_folio()
-                if not insert_or_replace(conn, Table.TICKER_ALIASES, alias):
-                    console_error("Failed to add alias.")
-                    entry.failed("the table refused the alias")
-                    return
-            entry.done(_log_alias_write(previous, alias, backup))
+            if not aliases.write([alias]):
+                console_error("Failed to add alias.")
+                entry.failed("the table refused the alias")
+                return
+            entry.done(_log_alias_write(previous, alias, current_backup()))
             console_success("Successfully added alias.")
         except OSError as e:
             console_error(f"Error adding alias: {e}")
@@ -116,26 +88,19 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
 def list_aliases() -> None:
     """List all ticker aliases from the database."""
     try:
-        with get_connection() as conn:
-            tables = get_tables(conn)
-            if Table.TICKER_ALIASES not in tables:
-                console_info("No ticker aliases found.")
-                return
-
-            df = get_rows(
-                conn,
-                Table.TICKER_ALIASES,
-                order_by=f"{Column.Aliases.EFFECTIVE_DATE} DESC",
+        newest_first = sorted(
+            aliases.read(),
+            key=lambda alias: alias.effective_date,
+            reverse=True,
+        )
+        if newest_first:
+            show_data_table(
+                [alias.to_row() for alias in newest_first],
+                title="Ticker Aliases",
+                max_rows=20,
             )
-
-        if df.empty:
-            console_info("No ticker aliases found.")
         else:
-            records = [
-                {str(k): v for k, v in record.items()}
-                for record in df.to_dict("records")
-            ]
-            show_data_table(records, title="Ticker Aliases", max_rows=20)
+            console_info("No ticker aliases found.")
 
     except OSError as e:
         console_error(f"Error listing aliases: {e}")
@@ -147,26 +112,14 @@ def delete_alias(old_ticker: str) -> None:
     msg = f"Alias for '{old_ticker}' not found."
     with audit.entry("REMOVE ALIAS %s", old_ticker.upper()) as entry:
         try:
-            with get_connection() as conn:
-                tables = get_tables(conn)
-                previous = (
-                    _existing_alias(conn, old_ticker.upper())
-                    if Table.TICKER_ALIASES in tables
-                    else None
-                )
-                if previous is None:
-                    console_warning(msg)
-                    entry.done("nothing removed: no alias for %s", old_ticker.upper())
-                    return
+            previous = aliases.find(old_ticker.upper())
+            if previous is None:
+                console_warning(msg)
+                entry.done("nothing removed: no alias for %s", old_ticker.upper())
+                return
 
-                backup = backup_folio()
-                delete_rows(
-                    conn,
-                    Table.TICKER_ALIASES,
-                    where=f'"{Column.Aliases.OLD_TICKER}" = ?',
-                    params=[old_ticker.upper()],
-                )
-            audit.stage("REMOVE 1 alias; %s", audit.describe_backup(backup))
+            aliases.delete(old_ticker.upper())
+            audit.stage("REMOVE 1 alias; %s", audit.describe_backup(current_backup()))
             audit.row(AuditMark.REMOVED, _describe_alias(previous))
             entry.done("1 alias removed")
             console_success(f"Successfully deleted alias for '{old_ticker}'.")

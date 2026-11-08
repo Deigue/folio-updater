@@ -18,7 +18,7 @@ from db import (
     get_connection,
     get_last_insert_rowid,
     helpers,
-    insert_or_replace,
+    insert_or_replace_many,
 )
 from domain import ACTION_PROFILES, Action, Column, Currency, Sign, Table
 from engine.settlement import settlement_calculator
@@ -172,7 +172,7 @@ def seed_transaction(
     # Mirrors the pipeline's original setup.
     _prepare_txns_table(settled)
     with get_connection() as conn:
-        insert_or_replace(conn, Table.TXNS, row)
+        insert_or_replace_many(conn, Table.TXNS, [row])
         return get_last_insert_rowid(conn)
 
 
@@ -220,16 +220,18 @@ def seed_fx(rows: dict[str, str]) -> None:
     """
     create_fx_table()
     with get_connection() as conn:
-        for date, rate in rows.items():
-            insert_or_replace(
-                conn,
-                Table.FX,
+        insert_or_replace_many(
+            conn,
+            Table.FX,
+            [
                 {
                     Column.FX.DATE: date,
                     Column.FX.FXUSDCAD: rate,
                     Column.FX.FXCADUSD: str(round(1.0 / float(rate), 10)),
-                },
-            )
+                }
+                for date, rate in rows.items()
+            ],
+        )
 
 
 # Rates for every day the two-type folio below trades and settles on.

@@ -85,6 +85,13 @@ def build_sort_clause(column: str, direction: str, *, text_numeric: bool) -> str
     return f"{operand} {direction}"
 
 
+def build_in_clause(column: str, values: Sequence[object] | None) -> str | None:
+    """Build a clause matching any of `values`, or None to match every row."""
+    if values is None:
+        return None
+    return f'"{column}" IN ({", ".join("?" for _ in values)})'
+
+
 def get_rows(  # noqa: PLR0913
     connection: sqlite3.Connection,
     table_name: str,
@@ -123,6 +130,28 @@ def get_rows(  # noqa: PLR0913
     except (pd.errors.DatabaseError, sqlite3.OperationalError):
         return pd.DataFrame()
     return df
+
+
+def get_records(
+    connection: sqlite3.Connection,
+    table_name: str,
+    *,
+    where: str | None = None,
+    params: Sequence[object] | None = None,
+    order_by: str | None = None,
+) -> list[dict[str, object]]:
+    """Return rows exactly as stored, keyed by column name; none without a table."""
+    query = f'SELECT * FROM "{table_name}"'
+    if where:
+        query += f" WHERE {where}"
+    if order_by:
+        query += f" ORDER BY {order_by}"
+    try:
+        cursor = connection.execute(query, params or ())
+    except sqlite3.OperationalError:
+        return []
+    names = [description[0] for description in cursor.description]
+    return [dict(zip(names, row, strict=True)) for row in cursor]
 
 
 def get_last_insert_rowid(connection: sqlite3.Connection) -> int:
@@ -254,35 +283,6 @@ def get_distinct_set(
     """Return distinct non-null values from a column as a set."""
     df = get_distinct_values(connection, table_name, column_name, filter_condition)
     return set(df[column_name].dropna()) if column_name in df else set()
-
-
-def get_alias_edges(
-    connection: sqlite3.Connection,
-) -> list[tuple[str, str, str]]:
-    """Return every ticker rename as an (old, new, effective date) triple.
-
-    Args:
-        connection: The database connection.
-
-    Returns:
-        One triple per row of `TickerAliases`, ordered by effective date so
-        multi-hop chains resolve deterministically. Empty when the table has
-        not been created yet.
-    """
-    query = (
-        f'SELECT "{Column.Aliases.OLD_TICKER}", "{Column.Aliases.NEW_TICKER}", '
-        f'"{Column.Aliases.EFFECTIVE_DATE}" FROM "{Table.TICKER_ALIASES}" '
-        f'ORDER BY "{Column.Aliases.EFFECTIVE_DATE}" ASC'
-    )
-    try:
-        rows = connection.execute(query).fetchall()
-    except sqlite3.OperationalError:
-        return []
-    return [
-        (str(old).upper(), str(new).upper(), str(effective))
-        for old, new, effective in rows
-        if old and new
-    ]
 
 
 def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:
@@ -429,41 +429,6 @@ def update_rows(
         return cursor.rowcount
 
 
-def insert_or_replace(
-    connection: sqlite3.Connection,
-    table_name: str,
-    data: dict,
-) -> bool:
-    """Insert or replace a row in a table.
-
-    Args:
-        connection: Database connection
-        table_name: Name of the table to insert/replace into
-        data: Dictionary mapping column names to values
-
-    Returns:
-        True if successful, False if there was an error
-    """
-    if not data:  # pragma: no cover
-        return False
-
-    columns = ", ".join(f'"{col}"' for col in data)
-    placeholders = ", ".join("?" for _ in data)
-    query = f'INSERT OR REPLACE INTO "{table_name}" ({columns}) VALUES ({placeholders})'
-
-    try:
-        connection.execute(query, tuple(data.values()))
-        connection.commit()
-    except sqlite3.OperationalError:
-        logger.exception(
-            "Error inserting/replacing row in table '%s'",
-            table_name,
-        )
-        return False
-    else:
-        return True
-
-
 def insert_or_replace_many(
     connection: sqlite3.Connection,
     table_name: str,
@@ -471,8 +436,7 @@ def insert_or_replace_many(
 ) -> int:
     """Insert or replace many rows in one statement.
 
-    The batched form of `insert_or_replace`. Every row must carry the same
-    columns.
+    Every row must carry the same columns.
 
     Args:
         connection: Database connection
@@ -616,7 +580,7 @@ def delete_rows(
     connection: sqlite3.Connection,
     table_name: str,
     where: str | None = None,
-    params: list | tuple | None = None,
+    params: Sequence[object] | None = None,
 ) -> int:
     """Delete rows from a table based on WHERE conditions.
 

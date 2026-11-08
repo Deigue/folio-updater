@@ -7,11 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
-from cli.commands import symbol as symbol_module
 from cli.main import app as cli_app
 from cli.selection import get_ticker_family
-from db import create_ticker_aliases_table, get_connection, insert_or_replace
-from domain import Column, Table
+from db import aliases
+from models import TickerAlias
 from services.symbols import (
     SymbolResolver,
     load_symbol_resolver,
@@ -27,8 +26,12 @@ if TYPE_CHECKING:
     from .helpers.context import TempContext
 
 
-SIMPLE = [("OLDCO", "NEWCO", "2025-06-16")]
-CHAIN = [("AAA", "BBB", "2023-01-01"), ("BBB", "CCC", "2024-01-01")]
+def _rename(old: str, new: str, effective: str) -> TickerAlias:
+    return TickerAlias(old_ticker=old, new_ticker=new, effective_date=effective)
+
+
+SIMPLE = [_rename("OLDCO", "NEWCO", "2025-06-16")]
+CHAIN = [_rename("AAA", "BBB", "2023-01-01"), _rename("BBB", "CCC", "2024-01-01")]
 
 
 def test_canonical_follows_a_rename() -> None:
@@ -41,6 +44,13 @@ def test_canonical_leaves_an_unrenamed_symbol_alone() -> None:
 
 def test_canonical_upper_cases() -> None:
     assert SymbolResolver(SIMPLE).canonical(" oldco ") == "NEWCO"
+
+
+def test_a_rename_stored_in_lower_case_still_resolves() -> None:
+    resolver = SymbolResolver([_rename("oldco", "newco", "2025-06-16")])
+
+    assert resolver.canonical("OLDCO") == "NEWCO"
+    assert resolver.family("NEWCO") == ["NEWCO", "OLDCO"]
 
 
 def test_canonical_follows_a_multi_hop_chain() -> None:
@@ -69,7 +79,7 @@ def test_multi_hop_respects_each_edges_date() -> None:
 
 def test_a_cycle_does_not_hang() -> None:
     resolver = SymbolResolver(
-        [("AAA", "BBB", "2023-01-01"), ("BBB", "AAA", "2024-01-01")],
+        [_rename("AAA", "BBB", "2023-01-01"), _rename("BBB", "AAA", "2024-01-01")],
     )
     assert resolver.canonical("AAA") in {"AAA", "BBB"}
 
@@ -137,18 +147,9 @@ def test_selection_delegates_to_the_resolver(temp_ctx: TempContext) -> None:
     """A query for either name finds the stored alias's whole family."""
     with temp_ctx():
         seed_transaction(ticker="OLDCO")
-        create_ticker_aliases_table()
-        with get_connection() as conn:
-            insert_or_replace(
-                conn,
-                Table.TICKER_ALIASES,
-                {
-                    Column.Aliases.OLD_TICKER: "OLDCO",
-                    Column.Aliases.NEW_TICKER: "NEWCO",
-                    Column.Aliases.EFFECTIVE_DATE: "2025-06-16",
-                },
-            )
-            assert sorted(get_ticker_family(conn, "NEWCO")) == ["NEWCO", "OLDCO"]
+        aliases.write(SIMPLE)
+
+        assert sorted(get_ticker_family("NEWCO")) == ["NEWCO", "OLDCO"]
 
 
 def test_normalize_canadian_ticker() -> None:
@@ -238,7 +239,7 @@ def test_an_alias_the_table_refuses_closes_failed(
 ) -> None:
     with (
         temp_ctx() as ctx,
-        patch.object(symbol_module, "insert_or_replace", return_value=False),
+        patch.object(aliases, "write", return_value=False),
     ):
         _symbol(ctx, "--add", "OLDCO", "NEWCO", "2025-06-16")
 

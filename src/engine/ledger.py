@@ -32,14 +32,8 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from app import get_config
-from db.queries import (
-    earliest_transaction_date,
-    get_connection,
-    get_fx_summary,
-    get_max_value,
-    get_revisions,
-)
-from domain import TORONTO_TZ, Column, Table
+from db import fx_rates, revisions, txns
+from domain import TORONTO_TZ
 from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import FxRateUnavailableError, load_fx_rates
 from engine.replay import ReplayConfig, replay
@@ -203,13 +197,10 @@ def _top_up_fx(*, priced: bool) -> None:
     """Fetch the FX rates the folio lacks, when the config allows it."""
     if not get_config().auto_getfx:
         return
-    with get_connection() as conn:
-        earliest = earliest_transaction_date(conn)
-        if earliest is None:
-            return
-        latest = None
-        if not priced:
-            latest = get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
+    earliest = txns.earliest_date()
+    if earliest is None:
+        return
+    latest = None if priced else txns.latest_settlement_date()
     try:
         FxService.ensure_coverage(earliest, latest)
     except (OSError, ValueError, KeyError):
@@ -241,16 +232,16 @@ def _accounts_hash() -> str:
 
 def _inputs() -> dict[str, object]:
     """Describe every replay input but the FX rates."""
-    with get_connection() as conn:
-        tokens = get_revisions(conn)
-    return {"format": SCHEMA_VERSION, "tokens": tokens, "accounts": _accounts_hash()}
+    return {
+        "format": SCHEMA_VERSION,
+        "tokens": revisions.tokens(),
+        "accounts": _accounts_hash(),
+    }
 
 
 def _fx_inputs(cutoff: str | None) -> dict[str, object]:
     """Describe the FX rates a replay converting up to `cutoff` can use."""
-    with get_connection() as conn:
-        summary = get_fx_summary(conn, cutoff)
-    return {"fx_cutoff": cutoff, "fx": summary}
+    return {"fx_cutoff": cutoff, "fx": fx_rates.summary(cutoff)}
 
 
 def _is_current(saved: object) -> bool:

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from db import get_alias_edges, get_connection, get_min_value, get_row_count, get_rows
+from db import aliases, get_connection, get_min_value, get_row_count, get_rows
 from domain import Action, Column, Table
 
 if TYPE_CHECKING:
@@ -62,8 +62,12 @@ def plain_ticker(action: Action = Action.BUY) -> str:
     Returns:
         The ticker symbol.
     """
+    renamed = {
+        name.upper()
+        for alias in aliases.read()
+        for name in (alias.old_ticker, alias.new_ticker)
+    }
     with get_connection() as conn:
-        renamed = {name for old, new, _ in get_alias_edges(conn) for name in (old, new)}
         rows = get_rows(
             conn,
             Table.TXNS,

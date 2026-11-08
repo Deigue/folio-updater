@@ -833,7 +833,7 @@ CAD,acct,MOCK-RRSP,holding QQQ,market_value_cad,25522.06500
 CAD,acct,MOCK-RRSP,holding QQQ,market_value_totals,25522.06500
 CAD,acct,MOCK-RRSP,holding QQQ,name,QQQ
 CAD,acct,MOCK-RRSP,holding QQQ,pool,MOCK-RRSP
-CAD,acct,MOCK-RRSP,holding QQQ,prev_close,1019.820
+CAD,acct,MOCK-RRSP,holding QQQ,prev_close,1019.82
 CAD,acct,MOCK-RRSP,holding QQQ,price,1020.8826
 CAD,acct,MOCK-RRSP,holding QQQ,priced,True
 CAD,acct,MOCK-RRSP,holding QQQ,realized,0.0
@@ -2166,7 +2166,7 @@ CAD,folio,,holding QQQ,market_value_cad,25522.06500
 CAD,folio,,holding QQQ,market_value_totals,25522.06500
 CAD,folio,,holding QQQ,name,QQQ
 CAD,folio,,holding QQQ,pool,
-CAD,folio,,holding QQQ,prev_close,1019.820
+CAD,folio,,holding QQQ,prev_close,1019.82
 CAD,folio,,holding QQQ,price,1020.8826
 CAD,folio,,holding QQQ,priced,True
 CAD,folio,,holding QQQ,realized,0.0
@@ -3254,7 +3254,7 @@ CAD,type,RRSP,holding QQQ,market_value_cad,25522.06500
 CAD,type,RRSP,holding QQQ,market_value_totals,25522.06500
 CAD,type,RRSP,holding QQQ,name,QQQ
 CAD,type,RRSP,holding QQQ,pool,RRSP
-CAD,type,RRSP,holding QQQ,prev_close,1019.820
+CAD,type,RRSP,holding QQQ,prev_close,1019.82
 CAD,type,RRSP,holding QQQ,price,1020.8826
 CAD,type,RRSP,holding QQQ,priced,True
 CAD,type,RRSP,holding QQQ,realized,0.0
@@ -4559,7 +4559,7 @@ USD,acct,MOCK-RRSP,holding QQQ,market_value_cad,25522.06500
 USD,acct,MOCK-RRSP,holding QQQ,market_value_totals,18494.250
 USD,acct,MOCK-RRSP,holding QQQ,name,QQQ
 USD,acct,MOCK-RRSP,holding QQQ,pool,MOCK-RRSP
-USD,acct,MOCK-RRSP,holding QQQ,prev_close,739.0
+USD,acct,MOCK-RRSP,holding QQQ,prev_close,739
 USD,acct,MOCK-RRSP,holding QQQ,price,739.77
 USD,acct,MOCK-RRSP,holding QQQ,priced,True
 USD,acct,MOCK-RRSP,holding QQQ,realized,0.0
@@ -5366,7 +5366,7 @@ USD,folio,,holding QQQ,market_value_cad,25522.06500
 USD,folio,,holding QQQ,market_value_totals,18494.250
 USD,folio,,holding QQQ,name,QQQ
 USD,folio,,holding QQQ,pool,
-USD,folio,,holding QQQ,prev_close,739.0
+USD,folio,,holding QQQ,prev_close,739
 USD,folio,,holding QQQ,price,739.77
 USD,folio,,holding QQQ,priced,True
 USD,folio,,holding QQQ,realized,0.0
@@ -6230,7 +6230,7 @@ USD,type,RRSP,holding QQQ,market_value_cad,25522.06500
 USD,type,RRSP,holding QQQ,market_value_totals,18494.250
 USD,type,RRSP,holding QQQ,name,QQQ
 USD,type,RRSP,holding QQQ,pool,RRSP
-USD,type,RRSP,holding QQQ,prev_close,739.0
+USD,type,RRSP,holding QQQ,prev_close,739
 USD,type,RRSP,holding QQQ,price,739.77
 USD,type,RRSP,holding QQQ,priced,True
 USD,type,RRSP,holding QQQ,realized,0.0
@@ -7334,7 +7334,7 @@ native,acct,MOCK-RRSP,holding QQQ,market_value_cad,25522.06500
 native,acct,MOCK-RRSP,holding QQQ,market_value_totals,25522.06500
 native,acct,MOCK-RRSP,holding QQQ,name,QQQ
 native,acct,MOCK-RRSP,holding QQQ,pool,MOCK-RRSP
-native,acct,MOCK-RRSP,holding QQQ,prev_close,739.0
+native,acct,MOCK-RRSP,holding QQQ,prev_close,739
 native,acct,MOCK-RRSP,holding QQQ,price,739.77
 native,acct,MOCK-RRSP,holding QQQ,priced,True
 native,acct,MOCK-RRSP,holding QQQ,realized,0.0
@@ -8709,7 +8709,7 @@ native,folio,,holding QQQ,market_value_cad,25522.06500
 native,folio,,holding QQQ,market_value_totals,25522.06500
 native,folio,,holding QQQ,name,QQQ
 native,folio,,holding QQQ,pool,
-native,folio,,holding QQQ,prev_close,739.0
+native,folio,,holding QQQ,prev_close,739
 native,folio,,holding QQQ,price,739.77
 native,folio,,holding QQQ,priced,True
 native,folio,,holding QQQ,realized,0.0
@@ -9838,7 +9838,7 @@ native,type,RRSP,holding QQQ,market_value_cad,25522.06500
 native,type,RRSP,holding QQQ,market_value_totals,25522.06500
 native,type,RRSP,holding QQQ,name,QQQ
 native,type,RRSP,holding QQQ,pool,RRSP
-native,type,RRSP,holding QQQ,prev_close,739.0
+native,type,RRSP,holding QQQ,prev_close,739
 native,type,RRSP,holding QQQ,price,739.77
 native,type,RRSP,holding QQQ,priced,True
 native,type,RRSP,holding QQQ,realized,0.0

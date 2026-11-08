@@ -11,7 +11,7 @@ import pytest
 
 from cli.main import app
 from datagen import ensure_data_exists
-from db import create_txns_table, drop_table, get_connection, get_row_count
+from db import create_txns_table, drop_table, fx_rates, get_connection, get_row_count
 from domain import TORONTO_TZ, Column, Table
 from engine.ledger import open_ledger
 from services import FxService
@@ -54,7 +54,7 @@ def test_ensure_coverage_defaults_to_the_earliest_transaction(
         seed_transaction(date=oldest_txn, settle_date=oldest_txn)
 
         assert FxService.ensure_coverage() == 20
-        assert FxService.get_earliest_fx_date_from_db() == oldest_txn
+        assert fx_rates.earliest_date() == oldest_txn
 
 
 @pytest.mark.parametrize("make_table", [False, True], ids=["no_table", "empty_table"])
@@ -85,12 +85,12 @@ def test_ensure_coverage_backfills_history_older_than_the_earliest_rate(
     """A plain top-up from MAX(Date) only extends forward; this fixes that."""
     with temp_ctx():
         _seed_rates(rate_dates[-2:])
-        assert FxService.get_earliest_fx_date_from_db() == rate_dates[-2]
+        assert fx_rates.earliest_date() == rate_dates[-2]
 
         # The refetch spans the held dates too; only the new ones are written,
         # since the rest would collide on the Date primary key.
         assert FxService.ensure_coverage(rate_dates[-20]) == 18
-        assert FxService.get_earliest_fx_date_from_db() == rate_dates[-20]
+        assert fx_rates.earliest_date() == rate_dates[-20]
 
         # Asking again finds nothing left to add.
         assert FxService.ensure_coverage(rate_dates[-20]) == 0
@@ -190,7 +190,7 @@ def test_getfx_backfills_rates_older_than_the_ones_held(
 
         # Fetched from the earliest transaction date, not from MAX(Date) + 1.
         assert boc_fetch.call_args.args == (oldest_txn,)
-        assert FxService.get_earliest_fx_date_from_db() == oldest_txn
+        assert fx_rates.earliest_date() == oldest_txn
     assert_cli_success(result)
 
 

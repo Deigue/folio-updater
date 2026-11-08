@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ import yaml
 from app import get_config, initialize_app
 from cli.main import app
 from db import (
-    create_quotes_table,
+    aliases,
     create_ticker_aliases_table,
     delete_rows,
     drop_table,
@@ -23,11 +24,12 @@ from db import (
     get_row_count,
     get_rows,
     get_triggers,
-    insert_or_replace,
+    quotes,
     update_rows,
 )
 from domain import Column, QuoteStatus, Table
 from engine.ledger import open_ledger
+from models import Quote, TickerAlias
 
 from .helpers.cli import (
     assert_cli_success,
@@ -527,31 +529,28 @@ def _configure(section: str, value: dict[str, object]) -> Change:
 
 
 def _write_quote(*_: object) -> None:
-    create_quotes_table()
-    with get_connection() as conn:
-        insert_or_replace(
-            conn,
-            Table.QUOTES,
-            {
-                Column.Quote.SYMBOL: TICKER,
-                Column.Quote.PROVIDER_SYMBOL: TICKER,
-                Column.Quote.PRICE: 151.5,
-                Column.Quote.STATUS: QuoteStatus.OK,
-            },
-        )
+    quotes.write(
+        [
+            Quote(
+                symbol=TICKER,
+                provider_symbol=TICKER,
+                price=Decimal("151.5"),
+                status=QuoteStatus.OK,
+            ),
+        ],
+    )
 
 
 def _add_alias(*_: object) -> None:
-    with get_connection() as conn:
-        insert_or_replace(
-            conn,
-            Table.TICKER_ALIASES,
-            {
-                Column.Aliases.OLD_TICKER: TICKER,
-                Column.Aliases.NEW_TICKER: "MSFT",
-                Column.Aliases.EFFECTIVE_DATE: "2025-09-01",
-            },
-        )
+    aliases.write(
+        [
+            TickerAlias(
+                old_ticker=TICKER,
+                new_ticker="MSFT",
+                effective_date="2025-09-01",
+            ),
+        ],
+    )
 
 
 def _add_transaction(*_: object) -> None:

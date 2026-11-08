@@ -10,7 +10,7 @@ from engine.accounts import Account
 from engine.fees import FeeRules
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, replay
-from models import Txn
+from models import TickerAlias, Txn
 from services.symbols import SymbolResolver
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ def run(
     fx: FxRates = FLAT_FX,
     types: dict[str, AccountType] | None = None,
     conventions: dict[str, FeeConvention] | None = None,
-    aliases: list[tuple[str, str, str]] | None = None,
+    aliases: list[TickerAlias] | None = None,
     margin: set[str] | None = None,
 ) -> ReplayResult:
     """Replay rows with explicit account facts, so no config is involved.

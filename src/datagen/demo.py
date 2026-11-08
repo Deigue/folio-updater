@@ -30,13 +30,14 @@ from app import audit, get_config, initialize_app
 from config import write_missing_setting
 from datagen.history_data import CLOSES, DIVIDENDS, FIRST_MONTH, SPLITS
 from db import (
+    aliases,
     backup_folio,
+    backup_scope,
     create_txns_table,
     drop_table,
     get_connection,
     get_distinct_set,
     get_row_count,
-    insert_or_replace,
 )
 from db.helpers import generate_keys, txn_count
 from domain import (
@@ -55,6 +56,7 @@ from engine.replay import SUPERFICIAL_LOSS_DAYS
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
 from exporters import ParquetExporter
 from importers import insert_transactions
+from models import TickerAlias
 from services import FxService
 from term import console_warning
 
@@ -1261,22 +1263,25 @@ class DemoFolio:
     @staticmethod
     def _write(rows: pd.DataFrame) -> None:
         """Store the demo's transactions and renames, then export the folio."""
-        results = insert_transactions(rows, map_headers=False)
-        if len(results.final_df) != len(rows):
-            msg = f"The import kept {len(results.final_df)} of {len(rows)} demo rows"
-            raise DemoScenarioError(msg)
-
-        with get_connection() as conn:
-            for old, new, effective in RENAMES:
-                insert_or_replace(
-                    conn,
-                    Table.TICKER_ALIASES,
-                    {
-                        Column.Aliases.OLD_TICKER: old,
-                        Column.Aliases.NEW_TICKER: new,
-                        Column.Aliases.EFFECTIVE_DATE: effective.isoformat(),
-                    },
+        # One scope: the folio is empty at its start, so the demo takes no backup.
+        with backup_scope():
+            results = insert_transactions(rows, map_headers=False)
+            if len(results.final_df) != len(rows):
+                msg = (
+                    f"The import kept {len(results.final_df)} of {len(rows)} demo rows"
                 )
+                raise DemoScenarioError(msg)
+
+            aliases.write(
+                [
+                    TickerAlias(
+                        old_ticker=old,
+                        new_ticker=new,
+                        effective_date=effective.isoformat(),
+                    )
+                    for old, new, effective in RENAMES
+                ],
+            )
 
         config = get_config()
         if write_missing_setting(config.config_path, "contribution_room", CRA_ROOM):

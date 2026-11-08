@@ -28,11 +28,11 @@ from cli.query_parser import (
     parse_query_terms,
 )
 from config.optional_fields import FieldType
+from db import aliases
 from db.catalog import get_columns
 from db.queries import (
     build_comparison_clause,
     build_sort_clause,
-    get_alias_edges,
     get_connection,
     get_distinct_set,
     get_rows,
@@ -104,17 +104,16 @@ class Selection:
         return f"query: {self.query.describe()}"
 
 
-def get_ticker_family(connection: sqlite3.Connection, ticker: str) -> list[str]:
+def get_ticker_family(ticker: str) -> list[str]:
     """Find all related tickers (aliases) for a given ticker.
 
     Args:
-        connection: The database connection.
         ticker: Any symbol in the rename chain.
 
     Returns:
         Every symbol the security has been known by, including the input.
     """
-    return SymbolResolver(get_alias_edges(connection)).family(ticker)
+    return SymbolResolver(aliases.read()).family(ticker)
 
 
 def load_vocabulary() -> QueryVocabulary:
@@ -168,7 +167,7 @@ def build_where_clause(
     for f in query.filters:
         if f.operator == ":":
             if f.column == Column.Txn.TICKER:
-                ticker_family = get_ticker_family(conn, f.value)
+                ticker_family = get_ticker_family(f.value)
                 if ticker_family:
                     placeholders = ",".join("?" * len(ticker_family))
                     where_clauses.append(f'"{f.column}" IN ({placeholders})')
@@ -202,7 +201,7 @@ def build_where_clause(
 
         # get_ticker_family always includes the search term itself, so this
         # is never empty.
-        ticker_family = get_ticker_family(conn, search)
+        ticker_family = get_ticker_family(search)
         placeholders = ",".join("?" * len(ticker_family))
         ticker_clause = f'"{Column.Txn.TICKER}" IN ({placeholders})'
         account_clause = f'"{Column.Txn.ACCOUNT}" LIKE ?'

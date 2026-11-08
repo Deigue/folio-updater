@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import socket
-import sqlite3
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
@@ -20,19 +19,11 @@ from functools import cache
 from typing import TYPE_CHECKING, Any, Literal
 
 from app import get_config
-from db.catalog import get_tables
-from db.queries import (
-    delete_rows,
-    get_connection,
-    get_rows,
-    insert_or_replace_many,
-    replace_rows,
-)
-from db.schema import create_quote_history_table, create_quotes_table
-from domain import TORONTO_TZ, Column, Currency, PriceRange, QuoteStatus, Table
+from db import quote_history
+from db import quotes as quote_store
+from domain import TORONTO_TZ, Currency, PriceRange, QuoteStatus
 from domain.numeric import dec
-from models import Fundamentals, Quote, QuoteSplit
-from models.cells import read_moment
+from models import Fundamentals, Quote, QuoteHistory, QuoteSplit
 from models.columns import Kind, column_of
 from services.price_history import (
     PricePoint,
@@ -255,27 +246,8 @@ class QuotesService:
             Each symbol mapped to its cached `Quote`. Symbols with no row are
             simply absent.
         """
-        try:
-            # Brings a cache of an older shape up to date before it is read.
-            create_quotes_table()
-            with get_connection() as conn:
-                frame = get_rows(conn, Table.QUOTES)
-        except sqlite3.Error as error:
-            logger.debug("Could not read the quotes cache: %s", error)
-            return {}
-
-        if frame.empty:
-            return {}
-
-        wanted = {symbol.upper() for symbol in symbols} if symbols is not None else None
-        quotes: dict[str, Quote] = {}
-        for record in frame.to_dict("records"):
-            symbol = _text(record.get(Column.Quote.SYMBOL))
-            if symbol is None or (wanted is not None and symbol not in wanted):
-                continue
-            # A frame's records are keyed by column name.
-            quotes[symbol] = Quote.from_row(record)  # ty: ignore[invalid-argument-type]
-        return quotes
+        wanted = None if symbols is None else [symbol.upper() for symbol in symbols]
+        return quote_store.read(wanted)
 
     @classmethod
     def get_quotes(
@@ -393,7 +365,7 @@ class QuotesService:
 
         now = datetime.now(UTC)
         result = RefreshResult(used_fallback=bool(fetch.throttled))
-        rows: list[dict[str, Any]] = []
+        refreshed: list[Quote] = []
         for symbol in wanted:
             if provider_symbols[symbol] in failed:
                 # Left as it was: a failed request says nothing about the symbol.
@@ -407,10 +379,10 @@ class QuotesService:
                 metadata.get(provider_symbols[symbol]),
                 now,
             )
-            rows.append(replace(quote, source=SOURCE).to_row())
+            refreshed.append(replace(quote, source=SOURCE))
             result = _tally(result, outcome)
 
-        _write(rows)
+        quote_store.write(refreshed)
         return result
 
     @classmethod
@@ -462,33 +434,9 @@ class QuotesService:
         wanted = None if symbols is None else [symbol.upper() for symbol in symbols]
         if wanted == []:
             return 0
-        placeholders = ", ".join("?" for _ in wanted or ())
-
-        def matching(column: str) -> str | None:
-            """Narrow a delete to the symbols asked for, or None for every row."""
-            return None if wanted is None else f'"{column}" IN ({placeholders})'
-
-        try:
-            # A symbol's history goes with its quote, so both tables are cleared.
-            create_quote_history_table()
-            with get_connection() as conn:
-                delete_rows(
-                    conn,
-                    Table.QUOTE_HISTORY,
-                    where=matching(Column.QuoteHistory.SYMBOL),
-                    params=wanted,
-                )
-                if Table.QUOTES not in get_tables(conn):
-                    return 0
-                return delete_rows(
-                    conn,
-                    Table.QUOTES,
-                    where=matching(Column.Quote.SYMBOL),
-                    params=wanted,
-                )
-        except sqlite3.Error as error:
-            logger.debug("Could not clear the quotes cache: %s", error)
-            return 0
+        # A symbol's history goes with its quote, so both tables are cleared.
+        quote_history.delete(wanted)
+        return quote_store.delete(wanted)
 
     @classmethod
     def history(
@@ -1138,85 +1086,41 @@ def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
     return Fundamentals(**read)
 
 
-def _write(rows: list[dict[str, Any]]) -> None:
-    """Persist refreshed quotes, creating the table on first use."""
-    try:
-        create_quotes_table()
-        with get_connection() as conn:
-            insert_or_replace_many(conn, Table.QUOTES, rows)
-    except sqlite3.Error as error:
-        announce.warning(f"Could not write the quotes cache: {error}")
-
-
 def _write_history(
     symbol: str,
     ranges: Mapping[PriceRange, RangeHistory],
     fetched_at: datetime,
 ) -> None:
     """Replace a symbol's stored history with a freshly condensed one."""
-    stamp = fetched_at.isoformat()
-    rows = [
-        {
-            str(Column.QuoteHistory.SYMBOL): symbol,
-            str(Column.QuoteHistory.RANGE): str(price_range),
-            str(Column.QuoteHistory.SEQ): seq,
-            str(Column.QuoteHistory.DATE): point.when,
-            str(Column.QuoteHistory.CLOSE): float(point.close),
-            str(Column.QuoteHistory.FETCHED_AT): stamp,
-        }
-        for price_range, summary in ranges.items()
-        for seq, point in enumerate((summary.anchor, *summary.points))
-    ]
-    try:
-        create_quote_history_table()
-        with get_connection() as conn:
-            replace_rows(
-                conn,
-                Table.QUOTE_HISTORY,
-                rows,
-                where=f'"{Column.QuoteHistory.SYMBOL}" = ?',
-                params=[symbol],
+    quote_history.replace(
+        symbol,
+        [
+            QuoteHistory(
+                symbol=symbol,
+                range=price_range,
+                seq=seq,
+                date=point.when,
+                close=point.close,
+                fetched_at=fetched_at,
             )
-    except sqlite3.Error as error:
-        announce.warning(f"Could not write the price history: {error}")
+            for price_range, summary in ranges.items()
+            for seq, point in enumerate((summary.anchor, *summary.points))
+        ],
+    )
 
 
 def _read_history(
     symbols: Sequence[str],
 ) -> dict[str, tuple[datetime, dict[PriceRange, RangeHistory]]]:
     """Read stored history back, with when each symbol's was fetched."""
-    placeholders = ", ".join("?" for _ in symbols)
-    try:
-        create_quote_history_table()
-        with get_connection() as conn:
-            frame = get_rows(
-                conn,
-                Table.QUOTE_HISTORY,
-                where=f'"{Column.QuoteHistory.SYMBOL}" IN ({placeholders})',
-                params=list(symbols),
-                order_by=(
-                    f'"{Column.QuoteHistory.SYMBOL}", "{Column.QuoteHistory.RANGE}", '
-                    f'"{Column.QuoteHistory.SEQ}"'
-                ),
-            )
-    except sqlite3.Error as error:
-        logger.debug("Could not read the price history: %s", error)
-        return {}
-
     grouped: dict[str, dict[PriceRange, list[PricePoint]]] = {}
     fetched: dict[str, datetime] = {}
-    for record in frame.to_dict("records"):
-        symbol = str(record[Column.QuoteHistory.SYMBOL])
-        moment = read_moment(record[Column.QuoteHistory.FETCHED_AT])
-        if moment is not None:
-            # The oldest stamp wins, so a part-written symbol reads as due.
-            fetched[symbol] = min(fetched.get(symbol, moment), moment)
-        price_range = PriceRange(str(record[Column.QuoteHistory.RANGE]))
-        point = PricePoint(
-            str(record[Column.QuoteHistory.DATE]),
-            dec(record[Column.QuoteHistory.CLOSE]),
-        )
-        grouped.setdefault(symbol, {}).setdefault(price_range, []).append(point)
+    for stored in quote_history.read(symbols):
+        symbol = stored.symbol
+        # The oldest stamp wins, so a part-written symbol reads as due.
+        fetched[symbol] = min(fetched.get(symbol, stored.fetched_at), stored.fetched_at)
+        point = PricePoint(stored.date, stored.close)
+        grouped.setdefault(symbol, {}).setdefault(stored.range, []).append(point)
 
     return {
         symbol: (

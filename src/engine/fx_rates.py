@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from db.queries import get_connection, get_rows
-from domain import Column, Currency, Table
-from domain.numeric import ONE, ZERO, dec, safe_div
+from db import fx_rates as stored_rates
+from domain import Currency
+from domain.numeric import ONE, ZERO, safe_div
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -154,21 +154,8 @@ def load_fx_rates() -> FxRates:
     Returns:
         An `FxRates` over the whole `FX` table, empty when it has no rows.
     """
-    with get_connection() as conn:
-        frame = get_rows(conn, Table.FX, order_by=f'"{Column.FX.DATE}" ASC')
-
-    if frame.empty or Column.FX.FXUSDCAD not in frame.columns:
-        return FxRates((), ())
-
-    # convert with `dec` once to test, then add the `pair` to pairs (no double convert)
     pairs = [
-        pair
-        for date, rate in zip(
-            frame[Column.FX.DATE].to_numpy(),
-            frame[Column.FX.FXUSDCAD].to_numpy(),
-            strict=True,
-        )
-        if (pair := (str(date), dec(rate)))[1] > ZERO
+        (rate.date, rate.usd_cad) for rate in stored_rates.read() if rate.usd_cad > ZERO
     ]
     logger.debug("Loaded %d FX rates for cost-base conversion", len(pairs))
     return FxRates(

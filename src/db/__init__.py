@@ -4,8 +4,19 @@ This module exports the API for commonly used database operations.
 """
 
 # Also export module references for less common operations
-from db import backup, helpers, queries, schema
-from db.backup import backup_folio, backup_scope
+from db import (
+    aliases,
+    backup,
+    fx_rates,
+    helpers,
+    queries,
+    quote_history,
+    quotes,
+    revisions,
+    schema,
+    txns,
+)
+from db.backup import backup_folio, backup_scope, current_backup
 from db.catalog import get_columns, get_tables, get_triggers
 from db.helpers import txn_count
 from db.queries import (
@@ -13,8 +24,6 @@ from db.queries import (
     append_rows,
     delete_rows,
     drop_table,
-    earliest_transaction_date,
-    get_alias_edges,
     get_broker_latest_txn_date,
     get_connection,
     get_distinct_set,
@@ -24,7 +33,6 @@ from db.queries import (
     get_min_value,
     get_row_count,
     get_rows,
-    insert_or_replace,
     insert_or_replace_many,
     trial_insert_rows,
     update_rows,
@@ -38,6 +46,7 @@ from db.schema import (
 
 __all__ = [
     "add_column_to_table",
+    "aliases",
     "append_rows",
     "backup",
     "backup_folio",
@@ -46,10 +55,10 @@ __all__ = [
     "create_quotes_table",
     "create_ticker_aliases_table",
     "create_txns_table",
+    "current_backup",
     "delete_rows",
     "drop_table",
-    "earliest_transaction_date",
-    "get_alias_edges",
+    "fx_rates",
     "get_broker_latest_txn_date",
     "get_columns",
     "get_connection",
@@ -63,11 +72,14 @@ __all__ = [
     "get_tables",
     "get_triggers",
     "helpers",
-    "insert_or_replace",
     "insert_or_replace_many",
     "queries",
+    "quote_history",
+    "quotes",
+    "revisions",
     "schema",
     "trial_insert_rows",
     "txn_count",
+    "txns",
     "update_rows",
 ]

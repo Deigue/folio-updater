@@ -191,3 +191,9 @@ def backup_folio() -> Path | None:
         scope.taken = True
         scope.path = path
     return path
+
+
+def current_backup() -> Path | None:
+    """Return the backup the open scope holds, or None when it has none."""
+    scope = _scope.get()
+    return None if scope is None else scope.path
