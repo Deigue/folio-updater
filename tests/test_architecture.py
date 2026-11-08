@@ -148,14 +148,22 @@ def test_sql_stays_in_the_db_package() -> None:
 
 
 # What only `src/db` may import.
-_DATABASE_INTERNALS = frozenset({"sqlite3", "db.queries", "db.get_connection"})
+_DATABASE_INTERNALS = frozenset({"sqlite3", "db", "db.queries", "db.get_connection"})
 
 
 def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:
-    """Every dotted name an import statement reaches."""
+    """Every dotted name an import statement reaches.
+
+    `from db import txns` reaches `db.txns` alone, so a repository stays importable
+    while `import db`, which hands over the whole package, is caught. So is
+    `import db.txns`, which binds `db` too.
+    """
     if isinstance(node, ast.Import):
-        return {alias.name for alias in node.names}
-    return {str(node.module), *(f"{node.module}.{alias.name}" for alias in node.names)}
+        named = {alias.name for alias in node.names}
+        bound = {alias.name.split(".")[0] for alias in node.names if not alias.asname}
+        return named | bound
+    reached = {f"{node.module}.{alias.name}" for alias in node.names}
+    return reached if node.module == "db" else {str(node.module), *reached}
 
 
 def test_only_db_reaches_the_database() -> None:

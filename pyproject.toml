@@ -66,7 +66,6 @@ omit = [
     'src/importers/__init__.py',
     'src/ingest/__init__.py',
     'src/models/__init__.py',
-    'src/models/wealthsimple/__init__.py',
     'src/services/__init__.py',
     'src/term/__init__.py',
     'src/ui/__init__.py',
@@ -79,7 +78,7 @@ omit = [
     'tests/fixtures/dataframe_cache.py',
     'tests/helpers/seed.py',
     'src/db/backup.py',
-    'src/models/*',
+    'src/models/wealthsimple/*',
     'src/ui/*',
     'src/term/*',
     # Rendering an export is similar work to rendering ui

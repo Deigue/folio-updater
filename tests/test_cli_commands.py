@@ -823,6 +823,60 @@ def test_wealthsimple_download_passes_an_amount_and_units_it_cannot_read_through
     assert row == "2025-10-02,BUY,n/a,USD,,two,SPY,WS-TFSA"
 
 
+def _account_with_owners(*signed: object) -> dict[str, Any]:
+    """Build an account whose owners carry these signed-agreement values."""
+    owners = [
+        {"accountOpeningAgreementsSigned": value, "__typename": "AccountOwner"}
+        for value in signed
+    ]
+    return mock_account("test-tfsa-1", "WS-TFSA") | {"accountOwners": owners}
+
+
+def test_wealthsimple_download_accepts_owners_signed_or_unanswered(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An owner who has signed and one with no answer do not stop the download."""
+    content = _download_wealthsimple_csv(
+        temp_ctx,
+        monkeypatch,
+        [_account_with_owners(True, None)],  # noqa: FBT003
+        [
+            {
+                "account_id": "test-tfsa-1",
+                "type": "INTERNAL_TRANSFER",
+                "sub_type": "DESTINATION",
+            },
+        ],
+    )
+
+    assert content.splitlines()[1].endswith(",WS-TFSA")
+
+
+def test_wealthsimple_download_stops_when_the_payload_shape_changes(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A field of an unexpected type stops the download, so it is noticed and fixed."""
+    with (
+        temp_ctx() as ctx,
+        WealthsimpleMockContext(
+            monkeypatch,
+            mock_accounts=[_account_with_owners("yes")],
+            mock_activities=get_mock_activities(),
+        ) as ws_mock,
+    ):
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-b", "wealthsimple"],
+        )
+
+        assert isinstance(cli_result.exception, TypeError)
+        assert "Expected bool or None, got str" in str(cli_result.exception)
+        ws_mock.assert_no_csv_written()
+
+
 def test_wealthsimple_download_refreshes_an_expired_access_token(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
