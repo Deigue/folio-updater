@@ -183,6 +183,7 @@ is recorded.
 | `INCOME_WITHOUT_HOLDING`   | A dividend or return of capital with no holding              |
 | `SETTLEMENT_BEFORE_TRADE`  | A trade that settles before it was made                      |
 | `AMBIGUOUS_FEE_CONVENTION` | A trade matching neither fee convention                      |
+| `FEE_CONVENTION_MISMATCH`  | A trade against its account's fee convention                 |
 | `FXT_AMOUNT_INCONSISTENT`  | A conversion whose `Amount` and `Units * Price` disagree     |
 | `UNKNOWN_ACCOUNT_TYPE`     | An account name the convention could not resolve             |
 | `TRANSFER_UNPAIRED`        | A transfer leg with no counterpart                           |

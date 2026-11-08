@@ -18,6 +18,7 @@ from domain import (
     AccountType,
     Column,
     FeeConvention,
+    FeeSign,
 )
 from domain.numeric import dec
 from term import console_warning
@@ -35,6 +36,15 @@ FEE_CONVENTIONS: dict[str, FeeConvention] = {
     "false": FeeConvention.EXCLUDED,
     "no": FeeConvention.EXCLUDED,
     "excluded": FeeConvention.EXCLUDED,
+}
+
+# How `fee_sign` is spelled in YAML.
+FEE_SIGNS: dict[str, FeeSign] = {sign.value: sign for sign in FeeSign}
+
+# The fee settings an account, or `defaults`, may carry, and what each may be spelled.
+_FEE_SPELLINGS: dict[str, Mapping[str, object]] = {
+    "amount_includes_fees": FEE_CONVENTIONS,
+    "fee_sign": FEE_SIGNS,
 }
 
 # Keys copied straight from YAML once they type-check, mapped to the type they
@@ -112,11 +122,12 @@ def _validate_accounts(
         current["naming_convention"] = accounts["naming_convention"]
 
     defaults = accounts.get("defaults")
-    if isinstance(defaults, dict) and "amount_includes_fees" in defaults:
-        # `false` is a meaningful value here, so test for the key.
-        fees = str(defaults["amount_includes_fees"]).lower()
-        if fees in FEE_CONVENTIONS:
-            current["defaults"] = {"amount_includes_fees": fees}
+    if isinstance(defaults, dict):
+        # Each default is set on its own, so pinning one leaves the other as it was.
+        # `false` is a meaningful convention, so test for the key.
+        for key, spellings in _FEE_SPELLINGS.items():
+            if key in defaults and str(defaults[key]).lower() in spellings:
+                current["defaults"][key] = str(defaults[key]).lower()
 
     raw_map = accounts.get("map")
     if isinstance(raw_map, dict):
@@ -146,10 +157,9 @@ def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
             except ValueError:
                 return None
 
-    if "amount_includes_fees" in entry:
-        fees = str(entry["amount_includes_fees"]).lower()
-        if fees in FEE_CONVENTIONS:
-            normalized["amount_includes_fees"] = fees
+    for key, spellings in _FEE_SPELLINGS.items():
+        if key in entry and str(entry[key]).lower() in spellings:
+            normalized[key] = str(entry[key]).lower()
 
     return normalized or None
 

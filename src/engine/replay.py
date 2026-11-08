@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from bisect import bisect_left
 from collections import Counter
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -36,11 +36,10 @@ from domain import (
     Action,
     Currency,
     DiagnosticCode,
-    FeeConvention,
     Grain,
 )
 from domain.numeric import ONE, ZERO, q2, safe_div
-from engine.accounts import Account, fee_convention_for, resolve_account
+from engine.accounts import Account, resolve_account
 from engine.deposits import DepositTracker, PoolId
 from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, pair_transfers
 from engine.types import (
@@ -57,6 +56,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
     from engine.deposits import Deposits
+    from engine.fees import FeeRules, TradeCash
     from engine.fx_rates import FxRates
     from engine.transfers import TransferPair
     from engine.types import TxnRow
@@ -70,17 +70,6 @@ FOLIO_POOL = "FOLIO"
 # A single-leg FXT's Amount, Units and Price are three views of one conversion,
 # so they must agree. Half a cent tolerance to capture subcent rounding.
 FXT_TOLERANCE = Decimal("0.005")
-
-# Baseline slack when reconciling a trade's Amount against Price * Units.
-FEE_MATCH_TOLERANCE = Decimal("0.01")
-
-# Brokers can rounds Price to 2dp, so Price * Units is out by up to half a cent
-# per unit regardless of commission. Widen tolerance to capture subcent rounding for
-# fee convention detection.
-PRICE_ROUNDING_PER_UNIT = Decimal("0.005")
-
-# Below this share of the vote, an account's fee convention is ambiguous.
-FEE_MAJORITY_SHARE = 0.6
 
 # A realized loss followed by a buy of the same symbol inside this window is a
 # superficial-loss candidate. Just a flag.
@@ -148,214 +137,49 @@ _INCOME_TAIL_DAYS = 60
 
 
 @dataclass(frozen=True)
-class TradeCash:
-    """What a trade cost or realized, once the fee is placed correctly.
-
-    Attributes:
-        cost: What a BUY added to the cost base -> the amount plus commission.
-        proceeds: What a SELL realized -> the amount less commission.
-        commission: The commission as a cost: positive when charged, negative on
-            the rare row that rebates one.
-    """
-
-    cost: Decimal
-    proceeds: Decimal
-    commission: Decimal
-
-
-def detect_fee_signs(rows: Sequence[TxnRow]) -> dict[str, Decimal]:
-    """Infer which sign each account uses to mean "commission charged".
-
-    Brokers disagree. IBKR and QuestTrade write a charge as a negative number;
-    a row typed by hand, and adjustedcostbase.ca's own convention, write it
-    positive. Reading only the magnitude would be safe if the two never mixed,
-    but they do, since a broker that writes charges negative writes the
-    occasional *rebate* positive.
-
-    So the prevailing sign is taken per account, exactly as the fee *inclusion*
-    convention is, and a row carrying the minority sign is read as a rebate.
-
-    Args:
-        rows: All transactions.
-
-    Returns:
-        Per account, the multiplier turning a stored fee into a commission:
-        `-1` where charges are written negative, `+1` where they are positive.
-        Accounts with no non-zero fee default to `+1`, which is what a
-        hand-entered `--fee 4.95` means and is moot when every fee is zero.
-    """
-    tally: dict[str, int] = {}
-    for row in rows:
-        if row.fee == ZERO:
-            continue
-        tally[row.account] = tally.get(row.account, 0) + (1 if row.fee > ZERO else -1)
-    return {account: (-ONE if votes < 0 else ONE) for account, votes in tally.items()}
-
-
-def _match_tolerance(units: Decimal) -> Decimal:
-    """How far `Price * Units` may sit from `Amount` before it means something."""
-    return FEE_MATCH_TOLERANCE + PRICE_ROUNDING_PER_UNIT * abs(units)
-
-
-def _convention_fits(row: TxnRow, sign: Decimal) -> tuple[bool, bool]:
-    """Reconcile one trade against both conventions.
-
-    Args:
-        row: A BUY or SELL.
-        sign: The account's fee-sign multiplier, from `detect_fee_signs`.
-
-    Returns:
-        Whether the row fits EXCLUDED (`Amount` is gross of the fee) and whether
-        it fits INCLUDED (`Amount` already contains it). Both are true whenever
-        the fee is zero, since the two conventions then coincide.
-    """
-    commission = row.fee * sign
-    amount = abs(row.amount)
-    gross = abs(row.price * row.units)
-    tolerance = _match_tolerance(row.units)
-    included = gross + commission if row.action is Action.BUY else gross - commission
-    return (
-        abs(amount - gross) <= tolerance,
-        abs(amount - included) <= tolerance,
-    )
-
-
-def _classify_row(row: TxnRow, sign: Decimal) -> FeeConvention | None:
-    """Which convention a single trade points at, or None when it cannot say."""
-    excluded_fits, included_fits = _convention_fits(row, sign)
-    if excluded_fits and not included_fits:
-        return FeeConvention.EXCLUDED
-    if included_fits and not excluded_fits:
-        return FeeConvention.INCLUDED
-    return None
-
-
-def resolve_trade_cash(
-    row: TxnRow,
-    convention: FeeConvention,
-    sign: Decimal = ONE,
-) -> TradeCash:
-    """Resolve trade cashflow and commission based on given information.
-
-    Args:
-        row: The trade.
-        convention: The account's resolved fee convention. AUTO reconciles the row
-            against `Price * Units` on the spot.
-        sign: The account's fee-sign multiplier, from `detect_fee_signs`.
-
-    Returns:
-        The cost, proceeds and commission for this row.
-    """
-    commission = row.fee * sign
-    amount = abs(row.amount)
-
-    resolved = convention
-    if convention is FeeConvention.AUTO:
-        resolved = _classify_row(row, sign) or FeeConvention.EXCLUDED
-
-    if resolved is FeeConvention.INCLUDED:
-        return TradeCash(cost=amount, proceeds=amount, commission=commission)
-    return TradeCash(
-        cost=amount + commission,
-        proceeds=amount - commission,
-        commission=commission,
-    )
-
-
-def detect_fee_conventions(
-    rows: Sequence[TxnRow],
-    signs: Mapping[str, Decimal] | None = None,
-) -> dict[str, FeeConvention]:
-    """Infer each account's fee convention from its own trades.
-
-    Every BUY or SELL carrying a non-zero fee is reconciled against
-    `Price * Units` and `Price * Units` plus-or-minus the fee, and the majority
-    wins for that account. Rows matching both carry no information. Rows
-    matching neither abstain and are reported on the row instead.
-
-    Args:
-        rows: All transactions.
-        signs: Per-account fee-sign multipliers.
-
-    Returns:
-        One resolved convention per account. Accounts with no usable vote fall
-        back to EXCLUDED.
-    """
-    resolved_signs = dict(signs or detect_fee_signs(rows))
-    votes: dict[str, Counter[FeeConvention]] = {}
-    for row in rows:
-        if row.action not in _TRADE_ACTIONS or row.fee == ZERO:
-            continue
-        if fee_convention_for(row.account) is not FeeConvention.AUTO:
-            continue
-        vote = _classify_row(row, resolved_signs.get(row.account, ONE))
-        if vote is not None:
-            votes.setdefault(row.account, Counter())[vote] += 1
-
-    resolved: dict[str, FeeConvention] = {}
-    for account in {row.account for row in rows}:
-        configured = fee_convention_for(account)
-        if configured is not FeeConvention.AUTO:
-            resolved[account] = configured
-            continue
-        resolved[account] = _majority(account, votes.get(account))
-    return resolved
-
-
-def _majority(account: str, counter: Counter[FeeConvention] | None) -> FeeConvention:
-    """Pick an account's convention from its votes, warning on a near-even split."""
-    if not counter:
-        return FeeConvention.EXCLUDED
-    ranked: list[tuple[FeeConvention, int]] = counter.most_common()
-    winner, top = ranked[0]
-    total = sum(counter.values())
-    if total and top / total < FEE_MAJORITY_SHARE:
-        logger.warning(
-            "Fee convention for '%s' splits near evenly (%s); using %s. Set "
-            "accounts.map for that account to settle it explicitly.",
-            dict(ranked),
-            account,
-            winner,
-        )
-    return winner
-
-
-@dataclass(frozen=True)
 class ReplayConfig:
     """Per-account facts the replay needs, resolved before it starts.
 
     Attributes:
-        accounts: Each account, with its type and whether it is margin.
-        fee_conventions: Resolved fee convention of each account.
-        fee_signs: Fee multiplier turning each account's stored fee into a
-            commission. Defaults to positive-means-charged for any account not
-            listed, which is what a hand-entered fee means.
+        accounts: Each account, with its type, whether it is margin, and its fee
+            rules with nothing left on `auto`.
         symbols: Resolver for ticker renames.
     """
 
     accounts: Mapping[str, Account]
-    fee_conventions: Mapping[str, FeeConvention]
     symbols: SymbolResolver
-    fee_signs: Mapping[str, Decimal] = field(default_factory=dict)
 
     @classmethod
-    def build(cls, rows: Sequence[TxnRow], symbols: SymbolResolver) -> ReplayConfig:
-        """Resolve each account and its fee convention for a set of rows.
+    def build(
+        cls,
+        rows: Sequence[TxnRow],
+        symbols: SymbolResolver,
+        accounts: Mapping[str, Account] | None = None,
+    ) -> ReplayConfig:
+        """Resolve each account and its fee rules for a set of rows.
 
         Args:
             rows: All transactions about to be replayed.
             symbols: Resolver for ticker renames.
+            accounts: Each account as configured, when not read from the config.
 
         Returns:
-            A populated `ReplayConfig`.
+            A populated `ReplayConfig`. A fee setting left on `auto` is settled
+            from the account's own rows.
         """
-        names = {row.account for row in rows}
-        signs = detect_fee_signs(rows)
+        by_account: dict[str, list[TxnRow]] = {}
+        for row in rows:
+            by_account.setdefault(row.account, []).append(row)
+        known = accounts or {}
         return cls(
-            accounts={name: resolve_account(name) for name in names},
-            fee_conventions=detect_fee_conventions(rows, signs),
+            accounts={
+                name: replace(
+                    account := known.get(name) or resolve_account(name),
+                    fees=account.fees.resolve(name, account_rows),
+                )
+                for name, account_rows in by_account.items()
+            },
             symbols=symbols,
-            fee_signs=signs,
         )
 
 
@@ -725,16 +549,35 @@ class _Replay:
                     detail=f"{row.action} has no matching counterpart leg",
                 )
         elif row.action in _TRADE_ACTIONS and row.fee != ZERO:
-            excluded_fits, included_fits = _convention_fits(row, self._fee_sign(row))
-            if not (excluded_fits or included_fits):
-                self.diagnose(
-                    DiagnosticCode.AMBIGUOUS_FEE_CONVENTION,
-                    row,
-                    detail=(
-                        f"Amount {row.amount} matches neither Price*Units nor "
-                        f"Price*Units +/- Fee {row.fee}"
-                    ),
-                )
+            self._check_fee(row)
+
+    def _check_fee(self, row: TxnRow) -> None:
+        """Report a trade whose amount the account's fee rules cannot account for.
+
+        A trade matching neither convention is ambiguous. One matching only the
+        other convention than the account's goes against it.
+        """
+        fees = self._fees(row)
+        if not fees.reconciles(row):
+            self.diagnose(
+                DiagnosticCode.AMBIGUOUS_FEE_CONVENTION,
+                row,
+                detail=(
+                    f"Amount {row.amount} matches neither Price*Units nor "
+                    f"Price*Units +/- Fee {row.fee}"
+                ),
+            )
+            return
+        pointed = fees.other_convention(row)
+        if pointed is not None:
+            self.diagnose(
+                DiagnosticCode.FEE_CONVENTION_MISMATCH,
+                row,
+                detail=(
+                    f"Amount {row.amount} fits {pointed}, but "
+                    f"{row.account} uses {fees.convention}"
+                ),
+            )
 
     def _apply_to_pool(
         self,
@@ -1029,17 +872,13 @@ class _Replay:
             state.acb_cad = ZERO
             state.acb_usd = ZERO
 
-    def _convention(self, row: TxnRow) -> FeeConvention:
-        """Return the fee convention resolved for a row's account."""
-        return self.cfg.fee_conventions.get(row.account, FeeConvention.EXCLUDED)
-
-    def _fee_sign(self, row: TxnRow) -> Decimal:
-        """Return the multiplier turning a row's stored fee into a commission."""
-        return self.cfg.fee_signs.get(row.account, ONE)
+    def _fees(self, row: TxnRow) -> FeeRules:
+        """Return the fee rules of a row's account."""
+        return self.cfg.accounts[row.account].fees
 
     def _trade(self, row: TxnRow) -> TradeCash:
         """Resolve one trade's cost, proceeds and commission."""
-        return resolve_trade_cash(row, self._convention(row), self._fee_sign(row))
+        return self._fees(row).trade_cash(row)
 
     def _check_fxt(self, row: TxnRow) -> None:
         """Reconcile a single currency conversion against itself."""
@@ -1358,7 +1197,7 @@ class _Replay:
         the gross USD received, so the fee comes off on top of it, whatever the
         row's own `$` says.
         """
-        commission = row.fee * self._fee_sign(row)
+        commission = self._fees(row).commission(row)
         if ZERO in (row.price, row.units):
             self._credit(
                 row,

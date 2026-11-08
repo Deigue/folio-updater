@@ -6,8 +6,9 @@ from decimal import Decimal
 
 from domain import AccountType, Action, Currency, FeeConvention
 from engine.accounts import Account
+from engine.fees import FeeRules
 from engine.fx_rates import FxRates
-from engine.replay import ReplayConfig, detect_fee_signs, replay
+from engine.replay import ReplayConfig, replay
 from engine.types import ReplayResult, TxnRow
 from services.symbols import SymbolResolver
 
@@ -54,19 +55,22 @@ def run(
 ) -> ReplayResult:
     """Replay rows with explicit account facts, so no config is involved.
 
-    Fee signs are detected exactly as `ReplayConfig.build` detects them, since
-    which sign means "charged" is read from the rows rather than configured.
+    Fee rules are resolved exactly as `ReplayConfig.build` resolves them: a
+    convention is pinned only where `conventions` names the account, and the fee
+    sign is always read from the rows.
     """
     names = {row.account for row in rows}
     types = types or dict.fromkeys(names, AccountType.NON_REGISTERED)
     margin = margin or set()
-    cfg = ReplayConfig(
-        accounts={
-            name: Account(name, account_type, margin=name in margin)
-            for name, account_type in types.items()
-        },
-        fee_conventions=conventions or dict.fromkeys(names, FeeConvention.AUTO),
-        symbols=SymbolResolver(aliases or []),
-        fee_signs=detect_fee_signs(rows),
-    )
+    conventions = conventions or {}
+    accounts = {
+        name: Account(
+            name,
+            account_type,
+            margin=name in margin,
+            fees=FeeRules(convention=conventions.get(name, FeeConvention.AUTO)),
+        )
+        for name, account_type in types.items()
+    }
+    cfg = ReplayConfig.build(rows, SymbolResolver(aliases or []), accounts)
     return replay(rows, fx, cfg)

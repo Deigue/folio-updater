@@ -344,8 +344,17 @@ def _check_account_types(folio: _LedgerIndex) -> _Outcome:
 
 
 def _check_fee_conventions(folio: _LedgerIndex) -> _Outcome:
-    """Report trades whose amount reconciles against neither fee convention."""
-    findings = []
+    """Report trades that fit neither fee convention, or go against their account's."""
+    findings = [
+        CheckFinding(
+            subject=f"TxnId {computed.row.txn_id}",
+            detail=(
+                f"{computed.row.account} {computed.row.txn_date}\n{diagnostic.detail}."
+            ),
+            txn_ids=(computed.row.txn_id,),
+        )
+        for diagnostic, computed in folio.tagged(DiagnosticCode.FEE_CONVENTION_MISMATCH)
+    ]
     for _diagnostic, computed in folio.tagged(DiagnosticCode.AMBIGUOUS_FEE_CONVENTION):
         row = computed.row
         findings.append(

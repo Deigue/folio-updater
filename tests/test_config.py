@@ -15,7 +15,7 @@ import yaml
 from app import bootstrap
 from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, write_missing_setting
-from domain import AccountType, FeeConvention
+from domain import AccountType, FeeConvention, FeeSign
 
 from .helpers.console import capture_output
 
@@ -366,6 +366,58 @@ def test_fee_default_of_false_is_honoured(temp_ctx: TempContext) -> None:
     # An unrecognised spelling leaves the default in place.
     with temp_ctx({"accounts": {"defaults": {"amount_includes_fees": "maybe"}}}) as ctx:
         assert ctx.config.account_fee_default == "auto"
+
+
+def test_fee_sign_is_set_per_account_and_defaults_to_auto(
+    temp_ctx: TempContext,
+) -> None:
+    overrides = {
+        "accounts": {
+            "map": {
+                "QT-TFSA": {"type": "TFSA", "fee_sign": "Negative"},
+                "WS-TFSA": {"type": "TFSA", "fee_sign": "positive"},
+            },
+        },
+    }
+    with temp_ctx(overrides) as ctx:
+        assert ctx.config.fee_sign_for("QT-TFSA") is FeeSign.NEGATIVE
+        assert ctx.config.fee_sign_for("WS-TFSA") is FeeSign.POSITIVE
+        assert ctx.config.fee_sign_for("OTHER-TFSA") is FeeSign.AUTO
+
+
+def test_fee_sign_default_can_be_pinned_without_losing_the_convention_default(
+    temp_ctx: TempContext,
+) -> None:
+    overrides = {
+        "accounts": {
+            "defaults": {"fee_sign": "negative"},
+            "map": {"QT-TFSA": {"type": "TFSA", "fee_sign": "positive"}},
+        },
+    }
+    with temp_ctx(overrides) as ctx:
+        assert ctx.config.fee_sign_for("ANY-TFSA") is FeeSign.NEGATIVE
+        assert ctx.config.fee_sign_for("QT-TFSA") is FeeSign.POSITIVE
+        # Pinning one default leaves the other where it was.
+        assert ctx.config.account_fee_default == "auto"
+
+    with temp_ctx(
+        {"accounts": {"defaults": {"amount_includes_fees": "included"}}},
+    ) as ctx:
+        assert ctx.config.fee_sign_for("ANY-TFSA") is FeeSign.AUTO
+        assert ctx.config.fee_convention_for("ANY-TFSA") is FeeConvention.INCLUDED
+
+
+def test_unrecognised_fee_sign_is_dropped(temp_ctx: TempContext) -> None:
+    overrides = {
+        "accounts": {
+            "defaults": {"fee_sign": "sideways"},
+            "map": {"ODD-RRSP": {"type": "RRSP", "fee_sign": "sideways"}},
+        },
+    }
+    with temp_ctx(overrides) as ctx:
+        # The bad value is dropped, but the usable type survives.
+        assert ctx.config.account_map["ODD-RRSP"]["type"] == "RRSP"
+        assert ctx.config.fee_sign_for("ODD-RRSP") is FeeSign.AUTO
 
 
 ROOM = {"TFSA": {2025: 7000}}

@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from domain import AccountType, FeeConvention
-from engine.accounts import Account, fee_convention_for, resolve_account
+from domain import AccountType, FeeConvention, FeeSign
+from engine.accounts import Account, resolve_account
+from engine.fees import FeeRules
 
 if TYPE_CHECKING:
     from .helpers.context import TempContext
@@ -110,16 +111,20 @@ def test_a_plain_non_registered_account_is_not_margin(temp_ctx: TempContext) -> 
         assert not resolve_account("WS-PERSONAL").margin
 
 
-def test_fee_convention_defaults_to_auto(temp_ctx: TempContext) -> None:
+def test_fee_rules_default_to_auto(temp_ctx: TempContext) -> None:
     with temp_ctx():
-        assert fee_convention_for("IBKR-PERSONAL") is FeeConvention.AUTO
+        assert resolve_account("IBKR-PERSONAL").fees == FeeRules()
 
 
-def test_fee_convention_override(temp_ctx: TempContext) -> None:
+def test_fee_rules_come_from_the_accounts_map(temp_ctx: TempContext) -> None:
     overrides = {
         "accounts": {
             "map": {
-                "QT-TFSA": {"type": "TFSA", "amount_includes_fees": True},
+                "QT-TFSA": {
+                    "type": "TFSA",
+                    "amount_includes_fees": True,
+                    "fee_sign": "negative",
+                },
                 "IBKR-PERSONAL": {
                     "type": "NON_REGISTERED",
                     "amount_includes_fees": False,
@@ -128,11 +133,35 @@ def test_fee_convention_override(temp_ctx: TempContext) -> None:
         },
     }
     with temp_ctx(overrides):
-        assert fee_convention_for("QT-TFSA") is FeeConvention.INCLUDED
-        assert fee_convention_for("IBKR-PERSONAL") is FeeConvention.EXCLUDED
+        assert resolve_account("QT-TFSA").fees == FeeRules(
+            FeeConvention.INCLUDED,
+            FeeSign.NEGATIVE,
+        )
+        # A setting the entry leaves out falls back to the default.
+        assert resolve_account("IBKR-PERSONAL").fees == FeeRules(
+            FeeConvention.EXCLUDED,
+            FeeSign.AUTO,
+        )
 
 
-def test_fee_convention_default_can_be_pinned(temp_ctx: TempContext) -> None:
-    overrides = {"accounts": {"defaults": {"amount_includes_fees": True}}}
+def test_fee_rule_defaults_can_be_pinned(temp_ctx: TempContext) -> None:
+    overrides = {
+        "accounts": {
+            "defaults": {"amount_includes_fees": True, "fee_sign": "positive"},
+        },
+    }
     with temp_ctx(overrides):
-        assert fee_convention_for("ANY-TFSA") is FeeConvention.INCLUDED
+        assert resolve_account("ANY-TFSA").fees == FeeRules(
+            FeeConvention.INCLUDED,
+            FeeSign.POSITIVE,
+        )
+
+
+def test_a_changed_fee_setting_is_not_served_from_the_cache(
+    temp_ctx: TempContext,
+) -> None:
+    """The account is cached on its config, so a fee setting must be in the key."""
+    with temp_ctx({"accounts": {"defaults": {"fee_sign": "negative"}}}):
+        assert resolve_account("ANY-TFSA").fees.sign is FeeSign.NEGATIVE
+    with temp_ctx({"accounts": {"defaults": {"fee_sign": "positive"}}}):
+        assert resolve_account("ANY-TFSA").fees.sign is FeeSign.POSITIVE

@@ -17,8 +17,8 @@ import yaml
 
 from config.optional_fields import OptionalFieldsConfig
 from config.transforms import TransformsConfig
-from config.validation import FEE_CONVENTIONS, validate_config
-from domain import AccountType, Column, FeeConvention
+from config.validation import FEE_CONVENTIONS, FEE_SIGNS, validate_config
+from domain import AccountType, Column, FeeConvention, FeeSign
 from term import console_warning
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class Config:
             "accounts": {
                 "naming_convention": True,
                 "map": {},
-                "defaults": {"amount_includes_fees": "auto"},
+                "defaults": {"amount_includes_fees": "auto", "fee_sign": "auto"},
             },
             "cost_basis": {
                 "auto_getfx": True,
@@ -320,10 +320,40 @@ class Config:
             The account's explicit override where one is configured, otherwise
             the configured default. `auto` means detect it from the rows.
         """
+        value = self._account_setting(
+            account,
+            "amount_includes_fees",
+            self.account_fee_default,
+        )
+        return FEE_CONVENTIONS.get(str(value).lower(), FeeConvention.AUTO)
+
+    @property
+    def account_fee_sign_default(self) -> str:
+        """Default fee sign for accounts with no explicit override."""
+        return self._settings["accounts"]["defaults"]["fee_sign"]
+
+    def fee_sign_for(self, account: str) -> FeeSign:
+        """Resolve which sign an account stores a charged commission with.
+
+        Args:
+            account: The account name as stored on the transaction.
+
+        Returns:
+            The account's explicit override where one is configured, otherwise
+            the configured default. `auto` means detect it from the rows.
+        """
+        value = self._account_setting(
+            account,
+            "fee_sign",
+            self.account_fee_sign_default,
+        )
+        return FEE_SIGNS.get(str(value).lower(), FeeSign.AUTO)
+
+    def _account_setting(self, account: str, key: str, default: str) -> Any:  # noqa: ANN401
+        """Read one setting from an account's `accounts.map` entry, else the default."""
         mapping = self.account_map
         entry = mapping.get(account) or mapping.get(account.upper()) or {}
-        value = entry.get("amount_includes_fees", self.account_fee_default)
-        return FEE_CONVENTIONS.get(str(value).lower(), FeeConvention.AUTO)
+        return entry.get(key, default)
 
     @property
     def auto_getfx(self) -> bool:

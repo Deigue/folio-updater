@@ -938,6 +938,28 @@ def test_a_trade_matching_neither_convention_is_reported() -> None:
     assert "does not close the gap" in details(result)
 
 
+def test_a_trade_against_its_accounts_convention_is_reported() -> None:
+    def trade(txn_id: int, amount: str) -> TxnRow:
+        return make_row(
+            txn_id,
+            "2024-01-03",
+            Action.BUY,
+            amount=amount,
+            units="100",
+            price="10",
+            fee="5",
+            ticker="RY.TO",
+        )
+
+    # Two trades with the fee on top and one with it folded in: the account's
+    # own trades decide it is excluded, and the odd one out is named.
+    rows = [trade(1, "-1000"), trade(2, "-1000"), trade(3, "-1005")]
+    result = check(rows, "fee-conventions")
+    assert result.status is CheckStatus.WARN
+    assert [finding.txn_ids for finding in result.findings] == [(3,)]
+    assert "uses excluded" in details(result)
+
+
 def test_a_fee_included_amount_reconciles() -> None:
     rows = [
         make_row(

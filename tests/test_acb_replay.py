@@ -25,13 +25,7 @@ from engine.frames import (
     ledger_frame,
 )
 from engine.fx_rates import FxRates
-from engine.replay import (
-    ReplayConfig,
-    detect_fee_conventions,
-    detect_fee_signs,
-    replay,
-    resolve_trade_cash,
-)
+from engine.replay import ReplayConfig, replay
 from engine.transfers import pair_transfers
 from engine.types import ReplayResult, TxnRow, to_txn_rows
 from services.symbols import SymbolResolver
@@ -1016,63 +1010,6 @@ def test_fxt_amount_inconsistent() -> None:
 # --- fee conventions -----------------------------------------------------------------
 
 
-def test_fee_convention_auto_detects_both_brokers() -> None:
-    rows = [
-        # IBKR reports Amount gross of the commission.
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            fee="1",
-            account="IBKR-PERSONAL",
-        ),
-        make_row(
-            2,
-            "2024-01-03",
-            Action.BUY,
-            amount="-2000",
-            units="200",
-            price="10",
-            fee="1",
-            account="IBKR-PERSONAL",
-        ),
-        # QuestTrade folds it in.
-        make_row(
-            3,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1004.95",
-            units="100",
-            price="10",
-            fee="4.95",
-            account="QT-TFSA",
-        ),
-        make_row(
-            4,
-            "2024-01-03",
-            Action.BUY,
-            amount="-2004.95",
-            units="200",
-            price="10",
-            fee="4.95",
-            account="QT-TFSA",
-        ),
-    ]
-    detected = detect_fee_conventions(rows)
-    assert detected["IBKR-PERSONAL"] is FeeConvention.EXCLUDED
-    assert detected["QT-TFSA"] is FeeConvention.INCLUDED
-
-
-def test_included_and_excluded_agree_when_the_fee_is_zero() -> None:
-    row = make_row(1, "2024-01-02", Action.BUY, amount="-1000", units="100", price="10")
-    included = resolve_trade_cash(row, FeeConvention.INCLUDED)
-    excluded = resolve_trade_cash(row, FeeConvention.EXCLUDED)
-    assert included.cost == excluded.cost == D("1000")
-
-
 def test_ambiguous_fee_convention_is_diagnosed() -> None:
     result = run(
         [
@@ -1088,6 +1025,54 @@ def test_ambiguous_fee_convention_is_diagnosed() -> None:
         ],
     )
     assert DiagnosticCode.AMBIGUOUS_FEE_CONVENTION in codes(result)
+    # It fits neither convention, so it cannot be said to go against one.
+    assert DiagnosticCode.FEE_CONVENTION_MISMATCH not in codes(result)
+
+
+def _fee_trade(txn_id: int, amount: str, fee: str = "5") -> TxnRow:
+    """Build a BUY of 100 at 10: `-1000` is gross of the fee, `-1005` contains it."""
+    return make_row(
+        txn_id,
+        "2024-01-02",
+        Action.BUY,
+        amount=amount,
+        units="100",
+        price="10",
+        fee=fee,
+    )
+
+
+def _mismatched(result: ReplayResult) -> set[int | None]:
+    return {
+        diagnostic.txn_id
+        for diagnostic in result.diagnostics
+        if diagnostic.code is DiagnosticCode.FEE_CONVENTION_MISMATCH
+    }
+
+
+def test_a_trade_against_the_configured_convention_is_diagnosed() -> None:
+    result = run(
+        [_fee_trade(1, "-1000"), _fee_trade(2, "-1005")],
+        conventions={"IBKR-PERSONAL": FeeConvention.INCLUDED},
+    )
+    # Row 2 matches `included`; only row 1 goes against it.
+    assert _mismatched(result) == {1}
+
+
+def test_a_trade_against_the_detected_convention_is_diagnosed() -> None:
+    result = run(
+        [_fee_trade(1, "-1000"), _fee_trade(2, "-1000"), _fee_trade(3, "-1005")],
+    )
+    assert _mismatched(result) == {3}
+
+
+def test_a_trade_that_fits_both_conventions_goes_against_neither() -> None:
+    """A fee under a cent leaves Amount equal to Price * Units either way."""
+    result = run(
+        [_fee_trade(1, "-1000", fee="0.001")],
+        conventions={"IBKR-PERSONAL": FeeConvention.INCLUDED},
+    )
+    assert _mismatched(result) == set()
 
 
 def test_questrade_price_rounding_does_not_read_as_ambiguous() -> None:
@@ -1601,59 +1586,6 @@ def test_fch_is_income_and_charges_cash() -> None:
     assert cash.cash == D("490.05")
     # A charge counts as a fee; RSU income arriving as FCH does not.
     assert cash.fees == D("9.95")
-
-
-def test_configured_fee_convention_skips_detection(temp_ctx: TempContext) -> None:
-    overrides = {
-        "accounts": {
-            "map": {"QT-TFSA": {"type": "TFSA", "amount_includes_fees": True}},
-        },
-    }
-    rows = [
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            fee="4.95",
-            account="QT-TFSA",
-        ),
-    ]
-    with temp_ctx(overrides):
-        detected = detect_fee_conventions(rows)
-    assert detected["QT-TFSA"] is FeeConvention.INCLUDED
-
-
-def test_a_near_even_fee_split_warns_and_still_decides(
-    temp_ctx: TempContext,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    rows = [
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            fee="5",
-        ),
-        make_row(
-            2,
-            "2024-01-03",
-            Action.BUY,
-            amount="-1005",
-            units="100",
-            price="10",
-            fee="5",
-        ),
-    ]
-    with temp_ctx(), caplog.at_level("WARNING"):
-        detected = detect_fee_conventions(rows)
-    assert detected["IBKR-PERSONAL"] in (FeeConvention.EXCLUDED, FeeConvention.INCLUDED)
-    assert "splits near evenly" in caplog.text
 
 
 def test_unknown_account_type_is_reported_once() -> None:
@@ -2257,62 +2189,6 @@ def test_cash_follows_settlement_date_not_transaction_date() -> None:
 # account and means the opposite thing.
 
 
-def test_fee_sign_is_detected_per_account() -> None:
-    rows = [
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            fee="-0.35",
-            account="IBKR-PERSONAL",
-        ),
-        make_row(
-            2,
-            "2024-01-03",
-            Action.BUY,
-            amount="-2000",
-            units="200",
-            price="10",
-            fee="-0.35",
-            account="IBKR-PERSONAL",
-        ),
-        make_row(
-            3,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1004.95",
-            units="100",
-            price="10",
-            fee="4.95",
-            account="HAND-TFSA",
-        ),
-    ]
-    signs = detect_fee_signs(rows)
-    assert signs["IBKR-PERSONAL"] == D("-1")
-    assert signs["HAND-TFSA"] == D("1")
-
-
-def test_an_account_with_no_fees_defaults_to_positive_meaning_charged() -> None:
-    """What a hand-entered `--fee 4.95` means, and moot when every fee is zero."""
-    rows = [
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            account="WS-PERSONAL",
-        ),
-    ]
-    assert detect_fee_signs(rows) == {}
-    trade = resolve_trade_cash(rows[0], FeeConvention.EXCLUDED)
-    assert trade.cost == D("1000")
-
-
 def test_a_negative_fee_is_a_charge_where_that_is_the_convention() -> None:
     result = run(
         [
@@ -2437,57 +2313,6 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
     usd = result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)]
     assert usd.cash == D("10000") - D("2") - D("1000.35")
     assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
-
-
-def test_fee_convention_detection_survives_negative_fees() -> None:
-    """The inclusion convention has to read the sign the same way cash does."""
-    rows = [
-        # IBKR: Amount is gross, commission charged separately and stored negative.
-        make_row(
-            1,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1000",
-            units="100",
-            price="10",
-            fee="-1",
-            account="IBKR-PERSONAL",
-        ),
-        make_row(
-            2,
-            "2024-01-03",
-            Action.BUY,
-            amount="-2000",
-            units="200",
-            price="10",
-            fee="-1",
-            account="IBKR-PERSONAL",
-        ),
-        # QuestTrade: Amount already contains it, also stored negative.
-        make_row(
-            3,
-            "2024-01-02",
-            Action.BUY,
-            amount="-1004.95",
-            units="100",
-            price="10",
-            fee="-4.95",
-            account="QT-TFSA",
-        ),
-        make_row(
-            4,
-            "2024-01-03",
-            Action.BUY,
-            amount="-2004.95",
-            units="200",
-            price="10",
-            fee="-4.95",
-            account="QT-TFSA",
-        ),
-    ]
-    detected = detect_fee_conventions(rows, detect_fee_signs(rows))
-    assert detected["IBKR-PERSONAL"] is FeeConvention.EXCLUDED
-    assert detected["QT-TFSA"] is FeeConvention.INCLUDED
 
 
 def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[TxnRow]:

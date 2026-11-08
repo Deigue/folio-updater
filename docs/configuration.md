@@ -213,8 +213,10 @@ accounts:
     QT-TFSA:                       # full form
       type: TFSA
       amount_includes_fees: true
+      fee_sign: negative
   defaults:
     amount_includes_fees: auto     # auto | true | false
+    fee_sign: auto                 # auto | negative | positive
 ```
 
 `amount_includes_fees` says whether a broker's `Amount` on a trade already contains the
@@ -222,7 +224,14 @@ commission. QuestTrade's does; Interactive Brokers' and Wealthsimple's do not. T
 default of `auto` reconciles each account's own trades against `Price * Units` and takes
 the majority, which is why the key is almost never needed. Set it explicitly only if the
 engine reports `AMBIGUOUS_FEE_CONVENTION` or warns that an account's vote split near
-evenly.
+evenly. A trade that fits only the other convention than its account's is reported as
+`FEE_CONVENTION_MISMATCH`, whether the convention was set or voted.
+
+`fee_sign` says which sign an account stores a charged commission with. Interactive Brokers
+and QuestTrade write a charge as a negative number; a fee typed by hand is usually positive.
+The default of `auto` takes the majority sign of the account's own fee-bearing rows, and a
+row carrying the other sign is read as a rebate. Pin it with `negative` or `positive` to
+make the account's fee rules fully explicit, so nothing is guessed from the rows.
 
 ## Essential Fields
 

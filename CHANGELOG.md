@@ -15,6 +15,10 @@ its commission into the amount, a dividend reversal and rebook, and an in-kind t
 between a non-registered and margin account.
 - `folio check` warns for transfers between account types, which need to be recorded as
 salem, withdrawal, contribution and then buy instead (across tax types)
+- `fee_sign` setting added in `config.yaml`, under `accounts` and `accounts.defaults`,
+to specify what sign fees are recorded as for transactions.
+- `folio check` warns when a trade fits the wrong fee convention from its accounts
+designated convention.
 
 ### Changed
 

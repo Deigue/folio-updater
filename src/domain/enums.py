@@ -108,6 +108,19 @@ class FeeConvention(StrEnum):
     EXCLUDED = "excluded"
 
 
+class FeeSign(StrEnum):
+    """Which sign an account stores a charged commission with.
+
+    IBKR and QuestTrade write a charge as a negative number; a row typed by
+    hand writes it positive. AUTO takes the majority sign of the account's own
+    fee-bearing rows.
+    """
+
+    AUTO = "auto"
+    NEGATIVE = "negative"
+    POSITIVE = "positive"
+
+
 class Grain(StrEnum):
     """The level a cost base is pooled at."""
 
@@ -139,6 +152,7 @@ class DiagnosticCode(StrEnum):
     SETTLEMENT_BEFORE_TRADE = "SETTLEMENT_BEFORE_TRADE"
     SETTLEMENT_LAG_OUTLIER = "SETTLEMENT_LAG_OUTLIER"
     AMBIGUOUS_FEE_CONVENTION = "AMBIGUOUS_FEE_CONVENTION"
+    FEE_CONVENTION_MISMATCH = "FEE_CONVENTION_MISMATCH"
     FXT_AMOUNT_INCONSISTENT = "FXT_AMOUNT_INCONSISTENT"
     UNKNOWN_ACCOUNT_TYPE = "UNKNOWN_ACCOUNT_TYPE"
     TRANSFER_UNPAIRED = "TRANSFER_UNPAIRED"
