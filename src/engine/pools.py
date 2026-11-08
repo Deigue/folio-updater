@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from engine.flows import Flows, Room
     from engine.holdings import CurrencyTotals, DisplayCurrency, HoldingSet
     from engine.ledger import Ledger
-    from services.quotes_service import Quote
+    from models import Quote
 
 # What reports call the folio pool.
 FOLIO_LABEL = "Portfolio"

@@ -21,7 +21,7 @@ from domain.numeric import ONE, ZERO
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.types import TxnRow
+    from models import Txn
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class FeeRules:
     convention: FeeConvention = FeeConvention.AUTO
     sign: FeeSign = FeeSign.AUTO
 
-    def resolve(self, account: str, rows: Sequence[TxnRow]) -> FeeRules:
+    def resolve(self, account: str, rows: Sequence[Txn]) -> FeeRules:
         """Settle every `AUTO` setting from the account's own rows.
 
         The sign is the one most fee-bearing rows carry, since a broker that writes
@@ -102,11 +102,11 @@ class FeeRules:
             return self
         return replace(self, convention=convention, sign=sign)
 
-    def commission(self, row: TxnRow) -> Decimal:
+    def commission(self, row: Txn) -> Decimal:
         """Return a row's fee as a cost: positive if charged, negative if rebated."""
-        return row.fee * self._multiplier()
+        return (row.fee or ZERO) * self._multiplier()
 
-    def trade_cash(self, row: TxnRow) -> TradeCash:
+    def trade_cash(self, row: Txn) -> TradeCash:
         """Resolve a trade's cost, proceeds and commission.
 
         Args:
@@ -117,7 +117,7 @@ class FeeRules:
         """
         self._require_convention()
         commission = self.commission(row)
-        amount = abs(row.amount)
+        amount = abs(row.amount or ZERO)
         if self.convention is FeeConvention.INCLUDED:
             return TradeCash(cost=amount, proceeds=amount, commission=commission)
         return TradeCash(
@@ -126,7 +126,7 @@ class FeeRules:
             commission=commission,
         )
 
-    def reconciles(self, row: TxnRow) -> bool:
+    def reconciles(self, row: Txn) -> bool:
         """Whether a trade's amount adds up under either fee convention.
 
         Args:
@@ -139,7 +139,7 @@ class FeeRules:
         excluded_fits, included_fits = self._fits(row)
         return excluded_fits or included_fits
 
-    def other_convention(self, row: TxnRow) -> FeeConvention | None:
+    def other_convention(self, row: Txn) -> FeeConvention | None:
         """Return the convention a trade fits when that is not this account's.
 
         Args:
@@ -167,7 +167,7 @@ class FeeRules:
             raise ValueError(msg)
         return -ONE if self.sign is FeeSign.NEGATIVE else ONE
 
-    def _fits(self, row: TxnRow) -> tuple[bool, bool]:
+    def _fits(self, row: Txn) -> tuple[bool, bool]:
         """Reconcile one trade against both conventions.
 
         Returns:
@@ -176,9 +176,10 @@ class FeeRules:
             the fee is zero, since the two conventions then coincide.
         """
         commission = self.commission(row)
-        amount = abs(row.amount)
-        gross = abs(row.price * row.units)
-        tolerance = FEE_MATCH_TOLERANCE + PRICE_ROUNDING_PER_UNIT * abs(row.units)
+        amount = abs(row.amount or ZERO)
+        units = abs(row.units or ZERO)
+        gross = abs(row.price or ZERO) * units
+        tolerance = FEE_MATCH_TOLERANCE + PRICE_ROUNDING_PER_UNIT * units
         buying = row.action is Action.BUY
         included = gross + commission if buying else gross - commission
         return (
@@ -186,7 +187,7 @@ class FeeRules:
             abs(amount - included) <= tolerance,
         )
 
-    def points_at(self, row: TxnRow) -> FeeConvention | None:
+    def points_at(self, row: Txn) -> FeeConvention | None:
         """Which convention a single trade points at, or None when it cannot say."""
         excluded_fits, included_fits = self._fits(row)
         if excluded_fits and not included_fits:
@@ -196,15 +197,19 @@ class FeeRules:
         return None
 
 
-def _majority_sign(rows: Sequence[TxnRow]) -> FeeSign:
+def _majority_sign(rows: Sequence[Txn]) -> FeeSign:
     """Pick the sign most fee-bearing rows carry; POSITIVE when none carries a fee."""
-    votes = sum(1 if row.fee > ZERO else -1 for row in rows if row.fee != ZERO)
+    votes = sum(
+        1 if (row.fee or ZERO) > ZERO else -1
+        for row in rows
+        if (row.fee or ZERO) != ZERO
+    )
     return FeeSign.NEGATIVE if votes < 0 else FeeSign.POSITIVE
 
 
 def _majority_convention(
     account: str,
-    rows: Sequence[TxnRow],
+    rows: Sequence[Txn],
     signed: FeeRules,
 ) -> FeeConvention:
     """Pick an account's convention from its trades, warning on a near-even split.
@@ -215,7 +220,7 @@ def _majority_convention(
     """
     votes: Counter[FeeConvention] = Counter()
     for row in rows:
-        if row.action in _TRADE_ACTIONS and row.fee != ZERO:
+        if row.action in _TRADE_ACTIONS and row.fee:
             vote = signed.points_at(row)
             if vote is not None:
                 votes[vote] += 1

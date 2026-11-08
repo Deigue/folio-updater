@@ -26,7 +26,8 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from engine.ledger import Ledger
-    from engine.types import Diagnostic, LedgerRow, TxnRow
+    from engine.types import Diagnostic, LedgerRow
+    from models import Txn
 
 
 class ChecksConfig(Protocol):
@@ -357,15 +358,16 @@ def _check_fee_conventions(folio: _LedgerIndex) -> _Outcome:
     ]
     for _diagnostic, computed in folio.tagged(DiagnosticCode.AMBIGUOUS_FEE_CONVENTION):
         row = computed.row
+        units, price = row.units or ZERO, row.price or ZERO
         findings.append(
             CheckFinding(
                 subject=f"TxnId {row.txn_id}",
                 detail=(
                     f"{row.account} {row.txn_date}\n"
-                    f"recorded  {_money(row.amount)} {row.currency}\n"
-                    f"{_units(row.units)} x {row.price} = "
-                    f"{_money(abs(row.units * row.price))}, and the "
-                    f"{_money(abs(row.fee))} fee does not close the gap either."
+                    f"recorded  {_money(row.amount or ZERO)} {row.currency}\n"
+                    f"{_units(units)} x {price} = "
+                    f"{_money(abs(units * price))}, and the "
+                    f"{_money(abs(row.fee or ZERO))} fee does not close the gap either."
                 ),
                 txn_ids=(row.txn_id,),
             ),
@@ -411,7 +413,7 @@ def _check_unit_balances(folio: _LedgerIndex) -> _Outcome:
     ):
         row = computed.row
         held = diagnostic.value if diagnostic.value is not None else ZERO
-        sold = abs(row.units)
+        sold = abs(row.units or ZERO)
         explained.add((diagnostic.symbol, row.account))
         findings.append(
             CheckFinding(
@@ -583,16 +585,17 @@ def _check_conversion_arithmetic(folio: _LedgerIndex) -> _Outcome:
     findings = []
     for _diagnostic, computed in folio.tagged(DiagnosticCode.FXT_AMOUNT_INCONSISTENT):
         row = computed.row
+        amount, units, price = row.amount or ZERO, row.units or ZERO, row.price or ZERO
         # The engine compares magnitudes, so the implied figure is shown with
         # the recorded amount's sign.
-        implied = abs(row.units * row.price) * (-1 if row.amount < ZERO else 1)
+        implied = abs(units * price) * (-1 if amount < ZERO else 1)
         findings.append(
             CheckFinding(
                 subject=f"TxnId {row.txn_id}",
                 detail=(
                     f"{row.account} {row.txn_date}\n"
-                    f"recorded   {_money(row.amount, row.currency)}\n"
-                    f"{_units(row.units)} x {row.price} = {_money(implied)}\n"
+                    f"recorded   {_money(amount, row.currency)}\n"
+                    f"{_units(units)} x {price} = {_money(implied)}\n"
                     f"Open the statement and see which of the three is right."
                 ),
                 txn_ids=(row.txn_id,),
@@ -675,11 +678,11 @@ def _check_settlement_dates(folio: _LedgerIndex) -> _Outcome:
     )
 
 
-def _what_moved(row: TxnRow, symbol: str | None) -> str:
+def _what_moved(row: Txn, symbol: str | None) -> str:
     """Name what a transfer leg carried: `40 RY.TO` in kind, `600.00 CAD` in cash."""
     if row.is_in_kind_transfer:
-        return f"{_units(abs(row.units))} {symbol}"
-    return _money(abs(row.amount), row.currency)
+        return f"{_units(abs(row.units or ZERO))} {symbol}"
+    return _money(abs(row.amount or ZERO), row.currency)
 
 
 def _unpaired_legs(folio: _LedgerIndex) -> list[CheckFinding]:

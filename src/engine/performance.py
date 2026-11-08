@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from datetime import date
     from decimal import Decimal
 
+    from models import Quote
     from services.price_history import PricePoint, RangeHistory
-    from services.quotes_service import Quote
     from services.symbols import SymbolResolver
 
 SESSION_RANGES = frozenset({PriceRange.DAY_1, PriceRange.DAYS_2})

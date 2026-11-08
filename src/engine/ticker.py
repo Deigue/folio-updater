@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from engine.holdings import Holding
     from engine.performance import RangeMove
     from engine.pools import FolioValuation, ValuedPool
-    from services.quotes_service import Quote
+    from models import Quote
 
 
 @dataclass(frozen=True)

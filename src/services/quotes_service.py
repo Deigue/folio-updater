@@ -7,7 +7,6 @@ without the package resolving at all.
 
 from __future__ import annotations
 
-import json
 import logging
 import socket
 import sqlite3
@@ -32,6 +31,8 @@ from db.queries import (
 from db.schema import create_quote_history_table, create_quotes_table
 from domain import TORONTO_TZ, Column, Currency, PriceRange, QuoteStatus, Table
 from domain.numeric import dec
+from models import Fundamentals, Quote, QuoteSplit
+from models.cells import read_moment
 from services.price_history import (
     PricePoint,
     RangeHistory,
@@ -42,7 +43,7 @@ from services.price_history import (
 from term import announce
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from types import ModuleType
 
     from services.symbols import SymbolResolver
@@ -152,240 +153,6 @@ def _run_concurrently[T](
     return [result for result in results if result is not None]
 
 
-def _stored_in(column: Column.Quote, *, numeric: bool = True) -> dict[str, object]:
-    """Say where a `Fundamentals` field is stored, and whether it is a number.
-
-    Args:
-        column: The quotes table column that holds it.
-        numeric: True for a number, False for text.
-
-    Returns:
-        The field's metadata.
-    """
-    return {"column": column, "numeric": numeric}
-
-
-@dataclass(frozen=True)
-class Fundamentals:
-    """Details from provider for a given security beyond its price.
-
-    Attributes:
-        quote_type: The provider's kind of security: EQUITY, ETF, MUTUALFUND...
-        trailing_pe: Price over the last twelve months' earnings.
-        forward_pe: Price over the next twelve months' expected earnings.
-        eps: Earnings per share over the last twelve months.
-        beta: Volatility against the market. A fund's three-year beta.
-        dividend_rate: Annual dividend per unit.
-        dividend_yield: Annual dividend over price, as a ratio.
-        last_dividend: The most recent dividend per unit.
-        ex_dividend_date: The next or most recent ex-dividend date.
-        earnings_date: The next earnings date, when the provider knows it.
-        high_52: The 52-week high.
-        low_52: The 52-week low.
-        avg_50: The 50-day average price.
-        avg_200: The 200-day average price.
-        volume: The last session's volume.
-        avg_volume: Average daily volume.
-        expense_ratio: A fund's expense ratio, as a ratio.
-        total_assets: A fund's assets under management.
-        category: A fund's category.
-        fund_family: A fund's manager.
-    """
-
-    quote_type: str | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.QUOTE_TYPE, numeric=False),
-    )
-    trailing_pe: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.TRAILING_PE),
-    )
-    forward_pe: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.FORWARD_PE),
-    )
-    eps: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.EPS),
-    )
-    beta: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.BETA),
-    )
-    dividend_rate: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.DIVIDEND_RATE),
-    )
-    dividend_yield: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.DIVIDEND_YIELD),
-    )
-    last_dividend: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.LAST_DIVIDEND),
-    )
-    ex_dividend_date: str | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.EX_DIVIDEND_DATE, numeric=False),
-    )
-    earnings_date: str | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.EARNINGS_DATE, numeric=False),
-    )
-    high_52: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.HIGH_52),
-    )
-    low_52: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.LOW_52),
-    )
-    avg_50: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.AVG_50),
-    )
-    avg_200: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.AVG_200),
-    )
-    volume: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.VOLUME),
-    )
-    avg_volume: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.AVG_VOLUME),
-    )
-    expense_ratio: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.EXPENSE_RATIO),
-    )
-    total_assets: Decimal | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.TOTAL_ASSETS),
-    )
-    category: str | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.CATEGORY, numeric=False),
-    )
-    fund_family: str | None = field(
-        default=None,
-        metadata=_stored_in(Column.Quote.FUND_FAMILY, numeric=False),
-    )
-
-
-@dataclass(frozen=True)
-class QuoteSplit:
-    """One split in the provider's history of a security.
-
-    Attributes:
-        date: The day the provider dates it, `YYYY-MM-DD`.
-        ratio: Units after per unit before, so a consolidation is below one.
-    """
-
-    date: str
-    ratio: Decimal
-
-
-@dataclass(frozen=True)
-class Quote:
-    """A symbol's quote: its latest cached market data.
-
-    Attributes:
-        symbol: The folio's own canonical symbol.
-        provider_symbol: How the provider spells it.
-        price: Price, in `currency`. None when unpriced.
-        prev_close: Previous close, which is what `day_change` is measured from.
-        currency: The currency the price is quoted in.
-        name: Short name from the provider.
-        sector: Sector from the provider.
-        exchange: Listing exchange from the provider.
-        market_cap: Market capitalisation, in `currency`.
-        quote_time: The provider's own market timestamp.
-        fetched_at: When the price was last fetched. Drives the TTL.
-        meta_fetched_at: When the metadata, fundamentals included, was last
-            fetched. Its own TTL.
-        status: How the last fetch attempt came out.
-        fundamentals: Valuation, dividend, trading-range and fund figures.
-        splits: The provider's split history, oldest first, fetched with the
-            metadata. None until it is known, which no splits is not.
-    """
-
-    symbol: str
-    provider_symbol: str
-    price: Decimal | None = None
-    prev_close: Decimal | None = None
-    currency: Currency | None = None
-    name: str | None = None
-    sector: str | None = None
-    exchange: str | None = None
-    market_cap: Decimal | None = None
-    quote_time: str | None = None
-    fetched_at: datetime | None = None
-    meta_fetched_at: datetime | None = None
-    status: QuoteStatus = QuoteStatus.ERROR
-    fundamentals: Fundamentals = field(default_factory=Fundamentals)
-    splits: tuple[QuoteSplit, ...] | None = None
-
-    @property
-    def age(self) -> timedelta | None:
-        """How long ago the price was fetched, or None if it never was."""
-        if self.fetched_at is None:
-            return None
-        return datetime.now(UTC) - self.fetched_at
-
-    @property
-    def is_stale(self) -> bool:
-        """Whether the price is older than the configured TTL."""
-        age = self.age
-        if age is None:
-            return True
-        return age > timedelta(minutes=get_config().quotes_ttl_minutes)
-
-    def meta_older_than(self, max_age: timedelta) -> bool:
-        """Whether the metadata is older than `max_age`, or was never fetched.
-
-        Args:
-            max_age: How old the metadata may be and still be used.
-
-        Returns:
-            True when a refetch is due.
-        """
-        if self.meta_fetched_at is None:
-            return True
-        return datetime.now(UTC) - self.meta_fetched_at > max_age
-
-    @property
-    def priced(self) -> bool:
-        """Whether this quote can be used to value a holding."""
-        return (
-            self.status is QuoteStatus.OK and self.price is not None and self.price > 0
-        )
-
-    @property
-    def day_change(self) -> Decimal | None:
-        """The day's per-share move, or None when either side is missing."""
-        if self.price is None or self.prev_close is None:
-            return None
-        return self.price - self.prev_close
-
-    @property
-    def from_high_52(self) -> Decimal | None:
-        """How far the price sits from its 52-week high: -0.07 is 7% below it."""
-        high = self.fundamentals.high_52
-        if self.price is None or not high:
-            return None
-        return self.price / high - 1
-
-    @property
-    def day_change_pct(self) -> Decimal | None:
-        """The day's move as a share of the previous close, or None without one."""
-        change = self.day_change
-        if change is None or not self.prev_close:
-            return None
-        return change / self.prev_close
-
-
 @dataclass(frozen=True)
 class RefreshResult:
     """What one refresh pass did.
@@ -460,18 +227,6 @@ def _number(value: object) -> Decimal | None:
     return number or None
 
 
-def _moment(value: object) -> datetime | None:
-    """Read an ISO-8601 timestamp back."""
-    text = _text(value)
-    if text is None:
-        return None
-    try:
-        moment = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
-
-
 def _currency(value: object) -> Currency | None:
     """Read a currency cell, or None when the app does not support it."""
     text = _text(value)
@@ -517,7 +272,8 @@ class QuotesService:
             symbol = _text(record.get(Column.Quote.SYMBOL))
             if symbol is None or (wanted is not None and symbol not in wanted):
                 continue
-            quotes[symbol] = _quote_from_record(symbol, record)
+            # A frame's records are keyed by column name.
+            quotes[symbol] = Quote.from_row(record)  # ty: ignore[invalid-argument-type]
         return quotes
 
     @classmethod
@@ -650,7 +406,7 @@ class QuotesService:
                 metadata.get(provider_symbols[symbol]),
                 now,
             )
-            rows.append(_record(quote))
+            rows.append(replace(quote, source=SOURCE).to_row())
             result = _tally(result, outcome)
 
         _write(rows)
@@ -1270,6 +1026,22 @@ def _daily_closes(frame: Any, provider_symbol: str) -> list[float]:  # noqa: ANN
     return [float(value) for value in column.dropna().tolist()]
 
 
+def is_stale(quote: Quote) -> bool:
+    """Whether a quote's price is older than the configured TTL.
+
+    Args:
+        quote: The cached quote.
+
+    Returns:
+        True when it was never fetched, or was fetched longer ago than
+        `quotes_ttl_minutes`.
+    """
+    age = quote.age
+    if age is None:
+        return True
+    return age > timedelta(minutes=get_config().quotes_ttl_minutes)
+
+
 def _is_due(quote: Quote | None) -> bool:
     """Whether a cached quote should be refetched now."""
     if quote is None:
@@ -1278,7 +1050,7 @@ def _is_due(quote: Quote | None) -> bool:
         # Negative-cached: re-ask occasionally, not every run.
         age = quote.age
         return age is None or age > timedelta(days=NOT_FOUND_TTL_DAYS)
-    return quote.is_stale
+    return is_stale(quote)
 
 
 def _merge(  # noqa: PLR0913, PLR0917
@@ -1355,66 +1127,6 @@ def _fill_gaps(
     }
 
 
-def _quote_from_record(symbol: str, record: Mapping[Hashable, Any]) -> Quote:
-    """Build a `Quote` from one cached database row."""
-    status = _text(record.get(Column.Quote.STATUS))
-    try:
-        resolved = QuoteStatus(status) if status else QuoteStatus.ERROR
-    except ValueError:
-        resolved = QuoteStatus.ERROR
-    return Quote(
-        symbol=symbol,
-        provider_symbol=_text(record.get(Column.Quote.PROVIDER_SYMBOL)) or symbol,
-        price=_number(record.get(Column.Quote.PRICE)),
-        prev_close=_number(record.get(Column.Quote.PREV_CLOSE)),
-        currency=_currency(record.get(Column.Quote.CURRENCY)),
-        name=_text(record.get(Column.Quote.NAME)),
-        sector=_text(record.get(Column.Quote.SECTOR)),
-        exchange=_text(record.get(Column.Quote.EXCHANGE)),
-        market_cap=_number(record.get(Column.Quote.MARKET_CAP)),
-        quote_time=_text(record.get(Column.Quote.QUOTE_TIME)),
-        fetched_at=_moment(record.get(Column.Quote.FETCHED_AT)),
-        meta_fetched_at=_moment(record.get(Column.Quote.META_FETCHED_AT)),
-        status=resolved,
-        fundamentals=_fundamentals(
-            {
-                item.name: record.get(item.metadata["column"])
-                for item in fields(Fundamentals)
-            },
-        ),
-        splits=_read_splits(record.get(Column.Quote.SPLITS)),
-    )
-
-
-def _record(quote: Quote) -> dict[str, Any]:
-    """Flatten a `Quote` into the columns the cache table holds."""
-    return {
-        str(Column.Quote.SYMBOL): quote.symbol,
-        str(Column.Quote.PROVIDER_SYMBOL): quote.provider_symbol,
-        str(Column.Quote.PRICE): _stored(quote.price),
-        str(Column.Quote.PREV_CLOSE): _stored(quote.prev_close),
-        str(Column.Quote.CURRENCY): str(quote.currency) if quote.currency else None,
-        str(Column.Quote.NAME): quote.name,
-        str(Column.Quote.SECTOR): quote.sector,
-        str(Column.Quote.EXCHANGE): quote.exchange,
-        str(Column.Quote.MARKET_CAP): _stored(quote.market_cap),
-        str(Column.Quote.QUOTE_TIME): quote.quote_time,
-        str(Column.Quote.FETCHED_AT): _iso(quote.fetched_at),
-        str(Column.Quote.META_FETCHED_AT): _iso(quote.meta_fetched_at),
-        str(Column.Quote.SOURCE): SOURCE,
-        str(Column.Quote.STATUS): str(quote.status),
-        str(Column.Quote.SPLITS): _stored_splits(quote.splits),
-        **{
-            str(item.metadata["column"]): (
-                _stored(getattr(quote.fundamentals, item.name))
-                if item.metadata["numeric"]
-                else getattr(quote.fundamentals, item.name)
-            )
-            for item in fields(Fundamentals)
-        },
-    }
-
-
 def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
     """Read fundamentals out of a mapping keyed by their field names."""
     read: dict[str, Any] = {}
@@ -1422,31 +1134,6 @@ def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
         raw = values.get(item.name)
         read[item.name] = _number(raw) if item.metadata["numeric"] else _text(raw)
     return Fundamentals(**read)
-
-
-def _stored_splits(splits: tuple[QuoteSplit, ...] | None) -> str | None:
-    """Render a split history for storage, keeping unknown a genuine null."""
-    if splits is None:
-        return None
-    return json.dumps([[split.date, str(split.ratio)] for split in splits])
-
-
-def _read_splits(value: object) -> tuple[QuoteSplit, ...] | None:
-    """Read a split history back, keeping unknown as None."""
-    text = _text(value)
-    if text is None:
-        return None
-    return tuple(QuoteSplit(when, Decimal(ratio)) for when, ratio in json.loads(text))
-
-
-def _stored(value: Decimal | None) -> float | None:
-    """Render a Decimal for sqlite, keeping None a genuine null."""
-    return None if value is None else float(value)
-
-
-def _iso(moment: datetime | None) -> str | None:
-    """Render a timestamp for storage, keeping None a genuine null."""
-    return None if moment is None else moment.isoformat()
 
 
 def _write(rows: list[dict[str, Any]]) -> None:
@@ -1518,7 +1205,7 @@ def _read_history(
     fetched: dict[str, datetime] = {}
     for record in frame.to_dict("records"):
         symbol = str(record[Column.QuoteHistory.SYMBOL])
-        moment = _moment(record[Column.QuoteHistory.FETCHED_AT])
+        moment = read_moment(record[Column.QuoteHistory.FETCHED_AT])
         if moment is not None:
             # The oldest stamp wins, so a part-written symbol reads as due.
             fetched[symbol] = min(fetched.get(symbol, moment), moment)

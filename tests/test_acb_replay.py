@@ -27,12 +27,14 @@ from engine.frames import (
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, replay
 from engine.transfers import pair_transfers
-from engine.types import ReplayResult, TxnRow, to_txn_rows
 from services.symbols import SymbolResolver
 
 from .helpers.replay import FLAT_FX, make_row, run
 
 if TYPE_CHECKING:
+    from engine.types import ReplayResult
+    from models import Txn
+
     from .helpers.context import TempContext
 
 D = Decimal
@@ -1029,7 +1031,7 @@ def test_ambiguous_fee_convention_is_diagnosed() -> None:
     assert DiagnosticCode.FEE_CONVENTION_MISMATCH not in codes(result)
 
 
-def _fee_trade(txn_id: int, amount: str, fee: str = "5") -> TxnRow:
+def _fee_trade(txn_id: int, amount: str, fee: str = "5") -> Txn:
     """Build a BUY of 100 at 10: `-1000` is gross of the fee, `-1005` contains it."""
     return make_row(
         txn_id,
@@ -1689,34 +1691,6 @@ def test_summary_of_a_frame_with_no_holdings_is_empty() -> None:
     assert acb_summary_frame(frame).empty
 
 
-def _raw_row(**overrides: object) -> pd.DataFrame:
-    """One `Txns` row, the way pd.read_sql_query hands it back."""
-    record: dict[str, object] = {
-        str(Column.Txn.TXN_ID): 1,
-        str(Column.Txn.TXN_DATE): "2024-01-02",
-        str(Column.Txn.ACTION): "BUY",
-        str(Column.Txn.AMOUNT): -100.0,
-        str(Column.Txn.CURRENCY): "CAD",
-        str(Column.Txn.ACCOUNT): "IBKR-PERSONAL",
-        str(Column.Txn.TICKER): "TEST",
-    }
-    record.update(overrides)
-    return pd.DataFrame([record])
-
-
-def test_rows_with_an_unknown_action_are_dropped() -> None:
-    assert to_txn_rows(_raw_row(Action="NOT_AN_ACTION")) == []
-    assert to_txn_rows(pd.DataFrame()) == []
-
-
-def test_an_unrecognised_currency_reads_as_cad() -> None:
-    assert to_txn_rows(_raw_row(**{"$": ""}))[0].currency is Currency.CAD
-
-
-def test_a_missing_ticker_reads_as_none() -> None:
-    assert to_txn_rows(_raw_row(Ticker=None))[0].ticker is None
-
-
 def test_pair_transfers_rejects_mismatched_shapes() -> None:
     """A cash leg never pairs with a holding leg, whatever the numbers say."""
     rows = [
@@ -2315,7 +2289,7 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
     assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
 
 
-def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[TxnRow]:
+def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[Txn]:
     """Build a holding bought at one broker and moved in kind to another."""
     return [
         make_row(
@@ -2558,7 +2532,7 @@ def test_splitting_an_untracked_frame_yields_nothing() -> None:
 # --- totals --------------------------------------------------------------------
 
 
-def _bought_and_sold() -> list[TxnRow]:
+def _bought_and_sold() -> list[Txn]:
     """Fund an account, buy into it, then sell some."""
     return [
         make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),

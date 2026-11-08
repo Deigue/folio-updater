@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.fx_rates import FxRates
-    from services.quotes_service import Quote
+    from models import Quote
 
 # A provider split this close to a folio SPLIT row is effectively the same split.
 _SAME_SPLIT_WITHIN = timedelta(days=14)

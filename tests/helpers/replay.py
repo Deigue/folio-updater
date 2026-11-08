@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from domain import AccountType, Action, Currency, FeeConvention
 from engine.accounts import Account
 from engine.fees import FeeRules
 from engine.fx_rates import FxRates
 from engine.replay import ReplayConfig, replay
-from engine.types import ReplayResult, TxnRow
+from models import Txn
 from services.symbols import SymbolResolver
+
+if TYPE_CHECKING:
+    from engine.types import ReplayResult
 
 FLAT_FX = FxRates(("2020-01-01",), (Decimal("1.30"),))
 
@@ -28,9 +32,9 @@ def make_row(
     ticker: str | None = "TEST",
     account: str = "IBKR-PERSONAL",
     settle_date: str | None = None,
-) -> TxnRow:
+) -> Txn:
     """Build one transaction with every money column already Decimal."""
-    return TxnRow(
+    return Txn(
         txn_id=txn_id,
         txn_date=date,
         settle_date=settle_date or date,
@@ -42,11 +46,12 @@ def make_row(
         fee=Decimal(fee),
         ticker=ticker,
         account=account,
+        settle_calculated=False,
     )
 
 
 def run(
-    rows: list[TxnRow],
+    rows: list[Txn],
     fx: FxRates = FLAT_FX,
     types: dict[str, AccountType] | None = None,
     conventions: dict[str, FeeConvention] | None = None,

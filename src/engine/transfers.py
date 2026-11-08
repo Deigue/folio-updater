@@ -24,11 +24,12 @@ from itertools import count
 from typing import TYPE_CHECKING
 
 from domain import Action
+from domain.numeric import ZERO
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from engine.types import TxnRow
+    from models import Txn
 
 # Both legs of a transfer.
 TRANSFER_ACTIONS = (Action.TFR_IN, Action.TFR_OUT)
@@ -73,8 +74,8 @@ class TransferPair:
     """
 
     pair_id: int
-    out_leg: TxnRow
-    in_leg: TxnRow
+    out_leg: Txn
+    in_leg: Txn
     moves_units: bool
 
 
@@ -87,7 +88,7 @@ _JOURNAL = 1
 _CROSS_ACCOUNT_OTHER_SYMBOL = 2
 
 
-def _journal_fits(out_leg: TxnRow, in_leg: TxnRow) -> bool:
+def _journal_fits(out_leg: Txn, in_leg: Txn) -> bool:
     """Whether a same-account pair can be a journal.
 
     Held to an exact settlement date, unlike a cross-account transfer.
@@ -95,11 +96,14 @@ def _journal_fits(out_leg: TxnRow, in_leg: TxnRow) -> bool:
     return out_leg.settle_date == in_leg.settle_date
 
 
-def _in_kind_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
+def _in_kind_score(out_leg: Txn, in_leg: Txn) -> int | None:
     """Rank a candidate in leg for a in-kind transfer, or None if impossible."""
     if not in_leg.is_in_kind_transfer:
         return None
-    if abs(abs(out_leg.units) - abs(in_leg.units)) > UNIT_MATCH_TOLERANCE:
+    if (
+        abs(abs(out_leg.units or ZERO) - abs(in_leg.units or ZERO))
+        > UNIT_MATCH_TOLERANCE
+    ):
         return None
     same_account = out_leg.account == in_leg.account
     same_symbol = out_leg.ticker == in_leg.ticker
@@ -112,11 +116,11 @@ def _in_kind_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
     return None
 
 
-def _cash_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
+def _cash_score(out_leg: Txn, in_leg: Txn) -> int | None:
     """Rank a candidate in leg for a cash transfer, or None if impossible."""
     if in_leg.is_in_kind_transfer:
         return None
-    if abs(abs(out_leg.amount) - abs(in_leg.amount)) > CASH_TOLERANCE:
+    if abs(abs(out_leg.amount or ZERO) - abs(in_leg.amount or ZERO)) > CASH_TOLERANCE:
         return None
     if out_leg.account != in_leg.account:
         return _CROSS_ACCOUNT
@@ -125,8 +129,8 @@ def _cash_score(out_leg: TxnRow, in_leg: TxnRow) -> int | None:
 
 
 def pair_transfers(
-    rows: Sequence[TxnRow],
-) -> tuple[list[TransferPair], list[TxnRow]]:
+    rows: Sequence[Txn],
+) -> tuple[list[TransferPair], list[Txn]]:
     """Match every transfer leg with its counterpart.
 
     Args:
@@ -152,7 +156,7 @@ def pair_transfers(
         end = bisect_right(in_dates, _shift(settle, TRANSFER_WINDOW_DAYS))
         candidates = in_legs[start:end]
         score_fn = _in_kind_score if out_leg.is_in_kind_transfer else _cash_score
-        best: tuple[int, int, int, TxnRow] | None = None
+        best: tuple[int, int, int, Txn] | None = None
         for candidate in candidates:
             if candidate.txn_id in consumed:
                 continue

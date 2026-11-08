@@ -13,8 +13,7 @@ from engine.types import (
     HoldingState,
     LedgerRow,
     ReplayResult,
-    TxnRow,
-    load_txn_rows,
+    load_txns,
 )
 
 __all__ = [
@@ -30,11 +29,10 @@ __all__ = [
     "ReplayConfig",
     "ReplayResult",
     "TransferPair",
-    "TxnRow",
     "acb_summary_frame",
     "ledger_frame",
     "load_fx_rates",
-    "load_txn_rows",
+    "load_txns",
     "pair_transfers",
     "replay",
     "resolve_account",

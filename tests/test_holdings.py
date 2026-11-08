@@ -22,7 +22,7 @@ from engine.holdings import (
     totals_currency,
 )
 from engine.ledger import open_ledger
-from services.quotes_service import Quote
+from models import Quote
 
 from .helpers.seed import seed_cash, seed_fx, seed_transaction
 

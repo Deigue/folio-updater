@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table as RichTable
 
+from services.quotes_service import is_stale
 from ui.cells import EM_DASH, price, signed
 from ui.format import short_age
 from ui.layout.fit import fit_table
@@ -14,7 +15,7 @@ from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
-    from services.quotes_service import Quote
+    from models import Quote
 
 
 def quotes_table(
@@ -75,7 +76,7 @@ def _age(quote: Quote) -> str:
     if age is None:
         return EM_DASH
     text = short_age(age.total_seconds())
-    return f"[yellow]{text}[/yellow]" if quote.is_stale else text
+    return f"[yellow]{text}[/yellow]" if is_stale(quote) else text
 
 
 def _status(quote: Quote) -> str:

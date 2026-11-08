@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from engine.holdings import Holding
     from engine.performance import RangeMove
     from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
-    from services.quotes_service import Quote
+    from models import Quote
 
 # A fund reports a fund's figures; anything else reports a company's.
 _FUND_TYPES = frozenset({"ETF", "MUTUALFUND"})

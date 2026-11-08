@@ -13,7 +13,7 @@ from .helpers.replay import make_row
 if TYPE_CHECKING:
     import pytest
 
-    from engine.types import TxnRow
+    from models import Txn
 
 D = Decimal
 
@@ -22,7 +22,7 @@ INCLUDED_NEGATIVE = FeeRules(FeeConvention.INCLUDED, FeeSign.NEGATIVE)
 EXCLUDED_POSITIVE = FeeRules(FeeConvention.EXCLUDED, FeeSign.POSITIVE)
 
 
-def _buy(fee: str, amount: str, units: str = "100", price: str = "10") -> TxnRow:
+def _buy(fee: str, amount: str, units: str = "100", price: str = "10") -> Txn:
     return make_row(
         1,
         "2024-01-02",
@@ -34,7 +34,7 @@ def _buy(fee: str, amount: str, units: str = "100", price: str = "10") -> TxnRow
     )
 
 
-def _sell(fee: str, amount: str) -> TxnRow:
+def _sell(fee: str, amount: str) -> Txn:
     return make_row(
         2,
         "2024-01-03",
@@ -105,12 +105,12 @@ def test_price_rounded_to_cents_still_reconciles() -> None:
 # --- finding the rules from an account's trades ----------------------------------
 
 
-def _ibkr_buys(fee: str) -> list[TxnRow]:
+def _ibkr_buys(fee: str) -> list[Txn]:
     """Two trades whose Amount is gross of the commission."""
     return [_buy(fee=fee, amount="-1000"), _buy(fee=fee, amount="-2000", units="200")]
 
 
-def _questrade_buys(fee: str) -> list[TxnRow]:
+def _questrade_buys(fee: str) -> list[Txn]:
     """Two trades whose Amount already contains the commission."""
     return [
         _buy(fee=fee, amount="-1004.95"),

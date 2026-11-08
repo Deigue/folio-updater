@@ -13,6 +13,7 @@ more. Every figure is stored as text, so no Decimal loses a digit.
 
 from __future__ import annotations
 
+import json
 from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -26,8 +27,8 @@ from engine.types import (
     GrainMeasures,
     LedgerRow,
     ReplayTotals,
-    TxnRow,
 )
+from models import Txn
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -36,7 +37,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -45,13 +46,14 @@ _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMea
 _GRAINS = ("acct", "type", "folio")
 
 # Every column below is read off the dataclasses, so a field added to
-# `Diagnostic`, `TxnRow` or `LedgerRow` is saved with no edit here. Only a
-# field that must come back as something other than text needs a decoder.
+# `Diagnostic`, `Txn` or `LedgerRow` is saved with no edit here. Only a
+# field that must come back as something other than text needs a decoder, and
+# only one that is not text already needs an encoder.
 _DIAGNOSTIC_COLUMNS = tuple(field.name for field in fields(Diagnostic))
 
 # The transaction's own columns (its id is the key), then the derived scalars
 # of the ledger row beside it. The per-grain measures and the flags follow.
-_TXN_FIELDS = tuple(field.name for field in fields(TxnRow) if field.name != "txn_id")
+_TXN_FIELDS = tuple(field.name for field in fields(Txn) if field.name != "txn_id")
 _DERIVED_FIELDS = tuple(
     field.name
     for field in fields(LedgerRow)
@@ -100,11 +102,13 @@ _DIAGNOSTIC_DECODERS: dict[str, Callable[[Any], Any]] = {
 }
 _ROW_DECODERS: dict[str, Callable[[Any], Any]] = {
     "action": Action,
-    "amount": Decimal,
+    "amount": _number,
     "currency": Currency,
-    "price": Decimal,
-    "units": Decimal,
-    "fee": Decimal,
+    "price": _number,
+    "units": _number,
+    "fee": _number,
+    "settle_calculated": lambda value: value == str(True),
+    "extras": json.loads,
     "acct_type": AccountType,
     "impact": Impact,
     "fx_rate": _number,
@@ -112,6 +116,12 @@ _ROW_DECODERS: dict[str, Callable[[Any], Any]] = {
     "proceeds_usd": _number,
     "dividend_cad": _number,
     "dividend_usd": _number,
+}
+
+
+# How the transaction fields that are not plain values go into storage.
+_ROW_ENCODERS: dict[str, Callable[[Any], Any]] = {
+    "extras": lambda extras: json.dumps(dict(extras)),
 }
 
 
@@ -133,7 +143,10 @@ def _decode_diagnostic(record: Mapping[Hashable, Any]) -> Diagnostic:
 def _encode_row(computed: LedgerRow) -> dict[str, str | None]:
     """Flatten one ledger row, money included, losing nothing."""
     values = [
-        *(getattr(computed.row, name) for name in _TXN_FIELDS),
+        *(
+            _ROW_ENCODERS.get(name, _same)(getattr(computed.row, name))
+            for name in _TXN_FIELDS
+        ),
         *(getattr(computed, name) for name in _DERIVED_FIELDS),
         *(
             getattr(getattr(computed, grain), name)
@@ -160,7 +173,7 @@ def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> LedgerRow:
         for name in (*_TXN_FIELDS, *_DERIVED_FIELDS)
     }
     return LedgerRow(
-        row=TxnRow(txn_id=txn_id, **{name: stored[name] for name in _TXN_FIELDS}),
+        row=Txn(txn_id=txn_id, **{name: stored[name] for name in _TXN_FIELDS}),
         **{name: stored[name] for name in _DERIVED_FIELDS},
         acct=_read_measures(record, "acct"),
         type=_read_measures(record, "type"),

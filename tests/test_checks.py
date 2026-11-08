@@ -47,7 +47,7 @@ from .helpers.seed import seed_cash, seed_fx, seed_transaction
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from engine.types import TxnRow
+    from models import Txn
 
     from .helpers.context import TempContext
 
@@ -83,7 +83,7 @@ class StubConfig:
         self.checks_ignore_accounts = [name.upper() for name in accounts or []]
 
 
-def ledger_of(rows: list[TxnRow]) -> Ledger:
+def ledger_of(rows: list[Txn]) -> Ledger:
     """Replay rows with this module's account types, so no config is involved."""
     types = {
         row.account: ACCOUNT_TYPES.get(row.account, AccountType.NON_REGISTERED)
@@ -93,7 +93,7 @@ def ledger_of(rows: list[TxnRow]) -> Ledger:
 
 
 def check(
-    rows: list[TxnRow],
+    rows: list[Txn],
     slug: str,
     config: ChecksConfig | None = None,
 ) -> CheckResult:
@@ -112,7 +112,7 @@ def details(result: CheckResult) -> str:
 # --- a folio with nothing wrong -----------------------------------------------
 
 
-def clean_folio() -> list[TxnRow]:
+def clean_folio() -> list[Txn]:
     """Build a small folio that every check should pass."""
     return [
         make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),
@@ -178,7 +178,7 @@ def test_inferred_account_types_pass() -> None:
 # --- unit balances ------------------------------------------------------------
 
 
-def oversold_in_one_account() -> list[TxnRow]:
+def oversold_in_one_account() -> list[Txn]:
     """Build a TFSA whose units are right in total but wrong per account."""
     return [
         make_row(
@@ -401,7 +401,7 @@ def test_the_cash_finding_names_the_account_and_its_currency() -> None:
 # --- split coverage -----------------------------------------------------------
 
 
-def split_missing_from_one_account() -> list[TxnRow]:
+def split_missing_from_one_account() -> list[Txn]:
     """Two accounts hold SCHD, but only one records the split."""
     return [
         make_row(
@@ -686,7 +686,7 @@ def test_a_trade_settling_before_it_was_made_is_reported() -> None:
     assert "before the 2024-03-05 trade" in details(result)
 
 
-def trades_with_lags(lags: list[int]) -> list[TxnRow]:
+def trades_with_lags(lags: list[int]) -> list[Txn]:
     """Build one BUY a week apart for each lag, lagged in calendar days."""
     monday = date(2024, 1, 1)
     rows = []
@@ -794,7 +794,7 @@ def test_a_paired_transfer_passes() -> None:
     assert check(rows, "transfers").status is CheckStatus.OK
 
 
-def _moved_in_kind(out_date: str, in_date: str) -> list[TxnRow]:
+def _moved_in_kind(out_date: str, in_date: str) -> list[Txn]:
     """Buy 40 units, then move them in kind to another broker on two dates."""
     return [
         make_row(
@@ -854,7 +854,7 @@ def test_a_transfer_taking_days_within_one_year_passes() -> None:
     assert result.status is CheckStatus.OK
 
 
-def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[TxnRow]:
+def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[Txn]:
     """Move 40 units in kind, or 600 CAD of cash, from one account to another."""
     units, amount, ticker = ("40", "0", "VFV.TO") if in_kind else ("0", "600", None)
     return [
@@ -939,7 +939,7 @@ def test_a_trade_matching_neither_convention_is_reported() -> None:
 
 
 def test_a_trade_against_its_accounts_convention_is_reported() -> None:
-    def trade(txn_id: int, amount: str) -> TxnRow:
+    def trade(txn_id: int, amount: str) -> Txn:
         return make_row(
             txn_id,
             "2024-01-03",

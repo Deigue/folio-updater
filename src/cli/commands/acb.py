@@ -38,7 +38,7 @@ from ui.views.acb import show_buildup, show_summary
 
 if TYPE_CHECKING:
     from exporters.sheet_spec import Sheet
-    from services.quotes_service import Quote
+    from models import Quote
 
 _CURRENCY_CHOICES = (CurrencyColumns.BOTH, CurrencyColumns.CAD, CurrencyColumns.USD)
 

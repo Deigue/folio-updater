@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from engine.fees import FeeRules, TradeCash
     from engine.fx_rates import FxRates
     from engine.transfers import TransferPair
-    from engine.types import TxnRow
+    from models import Txn
     from services.symbols import SymbolResolver
 
 logger = logging.getLogger(__name__)
@@ -152,7 +152,7 @@ class ReplayConfig:
     @classmethod
     def build(
         cls,
-        rows: Sequence[TxnRow],
+        rows: Sequence[Txn],
         symbols: SymbolResolver,
         accounts: Mapping[str, Account] | None = None,
     ) -> ReplayConfig:
@@ -167,7 +167,7 @@ class ReplayConfig:
             A populated `ReplayConfig`. A fee setting left on `auto` is settled
             from the account's own rows.
         """
-        by_account: dict[str, list[TxnRow]] = {}
+        by_account: dict[str, list[Txn]] = {}
         for row in rows:
             by_account.setdefault(row.account, []).append(row)
         known = accounts or {}
@@ -223,7 +223,7 @@ class _Pools:
         return True
 
 
-def _pool_key(grain: Grain, row: TxnRow, acct_type: AccountType) -> str:
+def _pool_key(grain: Grain, row: Txn, acct_type: AccountType) -> str:
     """Name the pool a row belongs to at one grain."""
     if grain is Grain.ACCOUNT:
         return row.account
@@ -255,7 +255,7 @@ class _Replay:
 
     def __init__(
         self,
-        rows: Sequence[TxnRow],
+        rows: Sequence[Txn],
         fx: FxRates,
         cfg: ReplayConfig,
     ) -> None:
@@ -349,7 +349,7 @@ class _Replay:
             return out_leg.currency is in_leg.currency
         return self._symbol_of(out_leg) == self._symbol_of(in_leg)
 
-    def _symbol_of(self, row: TxnRow) -> str | None:
+    def _symbol_of(self, row: Txn) -> str | None:
         """Resolve a row's ticker to its symbol on its own date, if it has one."""
         return (
             self.cfg.symbols.canonical(row.ticker, row.txn_date) if row.ticker else None
@@ -375,7 +375,7 @@ class _Replay:
     def diagnose(  # noqa: PLR0913 - every argument names one facet of the diagnostic
         self,
         code: DiagnosticCode,
-        row: TxnRow | None = None,
+        row: Txn | None = None,
         grain: Grain | None = None,
         pool: str | None = None,
         detail: str = "",
@@ -435,11 +435,11 @@ class _Replay:
 
     # -- CURRENCY SHORTCUTS -----------------------------------------------
 
-    def to_cad(self, amount: Decimal, row: TxnRow) -> Decimal:
+    def to_cad(self, amount: Decimal, row: Txn) -> Decimal:
         """Convert a row amount into CAD at that row's settlement-date rate."""
         return self.fx.to_cad(amount, row.fx_date, row.currency).value
 
-    def rate_for(self, row: TxnRow) -> tuple[Decimal | None, str | None]:
+    def rate_for(self, row: Txn) -> tuple[Decimal | None, str | None]:
         """Return the USDCAD rate applied to a row, or None for a CAD row."""
         if row.currency is Currency.CAD:
             return None, None
@@ -465,7 +465,7 @@ class _Replay:
             if tracked:
                 self._stash_acb_delta(row, computed)
 
-    def _stash_acb_delta(self, row: TxnRow, computed: LedgerRow) -> None:
+    def _stash_acb_delta(self, row: Txn, computed: LedgerRow) -> None:
         """Keep the cost-base change the deposit rule will divide by.
 
         Recorded during this walk rather than looked up afterwards so the
@@ -483,7 +483,7 @@ class _Replay:
             if self.deposits.resolve(grain, name) is not None:
                 self.acb_delta[grain][row.txn_id] = delta
 
-    def _apply(self, row: TxnRow) -> LedgerRow:
+    def _apply(self, row: Txn) -> LedgerRow:
         """Apply one row to all three pools and emit a ledger row."""
         acct_type = self._type_of(row.account)
         symbol = self._symbol_of(row)
@@ -524,7 +524,7 @@ class _Replay:
             folio=measures[Grain.FOLIO],
         )
 
-    def _row_checks(self, row: TxnRow) -> None:
+    def _row_checks(self, row: Txn) -> None:
         """Diagnostics that read a row on its own, with no pool state."""
         if (
             row.action in _TRADE_ACTIONS
@@ -548,10 +548,10 @@ class _Replay:
                     row,
                     detail=f"{row.action} has no matching counterpart leg",
                 )
-        elif row.action in _TRADE_ACTIONS and row.fee != ZERO:
+        elif row.action in _TRADE_ACTIONS and row.fee:
             self._check_fee(row)
 
-    def _check_fee(self, row: TxnRow) -> None:
+    def _check_fee(self, row: Txn) -> None:
         """Report a trade whose amount the account's fee rules cannot account for.
 
         A trade matching neither convention is ambiguous. One matching only the
@@ -563,8 +563,8 @@ class _Replay:
                 DiagnosticCode.AMBIGUOUS_FEE_CONVENTION,
                 row,
                 detail=(
-                    f"Amount {row.amount} matches neither Price*Units nor "
-                    f"Price*Units +/- Fee {row.fee}"
+                    f"Amount {row.amount or ZERO} matches neither Price*Units nor "
+                    f"Price*Units +/- Fee {row.fee or ZERO}"
                 ),
             )
             return
@@ -574,14 +574,14 @@ class _Replay:
                 DiagnosticCode.FEE_CONVENTION_MISMATCH,
                 row,
                 detail=(
-                    f"Amount {row.amount} fits {pointed}, but "
+                    f"Amount {row.amount or ZERO} fits {pointed}, but "
                     f"{row.account} uses {fees.convention}"
                 ),
             )
 
     def _apply_to_pool(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         pool: str,
         symbol: str,
@@ -626,7 +626,7 @@ class _Replay:
         if held_before or state.units > ZERO:
             state.last_held = row.txn_date
 
-    def _income_is_orphaned(self, row: TxnRow, state: HoldingState) -> bool:
+    def _income_is_orphaned(self, row: Txn, state: HoldingState) -> bool:
         """Whether income arrived against a pool that has no claim to it."""
         if state.units != ZERO:
             return False
@@ -635,17 +635,17 @@ class _Replay:
         cutoff = date.fromisoformat(row.txn_date) - timedelta(days=_INCOME_TAIL_DAYS)
         return state.last_held < cutoff.isoformat()
 
-    def _apply_buy(self, row: TxnRow, state: HoldingState) -> None:
+    def _apply_buy(self, row: Txn, state: HoldingState) -> None:
         """Add units and the full cost, commission included."""
         trade: TradeCash = self._trade(row)
-        state.units += abs(row.units)
+        state.units += abs(row.units or ZERO)
         state.acb_cad += self.to_cad(trade.cost, row)
         if row.currency is Currency.USD:
             state.acb_usd += trade.cost
 
     def _apply_sell(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         pool: str,
         symbol: str,
@@ -659,7 +659,7 @@ class _Replay:
         realized gain, which is exactly what CRA taxes.
         """
         trade: TradeCash = self._trade(row)
-        sold = abs(row.units)
+        sold = abs(row.units or ZERO)
         held = state.units
 
         if held <= ZERO or sold > held:
@@ -692,14 +692,14 @@ class _Replay:
 
     def _apply_roc(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         pool: str,
         symbol: str,
         state: HoldingState,
     ) -> None:
         """Reduce the cost base by a return of capital. No cash moves."""
-        native = abs(row.amount)
+        native = abs(row.amount or ZERO)
         roc_cad = self.to_cad(native, row)
 
         # * Max ACB we can remove is the current ACB itself, but not negative.
@@ -735,7 +735,7 @@ class _Replay:
 
     def _apply_split(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         pool: str,
         symbol: str,
@@ -747,13 +747,14 @@ class _Replay:
         multiplies units by ten and divides average cost by ten while the total
         stays byte-identical. `Amount` on a SPLIT row is junk.
         """
-        if row.price <= ZERO or row.units <= ZERO:
+        price, units = row.price or ZERO, row.units or ZERO
+        if price <= ZERO or units <= ZERO:
             # Sign rules flip a negative ratio, but a zero passes them (it has no
             # sign to flip), so skip rather than divide by it.
             logger.debug("Skipping SPLIT %d: ratio is not positive", row.txn_id)
             return
 
-        ratio = row.units / row.price
+        ratio = units / price
         if not self.pools.claim_split(grain, (pool, symbol, row.txn_date, str(ratio))):
             if grain is Grain.ACCOUNT:
                 self.diagnose(
@@ -786,7 +787,7 @@ class _Replay:
 
     def _apply_transfer(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         state: HoldingState,
     ) -> None:
@@ -805,19 +806,19 @@ class _Replay:
         else:
             self._transfer_in(row, grain, state, pair_id)
 
-    def _move_units_only(self, row: TxnRow, state: HoldingState) -> None:
+    def _move_units_only(self, row: Txn, state: HoldingState) -> None:
         """Apply an unpaired leg: units move, the cost base cannot follow them."""
         if not row.is_in_kind_transfer:
             return
         if row.action is Action.TFR_OUT:
-            state.units -= abs(row.units)
+            state.units -= abs(row.units or ZERO)
         else:
-            state.units += abs(row.units)
+            state.units += abs(row.units or ZERO)
         self._snap_dust(state)
 
     def _transfer_out(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         state: HoldingState,
         pair_id: int,
@@ -827,7 +828,7 @@ class _Replay:
             self.carried[(pair_id, grain)] = (ZERO, ZERO)
             return
 
-        moved = abs(row.units)
+        moved = abs(row.units or ZERO)
         held = state.units
         fraction = ONE if held <= ZERO or moved > held else safe_div(moved, held)
         moved_cad = state.acb_cad * fraction
@@ -841,7 +842,7 @@ class _Replay:
 
     def _transfer_in(
         self,
-        row: TxnRow,
+        row: Txn,
         grain: Grain,
         state: HoldingState,
         pair_id: int,
@@ -851,7 +852,7 @@ class _Replay:
             return
 
         moved_cad, moved_native = self.carried.get((pair_id, grain), (ZERO, ZERO))
-        state.units += abs(row.units)
+        state.units += abs(row.units or ZERO)
         state.acb_cad += moved_cad
 
         if row.currency is Currency.USD:
@@ -872,27 +873,28 @@ class _Replay:
             state.acb_cad = ZERO
             state.acb_usd = ZERO
 
-    def _fees(self, row: TxnRow) -> FeeRules:
+    def _fees(self, row: Txn) -> FeeRules:
         """Return the fee rules of a row's account."""
         return self.cfg.accounts[row.account].fees
 
-    def _trade(self, row: TxnRow) -> TradeCash:
+    def _trade(self, row: Txn) -> TradeCash:
         """Resolve one trade's cost, proceeds and commission."""
         return self._fees(row).trade_cash(row)
 
-    def _check_fxt(self, row: TxnRow) -> None:
+    def _check_fxt(self, row: Txn) -> None:
         """Reconcile a single currency conversion against itself."""
-        if ZERO in (row.price, row.units):
+        amount, price, units = row.amount or ZERO, row.price or ZERO, row.units or ZERO
+        if ZERO in (price, units):
             return
-        implied = abs(row.units * row.price)
-        if abs(abs(row.amount) - implied) > FXT_TOLERANCE:
+        implied = abs(units * price)
+        if abs(abs(amount) - implied) > FXT_TOLERANCE:
             self.diagnose(
                 DiagnosticCode.FXT_AMOUNT_INCONSISTENT,
                 row,
-                detail=f"Amount {row.amount} against Units*Price {implied}",
+                detail=f"Amount {amount} against Units*Price {implied}",
             )
 
-    def _proceeds(self, row: TxnRow) -> tuple[Decimal | None, Decimal | None]:
+    def _proceeds(self, row: Txn) -> tuple[Decimal | None, Decimal | None]:
         """Sale proceeds, reported apart from the gain on Schedule 3."""
         if row.action is not Action.SELL:
             return None, None
@@ -900,7 +902,7 @@ class _Replay:
         native = trade.proceeds if row.currency is Currency.USD else None
         return self.to_cad(trade.proceeds, row), native
 
-    def _dividend(self, row: TxnRow) -> tuple[Decimal | None, Decimal | None]:
+    def _dividend(self, row: Txn) -> tuple[Decimal | None, Decimal | None]:
         """Dividend income, converted because it is reported in CAD.
 
         Amounts are never coerced positive: IBKR issues reversals as a negative
@@ -908,15 +910,16 @@ class _Replay:
         """
         if row.action is not Action.DIVIDEND:
             return None, None
-        native = row.amount if row.currency is Currency.USD else None
-        return self.to_cad(row.amount, row), native
+        amount = row.amount or ZERO
+        native = amount if row.currency is Currency.USD else None
+        return self.to_cad(amount, row), native
 
     # -- THE CASH WALK ----------------------------------------------------
 
     def _cash_walk(self) -> None:
         """Accumulate cash per pool and currency, in settlement-date order."""
         ordered = sorted(self.rows, key=lambda row: (row.settle_date, row.txn_id))
-        pending: list[TxnRow] = []
+        pending: list[Txn] = []
         current_date = ""
 
         deposits_needed = self.deposits.active or bool(self.unpaired)
@@ -940,7 +943,7 @@ class _Replay:
 
     # -- NET DEPOSITS -----------------------------------------------------
 
-    def _advance_pool_basis(self, row: TxnRow) -> None:
+    def _advance_pool_basis(self, row: Txn) -> None:
         """Move the pool basis by the cost base one row changed.
 
         Applied at the row's **settlement date**, alongside its cash, even though
@@ -961,7 +964,7 @@ class _Replay:
             if state is not None:
                 state.basis_cad += delta
 
-    def _apply_deposits(self, row: TxnRow) -> None:
+    def _apply_deposits(self, row: Txn) -> None:
         """Book one row's effect on net deposits.
 
         Runs **before** `_apply_cash` deliberately: a transfer's share of its
@@ -974,18 +977,18 @@ class _Replay:
         if not self.deposits.active:
             return
         if row.action is Action.CONTRIBUTION:
-            self._move_deposits(row, abs(row.amount))
+            self._move_deposits(row, abs(row.amount or ZERO))
         elif row.action is Action.WITHDRAWAL:
-            self._move_deposits(row, -abs(row.amount))
+            self._move_deposits(row, -abs(row.amount or ZERO))
 
-    def _move_deposits(self, row: TxnRow, amount: Decimal) -> None:
+    def _move_deposits(self, row: Txn, amount: Decimal) -> None:
         """Apply a contribution or withdrawal to every grain that tracks it."""
         acct_type = self._type_of(row.account)
         for grain in self.deposits.grains:
             name = _pool_key(grain, row, acct_type)
             self.deposits.deposit(grain, name, row.currency, amount)
 
-    def _transfer_deposits(self, row: TxnRow) -> None:
+    def _transfer_deposits(self, row: Txn) -> None:
         """Move one transfer leg's share of its pool's deposits.
 
         Only grains where the two legs sit in *different* pools do anything: a
@@ -1015,13 +1018,13 @@ class _Replay:
             if row.action is Action.TFR_IN:
                 self.deposits.give(grain, name, pair_id)
 
-    def _record_moved_value(self, row: TxnRow, grain: Grain, pool: str) -> None:
+    def _record_moved_value(self, row: Txn, grain: Grain, pool: str) -> None:
         """Note what a leg actually moved, for reconciliation against a statement."""
         if row.is_in_kind_transfer:
             moved = self.acb_delta[grain].get(row.txn_id, ZERO)
             currency = Currency.CAD
         else:
-            moved, currency = row.amount, row.currency
+            moved, currency = row.amount or ZERO, row.currency
         if moved != ZERO:
             self._cash(grain, pool, currency).transfers_value += moved
 
@@ -1036,7 +1039,7 @@ class _Replay:
             self._leg_value_cad(out_leg, grain),
         )
 
-    def _leg_value_cad(self, row: TxnRow, grain: Grain) -> Decimal:
+    def _leg_value_cad(self, row: Txn, grain: Grain) -> Decimal:
         """Return what one leg removes from its pool, in CAD and non-negative.
 
         A cash leg is worth its amount. An in-kind leg is worth the cost base it
@@ -1045,7 +1048,7 @@ class _Replay:
         """
         if row.is_in_kind_transfer:
             return abs(self.acb_delta[grain].get(row.txn_id, ZERO))
-        return abs(self.to_cad(row.amount, row))
+        return abs(self.to_cad(row.amount or ZERO, row))
 
     def _reconcile_transfers(self) -> None:
         """Restate `transfers` as the exact complement of the deposits held.
@@ -1061,7 +1064,7 @@ class _Replay:
                 cash = self._cash(grain, pool, currency)
                 cash.transfers = deposited - cash.contributions + cash.withdrawals
 
-    def _unpaired_deposits(self, row: TxnRow) -> None:
+    def _unpaired_deposits(self, row: Txn) -> None:
         """Fall back to face value for a leg with no counterpart.
 
         Without an out leg there is no pool to measure a share against, so the
@@ -1071,12 +1074,13 @@ class _Replay:
         if row.is_in_kind_transfer:
             return
         acct_type = self._type_of(row.account)
+        amount = row.amount or ZERO
         for grain in Grain:
             name = _pool_key(grain, row, acct_type)
             state = self._cash(grain, name, row.currency)
-            state.transfers += row.amount
-            state.transfers_value += row.amount
-            self.deposits.deposit(grain, name, row.currency, row.amount)
+            state.transfers += amount
+            state.transfers_value += amount
+            self.deposits.deposit(grain, name, row.currency, amount)
 
     def _cash(self, grain: Grain, pool: str, currency: Currency) -> CashState:
         """Return the cash state for one pool and currency, creating it if new."""
@@ -1085,7 +1089,7 @@ class _Replay:
 
     def _credit(  # noqa: PLR0913 - one call site per action, all named
         self,
-        row: TxnRow,
+        row: Txn,
         currency: Currency,
         *,
         cash: Decimal = ZERO,
@@ -1135,13 +1139,14 @@ class _Replay:
                 if state is not None:
                     state.basis_cad += basis
 
-    def _apply_cash(self, row: TxnRow) -> None:
+    def _apply_cash(self, row: Txn) -> None:
         """Book one row's effect on cash.
 
         `ROC` and `SPLIT` are deliberately excluded: a return of capital
         reclassifies a distribution that was already paid as a dividend, so
         counting it as cash double-counts the money, and a split moves no money.
         """
+        amount = row.amount or ZERO
         if row.action is Action.BUY:
             trade: TradeCash = self._trade(row)
             self._credit(row, row.currency, cash=-trade.cost, fees=trade.commission)
@@ -1149,24 +1154,24 @@ class _Replay:
             trade: TradeCash = self._trade(row)
             self._credit(row, row.currency, cash=trade.proceeds, fees=trade.commission)
         elif row.action is Action.DIVIDEND:
-            self._credit(row, row.currency, cash=row.amount, dividends=row.amount)
+            self._credit(row, row.currency, cash=amount, dividends=amount)
         elif row.action is Action.FCH:
             # When row amount negative, the charged fee (abs) is recorded.
-            charged = -row.amount if row.amount < ZERO else ZERO
-            self._credit(row, row.currency, cash=row.amount, fees=charged)
+            charged = -amount if amount < ZERO else ZERO
+            self._credit(row, row.currency, cash=amount, fees=charged)
         elif row.action is Action.CONTRIBUTION:
             self._credit(
                 row,
                 row.currency,
-                cash=row.amount,
-                contributions=abs(row.amount),
+                cash=amount,
+                contributions=abs(amount),
             )
         elif row.action is Action.WITHDRAWAL:
             self._credit(
                 row,
                 row.currency,
-                cash=row.amount,
-                withdrawals=abs(row.amount),
+                cash=amount,
+                withdrawals=abs(amount),
             )
         elif row.action is Action.FXT:
             self._apply_fxt_cash(row)
@@ -1177,16 +1182,16 @@ class _Replay:
             self._credit(
                 row,
                 row.currency,
-                cash=row.amount,
+                cash=amount,
                 grains=self._moving_grains(row),
             )
 
-    def _moving_grains(self, row: TxnRow) -> tuple[Grain, ...] | type[Grain]:
+    def _moving_grains(self, row: Txn) -> tuple[Grain, ...] | type[Grain]:
         """Return the grains a transfer leg moves cash at: all three if unpaired."""
         pair_id = self.pair_of.get(row.txn_id)
         return Grain if pair_id is None else self.moves_at[pair_id]
 
-    def _apply_fxt_cash(self, row: TxnRow) -> None:
+    def _apply_fxt_cash(self, row: Txn) -> None:
         """Book a currency conversion, in whichever of its two shapes it is.
 
         A single-leg (IBKR) row carries the CAD delta in `Amount`, the USD delta
@@ -1198,22 +1203,13 @@ class _Replay:
         row's own `$` says.
         """
         commission = self._fees(row).commission(row)
-        if ZERO in (row.price, row.units):
-            self._credit(
-                row,
-                row.currency,
-                cash=row.amount - commission,
-                fees=commission,
-            )
+        amount, price, units = row.amount or ZERO, row.price or ZERO, row.units or ZERO
+        if ZERO in (price, units):
+            self._credit(row, row.currency, cash=amount - commission, fees=commission)
             return
 
-        self._credit(row, Currency.CAD, cash=row.amount)
-        self._credit(
-            row,
-            Currency.USD,
-            cash=row.units - commission,
-            fees=commission,
-        )
+        self._credit(row, Currency.CAD, cash=amount)
+        self._credit(row, Currency.USD, cash=units - commission, fees=commission)
 
     def _roll_up_realized_gain(self) -> None:
         """Carry realized gains from the holding states onto the cash states.
@@ -1230,7 +1226,7 @@ class _Replay:
                     bucket = self._cash(grain, pool, Currency.CAD)
                     bucket.realized_gain += state.realized_cad
 
-    def _check_negative_cash(self, rows: Sequence[TxnRow], on: str) -> None:
+    def _check_negative_cash(self, rows: Sequence[Txn], on: str) -> None:
         """Report the first date an account's cash crosses below zero.
 
         Negative cash needs no external balance to detect and catches a missing
@@ -1281,7 +1277,7 @@ class _Replay:
                         value=state.units,
                     )
 
-    def _record_split_coverage(self, row: TxnRow, symbol: str) -> None:
+    def _record_split_coverage(self, row: Txn, symbol: str) -> None:
         """Note who recorded one split, and who was holding when it happened."""
         key = (symbol, row.txn_date)
         self.split_rows.setdefault(key, set()).add(row.account)
@@ -1317,7 +1313,7 @@ class _Replay:
         A dual listing has its own symbol on each exchange, so one security
         booked in two currencies is a data error nearly every time.
         """
-        seen: dict[str, dict[Currency, list[TxnRow]]] = {}
+        seen: dict[str, dict[Currency, list[Txn]]] = {}
         for computed in self.result.rows:
             if computed.symbol is None or computed.row.action not in (
                 DENOMINATED_ACTIONS
@@ -1355,7 +1351,7 @@ class _Replay:
         outside it are reported. Lags count weekdays, not trading days, because the
         replay never loads an exchange calendar.
         """
-        lags: dict[str, list[tuple[TxnRow, int]]] = {}
+        lags: dict[str, list[tuple[Txn, int]]] = {}
         for row in self.rows:
             if row.action not in _TRADE_ACTIONS or not row.settle_date:
                 continue
@@ -1534,11 +1530,11 @@ def _sale_gain(computed: LedgerRow) -> Decimal:
     return (computed.proceeds_cad or ZERO) - removed
 
 
-def replay(rows: Sequence[TxnRow], fx: FxRates, cfg: ReplayConfig) -> ReplayResult:
+def replay(rows: Sequence[Txn], fx: FxRates, cfg: ReplayConfig) -> ReplayResult:
     """Replay the ledger into units, cost base, gains and cash.
 
     Args:
-        rows: Every transaction to replay (`TxnRow`s).
+        rows: Every transaction to replay (`Txn`s).
         fx: FX rates for currency conversion.
         cfg: Replay configuration: per-account types, fee conventions and symbol
             resolution.

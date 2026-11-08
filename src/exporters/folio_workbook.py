@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from engine.performance import RangeMove
     from engine.pools import FolioValuation, ValuedPool
     from exporters.sheet_spec import Sheet
-    from services.quotes_service import Quote
+    from models import Quote
 
 
 class Section(StrEnum):

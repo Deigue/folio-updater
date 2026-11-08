@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from engine.fx_rates import FxRates
-    from services.quotes_service import Quote
+    from models import Quote
 
 _TXN_ID = str(Column.Txn.TXN_ID)
 _TXN_DATE = str(Column.Txn.TXN_DATE)

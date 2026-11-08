@@ -1,6 +1,7 @@
 """Value types the cost-base replay consumes and produces.
 
-`TxnRow` is where a raw `Txns` row becomes Decimal: nothing downstream touches a float.
+The replay reads `Txn`s, whose money is already Decimal: nothing downstream touches
+a float.
 """
 
 from __future__ import annotations
@@ -10,73 +11,20 @@ from typing import TYPE_CHECKING
 
 from db.queries import get_connection, get_rows
 from domain import (
-    ACTION_PROFILES,
     AccountType,
     Action,
-    Column,
     Currency,
     DiagnosticCode,
     Grain,
     Impact,
     Table,
 )
-from domain.numeric import MISSING_TEXT, ZERO, dec
+from domain.numeric import ZERO
+from models import Txn
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Container
     from decimal import Decimal
-
-    import pandas as pd
-
-
-@dataclass(frozen=True)
-class TxnRow:
-    """One `Txns` row with every money column as a Decimal.
-
-    Attributes:
-        txn_id: Primary key.
-        txn_date: Transaction date, `YYYY-MM-DD`. Units and cost base follow this.
-        settle_date: Settlement date, falling back to the transaction date. Cash
-            follows this.
-        action: The transaction's action.
-        amount: Total cash amount, sign as stored.
-        currency: Currency the row is denominated in.
-        price: Price per unit; units *before* the split on a SPLIT row.
-        units: Number of units; units *after* the split on a SPLIT row.
-        fee: Commission. Which sign means "charged" varies by broker, so it is detected
-            per account rather than assumed.
-        ticker: The security's ticker, as the transaction records it.
-        account: Owning account name.
-        description: Free-text description when the optional column exists.
-    """
-
-    txn_id: int
-    txn_date: str
-    settle_date: str
-    action: Action
-    amount: Decimal
-    currency: Currency
-    price: Decimal
-    units: Decimal
-    fee: Decimal
-    ticker: str | None
-    account: str
-    description: str | None = None
-
-    @property
-    def fx_date(self) -> str:
-        """Date whose rate converts this row: the settlement date where there is one."""
-        return self.settle_date or self.txn_date
-
-    @property
-    def impact(self) -> Impact:
-        """What this row does to the cost base."""
-        return ACTION_PROFILES[self.action].impact
-
-    @property
-    def is_in_kind_transfer(self) -> bool:
-        """Whether a transfer leg moves units rather than cash."""
-        return bool(self.ticker) and self.units != ZERO
 
 
 @dataclass
@@ -172,7 +120,7 @@ class LedgerRow:
     table it came from.
     """
 
-    row: TxnRow
+    row: Txn
     symbol: str | None
     acct_type: AccountType
     impact: Impact
@@ -348,81 +296,16 @@ class ReplayResult:
         return {txn_id: tuple(codes) for txn_id, codes in grouped.items()}
 
 
-def _currency(value: object) -> Currency:
-    """Read a `$` cell, defaulting to CAD when it is missing or unrecognised."""
-    try:
-        return Currency(str(value).strip().upper())
-    except ValueError:
-        return Currency.CAD
-
-
-def _text(value: object) -> str | None:
-    """Read a nullable text cell, treating pandas NaN sentinels as absent."""
-    if value is None:
-        return None
-    text = str(value).strip()
-    return None if not text or text.lower() in MISSING_TEXT else text
-
-
-def _action(value: object) -> Action | None:
-    """Read an `Action` cell, or None when it is not one the engine knows."""
-    try:
-        return Action(str(value).strip().upper())
-    except ValueError:
-        return None
-
-
-def to_txn_rows(frame: pd.DataFrame) -> list[TxnRow]:
-    """Convert `Txns` rows into `TxnRow`s.
-
-    Applies decimal conversion and type validation.
-    Rows carrying an action the engine does not know are dropped.
-
-    Args:
-        frame: Rows straight from the `Txns` table.
+def load_txns() -> list[Txn]:
+    """Read the whole transactions table as `Txn`s.
 
     Returns:
-        `TxnRow`s ordered by transaction date then TxnId.
-    """
-    if frame.empty:
-        return []
-
-    rows: list[TxnRow] = []
-    records = frame.to_dict("records")
-    for record in records:
-        action = _action(record.get(Column.Txn.ACTION))
-        if action is None:
-            continue
-        txn_date = str(record.get(Column.Txn.TXN_DATE) or "")
-        settle_date = _text(record.get(Column.Txn.SETTLE_DATE)) or ""
-        ticker = _text(record.get(Column.Txn.TICKER))
-        description = _text(record.get(Column.Txn.DESCRIPTION))
-        rows.append(
-            TxnRow(
-                txn_id=int(record[Column.Txn.TXN_ID]),
-                txn_date=txn_date,
-                settle_date=settle_date or txn_date,
-                action=action,
-                amount=dec(record.get(Column.Txn.AMOUNT)),
-                currency=_currency(record.get(Column.Txn.CURRENCY)),
-                price=dec(record.get(Column.Txn.PRICE)),
-                units=dec(record.get(Column.Txn.UNITS)),
-                fee=dec(record.get(Column.Txn.FEE)),
-                ticker=ticker.upper() if ticker else None,
-                account=str(record[Column.Txn.ACCOUNT]),
-                description=description,
-            ),
-        )
-    rows.sort(key=lambda row: (row.txn_date, row.txn_id))
-    return rows
-
-
-def load_txn_rows() -> list[TxnRow]:
-    """Read the whole transactions table as `TxnRow`s.
-
-    Returns:
-        Every transaction in the folio, transaction-date ordered.
+        Every transaction in the folio, ordered by transaction date then TxnId.
     """
     with get_connection() as conn:
         frame = get_rows(conn, Table.TXNS)
-    return to_txn_rows(frame)
+    records = frame.to_dict("records")
+    # A frame's records are keyed by column name.
+    txns = [Txn.from_row(record) for record in records]  # ty: ignore[invalid-argument-type]
+    txns.sort(key=lambda txn: (txn.txn_date, txn.txn_id))
+    return txns

@@ -15,13 +15,11 @@ from yfinance.exceptions import YFPricesMissingError, YFRateLimitError
 
 from db import get_connection, get_rows
 from domain import Column, Currency, PriceRange, QuoteStatus, Table
+from models import Fundamentals, Quote, QuoteSplit
 from services.price_history import PricePoint, RangeHistory
 from services.quotes_service import (
     NOT_FOUND_TTL_DAYS,
-    Fundamentals,
     PriceFetch,
-    Quote,
-    QuoteSplit,
     QuotesService,
     RefreshResult,
     _attr,
@@ -30,6 +28,7 @@ from services.quotes_service import (
     _previous_close,
     _provider_reachable,
     _run_concurrently,
+    is_stale,
     load_yfinance,
 )
 from services.symbols import SymbolResolver
@@ -356,7 +355,7 @@ def test_a_quote_with_no_fetch_is_stale_and_unpriced() -> None:
     quote = Quote(symbol="TESTTKR", provider_symbol="TESTTKR")
 
     assert quote.age is None
-    assert quote.is_stale
+    assert is_stale(quote)
     assert not quote.priced
     assert quote.day_change is None
 

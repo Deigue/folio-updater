@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from engine.fx_rates import FxRates
-    from services.quotes_service import Quote
+    from models import Quote
 
 # The currency a report shows its figures in
 DisplayCurrency = Currency | Literal["native"]

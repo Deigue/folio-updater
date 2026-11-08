@@ -21,10 +21,11 @@ from engine.saved_ledger import (
 from .helpers.replay import make_row, run
 
 if TYPE_CHECKING:
-    from engine.types import ReplayResult, TxnRow
+    from engine.types import ReplayResult
+    from models import Txn
 
 
-def oversold_rows() -> list[TxnRow]:
+def oversold_rows() -> list[Txn]:
     """Build a folio with an oversell, so there is a diagnosed row to carry."""
     return [
         make_row(1, "2024-01-02", Action.CONTRIBUTION, amount="10000", ticker=None),

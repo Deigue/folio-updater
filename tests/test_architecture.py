@@ -19,9 +19,9 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 # never one at its own rank or above.
 LAYERS: dict[str, int] = {
     "domain": 0,  # the shared vocabulary: imports nothing of ours
-    "term": 1,  # talking to the terminal: printing, prompts, progress
-    "config": 2,  # the user's settings
-    "models": 3,  # broker payload shapes
+    "models": 1,  # data shapes: one per stored table, broker payloads, command results
+    "term": 2,  # talking to the terminal: printing, prompts, progress
+    "config": 3,  # the user's settings
     "app": 4,  # process-wide context and logging
     "db": 5,  # persistence
     "services": 6,  # outside world: brokers, quotes, FX

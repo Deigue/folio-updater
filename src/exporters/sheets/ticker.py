@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from engine.holdings import Holding
     from engine.performance import RangeMove
     from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
-    from services.quotes_service import Quote
+    from models import Quote
 
 MOVE_COLUMNS: tuple[Col, ...] = (
     Col("Range", width=8),

@@ -12,13 +12,14 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
+from services.quotes_service import is_stale
 from term.console import supports_unicode
 from ui.cells import WARN_GLYPH, display_round
 
 if TYPE_CHECKING:
     from collections.abc import Container, Mapping, Sequence
 
-    from services.quotes_service import Quote
+    from models import Quote
 
 
 def safe_str(value: Any) -> str:
@@ -189,7 +190,7 @@ def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
         invocation), and whether any of them is past its TTL.
     """
     fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
-    stale = any(quote.is_stale for quote in quotes.values())
+    stale = any(is_stale(quote) for quote in quotes.values())
     if not fetched:
         return None, stale
     return min(fetched), stale

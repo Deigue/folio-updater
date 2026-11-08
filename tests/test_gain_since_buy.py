@@ -11,14 +11,14 @@ from domain import Action, Currency, Grain, QuoteStatus
 from engine.frames import grain_column, ledger_frame
 from engine.fx_rates import FxRates
 from engine.gain_since_buy import with_gains_since_buy
-from services.quotes_service import Quote, QuoteSplit
+from models import Quote, QuoteSplit
 
 from .helpers.replay import FLAT_FX, make_row, run
 
 if TYPE_CHECKING:
     import pandas as pd
 
-    from engine.types import TxnRow
+    from models import Txn
 
 D = Decimal
 
@@ -40,7 +40,7 @@ def _quote(
 
 
 def _valued(
-    rows: list[TxnRow],
+    rows: list[Txn],
     quote: Quote | None,
     fx: FxRates = FLAT_FX,
 ) -> pd.DataFrame:
@@ -49,7 +49,7 @@ def _valued(
     return with_gains_since_buy(frame, {"TEST": quote} if quote else {}, fx)
 
 
-def _buy(txn_id: int, date: str, account: str = "IBKR-PERSONAL") -> TxnRow:
+def _buy(txn_id: int, date: str, account: str = "IBKR-PERSONAL") -> Txn:
     """Buy ten units at $100."""
     return make_row(
         txn_id,
@@ -62,7 +62,7 @@ def _buy(txn_id: int, date: str, account: str = "IBKR-PERSONAL") -> TxnRow:
     )
 
 
-def _split(txn_id: int, date: str, account: str = "IBKR-PERSONAL") -> TxnRow:
+def _split(txn_id: int, date: str, account: str = "IBKR-PERSONAL") -> Txn:
     """Split two for one."""
     return make_row(txn_id, date, Action.SPLIT, units="2", price="1", account=account)
 

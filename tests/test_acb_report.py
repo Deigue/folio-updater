@@ -14,18 +14,18 @@ from engine.frames import grain_column, ledger_frame
 from engine.fx_rates import FxRates
 from engine.gain_since_buy import bought_symbols
 from engine.pools import FOLIO, Pool
-from services.quotes_service import Quote
+from models import Quote
 
 from .helpers.replay import FLAT_FX, make_row, run
 
 if TYPE_CHECKING:
-    from engine.types import TxnRow
+    from models import Txn
 
 NREG = Pool(Grain.TYPE, "NON_REGISTERED")
 TXN_ID = str(Column.Txn.TXN_ID)
 
 
-def _frame(rows: list[TxnRow], fx: FxRates = FLAT_FX) -> pd.DataFrame:
+def _frame(rows: list[Txn], fx: FxRates = FLAT_FX) -> pd.DataFrame:
     return ledger_frame(run(rows, fx))
 
 
@@ -39,7 +39,7 @@ def _buy(
     currency: str = "CAD",
     settle_date: str | None = None,
     account: str = "IBKR-PERSONAL",
-) -> TxnRow:
+) -> Txn:
     amount = -Decimal(price) * Decimal(units)
     return make_row(
         txn_id,
@@ -55,7 +55,7 @@ def _buy(
     )
 
 
-def _sell(txn_id: int, date: str, *, ticker: str = "AAA", units: str = "10") -> TxnRow:
+def _sell(txn_id: int, date: str, *, ticker: str = "AAA", units: str = "10") -> Txn:
     return make_row(
         txn_id,
         date,
@@ -67,7 +67,7 @@ def _sell(txn_id: int, date: str, *, ticker: str = "AAA", units: str = "10") -> 
     )
 
 
-def _usd_cash(txn_id: int) -> TxnRow:
+def _usd_cash(txn_id: int) -> Txn:
     return make_row(
         txn_id,
         "2024-01-03",

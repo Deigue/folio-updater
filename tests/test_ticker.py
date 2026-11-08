@@ -21,8 +21,8 @@ from engine.ticker import (
     sort_performance,
     symbol_holdings,
 )
+from models import Quote
 from services.price_history import PricePoint, RangeHistory
-from services.quotes_service import Quote
 
 from .helpers.seed import seed_fx, seed_transaction
 

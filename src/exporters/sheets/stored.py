@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from services.quotes_service import Quote
+    from models import Quote
 
 # How a stored transaction column reads. Anything unlisted, including a user's
 # optional columns, is text.
