@@ -130,7 +130,7 @@ def test_a_transfer_between_pools_moves_its_share_of_deposits() -> None:
         _share(3, SENDER_POOL, "-2500"),
         _share(4, RECEIVER_POOL, "2500"),
     ]
-    totals = tracker.closing_transfers()
+    totals = tracker.transfer_totals()
     assert totals[(SENDER_POOL, CAD)].transfers == D(-2500)
     assert totals[(SENDER_POOL, CAD)].transfers_value == D(-5000)
     assert totals[(RECEIVER_POOL, CAD)].transfers == D(2500)
@@ -170,7 +170,7 @@ def test_an_in_leg_reached_first_settles_the_sender_once() -> None:
         _share(4, RECEIVER_POOL, "2500"),
         _share(3, SENDER_POOL, "-2500"),
     ]
-    totals = tracker.closing_transfers()
+    totals = tracker.transfer_totals()
     assert totals[(SENDER_POOL, CAD)].transfers == D(-2500)
     assert totals[(RECEIVER_POOL, CAD)].transfers == D(2500)
 
@@ -193,7 +193,7 @@ def test_an_in_kind_leg_is_measured_at_the_acb_it_carried() -> None:
         _share(3, SENDER_POOL, "-2500"),
         _share(4, RECEIVER_POOL, "2500"),
     ]
-    totals = tracker.closing_transfers()
+    totals = tracker.transfer_totals()
     assert totals[(SENDER_POOL, CAD)].transfers_value == D(-5000)
 
 
@@ -206,7 +206,7 @@ def test_an_unpaired_cash_leg_counts_at_face_value_at_every_grain() -> None:
     tracker.apply(leg, (CashEffect(CAD, cash=D(750)),))
 
     assert sorted(share.amount for share in tracker.shares) == [D(750)] * len(Grain)
-    totals = tracker.closing_transfers()
+    totals = tracker.transfer_totals()
     assert all(entry.transfers == D(750) for entry in totals.values())
     assert all(entry.transfers_value == D(750) for entry in totals.values())
     assert len(totals) == len(Grain)
@@ -220,7 +220,7 @@ def test_an_unpaired_cash_leg_joins_the_deposits_of_a_tracked_pool() -> None:
 
     tracker = _replayed((*_cash_legs(), unmatched))
 
-    totals = tracker.closing_transfers()
+    totals = tracker.transfer_totals()
     assert totals[(SENDER_POOL, CAD)].transfers == D(-1800)
 
 
@@ -231,7 +231,7 @@ def test_an_unpaired_in_kind_leg_moves_no_deposits() -> None:
     tracker.apply(leg, ())
 
     assert tracker.shares == []
-    assert tracker.closing_transfers() == {}
+    assert tracker.transfer_totals() == {}
 
 
 def test_an_unpaired_leg_of_nothing_records_no_share() -> None:

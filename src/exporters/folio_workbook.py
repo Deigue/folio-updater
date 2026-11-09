@@ -51,7 +51,7 @@ class Section(StrEnum):
     PERF = "perf"  # every holding's price move over each range
     DASH = "dash"  # the folio's dashboard, and one per account type
     ACCOUNTS = "accounts"  # one dashboard per broker account
-    ACB = "acb"  # the Ledger, and every pool's closing cost base
+    ACB = "acb"  # the Ledger, and every pool's final cost base
     STORED = "stored"  # FX rates and tickers, and the importable Txns
 
 
@@ -104,7 +104,7 @@ class FolioSources:
     """What a workbook is read from: the priced replay and the stored tables.
 
     Attributes:
-        valuation: The replay, priced, with every pool's rollups on hand. None
+        valuation: The replay, priced, with every pool's holdings on hand. None
             when the folio could not be replayed, which leaves only the stored
             tables to write.
         txns: The stored transactions, as the database holds them.
@@ -180,7 +180,7 @@ def folio_sheets(
     if valued_pools is not None:
         dashboards = _dashboard_sheets(valued_pools, chosen, notes)
         if Section.ACB in chosen and sources.valuation is not None:
-            frame = sources.valuation.frame
+            frame = sources.valuation.ledger.frame
             report = AcbReport.build(
                 frame,
                 FOLIO,
@@ -226,7 +226,7 @@ _DESCRIPTIONS: dict[str, str] = {
     FLOWS_SHEET: "Cash, contributions and room, for every pool",
     PERFORMANCE_SHEET: "Every holding's price move over each range, 2h to all time",
     LEDGER_SHEET: "Every transaction, with its cost base at every grain",
-    COST_BASE_SHEET: "Every pool's closing cost base, in CAD",
+    COST_BASE_SHEET: "Every pool's final cost base, in CAD",
 }
 
 

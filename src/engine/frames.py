@@ -137,7 +137,7 @@ def _grain_cells(
     cells: dict[str, float | None] = {}
     for suffix, attribute in GRAIN_MEASURES:
         column = grain_column(grain, suffix)
-        if not tracked or (suffix.endswith("_USD") and not computed.is_usd):
+        if not tracked or (suffix.endswith("_USD") and not measures.usd):
             cells[column] = None
             continue
         value = getattr(measures, attribute)
@@ -261,55 +261,6 @@ def acb_summary_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(records, columns=_SUMMARY_COLUMNS)
 
 
-def acb_summary_frames_by_pool(
-    frame: pd.DataFrame,
-    grain: Grain,
-) -> dict[str, pd.DataFrame]:
-    """Summarise every pool at one grain in a single pass over the frame.
-
-    Args:
-        frame: A ledger.
-        grain: The pool grain to split by. Folio grain has a single pool and
-            is not a split, so it is rejected.
-
-    Returns:
-        Each pool name mapped to the summary frame `acb_summary_frame` would
-        have produced for it. Pools whose rows track no symbol are absent.
-
-    Raises:
-        ValueError: If asked to split at folio grain.
-    """
-    if grain is Grain.FOLIO:
-        msg = "Folio grain is a single pool; use acb_summary_frame instead."
-        raise ValueError(msg)
-
-    column = POOL_COLUMN[grain]
-    if (
-        frame.empty
-        or Column.Ledger.SYMBOL not in frame.columns
-        or column not in frame.columns
-    ):
-        return {}
-
-    tracked = _tracked(frame)
-    if tracked.empty:
-        return {}
-
-    grouped: dict[str, list[dict[str, object]]] = {}
-    for (pool, symbol), rows in replay_ordered(tracked).groupby(
-        [column, str(Column.Ledger.SYMBOL)],
-        sort=True,
-    ):
-        grouped.setdefault(str(pool), []).append(
-            _summary_record(symbol, rows.iloc[-1]),
-        )
-
-    return {
-        pool: pd.DataFrame(records, columns=_SUMMARY_COLUMNS)
-        for pool, records in grouped.items()
-    }
-
-
 def _tracked(frame: pd.DataFrame) -> pd.DataFrame:
     """Keep the rows that track a symbol, with the index dropped.
 
@@ -345,7 +296,7 @@ def replay_ordered(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _summary_record(symbol: object, last: pd.Series) -> dict[str, object]:
-    """Read one symbol's closing holding off the last row that touched it."""
+    """Read one symbol's final figures off the last row that touched it."""
     record: dict[str, object] = {str(Column.Ledger.SYMBOL): symbol}
     for grain in Grain:
         for suffix in _SUMMARY_SUFFIXES:

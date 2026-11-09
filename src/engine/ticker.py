@@ -139,7 +139,7 @@ def symbol_holdings(
         The security's holdings, or None when the folio never traded it or the
         valuation's currency hides it.
     """
-    frame = valuation.frame
+    frame = valuation.ledger.frame
     rows = frame[frame[Column.Ledger.SYMBOL] == symbol]
     if rows.empty:
         return None

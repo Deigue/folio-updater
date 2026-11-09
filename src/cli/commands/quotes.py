@@ -11,7 +11,6 @@ import typer
 
 from app import bootstrap
 from cli.commands.common import require_ledger
-from engine.holdings import held_symbols
 from engine.ledger import LedgerUnavailableError, open_ledger
 from services.quotes_service import QuotesService
 from services.symbols import load_symbol_resolver
@@ -61,7 +60,7 @@ def manage_quotes(
 
 def _held(wanted: Sequence[str]) -> list[str]:
     """Every symbol the folio holds, narrowed to the ones asked for."""
-    held = held_symbols(require_ledger().frame)
+    held = require_ledger().held_symbols
     if not wanted:
         return held
     return [symbol for symbol in held if symbol in wanted]
@@ -109,7 +108,7 @@ def _held_now() -> set[str] | None:
     folio just leaves the `Held` column out.
     """
     try:
-        return set(held_symbols(open_ledger().frame))
+        return set(open_ledger().held_symbols)
     except LedgerUnavailableError:
         return None
 

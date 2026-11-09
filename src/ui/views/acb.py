@@ -302,7 +302,7 @@ def _summary_record(
     show_cad: bool,
     show_usd: bool,
 ) -> dict[str, str]:
-    """Render one symbol's closing holding for the summary table."""
+    """Render one symbol's final figures for the summary table."""
 
     def cell(measure: str, precision: int) -> str:
         value = record[grain_column(grain, measure)]

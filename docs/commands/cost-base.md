@@ -74,7 +74,7 @@ overrides.
 
 ## Summary
 
-`--summary` collapses the buildup to one row per symbol, carrying each pool's closing
+`--summary` collapses the buildup to one row per symbol, carrying each pool's final
 units, cost base, average cost and realized gain:
 
 ```bash

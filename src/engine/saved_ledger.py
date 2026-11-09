@@ -1,9 +1,10 @@
 """Persist the parts of a replay the ledger frame does not carry.
 
 The ledger frame holds every transaction's figures, but a replay also raises
-diagnostics, keeps the running cash per pool, counts rows by shape and records
-each transfer leg's deposit share. These are saved beside the frame, so a reused
-ledger reports exactly what a fresh replay would without replaying.
+diagnostics, keeps the running cash per pool, counts rows by shape, records each
+transfer leg's deposit share and ends with each pool's holdings. These are saved
+beside the frame, so a reused ledger reports exactly what a fresh replay would
+without replaying.
 
 Diagnostics are saved as a frame of one record per diagnostic, each carrying the
 exact ledger row it tags. Only the rows a diagnostic points at are stored: the
@@ -27,6 +28,7 @@ from engine.types import (
     DepositShare,
     Diagnostic,
     GrainMeasures,
+    HoldingState,
     LedgerRow,
     ReplayTotals,
 )
@@ -35,11 +37,11 @@ from models import Txn
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Mapping, Sequence
 
-    from engine.types import CashKey
+    from engine.types import CashKey, PoolHoldings
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -130,6 +132,16 @@ _ROW_DECODERS: dict[str, Callable[[Any], Any]] = {
     "dividend_cad": _number,
     "dividend_usd": _number,
 }
+_MEASURE_DECODERS: dict[str, Callable[[Any], Any]] = {
+    "usd": lambda value: value == str(True),
+}
+# Every other `HoldingState` field is a figure.
+_HOLDING_DECODERS: dict[str, Callable[[Any], Any]] = {
+    "symbol": _same,
+    "currency": Currency,
+    "last_held": _same,
+    "flags": lambda codes: tuple(DiagnosticCode(code) for code in codes),
+}
 
 
 # How the transaction fields that are not plain values go into storage.
@@ -175,7 +187,10 @@ def _encode_row(computed: LedgerRow) -> dict[str, str | None]:
 def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
     """Restore one grain's figures."""
     return GrainMeasures(
-        **{name: Decimal(record[f"row_{grain}_{name}"]) for name in _MEASURE_FIELDS},
+        **{
+            name: _MEASURE_DECODERS.get(name, Decimal)(record[f"row_{grain}_{name}"])
+            for name in _MEASURE_FIELDS
+        },
     )
 
 
@@ -308,6 +323,45 @@ def decode_cash_and_totals(
     for action, account, symbol, currency, count in payload["totals"]:
         totals.rows[(Action(action), account, symbol, Currency(currency))] = count
     return cash, totals
+
+
+def encode_holdings(holdings: PoolHoldings) -> list[dict[str, Any]]:
+    """Flatten every pool's holdings into JSON-ready dicts, money as text."""
+    return [
+        {
+            "grain": str(pool.grain),
+            "pool": pool.name,
+            "holdings": [
+                {
+                    **{
+                        field.name: _text(getattr(holding, field.name))
+                        for field in fields(HoldingState)
+                    },
+                    "flags": [str(code) for code in holding.flags],
+                }
+                for holding in held
+            ],
+        }
+        for pool, held in holdings.items()
+    ]
+
+
+def decode_holdings(entries: Sequence[Mapping[str, Any]]) -> PoolHoldings:
+    """Restore every pool's holdings from `encode_holdings`."""
+    return {
+        Pool(Grain(entry["grain"]), entry["pool"]): tuple(
+            HoldingState(
+                **{
+                    field.name: _HOLDING_DECODERS.get(field.name, Decimal)(
+                        holding[field.name],
+                    )
+                    for field in fields(HoldingState)
+                },
+            )
+            for holding in entry["holdings"]
+        )
+        for entry in entries
+    }
 
 
 def encode_deposit_shares(shares: Sequence[DepositShare]) -> list[list[Any]]:

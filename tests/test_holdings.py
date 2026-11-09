@@ -17,7 +17,6 @@ from engine.holdings import (
     Holding,
     HoldingSet,
     UnknownSortError,
-    held_symbols,
     sort_holdings,
     summarize_closed,
     totals_currency,
@@ -28,9 +27,8 @@ from models import Quote
 from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from engine.holdings import DisplayCurrency
+    from engine.types import PoolHoldings
 
     from .helpers.context import TempContext
 
@@ -67,9 +65,9 @@ def _quote(
     )
 
 
-def _frame() -> pd.DataFrame:
-    """Replay whatever has been seeded and hand back the ledger."""
-    return open_ledger().frame
+def _by_pool() -> PoolHoldings:
+    """Replay whatever has been seeded and hand back each pool's holdings."""
+    return open_ledger().holdings
 
 
 def _value(
@@ -80,7 +78,7 @@ def _value(
     **options: Any,  # noqa: ANN401
 ) -> HoldingSet:
     """Value what has been seeded against `quotes`, at the stored FX rates."""
-    return FolioHoldings(_frame(), quotes, load_fx_rates()).holdings(
+    return FolioHoldings(_by_pool(), quotes, load_fx_rates()).holdings(
         pool,
         currency=currency,
         **options,
@@ -186,14 +184,14 @@ def test_day_pnl_pct_changes_with_the_grain_displayed(temp_ctx: TempContext) -> 
             "AAA": _quote("AAA", "120", "110"),
             "BBB": _quote("BBB", "120", "110"),
         }
-        frame = _frame()
+        by_pool = _by_pool()
         fx = load_fx_rates()
 
-        narrow = FolioHoldings(frame, quotes, fx).holdings(
+        narrow = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.TYPE, "TFSA"),
             currency=Currency.CAD,
         )
-        wide = FolioHoldings(frame, quotes, fx).holdings(
+        wide = FolioHoldings(by_pool, quotes, fx).holdings(
             FOLIO,
             currency=Currency.CAD,
         )
@@ -225,11 +223,11 @@ def test_the_two_weights_differ_on_a_narrower_grain(temp_ctx: TempContext) -> No
             "AAA": _quote("AAA", "100", "100"),
             "BBB": _quote("BBB", "100", "100"),
         }
-        frame = _frame()
+        by_pool = _by_pool()
         fx = load_fx_rates()
-        folio_total = FolioHoldings(frame, quotes, fx).market_value()
+        folio_total = FolioHoldings(by_pool, quotes, fx).market_value()
 
-        narrow = FolioHoldings(frame, quotes, fx).holdings(
+        narrow = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.TYPE, "TFSA"),
             currency=Currency.CAD,
             folio_market=folio_total,
@@ -548,7 +546,7 @@ def test_an_empty_fx_table_does_not_crash(temp_ctx: TempContext) -> None:
         seed_transaction(ticker="CADCO", currency="CAD", amount="-1000", units="10")
 
         holdings = FolioHoldings(
-            _frame(),
+            _by_pool(),
             {"CADCO": _quote("CADCO", "120", "110", Currency.CAD)},
             FxRates((), ()),
         ).holdings(
@@ -575,7 +573,7 @@ def test_held_symbols_lists_only_open_holdings(temp_ctx: TempContext) -> None:
             date="2025-08-18",
         )
 
-        assert held_symbols(_frame()) == ["OPEN"]
+        assert open_ledger().held_symbols == ["OPEN"]
 
 
 def test_an_account_grain_sees_only_its_own_units(temp_ctx: TempContext) -> None:
@@ -584,15 +582,15 @@ def test_an_account_grain_sees_only_its_own_units(temp_ctx: TempContext) -> None
         seed_transaction(account="IBKR-TFSA", ticker="AAA", amount="-1000", units="10")
         seed_transaction(account="WS-TFSA", ticker="AAA", amount="-2000", units="20")
 
-        frame = _frame()
+        by_pool = _by_pool()
         quotes = {"AAA": _quote("AAA", "100", "100")}
         fx = load_fx_rates()
 
-        one = FolioHoldings(frame, quotes, fx).holdings(
+        one = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.ACCOUNT, "IBKR-TFSA"),
             currency=Currency.CAD,
         )
-        pooled = FolioHoldings(frame, quotes, fx).holdings(
+        pooled = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.TYPE, "TFSA"),
             currency=Currency.CAD,
         )
@@ -631,7 +629,7 @@ def test_a_usd_dividend_is_converted_before_it_joins_the_grand_total(
 ) -> None:
     """The native view's grand total is CAD, dividends included.
 
-    Every other totals-currency figure is read off the frame's CAD columns, so a
+    Every other totals-currency figure is read from the replay's CAD figures, so a
     USD holding's dividends have to be as well. Summing the native USD figure
     into a CAD total silently understated it by the whole FX rate.
     """
@@ -742,21 +740,21 @@ def test_a_usd_only_pool_keeps_its_deposit_return_under_a_currency_filter(
             units="10",
         )
 
-        frame = _frame()
+        by_pool = _by_pool()
         quotes = {"USDCO": _quote("USDCO", "110", "110")}
 
-        in_usd = FolioHoldings(frame, quotes, load_fx_rates()).holdings(
+        in_usd = FolioHoldings(by_pool, quotes, load_fx_rates()).holdings(
             FOLIO,
             currency=Currency.USD,
         )
-        native = FolioHoldings(frame, quotes, load_fx_rates()).holdings(
+        native = FolioHoldings(by_pool, quotes, load_fx_rates()).holdings(
             FOLIO,
             currency="native",
         )
 
         assert in_usd.excluded == 0
         assert in_usd.deposits_measurable is True
-        # 100 USD earned, read off the frame's CAD columns at 1.25.
+        # 100 USD earned, read from the replay's CAD figures at 1.25.
         assert in_usd.total_pnl == Decimal(100)
         assert in_usd.total_pnl_cad == Decimal(125)
         assert native.total_pnl_cad == in_usd.total_pnl_cad
@@ -772,7 +770,7 @@ def test_a_closed_holding_carries_its_cad_earnings_under_a_currency_filter(
     """A closed USD holding still reports what it earned in CAD.
 
     It has no price to look up, so its whole contribution is the
-    realized gain and dividends the frame already holds in CAD.
+    realized gain and dividends the replay already holds in CAD.
     """
     with temp_ctx():
         seed_fx(FX_DATES)
@@ -824,7 +822,7 @@ def test_a_holding_with_no_rate_to_convert_by_reports_no_cad_earnings(
         )
 
         holdings = FolioHoldings(
-            _frame(),
+            _by_pool(),
             {"USDCO": _quote("USDCO", "120", "110")},
             FxRates((), ()),
         ).holdings(FOLIO, currency=Currency.USD)
@@ -905,15 +903,15 @@ def test_dividends_pool_to_the_grain(temp_ctx: TempContext) -> None:
                 date="2025-08-18",
             )
 
-        frame = _frame()
+        by_pool = _by_pool()
         quotes = {"AAA": _quote("AAA", "100", "100")}
         fx = load_fx_rates()
 
-        one = FolioHoldings(frame, quotes, fx).holdings(
+        one = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.ACCOUNT, "WS-TFSA"),
             currency="native",
         )
-        pooled = FolioHoldings(frame, quotes, fx).holdings(
+        pooled = FolioHoldings(by_pool, quotes, fx).holdings(
             Pool(Grain.TYPE, "TFSA"),
             currency="native",
         )
@@ -1077,7 +1075,7 @@ def test_the_base_figures_are_cad_even_in_native_mode(
         usd = next(h for h in holdings.holdings if h.symbol == "USDCO")
         # Market value converts at today's rate: 1,200 USD * 1.25.
         assert usd.market_value_totals == Decimal(1500)
-        # Book value is read off the frame at its own historical rate, never
+        # Book value is the replay's own, at its historical rate, never
         # reconverted, because that is the figure CRA taxes.
         assert usd.book_value_totals == Decimal(1250)
         assert usd.unrealized_totals == Decimal(250)
@@ -1134,7 +1132,7 @@ def test_the_folio_share_survives_the_usd_filter(temp_ctx: TempContext) -> None:
     """
     with temp_ctx():
         _mixed_folio()
-        folio_holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
+        folio_holdings = FolioHoldings(_by_pool(), _mixed_quotes(), load_fx_rates())
 
         holdings = folio_holdings.holdings(
             FOLIO,
@@ -1157,7 +1155,7 @@ def test_the_folio_total_ignores_the_display_currency(temp_ctx: TempContext) -> 
     """Valuing at `-c USD` would total the USD sleeve, not the folio."""
     with temp_ctx():
         _mixed_folio()
-        folio_holdings = FolioHoldings(_frame(), _mixed_quotes(), load_fx_rates())
+        folio_holdings = FolioHoldings(_by_pool(), _mixed_quotes(), load_fx_rates())
 
         # 1,500 CAD plus 1,200 USD at 1.25, not the 1,200 the filter leaves.
         assert folio_holdings.market_value() == Decimal(3000)
@@ -1297,7 +1295,7 @@ def test_a_usd_view_converts_a_cad_quote_back(temp_ctx: TempContext) -> None:
         assert holdings.holdings[0].market_value == Decimal(1000)
 
 
-def test_a_frame_with_no_tracked_symbols_holds_nothing(
+def test_a_folio_of_cash_holds_nothing(
     temp_ctx: TempContext,
 ) -> None:
     with temp_ctx():
@@ -1305,7 +1303,7 @@ def test_a_frame_with_no_tracked_symbols_holds_nothing(
         # Cash only: nothing carries a security.
         seed_cash("CONTRIBUTION", amount="1000", currency="USD")
 
-        assert held_symbols(_frame()) == []
+        assert open_ledger().held_symbols == []
 
 
 @pytest.mark.parametrize("grain", [Grain.ACCOUNT, Grain.TYPE, Grain.FOLIO])
@@ -1340,97 +1338,10 @@ def _two_type_folio() -> None:
     )
 
 
-def test_folio_holdings_derives_each_pools_rollups_once(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        _two_type_folio()
-        folio_holdings = FolioHoldings(
-            _frame(),
-            {"AAA": _quote("AAA", "100", "100")},
-            load_fx_rates(),
-        )
-
-        first = folio_holdings.rollups(FOLIO)
-        folio_holdings.held_symbols()
-        folio_holdings.market_value()
-        folio_holdings.holdings(FOLIO, currency=Currency.CAD)
-
-        # Same object, not merely an equal one.
-        assert folio_holdings.rollups(FOLIO) is first
-        # A different pool is a different derivation.
-        assert folio_holdings.rollups(Pool(Grain.TYPE, "TFSA")) is not first
-
-
-def test_pricing_later_keeps_the_rollups_already_derived(
-    temp_ctx: TempContext,
-) -> None:
-    """Symbols have to be known before quotes can be fetched for them."""
-    with temp_ctx():
-        _two_type_folio()
-        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
-
-        assert folio_holdings.held_symbols() == ["AAA", "BBB"]
-        derived = folio_holdings.rollups(FOLIO)
-
-        folio_holdings.price({"AAA": _quote("AAA", "100", "100")})
-
-        assert folio_holdings.rollups(FOLIO) is derived
-        # The total reflects the quotes supplied afterwards, not the empty set.
-        assert folio_holdings.market_value() == Decimal(3750)
-
-
-def test_priming_a_grain_matches_deriving_each_pool_alone(
-    temp_ctx: TempContext,
-) -> None:
-    """The one-pass split has to agree with narrowing pool by pool."""
-    with temp_ctx():
-        _two_type_folio()
-        frame = _frame()
-        quotes = {"AAA": _quote("AAA", "100", "100")}
-        fx = load_fx_rates()
-
-        primed = FolioHoldings(frame, quotes, fx)
-        primed.prime(Grain.TYPE)
-
-        for pool in ("TFSA", "RRSP"):
-            alone = FolioHoldings(frame, quotes, fx).holdings(
-                Pool(Grain.TYPE, pool),
-                currency=Currency.CAD,
-            )
-            assert (
-                primed.holdings(
-                    Pool(Grain.TYPE, pool),
-                    currency=Currency.CAD,
-                )
-                == alone
-            )
-
-
-def test_priming_leaves_a_pool_already_derived_alone(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        _two_type_folio()
-        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
-
-        first = folio_holdings.rollups(Pool(Grain.TYPE, "TFSA"))
-        folio_holdings.prime(Grain.TYPE)
-
-        assert folio_holdings.rollups(Pool(Grain.TYPE, "TFSA")) is first
-
-
-def test_priming_the_folio_grain_is_a_no_op(temp_ctx: TempContext) -> None:
-    """Folio grain is one pool, so there is nothing to split."""
-    with temp_ctx():
-        _two_type_folio()
-        folio_holdings = FolioHoldings(_frame(), {}, load_fx_rates())
-
-        folio_holdings.prime(Grain.FOLIO)
-
-        assert folio_holdings.rollups(FOLIO).summary.empty is False
-
-
 def test_a_security_that_paid_nothing_reads_as_zero_dividends(
     temp_ctx: TempContext,
 ) -> None:
-    """The rollup skips non-income rows, so most securities are simply absent."""
+    """A holding that never paid has zero dividends rather than a blank."""
     with temp_ctx():
         _two_type_folio()
         holdings = _value(

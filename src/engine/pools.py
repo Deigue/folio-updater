@@ -32,8 +32,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from decimal import Decimal
 
-    import pandas as pd
-
     from engine.flows import Flows, Room
     from engine.holdings import CurrencyTotals, DisplayCurrency, HoldingSet
     from engine.ledger import Ledger
@@ -254,7 +252,7 @@ class FolioValuation:
     """Everything a report needs about one replay, priced once.
 
     Attributes:
-        folio_holdings: The frame and quotes, with each pool's rollups memoized.
+        folio_holdings: The holding states and quotes every pool is valued from.
         ledger: The ledger the holdings and cash totals are read from.
         currency: The currency figures are expressed in, or `native`.
         contributions: Every type's per-year contributions, for the room line.
@@ -293,9 +291,8 @@ class FolioValuation:
             The valuation, with every open holding priced.
         """
         frame = ledger.frame
-        folio_holdings = FolioHoldings(frame, {}, load_fx_rates())
-        quotes = _quotes(folio_holdings, refresh=refresh, offline=offline)
-        folio_holdings.price(quotes)
+        quotes = _quotes(ledger, refresh=refresh, offline=offline)
+        folio_holdings = FolioHoldings(ledger.holdings, quotes, load_fx_rates())
         return cls(
             folio_holdings=folio_holdings,
             ledger=ledger,
@@ -305,11 +302,6 @@ class FolioValuation:
             quotes=quotes,
             folio_market=folio_holdings.market_value(),
         )
-
-    @property
-    def frame(self) -> pd.DataFrame:
-        """The replayed ledger every pool is valued from."""
-        return self.folio_holdings.frame
 
     @property
     def room_history(self) -> list[Room]:
@@ -382,9 +374,6 @@ class FolioValuation:
     ) -> list[ValuedPool]:
         """Value several pools at one grain, as `value` does each one.
 
-        The priced replay is split by pool once, rather than narrowed again for
-        each pool.
-
         Args:
             pools: The pools to value, all at the same grain.
             sort: Order each pool's holdings by this measure.
@@ -394,24 +383,22 @@ class FolioValuation:
             One valued pool per pool that holds something, or used to, in the
             order given. Pools that never held anything are left out.
         """
-        if pools:
-            self.folio_holdings.prime(pools[0].grain)
         valued_pools = (self.value(pool, sort=sort, reverse=reverse) for pool in pools)
         return [valued for valued in valued_pools if valued.occupied]
 
     def _pool_names(self, column: str) -> list[str]:
         """Name every pool a column holds, in a stable order."""
-        return sorted({str(value) for value in self.frame[column].dropna()})
+        return sorted({str(value) for value in self.ledger.frame[column].dropna()})
 
 
 def _quotes(
-    folio_holdings: FolioHoldings,
+    ledger: Ledger,
     *,
     refresh: bool,
     offline: bool,
 ) -> dict[str, Quote]:
     """Price every open holding, once, for the whole folio."""
-    symbols = folio_holdings.held_symbols()
+    symbols = ledger.held_symbols
     if not symbols:
         return {}
     return QuotesService.get_quotes(

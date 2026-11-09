@@ -143,7 +143,7 @@ class AcbReport:
             frame, stored = _with_stored_columns(frame, txns)
         picked = _pick(frame, pool, symbol, dates, income=income)
         usd = bool(
-            _usd_holdings(picked)
+            _usd_holdings(picked, pool.grain)
             if shape is AcbShape.SUMMARY
             else (picked[_CURRENCY] == str(Currency.USD)).any(),
         )
@@ -197,7 +197,8 @@ class AcbReport:
         if summary.empty:
             return summary
         if self.currencies.usd and not self.currencies.cad:
-            summary = summary[summary[_SYMBOL].isin(_usd_holdings(self.rows))]
+            usd = _usd_holdings(self.rows, self.pool.grain)
+            summary = summary[summary[_SYMBOL].isin(usd)]
         units = grain_column(self.pool.grain, "Units")
         ordered = summary.assign(_closed=summary[units].fillna(0) == 0)
         return (
@@ -278,18 +279,9 @@ class AcbReport:
         return replace(self, rows=rows)
 
 
-def _usd_holdings(rows: pd.DataFrame) -> set[str]:
-    """Name the holdings with a USD cost base: those traded in USD.
-
-    Income never counts: a CAD holding paying its dividend in USD still has
-    nothing but a CAD cost base.
-    """
-    traded = rows[
-        rows[_SYMBOL].notna()
-        & (rows[_CURRENCY] == str(Currency.USD))
-        & (rows[str(Column.Ledger.IMPACT)] != Impact.INCOME)
-    ]
-    return set(traded[_SYMBOL])
+def _usd_holdings(rows: pd.DataFrame, grain: Grain) -> set[str]:
+    """Name the holdings with a USD cost base at one grain, among these rows."""
+    return set(rows.loc[rows[grain_column(grain, "ACB_USD")].notna(), _SYMBOL])
 
 
 def _pick(

@@ -119,7 +119,7 @@ def acb_summary_sheet(
     name: str,
     notes: Sequence[str] = (),
 ) -> Sheet:
-    """Collapse a pool to one row per symbol: its closing holding.
+    """Collapse a pool to one row per symbol: its final figures.
 
     Args:
         report: The pool's cost base summary report.
@@ -173,7 +173,7 @@ def cost_base_sheet(
     name: str = COST_BASE_SHEET,
     notes: Sequence[str] = (),
 ) -> Sheet:
-    """List every pool's closing cost base, in the currency it is taxed in.
+    """List every pool's final cost base, in the currency it is taxed in.
 
     Args:
         frame: The whole ledger.
@@ -211,7 +211,7 @@ def _cost_base_cells(
     grain: Grain,
     record: Mapping[Hashable, Any],
 ) -> dict[str, object]:
-    """Read one symbol's closing holding in one pool, in CAD."""
+    """Read one symbol's final figures in one pool, in CAD."""
     return {
         "Pool": label,
         "Grain": GRAIN_NAMES[grain],
@@ -246,7 +246,7 @@ def _buildup_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, ob
 
 
 def _summary_cells(record: Mapping[Hashable, Any], grain: Grain) -> dict[str, object]:
-    """Read one symbol's closing holding into the summary's cells."""
+    """Read one symbol's final figures into the summary's cells."""
     cells: dict[str, object] = {
         "Symbol": record["Symbol"],
         "Units": record[grain_column(grain, "Units")],

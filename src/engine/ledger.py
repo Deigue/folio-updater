@@ -11,8 +11,8 @@ The saved ledger is reused only when every input the replay reads is unchanged:
 
 Each save writes the ledger frame and the diagnostics (with the rows they tag)
 under names of its own, then a meta file naming them, holding those inputs, when
-the ledger was computed, each pool's cash and row counts, and each transfer leg's
-deposit share. The meta goes in
+the ledger was computed, each pool's cash and row counts, each transfer leg's
+deposit share and each pool's holdings. The meta goes in
 place last, whole, so it only ever names files that were written completely:
 an interrupted save leaves the previous one intact, and two processes saving at
 once can never pair one's meta with the other's files. Files no meta names are
@@ -35,6 +35,7 @@ import pandas as pd
 from app import get_config
 from db import fx_rates, revisions, txns
 from domain import TORONTO_TZ
+from engine.accounts import FOLIO
 from engine.frames import index_by_txn_id, ledger_frame
 from engine.fx_rates import FxRateUnavailableError, load_fx_rates
 from engine.replay import ReplayConfig, replay
@@ -43,9 +44,11 @@ from engine.saved_ledger import (
     decode_cash_and_totals,
     decode_deposit_shares,
     decode_diagnostics,
+    decode_holdings,
     encode_cash_and_totals,
     encode_deposit_shares,
     encode_diagnostics,
+    encode_holdings,
 )
 from services import FxService
 from services.symbols import load_symbol_resolver
@@ -61,6 +64,7 @@ if TYPE_CHECKING:
         DepositShare,
         Diagnostic,
         LedgerRow,
+        PoolHoldings,
         ReplayResult,
         ReplayTotals,
     )
@@ -99,6 +103,7 @@ class Ledger:
             form, indexed by TxnId.
         cash: The running cash and flows of every pool, per currency.
         totals: How many rows carry each shape, for the checks to count.
+        holdings: Every pool's holdings after the last transaction.
         load_diagnosis: Reads the diagnostics when first asked for, so a report
             that never asks never pays for them.
         computed_at: When the ledger was computed, or None when this
@@ -110,6 +115,7 @@ class Ledger:
     frame: pd.DataFrame
     cash: Mapping[CashKey, CashState]
     totals: ReplayTotals
+    holdings: PoolHoldings
     load_diagnosis: Callable[[], Diagnosis] = field(repr=False)
     computed_at: datetime | None = None
     deposit_shares: tuple[DepositShare, ...] = ()
@@ -143,7 +149,17 @@ class Ledger:
             totals=result.totals,
             load_diagnosis=lambda: diagnosis,
             deposit_shares=tuple(result.deposit_shares),
+            holdings=result.holdings,
         )
+
+    @property
+    def held_symbols(self) -> list[str]:
+        """Every symbol the folio still holds anywhere, sorted."""
+        return [
+            holding.symbol
+            for holding in self.holdings.get(FOLIO, ())
+            if not holding.closed
+        ]
 
     @cached_property
     def diagnosis(self) -> Diagnosis:
@@ -333,6 +349,7 @@ def _restore(
         load_diagnosis=load_diagnosis,
         computed_at=datetime.fromisoformat(meta["computed_at"]),
         deposit_shares=decode_deposit_shares(meta["deposit_shares"]),
+        holdings=decode_holdings(meta["holdings"]),
     )
 
 
@@ -344,6 +361,7 @@ def _write(parquet: Path, ledger: Ledger, inputs: dict[str, object]) -> None:
         "computed_at": datetime.now(TORONTO_TZ).isoformat(),
         **encode_cash_and_totals(ledger.cash, ledger.totals),
         "deposit_shares": encode_deposit_shares(ledger.deposit_shares),
+        "holdings": encode_holdings(ledger.holdings),
     }
     diagnostics = encode_diagnostics(ledger.diagnostics, ledger.diagnosed_rows)
     try:

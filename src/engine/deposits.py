@@ -174,13 +174,13 @@ class NetDeposits:
             self._apply_external(row, tracked, -abs(row.amount or ZERO))
         self._advance_basis(computed, tracked, effects)
 
-    def closing_transfers(self) -> dict[CashKey, TransferTotals]:
+    def transfer_totals(self) -> dict[CashKey, TransferTotals]:
         """Return what transfers added up to, for every pool one touched.
 
         A tracked pool's `transfers` is restated as the exact complement of the
-        deposits it holds, closing `net deposits = contributions - withdrawals +
-        transfers`. A pool whose transfers all went unpaired keeps its face-value
-        total, since nothing measured its deposits.
+        deposits it holds, so `net deposits = contributions - withdrawals +
+        transfers` balances. A pool whose transfers all went unpaired keeps its
+        face-value total, since nothing measured its deposits.
 
         Returns:
             Each pool and currency's totals.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -13,7 +14,7 @@ from domain import (
     Grain,
     Impact,
 )
-from domain.numeric import ZERO
+from domain.numeric import ZERO, safe_div
 from engine.accounts import Pool
 
 if TYPE_CHECKING:
@@ -25,23 +26,82 @@ if TYPE_CHECKING:
 
 @dataclass
 class HoldingState:
-    """Running units, cost base and realized gain for one pool and symbol.
+    """One holding in one pool, running through the replay and final after it.
 
-    `acb_usd` stays at zero for CAD-denominated holdings
+    Only a USD holding's USD figures are ever read.
 
-    `last_held` is carried only so income arriving just after a sale can be told
-    apart from income against a pool that never held the symbol. It is the trade
-    date of the most recent row that left units outstanding, and stays None for
-    a pool that has never held any.
+    Attributes:
+        symbol: Canonical security symbol.
+        currency: The holding's native currency: that of its first row.
+        units: Units held.
+        acb_cad: Cost base in CAD.
+        acb_usd: Cost base in USD.
+        realized_cad: Cumulative realized gain in CAD.
+        realized_usd: Cumulative realized gain in USD.
+        dividends_cad: Dividends received, in CAD.
+        dividends_usd: Dividends received in USD, USD holdings only.
+        last_held: The trade date of the most recent row that left units
+            outstanding, None for a pool that has never held any. Tells income
+            arriving just after a sale apart from income against a pool that
+            never held the symbol.
+        flags: Every distinct diagnostic tagging the holding's transactions, in
+            `TxnId` order, filled in once the replay's checks have run. A
+            diagnostic about a pool tags none, so is never here.
     """
 
+    symbol: str
+    currency: Currency
     units: Decimal = ZERO
     acb_cad: Decimal = ZERO
     acb_usd: Decimal = ZERO
     realized_cad: Decimal = ZERO
     realized_usd: Decimal = ZERO
-    currency: Currency | None = None
+    dividends_cad: Decimal = ZERO
+    dividends_usd: Decimal = ZERO
     last_held: str | None = None
+    flags: tuple[DiagnosticCode, ...] = ()
+
+    @property
+    def usd(self) -> bool:
+        """Whether this is a USD holding."""
+        return self.currency is Currency.USD
+
+    @property
+    def avg_cad(self) -> Decimal:
+        """Average cost in CAD."""
+        return safe_div(self.acb_cad, self.units)
+
+    @property
+    def avg_usd(self) -> Decimal:
+        """Average cost in USD."""
+        return safe_div(self.acb_usd, self.units)
+
+    @property
+    def closed(self) -> bool:
+        """Whether no units are left."""
+        return self.units == ZERO
+
+    def _reads_usd(self, shown: Currency) -> bool:
+        """Whether to read the USD figures: only a USD holding has any."""
+        return shown is Currency.USD and self.usd
+
+    def cost_in(self, shown: Currency) -> tuple[Decimal, Decimal]:
+        """Read cost base and average cost in the currency being displayed."""
+        if self._reads_usd(shown):
+            return self.acb_usd, self.avg_usd
+        return self.acb_cad, self.avg_cad
+
+    def realized_in(self, shown: Currency) -> Decimal:
+        """Read the cumulative realized gain in the currency being displayed."""
+        return self.realized_usd if self._reads_usd(shown) else self.realized_cad
+
+    def dividends_in(self, shown: Currency) -> Decimal:
+        """Read the dividends received in the currency being displayed."""
+        return self.dividends_usd if self._reads_usd(shown) else self.dividends_cad
+
+
+# Every pool's holdings after the replay, each pool's sorted by symbol.
+PoolHoldings = Mapping[Pool, tuple[HoldingState, ...]]
 
 
 @dataclass
@@ -93,6 +153,7 @@ class GrainMeasures:
         realized_usd: Cumulative realized gain in USD, USD holdings only.
         gain_cad: Realized gain this row earned in CAD. A BUY's is added at valuation.
         gain_usd: The same in USD, USD holdings only.
+        usd: Whether this pool's holding is a USD holding.
     """
 
     units: Decimal = ZERO
@@ -106,6 +167,7 @@ class GrainMeasures:
     realized_usd: Decimal = ZERO
     gain_cad: Decimal = ZERO
     gain_usd: Decimal = ZERO
+    usd: bool = False
 
 
 @dataclass(frozen=True)
@@ -130,11 +192,6 @@ class LedgerRow:
     type: GrainMeasures = field(default_factory=GrainMeasures)
     folio: GrainMeasures = field(default_factory=GrainMeasures)
     flags: tuple[DiagnosticCode, ...] = ()
-
-    @property
-    def is_usd(self) -> bool:
-        """Whether the `_USD` measures on this row carry anything."""
-        return self.row.currency is Currency.USD
 
     def measures(self, grain: Grain) -> GrainMeasures:
         """Return the measures for one pool grain.
@@ -327,6 +384,7 @@ class ReplayResult:
         cash: Running cash and income totals per pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
         deposit_shares: The net deposits each transfer leg moved, per pool it moved in.
+        holdings: Every pool's holdings after the last transaction.
     """
 
     rows: list[LedgerRow] = field(default_factory=list)
@@ -334,6 +392,7 @@ class ReplayResult:
     cash: dict[CashKey, CashState] = field(default_factory=dict)
     totals: ReplayTotals = field(default_factory=ReplayTotals)
     deposit_shares: list[DepositShare] = field(default_factory=list)
+    holdings: PoolHoldings = field(default_factory=dict)
 
     def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:
         """Group the distinct codes raised against each row.

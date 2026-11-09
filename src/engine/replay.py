@@ -188,9 +188,12 @@ class _Pools:
         }
         self._seen_splits: set[tuple[Pool, str, str, str]] = set()
 
-    def state(self, pool: Pool, symbol: str) -> HoldingState:
-        """Return the state for one pool and symbol, creating it if new."""
-        return self._by_grain[pool.grain].setdefault((pool, symbol), HoldingState())
+    def state(self, pool: Pool, symbol: str, currency: Currency) -> HoldingState:
+        """Return the state for one pool and symbol, opened in `currency` if new."""
+        return self._by_grain[pool.grain].setdefault(
+            (pool, symbol),
+            HoldingState(symbol, currency),
+        )
 
     def all_states(
         self,
@@ -214,7 +217,7 @@ class _Pools:
 
 def _snapshot(state: HoldingState, before: HoldingState) -> GrainMeasures:
     """Freeze a pool's figures after a row, alongside the change it caused."""
-    usd = state.currency is Currency.USD
+    usd = state.usd
     return GrainMeasures(
         units=state.units,
         acb_cad=state.acb_cad,
@@ -227,6 +230,7 @@ def _snapshot(state: HoldingState, before: HoldingState) -> GrainMeasures:
         realized_usd=state.realized_usd if usd else ZERO,
         gain_cad=state.realized_cad - before.realized_cad,
         gain_usd=(state.realized_usd - before.realized_usd) if usd else ZERO,
+        usd=usd,
     )
 
 
@@ -324,6 +328,7 @@ class _Replay:
         self._transfer_dates_check()
         self._transfer_types_check()
         self._attach_flags()
+        self.result.holdings = self._holdings_by_pool()
         return self.result
 
     # -- DIAGNOSTICS ------------------------------------------------------
@@ -370,6 +375,28 @@ class _Replay:
             else computed
             for computed in self.result.rows
         ]
+
+    def _flag_holdings(self) -> None:
+        """Roll each row's flags up to every pool holding it, in `TxnId` order."""
+        for computed in sorted(self.result.rows, key=lambda c: c.row.txn_id):
+            if computed.symbol is None or not computed.flags:
+                continue
+            for grain in Grain:
+                pool = Pool.of(grain, computed.row, computed.acct_type)
+                state = self.pools.state(pool, computed.symbol, computed.row.currency)
+                state.flags += tuple(
+                    code for code in computed.flags if code not in state.flags
+                )
+
+    def _holdings_by_pool(self) -> dict[Pool, tuple[HoldingState, ...]]:
+        """Hand over every pool's holdings, each pool's sorted by symbol."""
+        self._flag_holdings()
+        by_pool: dict[Pool, list[HoldingState]] = {}
+        for grain in Grain:
+            ordered = sorted(self.pools.all_states(grain), key=lambda item: item[0])
+            for (pool, _symbol), state in ordered:
+                by_pool.setdefault(pool, []).append(state)
+        return {pool: tuple(states) for pool, states in by_pool.items()}
 
     def _diagnose_unknown_accounts(self) -> None:
         """Report accounts whose account type could not be inferred."""
@@ -419,19 +446,22 @@ class _Replay:
             # Record the split against the holding pool.
             self._record_split_coverage(row, symbol)
 
+        dividend_cad, dividend_usd = self._dividend(row)
         measures: dict[Grain, GrainMeasures] = {}
         for grain in Grain:
             if symbol is None:
                 measures[grain] = GrainMeasures()
                 continue
             pool = Pool.of(grain, row, acct_type)
-            state = self.pools.state(pool, symbol)
+            state = self.pools.state(pool, symbol, row.currency)
             before = replace(state)
             self._apply_to_pool(row, pool, symbol, state)
+            state.dividends_cad += dividend_cad or ZERO
+            if state.usd:
+                state.dividends_usd += dividend_usd or ZERO
             measures[grain] = _snapshot(state, before)
 
         proceeds_cad, proceeds_usd = self._proceeds(row)
-        dividend_cad, dividend_usd = self._dividend(row)
         self.result.totals.add((row.action, row.account, symbol or "", row.currency))
 
         return LedgerRow(
@@ -513,9 +543,6 @@ class _Replay:
         state: HoldingState,
     ) -> None:
         """Dispatch one row against one pool's holding."""
-        if state.currency is None:
-            state.currency = row.currency
-
         # Read before dispatch: the row that closes a holding is itself a day
         # the pool still held it, right up to the moment it sold.
         held_before = state.units > ZERO
@@ -878,7 +905,7 @@ class _Replay:
             self._check_negative_cash(pending, current_date)
 
         self._roll_up_realized_gain()
-        for (pool, currency), totals in net_deposits.closing_transfers().items():
+        for (pool, currency), totals in net_deposits.transfer_totals().items():
             cash = self._cash(pool, currency)
             cash.transfers = totals.transfers
             cash.transfers_value = totals.transfers_value

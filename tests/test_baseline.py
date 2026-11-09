@@ -44,8 +44,8 @@ from engine.accounts import FOLIO, Pool
 from engine.flows import room_history
 from engine.frames import (
     GRAIN_PREFIX,
+    POOL_COLUMN,
     acb_summary_frame,
-    acb_summary_frames_by_pool,
     grain_column,
 )
 from engine.gain_since_buy import bought_symbols, with_gains_since_buy
@@ -300,8 +300,8 @@ def _summary_rows(as_of: str, frame: pd.DataFrame) -> list[list[str]]:
     ]
     for grain in (Grain.TYPE, Grain.ACCOUNT):
         pools += [
-            (grain, pool, summary)
-            for pool, summary in acb_summary_frames_by_pool(shown, grain).items()
+            (grain, str(pool), acb_summary_frame(rows))
+            for pool, rows in shown.groupby(POOL_COLUMN[grain])
         ]
     rows: list[list[str]] = []
     for grain, pool, summary in pools:

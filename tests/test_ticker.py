@@ -73,7 +73,7 @@ def test_the_total_is_the_folio_grain_not_the_sum_of_the_lines(
         # ...but pooled across every account, the RRSP's round trip moved the
         # folio's average, which no combination of the lines reproduces.
         # A USD holding valued natively reads the USD family of columns.
-        frame = valuation.frame
+        frame = valuation.ledger.frame
         folio_avg = frame[frame["Symbol"] == "TESTTKR"]["FolioAvg_USD"].iloc[-1]
         assert holdings.total.avg_cost == Decimal(str(folio_avg))
         assert holdings.total.avg_cost not in {

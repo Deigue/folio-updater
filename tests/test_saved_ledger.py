@@ -18,13 +18,15 @@ from engine.saved_ledger import (
     decode_cash_and_totals,
     decode_deposit_shares,
     decode_diagnostics,
+    decode_holdings,
     encode_cash_and_totals,
     encode_deposit_shares,
     encode_diagnostics,
+    encode_holdings,
 )
 
 from .helpers.replay import make_row, run
-from .helpers.seed import seed_cash, seed_fx
+from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
     from engine.types import ReplayResult
@@ -72,6 +74,7 @@ def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
     shares = decode_deposit_shares(
         json.loads(json.dumps(encode_deposit_shares(ledger.deposit_shares))),
     )
+    holdings = decode_holdings(json.loads(json.dumps(encode_holdings(ledger.holdings))))
     diagnosis = Diagnosis(diagnostics=tuple(diagnostics), rows=rows)
     restored = Ledger(
         frame=ledger.frame,
@@ -79,6 +82,7 @@ def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
         totals=totals,
         load_diagnosis=lambda: diagnosis,
         deposit_shares=shares,
+        holdings=holdings,
     )
     return ledger, restored
 
@@ -95,6 +99,41 @@ def test_cash_round_trips_exactly() -> None:
     original, restored = round_trip(run(oversold_rows()))
     assert original.cash
     assert restored.cash == original.cash
+
+
+def test_holdings_round_trip_exactly() -> None:
+    """A cost base split in thirds, flagged, in USD: no float holds it all."""
+    original, restored = round_trip(
+        run(
+            [
+                *oversold_rows(),
+                make_row(
+                    4,
+                    "2024-01-05",
+                    Action.BUY,
+                    amount="-100",
+                    units="3",
+                    price="33.33",
+                    currency="USD",
+                    ticker="USDCO",
+                ),
+                make_row(
+                    5,
+                    "2024-01-09",
+                    Action.SELL,
+                    amount="40",
+                    units="-1",
+                    price="40",
+                    currency="USD",
+                    ticker="USDCO",
+                ),
+            ],
+        ),
+    )
+    held = dict(original.holdings)[FOLIO]
+    assert any(holding.flags for holding in held)
+    assert any(holding.currency is Currency.USD for holding in held)
+    assert restored.holdings == original.holdings
 
 
 def test_deposit_shares_round_trip_exactly() -> None:
@@ -163,6 +202,20 @@ def test_a_reused_ledger_keeps_its_deposit_shares(temp_ctx: TempContext) -> None
         assert reused.computed_at is not None
         assert len(reused.deposit_shares) == 2
         assert reused.deposit_shares == replayed.deposit_shares
+
+
+@pytest.mark.real_saved_ledger
+def test_a_reused_ledger_keeps_its_holdings(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx({"2025-08-14": "1.25", "2025-08-15": "1.25", "2025-08-18": "1.25"})
+        seed_transaction(ticker="MSFT", amount="-1000", price="100", units="10")
+
+        replayed = open_ledger(offline=True)
+        reused = open_ledger(offline=True)
+
+        assert reused.computed_at is not None
+        assert replayed.holdings
+        assert reused.holdings == replayed.holdings
 
 
 def test_the_row_counts_round_trip() -> None:

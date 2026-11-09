@@ -21,7 +21,6 @@ from engine.accounts import FOLIO, Pool
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
-    acb_summary_frames_by_pool,
     grain_column,
     ledger_frame,
 )
@@ -1377,8 +1376,55 @@ def test_acb_summary_frame_carries_the_usd_average() -> None:
     assert pd.isna(summary.loc["CADCO", avg_usd])  # ty: ignore[no-matching-overload]
 
 
-def test_acb_summary_frame_closes_on_the_last_row_replayed() -> None:
-    """A same-day sale stored before its purchase still closes the day at 10 + 3 - 5."""
+def test_a_usd_dividend_leaves_a_cad_holdings_usd_cells_blank() -> None:
+    frame = ledger_frame(
+        run(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.BUY,
+                    amount="-500",
+                    units="10",
+                    price="50",
+                ),
+                make_row(
+                    2,
+                    "2024-02-15",
+                    Action.DIVIDEND,
+                    amount="8",
+                    currency="USD",
+                ),
+            ],
+        ),
+    )
+
+    assert frame[grain_column(Grain.ACCOUNT, "ACB_USD")].isna().all()
+
+
+def test_a_cad_dividend_keeps_a_usd_holdings_usd_cells() -> None:
+    frame = ledger_frame(
+        run(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.BUY,
+                    amount="-400",
+                    units="10",
+                    price="40",
+                    currency="USD",
+                ),
+                make_row(2, "2024-02-15", Action.DIVIDEND, amount="8"),
+            ],
+        ),
+    )
+
+    assert frame[grain_column(Grain.FOLIO, "ACB_USD")].tolist() == [400.0, 400.0]
+
+
+def test_acb_summary_frame_ends_on_the_last_row_replayed() -> None:
+    """A same-day sale stored before its purchase still ends the day at 10 + 3 - 5."""
     frame = ledger_frame(
         run(
             [
@@ -2462,98 +2508,241 @@ def test_a_same_account_journal_still_needs_one_settle_date() -> None:
     assert len(unpaired) == 2
 
 
-def _two_account_frame() -> pd.DataFrame:
-    """Two accounts of different types, sharing one security between them."""
-    return ledger_frame(
-        run(
-            [
-                make_row(
-                    1,
-                    "2024-01-02",
-                    Action.BUY,
-                    amount="-1000",
-                    units="100",
-                    price="10",
-                    ticker="AAA",
-                    account="IBKR-TFSA",
-                ),
-                make_row(
-                    2,
-                    "2024-01-03",
-                    Action.BUY,
-                    amount="-500",
-                    units="50",
-                    price="10",
-                    ticker="AAA",
-                    account="IBKR-RRSP",
-                ),
-                make_row(
-                    3,
-                    "2024-01-04",
-                    Action.BUY,
-                    amount="-800",
-                    units="40",
-                    price="20",
-                    ticker="BBB",
-                    account="IBKR-TFSA",
-                ),
-                # A later row in the other account must not become AAA's last
-                # row in the TFSA pool.
-                make_row(
-                    4,
-                    "2024-01-05",
-                    Action.BUY,
-                    amount="-300",
-                    units="30",
-                    price="10",
-                    ticker="AAA",
-                    account="IBKR-RRSP",
-                ),
-            ],
-            types={
-                "IBKR-TFSA": AccountType.TFSA,
-                "IBKR-RRSP": AccountType.RRSP,
-            },
+# --- each holding's final figures ---------------------------------------------
+
+
+_SENDER = "IBKR-PERSONAL"
+_RECEIVER = "WS-PERSONAL"
+
+
+def _split_paid_transferred_and_sold() -> list[Txn]:
+    """Buy, split, take a dividend, transfer some units across, then sell some."""
+    return [
+        make_row(
+            1,
+            "2024-01-02",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+            account=_SENDER,
         ),
+        make_row(
+            2,
+            "2024-02-01",
+            Action.SPLIT,
+            units="2",
+            price="1",
+            account=_SENDER,
+        ),
+        make_row(3, "2024-03-01", Action.DIVIDEND, amount="40", account=_SENDER),
+        make_row(4, "2024-04-01", Action.TFR_OUT, units="-50", account=_SENDER),
+        make_row(5, "2024-04-01", Action.TFR_IN, units="50", account=_RECEIVER),
+        make_row(
+            6,
+            "2024-05-01",
+            Action.SELL,
+            amount="400",
+            units="-50",
+            price="8",
+            account=_SENDER,
+        ),
+    ]
+
+
+_NON_REGISTERED = Pool(Grain.TYPE, str(AccountType.NON_REGISTERED))
+
+
+@pytest.mark.parametrize(
+    ("pool", "units", "acb", "realized", "dividends"),
+    [
+        (Pool(Grain.ACCOUNT, _SENDER), "100", "500", "150", "40"),
+        (Pool(Grain.ACCOUNT, _RECEIVER), "50", "250", "0", "0"),
+        (_NON_REGISTERED, "150", "750", "150", "40"),
+        (FOLIO, "150", "750", "150", "40"),
+    ],
+)
+def test_a_holding_ends_with_its_figures_in_every_pool(
+    pool: Pool,
+    units: str,
+    acb: str,
+    realized: str,
+    dividends: str,
+) -> None:
+    (held,) = run(_split_paid_transferred_and_sold()).holdings[pool]
+
+    assert held.symbol == "TEST"
+    assert held.currency is Currency.CAD
+    assert held.units == D(units)
+    assert held.acb_cad == D(acb)
+    assert held.avg_cad == D("5")
+    assert held.realized_cad == D(realized)
+    assert held.dividends_cad == D(dividends)
+
+
+def test_final_figures_match_the_cost_base_summary() -> None:
+    """Each pool ends on what its last row reads."""
+    result = run(_split_paid_transferred_and_sold())
+    frame = ledger_frame(result)
+
+    for pool, states in result.holdings.items():
+        rows = frame
+        if pool.grain is not Grain.FOLIO:
+            rows = frame[frame[POOL_COLUMN[pool.grain]] == pool.name]
+        (summary,) = acb_summary_frame(rows).to_dict("records")
+        (held,) = states
+        assert float(held.units) == summary[grain_column(pool.grain, "Units")]
+        assert float(held.acb_cad) == summary[grain_column(pool.grain, "ACB")]
+        assert float(held.avg_cad) == summary[grain_column(pool.grain, "Avg")]
+        assert float(held.realized_cad) == summary[grain_column(pool.grain, "Realized")]
+
+
+def test_a_usd_holding_ends_with_both_currencies() -> None:
+    (held,) = run(
+        [
+            make_row(
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-400",
+                units="10",
+                price="40",
+                currency="USD",
+            ),
+            make_row(
+                2,
+                "2024-02-15",
+                Action.DIVIDEND,
+                amount="8",
+                currency="USD",
+            ),
+            make_row(
+                3,
+                "2024-03-01",
+                Action.SELL,
+                amount="250",
+                units="-5",
+                price="50",
+                currency="USD",
+            ),
+        ],
+    ).holdings[FOLIO]
+
+    assert held.currency is Currency.USD
+    assert held.acb_usd == D("200")
+    assert held.avg_usd == D("40")
+    assert held.realized_usd == D("50")
+    assert held.dividends_usd == D("8")
+    # 1.30 flat, so every CAD figure is the USD one times the rate.
+    assert held.acb_cad == D("260")
+    assert held.dividends_cad == D("10.40")
+
+
+def test_a_cad_holding_ends_with_no_usd_figures() -> None:
+    """Even a dividend paid in USD gives it none."""
+    (held,) = run(
+        [
+            make_row(
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-500",
+                units="10",
+                price="50",
+            ),
+            make_row(
+                2,
+                "2024-02-15",
+                Action.DIVIDEND,
+                amount="8",
+                currency="USD",
+            ),
+        ],
+    ).holdings[FOLIO]
+
+    assert held.currency is Currency.CAD
+    assert (held.acb_usd, held.avg_usd, held.realized_usd, held.dividends_usd) == (
+        D("0"),
+        D("0"),
+        D("0"),
+        D("0"),
+    )
+    assert held.dividends_cad == D("10.40")
+
+
+def test_a_holding_sold_out_is_closed() -> None:
+    (held,) = run(
+        [
+            make_row(
+                1,
+                "2024-01-02",
+                Action.BUY,
+                amount="-500",
+                units="10",
+                price="50",
+            ),
+            make_row(
+                2,
+                "2024-03-01",
+                Action.SELL,
+                amount="600",
+                units="-10",
+                price="60",
+            ),
+        ],
+    ).holdings[FOLIO]
+
+    assert held.closed
+    assert held.avg_cad == D("0")
+    assert held.realized_cad == D("100")
+
+
+@pytest.mark.parametrize(
+    "pool",
+    [Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), _NON_REGISTERED, FOLIO],
+)
+def test_a_holding_carries_its_transactions_flags_alone(pool: Pool) -> None:
+    """The units left negative are a pool's diagnostic, which tags no transaction."""
+    rows = [
+        make_row(0, "2024-01-01", Action.CONTRIBUTION, amount="5000", ticker=None),
+        make_row(
+            1,
+            "2024-01-02",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+        ),
+        make_row(
+            2,
+            "2024-03-01",
+            Action.SELL,
+            amount="6000",
+            units="-500",
+            price="12",
+        ),
+    ]
+    result = run(rows)
+
+    assert DiagnosticCode.NEGATIVE_FINAL_UNITS in codes(result)
+    (held,) = result.holdings[pool]
+    assert held.flags == (DiagnosticCode.OVERSELL,)
+
+
+def test_a_folio_of_cash_ends_with_no_holdings() -> None:
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-01-02",
+                Action.CONTRIBUTION,
+                amount="1000",
+                ticker=None,
+            ),
+        ],
     )
 
-
-@pytest.mark.parametrize("grain", [Grain.ACCOUNT, Grain.TYPE])
-def test_splitting_by_pool_matches_filtering_to_each_pool(grain: Grain) -> None:
-    """The one-pass split is only worth having if it agrees with the slow way."""
-    frame = _two_account_frame()
-    column = POOL_COLUMN[grain]
-    split = acb_summary_frames_by_pool(frame, grain)
-
-    pools = sorted({str(value) for value in frame[column].dropna()})
-    assert sorted(split) == pools
-    for pool in pools:
-        alone = acb_summary_frame(frame[frame[column] == pool])
-        assert split[pool].reset_index(drop=True).equals(alone.reset_index(drop=True))
-
-
-def test_splitting_by_pool_refuses_the_folio_grain() -> None:
-    """Folio grain is a single pool, so splitting it means nothing."""
-    with pytest.raises(ValueError, match="single pool"):
-        acb_summary_frames_by_pool(_two_account_frame(), Grain.FOLIO)
-
-
-def test_splitting_an_untracked_frame_yields_nothing() -> None:
-    frame = ledger_frame(
-        run(
-            [
-                make_row(
-                    1,
-                    "2024-01-02",
-                    Action.CONTRIBUTION,
-                    amount="1000",
-                    ticker=None,
-                ),
-            ],
-        ),
-    )
-    assert acb_summary_frames_by_pool(frame, Grain.TYPE) == {}
-    assert acb_summary_frames_by_pool(pd.DataFrame(), Grain.TYPE) == {}
+    assert result.holdings == {}
 
 
 # --- totals --------------------------------------------------------------------

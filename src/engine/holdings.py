@@ -1,27 +1,20 @@
-"""Turn the replayed frame plus quotes into valued holdings."""
+"""Turn the replay's holdings plus quotes into valued holdings."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
-import pandas as pd
-
-from domain import Column, Currency, DiagnosticCode, Grain
-from domain.numeric import ONE, ZERO, dec, safe_div
+from domain import Currency, DiagnosticCode, Grain
+from domain.numeric import ONE, ZERO, safe_div
 from engine.accounts import FOLIO, Pool
-from engine.frames import (
-    POOL_COLUMN,
-    acb_summary_frame,
-    acb_summary_frames_by_pool,
-    grain_column,
-)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
     from decimal import Decimal
 
     from engine.fx_rates import FxRates
+    from engine.types import HoldingState, PoolHoldings
     from models import Quote
 
 # The currency a report shows its figures in
@@ -347,138 +340,30 @@ class HoldingSet:
         return tuple(seen)
 
 
-def grain_rows(frame: pd.DataFrame, pool: Pool) -> pd.DataFrame:
-    """Narrow the ledger to one pool.
-
-    Args:
-        frame: The ledger.
-        pool: The pool to keep.
-
-    Returns:
-        The rows belonging to that pool. Folio grain filters nothing.
-    """
-    column = POOL_COLUMN.get(pool.grain)
-    if column is None:
-        return frame
-    return frame[frame[column] == pool.name]
-
-
-def held_symbols(frame: pd.DataFrame) -> list[str]:
-    """Every symbol the folio still holds anywhere, at folio grain.
-
-    Args:
-        frame: The ledger.
-
-    Returns:
-        Canonical symbols with a non-zero holding at the folio grain, sorted.
-    """
-    return _open_symbols(acb_summary_frame(frame))
-
-
-def _open_symbols(summary: pd.DataFrame) -> list[str]:
-    """Read the still-held symbols off a folio-grain summary frame."""
-    if summary.empty:
-        return []
-    column = grain_column(Grain.FOLIO, "Units")
-    open_holdings = summary[summary[column].fillna(0) != 0]
-    return sorted(
-        {str(symbol) for symbol in open_holdings[Column.Ledger.SYMBOL] if symbol},
-    )
-
-
-@dataclass(frozen=True)
-class _Rollups:
-    """One pool's derived inputs, read off the frame before anything is valued."""
-
-    summary: pd.DataFrame
-    flags: dict[str, tuple[DiagnosticCode, ...]]
-    income: dict[str, tuple[Decimal, Decimal]]
-
-
-def _rollup(rows: pd.DataFrame, summary: pd.DataFrame) -> _Rollups:
-    """Derive one pool's flag and income rollups to sit beside its summary."""
-    return _Rollups(
-        summary=summary,
-        flags=_flags_by_symbol(rows),
-        income=_dividends_by_symbol(rows),
-    )
-
-
 class FolioHoldings:
-    """One invocation's frame and quotes, with the per-pool rollups memoized.
-
-    Valuing a pool means first deriving three things from the ledger: the
-    summary frame, the flag rollup and the dividend rollup.
+    """One invocation's holding states and quotes, ready to value any pool.
 
     Nothing here is cached beyond the object's own life.
     """
 
     def __init__(
         self,
-        frame: pd.DataFrame,
+        by_pool: PoolHoldings,
         quotes: Mapping[str, Quote],
         fx: FxRates,
     ) -> None:
         """Hold one invocation's inputs.
 
         Args:
-            frame: The replayed ledger.
+            by_pool: Every pool's holdings, as the replay left them.
             quotes: Canonical symbol to its cached quote.
             fx: Rates to convert a quote's currency into the display currency.
         """
-        self.frame = frame
+        self.by_pool = by_pool
         self.quotes = quotes
         self.fx = fx
-        self._rollups: dict[Pool, _Rollups] = {}
         self._market: Decimal | None = None
         self._valued = False
-
-    def price(self, quotes: Mapping[str, Quote]) -> None:
-        """Supply the quotes, once the symbols worth fetching are known.
-
-        Args:
-            quotes: Canonical symbol to its cached quote.
-        """
-        self.quotes = quotes
-        # Anything already valued was valued without these.
-        self._market = None
-        self._valued = False
-
-    def rollups(self, pool: Pool) -> _Rollups:
-        """Derive one pool's inputs, or hand back the ones already derived."""
-        held = self._rollups.get(pool)
-        if held is None:
-            rows = grain_rows(self.frame, pool)
-            held = _rollup(rows, acb_summary_frame(rows))
-            self._rollups[pool] = held
-        return held
-
-    def prime(self, grain: Grain) -> None:
-        """Derive every pool's summary at one grain in a single pass.
-
-        We need to walk the frame anyway, lets do it all at once.
-
-        Args:
-            grain: The grain about to be reported pool by pool. Folio grain
-                is a single pool and is ignored.
-        """
-        if grain is Grain.FOLIO:
-            return
-        by_pool = acb_summary_frames_by_pool(self.frame, grain)
-        for name, summary in by_pool.items():
-            pool = Pool(grain, name)
-            if pool in self._rollups:
-                continue
-            rows = grain_rows(self.frame, pool)
-            self._rollups[pool] = _rollup(rows, summary)
-
-    def held_symbols(self) -> list[str]:
-        """Every symbol the folio still holds anywhere, at folio grain.
-
-        Returns:
-            Canonical symbols with a non-zero holding at the folio grain, sorted.
-        """
-        return _open_symbols(self.rollups(FOLIO).summary)
 
     def market_value(self) -> Decimal | None:
         """Total CAD market value of the whole folio.
@@ -520,26 +405,16 @@ class FolioHoldings:
         Raises:
             UnknownSortError: If `sort` is not a sortable measure.
         """
-        derived = self.rollups(pool)
         rate, rate_date = _latest_rate(self.fx)
         priced_totals = ZERO
         excluded = 0
         partial: list[Holding] = []
         closed: list[Holding] = []
-        context = _Context.build(
-            self,
-            derived,
-            pool=pool,
-            currency=currency,
-        )
-        # Only `-c USD` ever hides a holding, so only it has to keep count.
-        filtering = currency is Currency.USD
-        for record in derived.summary.to_dict("records"):
-            holding = _holding(record, context)
+        context = _Context(self.quotes, pool, currency, self.fx)
+        for holding_state in self.by_pool.get(pool, ()):
+            holding = _holding(holding_state, context)
             if holding is None:
-                # Count if we excluded anything due to currency filtering.
-                if filtering:
-                    excluded += _filtered_out(record, pool.grain)
+                excluded += 1
                 continue
             if holding.closed:
                 closed.append(holding)
@@ -731,59 +606,35 @@ class _Context:
     """Everything `_holding` needs that is the same for every row."""
 
     quotes: Mapping[str, Quote]
-    flags: Mapping[str, tuple[DiagnosticCode, ...]]
-    income: Mapping[str, tuple[Decimal, Decimal]]
     pool: Pool
     currency: DisplayCurrency
     fx: FxRates
 
-    @classmethod
-    def build(
-        cls,
-        folio: FolioHoldings,
-        derived: _Rollups,
-        *,
-        pool: Pool,
-        currency: DisplayCurrency,
-    ) -> _Context:
-        """Gather the context from the folio and one pool's rollups."""
-        return cls(
-            quotes=folio.quotes,
-            flags=derived.flags,
-            income=derived.income,
-            pool=pool,
-            currency=currency,
-            fx=folio.fx,
-        )
 
+def _holding(holding_state: HoldingState, ctx: _Context) -> Holding | None:
+    """Value one holding state, or None when a USD view hides a CAD holding."""
+    symbol = holding_state.symbol
+    held = holding_state.units
 
-def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
-    """Value one summary row, or None when a USD view hides a CAD holding."""
-    # Every summary row is one symbol's, as `acb_summary_frame` groups by it.
-    symbol = str(record[Column.Ledger.SYMBOL])
-    grain = ctx.pool.grain
-    held = dec(record.get(grain_column(grain, "Units")))
-    closed = held == ZERO
-
-    native = _native_currency(record, grain)
-    shown = native if ctx.currency == "native" else ctx.currency
-    if ctx.currency == Currency.USD and native is not Currency.USD:
-        # The USD columns are blank by design for a CAD-denominated holding
+    shown = holding_state.currency if ctx.currency == "native" else ctx.currency
+    if ctx.currency == Currency.USD and holding_state.currency is not Currency.USD:
+        # A CAD holding has no USD figures to show.
         return None
 
-    totals = totals_currency(ctx.currency)
-    book, avg = _cost(record, grain, shown, native)
-    # The totals-currency book value is read off the frame, never converted
-    book_totals, _ = _cost(record, grain, totals, native)
+    totals_in = totals_currency(ctx.currency)
+    book, avg = holding_state.cost_in(shown)
+    # The totals-currency book value is the replay's own, never converted.
+    book_totals, _ = holding_state.cost_in(totals_in)
 
     # Realized gains and dividends are history, not valuation, so both are read
-    # in whichever currency the frame already holds them in. Neither is ever
-    # converted at today's rate.
-    realized = _realized(record, grain, shown, native)
-    realized_totals = _realized(record, grain, totals, native)
-    dividends, dividends_totals = _income(ctx.income, symbol, shown, totals, native)
+    # in whichever currency the replay holds them in. Neither is ever converted
+    # at today's rate.
+    realized = holding_state.realized_in(shown)
+    realized_totals = holding_state.realized_in(totals_in)
+    dividends = holding_state.dividends_in(shown)
+    dividends_totals = holding_state.dividends_in(totals_in)
 
-    if closed:
+    if holding_state.closed:
         return Holding(
             symbol=symbol,
             name=None,
@@ -797,14 +648,14 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
             book_value_totals=book_totals,
             realized_totals=realized_totals,
             dividends_totals=dividends_totals,
-            total_pnl_cad=_cad_earned(record, ctx, symbol, native, held),
-            flags=ctx.flags.get(symbol, ()),
+            total_pnl_cad=_cad_earned(holding_state, ctx),
+            flags=holding_state.flags,
             closed=True,
         )
 
     quote = ctx.quotes.get(symbol)
     price, prev_close = converted_price(quote, shown, ctx.fx)
-    price_totals, prev_totals = converted_price(quote, totals, ctx.fx)
+    price_totals, prev_totals = converted_price(quote, totals_in, ctx.fx)
 
     started = Holding(
         symbol=symbol,
@@ -820,7 +671,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         book_value_totals=book_totals,
         realized_totals=realized_totals,
         dividends_totals=dividends_totals,
-        flags=ctx.flags.get(symbol, ()),
+        flags=holding_state.flags,
     )
     if price is None:
         return started
@@ -860,7 +711,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         market_value_totals=market_totals,
         market_value_cad=(
             market_totals
-            if totals is Currency.CAD
+            if totals_in is Currency.CAD
             else _market_in_cad(quote, held, ctx.fx)
         ),
         day_pnl_totals=None if change_totals is None else change_totals * held,
@@ -870,11 +721,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
         total_pnl_totals=None
         if gain_totals is None
         else gain_totals + dividends_totals,
-        total_pnl_cad=(
-            None
-            if gain_totals is None
-            else _cad_earned(record, ctx, symbol, native, held)
-        ),
+        total_pnl_cad=None if gain_totals is None else _cad_earned(holding_state, ctx),
     )
 
 
@@ -902,56 +749,27 @@ def _market_in_cad(
     return None if price is None else price * held
 
 
-def _cad_earned(
-    record: Mapping[Any, Any],
-    ctx: _Context,
-    symbol: str,
-    native: Currency,
-    held: Decimal,
-) -> Decimal | None:
+def _cad_earned(holding_state: HoldingState, ctx: _Context) -> Decimal | None:
     """Read everything one holding earned, in CAD, ignoring the display currency.
 
     Under `-c USD` every other figure on the row is USD by request, but the
-    deposit-based return
-    divides by net *CAD* deposits, so its numerator has to be read from the
-    frame's CAD columns rather than converted back at today's rate. Realized
-    gains and dividends therefore keep the historical rates they were booked
-    at, exactly as they do everywhere else.
-
-    Args:
-        record: The holding's row from the summary frame.
-        ctx: The valuation context, for the quotes, income rollup and FX table.
-        symbol: Canonical security symbol.
-        native: The currency the holding trades in.
-        held: Units still held, zero for a closed holding.
+    deposit-based return divides by net *CAD* deposits, so its numerator has to
+    be the replay's CAD figures rather than converted back at today's rate.
+    Realized gains and dividends therefore keep the historical rates they were
+    booked at, exactly as they do everywhere else.
 
     Returns:
         The CAD total, or None when an open holding could not be priced.
     """
-    book, _ = _cost(record, ctx.pool.grain, Currency.CAD, native)
-    realized = _realized(record, ctx.pool.grain, Currency.CAD, native)
-    _, dividends = _income(ctx.income, symbol, Currency.CAD, Currency.CAD, native)
-    banked = realized + dividends
-    if held == ZERO:
+    banked = holding_state.realized_cad + holding_state.dividends_cad
+    if holding_state.closed:
         return banked
 
-    price, _ = converted_price(ctx.quotes.get(symbol), Currency.CAD, ctx.fx)
+    quote = ctx.quotes.get(holding_state.symbol)
+    price, _ = converted_price(quote, Currency.CAD, ctx.fx)
     if price is None:
         return None
-    return (price * held - book) + banked
-
-
-def _filtered_out(record: Mapping[Any, Any], grain: Grain) -> int:
-    """Say whether `-c USD` is why `_holding` refused a row.
-
-    Args:
-        record: The summary row `_holding` refused.
-        grain: The grain the row was read at.
-
-    Returns:
-        1 when the filter dropped a real holding, 0 otherwise.
-    """
-    return int(_native_currency(record, grain) is not Currency.USD)
+    return (price * holding_state.units - holding_state.acb_cad) + banked
 
 
 def _with_weights(
@@ -1011,84 +829,6 @@ def _with_weights(
     return filled
 
 
-def _suffix(shown: Currency, native: Currency) -> str:
-    """Pick the column variant a currency should be read from.
-
-    The `_USD` family is populated only for USD-denominated holdings, so it is
-    the right one exactly when both the holding and the request are USD.
-    """
-    return "_USD" if shown is Currency.USD and native is Currency.USD else ""
-
-
-def _cost(
-    record: Mapping[Any, Any],
-    grain: Grain,
-    shown: Currency,
-    native: Currency,
-) -> tuple[Decimal, Decimal]:
-    """Read book value and average cost in the currency being displayed."""
-    suffix = _suffix(shown, native)
-    book = dec(record.get(grain_column(grain, f"ACB{suffix}")))
-    avg = dec(record.get(grain_column(grain, f"Avg{suffix}")))
-    return book, avg
-
-
-def _realized(
-    record: Mapping[Any, Any],
-    grain: Grain,
-    shown: Currency,
-    native: Currency,
-) -> Decimal:
-    """Read the cumulative realized gain in the currency being displayed."""
-    return dec(record.get(grain_column(grain, f"Realized{_suffix(shown, native)}")))
-
-
-def _income(
-    dividends: Mapping[str, tuple[Decimal, Decimal]],
-    symbol: str,
-    shown: Currency,
-    totals: Currency,
-    native: Currency,
-) -> tuple[Decimal, Decimal]:
-    """Read one security's dividends, in the row's currency and the totals currency."""
-    cad, usd = dividends.get(symbol, (ZERO, ZERO))
-    return (usd if _suffix(shown, native) else cad), (
-        usd if _suffix(totals, native) else cad
-    )
-
-
-def _dividends_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[Decimal, Decimal]]:
-    """Total the dividends each security paid, within this pool.
-
-    This is summed here deliberately, as it is a plain sum of a column on every
-    row scoped to a particular security in this pool.
-
-    Args:
-        rows: The pool's rows from the ledger.
-
-    Returns:
-        Each symbol mapped to `(CAD, USD)` totals. The USD figure is blank for
-        a CAD-denominated holding, matching the frame's own convention.
-    """
-    if rows.empty or Column.Ledger.DIVIDEND not in rows.columns:
-        return {}
-    # Filter `paying` to only rows with actual dividends first.
-    paying = rows[
-        rows[Column.Ledger.DIVIDEND].notna() | rows[Column.Ledger.DIVIDEND_USD].notna()
-    ]
-    totals: dict[str, tuple[Decimal, Decimal]] = {}
-    for symbol, cad, usd in zip(
-        paying[Column.Ledger.SYMBOL].to_numpy(),
-        paying[Column.Ledger.DIVIDEND].to_numpy(),
-        paying[Column.Ledger.DIVIDEND_USD].to_numpy(),
-        strict=True,
-    ):
-        # Only a DIVIDEND row carries one, and validation requires its Ticker.
-        running = totals.get(symbol, (ZERO, ZERO))
-        totals[symbol] = (running[0] + dec(cad), running[1] + dec(usd))
-    return totals
-
-
 def converted_price(
     quote: Quote | None,
     shown: Currency,
@@ -1124,33 +864,6 @@ def converted_price(
     from_cad = fx.from_cad(price.value, today, shown)
     prev_usd = None if prev is None else fx.from_cad(prev.value, today, shown).value
     return from_cad.value, prev_usd
-
-
-def _native_currency(record: Mapping[str, object], grain: Grain) -> Currency:
-    """Infer the currency a holding trades in, off its USD columns."""
-    usd: Any = record.get(grain_column(grain, "ACB_USD"))
-    return Currency.CAD if usd is None or pd.isna(usd) else Currency.USD
-
-
-def _flags_by_symbol(rows: pd.DataFrame) -> dict[str, tuple[DiagnosticCode, ...]]:
-    """Roll the frame's `Flags` column up per symbol, within this pool."""
-    if rows.empty or Column.Ledger.FLAGS not in rows.columns:
-        return {}
-    grouped: dict[str, dict[DiagnosticCode, None]] = {}
-    for symbol, flags in zip(
-        rows[Column.Ledger.SYMBOL].to_numpy(),
-        rows[Column.Ledger.FLAGS].to_numpy(),
-        strict=True,
-    ):
-        if not isinstance(symbol, str) or not flags or pd.isna(flags):
-            continue
-        for token in str(flags).split(","):
-            try:
-                code = DiagnosticCode(token.strip())
-            except ValueError:
-                continue
-            grouped.setdefault(symbol, {}).setdefault(code, None)
-    return {symbol: tuple(codes) for symbol, codes in grouped.items()}
 
 
 def _latest_rate(fx: FxRates) -> tuple[Decimal | None, str | None]:
