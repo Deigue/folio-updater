@@ -350,7 +350,7 @@ def _closed(symbol: str, realized: str, dividends: str) -> Holding:
     return Holding(
         symbol=symbol,
         name=None,
-        pool="",
+        pool=FOLIO,
         currency=Currency.CAD,
         units=ZERO,
         avg_cost=ZERO,

@@ -295,7 +295,12 @@ def _ordered(diagnostics: Iterable[Diagnostic]) -> list[Diagnostic]:
     """Sort findings the way a reader scans them: by row, then by pool."""
     return sorted(
         diagnostics,
-        key=lambda diagnostic: (diagnostic.txn_id or 0, diagnostic.pool or ""),
+        key=lambda diagnostic: (
+            diagnostic.txn_id or 0,
+            diagnostic.pool.label if diagnostic.pool else "",
+            diagnostic.symbol or "",
+            str(diagnostic.currency or ""),
+        ),
     )
 
 

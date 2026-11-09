@@ -74,7 +74,7 @@ class Holding:
 
     symbol: str
     name: str | None
-    pool: str
+    pool: Pool
     currency: Currency
     units: Decimal
     avg_cost: Decimal
@@ -232,8 +232,7 @@ class HoldingSet:
 
     Attributes:
         holdings: The open holdings, sorted by market value.
-        grain: The grain the pool was read at.
-        pool: The pool key, empty at folio grain.
+        pool: The pool these holdings were read for.
         display_currency: The currency the figures are expressed in.
         totals_currency: The currency the totals and ratios are expressed in.
         by_currency: Subtotals per currency group, each in its own currency.
@@ -252,8 +251,7 @@ class HoldingSet:
     """
 
     holdings: list[Holding]
-    grain: Grain
-    pool: str
+    pool: Pool
     display_currency: DisplayCurrency
     closed: tuple[Holding, ...] = ()
     totals_currency: Currency = Currency.CAD
@@ -270,6 +268,11 @@ class HoldingSet:
     unpriced: tuple[str, ...] = ()
     fx_rate: Decimal | None = None
     fx_date: str | None = None
+
+    @property
+    def grain(self) -> Grain:
+        """The grain the pool sits at."""
+        return self.pool.grain
 
     @property
     def mixed_currency(self) -> bool:
@@ -526,8 +529,7 @@ class FolioHoldings:
         context = _Context.build(
             self,
             derived,
-            grain=pool.grain,
-            pool=pool.name,
+            pool=pool,
             currency=currency,
         )
         # Only `-c USD` ever hides a holding, so only it has to keep count.
@@ -559,8 +561,7 @@ class FolioHoldings:
         return HoldingSet(
             holdings=holdings,
             closed=tuple(closed),
-            grain=pool.grain,
-            pool=pool.name,
+            pool=pool,
             display_currency=currency,
             totals_currency=totals_currency(currency),
             by_currency=_by_currency(holdings, closed),
@@ -732,8 +733,7 @@ class _Context:
     quotes: Mapping[str, Quote]
     flags: Mapping[str, tuple[DiagnosticCode, ...]]
     income: Mapping[str, tuple[Decimal, Decimal]]
-    grain: Grain
-    pool: str
+    pool: Pool
     currency: DisplayCurrency
     fx: FxRates
 
@@ -743,8 +743,7 @@ class _Context:
         folio: FolioHoldings,
         derived: _Rollups,
         *,
-        grain: Grain,
-        pool: str,
+        pool: Pool,
         currency: DisplayCurrency,
     ) -> _Context:
         """Gather the context from the folio and one pool's rollups."""
@@ -752,7 +751,6 @@ class _Context:
             quotes=folio.quotes,
             flags=derived.flags,
             income=derived.income,
-            grain=grain,
             pool=pool,
             currency=currency,
             fx=folio.fx,
@@ -763,7 +761,7 @@ def _holding(record: Mapping[Any, Any], ctx: _Context) -> Holding | None:
     """Value one summary row, or None when a USD view hides a CAD holding."""
     # Every summary row is one symbol's, as `acb_summary_frame` groups by it.
     symbol = str(record[Column.Ledger.SYMBOL])
-    grain = ctx.grain
+    grain = ctx.pool.grain
     held = dec(record.get(grain_column(grain, "Units")))
     closed = held == ZERO
 
@@ -930,8 +928,8 @@ def _cad_earned(
     Returns:
         The CAD total, or None when an open holding could not be priced.
     """
-    book, _ = _cost(record, ctx.grain, Currency.CAD, native)
-    realized = _realized(record, ctx.grain, Currency.CAD, native)
+    book, _ = _cost(record, ctx.pool.grain, Currency.CAD, native)
+    realized = _realized(record, ctx.pool.grain, Currency.CAD, native)
     _, dividends = _income(ctx.income, symbol, Currency.CAD, Currency.CAD, native)
     banked = realized + dividends
     if held == ZERO:

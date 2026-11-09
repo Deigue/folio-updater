@@ -186,9 +186,7 @@ class _Pools:
         self._by_grain: dict[Grain, dict[tuple[Pool, str], HoldingState]] = {
             grain: {} for grain in Grain
         }
-        self._seen_splits: dict[Grain, set[tuple[str, str, str, str]]] = {
-            grain: set() for grain in Grain
-        }
+        self._seen_splits: set[tuple[Pool, str, str, str]] = set()
 
     def state(self, pool: Pool, symbol: str) -> HoldingState:
         """Return the state for one pool and symbol, creating it if new."""
@@ -201,17 +199,16 @@ class _Pools:
         """Iterate every (pool, symbol) state at one grain."""
         return self._by_grain[grain].items()
 
-    def claim_split(self, grain: Grain, key: tuple[str, str, str, str]) -> bool:
+    def claim_split(self, key: tuple[Pool, str, str, str]) -> bool:
         """Record a split, returning False when this pool has already had it.
 
         One corporate action reported by three brokers applies once to the
         pooled type and folio grains, but three times across the three
         account pools: each account really did split.
         """
-        seen = self._seen_splits[grain]
-        if key in seen:
+        if key in self._seen_splits:
             return False
-        seen.add(key)
+        self._seen_splits.add(key)
         return True
 
 
@@ -247,7 +244,6 @@ class _Replay:
         self.cfg = cfg
         self.pools = _Pools()
         self.result = ReplayResult()
-        self._seen: set[tuple[DiagnosticCode, int | None, str | None]] = set()
         pairs, _unpaired = pair_transfers(rows)
         self.pairs = [self._located(pair) for pair in pairs]
         self.pair_of: dict[int, TransferPair] = {
@@ -336,8 +332,7 @@ class _Replay:
         self,
         code: DiagnosticCode,
         row: Txn | None = None,
-        grain: Grain | None = None,
-        pool: str | None = None,
+        pool: Pool | None = None,
         detail: str = "",
         *,
         account: str | None = None,
@@ -346,17 +341,12 @@ class _Replay:
         as_of: str | None = None,
         value: Decimal | None = None,
     ) -> None:
-        """Record a diagnostic once per (code, row, pool)."""
+        """Record a diagnostic."""
         txn_id = row.txn_id if row is not None else None
-        key = (code, txn_id, pool)
-        if key in self._seen:
-            return
-        self._seen.add(key)
         self.result.diagnostics.append(
             Diagnostic(
                 code=code,
                 txn_id=txn_id,
-                grain=grain,
                 pool=pool,
                 detail=detail,
                 account=account or (row.account if row is not None else None),
@@ -387,8 +377,7 @@ class _Replay:
             if known.account_type is AccountType.UNKNOWN:
                 self.diagnose(
                     DiagnosticCode.UNKNOWN_ACCOUNT_TYPE,
-                    grain=Grain.ACCOUNT,
-                    pool=account,
+                    pool=Pool(Grain.ACCOUNT, account),
                     detail=f"Could not infer an account type for account '{account}'",
                     account=account,
                 )
@@ -438,7 +427,7 @@ class _Replay:
             pool = Pool.of(grain, row, acct_type)
             state = self.pools.state(pool, symbol)
             before = replace(state)
-            self._apply_to_pool(row, grain, pool.label, symbol, state)
+            self._apply_to_pool(row, pool, symbol, state)
             measures[grain] = _snapshot(state, before)
 
         proceeds_cad, proceeds_usd = self._proceeds(row)
@@ -519,8 +508,7 @@ class _Replay:
     def _apply_to_pool(
         self,
         row: Txn,
-        grain: Grain,
-        pool: str,
+        pool: Pool,
         symbol: str,
         state: HoldingState,
     ) -> None:
@@ -535,26 +523,25 @@ class _Replay:
         if row.action is Action.BUY:
             self._apply_buy(row, state)
         elif row.action is Action.SELL:
-            self._apply_sell(row, grain, pool, symbol, state)
+            self._apply_sell(row, pool, symbol, state)
         elif row.action is Action.ROC:
-            self._apply_roc(row, grain, pool, symbol, state)
+            self._apply_roc(row, pool, symbol, state)
         elif row.action is Action.SPLIT:
-            self._apply_split(row, grain, pool, symbol, state)
+            self._apply_split(row, pool, symbol, state)
         elif row.action in TRANSFER_ACTIONS:
-            self._apply_transfer(row, grain, state)
+            self._apply_transfer(row, pool.grain, state)
         elif (
             row.action is Action.DIVIDEND
             and self._income_is_orphaned(row, state)
-            and grain is Grain.ACCOUNT
+            and pool.grain is Grain.ACCOUNT
         ):
             # Account grain only: the pooled grains have no holding either, and
             # three copies of one diagnostic is noise, not extra information.
             self.diagnose(
                 DiagnosticCode.INCOME_WITHOUT_HOLDING,
                 row,
-                grain=grain,
                 pool=pool,
-                detail=f"Dividend on {symbol} with no holding in {pool}",
+                detail=f"Dividend on {symbol} with no holding in {pool.label}",
                 symbol=symbol,
             )
 
@@ -583,8 +570,7 @@ class _Replay:
     def _apply_sell(
         self,
         row: Txn,
-        grain: Grain,
-        pool: str,
+        pool: Pool,
         symbol: str,
         state: HoldingState,
     ) -> None:
@@ -603,9 +589,8 @@ class _Replay:
             self.diagnose(
                 DiagnosticCode.OVERSELL,
                 row,
-                grain=grain,
                 pool=pool,
-                detail=f"Sold {sold} against {held} held in {pool}",
+                detail=f"Sold {sold} against {held} held in {pool.label}",
                 symbol=symbol,
                 value=held,
             )
@@ -630,8 +615,7 @@ class _Replay:
     def _apply_roc(
         self,
         row: Txn,
-        grain: Grain,
-        pool: str,
+        pool: Pool,
         symbol: str,
         state: HoldingState,
     ) -> None:
@@ -654,27 +638,27 @@ class _Replay:
             self.diagnose(
                 DiagnosticCode.ROC_EXCEEDS_ACB,
                 row,
-                grain=grain,
                 pool=pool,
-                detail=f"{excess_cad} of return of capital exceeds cost base in {pool}",
+                detail=(
+                    f"{excess_cad} of return of capital exceeds cost base in "
+                    f"{pool.label}"
+                ),
                 symbol=symbol,
                 value=excess_cad,
             )
-        if self._income_is_orphaned(row, state) and grain is Grain.ACCOUNT:
+        if self._income_is_orphaned(row, state) and pool.grain is Grain.ACCOUNT:
             self.diagnose(
                 DiagnosticCode.INCOME_WITHOUT_HOLDING,
                 row,
-                grain=grain,
                 pool=pool,
-                detail=f"Return of capital with no holding in {pool}",
+                detail=f"Return of capital with no holding in {pool.label}",
                 symbol=symbol,
             )
 
     def _apply_split(
         self,
         row: Txn,
-        grain: Grain,
-        pool: str,
+        pool: Pool,
         symbol: str,
         state: HoldingState,
     ) -> None:
@@ -692,15 +676,15 @@ class _Replay:
             return
 
         ratio = units / price
-        if not self.pools.claim_split(grain, (pool, symbol, row.txn_date, str(ratio))):
-            if grain is Grain.ACCOUNT:
+        if not self.pools.claim_split((pool, symbol, row.txn_date, str(ratio))):
+            if pool.grain is Grain.ACCOUNT:
                 self.diagnose(
                     DiagnosticCode.DUPLICATE_SPLIT,
                     row,
-                    grain=grain,
                     pool=pool,
                     detail=(
-                        f"{symbol} already split {ratio} on {row.txn_date} in {pool}"
+                        f"{symbol} already split {ratio} on {row.txn_date} "
+                        f"in {pool.label}"
                     ),
                     symbol=symbol,
                     as_of=row.txn_date,
@@ -708,13 +692,12 @@ class _Replay:
             return
 
         if state.units == ZERO:
-            if grain is Grain.ACCOUNT:
+            if pool.grain is Grain.ACCOUNT:
                 self.diagnose(
                     DiagnosticCode.SPLIT_WITHOUT_HOLDING,
                     row,
-                    grain=grain,
                     pool=pool,
-                    detail=f"Split of {symbol} with no holding in {pool}",
+                    detail=f"Split of {symbol} with no holding in {pool.label}",
                     symbol=symbol,
                     as_of=row.txn_date,
                 )
@@ -1027,8 +1010,7 @@ class _Replay:
                 self.diagnose(
                     DiagnosticCode.CASH_NEGATIVE,
                     first,
-                    grain=Grain.ACCOUNT,
-                    pool=f"{account}:{currency}",
+                    pool=Pool(Grain.ACCOUNT, account),
                     detail=f"{account} {currency} cash is {state.cash} as of {on}",
                     account=account,
                     currency=currency,
@@ -1043,12 +1025,10 @@ class _Replay:
         for grain in Grain:
             for (pool, symbol), state in self.pools.all_states(grain):
                 if state.units < -DUST_UNITS:
-                    label = pool.label
                     self.diagnose(
                         DiagnosticCode.NEGATIVE_FINAL_UNITS,
-                        grain=grain,
-                        pool=f"{label}:{symbol}",
-                        detail=f"{symbol} ends at {state.units} units in {label}",
+                        pool=pool,
+                        detail=f"{symbol} ends at {state.units} units in {pool.label}",
                         account=pool.name if grain is Grain.ACCOUNT else None,
                         symbol=symbol,
                         value=state.units,
@@ -1076,8 +1056,7 @@ class _Replay:
             for account in sorted(holders - recorded):
                 self.diagnose(
                     DiagnosticCode.SPLIT_MISSING_ON_ACCOUNT,
-                    grain=Grain.ACCOUNT,
-                    pool=f"{symbol}:{on}:{account}",
+                    pool=Pool(Grain.ACCOUNT, account),
                     detail=f"Split on {symbol} missing on account {account}",
                     account=account,
                     symbol=symbol,
@@ -1112,7 +1091,6 @@ class _Replay:
                     self.diagnose(
                         DiagnosticCode.MIXED_CURRENCY,
                         row,
-                        pool=symbol,
                         detail=(
                             f"{symbol} is booked in {currency} here and in "
                             f"{main} on {len(ranked[0][1])} other row(s)"

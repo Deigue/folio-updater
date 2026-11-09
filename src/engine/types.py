@@ -162,8 +162,7 @@ class Diagnostic:
     Attributes:
         code: Which diagnostic fired.
         txn_id: The row it tags, or None for a pool-level diagnostic.
-        grain: The pool grain it was detected at, where that matters.
-        pool: The account, type or folio it was detected on, as reports name it.
+        pool: The pool it was detected on, where that matters.
         detail: Human-readable specifics.
         account: The account the diagnostic is about, where it is about one.
         symbol: The canonical security the diagnostic is about, where there is one.
@@ -176,14 +175,18 @@ class Diagnostic:
 
     code: DiagnosticCode
     txn_id: int | None = None
-    grain: Grain | None = None
-    pool: str | None = None
+    pool: Pool | None = None
     detail: str = ""
     account: str | None = None
     symbol: str | None = None
     currency: Currency | None = None
     as_of: str | None = None
     value: Decimal | None = None
+
+    @property
+    def grain(self) -> Grain | None:
+        """The grain of the pool it was detected on, if any."""
+        return None if self.pool is None else self.pool.grain
 
 
 # Cash is tracked per pool and currency.
@@ -320,7 +323,7 @@ class ReplayResult:
 
     Attributes:
         rows: One `LedgerRow` per transaction, in transaction-date order.
-        diagnostics: Diagnostics raised, deduplicated.
+        diagnostics: Diagnostics raised.
         cash: Running cash and income totals per pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
         deposit_shares: The net deposits each transfer leg moved, per pool it moved in.

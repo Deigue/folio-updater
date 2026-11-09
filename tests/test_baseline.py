@@ -167,6 +167,8 @@ def _cell(value: object) -> str:
         return ""
     if isinstance(value, Enum):
         return str(value.value)
+    if isinstance(value, Pool):
+        return value.name
     if isinstance(value, float):
         return repr(value)
     if isinstance(value, (tuple, list)):

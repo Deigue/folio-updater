@@ -85,8 +85,7 @@ class Flows:
     """Cash and cumulative income for one pool, per currency.
 
     Attributes:
-        grain: The grain these figures were read at.
-        pool: The pool key, empty at folio grain.
+        pool: The pool these figures were read for.
         account_type: The type this pool is, when it is exactly one.
         cash: Running cash balance.
         contributions: Cumulative `CONTRIBUTION` only.
@@ -105,8 +104,7 @@ class Flows:
             that carries one.
     """
 
-    grain: Grain
-    pool: str
+    pool: Pool
     account_type: AccountType | None = None
     cash: dict[Currency, Decimal] = field(default_factory=dict)
     contributions: dict[Currency, Decimal] = field(default_factory=dict)
@@ -117,6 +115,11 @@ class Flows:
     fees: dict[Currency, Decimal] = field(default_factory=dict)
     realized: dict[Currency, Decimal] = field(default_factory=dict)
     room: Room | None = None
+
+    @property
+    def grain(self) -> Grain:
+        """The grain the pool sits at."""
+        return self.pool.grain
 
     @property
     def net_deposits(self) -> dict[Currency, Decimal]:
@@ -229,8 +232,7 @@ def build_flows(  # noqa: PLR0913
     }
 
     return Flows(
-        grain=pool.grain,
-        pool=pool.name,
+        pool=pool,
         account_type=account_type,
         cash=_measure(states, "cash"),
         contributions=_measure(states, "contributions"),

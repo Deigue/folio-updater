@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from domain import AccountType, Action, Column, Currency, DiagnosticCode, Grain
-from engine.accounts import Pool
+from engine.accounts import FOLIO, Pool
 from engine.flows import (
     Flows,
     Room,
@@ -547,13 +547,11 @@ def test_a_sub_cent_residue_is_not_a_missing_transaction() -> None:
     matters most.
     """
     dusty = Flows(
-        grain=Grain.FOLIO,
-        pool="",
+        pool=FOLIO,
         cash={Currency.CAD: Decimal("-0.000002999")},
     )
     genuinely_short = Flows(
-        grain=Grain.FOLIO,
-        pool="",
+        pool=FOLIO,
         cash={Currency.CAD: Decimal("-0.01")},
     )
 
@@ -564,8 +562,7 @@ def test_a_sub_cent_residue_is_not_a_missing_transaction() -> None:
 def _funded(**deposits: str) -> Flows:
     """Build a pool carrying nothing but the named contributions."""
     return Flows(
-        grain=Grain.FOLIO,
-        pool="",
+        pool=FOLIO,
         contributions={
             Currency[code]: Decimal(amount) for code, amount in deposits.items()
         },
@@ -1295,8 +1292,7 @@ def test_a_type_never_contributed_to_is_absent(temp_ctx: TempContext) -> None:
 def test_a_transfer_names_what_it_moved_only_when_not_the_deposits_it_carried() -> None:
     """A grown pool sends more than its deposits; a residue below a cent is equal."""
     flows = Flows(
-        grain=Grain.ACCOUNT,
-        pool="Sender",
+        pool=Pool(Grain.ACCOUNT, "Sender"),
         transfers={Currency.CAD: Decimal(-4000), Currency.USD: Decimal(-700)},
         transfers_value={
             Currency.CAD: Decimal(-5000),

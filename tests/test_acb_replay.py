@@ -17,7 +17,7 @@ from domain import (
     FeeConvention,
     Grain,
 )
-from engine.accounts import Pool
+from engine.accounts import FOLIO, Pool
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
@@ -1640,7 +1640,7 @@ def test_unknown_account_type_is_reported_once() -> None:
         w for w in result.diagnostics if w.code is DiagnosticCode.UNKNOWN_ACCOUNT_TYPE
     ]
     assert len(unknown) == 1
-    assert unknown[0].pool == "MYSTERY"
+    assert unknown[0].pool == Pool(Grain.ACCOUNT, "MYSTERY")
     assert unknown[0].txn_id is None
 
 
@@ -1848,10 +1848,8 @@ def test_a_no_holding_diagnostic_is_reported_once_per_row() -> None:
     assert without_holding[0].grain is Grain.ACCOUNT
 
 
-def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type() -> (
-    None
-):
-    """Account pool `TFSA` and type pool `TFSA` are the same key; diagnose once."""
+def test_an_account_named_after_its_type_is_diagnosed_at_each_grain() -> None:
+    """Account pool `TFSA` and type pool `TFSA` are different pools."""
     result = run(
         [
             make_row(
@@ -1876,8 +1874,11 @@ def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type(
         types={"TFSA": AccountType.TFSA},
     )
     oversells = [w for w in result.diagnostics if w.code is DiagnosticCode.OVERSELL]
-    # Account, type and folio would be three, but two of them share a pool key.
-    assert [w.pool for w in oversells] == ["TFSA", "Portfolio"]
+    assert [w.pool for w in oversells] == [
+        Pool(Grain.ACCOUNT, "TFSA"),
+        Pool(Grain.TYPE, "TFSA"),
+        FOLIO,
+    ]
 
 
 def test_a_transfer_leg_carrying_a_ticker_but_no_units_moves_only_cash() -> None:

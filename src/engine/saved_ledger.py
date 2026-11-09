@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -94,11 +94,22 @@ def _optional(convert: Callable[[Any], Any]) -> Callable[[Any], Any]:
     return lambda value: convert(value) if value else None
 
 
+def _encode_pool(pool: Pool | None) -> str | None:
+    """Flatten a pool into text, keeping None as a genuine blank."""
+    return None if pool is None else json.dumps([str(pool.grain), pool.name])
+
+
+def _decode_pool(stored: str) -> Pool:
+    """Restore a pool from `_encode_pool`."""
+    grain, name = json.loads(stored)
+    return Pool(Grain(grain), name)
+
+
 # How the fields that are not plain text come back from storage.
 _DIAGNOSTIC_DECODERS: dict[str, Callable[[Any], Any]] = {
     "code": DiagnosticCode,
     "txn_id": _optional(int),
-    "grain": _optional(Grain),
+    "pool": _optional(_decode_pool),
     "currency": _optional(Currency),
     "value": _number,
 }
@@ -129,7 +140,8 @@ _ROW_ENCODERS: dict[str, Callable[[Any], Any]] = {
 
 def _encode_diagnostic(diagnostic: Diagnostic) -> dict[str, str | None]:
     """Flatten one diagnostic."""
-    return {name: _text(getattr(diagnostic, name)) for name in _DIAGNOSTIC_COLUMNS}
+    encoded = {name: _text(getattr(diagnostic, name)) for name in _DIAGNOSTIC_COLUMNS}
+    return encoded | {"pool": _encode_pool(diagnostic.pool)}
 
 
 def _decode_diagnostic(record: Mapping[Hashable, Any]) -> Diagnostic:
