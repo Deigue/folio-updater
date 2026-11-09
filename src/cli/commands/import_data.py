@@ -12,6 +12,7 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet, refuse_unsupported_file
 from datagen import DemoFolio, is_demo_folio
+from db import DatabaseError
 from importers import import_transactions
 from models import FileImport
 from services.broker_files import archive, waiting_files
@@ -96,7 +97,7 @@ def import_file(
             config = get_config()
             txn_sheet = config.txn_sheet
             results = import_transactions(file_path, None, txn_sheet)
-        except (OSError, ValueError, KeyError) as e:
+        except (OSError, ValueError, KeyError, DatabaseError) as e:
             console_error(f"Error importing {file_path.name}: {e}")
             return FileImport(file_path, error=str(e))
 

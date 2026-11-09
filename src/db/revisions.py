@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from db.queries import get_connection, get_revisions
+from db.connection import get_connection
+from db.queries import get_revisions
 
 
 def tokens() -> dict[str, str]:

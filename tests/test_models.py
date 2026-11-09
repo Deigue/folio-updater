@@ -7,12 +7,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import pytest
 
 from db import txns as txn_store
 from db.catalog import get_columns
-from db.queries import append_rows, get_connection, get_rows
+from db.connection import get_connection
+from db.queries import get_rows, insert_rows
 from db.schema import (
     create_fx_table,
     create_quote_history_table,
@@ -36,6 +36,7 @@ from models.columns import stored_columns
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import pandas as pd
     from _typeshed import DataclassInstance
 
     from tests.helpers.context import TempContext
@@ -52,7 +53,7 @@ def _store_txns(new: list[NewTxn]) -> list[Txn]:
 def _store(table: Table, rows: list[dict[str, object]]) -> list[dict[str, object]]:
     """Append rows to a side table, then read every row back."""
     with get_connection() as conn:
-        append_rows(conn, table, pd.DataFrame(rows))
+        insert_rows(conn, table, rows)
         return _records(get_rows(conn, table))
 
 

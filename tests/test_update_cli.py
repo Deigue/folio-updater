@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
+from db import txns
 from services import WealthsimpleServiceError
 from services.wealthsimple_service import WealthsimpleAuthenticationError
 
@@ -112,6 +115,30 @@ def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
         assert_in_output("folio update --resume", result)
         assert_in_output("folio download -b ibkr -f 2026-09-01 -t 2026-10-03", result)
         assert_not_in_output("Folio workbook", result)
+
+
+def test_a_database_error_stops_the_import_with_the_way_back(
+    temp_ctx: TempContext,
+) -> None:
+    """The file waits for a retry, instead of the error ending the whole update."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        waiting = config.imports_path / WS_FILE
+        create_transaction_data(waiting)
+
+        with patch.object(
+            txns,
+            "append",
+            side_effect=sqlite3.OperationalError("database is locked"),
+        ):
+            result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+
+        assert result.exit_code == 1
+        assert result.exception is None or isinstance(result.exception, SystemExit)
+        assert waiting.exists()
+        assert_in_output("Update stopped at Import", result)
+        assert_in_output("database is locked", result)
+        assert_in_output("folio update --resume", result)
 
 
 def test_an_update_over_the_demo_stops_until_you_replace_it(

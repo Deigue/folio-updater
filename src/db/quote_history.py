@@ -6,10 +6,10 @@ import logging
 import sqlite3
 from typing import TYPE_CHECKING
 
+from db.connection import get_connection
 from db.queries import (
     build_in_clause,
     delete_rows,
-    get_connection,
     get_records,
     replace_rows,
 )

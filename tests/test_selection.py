@@ -381,7 +381,7 @@ def _seed_commissions(values: dict[int, str]) -> None:
         values: TxnId to the commission text stored against it.
     """
     with get_connection() as conn:
-        add_column_to_table(conn, Table.TXNS, "Commission", "TEXT")
+        add_column_to_table(conn, Table.TXNS, "Commission")
         update_rows(
             conn,
             Table.TXNS,

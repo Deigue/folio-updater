@@ -74,10 +74,7 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
                 console_success("Alias already set as given.")
                 return
 
-            if not aliases.write([alias]):
-                console_error("Failed to add alias.")
-                entry.failed("the table refused the alias")
-                return
+            aliases.write([alias])
             entry.done(_log_alias_write(previous, alias, current_backup()))
             console_success("Successfully added alias.")
         except OSError as e:

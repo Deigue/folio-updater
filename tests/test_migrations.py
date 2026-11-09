@@ -10,8 +10,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from db.connection import get_connection
 from db.migrations import LATEST, MigrationError, bring_up_to_date
-from db.queries import append_rows, get_connection, get_rows
+from db.queries import get_records, get_rows, insert_rows
 from db.schema import (
     create_fx_table,
     create_quote_history_table,
@@ -180,11 +181,14 @@ def test_migrating_keeps_every_transaction_its_id_and_its_extra_columns(
         )
         with get_connection() as conn:
             frame = get_rows(conn, Table.TXNS, order_by=f'"{Column.Txn.TXN_ID}"')
-            append_rows(
+            (first,) = get_records(
                 conn,
                 Table.TXNS,
-                frame.drop(columns=[Column.Txn.TXN_ID]).head(1),
+                order_by=f'"{Column.Txn.TXN_ID}"',
+                limit=1,
             )
+            del first[Column.Txn.TXN_ID]
+            insert_rows(conn, Table.TXNS, [first])
             (next_id,) = conn.execute('SELECT MAX("TxnId") FROM "Txns"').fetchone()
 
     records = frame.astype(object).where(frame.notna(), None).to_dict("records")

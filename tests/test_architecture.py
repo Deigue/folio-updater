@@ -148,7 +148,9 @@ def test_sql_stays_in_the_db_package() -> None:
 
 
 # What only `src/db` may import.
-_DATABASE_INTERNALS = frozenset({"sqlite3", "db", "db.queries", "db.get_connection"})
+_DATABASE_INTERNALS = frozenset(
+    {"sqlite3", "db", "db.queries", "db.connection", "db.get_connection"},
+)
 
 
 def _imported_names(node: ast.Import | ast.ImportFrom) -> set[str]:

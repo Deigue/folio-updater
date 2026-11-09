@@ -7,17 +7,16 @@ from typing import TYPE_CHECKING
 from app import get_config
 from config.optional_fields import FieldType
 from db.backup import backup_folio
-from db.catalog import get_columns
+from db.catalog import add_column_to_table, drop_table, get_columns
+from db.connection import get_connection
 from db.queries import (
-    add_column_to_table,
+    begin_write,
     build_comparison_clause,
     build_in_clause,
     build_sort_clause,
     delete_rows,
-    drop_table,
     earliest_transaction_date,
     get_broker_latest_txn_date,
-    get_connection,
     get_distinct_set,
     get_distinct_values,
     get_max_value,
@@ -216,6 +215,7 @@ def append(new: Sequence[NewTxn]) -> list[int]:
         return []
     backup_folio()
     with get_connection() as conn:
+        begin_write(conn)
         _add_extra_columns(conn, new)
         return insert_rows(conn, Table.TXNS, [txn.to_row() for txn in new])
 
@@ -251,6 +251,9 @@ def trial_append(new: Sequence[NewTxn]) -> list[sqlite3.IntegrityError | None]:
         the one refused, which is the last entry.
     """
     with get_connection() as conn:
+        # Never committed: closing the connection undoes the columns too.
+        begin_write(conn)
+        _add_extra_columns(conn, new)
         return trial_insert_rows(conn, Table.TXNS, [txn.to_row() for txn in new])
 
 

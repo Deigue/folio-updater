@@ -19,13 +19,16 @@ from db import (
     txns,
 )
 from db.backup import backup_folio, backup_scope, current_backup
-from db.catalog import get_columns, get_tables, get_triggers
-from db.queries import (
+from db.catalog import (
     add_column_to_table,
-    append_rows,
-    delete_rows,
     drop_table,
-    get_connection,
+    get_columns,
+    get_tables,
+    get_triggers,
+)
+from db.connection import get_connection
+from db.queries import (
+    delete_rows,
     get_distinct_set,
     get_max_value,
     get_min_value,
@@ -47,7 +50,6 @@ __all__ = [
     "IntegrityError",
     "add_column_to_table",
     "aliases",
-    "append_rows",
     "backup",
     "backup_folio",
     "backup_scope",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -17,6 +17,7 @@ from db import (
     aliases,
     backup_folio,
     backup_scope,
+    create_ticker_aliases_table,
     create_txns_table,
     current_backup,
     drop_table,
@@ -47,7 +48,7 @@ from models import (
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
     from pathlib import Path
 
     from .helpers.context import TempContext
@@ -807,6 +808,18 @@ def test_a_missing_table_reads_as_empty(
         assert read(conn) == empty
 
 
+@contextmanager
+def _locked_folio() -> Generator[sqlite3.Connection]:
+    """Yield a connection that finds the folio locked, without waiting on the lock."""
+    path = get_config().db_path
+    with (
+        closing(sqlite3.connect(path)) as holder,
+        closing(sqlite3.connect(path, timeout=0)) as blocked,
+    ):
+        holder.execute("BEGIN EXCLUSIVE")
+        yield blocked
+
+
 @pytest.mark.parametrize("read", [read for _, read, _ in _READS], ids=_READ_IDS)
 def test_a_locked_folio_raises_instead_of_reading_empty(
     temp_ctx: TempContext,
@@ -814,30 +827,195 @@ def test_a_locked_folio_raises_instead_of_reading_empty(
 ) -> None:
     with temp_ctx():
         create_txns_table()
-        path = get_config().db_path
         with (
-            closing(sqlite3.connect(path)) as holder,
-            closing(sqlite3.connect(path, timeout=0)) as blocked,
+            _locked_folio() as blocked,
+            pytest.raises(
+                sqlite3.OperationalError,
+                match="locked",
+            ),
         ):
-            holder.execute("BEGIN EXCLUSIVE")
-
-            with pytest.raises(sqlite3.OperationalError, match="locked"):
-                read(blocked)
+            read(blocked)
 
 
+_ALIAS_ROW = OLDER.to_row()
+_WRITES: dict[str, Callable[[sqlite3.Connection], object]] = {
+    "insert_or_replace_many": lambda conn: queries.insert_or_replace_many(
+        conn,
+        Table.TICKER_ALIASES,
+        [_ALIAS_ROW],
+    ),
+    "update_rows": lambda conn: queries.update_rows(
+        conn,
+        Table.TICKER_ALIASES,
+        [_ALIAS_ROW],
+        [Column.Aliases.OLD_TICKER],
+        [Column.Aliases.NEW_TICKER],
+    ),
+    "replace_rows": lambda conn: queries.replace_rows(
+        conn,
+        Table.TICKER_ALIASES,
+        [_ALIAS_ROW],
+        where="1=1",
+        params=[],
+    ),
+    "delete_rows": lambda conn: queries.delete_rows(conn, Table.TICKER_ALIASES),
+    "drop_table": lambda conn: drop_table(conn, Table.TICKER_ALIASES),
+    "add_column_to_table": lambda conn: add_column_to_table(
+        conn,
+        Table.TICKER_ALIASES,
+        "Note",
+    ),
+}
+
+
+@pytest.mark.parametrize("write", _WRITES.values(), ids=_WRITES.keys())
+def test_a_locked_folio_raises_instead_of_writing_nothing(
+    temp_ctx: TempContext,
+    write: Callable[[sqlite3.Connection], object],
+) -> None:
+    with temp_ctx():
+        create_ticker_aliases_table()
+        with (
+            _locked_folio() as blocked,
+            pytest.raises(
+                sqlite3.OperationalError,
+                match="locked",
+            ),
+        ):
+            write(blocked)
+
+
+_NO_NEW_TICKER = {**NEWER.to_row(), Column.Aliases.NEW_TICKER: None}
+
+
+def test_a_refused_row_undoes_the_inserts_before_it(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        create_ticker_aliases_table()
+        with get_connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                queries.insert_or_replace_many(
+                    conn,
+                    Table.TICKER_ALIASES,
+                    [_ALIAS_ROW, _NO_NEW_TICKER],
+                )
+
+            assert queries.get_row_count(conn, Table.TICKER_ALIASES) == 0
+
+
+def test_a_refused_row_undoes_the_updates_before_it(temp_ctx: TempContext) -> None:
+    moved = {**_ALIAS_ROW, Column.Aliases.NEW_TICKER: "ZZZ"}
+    with temp_ctx():
+        aliases.write([OLDER, NEWER])
+        with get_connection() as conn:
+            with pytest.raises(sqlite3.IntegrityError):
+                queries.update_rows(
+                    conn,
+                    Table.TICKER_ALIASES,
+                    [moved, _NO_NEW_TICKER],
+                    [Column.Aliases.OLD_TICKER],
+                    [Column.Aliases.NEW_TICKER],
+                )
+
+            stored = queries.get_records(
+                conn,
+                Table.TICKER_ALIASES,
+                where=f'"{Column.Aliases.OLD_TICKER}" = ?',
+                params=["AAA"],
+            )
+        assert stored == [_ALIAS_ROW]
+
+
+def test_a_refused_import_leaves_no_new_column(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        create_txns_table()
+
+        with pytest.raises(sqlite3.IntegrityError):
+            txns.append(
+                [
+                    _new_txn(extras={"BrokerRef": "R-58"}),
+                    _new_txn("MSFT", account=""),
+                ],
+            )
+
+        assert "BrokerRef" not in txns.columns()
+
+
+@pytest.mark.parametrize(
+    "write",
+    [
+        lambda conn: queries.insert_rows(conn, Table.FX, [{"Date": "2024-02-05"}]),
+        lambda conn: queries.insert_or_replace_many(
+            conn,
+            Table.FX,
+            [{"Date": "2024-02-05"}],
+        ),
+        lambda conn: add_column_to_table(conn, Table.FX, "Note"),
+    ],
+    ids=["insert_rows", "insert_or_replace_many", "add_column_to_table"],
+)
+def test_writing_to_a_missing_table_raises(
+    temp_ctx: TempContext,
+    write: Callable[[sqlite3.Connection], object],
+) -> None:
+    with (
+        temp_ctx(),
+        get_connection() as conn,
+        pytest.raises(
+            sqlite3.OperationalError,
+            match="no such table",
+        ),
+    ):
+        write(conn)
+
+
+def test_a_trial_of_a_new_extra_finds_the_refused_row_and_leaves_no_column(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        create_txns_table()
+
+        outcomes = txns.trial_append(
+            [
+                _new_txn(extras={"BrokerRef": "R-63"}),
+                _new_txn("MSFT", account=""),
+            ],
+        )
+
+        assert outcomes[0] is None
+        assert isinstance(outcomes[1], sqlite3.IntegrityError)
+        assert "BrokerRef" not in txns.columns()
+
+
+# Unquoted: SQLite reads a double-quoted unknown name as text and raises nothing.
+_BAD_CLAUSE = "Nope = 1"
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        lambda conn: queries.get_rows(conn, Table.TXNS, where=_BAD_CLAUSE),
+        lambda conn: queries.get_records(conn, Table.TXNS, where=_BAD_CLAUSE),
+        lambda conn: queries.get_row_count(conn, Table.TXNS, where=_BAD_CLAUSE),
+        lambda conn: queries.get_distinct_values(
+            conn,
+            Table.TXNS,
+            Column.Txn.TICKER,
+            filter_condition=_BAD_CLAUSE,
+        ),
+    ],
+    ids=["get_rows", "get_records", "get_row_count", "get_distinct_values"],
+)
 def test_a_misspelt_column_raises_instead_of_reading_empty(
     temp_ctx: TempContext,
+    read: Callable[[sqlite3.Connection], object],
 ) -> None:
     with temp_ctx():
         create_txns_table()
         with (
             get_connection() as conn,
-            pytest.raises(
-                sqlite3.OperationalError,
-                match="no such column",
-            ),
+            pytest.raises(sqlite3.DatabaseError, match="no such column"),
         ):
-            queries.get_records(conn, Table.TXNS, where="Nope = 1")
+            read(conn)
 
 
 def test_a_failed_backup_is_tried_again_by_the_next_write(

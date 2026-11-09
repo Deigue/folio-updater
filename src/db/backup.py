@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app import get_config
-from db.catalog import table_exists
+from db.queries import get_row_count
 from domain import TORONTO_TZ, Table
 
 if TYPE_CHECKING:
@@ -107,10 +107,7 @@ def _count_in_file(db_path: Path) -> int:
     if not db_path.exists():
         return 0
     with closing(sqlite3.connect(db_path)) as conn:
-        if not table_exists(conn, Table.TXNS):
-            return 0
-        (count,) = conn.execute(f'SELECT COUNT(*) FROM "{Table.TXNS}"').fetchone()
-    return int(count)
+        return get_row_count(conn, Table.TXNS)
 
 
 def _backup_slot(

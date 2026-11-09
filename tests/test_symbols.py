@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -239,8 +240,17 @@ def test_an_alias_the_table_refuses_closes_failed(
 ) -> None:
     with (
         temp_ctx() as ctx,
-        patch.object(aliases, "write", return_value=False),
+        patch.object(
+            aliases,
+            "write",
+            side_effect=sqlite3.IntegrityError("CHECK constraint failed"),
+        ),
     ):
-        _symbol(ctx, "--add", "OLDCO", "NEWCO", "2025-06-16")
+        result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["symbol", "--add", "OLDCO", "NEWCO", "2025-06-16"],
+        )
 
-    assert audit_trail[1:] == ["FAILED: the table refused the alias", *FOOTER]
+    assert isinstance(result.exception, sqlite3.IntegrityError)
+    assert audit_trail[1:] == ["FAILED: CHECK constraint failed", *FOOTER]

@@ -44,10 +44,10 @@ class TestQueryParserAgainstLiveSchema:
         with temp_ctx() as _ctx:
             ensure_data_exists()
             with get_connection() as conn:
-                add_column_to_table(conn, Table.TXNS, "Description", "TEXT")
-            query = parse_query_terms(["Description~RECEIPTS"], load_vocabulary())
+                add_column_to_table(conn, Table.TXNS, "BrokerRef")
+            query = parse_query_terms(["BrokerRef~RECEIPTS"], load_vocabulary())
             assert len(query.filters) == 1
-            assert query.filters[0].column == "Description"
+            assert query.filters[0].column == "BrokerRef"
             assert query.filters[0].operator == "~"
             assert query.filters[0].value == "RECEIPTS"
 

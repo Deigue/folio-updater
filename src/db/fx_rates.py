@@ -4,15 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pandas as pd
-
+from db.connection import get_connection
 from db.queries import (
-    append_rows,
-    get_connection,
     get_fx_summary,
     get_max_value,
     get_min_value,
     get_records,
+    insert_rows,
 )
 from db.schema import create_fx_table
 from domain import Column, Table
@@ -45,11 +43,7 @@ def write(rates: Sequence[FxRate]) -> int:
     """Append rates, refusing a date already held. No backup: they can be refetched."""
     create_fx_table()
     with get_connection() as conn:
-        return append_rows(
-            conn,
-            Table.FX,
-            pd.DataFrame([rate.to_row() for rate in rates]),
-        )
+        return len(insert_rows(conn, Table.FX, [rate.to_row() for rate in rates]))
 
 
 def summary(cutoff: str | None) -> str:

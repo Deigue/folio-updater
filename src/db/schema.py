@@ -6,8 +6,9 @@ import logging
 import sqlite3
 
 from db.catalog import get_triggers, watch
+from db.connection import get_connection
 from db.ddl import create_table, watch_triggers
-from db.queries import get_connection, get_revisions
+from db.queries import get_revisions
 from domain import Table
 
 logger = logging.getLogger(__name__)

@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
-from db.ddl import change_token, create_revisions, watch_triggers
+from db.ddl import EXTRA_COLUMN_TYPE, change_token, create_revisions, watch_triggers
 
 if TYPE_CHECKING:
     import sqlite3
 
     from domain import Table
+
+logger = logging.getLogger(__name__)
 
 
 def get_columns(connection: sqlite3.Connection, table_name: str) -> list[str]:
@@ -39,6 +42,24 @@ def watch(connection: sqlite3.Connection, table: Table) -> None:
     for statement in watch_triggers(table).values():
         connection.execute(statement)
     connection.execute(change_token(table))
+
+
+def add_column_to_table(
+    connection: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+) -> None:
+    """Add an extra column to a table."""
+    connection.execute(
+        f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {EXTRA_COLUMN_TYPE}',
+    )
+    logger.debug("Added column '%s' to table '%s'", column_name, table_name)
+
+
+def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
+    """Drop a table if it exists."""
+    with connection:
+        connection.execute(f'DROP TABLE IF EXISTS "{table_name}"')
 
 
 def _schema_names(connection: sqlite3.Connection, kind: str) -> list[str]:

@@ -2,39 +2,16 @@
 
 from __future__ import annotations
 
-import logging
 import sqlite3
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app import get_config
-from db.catalog import get_columns, table_exists
-from db.migrations import bring_up_to_date
+from db.catalog import table_exists
 from domain import Column, Table
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping, Sequence
-
-
-logger: logging.Logger = logging.getLogger(__name__)
-
-
-@contextmanager
-def get_connection() -> Generator[sqlite3.Connection]:
-    """Open the folio's SQLite file, migrated to the latest schema."""
-    db_path = get_config().db_path
-    try:
-        conn: sqlite3.Connection = sqlite3.connect(db_path)
-    except sqlite3.OperationalError:
-        logger.exception("Error connecting to database: %s", str(db_path))
-        raise
-    try:
-        bring_up_to_date(conn)
-        yield conn
-    finally:
-        conn.close()
+    from collections.abc import Mapping, Sequence
 
 
 def _as_float(value: str) -> float | None:
@@ -123,7 +100,11 @@ def get_rows(  # noqa: PLR0913
         query += f" WHERE {where}"
     if order_by:
         query += f" ORDER BY {order_by}"
-    return pd.read_sql_query(query, connection, params=params)
+    try:
+        return pd.read_sql_query(query, connection, params=params)
+    except pd.errors.DatabaseError as error:
+        # Pandas' own error is not one callers of this package catch.
+        raise sqlite3.DatabaseError(str(error)) from error
 
 
 def get_records(  # noqa: PLR0913
@@ -317,54 +298,6 @@ def get_fx_summary(connection: sqlite3.Connection, cutoff: str | None) -> str:
     return "|".join("" if value is None else str(value) for value in result)
 
 
-def drop_table(connection: sqlite3.Connection, table_name: str) -> None:
-    """Drop a table if it exists."""
-    query = f'DROP TABLE IF EXISTS "{table_name}"'
-    try:
-        connection.execute(query)
-        connection.commit()
-    except sqlite3.OperationalError:
-        logger.exception("Error dropping table: %s", table_name)
-
-
-def add_column_to_table(
-    connection: sqlite3.Connection,
-    table_name: str,
-    column_name: str,
-    column_type: str = "TEXT",
-) -> bool:
-    """Add a column to a table if it doesn't already exist.
-
-    Args:
-        connection: Database connection
-        table_name: Name of the table to modify
-        column_name: Name of the column to add
-        column_type: SQL data type for the column (defaults to TEXT)
-
-    Returns:
-        True if column was added or already exists, False if there was an error
-    """
-    try:
-        existing_columns = get_columns(connection, table_name)
-        if column_name in existing_columns:  # pragma: no cover
-            return True
-
-        alter_sql = (
-            f'ALTER TABLE "{table_name}" ADD COLUMN "{column_name}" {column_type}'
-        )
-        connection.execute(alter_sql)
-        logger.debug("Added column '%s' to table '%s'", column_name, table_name)
-    except sqlite3.OperationalError:
-        logger.exception(
-            "Could not add column '%s' to table '%s'",
-            column_name,
-            table_name,
-        )
-        return False
-    else:
-        return True
-
-
 def update_rows(
     connection: sqlite3.Connection,
     table_name: str,
@@ -392,20 +325,28 @@ def update_rows(
     where_clause = " AND ".join(f'"{col}" = ?' for col in where_columns)
     query = f'UPDATE "{table_name}" SET {set_clause} WHERE {where_clause}'
 
-    try:
-        params_list = []
-        for update_data in updates:
-            set_values = [update_data[col] for col in set_columns]
-            where_values = [update_data[col] for col in where_columns]
-            params_list.append(tuple(set_values + where_values))
+    params_list = []
+    for update_data in updates:
+        set_values = [update_data[col] for col in set_columns]
+        where_values = [update_data[col] for col in where_columns]
+        params_list.append(tuple(set_values + where_values))
 
+    with connection:
         cursor = connection.executemany(query, params_list)
-        connection.commit()
-    except sqlite3.OperationalError:
-        logger.exception("Error updating rows in table '%s'", table_name)
-        return 0
-    else:
-        return cursor.rowcount
+    return cursor.rowcount
+
+
+def _insert_sql(
+    table_name: str,
+    columns: Sequence[str],
+    *,
+    replace: bool = False,
+) -> str:
+    """Render the one INSERT every write shares, one placeholder per column."""
+    verb = "INSERT OR REPLACE" if replace else "INSERT"
+    listed = ", ".join(f'"{column}"' for column in columns)
+    marks = ", ".join("?" for _ in columns)
+    return f'{verb} INTO "{table_name}" ({listed}) VALUES ({marks})'
 
 
 def insert_or_replace_many(
@@ -413,7 +354,7 @@ def insert_or_replace_many(
     table_name: str,
     rows: list[dict],
 ) -> int:
-    """Insert or replace many rows in one statement.
+    """Insert or replace many rows, all or none.
 
     Every row must carry the same columns.
 
@@ -424,59 +365,22 @@ def insert_or_replace_many(
             will determine column names.
 
     Returns:
-        Number of rows written, or 0 if there was an error.
+        Number of rows written.
     """
     if not rows:
         return 0
 
     keys = list(rows[0])
-    columns = ", ".join(f'"{col}"' for col in keys)
-    placeholders = ", ".join("?" for _ in keys)
-    query = f'INSERT OR REPLACE INTO "{table_name}" ({columns}) VALUES ({placeholders})'
-
-    try:
-        params_list = [tuple(row.get(col) for col in keys) for row in rows]
+    query = _insert_sql(table_name, keys, replace=True)
+    params_list = [tuple(row.get(col) for col in keys) for row in rows]
+    with connection:
         cursor = connection.executemany(query, params_list)
-        connection.commit()
-    except sqlite3.OperationalError:
-        logger.exception(
-            "Error inserting/replacing rows in table '%s'",
-            table_name,
-        )
-        return 0
-    else:
-        return cursor.rowcount
+    return cursor.rowcount
 
 
-def append_rows(
-    connection: sqlite3.Connection,
-    table_name: str,
-    frame: pd.DataFrame,
-) -> int:
-    """Append a frame's rows to a table, never overwriting one already there.
-
-    Unlike `insert_or_replace_many`, a row that clashes with a unique key is
-    refused rather than replacing the stored one: that refusal is how the Txns
-    table rejects a duplicate.
-
-    Args:
-        connection: Database connection
-        table_name: Name of the table to append to
-        frame: The rows, keyed by column name.
-
-    Returns:
-        Number of rows written.
-
-    Raises:
-        sqlite3.IntegrityError: If a row breaks a constraint of the table.
-    """
-    try:
-        written = frame.to_sql(table_name, connection, if_exists="append", index=False)
-    except pd.errors.DatabaseError as error:
-        if isinstance(error.__cause__, sqlite3.IntegrityError):
-            raise error.__cause__ from None
-        raise
-    return len(frame) if written is None else written
+def begin_write(connection: sqlite3.Connection) -> None:
+    """Open a transaction now, so a schema change rolls back with the rows after it."""
+    connection.execute("BEGIN IMMEDIATE")
 
 
 def insert_rows(
@@ -484,7 +388,7 @@ def insert_rows(
     table_name: str,
     rows: Sequence[Mapping[str, object]],
 ) -> list[int]:
-    """Insert rows all or none, returning each one's rowid (`append_rows` cannot)."""
+    """Insert rows all or none, refusing any that clash, returning each one's rowid."""
     with connection:
         return [_insert(connection, table_name, row) for row in rows]
 
@@ -495,9 +399,7 @@ def _insert(
     row: Mapping[str, object],
 ) -> int:
     """Insert one row without committing, returning its rowid."""
-    columns = ", ".join(f'"{column}"' for column in row)
-    marks = ", ".join("?" for _ in row)
-    query = f'INSERT INTO "{table_name}" ({columns}) VALUES ({marks})'
+    query = _insert_sql(table_name, list(row))
     return int(connection.execute(query, tuple(row.values())).lastrowid)  # ty: ignore[invalid-argument-type]
 
 
@@ -553,22 +455,16 @@ def replace_rows(
         params: Parameters for the `where` clause.
 
     Returns:
-        Number of rows written, or 0 if there was an error.
+        Number of rows written.
     """
     keys = list(rows[0])
-    columns = ", ".join(f'"{col}"' for col in keys)
-    placeholders = ", ".join("?" for _ in keys)
-    insert = f'INSERT INTO "{table_name}" ({columns}) VALUES ({placeholders})'
-    try:
-        with connection:
-            connection.execute(f'DELETE FROM "{table_name}" WHERE {where}', params)
-            connection.executemany(
-                insert,
-                [tuple(row.get(col) for col in keys) for row in rows],
-            )
-    except sqlite3.Error:
-        logger.exception("Error replacing rows in table '%s'", table_name)
-        return 0
+    insert = _insert_sql(table_name, keys)
+    with connection:
+        connection.execute(f'DELETE FROM "{table_name}" WHERE {where}', params)
+        connection.executemany(
+            insert,
+            [tuple(row.get(col) for col in keys) for row in rows],
+        )
     return len(rows)
 
 
@@ -593,11 +489,6 @@ def delete_rows(
     if where:
         query += f" WHERE {where}"
 
-    try:
+    with connection:
         cursor = connection.execute(query, params or ())
-        connection.commit()
-    except sqlite3.OperationalError:
-        logger.exception("Error deleting rows from table '%s'", table_name)
-        return 0
-    else:
-        return cursor.rowcount
+    return cursor.rowcount

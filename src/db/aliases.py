@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from db.backup import backup_folio
+from db.catalog import drop_table
+from db.connection import get_connection
 from db.queries import (
     delete_rows,
-    drop_table,
-    get_connection,
     get_records,
     insert_or_replace_many,
 )
@@ -45,17 +45,16 @@ def find(old_ticker: str) -> TickerAlias | None:
     return TickerAlias.from_row(rows[0]) if rows else None
 
 
-def write(aliases: Sequence[TickerAlias]) -> bool:
-    """Back up the folio, then store renames; False when the table refuses them."""
+def write(aliases: Sequence[TickerAlias]) -> None:
+    """Back up the folio, then store renames."""
     create_ticker_aliases_table()
     backup_folio()
     with get_connection() as conn:
-        written = insert_or_replace_many(
+        insert_or_replace_many(
             conn,
             Table.TICKER_ALIASES,
             [alias.to_row() for alias in aliases],
         )
-    return written > 0
 
 
 def drop() -> None:
