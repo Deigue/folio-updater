@@ -11,7 +11,7 @@ from rich.table import Table as RichTable
 from rich.text import Text
 
 from domain import TORONTO_TZ, PriceRange
-from engine.pools import account_type_of
+from engine.accounts import account_type_of
 from engine.ticker import range_extremes
 from term import console_print
 from term.size import terminal_size

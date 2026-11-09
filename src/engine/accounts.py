@@ -1,4 +1,4 @@
-"""Infer an account's type and margin from its name, and carry its configured fee rules.
+"""Accounts, the pools they form, and what an account's name says about it.
 
 Convention `<BROKER>-<TYPE>`
 """
@@ -9,16 +9,73 @@ import logging
 import re
 from dataclasses import dataclass, field
 from functools import cache
+from typing import TYPE_CHECKING, NamedTuple
 
 from app import get_config
 from domain import (
     ACCOUNT_TYPE_ALIASES,
     MARGIN_MARKER,
+    TAXABLE_ACCOUNT_TYPES,
     AccountType,
+    Grain,
 )
 from engine.fees import FeeRules
 
+if TYPE_CHECKING:
+    from models import Txn
+
 logger = logging.getLogger(__name__)
+
+# What reports call the folio pool.
+FOLIO_LABEL = "Portfolio"
+
+
+class Pool(NamedTuple):
+    """Which pool: an account, an account type, or the whole folio.
+
+    Attributes:
+        grain: The grain the pool sits at.
+        name: The account name or account type its rows are filtered to. Empty
+            at folio grain, where nothing is filtered out.
+    """
+
+    grain: Grain
+    name: str
+
+    @classmethod
+    def of(cls, grain: Grain, row: Txn, acct_type: AccountType) -> Pool:
+        """Return the pool a transaction belongs to at one grain."""
+        if grain is Grain.ACCOUNT:
+            return cls(grain, row.account)
+        if grain is Grain.TYPE:
+            return cls(grain, str(acct_type))
+        return FOLIO
+
+    @property
+    def label(self) -> str:
+        """How the pool reads in a heading.
+
+        Returns:
+            The account name, the account type with `-` for `_`
+            (`NON-REGISTERED`), or `Portfolio` for the whole folio.
+        """
+        if self.grain is Grain.TYPE:
+            return self.name.replace("_", "-")
+        if self.grain is Grain.ACCOUNT:
+            return self.name
+        return FOLIO_LABEL
+
+    @property
+    def taxed(self) -> bool:
+        """Whether the CRA taxes the pool's sales: a non-registered or corporate pool.
+
+        The folio pool blends registered with taxable accounts, so it is never
+        taxed as a whole.
+        """
+        return account_type_of(self) in TAXABLE_ACCOUNT_TYPES
+
+
+FOLIO = Pool(Grain.FOLIO, "")
 
 # `<BROKER>-<TYPE>` is the convention, but `_` and whitespace show up too.
 _TOKEN_SPLIT = re.compile(r"[-_\s]+")
@@ -128,3 +185,22 @@ def _resolve_against(
     # The cache dedupes this, so an unknown account is reported once.
     logger.warning("Could not infer an account type for '%s'", name)
     return Account(name, AccountType.UNKNOWN, fees=fees)
+
+
+def account_type_of(pool: Pool) -> AccountType | None:
+    """Name the account type a pool is, when it is exactly one.
+
+    Contribution room only means something for a single account type, so the
+    folio pool has none.
+
+    Args:
+        pool: The pool being reported.
+
+    Returns:
+        The account type, or None when the pool spans more than one.
+    """
+    if pool.grain is Grain.TYPE:
+        return AccountType(pool.name)
+    if pool.grain is Grain.ACCOUNT:
+        return resolve_account(pool.name).account_type
+    return None

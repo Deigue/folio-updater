@@ -9,6 +9,7 @@ import pandas as pd
 
 from domain import Column, Currency, DiagnosticCode, Grain
 from domain.numeric import ONE, ZERO, dec, safe_div
+from engine.accounts import FOLIO, Pool
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
@@ -343,21 +344,20 @@ class HoldingSet:
         return tuple(seen)
 
 
-def grain_rows(frame: pd.DataFrame, grain: Grain, pool: str | None) -> pd.DataFrame:
+def grain_rows(frame: pd.DataFrame, pool: Pool) -> pd.DataFrame:
     """Narrow the ledger to one pool.
 
     Args:
         frame: The ledger.
-        grain: The grain to read at.
-        pool: The account name or account type, ignored at folio grain.
+        pool: The pool to keep.
 
     Returns:
         The rows belonging to that pool. Folio grain filters nothing.
     """
-    column = POOL_COLUMN.get(grain)
-    if column is None or not pool:
+    column = POOL_COLUMN.get(pool.grain)
+    if column is None:
         return frame
-    return frame[frame[column] == pool]
+    return frame[frame[column] == pool.name]
 
 
 def held_symbols(frame: pd.DataFrame) -> list[str]:
@@ -426,7 +426,7 @@ class FolioHoldings:
         self.frame = frame
         self.quotes = quotes
         self.fx = fx
-        self._rollups: dict[tuple[Grain, str], _Rollups] = {}
+        self._rollups: dict[Pool, _Rollups] = {}
         self._market: Decimal | None = None
         self._valued = False
 
@@ -441,14 +441,13 @@ class FolioHoldings:
         self._market = None
         self._valued = False
 
-    def rollups(self, grain: Grain, pool: str | None) -> _Rollups:
+    def rollups(self, pool: Pool) -> _Rollups:
         """Derive one pool's inputs, or hand back the ones already derived."""
-        key = (grain, pool or "")
-        held = self._rollups.get(key)
+        held = self._rollups.get(pool)
         if held is None:
-            rows = grain_rows(self.frame, grain, pool)
+            rows = grain_rows(self.frame, pool)
             held = _rollup(rows, acb_summary_frame(rows))
-            self._rollups[key] = held
+            self._rollups[pool] = held
         return held
 
     def prime(self, grain: Grain) -> None:
@@ -463,12 +462,12 @@ class FolioHoldings:
         if grain is Grain.FOLIO:
             return
         by_pool = acb_summary_frames_by_pool(self.frame, grain)
-        for pool, summary in by_pool.items():
-            key = (grain, pool)
-            if key in self._rollups:
+        for name, summary in by_pool.items():
+            pool = Pool(grain, name)
+            if pool in self._rollups:
                 continue
-            rows = grain_rows(self.frame, grain, pool)
-            self._rollups[key] = _rollup(rows, summary)
+            rows = grain_rows(self.frame, pool)
+            self._rollups[pool] = _rollup(rows, summary)
 
     def held_symbols(self) -> list[str]:
         """Every symbol the folio still holds anywhere, at folio grain.
@@ -476,7 +475,7 @@ class FolioHoldings:
         Returns:
             Canonical symbols with a non-zero holding at the folio grain, sorted.
         """
-        return _open_symbols(self.rollups(Grain.FOLIO, None).summary)
+        return _open_symbols(self.rollups(FOLIO).summary)
 
     def market_value(self) -> Decimal | None:
         """Total CAD market value of the whole folio.
@@ -490,15 +489,14 @@ class FolioHoldings:
             nothing could be priced.
         """
         if not self._valued:
-            self._market = self.holdings(grain=Grain.FOLIO).total_market
+            self._market = self.holdings(FOLIO).total_market
             self._valued = True
         return self._market
 
-    def holdings(  # noqa: PLR0913
+    def holdings(
         self,
+        pool: Pool,
         *,
-        grain: Grain,
-        pool: str | None = None,
         currency: DisplayCurrency = Currency.CAD,
         folio_market: Decimal | None = None,
         sort: str | None = None,
@@ -507,8 +505,7 @@ class FolioHoldings:
         """Value every open holding in one pool.
 
         Args:
-            grain: The pool grain to read at.
-            pool: The account name or account type, ignored at folio grain.
+            pool: The pool to value.
             currency: Currency to express the figures in, or `"native"`.
             folio_market: Total market value of the whole folio, in CAD.
             sort: The column to order by, or None for market value.
@@ -520,7 +517,7 @@ class FolioHoldings:
         Raises:
             UnknownSortError: If `sort` is not a sortable measure.
         """
-        derived = self.rollups(grain, pool)
+        derived = self.rollups(pool)
         rate, rate_date = _latest_rate(self.fx)
         priced_totals = ZERO
         excluded = 0
@@ -529,8 +526,8 @@ class FolioHoldings:
         context = _Context.build(
             self,
             derived,
-            grain=grain,
-            pool=pool or "",
+            grain=pool.grain,
+            pool=pool.name,
             currency=currency,
         )
         # Only `-c USD` ever hides a holding, so only it has to keep count.
@@ -540,7 +537,7 @@ class FolioHoldings:
             if holding is None:
                 # Count if we excluded anything due to currency filtering.
                 if filtering:
-                    excluded += _filtered_out(record, grain)
+                    excluded += _filtered_out(record, pool.grain)
                 continue
             if holding.closed:
                 closed.append(holding)
@@ -562,8 +559,8 @@ class FolioHoldings:
         return HoldingSet(
             holdings=holdings,
             closed=tuple(closed),
-            grain=grain,
-            pool=pool or "",
+            grain=pool.grain,
+            pool=pool.name,
             display_currency=currency,
             totals_currency=totals_currency(currency),
             by_currency=_by_currency(holdings, closed),

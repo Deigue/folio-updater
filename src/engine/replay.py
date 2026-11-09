@@ -39,11 +39,11 @@ from domain import (
     Grain,
 )
 from domain.numeric import ONE, ZERO, q2, safe_div
-from engine.accounts import Account, resolve_account
-from engine.deposits import DepositTracker, PoolId
-from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, pair_transfers
+from engine.accounts import Account, Pool, resolve_account
+from engine.deposits import NetDeposits
+from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, Crossing, pair_transfers
 from engine.types import (
-    CashKey,
+    CashEffect,
     CashState,
     Diagnostic,
     GrainMeasures,
@@ -55,7 +55,6 @@ from engine.types import (
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    from engine.deposits import Deposits
     from engine.fees import FeeRules, TradeCash
     from engine.fx_rates import FxRates
     from engine.transfers import TransferPair
@@ -63,9 +62,6 @@ if TYPE_CHECKING:
     from services.symbols import SymbolResolver
 
 logger = logging.getLogger(__name__)
-
-# The folio pool has no natural name.
-FOLIO_POOL = "FOLIO"
 
 # A single-leg FXT's Amount, Units and Price are three views of one conversion,
 # so they must agree. Half a cent tolerance to capture subcent rounding.
@@ -184,28 +180,24 @@ class ReplayConfig:
 
 
 class _Pools:
-    """The three holding accumulators, addressed by grain.
-
-    Kept as separate dicts rather than one dict keyed by grain so that an
-    account genuinely named `TFSA` can never collide with the TFSA type pool.
-    """
+    """The three holding accumulators, one per grain so each can be walked alone."""
 
     def __init__(self) -> None:
-        self._by_grain: dict[Grain, dict[tuple[str, str], HoldingState]] = {
+        self._by_grain: dict[Grain, dict[tuple[Pool, str], HoldingState]] = {
             grain: {} for grain in Grain
         }
         self._seen_splits: dict[Grain, set[tuple[str, str, str, str]]] = {
             grain: set() for grain in Grain
         }
 
-    def state(self, grain: Grain, pool: str, symbol: str) -> HoldingState:
+    def state(self, pool: Pool, symbol: str) -> HoldingState:
         """Return the state for one pool and symbol, creating it if new."""
-        return self._by_grain[grain].setdefault((pool, symbol), HoldingState())
+        return self._by_grain[pool.grain].setdefault((pool, symbol), HoldingState())
 
     def all_states(
         self,
         grain: Grain,
-    ) -> Iterable[tuple[tuple[str, str], HoldingState]]:
+    ) -> Iterable[tuple[tuple[Pool, str], HoldingState]]:
         """Iterate every (pool, symbol) state at one grain."""
         return self._by_grain[grain].items()
 
@@ -221,15 +213,6 @@ class _Pools:
             return False
         seen.add(key)
         return True
-
-
-def _pool_key(grain: Grain, row: Txn, acct_type: AccountType) -> str:
-    """Name the pool a row belongs to at one grain."""
-    if grain is Grain.ACCOUNT:
-        return row.account
-    if grain is Grain.TYPE:
-        return str(acct_type)
-    return FOLIO_POOL
 
 
 def _snapshot(state: HoldingState, before: HoldingState) -> GrainMeasures:
@@ -265,32 +248,15 @@ class _Replay:
         self.pools = _Pools()
         self.result = ReplayResult()
         self._seen: set[tuple[DiagnosticCode, int | None, str | None]] = set()
-        pairs, unpaired = pair_transfers(rows)
-        self.pair_of: dict[int, int] = {}
-        self.pair_by_id: dict[int, TransferPair] = {}
-        for pair in pairs:
-            self.pair_of[pair.out_leg.txn_id] = pair.pair_id
-            self.pair_of[pair.in_leg.txn_id] = pair.pair_id
-            self.pair_by_id[pair.pair_id] = pair
-        self.unpaired = {row.txn_id for row in unpaired}
-        # The grains each pair moves anything at. Where it stays put neither leg
-        # touches that grain, so nothing goes missing between the two legs.
-        self.moves_at: dict[int, tuple[Grain, ...]] = {
-            pair.pair_id: tuple(
-                grain for grain in Grain if not self._stays_put(pair, grain)
-            )
-            for pair in pairs
+        pairs, _unpaired = pair_transfers(rows)
+        self.pairs = [self._located(pair) for pair in pairs]
+        self.pair_of: dict[int, TransferPair] = {
+            leg.txn_id: pair
+            for pair in self.pairs
+            for leg in (pair.out_leg, pair.in_leg)
         }
         # Cost base carried by an out leg, waiting for its in leg to claim it.
         self.carried: dict[tuple[int, Grain], tuple[Decimal, Decimal]] = {}
-        # Net deposits, tracked only for the pools dealing with transfers.
-        self.deposits = DepositTracker(self._tracked_pools(pairs))
-        # Cost-base change per grain then row, kept only for those same pools.
-        # Nested rather than keyed by a `(txn_id, grain)` tuple so the settlement
-        # walk allocates no key to look one up on every row of the ledger.
-        self.acb_delta: dict[Grain, dict[int, Decimal]] = {
-            grain: {} for grain in self.deposits.grains
-        }
         # Track accounts already reported negative, so only the first crossing shows.
         self.reported_negative: set[tuple[str, Currency]] = set()
         # * Split coverage trackers
@@ -299,51 +265,45 @@ class _Replay:
         # (symbol, transaction date) -> set[account] , accounts that hold it.
         self.split_holders: dict[tuple[str, str], set[str]] = {}
 
-    def _tracked_pools(self, pairs: Sequence[TransferPair]) -> frozenset[PoolId]:
-        """Name the pools whose pool basis the deposit rule will need.
-
-        A pair whose two legs land in the *same* pool at a grain moves nothing
-        there, so that grain needs no pool basis at all. That is what keeps
-        folio grain identical to plain contributions less withdrawals (both
-        legs are always `FOLIO`), and does the same for account-type grain on a
-        transfer between two brokers holding the same type. Only the pools a
-        transfer genuinely crosses are tracked, so a ledger with no transfers
-        costs one empty-set check.
-        """
-        tracked: set[PoolId] = set()
-        for pair in pairs:
-            for grain in Grain:
-                out_pool, in_pool = self._leg_pools(pair, grain)
-                if out_pool != in_pool:
-                    tracked.add((grain, out_pool))
-                    tracked.add((grain, in_pool))
-        return frozenset(tracked)
-
     def _type_of(self, account: str) -> AccountType:
         """Return an account's type, UNKNOWN when it was never resolved."""
         known = self.cfg.accounts.get(account)
         return known.account_type if known is not None else AccountType.UNKNOWN
 
-    def _leg_pools(self, pair: TransferPair, grain: Grain) -> tuple[str, str]:
-        """Name the pools a pair's out leg and in leg sit in at one grain."""
-        out_leg, in_leg = pair.out_leg, pair.in_leg
-        return (
-            _pool_key(grain, out_leg, self._type_of(out_leg.account)),
-            _pool_key(grain, in_leg, self._type_of(in_leg.account)),
+    def _located(self, pair: TransferPair) -> TransferPair:
+        """Add where a pair crosses pools, and the grains it moves anything at."""
+        crossings = self._crossings_of(pair)
+        crossed = {crossing.grain for crossing in crossings}
+        one_holding = self._touches_one_holding(pair)
+        return replace(
+            pair,
+            crossings=crossings,
+            moves_at=tuple(
+                grain for grain in Grain if grain in crossed or not one_holding
+            ),
         )
 
-    def _stays_put(self, pair: TransferPair, grain: Grain) -> bool:
-        """Whether a pair moves nothing at one grain.
+    def _crossings_of(self, pair: TransferPair) -> tuple[Crossing, ...]:
+        """List the grains where a pair's legs sit in different pools."""
+        out_leg, in_leg = pair.out_leg, pair.in_leg
+        out_type = self._type_of(out_leg.account)
+        in_type = self._type_of(in_leg.account)
+        crossings = []
+        for grain in Grain:
+            out_pool = Pool.of(grain, out_leg, out_type)
+            in_pool = Pool.of(grain, in_leg, in_type)
+            if out_pool != in_pool:
+                crossings.append(Crossing(out_pool, in_pool))
+        return tuple(crossings)
 
-        True when both legs sit in one pool there and touch the same holding (the
-        same symbol, or for cash the same currency). The units or cash then never
-        leave that pool, so applying each leg on its own date would only drop them
-        from it between the two. A journal stays in one pool but changes symbol or
-        currency, so it still moves.
+    def _touches_one_holding(self, pair: TransferPair) -> bool:
+        """Whether both legs touch the same symbol, or for cash the same currency.
+
+        At a grain where such a pair stays inside one pool, the units or cash never
+        leave it, so applying each leg on its own date would only drop them from it
+        between the two. A journal stays in one pool but changes symbol or currency,
+        so it still moves.
         """
-        out_pool, in_pool = self._leg_pools(pair, grain)
-        if out_pool != in_pool:
-            return False
         out_leg, in_leg = pair.out_leg, pair.in_leg
         if not pair.moves_units:
             return out_leg.currency is in_leg.currency
@@ -458,30 +418,7 @@ class _Replay:
                 row.txn_id,
             ),
         )
-        tracked = bool(self.deposits.grains)
-        for row in ordered:
-            computed = self._apply(row)
-            self.result.rows.append(computed)
-            if tracked:
-                self._stash_acb_delta(row, computed)
-
-    def _stash_acb_delta(self, row: Txn, computed: LedgerRow) -> None:
-        """Keep the cost-base change the deposit rule will divide by.
-
-        Recorded during this walk rather than looked up afterwards so the
-        settlement-date cash walk needs no `txn_id` index over every row: only rows
-        sitting in a pool that some transfer crosses are kept, which on a real
-        ledger is a small fraction of the whole.
-        """
-        for grain in self.deposits.grains:
-            # Cheap test first: most rows move no cost base at all, and this
-            # runs on every row of the ledger.
-            delta = computed.measures(grain).delta_cad
-            if delta == ZERO:
-                continue
-            name = _pool_key(grain, row, computed.acct_type)
-            if self.deposits.resolve(grain, name) is not None:
-                self.acb_delta[grain][row.txn_id] = delta
+        self.result.rows.extend(self._apply(row) for row in ordered)
 
     def _apply(self, row: Txn) -> LedgerRow:
         """Apply one row to all three pools and emit a ledger row."""
@@ -498,10 +435,10 @@ class _Replay:
             if symbol is None:
                 measures[grain] = GrainMeasures()
                 continue
-            pool = _pool_key(grain, row, acct_type)
-            state = self.pools.state(grain, pool, symbol)
+            pool = Pool.of(grain, row, acct_type)
+            state = self.pools.state(pool, symbol)
             before = replace(state)
-            self._apply_to_pool(row, grain, pool, symbol, state)
+            self._apply_to_pool(row, grain, pool.label, symbol, state)
             measures[grain] = _snapshot(state, before)
 
         proceeds_cad, proceeds_usd = self._proceeds(row)
@@ -542,7 +479,7 @@ class _Replay:
         elif row.action in TRANSFER_ACTIONS:
             # Checked here rather than in the pool walk, to also capture cash transfers
             # that carry no ticker.
-            if row.txn_id in self.unpaired:
+            if row.txn_id not in self.pair_of:
                 self.diagnose(
                     DiagnosticCode.TRANSFER_UNPAIRED,
                     row,
@@ -792,19 +729,19 @@ class _Replay:
         state: HoldingState,
     ) -> None:
         """Move units and cost base between pools without realizing a gain."""
-        pair_id = self.pair_of.get(row.txn_id)
-        if pair_id is None:
+        pair = self.pair_of.get(row.txn_id)
+        if pair is None:
             # Already reported by `_row_checks`; units still have to move, but
             # with no counterpart there is nowhere for the cost base to go.
             self._move_units_only(row, state)
             return
-        if grain not in self.moves_at[pair_id]:
+        if grain not in pair.moves_at:
             return
 
         if row.action is Action.TFR_OUT:
-            self._transfer_out(row, grain, state, pair_id)
+            self._transfer_out(row, grain, state, pair.pair_id)
         else:
-            self._transfer_in(row, grain, state, pair_id)
+            self._transfer_in(row, grain, state, pair.pair_id)
 
     def _move_units_only(self, row: Txn, state: HoldingState) -> None:
         """Apply an unpaired leg: units move, the cost base cannot follow them."""
@@ -925,290 +862,111 @@ class _Replay:
         """
         place = row.txn_id
         arriving = row.action is Action.TFR_IN
-        pair_id = self.pair_of.get(row.txn_id) if arriving else None
-        if pair_id is not None:
-            out_leg = self.pair_by_id[pair_id].out_leg
-            if out_leg.settle_date == row.settle_date:
-                place = out_leg.txn_id
+        pair = self.pair_of.get(row.txn_id) if arriving else None
+        if pair is not None and pair.out_leg.settle_date == row.settle_date:
+            place = pair.out_leg.txn_id
         return row.settle_date, place, arriving
 
     def _cash_walk(self) -> None:
         """Accumulate cash per pool and currency, in settlement-date order."""
-        ordered = sorted(self.rows, key=self._settlement_order)
+        ordered = sorted(
+            self.result.rows,
+            key=lambda computed: self._settlement_order(computed.row),
+        )
+        net_deposits = NetDeposits(
+            self.result.rows,
+            self.pair_of,
+            self.fx,
+        )
         pending: list[Txn] = []
         current_date = ""
 
-        deposits_needed = self.deposits.active or bool(self.unpaired)
-        basis_needed = any(self.acb_delta.values())
-        for row in ordered:
+        for computed in ordered:
+            row = computed.row
             if row.settle_date != current_date and pending:
                 self._check_negative_cash(pending, current_date)
                 pending = []
             current_date = row.settle_date
-            if deposits_needed:
-                self._apply_deposits(row)
-            self._apply_cash(row)
-            if basis_needed:
-                self._advance_pool_basis(row)
+            effects = self._cash_effects(row)
+            net_deposits.apply(computed, effects)
+            self._book(computed, effects)
             pending.append(row)
         if pending:
             self._check_negative_cash(pending, current_date)
 
         self._roll_up_realized_gain()
-        self._reconcile_transfers()
+        for (pool, currency), totals in net_deposits.closing_transfers().items():
+            cash = self._cash(pool, currency)
+            cash.transfers = totals.transfers
+            cash.transfers_value = totals.transfers_value
+        self.result.deposit_shares = net_deposits.shares
 
-    # -- NET DEPOSITS -----------------------------------------------------
-
-    def _advance_pool_basis(self, row: Txn) -> None:
-        """Move the pool basis by the cost base one row changed.
-
-        Applied at the row's **settlement date**, alongside its cash, even though
-        `_acb_walk` computed it in transaction-date order. A buy on T settling T+2
-        raises the cost base on T and drops cash on T+2; booking both here keeps
-        `pool basis = cost base + cash` self-consistent, so a purchase leaves the
-        pool basis untouched and only genuine growth moves it. Splitting the two
-        dates would inflate the denominator for any transfer landing inside a
-        settlement window.
-        """
-        acct_type = self._type_of(row.account)
-        txn_id = row.txn_id
-        for grain, deltas in self.acb_delta.items():
-            delta = deltas.get(txn_id)
-            if delta is None:
-                continue
-            state = self.deposits.resolve(grain, _pool_key(grain, row, acct_type))
-            if state is not None:
-                state.basis_cad += delta
-
-    def _apply_deposits(self, row: Txn) -> None:
-        """Book one row's effect on net deposits.
-
-        Runs **before** `_apply_cash` deliberately: a transfer's share of its
-        pool is measured against the pool as the leg found it, not against what
-        is left after the leg has already taken its cash out.
-        """
-        if row.action in TRANSFER_ACTIONS:
-            self._transfer_deposits(row)
-            return
-        if not self.deposits.active:
-            return
-        if row.action is Action.CONTRIBUTION:
-            self._move_deposits(row, abs(row.amount or ZERO))
-        elif row.action is Action.WITHDRAWAL:
-            self._move_deposits(row, -abs(row.amount or ZERO))
-
-    def _move_deposits(self, row: Txn, amount: Decimal) -> None:
-        """Apply a contribution or withdrawal to every grain that tracks it."""
-        acct_type = self._type_of(row.account)
-        for grain in self.deposits.grains:
-            name = _pool_key(grain, row, acct_type)
-            self.deposits.deposit(grain, name, row.currency, amount)
-
-    def _transfer_deposits(self, row: Txn) -> None:
-        """Move one transfer leg's share of its pool's deposits.
-
-        Only grains where the two legs sit in *different* pools do anything: a
-        pair inside one pool moves nothing there, which is exactly why folio
-        grain and same-type account-type grain stay at plain contributions less
-        withdrawals. Skipping outright rather than adding and subtracting also
-        means no rounding residue can accumulate on them.
-        """
-        pair_id = self.pair_of.get(row.txn_id)
-        if pair_id is None:
-            self._unpaired_deposits(row)
-            return
-
-        pair = self.pair_by_id[pair_id]
-        acct_type = self._type_of(row.account)
-        for grain in self.deposits.grains:
-            out_pool, in_pool = self._leg_pools(pair, grain)
-            if out_pool == in_pool:
-                continue
-            name = _pool_key(grain, row, acct_type)
-            self._record_moved_value(row, grain, name)
-            # Whichever leg is reached first settles the sending side, once. An in
-            # leg settling first is reported until it is re-dated, and must not
-            # lose its deposits meanwhile.
-            if not self.deposits.pending(pair_id, grain):
-                self._take_deposits(pair_id, grain)
-            if row.action is Action.TFR_IN:
-                self.deposits.give(grain, name, pair_id)
-
-    def _record_moved_value(self, row: Txn, grain: Grain, pool: str) -> None:
-        """Note what a leg actually moved, for reconciliation against a statement."""
-        if row.is_in_kind_transfer:
-            moved = self.acb_delta[grain].get(row.txn_id, ZERO)
-            currency = Currency.CAD
-        else:
-            moved, currency = row.amount or ZERO, row.currency
-        if moved != ZERO:
-            self._cash(grain, pool, currency).transfers_value += moved
-
-    def _take_deposits(self, pair_id: int, grain: Grain) -> Deposits:
-        """Remove the sending pool's share of its deposits for one pair."""
-        out_leg = self.pair_by_id[pair_id].out_leg
-        acct_type = self._type_of(out_leg.account)
-        return self.deposits.take(
-            grain,
-            _pool_key(grain, out_leg, acct_type),
-            pair_id,
-            self._leg_value_cad(out_leg, grain),
-        )
-
-    def _leg_value_cad(self, row: Txn, grain: Grain) -> Decimal:
-        """Return what one leg removes from its pool, in CAD and non-negative.
-
-        A cash leg is worth its amount. An in-kind leg is worth the cost base it
-        carried, read off `_acb_walk` rather than recomputed so the two can never
-        disagree, and because that is what the pool basis is measured in.
-        """
-        if row.is_in_kind_transfer:
-            return abs(self.acb_delta[grain].get(row.txn_id, ZERO))
-        return abs(self.to_cad(row.amount or ZERO, row))
-
-    def _reconcile_transfers(self) -> None:
-        """Restate `transfers` as the exact complement of the deposits held.
-
-        The accumulated figure is replaced by the one that closes the
-        identity `net_deposits = contributions - withdrawals + transfers`
-        against the deposits actually held. Only pools the ledger tracks are
-        touched; a pool whose transfers all went unpaired keeps its face-value
-        total, since nothing measured its deposits.
-        """
-        for (grain, pool), state in self.deposits.pools():
-            for currency, deposited in state.deposits.items():
-                cash = self._cash(grain, pool, currency)
-                cash.transfers = deposited - cash.contributions + cash.withdrawals
-
-    def _unpaired_deposits(self, row: Txn) -> None:
-        """Fall back to face value for a leg with no counterpart.
-
-        Without an out leg there is no pool to measure a share against, so the
-        proportional rule has nothing to work with. Face value is what this
-        booked before the rule existed.
-        """
-        if row.is_in_kind_transfer:
-            return
-        acct_type = self._type_of(row.account)
-        amount = row.amount or ZERO
-        for grain in Grain:
-            name = _pool_key(grain, row, acct_type)
-            state = self._cash(grain, name, row.currency)
-            state.transfers += amount
-            state.transfers_value += amount
-            self.deposits.deposit(grain, name, row.currency, amount)
-
-    def _cash(self, grain: Grain, pool: str, currency: Currency) -> CashState:
+    def _cash(self, pool: Pool, currency: Currency) -> CashState:
         """Return the cash state for one pool and currency, creating it if new."""
-        key: CashKey = (grain, pool, currency)
-        return self.result.cash.setdefault(key, CashState())
-
-    def _credit(  # noqa: PLR0913 - one call site per action, all named
-        self,
-        row: Txn,
-        currency: Currency,
-        *,
-        cash: Decimal = ZERO,
-        contributions: Decimal = ZERO,
-        withdrawals: Decimal = ZERO,
-        dividends: Decimal = ZERO,
-        fees: Decimal = ZERO,
-        grains: Iterable[Grain] = Grain,
-    ) -> None:
-        """Apply one cash movement to the pool grains it moves at, all three by default.
-
-        A paired transfer leg passes only the grains its pair moves at: where the
-        pair stays put the cash never leaves the pool, so neither its cash nor its
-        pool basis changes there between the two legs.
-        """
-        acct_type = self._type_of(row.account)
-        # Pool basis follows cash in CAD. Converted at the row's own settlement-date
-        # rate, the same one the cost base used
-        basis = ZERO
-        if cash != ZERO and self.deposits.active:
-            # Converted on `currency`, not `row.currency`: an FXT books its two
-            # legs against one row, and each leg is denominated in its own side.
-            basis = (
-                cash
-                if currency is Currency.CAD
-                else self.fx.to_cad(cash, row.fx_date, currency).value
-            )
-        for grain in Grain:
-            # Opened even where the pair stays put, so the pool still reports
-            # its (unchanged) cash.
-            state = self._cash(grain, _pool_key(grain, row, acct_type), currency)
-            if grain not in grains:
-                continue
-            state.cash += cash
-            state.contributions += contributions
-            state.withdrawals += withdrawals
-            state.dividends += dividends
-            state.fees += fees
-        # Kept separate: pool basis is needed at the grains dealing with
-        # transfers, usually just one, and paying for three on every row
-        # of the ledger is the whole cost of this feature.
-        if basis != ZERO:
-            for grain in self.deposits.grains:
-                if grain not in grains:
-                    continue
-                state = self.deposits.resolve(grain, _pool_key(grain, row, acct_type))
-                if state is not None:
-                    state.basis_cad += basis
-
-    def _apply_cash(self, row: Txn) -> None:
-        """Book one row's effect on cash.
-
-        `ROC` and `SPLIT` are deliberately excluded: a return of capital
-        reclassifies a distribution that was already paid as a dividend, so
-        counting it as cash double-counts the money, and a split moves no money.
-        """
-        amount = row.amount or ZERO
-        if row.action is Action.BUY:
-            trade: TradeCash = self._trade(row)
-            self._credit(row, row.currency, cash=-trade.cost, fees=trade.commission)
-        elif row.action is Action.SELL:
-            trade: TradeCash = self._trade(row)
-            self._credit(row, row.currency, cash=trade.proceeds, fees=trade.commission)
-        elif row.action is Action.DIVIDEND:
-            self._credit(row, row.currency, cash=amount, dividends=amount)
-        elif row.action is Action.FCH:
-            # When row amount negative, the charged fee (abs) is recorded.
-            charged = -amount if amount < ZERO else ZERO
-            self._credit(row, row.currency, cash=amount, fees=charged)
-        elif row.action is Action.CONTRIBUTION:
-            self._credit(
-                row,
-                row.currency,
-                cash=amount,
-                contributions=abs(amount),
-            )
-        elif row.action is Action.WITHDRAWAL:
-            self._credit(
-                row,
-                row.currency,
-                cash=amount,
-                withdrawals=abs(amount),
-            )
-        elif row.action is Action.FXT:
-            self._apply_fxt_cash(row)
-        elif row.action in TRANSFER_ACTIONS and not (row.is_in_kind_transfer):
-            # Real cash moves, but how much of it counts as the holder's own
-            # money is not its face value -> left to `_apply_deposits` and its
-            # proportional rule.
-            self._credit(
-                row,
-                row.currency,
-                cash=amount,
-                grains=self._moving_grains(row),
-            )
+        return self.result.cash.setdefault((pool, currency), CashState())
 
     def _moving_grains(self, row: Txn) -> tuple[Grain, ...] | type[Grain]:
         """Return the grains a transfer leg moves cash at: all three if unpaired."""
-        pair_id = self.pair_of.get(row.txn_id)
-        return Grain if pair_id is None else self.moves_at[pair_id]
+        pair = self.pair_of.get(row.txn_id)
+        return Grain if pair is None else pair.moves_at
 
-    def _apply_fxt_cash(self, row: Txn) -> None:
-        """Book a currency conversion, in whichever of its two shapes it is.
+    def _book(self, computed: LedgerRow, effects: Iterable[CashEffect]) -> None:
+        """Apply a row's cash effects to the pools at the grains each moves at."""
+        row = computed.row
+        for effect in effects:
+            for grain in Grain:
+                # Opened even where a transfer stays put, so the pool still
+                # reports its (unchanged) cash.
+                state = self._cash(
+                    Pool.of(grain, row, computed.acct_type),
+                    effect.currency,
+                )
+                if grain not in effect.grains:
+                    continue
+                state.cash += effect.cash
+                state.contributions += effect.contributions
+                state.withdrawals += effect.withdrawals
+                state.dividends += effect.dividends
+                state.fees += effect.fees
+
+    def _cash_effects(self, row: Txn) -> tuple[CashEffect, ...]:
+        """Work out what one row does to cash.
+
+        `ROC` and `SPLIT` have none: a return of capital reclassifies a distribution
+        that was already paid as a dividend, so counting it as cash double-counts the
+        money, and a split moves no money.
+        """
+        amount = row.amount or ZERO
+        currency = row.currency
+        effect: CashEffect | None = None
+        if row.action in _TRADE_ACTIONS:
+            trade: TradeCash = self._trade(row)
+            cash = -trade.cost if row.action is Action.BUY else trade.proceeds
+            effect = CashEffect(currency, cash=cash, fees=trade.commission)
+        elif row.action is Action.DIVIDEND:
+            effect = CashEffect(currency, cash=amount, dividends=amount)
+        elif row.action is Action.FCH:
+            # When row amount negative, the charged fee (abs) is recorded.
+            charged = -amount if amount < ZERO else ZERO
+            effect = CashEffect(currency, cash=amount, fees=charged)
+        elif row.action is Action.CONTRIBUTION:
+            effect = CashEffect(currency, cash=amount, contributions=abs(amount))
+        elif row.action is Action.WITHDRAWAL:
+            effect = CashEffect(currency, cash=amount, withdrawals=abs(amount))
+        elif row.action is Action.FXT:
+            return self._fxt_effects(row)
+        elif row.action in TRANSFER_ACTIONS and not row.is_in_kind_transfer:
+            # Real cash moves, but how much of it counts as the holder's own money
+            # is not its face value: that is left to the net deposits tracker.
+            effect = CashEffect(
+                currency,
+                cash=amount,
+                grains=self._moving_grains(row),
+            )
+        return () if effect is None else (effect,)
+
+    def _fxt_effects(self, row: Txn) -> tuple[CashEffect, ...]:
+        """Work out a currency conversion, in whichever of its two shapes it is.
 
         A single-leg (IBKR) row carries the CAD delta in `Amount`, the USD delta
         in `Units` and the rate in `Price`. A two-leg (QuestTrade) row has no
@@ -1221,11 +979,13 @@ class _Replay:
         commission = self._fees(row).commission(row)
         amount, price, units = row.amount or ZERO, row.price or ZERO, row.units or ZERO
         if ZERO in (price, units):
-            self._credit(row, row.currency, cash=amount - commission, fees=commission)
-            return
+            cash = amount - commission
+            return (CashEffect(row.currency, cash=cash, fees=commission),)
 
-        self._credit(row, Currency.CAD, cash=amount)
-        self._credit(row, Currency.USD, cash=units - commission, fees=commission)
+        return (
+            CashEffect(Currency.CAD, cash=amount),
+            CashEffect(Currency.USD, cash=units - commission, fees=commission),
+        )
 
     def _roll_up_realized_gain(self) -> None:
         """Carry realized gains from the holding states onto the cash states.
@@ -1236,10 +996,10 @@ class _Replay:
         for grain in Grain:
             for (pool, _symbol), state in self.pools.all_states(grain):
                 if state.currency is Currency.USD:
-                    bucket = self._cash(grain, pool, Currency.USD)
+                    bucket = self._cash(pool, Currency.USD)
                     bucket.realized_gain += state.realized_usd
                 else:
-                    bucket = self._cash(grain, pool, Currency.CAD)
+                    bucket = self._cash(pool, Currency.CAD)
                     bucket.realized_gain += state.realized_cad
 
     def _check_negative_cash(self, rows: Sequence[Txn], on: str) -> None:
@@ -1259,7 +1019,7 @@ class _Replay:
             for currency in (Currency.CAD, Currency.USD):
                 if (account, currency) in self.reported_negative:
                     continue
-                state = self.result.cash.get((Grain.ACCOUNT, account, currency))
+                state = self.result.cash.get((Pool(Grain.ACCOUNT, account), currency))
                 if state is None or q2(state.cash) >= ZERO:
                     continue
                 self.reported_negative.add((account, currency))
@@ -1283,12 +1043,13 @@ class _Replay:
         for grain in Grain:
             for (pool, symbol), state in self.pools.all_states(grain):
                 if state.units < -DUST_UNITS:
+                    label = pool.label
                     self.diagnose(
                         DiagnosticCode.NEGATIVE_FINAL_UNITS,
                         grain=grain,
-                        pool=f"{pool}:{symbol}",
-                        detail=f"{symbol} ends at {state.units} units in {pool}",
-                        account=pool if grain is Grain.ACCOUNT else None,
+                        pool=f"{label}:{symbol}",
+                        detail=f"{symbol} ends at {state.units} units in {label}",
+                        account=pool.name if grain is Grain.ACCOUNT else None,
                         symbol=symbol,
                         value=state.units,
                     )
@@ -1299,7 +1060,7 @@ class _Replay:
         self.split_rows.setdefault(key, set()).add(row.account)
         if key not in self.split_holders:
             self.split_holders[key] = {
-                pool
+                pool.name
                 for (pool, held), state in self.pools.all_states(Grain.ACCOUNT)
                 if held == symbol and state.units > ZERO
             }
@@ -1454,7 +1215,7 @@ class _Replay:
         - In-kind legs in different calendar years leave the units in neither
           account at the year end, so neither account's year-end figures count them.
         """
-        for pair in self.pair_by_id.values():
+        for pair in self.pairs:
             out_leg, in_leg = pair.out_leg, pair.in_leg
             if (
                 in_leg.txn_date < out_leg.txn_date
@@ -1499,7 +1260,7 @@ class _Replay:
         can't be told yet. The in leg is tagged,
         and the diagnostic names the out leg's account.
         """
-        for pair in self.pair_by_id.values():
+        for pair in self.pairs:
             out_leg, in_leg = pair.out_leg, pair.in_leg
             sent, received = (
                 self._type_of(out_leg.account),

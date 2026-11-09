@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from engine.accounts import account_type_of
 from engine.pools import (
     Conversion,
     Converted,
     TotalReturnHidden,
     UnitsSuspect,
     Unpriced,
-    account_type_of,
 )
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
 from exporters.sheet_spec import (
@@ -29,8 +29,9 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from domain import Currency
+    from engine.accounts import Pool
     from engine.holdings import CurrencyTotals, Holding, HoldingSet
-    from engine.pools import Disclosure, Pool, ValuedPool
+    from engine.pools import Disclosure, ValuedPool
 
 OPEN = "Open"
 CLOSED = "Closed"

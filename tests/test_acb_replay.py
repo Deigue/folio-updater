@@ -17,6 +17,7 @@ from domain import (
     FeeConvention,
     Grain,
 )
+from engine.accounts import Pool
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
@@ -266,7 +267,7 @@ def test_roc_reduces_acb_and_moves_no_cash() -> None:
     assert after.units == D("100")
     # Cash still reflects only the buy: the distribution was paid as a dividend
     # long before, so booking the reclassification as cash would double count.
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     assert cash.cash == D("-1000")
     assert cash.dividends == D("0")
 
@@ -403,7 +404,9 @@ def test_dividend_never_touches_acb_but_is_converted() -> None:
     assert dividend_row.acct.delta_cad == D("0")
     assert dividend_row.dividend_usd == D("20")
     assert dividend_row.dividend_cad == D("27.00")
-    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.USD)].dividends == D(
+    assert result.cash[
+        (Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.USD)
+    ].dividends == D(
         "20",
     )
 
@@ -423,7 +426,7 @@ def test_negative_dividend_reversal_is_not_coerced_positive() -> None:
             make_row(3, "2024-04-01", Action.DIVIDEND, amount="18"),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     assert cash.dividends == D("3")
 
 
@@ -771,13 +774,13 @@ def test_cash_transfer_moves_no_acb() -> None:
         ],
         types={"QT-TFSA": AccountType.TFSA, "WS-TFSA": AccountType.TFSA},
     )
-    out_cash = result.cash[(Grain.ACCOUNT, "QT-TFSA", Currency.CAD)]
-    in_cash = result.cash[(Grain.ACCOUNT, "WS-TFSA", Currency.CAD)]
+    out_cash = result.cash[(Pool(Grain.ACCOUNT, "QT-TFSA"), Currency.CAD)]
+    in_cash = result.cash[(Pool(Grain.ACCOUNT, "WS-TFSA"), Currency.CAD)]
     assert out_cash.cash == D("-500")
     assert in_cash.cash == D("500")
     # A transfer consumes no contribution room.
     assert in_cash.contributions == D("0")
-    assert result.cash[(Grain.TYPE, "TFSA", Currency.CAD)].cash == D("0")
+    assert result.cash[(Pool(Grain.TYPE, "TFSA"), Currency.CAD)].cash == D("0")
 
 
 def test_pair_transfers_prefers_the_cross_account_same_symbol_match() -> None:
@@ -825,7 +828,9 @@ def test_cash_orders_by_settle_date() -> None:
             ),
         ],
     )
-    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)].cash == D(
+        "0",
+    )
     assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
 
 
@@ -856,7 +861,7 @@ def test_sub_cent_cash_residue_is_not_an_overdraft() -> None:
             ),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)].cash
     assert cash == D("-0.000063")  # the accumulator is still exact
     assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
 
@@ -887,7 +892,7 @@ def test_a_one_cent_overdraft_is_still_reported() -> None:
             ),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)].cash
     assert cash == D("-0.01")
     assert DiagnosticCode.CASH_NEGATIVE in codes(result)
 
@@ -927,7 +932,7 @@ def test_contributions_and_withdrawals_are_tracked_apart_from_cash() -> None:
             make_row(2, "2024-06-02", Action.WITHDRAWAL, amount="-2000", ticker=None),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     assert cash.cash == D("5000")
     assert cash.contributions == D("7000")
     assert cash.withdrawals == D("2000")
@@ -954,8 +959,12 @@ def test_single_leg_fxt_books_the_fee_against_the_usd_leg() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)].cash == D("9998")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-RRSP"), Currency.CAD)].cash == D(
+        "-12500",
+    )
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-RRSP"), Currency.USD)].cash == D(
+        "9998",
+    )
 
 
 def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
@@ -982,8 +991,10 @@ def test_two_leg_fxt_applies_each_amount_to_its_own_currency() -> None:
         ],
         types={"QT-RRSP": AccountType.RRSP},
     )
-    assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.CAD)].cash == D("-1000")
-    assert result.cash[(Grain.ACCOUNT, "QT-RRSP", Currency.USD)].cash == D("735")
+    assert result.cash[(Pool(Grain.ACCOUNT, "QT-RRSP"), Currency.CAD)].cash == D(
+        "-1000",
+    )
+    assert result.cash[(Pool(Grain.ACCOUNT, "QT-RRSP"), Currency.USD)].cash == D("735")
     assert DiagnosticCode.FXT_AMOUNT_INCONSISTENT not in codes(result)
 
 
@@ -1007,7 +1018,9 @@ def test_fxt_amount_inconsistent() -> None:
     )
     assert DiagnosticCode.FXT_AMOUNT_INCONSISTENT in codes(result)
     # The diagnostic never substitutes a recomputed figure for what moved.
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-10000")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-RRSP"), Currency.CAD)].cash == D(
+        "-10000",
+    )
 
 
 # --- fee conventions -----------------------------------------------------------------
@@ -1498,7 +1511,9 @@ def test_unpaired_cash_transfer_moves_no_units() -> None:
         [make_row(1, "2024-05-01", Action.TFR_OUT, amount="-500", ticker=None)],
     )
     assert DiagnosticCode.TRANSFER_UNPAIRED in codes(result)
-    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("-500")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)].cash == D(
+        "-500",
+    )
 
 
 def test_dust_snaps_to_zero_and_rolls_residual_into_gain() -> None:
@@ -1591,7 +1606,7 @@ def test_fch_is_income_and_charges_cash() -> None:
             make_row(2, "2024-02-02", Action.FCH, amount="500", ticker=None),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     assert cash.cash == D("490.05")
     # A charge counts as a fee; RSU income arriving as FCH does not.
     assert cash.fees == D("9.95")
@@ -1862,7 +1877,7 @@ def test_a_diagnostic_is_not_duplicated_when_an_account_is_named_after_its_type(
     )
     oversells = [w for w in result.diagnostics if w.code is DiagnosticCode.OVERSELL]
     # Account, type and folio would be three, but two of them share a pool key.
-    assert [w.pool for w in oversells] == ["TFSA", "FOLIO"]
+    assert [w.pool for w in oversells] == ["TFSA", "Portfolio"]
 
 
 def test_a_transfer_leg_carrying_a_ticker_but_no_units_moves_only_cash() -> None:
@@ -1902,7 +1917,7 @@ def test_a_transfer_leg_carrying_a_ticker_but_no_units_moves_only_cash() -> None
     assert result.rows[1].acct.units == D("100")
     assert result.rows[1].acct.acb_cad == D("1000")
     assert result.rows[2].acct.units == D("0")
-    assert result.cash[(Grain.ACCOUNT, "WS-TFSA", Currency.CAD)].cash == D("500")
+    assert result.cash[(Pool(Grain.ACCOUNT, "WS-TFSA"), Currency.CAD)].cash == D("500")
 
 
 def test_an_unpaired_leg_with_a_ticker_but_no_units_moves_nothing() -> None:
@@ -2157,7 +2172,9 @@ def test_cash_follows_settlement_date_not_transaction_date() -> None:
         ],
     )
     assert DiagnosticCode.CASH_NEGATIVE not in codes(result)
-    assert result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)].cash == D("0")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)].cash == D(
+        "0",
+    )
 
 
 # --- fee signs ------------------------------------------------------------------
@@ -2195,7 +2212,7 @@ def test_a_negative_fee_is_a_charge_where_that_is_the_convention() -> None:
     )
     # The commission is added to the cost base, not netted out of it.
     assert result.rows[-1].acct.acb_cad == D("2000.70")
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     assert cash.cash == D("-2000.70")
     assert cash.fees == D("0.70")
 
@@ -2233,7 +2250,7 @@ def test_a_positive_fee_on_a_negative_fee_account_is_a_rebate() -> None:
             ),
         ],
     )
-    cash = result.cash[(Grain.ACCOUNT, "IBKR-PERSONAL", Currency.CAD)]
+    cash = result.cash[(Pool(Grain.ACCOUNT, "IBKR-PERSONAL"), Currency.CAD)]
     # Two charges of 0.35 less a 0.02 rebate. Reading the magnitude would debit
     # the rebate instead of crediting it, an error of twice its value.
     assert cash.fees == D("0.68")
@@ -2259,7 +2276,7 @@ def test_a_positive_fee_is_a_charge_where_that_is_the_convention() -> None:
         types={"HAND-TFSA": AccountType.TFSA},
     )
     assert result.rows[-1].acct.acb_cad == D("1005")
-    assert result.cash[(Grain.ACCOUNT, "HAND-TFSA", Currency.CAD)].fees == D("5")
+    assert result.cash[(Pool(Grain.ACCOUNT, "HAND-TFSA"), Currency.CAD)].fees == D("5")
 
 
 def test_the_fx_commission_follows_the_same_sign_convention() -> None:
@@ -2291,9 +2308,11 @@ def test_the_fx_commission_follows_the_same_sign_convention() -> None:
         ],
         types={"IBKR-RRSP": AccountType.RRSP},
     )
-    usd = result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.USD)]
+    usd = result.cash[(Pool(Grain.ACCOUNT, "IBKR-RRSP"), Currency.USD)]
     assert usd.cash == D("10000") - D("2") - D("1000.35")
-    assert result.cash[(Grain.ACCOUNT, "IBKR-RRSP", Currency.CAD)].cash == D("-12500")
+    assert result.cash[(Pool(Grain.ACCOUNT, "IBKR-RRSP"), Currency.CAD)].cash == D(
+        "-12500",
+    )
 
 
 def _cross_broker_legs(in_settle: str, in_units: str = "100") -> list[Txn]:

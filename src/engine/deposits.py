@@ -40,20 +40,23 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from domain import Action, Currency, Grain
 from domain.numeric import ONE, ZERO
+from engine.accounts import Pool
+from engine.transfers import TRANSFER_ACTIONS
+from engine.types import DepositShare, TransferTotals
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Mapping, Sequence
 
-    from domain import Currency, Grain
+    from engine.fx_rates import FxRates
+    from engine.transfers import Crossing, TransferPair
+    from engine.types import CashEffect, CashKey, LedgerRow
+    from models import Txn
 
-# A pool at one grain. The grain is part of the key because an account may
-# legitimately be named after a type, exactly as `CashKey` guards against.
-PoolId = tuple["Grain", str]
-
-# Deposits per currency. Never blended: a contribution is denominated in the currency
+# An amount per currency. Never blended: a contribution is denominated in the currency
 # it was made in, whatever it was later invested in.
-Deposits = dict["Currency", "Decimal"]
+_PerCurrency = dict[Currency, Decimal]
 
 # A pool emptied by several legs divides by a slightly smaller pool basis each time,
 # and fractions do not recombine exactly, so a fully transferred account can be left
@@ -92,133 +95,280 @@ def fraction_leaving(value_leaving: Decimal, basis_cad: Decimal) -> Decimal:
     return value_leaving / basis_cad
 
 
-@dataclass
-class PoolDeposits:
-    """One pool's running pool basis and deposits.
+def _add(amounts: _PerCurrency, currency: Currency, amount: Decimal) -> None:
+    """Add to one currency's running amount."""
+    amounts[currency] = amounts.get(currency, ZERO) + amount
 
-    Attributes:
-        basis_cad: Cost base plus cash, in CAD. The denominator of the
-            proportional rule, and the only reason pool basis is tracked at all.
-        deposits: Net deposits so far, per currency, signed.
-    """
+
+@dataclass
+class _PoolFigures:
+    """One tracked pool's running figures."""
 
     basis_cad: Decimal = ZERO
-    deposits: Deposits = field(default_factory=dict)
+    deposits: _PerCurrency = field(default_factory=dict)
+    contributions: _PerCurrency = field(default_factory=dict)
+    withdrawals: _PerCurrency = field(default_factory=dict)
 
 
-class DepositTracker:
-    """Running deposits for the pools that transfers actually touch.
+class NetDeposits:
+    """Running net deposits for the pools that transfers actually cross.
 
-    Deliberately **not** every pool. When transfers not involved, net deposits is simply
-    contributions minus withdrawals. This ledger tracking is only needed when transfers
-    are involved.
+    Deliberately **not** every pool. Without a transfer, net deposits is simply
+    contributions minus withdrawals, and this is the replay's hot path. A pair inside
+    one pool at a grain moves nothing there, which keeps the folio grain at plain
+    contributions less withdrawals.
     """
 
-    def __init__(self, tracked: frozenset[PoolId]) -> None:
-        """Create a ledger for a fixed set of pools.
+    def __init__(
+        self,
+        rows: Sequence[LedgerRow],
+        pair_of: Mapping[int, TransferPair],
+        fx: FxRates,
+    ) -> None:
+        """Size the tracker from a finished cost-base walk.
 
         Args:
-            tracked: The pools that participate in a transfer at their grain.
+            rows: Every ledger row. Only the transfer legs are kept.
+            pair_of: Each paired leg's transfer, by TxnId.
+            fx: Rates for converting cash into the CAD pool basis is measured in.
         """
-        # grain -> [pool name, PoolDeposits]
-        self._by_grain: dict[Grain, dict[str, PoolDeposits]] = {}
-        for grain, name in tracked:
-            self._by_grain.setdefault(grain, {})[name] = PoolDeposits()
-        # Deposits taken out by transfers, waiting for a transfer in.
-        self._carried: dict[tuple[int, Grain], Deposits] = {}
-        self.grains: tuple[Grain, ...] = tuple(self._by_grain)
-
-    @property
-    def active(self) -> bool:
-        """Whether any pool needs tracking at all."""
-        return bool(self._by_grain)
-
-    def resolve(self, grain: Grain, name: str) -> PoolDeposits | None:
-        """Return a pool's running state, or None when it is not tracked."""
-        pools = self._by_grain.get(grain)
-        return None if pools is None else pools.get(name)
-
-    def pools(self) -> Iterable[tuple[PoolId, PoolDeposits]]:
-        """Iterate every tracked pool alongside the grain it sits at."""
-        return (
-            ((grain, name), state)
-            for grain, pools in self._by_grain.items()
-            for name, state in pools.items()
+        self._fx = fx
+        self._pair_of = pair_of
+        self._legs = {
+            computed.row.txn_id: computed
+            for computed in rows
+            if computed.row.action in TRANSFER_ACTIONS
+        }
+        self._tracked: dict[Pool, _PoolFigures] = {}
+        for pair in pair_of.values():
+            for crossing in pair.crossings:
+                self._tracked.setdefault(crossing.out_pool, _PoolFigures())
+                self._tracked.setdefault(crossing.in_pool, _PoolFigures())
+        self._tracked_grains = tuple(
+            dict.fromkeys(pool.grain for pool in self._tracked),
         )
+        # Deposits taken by whichever leg was reached first, for the other to use.
+        self._carried: dict[tuple[int, Grain], _PerCurrency] = {}
+        self._totals: dict[CashKey, TransferTotals] = {}
+        self.shares: list[DepositShare] = []
 
-    def deposit(
+    def apply(self, computed: LedgerRow, effects: Sequence[CashEffect]) -> None:
+        """Book one row, in settlement-date order.
+
+        A transfer's share is measured against the pool as the leg found it, so the
+        row's own cash and cost base reach the pool basis last.
+
+        Args:
+            computed: The row, with the cost base it moved at each grain.
+            effects: What the row does to cash.
+        """
+        row = computed.row
+        if row.action in TRANSFER_ACTIONS:
+            self._apply_leg(computed)
+        tracked = self._tracked_pools_of(computed)
+        if not tracked:
+            return
+        if row.action is Action.CONTRIBUTION:
+            self._apply_external(row, tracked, abs(row.amount or ZERO))
+        elif row.action is Action.WITHDRAWAL:
+            self._apply_external(row, tracked, -abs(row.amount or ZERO))
+        self._advance_basis(computed, tracked, effects)
+
+    def closing_transfers(self) -> dict[CashKey, TransferTotals]:
+        """Return what transfers added up to, for every pool one touched.
+
+        A tracked pool's `transfers` is restated as the exact complement of the
+        deposits it holds, closing `net deposits = contributions - withdrawals +
+        transfers`. A pool whose transfers all went unpaired keeps its face-value
+        total, since nothing measured its deposits.
+
+        Returns:
+            Each pool and currency's totals.
+        """
+        for pool, figures in self._tracked.items():
+            for currency, deposited in figures.deposits.items():
+                self._totals_of(pool, currency).transfers = (
+                    deposited
+                    - figures.contributions.get(currency, ZERO)
+                    + figures.withdrawals.get(currency, ZERO)
+                )
+        return self._totals
+
+    def _tracked_pools_of(
         self,
-        grain: Grain,
-        name: str,
+        computed: LedgerRow,
+    ) -> list[tuple[Pool, _PoolFigures]]:
+        """List the tracked pools a row sits in, one per grain at most."""
+        tracked = []
+        for grain in self._tracked_grains:
+            pool = Pool.of(grain, computed.row, computed.acct_type)
+            figures = self._tracked.get(pool)
+            if figures is not None:
+                tracked.append((pool, figures))
+        return tracked
+
+    def _totals_of(self, pool: Pool, currency: Currency) -> TransferTotals:
+        """Return one pool and currency's transfer totals, creating them if new."""
+        return self._totals.setdefault((pool, currency), TransferTotals())
+
+    def _apply_external(
+        self,
+        row: Txn,
+        tracked: list[tuple[Pool, _PoolFigures]],
+        amount: Decimal,
+    ) -> None:
+        """Add a contribution (positive) or withdrawal (negative) to its pools."""
+        for _pool, figures in tracked:
+            _add(figures.deposits, row.currency, amount)
+            if amount > ZERO:
+                _add(figures.contributions, row.currency, amount)
+            else:
+                _add(figures.withdrawals, row.currency, -amount)
+
+    def _advance_basis(
+        self,
+        computed: LedgerRow,
+        tracked: list[tuple[Pool, _PoolFigures]],
+        effects: Sequence[CashEffect],
+    ) -> None:
+        """Move the pool basis by the row's cash and the cost base it changed.
+
+        Both land on the **settlement date**, even though the cost base was computed
+        in transaction-date order. A buy on T settling T+2 raises the cost base on T
+        and drops cash on T+2; booking both here leaves the pool basis untouched by
+        a purchase, so only genuine growth moves it.
+        """
+        fx_date = computed.row.fx_date
+        cash_in_cad = [
+            (
+                self._fx.to_cad(effect.cash, fx_date, effect.currency).value,
+                effect.grains,
+            )
+            for effect in effects
+            if effect.cash != ZERO
+        ]
+        for pool, figures in tracked:
+            for amount, grains in cash_in_cad:
+                if pool.grain in grains:
+                    figures.basis_cad += amount
+            delta = computed.measures(pool.grain).delta_cad
+            if delta != ZERO:
+                figures.basis_cad += delta
+
+    def _apply_leg(self, computed: LedgerRow) -> None:
+        """Move one transfer leg's deposits, paired or not."""
+        pair = self._pair_of.get(computed.row.txn_id)
+        if pair is None:
+            self._apply_unpaired(computed)
+        else:
+            self._apply_paired(computed, pair)
+
+    def _apply_paired(self, computed: LedgerRow, pair: TransferPair) -> None:
+        """Move a paired leg's share of deposits at every grain the pair crosses."""
+        row = computed.row
+        arriving = row.action is Action.TFR_IN
+        for crossing in pair.crossings:
+            pool = crossing.in_pool if arriving else crossing.out_pool
+            self._record_transferred_value(computed, pool)
+            for currency, amount in self._share_of(pair, crossing).items():
+                if arriving:
+                    _add(self._tracked[pool].deposits, currency, amount)
+                self._record_share(
+                    row,
+                    pool,
+                    currency,
+                    amount if arriving else -amount,
+                )
+
+    def _share_of(self, pair: TransferPair, crossing: Crossing) -> _PerCurrency:
+        """Return the deposits a pair moves at one grain, taking them only once.
+
+        Whichever leg is reached first settles the sending side. An in leg settling
+        first is reported until it is re-dated, and must not lose its deposits
+        meanwhile.
+        """
+        key = (pair.pair_id, crossing.grain)
+        moved = self._carried.get(key)
+        if moved is None:
+            moved = self._take(pair, crossing)
+            self._carried[key] = moved
+        return moved
+
+    def _take(self, pair: TransferPair, crossing: Crossing) -> _PerCurrency:
+        """Remove the sending pool's share of its deposits for one pair."""
+        figures = self._tracked[crossing.out_pool]
+        share = fraction_leaving(
+            self._leg_value_cad(pair.out_leg, crossing.grain),
+            figures.basis_cad,
+        )
+        moved: _PerCurrency = {}
+        if share == ZERO:
+            return moved
+        for currency, amount in figures.deposits.items():
+            if amount == ZERO:
+                continue
+            portion = amount * share
+            remaining = amount - portion
+            if abs(remaining) < DEPOSIT_DUST:
+                # The pool emptied. Hand the residue over rather than stranding a
+                # fraction of a cent that no later leg can move and that reads as a
+                # non-zero denominator.
+                portion, remaining = amount, ZERO
+            moved[currency] = portion
+            figures.deposits[currency] = remaining
+        return moved
+
+    def _leg_value_cad(self, leg: Txn, grain: Grain) -> Decimal:
+        """Return what one leg removes from its pool, in CAD and non-negative.
+
+        A cash leg is worth its amount. An in-kind leg is worth the cost base it
+        carried, read off the cost-base walk so the two can never disagree, and
+        because that is what the pool basis is measured in.
+        """
+        if leg.is_in_kind_transfer:
+            return abs(self._legs[leg.txn_id].measures(grain).delta_cad)
+        return abs(self._fx.to_cad(leg.amount or ZERO, leg.fx_date, leg.currency).value)
+
+    def _apply_unpaired(self, computed: LedgerRow) -> None:
+        """Fall back to face value for a cash leg with no counterpart.
+
+        With no pair there is no sending pool to measure a share against. An in-kind
+        leg carries no cost base, so it moves no deposits at all.
+        """
+        row = computed.row
+        if row.is_in_kind_transfer:
+            return
+        amount = row.amount or ZERO
+        for grain in Grain:
+            pool = Pool.of(grain, row, computed.acct_type)
+            totals = self._totals_of(pool, row.currency)
+            totals.transfers += amount
+            totals.transfers_value += amount
+            if amount == ZERO:
+                continue
+            figures = self._tracked.get(pool)
+            if figures is not None:
+                _add(figures.deposits, row.currency, amount)
+            self._record_share(row, pool, row.currency, amount)
+
+    def _record_transferred_value(self, computed: LedgerRow, pool: Pool) -> None:
+        """Note what a leg actually moved, for reconciling against a statement."""
+        row = computed.row
+        if row.is_in_kind_transfer:
+            moved, currency = computed.measures(pool.grain).delta_cad, Currency.CAD
+        else:
+            moved, currency = row.amount or ZERO, row.currency
+        if moved != ZERO:
+            self._totals_of(pool, currency).transfers_value += moved
+
+    def _record_share(
+        self,
+        row: Txn,
+        pool: Pool,
         currency: Currency,
         amount: Decimal,
     ) -> None:
-        """Add a contribution (positive) or withdrawal (negative) to a pool."""
-        state = self.resolve(grain, name)
-        if state is None or amount == ZERO:
-            return
-        state.deposits[currency] = state.deposits.get(currency, ZERO) + amount
-
-    def take(
-        self,
-        grain: Grain,
-        name: str,
-        pair_id: int,
-        value_leaving_cad: Decimal,
-    ) -> Deposits:
-        """Remove a leg's share of a pool's deposits, holding it for the in leg.
-
-        Must be called **before** the leg's own effect on cash or cost base is
-        applied, so the fraction is measured against the pool as the leg found
-        it.
-
-        Args:
-            grain: The grain being applied, part of the carry key.
-            name: The pool the value is leaving.
-            pair_id: Identifies the transfer, so the in leg can claim this.
-            value_leaving_cad: CAD value the leg removes, non-negative.
-
-        Returns:
-            The deposits taken, per currency.
-        """
-        moved: Deposits = {}
-        state = self.resolve(grain, name)
-        if state is not None:
-            share = fraction_leaving(value_leaving_cad, state.basis_cad)
-            if share != ZERO:
-                for currency, amount in state.deposits.items():
-                    if amount == ZERO:
-                        continue
-                    portion = amount * share
-                    remaining = amount - portion
-                    if abs(remaining) < DEPOSIT_DUST:
-                        # The pool emptied. Hand the residue over rather than
-                        # stranding a fraction of a cent that no later leg can
-                        # move and that reads as a non-zero denominator.
-                        portion, remaining = amount, ZERO
-                    moved[currency] = portion
-                    state.deposits[currency] = remaining
-        self._carried[(pair_id, grain)] = moved
-        return moved
-
-    def give(self, grain: Grain, name: str, pair_id: int) -> Deposits:
-        """Add the deposits the out leg handed over to the receiving pool.
-
-        The out leg must already have been applied: the caller checks `pending`
-        and settles the sending side first when the legs arrive out of order, so
-        a missing entry is a bug in that sequencing rather than a state worth
-        tolerating, and is left to raise.
-
-        Returns:
-            The deposits added, per currency.
-        """
-        moved = self._carried[(pair_id, grain)]
-        state = self.resolve(grain, name)
-        if state is not None:
-            for currency, amount in moved.items():
-                state.deposits[currency] = state.deposits.get(currency, ZERO) + amount
-        return moved
-
-    def pending(self, pair_id: int, grain: Grain) -> bool:
-        """Whether this pair's out leg has been applied yet at this grain."""
-        return (pair_id, grain) in self._carried
+        """Keep what one leg moved in one pool."""
+        self.shares.append(
+            DepositShare(row.txn_id, row.settle_date, pool, currency, amount),
+        )

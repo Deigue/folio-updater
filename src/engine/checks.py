@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from domain import Action, CheckStatus, Currency, DiagnosticCode, Grain
 from domain.numeric import ZERO, q2
+from engine.accounts import Pool
 from engine.replay import DENOMINATED_ACTIONS
 
 if TYPE_CHECKING:
@@ -286,7 +287,7 @@ class _LedgerIndex:
 
     def cash(self, account: str, currency: Currency) -> Decimal:
         """Cash state of an account for the given currency."""
-        state = self.ledger.cash.get((Grain.ACCOUNT, account, currency))
+        state = self.ledger.cash.get((Pool(Grain.ACCOUNT, account), currency))
         return state.cash if state else ZERO
 
 

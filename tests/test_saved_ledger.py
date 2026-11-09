@@ -9,20 +9,28 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+import pytest
+
 from domain import Action, Currency, DiagnosticCode, Grain
-from engine.ledger import Diagnosis, Ledger
+from engine.accounts import FOLIO, Pool
+from engine.ledger import Diagnosis, Ledger, open_ledger
 from engine.saved_ledger import (
     decode_cash_and_totals,
+    decode_deposit_shares,
     decode_diagnostics,
     encode_cash_and_totals,
+    encode_deposit_shares,
     encode_diagnostics,
 )
 
 from .helpers.replay import make_row, run
+from .helpers.seed import seed_cash, seed_fx
 
 if TYPE_CHECKING:
     from engine.types import ReplayResult
     from models import Txn
+
+    from .helpers.context import TempContext
 
 
 def oversold_rows() -> list[Txn]:
@@ -61,12 +69,16 @@ def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
     # Through JSON, as the meta file stores them.
     saved = json.loads(json.dumps(encode_cash_and_totals(ledger.cash, ledger.totals)))
     cash, totals = decode_cash_and_totals(saved)
+    shares = decode_deposit_shares(
+        json.loads(json.dumps(encode_deposit_shares(ledger.deposit_shares))),
+    )
     diagnosis = Diagnosis(diagnostics=tuple(diagnostics), rows=rows)
     restored = Ledger(
         frame=ledger.frame,
         cash=cash,
         totals=totals,
         load_diagnosis=lambda: diagnosis,
+        deposit_shares=shares,
     )
     return ledger, restored
 
@@ -83,6 +95,74 @@ def test_cash_round_trips_exactly() -> None:
     original, restored = round_trip(run(oversold_rows()))
     assert original.cash
     assert restored.cash == original.cash
+
+
+def test_deposit_shares_round_trip_exactly() -> None:
+    """A third of a pool's deposits, which no float would hold to the last digit."""
+    original, restored = round_trip(
+        run(
+            [
+                make_row(
+                    1,
+                    "2024-01-02",
+                    Action.CONTRIBUTION,
+                    amount="3000",
+                    ticker=None,
+                    account="QT-TFSA",
+                ),
+                make_row(
+                    2,
+                    "2024-03-01",
+                    Action.TFR_OUT,
+                    amount="-1000",
+                    ticker=None,
+                    account="QT-TFSA",
+                ),
+                make_row(
+                    3,
+                    "2024-03-01",
+                    Action.TFR_IN,
+                    amount="1000",
+                    ticker=None,
+                    account="WS-TFSA",
+                ),
+            ],
+        ),
+    )
+    assert original.deposit_shares
+    assert restored.deposit_shares == original.deposit_shares
+
+
+@pytest.mark.real_saved_ledger
+def test_a_reused_ledger_keeps_its_deposit_shares(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx({"2025-08-14": "1.25", "2025-08-18": "1.25"})
+        seed_cash(
+            "CONTRIBUTION",
+            amount="10000",
+            account="QT-TFSA",
+            date="2025-08-14",
+            settle_date="2025-08-14",
+        )
+        for action, amount, account in (
+            ("TFR_OUT", "-4000", "QT-TFSA"),
+            ("TFR_IN", "4000", "WS-TFSA"),
+        ):
+            seed_cash(
+                action,
+                amount=amount,
+                account=account,
+                date="2025-08-18",
+                settle_date="2025-08-18",
+            )
+
+        replayed = open_ledger(offline=True)
+        reused = open_ledger(offline=True)
+
+        assert replayed.computed_at is None
+        assert reused.computed_at is not None
+        assert len(reused.deposit_shares) == 2
+        assert reused.deposit_shares == replayed.deposit_shares
 
 
 def test_the_row_counts_round_trip() -> None:
@@ -162,5 +242,5 @@ def test_cash_keys_survive_a_pool_named_after_a_grain() -> None:
             ],
         ),
     )
-    assert (Grain.ACCOUNT, "FOLIO", Currency.CAD) in restored.cash
-    assert (Grain.FOLIO, "FOLIO", Currency.CAD) in restored.cash
+    assert (Pool(Grain.ACCOUNT, "FOLIO"), Currency.CAD) in restored.cash
+    assert (FOLIO, Currency.CAD) in restored.cash

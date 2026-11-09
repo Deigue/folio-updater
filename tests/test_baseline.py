@@ -2,7 +2,8 @@
 
 `tests/baselines/` holds every figure the replay and the valuation give the
 demo folio: each transaction's measures at every grain, each pool's cash and
-flows, the replay's row counts, what `folio dash` reads for every pool in each
+flows, the replay's row counts, each transfer leg's deposit shares, what
+`folio dash` reads for every pool in each
 display currency, the gains since buy and the cost base summaries `folio acb`
 reads (at the end, and as of a year-end), what `folio ticker` adds for each
 security, and the workbook's room history. The folio is valued as of the demo's
@@ -25,6 +26,7 @@ import csv
 import inspect
 import math
 from bisect import bisect_right
+from collections import Counter
 from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
 from pathlib import Path
@@ -38,6 +40,7 @@ from datagen import ensure_data_exists
 from datagen.demo import CRA_ROOM, END, SYMBOLS, currency_of, price_on
 from domain import Action, Column, Currency, Grain, Impact
 from engine import CashState, FxRates, load_fx_rates
+from engine.accounts import FOLIO, Pool
 from engine.flows import room_history
 from engine.frames import (
     GRAIN_PREFIX,
@@ -47,7 +50,7 @@ from engine.frames import (
 )
 from engine.gain_since_buy import bought_symbols, with_gains_since_buy
 from engine.ledger import open_ledger
-from engine.pools import FOLIO, FolioValuation, Pool
+from engine.pools import FolioValuation
 from engine.ticker import symbol_holdings
 from services.quotes_service import QuotesService
 from services.symbols import SymbolResolver, load_symbol_resolver
@@ -406,9 +409,9 @@ def test_every_pool_keeps_its_cash_and_row_counts(
 ) -> None:
     measures = [field.name for field in fields(CashState)]
     cash = sorted(
-        [str(grain), pool, str(currency)]
+        [str(pool.grain), pool.name, str(currency)]
         + [_cell(getattr(state, measure)) for measure in measures]
-        for (grain, pool, currency), state in demo_ledger.cash.items()
+        for (pool, currency), state in demo_ledger.cash.items()
     )
     counts = sorted(
         [_cell(action), account, symbol, _cell(currency), str(count)]
@@ -427,6 +430,27 @@ def test_every_pool_keeps_its_cash_and_row_counts(
         "row_counts",
         _Table(["Action", "Account", "Symbol", "Currency", "Rows"], counts, 4),
     )
+
+
+def test_every_transfer_leg_keeps_its_deposit_shares(
+    request: pytest.FixtureRequest,
+    demo_ledger: Ledger,
+) -> None:
+    frame = demo_ledger.frame
+    seen: Counter[tuple[str, ...]] = Counter()
+    rows: list[list[str]] = []
+    for share in sorted(demo_ledger.deposit_shares, key=lambda found: found.txn_id):
+        key = (
+            *(_cell(frame.loc[share.txn_id, column]) for column in _TXN_KEY),
+            str(share.pool.grain),
+            share.pool.name,
+            str(share.currency),
+        )
+        rows.append([*key, str(seen[key]), share.settle_date, _cell(share.amount)])
+        seen[key] += 1
+    header = [*_TXN_KEY, "Grain", "Pool", "Currency", _PLACE, "SettleDate", "Amount"]
+
+    _check(request, "deposit_shares", _Table(header, sorted(rows), len(header) - 2))
 
 
 def test_every_dashboard_pool_keeps_its_figures(

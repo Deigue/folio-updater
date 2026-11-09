@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from domain import Action, Column, Currency, DiagnosticCode, Grain, PriceRange
 from domain.numeric import ZERO, dec
-from engine.pools import FOLIO, Pool
+from engine.accounts import FOLIO, Pool
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

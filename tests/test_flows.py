@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from domain import AccountType, Action, Column, Currency, DiagnosticCode, Grain
+from engine.accounts import Pool
 from engine.flows import (
     Flows,
     Room,
@@ -37,7 +38,7 @@ FX_DATES = {
 
 def _flows(
     grain: Grain = Grain.FOLIO,
-    pool: str | None = None,
+    pool: str = "",
     account_type: AccountType | None = None,
     room: dict | None = None,
     year: int | None = None,
@@ -46,13 +47,18 @@ def _flows(
     ledger = open_ledger()
     return build_flows(
         ledger,
-        grain=grain,
-        pool=pool,
+        Pool(grain, pool),
         contributions=contributions_by_type_year(ledger.frame),
         account_type=account_type,
         room=room,
         year=year,
     )
+
+
+def _seed_legs(day: str, *legs: tuple[str, str, str]) -> None:
+    """Seed cash transfer legs on one day: each an action, amount and account."""
+    for action, amount, account in legs:
+        seed_cash(action, amount=amount, account=account, date=day, settle_date=day)
 
 
 def test_cash_is_reported_per_currency_never_summed(temp_ctx: TempContext) -> None:
@@ -1078,19 +1084,13 @@ def test_out_legs_apply_first_on_one_date_whatever_the_import_order(
             settle_date="2025-08-14",
         )
         # The receiving broker's rows were imported first.
-        for action, amount, account in (
+        _seed_legs(
+            "2025-08-18",
             ("TFR_IN", "6000", "WS-TFSA"),
             ("TFR_IN", "4000", "WS-TFSA"),
             ("TFR_OUT", "-6000", "QT-TFSA"),
             ("TFR_OUT", "-4000", "QT-TFSA"),
-        ):
-            seed_cash(
-                action,
-                amount=amount,
-                account=account,
-                date="2025-08-18",
-                settle_date="2025-08-18",
-            )
+        )
 
         sender = _flows(Grain.ACCOUNT, "QT-TFSA")
         receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
@@ -1112,19 +1112,13 @@ def test_a_transfer_passing_through_an_account_on_one_date_carries_on(
             date="2025-08-14",
             settle_date="2025-08-14",
         )
-        for action, amount, account in (
+        _seed_legs(
+            "2025-08-18",
             ("TFR_OUT", "-1000", "QT-TFSA"),
             ("TFR_IN", "1000", "WS-TFSA"),
             ("TFR_OUT", "-999", "WS-TFSA"),
             ("TFR_IN", "999", "IBKR-TFSA"),
-        ):
-            seed_cash(
-                action,
-                amount=amount,
-                account=account,
-                date="2025-08-18",
-                settle_date="2025-08-18",
-            )
+        )
 
         middle = _flows(Grain.ACCOUNT, "WS-TFSA")
         last = _flows(Grain.ACCOUNT, "IBKR-TFSA")

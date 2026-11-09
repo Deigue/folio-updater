@@ -1,9 +1,9 @@
 """Persist the parts of a replay the ledger frame does not carry.
 
 The ledger frame holds every transaction's figures, but a replay also raises
-diagnostics, keeps the running cash per pool and counts rows by shape. These are
-saved beside the frame, so a reused ledger reports exactly what a fresh replay
-would without replaying.
+diagnostics, keeps the running cash per pool, counts rows by shape and records
+each transfer leg's deposit share. These are saved beside the frame, so a reused
+ledger reports exactly what a fresh replay would without replaying.
 
 Diagnostics are saved as a frame of one record per diagnostic, each carrying the
 exact ledger row it tags. Only the rows a diagnostic points at are stored: the
@@ -21,8 +21,10 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from domain import AccountType, Action, Currency, DiagnosticCode, Grain, Impact
+from engine.accounts import Pool
 from engine.types import (
     CashState,
+    DepositShare,
     Diagnostic,
     GrainMeasures,
     LedgerRow,
@@ -37,7 +39,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -253,15 +255,15 @@ def encode_cash_and_totals(
     return {
         "cash": [
             {
-                "grain": str(grain),
-                "pool": pool,
+                "grain": str(pool.grain),
+                "pool": pool.name,
                 "currency": str(currency),
                 **{
                     field.name: str(getattr(state, field.name))
                     for field in fields(CashState)
                 },
             }
-            for (grain, pool, currency), state in cash.items()
+            for (pool, currency), state in cash.items()
         ],
         "totals": [
             [str(action), account, symbol, str(currency), count]
@@ -282,7 +284,10 @@ def decode_cash_and_totals(
         The cash per pool and currency, and the row counts.
     """
     cash = {
-        (Grain(entry["grain"]), entry["pool"], Currency(entry["currency"])): CashState(
+        (
+            Pool(Grain(entry["grain"]), entry["pool"]),
+            Currency(entry["currency"]),
+        ): CashState(
             **{field.name: Decimal(entry[field.name]) for field in fields(CashState)},
         )
         for entry in payload["cash"]
@@ -291,3 +296,32 @@ def decode_cash_and_totals(
     for action, account, symbol, currency, count in payload["totals"]:
         totals.rows[(Action(action), account, symbol, Currency(currency))] = count
     return cash, totals
+
+
+def encode_deposit_shares(shares: Sequence[DepositShare]) -> list[list[Any]]:
+    """Flatten each leg's deposit share into JSON-ready lists, money as text."""
+    return [
+        [
+            share.txn_id,
+            share.settle_date,
+            str(share.pool.grain),
+            share.pool.name,
+            str(share.currency),
+            str(share.amount),
+        ]
+        for share in shares
+    ]
+
+
+def decode_deposit_shares(entries: Sequence[Sequence[Any]]) -> tuple[DepositShare, ...]:
+    """Restore the deposit shares from `encode_deposit_shares`."""
+    return tuple(
+        DepositShare(
+            txn_id,
+            settle_date,
+            Pool(Grain(grain), pool),
+            Currency(currency),
+            Decimal(amount),
+        )
+        for txn_id, settle_date, grain, pool, currency, amount in entries
+    )

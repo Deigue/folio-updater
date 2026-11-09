@@ -9,9 +9,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from domain import Currency, Grain, PriceRange, QuoteStatus
+from engine.accounts import Pool
 from engine.ledger import open_ledger
 from engine.performance import RangeMove, price_moves
-from engine.pools import FolioValuation, Pool
+from engine.pools import FolioValuation
 from engine.ticker import (
     FirstBuy,
     PerformanceRow,

@@ -23,8 +23,9 @@ from cli.commands.common import (
     write_or_exit,
 )
 from domain import Currency, Grain
+from engine.accounts import Pool
 from engine.holdings import SORT_NAMES, UnknownSortError
-from engine.pools import FolioValuation, Pool
+from engine.pools import FolioValuation
 from exporters.output import CSV_SUFFIX
 from exporters.sheets import pool_sheet, pooled_dashboard_sheet
 from term import console_error, console_info, console_warning

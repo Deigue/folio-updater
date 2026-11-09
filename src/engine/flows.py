@@ -21,7 +21,6 @@ from domain import (
     Grain,
 )
 from domain.numeric import ZERO, dec, q2
-from engine.replay import FOLIO_POOL
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -29,6 +28,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+    from engine.accounts import Pool
     from engine.ledger import Ledger
     from engine.types import CashState
 
@@ -199,9 +199,8 @@ class Flows:
 
 def build_flows(  # noqa: PLR0913
     ledger: Ledger,
+    pool: Pool,
     *,
-    grain: Grain,
-    pool: str | None,
     contributions: Mapping[AccountType, Mapping[int, Decimal]],
     account_type: AccountType | None = None,
     room: Mapping[AccountType, Mapping[int, Decimal]] | None = None,
@@ -211,9 +210,7 @@ def build_flows(  # noqa: PLR0913
 
     Args:
         ledger: The ledger, whose cash carries every pool's flows.
-        grain: The pool grain to read at.
-        pool: The account name or account type. Ignored at folio grain,
-            where the replay credits the literal `FOLIO` key.
+        pool: The pool to read.
         account_type: The type this pool is, when it is exactly one. Drives
             whether a contribution-room row applies at all.
         room: Configured limits by account type and year.
@@ -225,16 +222,15 @@ def build_flows(  # noqa: PLR0913
     Returns:
         The pool's figures, per currency.
     """
-    key = FOLIO_POOL if grain is Grain.FOLIO else (pool or "")
     states = {
         currency: state
-        for (cash_grain, name, currency), state in ledger.cash.items()
-        if cash_grain is grain and name == key
+        for (cash_pool, currency), state in ledger.cash.items()
+        if cash_pool == pool
     }
 
     return Flows(
-        grain=grain,
-        pool=key if grain is not Grain.FOLIO else "",
+        grain=pool.grain,
+        pool=pool.name,
         account_type=account_type,
         cash=_measure(states, "cash"),
         contributions=_measure(states, "contributions"),

@@ -8,6 +8,7 @@ from functools import cached_property
 from typing import TYPE_CHECKING, NamedTuple
 
 from domain import Column, Currency, CurrencyColumns, DiagnosticCode, Grain, Impact
+from engine.accounts import FOLIO, Pool
 from engine.frames import (
     POOL_COLUMN,
     acb_summary_frame,
@@ -16,7 +17,6 @@ from engine.frames import (
     replay_ordered,
 )
 from engine.gain_since_buy import with_gains_since_buy
-from engine.pools import FOLIO, Pool
 from models import txns_frame
 
 if TYPE_CHECKING:

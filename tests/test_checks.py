@@ -877,24 +877,13 @@ def test_a_transfer_taking_days_within_one_year_passes() -> None:
 
 def _moved_cash(out_date: str, in_date: str) -> list[Txn]:
     """Move 600 CAD of cash to another broker on two dates."""
-    return [
-        make_row(
-            1,
-            out_date,
-            Action.TFR_OUT,
-            amount="-600",
-            ticker=None,
-            account="WS-TFSA",
-        ),
-        make_row(
-            2,
-            in_date,
-            Action.TFR_IN,
-            amount="600",
-            ticker=None,
-            account="IBKR-TFSA",
-        ),
-    ]
+    return _moved(
+        "WS-TFSA",
+        "IBKR-TFSA",
+        in_kind=False,
+        out_date=out_date,
+        in_date=in_date,
+    )
 
 
 def test_cash_arriving_before_it_left_is_reported() -> None:
@@ -902,7 +891,7 @@ def test_cash_arriving_before_it_left_is_reported() -> None:
 
     assert result.status is CheckStatus.WARN
     [finding] = result.findings
-    assert finding.txn_ids == (1,)
+    assert finding.txn_ids == (2,)
     assert "2025-03-10" in finding.detail
     assert "net deposits may be wrong" in finding.detail
     assert "cost base" not in finding.detail
@@ -916,12 +905,19 @@ def test_cash_arriving_after_it_left_passes() -> None:
 
 def test_cash_landing_in_the_next_year_passes() -> None:
     """Cash has no units to go missing from a year-end holding."""
-    result = check(_moved_cash("2024-12-30", "2025-01-03"), "transfers")
+    result = check(_moved_cash("2025-12-30", "2026-01-03"), "transfers")
 
     assert result.status is CheckStatus.OK
 
 
-def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[Txn]:
+def _moved(
+    sender: str,
+    receiver: str,
+    *,
+    in_kind: bool,
+    out_date: str = "2025-02-11",
+    in_date: str = "2025-02-11",
+) -> list[Txn]:
     """Move 40 units in kind, or 600 CAD of cash, from one account to another."""
     units, amount, ticker = ("40", "0", "VFV.TO") if in_kind else ("0", "600", None)
     return [
@@ -937,7 +933,7 @@ def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[Txn]:
         ),
         make_row(
             2,
-            "2025-02-11",
+            out_date,
             Action.TFR_OUT,
             amount=f"-{amount}",
             units=f"-{units}",
@@ -946,7 +942,7 @@ def _moved(sender: str, receiver: str, *, in_kind: bool) -> list[Txn]:
         ),
         make_row(
             3,
-            "2025-02-11",
+            in_date,
             Action.TFR_IN,
             amount=amount,
             units=units,

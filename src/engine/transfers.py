@@ -29,6 +29,8 @@ from domain.numeric import ZERO
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from domain import Grain
+    from engine.accounts import Pool
     from models import Txn
 
 # Both legs of a transfer.
@@ -71,12 +73,31 @@ class TransferPair:
         out_leg: The leg the units or cash left.
         in_leg: The leg they arrived on.
         moves_units: True for a in-kind transfer, False for a cash one.
+        crossings: The grains where its legs sit in different pools. Filled in by
+            the replay, which knows each account's type.
+        moves_at: The grains it moves anything at. Where it stays put neither leg
+            touches that grain, so nothing goes missing between the two legs.
     """
 
     pair_id: int
     out_leg: Txn
     in_leg: Txn
     moves_units: bool
+    crossings: tuple[Crossing, ...] = ()
+    moves_at: tuple[Grain, ...] = ()
+
+
+@dataclass(frozen=True)
+class Crossing:
+    """A grain where a pair's two legs sit in different pools."""
+
+    out_pool: Pool
+    in_pool: Pool
+
+    @property
+    def grain(self) -> Grain:
+        """The grain both pools sit at."""
+        return self.out_pool.grain
 
 
 # Preference order for candidate matches, lowest first. A cross-account move of

@@ -14,6 +14,7 @@ from domain import (
     Impact,
 )
 from domain.numeric import ZERO
+from engine.accounts import Pool
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Container
@@ -162,7 +163,7 @@ class Diagnostic:
         code: Which diagnostic fired.
         txn_id: The row it tags, or None for a pool-level diagnostic.
         grain: The pool grain it was detected at, where that matters.
-        pool: The account, type or folio key it was detected on.
+        pool: The account, type or folio it was detected on, as reports name it.
         detail: Human-readable specifics.
         account: The account the diagnostic is about, where it is about one.
         symbol: The canonical security the diagnostic is about, where there is one.
@@ -185,9 +186,64 @@ class Diagnostic:
     value: Decimal | None = None
 
 
-# Cash is tracked per pool grain, per pool, per currency. The grain is part of
-# the key because an account may legitimately be named after a type.
-CashKey = tuple[Grain, str, Currency]
+# Cash is tracked per pool and currency.
+CashKey = tuple[Pool, Currency]
+
+
+@dataclass(slots=True)
+class CashEffect:
+    """What one transaction does to the cash of one currency.
+
+    Attributes:
+        currency: The currency moved. A single-leg conversion has one effect per side.
+        cash: Signed change in cash.
+        contributions: Added to contributions.
+        withdrawals: Added to withdrawals.
+        dividends: Added to dividends.
+        fees: Added to fees.
+        grains: The grains it moves at. A transfer staying put in a pool skips that one.
+    """
+
+    currency: Currency
+    cash: Decimal = ZERO
+    contributions: Decimal = ZERO
+    withdrawals: Decimal = ZERO
+    dividends: Decimal = ZERO
+    fees: Decimal = ZERO
+    grains: Container[Grain] = Grain
+
+
+@dataclass(frozen=True)
+class DepositShare:
+    """The net deposits one transfer leg moved in one pool.
+
+    Attributes:
+        txn_id: The transfer leg.
+        settle_date: The leg's settlement date.
+        pool: The pool the deposits left or reached.
+        currency: The currency of the deposits, never blended.
+        amount: Signed: negative leaving the pool, positive reaching it.
+    """
+
+    txn_id: int
+    settle_date: str
+    pool: Pool
+    currency: Currency
+    amount: Decimal
+
+
+@dataclass
+class TransferTotals:
+    """What transfers added up to for one pool, in one currency.
+
+    Attributes:
+        transfers: The net deposits they carried.
+        transfers_value: What they actually moved, cash at face and units at ACB.
+    """
+
+    transfers: Decimal = ZERO
+    transfers_value: Decimal = ZERO
+
 
 # Rows with shape: action, account, security and currency.
 TallyKey = tuple[Action, str, str, Currency]
@@ -265,14 +321,16 @@ class ReplayResult:
     Attributes:
         rows: One `LedgerRow` per transaction, in transaction-date order.
         diagnostics: Diagnostics raised, deduplicated.
-        cash: Running cash and income totals per pool grain, pool and currency.
+        cash: Running cash and income totals per pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
+        deposit_shares: The net deposits each transfer leg moved, per pool it moved in.
     """
 
     rows: list[LedgerRow] = field(default_factory=list)
     diagnostics: list[Diagnostic] = field(default_factory=list)
     cash: dict[CashKey, CashState] = field(default_factory=dict)
     totals: ReplayTotals = field(default_factory=ReplayTotals)
+    deposit_shares: list[DepositShare] = field(default_factory=list)
 
     def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:
         """Group the distinct codes raised against each row.

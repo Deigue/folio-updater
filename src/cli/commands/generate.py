@@ -18,10 +18,11 @@ import typer
 from app import bootstrap, get_config
 from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
 from db.backup import backup_file
+from engine.accounts import FOLIO
 from engine.gain_since_buy import bought_symbols
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.performance import fetch_moves
-from engine.pools import FOLIO, FolioValuation
+from engine.pools import FolioValuation
 from exporters.folio_workbook import (
     SECTIONS,
     FolioSources,

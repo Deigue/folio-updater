@@ -11,7 +11,8 @@ The saved ledger is reused only when every input the replay reads is unchanged:
 
 Each save writes the ledger frame and the diagnostics (with the rows they tag)
 under names of its own, then a meta file naming them, holding those inputs, when
-the ledger was computed, and each pool's cash and row counts. The meta goes in
+the ledger was computed, each pool's cash and row counts, and each transfer leg's
+deposit share. The meta goes in
 place last, whole, so it only ever names files that were written completely:
 an interrupted save leaves the previous one intact, and two processes saving at
 once can never pair one's meta with the other's files. Files no meta names are
@@ -40,8 +41,10 @@ from engine.replay import ReplayConfig, replay
 from engine.saved_ledger import (
     SCHEMA_VERSION,
     decode_cash_and_totals,
+    decode_deposit_shares,
     decode_diagnostics,
     encode_cash_and_totals,
+    encode_deposit_shares,
     encode_diagnostics,
 )
 from services import FxService
@@ -55,6 +58,7 @@ if TYPE_CHECKING:
     from engine.types import (
         CashKey,
         CashState,
+        DepositShare,
         Diagnostic,
         LedgerRow,
         ReplayResult,
@@ -99,6 +103,8 @@ class Ledger:
             that never asks never pays for them.
         computed_at: When the ledger was computed, or None when this
             invocation replayed it.
+        deposit_shares: The net deposits each transfer leg moved, per pool it
+            moved in.
     """
 
     frame: pd.DataFrame
@@ -106,6 +112,7 @@ class Ledger:
     totals: ReplayTotals
     load_diagnosis: Callable[[], Diagnosis] = field(repr=False)
     computed_at: datetime | None = None
+    deposit_shares: tuple[DepositShare, ...] = ()
 
     @classmethod
     def from_replay(cls, result: ReplayResult) -> Ledger:
@@ -135,6 +142,7 @@ class Ledger:
             cash=result.cash,
             totals=result.totals,
             load_diagnosis=lambda: diagnosis,
+            deposit_shares=tuple(result.deposit_shares),
         )
 
     @cached_property
@@ -324,6 +332,7 @@ def _restore(
         totals=totals,
         load_diagnosis=load_diagnosis,
         computed_at=datetime.fromisoformat(meta["computed_at"]),
+        deposit_shares=decode_deposit_shares(meta["deposit_shares"]),
     )
 
 
@@ -334,6 +343,7 @@ def _write(parquet: Path, ledger: Ledger, inputs: dict[str, object]) -> None:
         "save": secrets.token_hex(6),
         "computed_at": datetime.now(TORONTO_TZ).isoformat(),
         **encode_cash_and_totals(ledger.cash, ledger.totals),
+        "deposit_shares": encode_deposit_shares(ledger.deposit_shares),
     }
     diagnostics = encode_diagnostics(ledger.diagnostics, ledger.diagnosed_rows)
     try:
