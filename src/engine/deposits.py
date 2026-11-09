@@ -28,9 +28,10 @@ Two properties make this safe to rely on:
 
 - **Both legs move the same vector.** The out leg computes it, the in leg
   applies it unchanged, so nothing is created or destroyed in transit.
-- **`deposits / basis_cad` is invariant under a transfer.** Ten in-kind legs on
-  one date therefore produce the same result in any order, which is what lets a
-  full account transfer land exactly on the contributions that funded it.
+- **`deposits / basis_cad` is invariant under a transfer.** Several transfers out
+  of one pool therefore produce the same result in any order, as long as each out
+  leg comes before its in leg, which is what lets a full account transfer land
+  exactly on the contributions that funded it.
 """
 
 from __future__ import annotations

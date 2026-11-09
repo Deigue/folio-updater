@@ -916,9 +916,25 @@ class _Replay:
 
     # -- THE CASH WALK ----------------------------------------------------
 
+    def _settlement_order(self, row: Txn) -> tuple[str, int, bool]:
+        """Order the cash walk by date, an in leg directly after its own out leg.
+
+        A TxnId reflects only which broker's rows were imported first. Directly
+        after its out leg rather than last on the date, so a transfer passing
+        through an account is measured against the money that reached it.
+        """
+        place = row.txn_id
+        arriving = row.action is Action.TFR_IN
+        pair_id = self.pair_of.get(row.txn_id) if arriving else None
+        if pair_id is not None:
+            out_leg = self.pair_by_id[pair_id].out_leg
+            if out_leg.settle_date == row.settle_date:
+                place = out_leg.txn_id
+        return row.settle_date, place, arriving
+
     def _cash_walk(self) -> None:
         """Accumulate cash per pool and currency, in settlement-date order."""
-        ordered = sorted(self.rows, key=lambda row: (row.settle_date, row.txn_id))
+        ordered = sorted(self.rows, key=self._settlement_order)
         pending: list[Txn] = []
         current_date = ""
 
@@ -1010,9 +1026,9 @@ class _Replay:
                 continue
             name = _pool_key(grain, row, acct_type)
             self._record_moved_value(row, grain, name)
-            # Whichever leg is reached first settles the sending side, once.
-            # Pairing allows a settlement-date window and a broker can credit the
-            # receiving account before the sender releases.
+            # Whichever leg is reached first settles the sending side, once. An in
+            # leg settling first is reported until it is re-dated, and must not
+            # lose its deposits meanwhile.
             if not self.deposits.pending(pair_id, grain):
                 self._take_deposits(pair_id, grain)
             if row.action is Action.TFR_IN:
@@ -1427,28 +1443,31 @@ class _Replay:
                 )
 
     def _transfer_dates_check(self) -> None:
-        """Flag in-kind transfers whose two legs are dated so figures go wrong.
+        """Flag transfers whose two legs are dated so figures go wrong.
 
         Either case is fixed by giving the later leg the earlier leg's transaction
         and settlement date, so the later leg is the one tagged:
 
-        - An in leg dated before its out leg is applied first, before the out leg
-          has handed over any cost base, so the cost base is lost.
-        - Legs in different calendar years leave the units in neither account at
-          the year end, so neither account's year-end figures count them.
+        - An in leg dated or settling before its out leg is applied first. Dated
+          first, an in-kind leg's cost base is lost. Either way, the sending pool
+          is measured wrongly for any transfer out of it until the out leg arrives.
+        - In-kind legs in different calendar years leave the units in neither
+          account at the year end, so neither account's year-end figures count them.
         """
         for pair in self.pair_by_id.values():
-            if not pair.moves_units:
-                continue
             out_leg, in_leg = pair.out_leg, pair.in_leg
-            if in_leg.txn_date < out_leg.txn_date:
+            if (
+                in_leg.txn_date < out_leg.txn_date
+                or in_leg.settle_date < out_leg.settle_date
+            ):
                 code, later, earlier = (
                     DiagnosticCode.TRANSFER_IN_BEFORE_OUT,
                     out_leg,
                     in_leg,
                 )
             elif (
-                out_leg.account != in_leg.account
+                pair.moves_units
+                and out_leg.account != in_leg.account
                 and out_leg.txn_date[:4] != in_leg.txn_date[:4]
             ):
                 code, later, earlier = (

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from domain import AccountType, Action, Column, Currency, Grain
+from domain import AccountType, Action, Column, Currency, DiagnosticCode, Grain
 from engine.flows import (
     Flows,
     Room,
@@ -1022,7 +1022,7 @@ def test_a_transfer_out_of_an_emptied_account_moves_nothing(
 def test_an_in_leg_settling_before_its_out_leg_still_balances(
     temp_ctx: TempContext,
 ) -> None:
-    """A broker can credit the receiving side before the sender releases.
+    """An in leg settling first is reported, and balances until it is re-dated.
 
     Pairing allows a settlement-date window, so the cash walk can reach the in leg
     first. The sending side is settled then, while it still holds what is about
@@ -1060,6 +1060,77 @@ def test_an_in_leg_settling_before_its_out_leg_still_balances(
         assert sender.net_deposits[Currency.CAD] == Decimal(6000)
         assert receiver.net_deposits[Currency.CAD] == Decimal(4000)
         assert folio.net_deposits == {Currency.CAD: Decimal(10000)}
+        codes = {diagnostic.code for diagnostic in open_ledger().diagnostics}
+        assert DiagnosticCode.TRANSFER_IN_BEFORE_OUT in codes
+
+
+def test_out_legs_apply_first_on_one_date_whatever_the_import_order(
+    temp_ctx: TempContext,
+) -> None:
+    """Import order sets the TxnId, and neither leg's date says anything is wrong."""
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_cash(
+            "CONTRIBUTION",
+            amount="10000",
+            account="QT-TFSA",
+            date="2025-08-14",
+            settle_date="2025-08-14",
+        )
+        # The receiving broker's rows were imported first.
+        for action, amount, account in (
+            ("TFR_IN", "6000", "WS-TFSA"),
+            ("TFR_IN", "4000", "WS-TFSA"),
+            ("TFR_OUT", "-6000", "QT-TFSA"),
+            ("TFR_OUT", "-4000", "QT-TFSA"),
+        ):
+            seed_cash(
+                action,
+                amount=amount,
+                account=account,
+                date="2025-08-18",
+                settle_date="2025-08-18",
+            )
+
+        sender = _flows(Grain.ACCOUNT, "QT-TFSA")
+        receiver = _flows(Grain.ACCOUNT, "WS-TFSA")
+
+        assert sender.net_deposits[Currency.CAD] == Decimal(0)
+        assert receiver.net_deposits[Currency.CAD] == Decimal(10000)
+
+
+def test_a_transfer_passing_through_an_account_on_one_date_carries_on(
+    temp_ctx: TempContext,
+) -> None:
+    """The second out leg is measured against the money the first one delivered."""
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_cash(
+            "CONTRIBUTION",
+            amount="1000",
+            account="QT-TFSA",
+            date="2025-08-14",
+            settle_date="2025-08-14",
+        )
+        for action, amount, account in (
+            ("TFR_OUT", "-1000", "QT-TFSA"),
+            ("TFR_IN", "1000", "WS-TFSA"),
+            ("TFR_OUT", "-999", "WS-TFSA"),
+            ("TFR_IN", "999", "IBKR-TFSA"),
+        ):
+            seed_cash(
+                action,
+                amount=amount,
+                account=account,
+                date="2025-08-18",
+                settle_date="2025-08-18",
+            )
+
+        middle = _flows(Grain.ACCOUNT, "WS-TFSA")
+        last = _flows(Grain.ACCOUNT, "IBKR-TFSA")
+
+        assert middle.net_deposits[Currency.CAD] == Decimal(1)
+        assert last.net_deposits[Currency.CAD] == Decimal(999)
 
 
 def test_income_arriving_after_an_account_empties_carries_no_deposits(

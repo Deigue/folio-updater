@@ -794,7 +794,11 @@ def test_a_paired_transfer_passes() -> None:
     assert check(rows, "transfers").status is CheckStatus.OK
 
 
-def _moved_in_kind(out_date: str, in_date: str) -> list[Txn]:
+def _moved_in_kind(
+    out_date: str,
+    in_date: str,
+    out_settles: str | None = None,
+) -> list[Txn]:
     """Buy 40 units, then move them in kind to another broker on two dates."""
     return [
         make_row(
@@ -814,6 +818,7 @@ def _moved_in_kind(out_date: str, in_date: str) -> list[Txn]:
             units="-40",
             ticker="VFV.TO",
             account="WS-TFSA",
+            settle_date=out_settles,
         ),
         make_row(
             3,
@@ -846,10 +851,72 @@ def test_a_transfer_arriving_before_it_left_is_reported() -> None:
     assert finding.txn_ids == (2,)
     assert "WS-TFSA" in finding.detail
     assert "2025-03-10" in finding.detail
+    assert "cost base is lost" in finding.detail
+    assert "net deposits may be wrong" in finding.detail
+
+
+def test_an_in_kind_transfer_settling_in_before_out_is_reported() -> None:
+    """Traded together, so the cost base arrives, but the deposits leave too soon."""
+    moved = _moved_in_kind("2025-03-10", "2025-03-10", out_settles="2025-03-12")
+
+    result = check(moved, "transfers")
+
+    assert result.status is CheckStatus.WARN
+    [finding] = result.findings
+    assert finding.txn_ids == (2,)
+    assert "2025-03-12" in finding.detail
+    assert "net deposits may be wrong" in finding.detail
+    assert "cost base" not in finding.detail
 
 
 def test_a_transfer_taking_days_within_one_year_passes() -> None:
     result = check(_moved_in_kind("2025-03-10", "2025-03-14"), "transfers")
+
+    assert result.status is CheckStatus.OK
+
+
+def _moved_cash(out_date: str, in_date: str) -> list[Txn]:
+    """Move 600 CAD of cash to another broker on two dates."""
+    return [
+        make_row(
+            1,
+            out_date,
+            Action.TFR_OUT,
+            amount="-600",
+            ticker=None,
+            account="WS-TFSA",
+        ),
+        make_row(
+            2,
+            in_date,
+            Action.TFR_IN,
+            amount="600",
+            ticker=None,
+            account="IBKR-TFSA",
+        ),
+    ]
+
+
+def test_cash_arriving_before_it_left_is_reported() -> None:
+    result = check(_moved_cash("2025-03-12", "2025-03-10"), "transfers")
+
+    assert result.status is CheckStatus.WARN
+    [finding] = result.findings
+    assert finding.txn_ids == (1,)
+    assert "2025-03-10" in finding.detail
+    assert "net deposits may be wrong" in finding.detail
+    assert "cost base" not in finding.detail
+
+
+def test_cash_arriving_after_it_left_passes() -> None:
+    result = check(_moved_cash("2025-03-10", "2025-03-12"), "transfers")
+
+    assert result.status is CheckStatus.OK
+
+
+def test_cash_landing_in_the_next_year_passes() -> None:
+    """Cash has no units to go missing from a year-end holding."""
+    result = check(_moved_cash("2024-12-30", "2025-01-03"), "transfers")
 
     assert result.status is CheckStatus.OK
 

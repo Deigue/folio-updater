@@ -706,8 +706,24 @@ def _unpaired_legs(folio: _LedgerIndex) -> list[CheckFinding]:
     return findings
 
 
+def _arrived_first(row: Txn, moved: str, arrived: str) -> str:
+    """Say what an out leg coming after its in leg does to the figures."""
+    dated_first = arrived < row.txn_date
+    when = (
+        f"on {row.txn_date}, after they arrived on {arrived}"
+        if dated_first
+        else f"settling {row.settle_date}, after they had arrived"
+    )
+    harm = (
+        "their cost base is lost and their share of net deposits may be wrong"
+        if dated_first and row.is_in_kind_transfer
+        else "their share of net deposits may be wrong"
+    )
+    return f"{row.account} sent {moved} out {when}, so {harm}."
+
+
 def _misdated_legs(folio: _LedgerIndex) -> list[CheckFinding]:
-    """Report each in-kind leg that needs the other leg's date."""
+    """Report each leg that needs the other leg's date."""
     findings = []
     for diagnostic, computed in folio.tagged(
         DiagnosticCode.TRANSFER_IN_BEFORE_OUT,
@@ -716,10 +732,7 @@ def _misdated_legs(folio: _LedgerIndex) -> list[CheckFinding]:
         row = computed.row
         moved = _what_moved(row, computed.symbol)
         if diagnostic.code is DiagnosticCode.TRANSFER_IN_BEFORE_OUT:
-            problem = (
-                f"{row.account} sent {moved} out on {row.txn_date}, after they "
-                f"arrived on {diagnostic.as_of}, so their cost base is lost."
-            )
+            problem = _arrived_first(row, moved, str(diagnostic.as_of))
         else:
             problem = (
                 f"{row.account} received {moved} on {row.txn_date}, but they "
