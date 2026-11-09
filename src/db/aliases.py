@@ -5,14 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from db.backup import backup_folio
-from db.catalog import drop_table
+from db.catalog import drop_table, ensure_table
 from db.connection import get_connection
 from db.queries import (
     delete_rows,
     get_records,
     insert_or_replace_many,
 )
-from db.schema import create_ticker_aliases_table
 from domain import Column, Table
 from models import TickerAlias
 
@@ -47,9 +46,9 @@ def find(old_ticker: str) -> TickerAlias | None:
 
 def write(aliases: Sequence[TickerAlias]) -> None:
     """Back up the folio, then store renames."""
-    create_ticker_aliases_table()
     backup_folio()
     with get_connection() as conn:
+        ensure_table(conn, Table.TICKER_ALIASES)
         insert_or_replace_many(
             conn,
             Table.TICKER_ALIASES,

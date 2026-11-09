@@ -6,6 +6,7 @@ import logging
 import sqlite3
 from typing import TYPE_CHECKING
 
+from db.catalog import ensure_table
 from db.connection import get_connection
 from db.queries import (
     build_in_clause,
@@ -13,7 +14,6 @@ from db.queries import (
     get_records,
     insert_or_replace_many,
 )
-from db.schema import create_quotes_table
 from domain import Column, Table
 from models import Quote
 from term import announce
@@ -34,7 +34,6 @@ def read(symbols: Sequence[str] | None = None) -> dict[str, Quote]:
         Each symbol found, mapped to its quote.
     """
     try:
-        create_quotes_table()
         with get_connection() as conn:
             rows = get_records(
                 conn,
@@ -52,8 +51,8 @@ def read(symbols: Sequence[str] | None = None) -> dict[str, Quote]:
 def write(quotes: Sequence[Quote]) -> None:
     """Store quotes over any of the same symbol. No backup: it is a cache."""
     try:
-        create_quotes_table()
         with get_connection() as conn:
+            ensure_table(conn, Table.QUOTES)
             insert_or_replace_many(
                 conn,
                 Table.QUOTES,
@@ -73,7 +72,6 @@ def delete(symbols: Sequence[str] | None = None) -> int:
         Number of quotes removed.
     """
     try:
-        create_quotes_table()
         with get_connection() as conn:
             return delete_rows(
                 conn,

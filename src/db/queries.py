@@ -247,30 +247,6 @@ def get_distinct_set(
     return {str(value) for value in values if value is not None}
 
 
-def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:
-    """Return the change token of every watched table that exists.
-
-    A dropped table keeps its row in `Revisions`, so the join leaves it out:
-    a folio whose transactions were dropped must not match a ledger built from
-    them.
-
-    Args:
-        connection: The database connection.
-
-    Returns:
-        Table name to token. Empty when no table has a token yet.
-    """
-    if not table_exists(connection, Table.REVISIONS):
-        return {}
-    query = (
-        f'SELECT "{Column.Revision.TABLE_NAME}", "{Column.Revision.TOKEN}" '
-        f'FROM "{Table.REVISIONS}" WHERE "{Column.Revision.TABLE_NAME}" IN '
-        "(SELECT name FROM sqlite_master WHERE type='table')"
-    )
-    rows = connection.execute(query).fetchall()
-    return {str(table): str(token) for table, token in rows}
-
-
 def get_fx_summary(connection: sqlite3.Connection, cutoff: str | None) -> str:
     """Summarise the FX rates a conversion dated on or before `cutoff` can use.
 
@@ -483,8 +459,10 @@ def delete_rows(
         params: An optional list or tuple of parameters for the `where` clause.
 
     Returns:
-        Number of rows deleted
+        Number of rows deleted, 0 without a table.
     """
+    if not table_exists(connection, table_name):
+        return 0
     query = f'DELETE FROM "{table_name}"'
     if where:
         query += f" WHERE {where}"

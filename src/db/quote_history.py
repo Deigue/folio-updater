@@ -6,6 +6,7 @@ import logging
 import sqlite3
 from typing import TYPE_CHECKING
 
+from db.catalog import ensure_table
 from db.connection import get_connection
 from db.queries import (
     build_in_clause,
@@ -13,7 +14,6 @@ from db.queries import (
     get_records,
     replace_rows,
 )
-from db.schema import create_quote_history_table
 from domain import Column, Table
 from models import QuoteHistory
 from term import announce
@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 def read(symbols: Sequence[str]) -> list[QuoteHistory]:
     """Return the symbols' points in chart order, reading a failure as none."""
     try:
-        create_quote_history_table()
         with get_connection() as conn:
             rows = get_records(
                 conn,
@@ -53,8 +52,8 @@ def replace(symbol: str, points: Sequence[QuoteHistory]) -> None:
         points: Its new points, at least one.
     """
     try:
-        create_quote_history_table()
         with get_connection() as conn:
+            ensure_table(conn, Table.QUOTE_HISTORY)
             replace_rows(
                 conn,
                 Table.QUOTE_HISTORY,
@@ -73,7 +72,6 @@ def delete(symbols: Sequence[str] | None = None) -> None:
         symbols: The symbols to remove, or None to remove every point.
     """
     try:
-        create_quote_history_table()
         with get_connection() as conn:
             delete_rows(
                 conn,

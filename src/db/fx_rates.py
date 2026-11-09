@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from db.catalog import ensure_table
 from db.connection import get_connection
 from db.queries import (
     get_fx_summary,
@@ -12,7 +13,6 @@ from db.queries import (
     get_records,
     insert_rows,
 )
-from db.schema import create_fx_table
 from domain import Column, Table
 from models import FxRate
 
@@ -41,8 +41,8 @@ def latest_date() -> str | None:
 
 def write(rates: Sequence[FxRate]) -> int:
     """Append rates, refusing a date already held. No backup: they can be refetched."""
-    create_fx_table()
     with get_connection() as conn:
+        ensure_table(conn, Table.FX)
         return len(insert_rows(conn, Table.FX, [rate.to_row() for rate in rates]))
 
 

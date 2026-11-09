@@ -31,6 +31,7 @@ from db import (
     txns,
     update_rows,
 )
+from db.catalog import get_revisions
 from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
 from models import (
     FxRate,
@@ -784,7 +785,7 @@ _READS: list[tuple[str, Callable[[sqlite3.Connection], object], object]] = [
         lambda conn: queries.get_broker_latest_txn_date(conn, "IBKR"),
         None,
     ),
-    ("get_revisions", queries.get_revisions, {}),
+    ("get_revisions", get_revisions, {}),
     (
         "get_fx_summary",
         lambda conn: queries.get_fx_summary(conn, "2024-01-02"),
@@ -1035,6 +1036,26 @@ def test_a_failed_backup_is_tried_again_by_the_next_write(
                     backup_folio()
 
             assert backup_folio() is not None
+
+
+def test_reading_or_clearing_the_quote_caches_creates_neither_table(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        assert quotes.read() == {}
+        assert quotes.delete() == 0
+        assert quote_history.read(["SPY"]) == []
+        quote_history.delete()
+
+        with get_connection() as conn:
+            tables = get_tables(conn)
+        assert Table.QUOTES not in tables
+        assert Table.QUOTE_HISTORY not in tables
+
+
+def test_deleting_from_a_missing_table_removes_nothing(temp_ctx: TempContext) -> None:
+    with temp_ctx(), get_connection() as conn:
+        assert queries.delete_rows(conn, Table.QUOTES) == 0
 
 
 def test_dropping_txns_and_aliases_removes_their_tables(temp_ctx: TempContext) -> None:
