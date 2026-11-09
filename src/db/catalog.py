@@ -23,6 +23,11 @@ def get_tables(connection: sqlite3.Connection) -> list[str]:
     return _schema_names(connection, "table")
 
 
+def table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    """Whether a table exists; SQLite's own error cannot tell this from any other."""
+    return table_name in get_tables(connection)
+
+
 def get_triggers(connection: sqlite3.Connection) -> list[str]:
     """Return list of trigger names in the database."""
     return _schema_names(connection, "trigger")

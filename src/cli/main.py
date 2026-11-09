@@ -5,6 +5,7 @@ This module provides the main CLI interface using Typer.
 
 from __future__ import annotations
 
+import logging
 import sys
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -16,6 +17,8 @@ from config import Config
 from term import console_error, console_info, console_print
 
 __version__ = _pkg_version("folio-updater")
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(
     name="folio",
@@ -741,6 +744,7 @@ def show_version() -> None:
 
 def main() -> None:
     """Entry point for the CLI application."""
+    from db import DatabaseError
     from db.migrations import MigrationError
 
     try:
@@ -748,6 +752,11 @@ def main() -> None:
     except MigrationError as error:
         # Opening the folio is where it is migrated, so any command can stop here.
         console_error(str(error))
+        sys.exit(1)
+    except DatabaseError as error:
+        # A locked or damaged folio can stop any command too.
+        logger.exception("Database error")
+        console_error(f"Database error: {error}")
         sys.exit(1)
 
 

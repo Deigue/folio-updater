@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app import get_config
+from db.catalog import table_exists
 from domain import TORONTO_TZ, Table
 
 if TYPE_CHECKING:
@@ -98,14 +99,17 @@ def backup_database(max_backups: int | None = None) -> Path | None:
 
 
 def _count_in_file(db_path: Path) -> int:
-    """Count a folio file's transactions on a connection that skips migrations."""
+    """Count a folio file's transactions on a connection that skips migrations.
+
+    Only a missing table counts as none: an unreadable one must stop the write
+    rather than pass for an empty folio that needs no backup.
+    """
     if not db_path.exists():
         return 0
     with closing(sqlite3.connect(db_path)) as conn:
-        try:
-            (count,) = conn.execute(f'SELECT COUNT(*) FROM "{Table.TXNS}"').fetchone()
-        except sqlite3.OperationalError:
+        if not table_exists(conn, Table.TXNS):
             return 0
+        (count,) = conn.execute(f'SELECT COUNT(*) FROM "{Table.TXNS}"').fetchone()
     return int(count)
 
 

@@ -11,9 +11,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from app import get_config
 from db import (
     add_column_to_table,
     aliases,
+    backup_folio,
     backup_scope,
     create_txns_table,
     current_backup,
@@ -21,6 +23,7 @@ from db import (
     fx_rates,
     get_connection,
     get_tables,
+    queries,
     quote_history,
     quotes,
     revisions,
@@ -44,6 +47,7 @@ from models import (
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from .helpers.context import TempContext
@@ -749,6 +753,110 @@ def test_trial_append_names_the_refused_row_and_stores_nothing(
         assert isinstance(outcomes[1], sqlite3.IntegrityError)
         assert len(outcomes) == 2, "the trial stops at the first refusal"
         assert txns.count() == 0
+
+
+_READS: list[tuple[str, Callable[[sqlite3.Connection], object], object]] = [
+    (
+        "get_rows",
+        lambda conn: queries.get_rows(conn, Table.TXNS).to_dict("records"),
+        [],
+    ),
+    ("get_records", lambda conn: queries.get_records(conn, Table.TXNS), []),
+    ("get_row_count", lambda conn: queries.get_row_count(conn, Table.TXNS), 0),
+    (
+        "get_max_value",
+        lambda conn: queries.get_max_value(conn, Table.TXNS, Column.Txn.TXN_DATE),
+        None,
+    ),
+    (
+        "get_min_value",
+        lambda conn: queries.get_min_value(conn, Table.TXNS, Column.Txn.TXN_DATE),
+        None,
+    ),
+    (
+        "get_distinct_values",
+        lambda conn: queries.get_distinct_values(conn, Table.TXNS, Column.Txn.TICKER),
+        [],
+    ),
+    (
+        "get_broker_latest_txn_date",
+        lambda conn: queries.get_broker_latest_txn_date(conn, "IBKR"),
+        None,
+    ),
+    ("get_revisions", queries.get_revisions, {}),
+    (
+        "get_fx_summary",
+        lambda conn: queries.get_fx_summary(conn, "2024-01-02"),
+        "empty",
+    ),
+]
+_READ_IDS = [name for name, _, _ in _READS]
+
+
+@pytest.mark.parametrize(
+    ("read", "empty"),
+    [(read, empty) for _, read, empty in _READS],
+    ids=_READ_IDS,
+)
+def test_a_missing_table_reads_as_empty(
+    temp_ctx: TempContext,
+    read: Callable[[sqlite3.Connection], object],
+    empty: object,
+) -> None:
+    with temp_ctx(), get_connection() as conn:
+        assert read(conn) == empty
+
+
+@pytest.mark.parametrize("read", [read for _, read, _ in _READS], ids=_READ_IDS)
+def test_a_locked_folio_raises_instead_of_reading_empty(
+    temp_ctx: TempContext,
+    read: Callable[[sqlite3.Connection], object],
+) -> None:
+    with temp_ctx():
+        create_txns_table()
+        path = get_config().db_path
+        with (
+            closing(sqlite3.connect(path)) as holder,
+            closing(sqlite3.connect(path, timeout=0)) as blocked,
+        ):
+            holder.execute("BEGIN EXCLUSIVE")
+
+            with pytest.raises(sqlite3.OperationalError, match="locked"):
+                read(blocked)
+
+
+def test_a_misspelt_column_raises_instead_of_reading_empty(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        create_txns_table()
+        with (
+            get_connection() as conn,
+            pytest.raises(
+                sqlite3.OperationalError,
+                match="no such column",
+            ),
+        ):
+            queries.get_records(conn, Table.TXNS, where="Nope = 1")
+
+
+def test_a_failed_backup_is_tried_again_by_the_next_write(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail() -> None:
+        msg = "disk I/O error"
+        raise sqlite3.OperationalError(msg)
+
+    with temp_ctx(backup={"enabled": True}):
+        seed_transaction(ticker="AAA")
+        with backup_scope():
+            with monkeypatch.context() as patch:
+                patch.setattr("db.backup.backup_database", fail)
+                with pytest.raises(sqlite3.OperationalError, match="disk"):
+                    backup_folio()
+
+            assert backup_folio() is not None
 
 
 def test_dropping_txns_and_aliases_removes_their_tables(temp_ctx: TempContext) -> None:

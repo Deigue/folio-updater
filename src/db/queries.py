@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import get_config
-from db.catalog import get_columns
+from db.catalog import get_columns, table_exists
 from db.migrations import bring_up_to_date
 from domain import Column, Table
 
@@ -113,19 +113,17 @@ def get_rows(  # noqa: PLR0913
         order_by: An optional SQL ORDER BY clause (e.g., "name ASC").
 
     Returns:
-        A pandas DataFrame containing the query results.
+        A pandas DataFrame containing the query results, empty without a table.
     """
+    if not table_exists(connection, table_name):
+        return pd.DataFrame()
     selected = ", ".join(f'"{col}"' for col in columns) if columns else "*"
     query = f'SELECT {selected} FROM "{table_name}"'
     if where:
         query += f" WHERE {where}"
     if order_by:
         query += f" ORDER BY {order_by}"
-    try:
-        df = pd.read_sql_query(query, connection, params=params)
-    except (pd.errors.DatabaseError, sqlite3.OperationalError):
-        return pd.DataFrame()
-    return df
+    return pd.read_sql_query(query, connection, params=params)
 
 
 def get_records(  # noqa: PLR0913
@@ -138,6 +136,8 @@ def get_records(  # noqa: PLR0913
     limit: int | None = None,
 ) -> list[dict[str, object]]:
     """Return rows exactly as stored, keyed by column name; none without a table."""
+    if not table_exists(connection, table_name):
+        return []
     query = f'SELECT * FROM "{table_name}"'
     if where:
         query += f" WHERE {where}"
@@ -145,10 +145,7 @@ def get_records(  # noqa: PLR0913
         query += f" ORDER BY {order_by}"
     if limit is not None:
         query += f" LIMIT {limit}"
-    try:
-        cursor = connection.execute(query, params or ())
-    except sqlite3.OperationalError:
-        return []
+    cursor = connection.execute(query, params or ())
     names = [description[0] for description in cursor.description]
     return [dict(zip(names, row, strict=True)) for row in cursor]
 
@@ -168,17 +165,15 @@ def get_row_count(
         params: An optional list or tuple of parameters for the `where` clause.
 
     Returns:
-        The number of rows matching the criteria.
+        The number of rows matching the criteria, 0 without a table.
     """
+    if not table_exists(connection, table_name):
+        return 0
     query = f'SELECT COUNT(*) FROM "{table_name}"'
     if where:
         query += f" WHERE {where}"
-    try:
-        cursor = connection.execute(query, params or ())
-        result = cursor.fetchone()
-        return result[0] if result else 0
-    except sqlite3.OperationalError:
-        return 0
+    (count,) = connection.execute(query, params or ()).fetchone()
+    return count
 
 
 def get_max_value(
@@ -186,13 +181,12 @@ def get_max_value(
     table_name: str,
     column_name: str,
 ) -> str | None:
-    """Return the maximum value in a column."""
-    query = f'SELECT MAX("{column_name}") FROM "{table_name}"'
-    try:
-        result = connection.execute(query).fetchone()
-        return result[0] if result and result[0] else None
-    except sqlite3.OperationalError:
+    """Return the maximum value in a column, or None without a table or a value."""
+    if not table_exists(connection, table_name):
         return None
+    query = f'SELECT MAX("{column_name}") FROM "{table_name}"'
+    result = connection.execute(query).fetchone()
+    return result[0] if result and result[0] else None
 
 
 def earliest_transaction_date(connection: sqlite3.Connection) -> str | None:
@@ -220,14 +214,13 @@ def get_broker_latest_txn_date(
     Returns:
         The date as YYYY-MM-DD, or None when the broker has no transactions.
     """
+    if not table_exists(connection, Table.TXNS):
+        return None
     query = (
         f'SELECT MAX("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}" '
         f'WHERE UPPER("{Column.Txn.ACCOUNT}") LIKE UPPER(?)'
     )
-    try:
-        result = connection.execute(query, (f"%{broker}%",)).fetchone()
-    except sqlite3.OperationalError:
-        return None
+    result = connection.execute(query, (f"%{broker}%",)).fetchone()
     return result[0] if result and result[0] else None
 
 
@@ -236,13 +229,12 @@ def get_min_value(
     table_name: str,
     column_name: str,
 ) -> str | None:
-    """Return the minimum value in a column."""
-    query = f'SELECT MIN("{column_name}") FROM "{table_name}"'
-    try:
-        result = connection.execute(query).fetchone()
-        return result[0] if result and result[0] else None
-    except sqlite3.OperationalError:
+    """Return the minimum value in a column, or None without a table or a value."""
+    if not table_exists(connection, table_name):
         return None
+    query = f'SELECT MIN("{column_name}") FROM "{table_name}"'
+    result = connection.execute(query).fetchone()
+    return result[0] if result and result[0] else None
 
 
 def get_distinct_values(
@@ -253,15 +245,14 @@ def get_distinct_values(
     order_by: str | None = None,
 ) -> list[object]:
     """Return a column's distinct values, with optional filtering and ordering."""
+    if not table_exists(connection, table_name):
+        return []
     query = f'SELECT DISTINCT "{column_name}" FROM "{table_name}"'
     if filter_condition:
         query += f" WHERE {filter_condition}"
     if order_by:
         query += f" ORDER BY {order_by}"
-    try:
-        return [row[0] for row in connection.execute(query)]
-    except sqlite3.OperationalError:
-        return []
+    return [row[0] for row in connection.execute(query)]
 
 
 def get_distinct_set(
@@ -288,15 +279,14 @@ def get_revisions(connection: sqlite3.Connection) -> dict[str, str]:
     Returns:
         Table name to token. Empty when no table has a token yet.
     """
+    if not table_exists(connection, Table.REVISIONS):
+        return {}
     query = (
         f'SELECT "{Column.Revision.TABLE_NAME}", "{Column.Revision.TOKEN}" '
         f'FROM "{Table.REVISIONS}" WHERE "{Column.Revision.TABLE_NAME}" IN '
         "(SELECT name FROM sqlite_master WHERE type='table')"
     )
-    try:
-        rows = connection.execute(query).fetchall()
-    except sqlite3.OperationalError:
-        return {}
+    rows = connection.execute(query).fetchall()
     return {str(table): str(token) for table, token in rows}
 
 
@@ -316,15 +306,14 @@ def get_fx_summary(connection: sqlite3.Connection, cutoff: str | None) -> str:
         A pipe-joined digest of the count, summed USDCAD rate and latest date
         of those rates. `"empty"` when the table does not exist.
     """
+    if not table_exists(connection, Table.FX):
+        return "empty"
     query = (
         f'SELECT COUNT(*), TOTAL("{Column.FX.FXUSDCAD}"), MAX("{Column.FX.DATE}") '
         f'FROM "{Table.FX}" WHERE "{Column.FX.DATE}" <= ? OR "{Column.FX.DATE}" = '
         f'(SELECT MIN("{Column.FX.DATE}") FROM "{Table.FX}")'
     )
-    try:
-        result = connection.execute(query, (cutoff,)).fetchone()
-    except sqlite3.OperationalError:
-        return "empty"
+    result = connection.execute(query, (cutoff,)).fetchone()
     return "|".join("" if value is None else str(value) for value in result)
 
 
