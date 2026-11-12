@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from services.quote_service import is_stale
+from services.quote_service import QuoteService
 from term.console import supports_unicode
 from ui.cells import WARN_GLYPH, display_round
 
@@ -179,23 +179,6 @@ def _one_freshness(
     return f"[yellow]{_CACHED_ICON}[/yellow] [dim]{phrase}[/dim]"
 
 
-def quote_age(quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
-    """Age the quote cache as a whole: its oldest row wins.
-
-    Args:
-        quotes: The quotes a report was priced with.
-
-    Returns:
-        When the oldest quote was fetched (None if every one is from this
-        invocation), and whether any of them is past its TTL.
-    """
-    fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
-    stale = any(is_stale(quote) for quote in quotes.values())
-    if not fetched:
-        return None, stale
-    return min(fetched), stale
-
-
 # Labels for the two caches a priced report ages.
 _ACB_LABEL = "acb"
 _QUOTES_LABEL = "quotes"
@@ -220,7 +203,7 @@ def cache_badge(
     Returns:
         A Rich-markup line for cache-freshness status.
     """
-    quote_at, stale = quote_age(quotes)
+    quote_at, stale = QuoteService.quote_age(quotes)
     empty = not any(quote.fetched_at for quote in quotes.values())
     parts = [(_QUOTES_LABEL, quote_at)]
     if with_acb:
@@ -247,7 +230,7 @@ def freshness_note(
         One sentence, such as `Cost base computed just now; quotes cached 15m
         ago.`
     """
-    quote_at, _ = quote_age(quotes)
+    quote_at, _ = QuoteService.quote_age(quotes)
     empty = not any(quote.fetched_at for quote in quotes.values())
     aged = "nothing cached" if empty else format_freshness(quote_at)
     return f"Cost base {format_freshness(computed_at)}; quotes {aged}."

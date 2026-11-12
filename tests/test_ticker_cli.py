@@ -129,6 +129,30 @@ def test_a_failed_lookup_is_not_reported_as_not_found(
     assert cached["MSFT"].status is QuoteStatus.NOT_FOUND, "the cached row was cleared"
 
 
+def test_a_typed_symbol_means_what_trades_under_it_today(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.prices_known["NEWCO"] = quote_provider.prices_known["TESTTKR"]
+    with temp_ctx() as ctx:
+        seed_fx(FX)
+        seed_transaction(ticker="OLDCO", amount="-1000", units="10")
+        run_cli_with_config(
+            ctx.config,
+            app,
+            ["symbol", "--add", "OLDCO", "NEWCO", "2030-01-01"],
+        )
+
+        renamed = run_cli_with_config(ctx.config, app, ["ticker", "NEWCO"])
+        old = run_cli_with_config(ctx.config, app, ["ticker", "OLDCO"])
+
+    assert_cli_success(renamed)
+    assert_in_output("NEWCO held", renamed)
+    # The old name is a different security today, which the provider does not know.
+    assert old.exit_code == 1
+    assert_in_output("Yahoo Finance does not know 'OLDCO'", old)
+
+
 def test_comparing_an_empty_folio_says_there_is_nothing_held(
     temp_ctx: TempContext,
 ) -> None:

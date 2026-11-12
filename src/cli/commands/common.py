@@ -20,7 +20,7 @@ from term.progress import spinner
 from ui.vocabulary import SPINNER_PARQUET
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
     from pathlib import Path
 
     from engine.ledger import Ledger
@@ -38,6 +38,19 @@ ALL_POOLS = "all"
 FIX_UNCONVERTIBLE = (
     "Correct those transactions with `folio edit`, or remove them with `folio delete`."
 )
+
+
+def typed_symbols(texts: Iterable[str]) -> list[str]:
+    """Read symbols the user typed, each meaning the security carrying it today.
+
+    Renames are not followed, as on a quote site: an old name means whatever
+    trades under it now, so a ticker reused after its rename is never mistaken
+    for the renamed security.
+
+    Returns:
+        The symbols, upper-cased, each once and in the order typed.
+    """
+    return list(dict.fromkeys(text.strip().upper() for text in texts))
 
 
 def require_ledger(

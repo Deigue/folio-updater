@@ -20,6 +20,7 @@ from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
     resolve_pool,
+    typed_symbols,
     write_or_exit,
 )
 from domain import Column, Currency, Grain, QuoteStatus
@@ -68,8 +69,8 @@ def report_ticker(
 
     Args:
         symbols: One symbol to look up, owned or not; several to compare; or
-            none to compare every open holding. An old alias resolves to the
-            symbol it was renamed to.
+            none to compare every open holding. Each means the security trading
+            under that name today.
         currency: One symbol only: `native` (the security's own currency),
             `CAD`, `USD` or `both`. A CAD security only ever shows CAD.
         by_account: One symbol only: a row per broker account rather than per
@@ -144,9 +145,8 @@ def _report_one(
         get_args(CurrencyChoice),
     )
 
-    resolver = load_symbol_resolver()
-    canonical = resolver.canonical(symbol)
-    quote = QuoteService.get_quotes(
+    canonical = typed_symbols([symbol])[0]
+    quote = QuoteService.lookup(
         [canonical],
         refresh=refresh,
         offline=offline,
@@ -170,10 +170,6 @@ def _report_one(
                 "Try again later.",
             )
         else:
-            # Asking created a "not found" row in the cache. That row is how a
-            # holding Yahoo cannot price avoids being re-asked on every run, but
-            # for a symbol nobody holds it is just a typo, kept forever.
-            QuoteService.clear([canonical])
             console_error(f"Yahoo Finance does not know '{canonical}'.")
         raise typer.Exit(1)
 
@@ -189,7 +185,8 @@ def _report_one(
             offline=offline,
         )
 
-    aliases = [name for name in resolver.family(canonical) if name != canonical]
+    family = load_symbol_resolver().family(canonical)
+    aliases = [name for name in family if name != canonical]
     if export:
         note = freshness_note(ledger.computed_at, {canonical: quote})
         sheet = ticker_sheet(
@@ -237,7 +234,6 @@ def _report_matrix(
     Raises:
         typer.Exit: When none of the symbols asked for is known.
     """
-    resolver = load_symbol_resolver()
     pool = resolve_pool(account, account_type)
     ledger = require_ledger(refresh=refresh, priced=True, offline=offline)
 
@@ -252,26 +248,21 @@ def _report_matrix(
         valued = valuation.value(pool)
 
     if symbols:
-        wanted = list(dict.fromkeys(resolver.canonical(name) for name in symbols))
+        wanted = typed_symbols(symbols)
+        quotes = QuoteService.lookup(wanted, refresh=refresh, offline=offline)
     else:
         wanted = valued.open_symbols if valued is not None else []
+        # Held securities were priced with the folio, so this reads the cache.
+        quotes = QuoteService.get_quotes(wanted, offline=offline)
     if not wanted:
         console_warning(f"No open holdings in {pool.label} to compare.")
         return
 
-    # Held securities were priced with the folio; only named ones may be new.
-    quotes = QuoteService.get_quotes(
-        wanted,
-        refresh=refresh and bool(symbols),
-        offline=offline,
-    )
     traded = set() if ledger.frame.empty else set(ledger.frame[Column.Ledger.SYMBOL])
     unknown = [
         name for name in wanted if not quotes[name].priced and name not in traded
     ]
     if unknown:
-        if not offline:
-            QuoteService.clear(unknown)
         console_warning(f"Nothing known about: {', '.join(unknown)}.")
         wanted = [name for name in wanted if name not in unknown]
     if not wanted:

@@ -820,8 +820,8 @@ def test_symbol_command(temp_ctx: TempContext) -> None:
         assert_in_output("No ticker aliases found.", cli_result)
 
 
-def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
-    """Rows written before the rename pool under the new name."""
+def test_acb_pools_a_renamed_symbol_under_its_new_name(temp_ctx: TempContext) -> None:
+    """Rows written before the rename pool under the new name, and only it."""
     with temp_ctx() as ctx:
         seed_fx(FX)
         seed_transaction(
@@ -830,7 +830,7 @@ def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
             settle_date="2025-08-14",
             account="IBKR-PERSONAL",
             currency="CAD",
-            ticker="SPLG",
+            ticker="OLDCO",
             amount="-1000",
             price="10",
             units="100",
@@ -838,11 +838,19 @@ def test_acb_resolves_a_renamed_symbol(temp_ctx: TempContext) -> None:
         run_cli_with_config(
             ctx.config,
             app,
-            ["symbol", "--add", "SPLG", "SPYM", "2025-10-31"],
+            ["symbol", "--add", "OLDCO", "NEWCO", "2025-10-31"],
         )
-        result = run_cli_with_config(ctx.config, app, ["acb", "SPLG", "--refresh"])
-    assert_cli_success(result)
-    assert_in_output("SPYM", result)
+        renamed = run_cli_with_config(
+            ctx.config,
+            app,
+            ["acb", "NEWCO", "--refresh"],
+        )
+        # A name typed means what trades under it today, never the renamed one.
+        old = run_cli_with_config(ctx.config, app, ["acb", "OLDCO"])
+
+    assert_cli_success(renamed)
+    assert_in_output("1,000.00", renamed)
+    assert_in_output("No OLDCO transactions", old)
 
 
 def test_acb_export_to_parquet(temp_ctx: TempContext, tmp_path: Path) -> None:

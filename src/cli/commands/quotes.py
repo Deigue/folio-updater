@@ -10,10 +10,9 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import require_ledger
+from cli.commands.common import require_ledger, typed_symbols
 from engine.ledger import LedgerUnavailableError, open_ledger
 from services.quote_service import QuoteService
-from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
 from ui.views.quotes import quotes_table
 
@@ -30,8 +29,8 @@ def manage_quotes(
     """Inspect or refresh the market quote cache.
 
     Args:
-        symbols: Limit the action to these securities. An old alias acts on
-            the symbol it was renamed to.
+        symbols: Limit the action to these securities, each the one trading
+            under that name today.
         refresh: Refetch prices from the provider.
         clear: Drop cached rows, price history included.
 
@@ -44,8 +43,7 @@ def manage_quotes(
         console_error("Pick one of --refresh or --clear.")
         raise typer.Exit(1)
 
-    resolver = load_symbol_resolver()
-    wanted = list(dict.fromkeys(resolver.canonical(symbol) for symbol in symbols))
+    wanted = typed_symbols(symbols)
 
     if clear:
         _clear(wanted)

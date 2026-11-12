@@ -126,7 +126,7 @@ class QuoteService:
             symbol
             for symbol in wanted
             if refresh
-            or _is_due(cached.get(symbol))
+            or cls._is_due(cached.get(symbol))
             or (fundamentals and cached[symbol].meta_older_than(max_age))
         ]
         if not due:
@@ -142,6 +142,42 @@ class QuoteService:
             else quote
             for symbol, quote in quotes.items()
         }
+
+    @classmethod
+    def lookup(
+        cls,
+        symbols: Sequence[str],
+        *,
+        refresh: bool = False,
+        offline: bool = False,
+        fundamentals: bool = False,
+    ) -> dict[str, Quote]:
+        """Quote symbols the user typed, never caching one the provider does not know.
+
+        A typo would otherwise stay in the cache as not found. A symbol cached
+        before keeps its row, since that is how a holding the provider cannot
+        price avoids being asked about on every run.
+
+        Args:
+            symbols: The symbols as typed.
+            refresh: Refetch every symbol regardless of its TTL.
+            offline: Never touch the network.
+            fundamentals: Hold the metadata to the fundamentals TTL.
+
+        Returns:
+            Each symbol mapped to its quote, as `get_quotes` returns them.
+        """
+        wanted = _unique_upper(symbols)
+        new = set(wanted) - cls.cached(wanted).keys()
+        quotes = cls.get_quotes(
+            wanted,
+            refresh=refresh,
+            offline=offline,
+            fundamentals=fundamentals,
+        )
+        typos = [s for s in new if quotes[s].status is QuoteStatus.NOT_FOUND]
+        cls.clear(typos)
+        return quotes
 
     @classmethod
     def refresh(
@@ -429,6 +465,50 @@ class QuoteService:
             for symbol in symbols
         }
 
+    # -- STALENESS -------------------------------------------------------
+
+    @staticmethod
+    def is_stale(quote: Quote) -> bool:
+        """Whether a quote's price is older than the configured TTL.
+
+        Args:
+            quote: The cached quote.
+
+        Returns:
+            True when it was never fetched, or was fetched longer ago than
+            `quotes_ttl_minutes`.
+        """
+        age = quote.age
+        if age is None:
+            return True
+        return age > timedelta(minutes=get_config().quotes_ttl_minutes)
+
+    @classmethod
+    def quote_age(cls, quotes: Mapping[str, Quote]) -> tuple[datetime | None, bool]:
+        """Age a batch of quotes as a whole: its oldest fetch wins.
+
+        Args:
+            quotes: The quotes a report was priced with.
+
+        Returns:
+            When the oldest quote was fetched (None when none ever was), and
+            whether any of them is past its TTL.
+        """
+        fetched = [quote.fetched_at for quote in quotes.values() if quote.fetched_at]
+        stale = any(cls.is_stale(quote) for quote in quotes.values())
+        return (min(fetched) if fetched else None), stale
+
+    @classmethod
+    def _is_due(cls, quote: Quote | None) -> bool:
+        """Whether a cached quote should be refetched now."""
+        if quote is None:
+            return True
+        if quote.status is QuoteStatus.NOT_FOUND:
+            # Negative-cached: re-ask occasionally, not every run.
+            age = quote.age
+            return age is None or age > timedelta(days=NOT_FOUND_TTL_DAYS)
+        return cls.is_stale(quote)
+
 
 def _meta_max_age(*, fundamentals: bool) -> timedelta:
     """How old cached metadata may be: hours when fundamentals are shown."""
@@ -436,33 +516,6 @@ def _meta_max_age(*, fundamentals: bool) -> timedelta:
     if fundamentals:
         return timedelta(hours=config.quotes_fundamentals_ttl_hours)
     return timedelta(days=config.quotes_metadata_ttl_days)
-
-
-def is_stale(quote: Quote) -> bool:
-    """Whether a quote's price is older than the configured TTL.
-
-    Args:
-        quote: The cached quote.
-
-    Returns:
-        True when it was never fetched, or was fetched longer ago than
-        `quotes_ttl_minutes`.
-    """
-    age = quote.age
-    if age is None:
-        return True
-    return age > timedelta(minutes=get_config().quotes_ttl_minutes)
-
-
-def _is_due(quote: Quote | None) -> bool:
-    """Whether a cached quote should be refetched now."""
-    if quote is None:
-        return True
-    if quote.status is QuoteStatus.NOT_FOUND:
-        # Negative-cached: re-ask occasionally, not every run.
-        age = quote.age
-        return age is None or age > timedelta(days=NOT_FOUND_TTL_DAYS)
-    return is_stale(quote)
 
 
 def _merge(  # noqa: PLR0913, PLR0917

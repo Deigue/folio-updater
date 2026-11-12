@@ -17,6 +17,7 @@ from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
     resolve_pool,
+    typed_symbols,
     write_or_exit,
 )
 from domain import CurrencyColumns
@@ -26,7 +27,6 @@ from engine.gain_since_buy import bought_symbols
 from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import acb_buildup_sheet, acb_summary_sheet, ledger_sheet
 from services.quote_service import QuoteService
-from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
 from ui.format import (
     cache_badge,
@@ -143,7 +143,7 @@ def show_acb(  # noqa: PLR0917
     shape = (
         AcbShape.SUMMARY if summary else AcbShape.BUILDUP if symbol else AcbShape.LEDGER
     )
-    canonical = load_symbol_resolver().canonical(symbol) if symbol else None
+    canonical = typed_symbols([symbol])[0] if symbol else None
     if year is not None:
         date_from, date_to = f"{year}-01-01", f"{year}-12-31"
     # A file for another program carries every currency, so it never refuses one.

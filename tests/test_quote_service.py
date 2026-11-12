@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -15,7 +16,6 @@ from services.quote_service import (
     NOT_FOUND_TTL_DAYS,
     QuoteService,
     RefreshResult,
-    is_stale,
 )
 
 from .fixtures.fake_quote_provider import provider_price
@@ -98,6 +98,28 @@ def test_a_stale_quote_is_refetched(
         _age_cached("TESTTKR", minutes=60)
 
         QuoteService.get_quotes(["TESTTKR"])
+        assert len(quote_provider.asked("prices")) == 2
+
+
+def test_looking_up_a_typo_leaves_nothing_in_the_cache(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        quotes = QuoteService.lookup(["nosuch", "TESTTKR"])
+
+        assert quotes["NOSUCH"].status is QuoteStatus.NOT_FOUND
+        assert set(QuoteService.cached()) == {"TESTTKR"}
+
+
+def test_looking_up_keeps_a_not_found_row_cached_before(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    with temp_ctx():
+        # A holding the provider cannot price, already negative-cached.
+        QuoteService.refresh(["NOSUCH"])
+
+        QuoteService.lookup(["NOSUCH"], refresh=True)
+
+        assert QuoteService.cached()["NOSUCH"].status is QuoteStatus.NOT_FOUND
         assert len(quote_provider.asked("prices")) == 2
 
 
@@ -283,9 +305,25 @@ def test_a_quote_with_no_fetch_is_stale_and_unpriced() -> None:
     quote = Quote(symbol="TESTTKR", provider_symbol="TESTTKR")
 
     assert quote.age is None
-    assert is_stale(quote)
+    assert QuoteService.is_stale(quote)
     assert not quote.priced
     assert quote.day_change is None
+
+
+def test_a_batch_of_quotes_is_as_old_as_its_oldest(temp_ctx: TempContext) -> None:
+    now = datetime.now(UTC)
+    fresh = Quote(symbol="AAA", provider_symbol="AAA", fetched_at=now)
+    old = replace(fresh, symbol="BBB", fetched_at=now - timedelta(hours=2))
+
+    with temp_ctx(quotes={"ttl_minutes": 15}):
+        assert QuoteService.quote_age({"AAA": fresh}) == (now, False)
+        assert QuoteService.quote_age({"AAA": fresh, "BBB": old}) == (
+            old.fetched_at,
+            True,
+        )
+        # Never fetched: no age to give, and stale by definition.
+        never = Quote(symbol="CCC", provider_symbol="CCC")
+        assert QuoteService.quote_age({"CCC": never}) == (None, True)
 
 
 def test_day_change_needs_both_sides() -> None:
