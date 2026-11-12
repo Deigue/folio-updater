@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import os
 import time
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import pandas as pd
 import pytest
@@ -16,6 +17,7 @@ import yaml
 from app import bootstrap
 from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, ConfigError, write_missing_setting
+from config.settings import SETTINGS, validate_config
 from domain import TXN_ESSENTIALS, AccountType, FeeConvention, FeeSign
 from ingest.mappers import TransactionMapper
 
@@ -30,11 +32,71 @@ if TYPE_CHECKING:
 def test_a_missing_or_empty_config_loads_the_defaults(tmp_path: Path) -> None:
     config = Config.load(tmp_path)
     with Path.open(config.config_path) as f:
-        assert yaml.safe_load(f) == Config.DEFAULT_CONFIG
+        generated = yaml.safe_load(f)
+    assert generated == Config.DEFAULT_CONFIG
+    assert generated["transforms"] == {
+        "rules": [],
+        "merge_groups": [],
+        "cancellations": [],
+    }
+
+    # The generated file reads back as exactly the defaults, with nothing to warn about.
+    with capture_output() as captured:
+        assert validate_config(generated) == Config.DEFAULT_CONFIG
+    assert captured.get_text() == ""
 
     # A file the user blanked is read as no settings, not refused.
     config.config_path.write_text("", encoding="utf-8")
     assert Config.load(tmp_path).log_level == Config.DEFAULT_CONFIG["log_level"]
+
+
+class _ReadRecorder(dict):
+    """A settings mapping that records the key path of every read from it."""
+
+    def __init__(
+        self,
+        data: dict[str, Any],
+        path: tuple[str, ...],
+        seen: set[tuple[str, ...]],
+    ) -> None:
+        super().__init__(data)
+        self._path = path
+        self._seen = seen
+
+    def _read(self, key: str, value: object) -> object:
+        path = (*self._path, key)
+        self._seen.add(path)
+        if isinstance(value, dict):
+            return _ReadRecorder(value, path, self._seen)
+        return value
+
+    def __getitem__(self, key: str) -> object:
+        return self._read(key, super().__getitem__(key))
+
+    def get(self, key: str, default: object = None) -> object:  # ty: ignore[invalid-method-override]
+        return self[key] if key in self else self._read(key, default)
+
+
+def test_every_setting_config_reads_is_declared(tmp_path: Path) -> None:
+    """A read no declaration covers would be missing from the generated file."""
+    seen: set[tuple[str, ...]] = set()
+    config = Config(tmp_path, _ReadRecorder(validate_config({}), (), seen))
+    for name, _ in inspect.getmembers(Config, lambda a: isinstance(a, property)):
+        getattr(config, name)
+    config.fee_convention_for("ANY-TFSA")
+    config.fee_sign_for("ANY-TFSA")
+
+    declared = [tuple(setting.path.split(".")) for setting in SETTINGS]
+
+    def on_the_declared_tree(path: tuple[str, ...]) -> bool:
+        # A container of declarations, a declaration, or data inside a declared block.
+        return any(
+            path[: len(known)] == known or known[: len(path)] == path
+            for known in declared
+        )
+
+    assert ("transforms", "merge_groups") in seen
+    assert [path for path in sorted(seen) if not on_the_declared_tree(path)] == []
 
 
 def test_a_missing_absolute_data_folder_is_created(
@@ -214,12 +276,13 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
                     "Memo": {"keywords": "note"},
                     "Odd": {"type": "bogus"},
                     "Blank": None,
-                    "Count": {"keywords": 5},
+                    "Count": {"keywords": {"note": 1}},
+                    "Listed": ["note"],
                 },
                 "log_level": 3,
                 "audit_log_level": "LOUD",
                 "sheets": {"tickers": "Tickers", "txns": None, "unknown_sheet": "Nope"},
-                "header_ignore": "notalist",
+                "header_ignore": {"ID": True},
                 "brokers": "notadict",
                 "backup": {"max_backups": True},
                 "duplicate_approval": {"column_name": None, "approval_value": 1},
@@ -252,8 +315,16 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
         fields = config.optional_fields.get_all_fields()
         assert set(fields) == {"Memo"}
         assert fields["Memo"].keywords == ["note"]
-    for skipped in ("Odd", "Blank", "Count"):
-        assert f"optional_columns: ignoring {skipped}." in captured.get_text()
+    text = " ".join(captured.get_text().split())
+    assert "optional_columns.Odd.type: bogus is not one of" in text
+    assert "optional_columns.Count.keywords: {'note': 1} is not a name" in text
+    assert "ignoring Odd." in text
+    assert "ignoring Count." in text
+    assert "optional_columns.Listed: ['note'] is not a mapping of settings" in text
+    # A column left empty is not configured, so there is nothing to warn about.
+    assert "Blank" not in text
+    assert "sheets.unknown_sheet: unknown setting" in text
+    assert "brokers: notadict is not a mapping of settings; using the defaults." in text
 
 
 @pytest.fixture
@@ -378,6 +449,20 @@ def test_a_nonsense_quote_ttl_keeps_the_default(
         assert ctx.config.quotes_ttl_minutes == 15
 
 
+def test_check_suppressions_are_trimmed_and_matched_in_upper_case(
+    temp_ctx: TempContext,
+) -> None:
+    checks = {
+        "disabled": [" stale-quotes ", None],
+        "ignore_tickers": ["msft", ""],
+        "ignore_accounts": ["zz-tfsa"],
+    }
+    with temp_ctx(checks=checks) as ctx:
+        assert ctx.config.checks_disabled == ["stale-quotes"]
+        assert ctx.config.checks_ignore_tickers == ["MSFT"]
+        assert ctx.config.checks_ignore_accounts == ["ZZ-TFSA"]
+
+
 def test_contribution_room_is_read_by_type_and_year(temp_ctx: TempContext) -> None:
     room = {"TFSA": {2025: 7000, 2026: 7000}, "RRSP": {2026: 9500}}
     with temp_ctx(contribution_room=room) as ctx:
@@ -456,7 +541,9 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
     with capture_output() as captured, temp_ctx(overrides) as ctx:
         assert set(ctx.config.account_map) == {"GOOD-TFSA", "ODD-RRSP"}
         assert ctx.config.account_map["GOOD-TFSA"]["type"] == "TFSA"
-        assert "ignoring BAD" in captured.get_text()
+        assert (
+            "accounts.map.BAD: NOT_A_TYPE is not an account type" in captured.get_text()
+        )
         assert "ignoring True, which YAML read as a boolean" in captured.get_text()
         # The bad fee value is dropped, but the usable type survives.
         assert ctx.config.account_map["ODD-RRSP"]["type"] == "RRSP"
@@ -464,31 +551,124 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
 
 
 @pytest.mark.parametrize(
-    ("overrides", "label"),
+    ("overrides", "warning"),
     [
-        pytest.param({"accounts": None}, "accounts", id="empty-accounts"),
-        pytest.param({"accounts": {"map": None}}, "accounts.map", id="empty-map"),
-        pytest.param({"accounts": {"map": ["ZZ-TFSA"]}}, "accounts.map", id="map-list"),
-        pytest.param({"optional_columns": ["Memo"]}, "optional_columns", id="columns"),
+        pytest.param(
+            {"quotes": {"ttl_minutes": -5}},
+            "quotes.ttl_minutes: -5 is not a positive whole number; using 15.",
+            id="scalar",
+        ),
+        pytest.param(
+            {"backup": {"enabled": "yes"}},
+            "backup.enabled: yes is not true or false; using True.",
+            id="boolean",
+        ),
+        pytest.param(
+            {"accounts": {"map": ["ZZ-TFSA"]}},
+            "accounts.map: ['ZZ-TFSA'] is not a mapping of settings; ignoring it.",
+            id="block",
+        ),
+        pytest.param(
+            {"quotes": "fast"},
+            "quotes: fast is not a mapping of settings; using the defaults.",
+            id="container",
+        ),
+        pytest.param(
+            {"accounts": {"map": {"ZZ-RRSP": {"type": "RRSP", "fee_sign": "up"}}}},
+            "accounts.map.ZZ-RRSP.fee_sign: up is not one of auto, negative, positive; "
+            "ignoring it.",
+            id="entry-field",
+        ),
+        pytest.param(
+            {"accounts": {"map": {"ZZ-RRSP": "NOT_A_TYPE"}}},
+            "accounts.map.ZZ-RRSP: NOT_A_TYPE is not an account type; ignoring it.",
+            id="entry-shorthand",
+        ),
+        pytest.param(
+            {"contribution_room": {"NOTATYPE": {2026: 1000}}},
+            "contribution_room: ignoring NOTATYPE, which is not an account type.",
+            id="entry-key",
+        ),
+        pytest.param(
+            {"contribution_room": {"TFSA": {"twenty": 7000}}},
+            "contribution_room.TFSA: ignoring twenty, which is not a year.",
+            id="nested-entry-key",
+        ),
     ],
 )
-def test_a_block_that_is_present_but_not_a_mapping_warns(
+def test_a_value_that_cannot_be_used_warns(
     temp_ctx: TempContext,
     overrides: dict[str, object],
-    label: str,
+    warning: str,
 ) -> None:
     with capture_output() as captured, temp_ctx(overrides):
         pass
-    assert f"{label}: ignoring it" in captured.get_text()
+    assert warning in " ".join(captured.get_text().split())
 
 
-def test_an_absent_account_map_is_not_warned_about(
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"accounts": None}, id="block"),
+        pytest.param({"accounts": {"map": None}}, id="data-block"),
+        pytest.param({"quotes": {"ttl_minutes": None}}, id="scalar"),
+        pytest.param({"accounts": {"map": {"ZZ-TFSA": None}}}, id="entry"),
+        pytest.param(
+            {"accounts": {"map": {"ZZ-TFSA": {"type": "TFSA", "fee_sign": None}}}},
+            id="entry-field",
+        ),
+        pytest.param({"accounts": {"defaults": {}}}, id="empty-mapping"),
+    ],
+)
+def test_a_setting_left_empty_takes_its_default_quietly(
     temp_ctx: TempContext,
+    overrides: dict[str, object],
 ) -> None:
-    """Leaving `map` out is not configuring it, so there is nothing to warn about."""
-    with capture_output() as captured, temp_ctx({"accounts": {"defaults": {}}}):
+    """`key:` with nothing under it is not configuring it."""
+    with capture_output() as captured, temp_ctx(overrides) as ctx:
+        assert ctx.config.fee_sign_for("ZZ-TFSA") is FeeSign.AUTO
+        assert ctx.config.quotes_ttl_minutes == 15
+    assert captured.get_text() == ""
+
+
+@pytest.mark.parametrize(
+    ("overrides", "path"),
+    [
+        pytest.param({"log_levle": "INFO"}, "log_levle", id="top-level"),
+        pytest.param(
+            {"duplicate_approval": {"column": "Dup"}},
+            "duplicate_approval.column",
+            id="nested",
+        ),
+        pytest.param(
+            {"accounts": {"map": {"ZZ-TFSA": {"type": "TFSA", "colour": "red"}}}},
+            "accounts.map.ZZ-TFSA.colour",
+            id="inside-an-entry",
+        ),
+    ],
+)
+def test_an_unknown_key_warns(
+    temp_ctx: TempContext,
+    overrides: dict[str, object],
+    path: str,
+) -> None:
+    with capture_output() as captured, temp_ctx(overrides):
         pass
-    assert "ignoring it" not in captured.get_text()
+    assert f"{path}: unknown setting, ignoring it." in captured.get_text()
+
+
+def test_a_lone_name_is_a_list_of_one(temp_ctx: TempContext) -> None:
+    overrides = {
+        "header_ignore": "ID",
+        "checks": {"disabled": "stale-quotes", "ignore_tickers": "msft"},
+        "header_keywords": {"Fee": "commission"},
+    }
+    with capture_output() as captured, temp_ctx(overrides) as ctx:
+        assert ctx.config.header_ignore == ["ID"]
+        assert ctx.config.checks_disabled == ["stale-quotes"]
+        assert ctx.config.checks_ignore_tickers == ["MSFT"]
+        assert ctx.config.header_keywords["Fee"] == ["commission"]
+    assert captured.get_text() == ""
 
 
 def test_a_lone_keywords_string_matches_only_that_header(

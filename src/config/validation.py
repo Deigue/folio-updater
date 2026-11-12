@@ -1,23 +1,22 @@
-"""Check a loaded `config.yaml` against what each setting may hold.
+"""Validators that turn a value written in `config.yaml` into a usable one.
 
-Each validator reads its block from the raw `settings` and writes the usable
-result into `validated`, which starts as a copy of the defaults. A value of the
-wrong type leaves the default in place rather than failing the command.
+A validator takes the raw value and returns the usable value, or an `Unusable`
+when nothing of it can be used, so the setting keeps its default. An `Unusable`
+with a reason is reported, while one without is dropped.
 """
 
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from config.optional_fields import OptionalField
+from config.optional_fields import FieldType
 from domain import (
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
     SUPPORTED_CURRENCIES,
     AccountType,
-    Column,
     FeeConvention,
     FeeSign,
     parse_account_type,
@@ -26,13 +25,29 @@ from domain.numeric import dec
 from term import console_warning
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
-    from decimal import Decimal
+    from collections.abc import Callable, Iterable, Mapping
 
 
 class ConfigError(ValueError):
     """The config file cannot be used as written, so the command stops."""
 
+
+@dataclass(frozen=True)
+class Unusable:
+    """Nothing of a written value can be used.
+
+    Attributes:
+        reason: Why, as a phrase following the value ("is not a year"), or
+            empty when it has already been reported.
+    """
+
+    reason: str = ""
+
+
+REPORTED = Unusable()
+NOT_A_MAPPING = Unusable("is not a mapping of settings")
+
+type Validator = Callable[[Any, str], Any]
 
 # How `amount_includes_fees` is spelled in YAML.
 FEE_CONVENTIONS: dict[str, FeeConvention] = {
@@ -48,403 +63,281 @@ FEE_CONVENTIONS: dict[str, FeeConvention] = {
 # How `fee_sign` is spelled in YAML.
 FEE_SIGNS: dict[str, FeeSign] = {sign.value: sign for sign in FeeSign}
 
-# The fee settings an account, or `defaults`, may carry, and what each may be spelled.
-_FEE_SPELLINGS: dict[str, Mapping[str, object]] = {
-    "amount_includes_fees": FEE_CONVENTIONS,
-    "fee_sign": FEE_SIGNS,
-}
-
-# Keys copied straight from YAML once they type-check, mapped to the type they
-# must have and the coercion applied before storing. `object` accepts any
-# non-null value. Blocks needing per-field rules get their own `_validate_*`
-# helper instead.
-_PASSTHROUGH_KEYS: dict[str, tuple[type, Callable[[Any], Any]]] = {
-    "folio_path": (object, str),
-    "data_path": (object, str),
-    "header_ignore": (list, list),
-    "brokers": (dict, dict),
-    "transforms": (dict, dict),
-}
+_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
 
-def validate_config(
-    settings: dict[str, Any],
-    defaults: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Validate the loaded configuration against expected structure and values.
+def report_unusable(
+    path: str,
+    written: object,
+    unusable: Unusable,
+    fallback: str,
+) -> None:
+    """Warn that a written value is not used, unless that was already reported.
 
     Args:
-        settings: Raw configuration dictionary to validate
-        defaults: The setting values to fall back on
-
-    Returns:
-        Validated configuration
+        path: The setting's dotted path.
+        written: The value as written.
+        unusable: Why it cannot be used.
+        fallback: What happens instead, such as "using 15" or "ignoring it".
     """
-    validated: dict[str, Any] = deepcopy(dict(defaults))
-
-    _validate_passthrough_keys(settings, validated)
-    _validate_log_level(settings, validated, "log_level")
-    _validate_log_level(settings, validated, "audit_log_level")
-    _validate_sheets(settings, validated)
-    _validate_header_keywords(settings, validated)
-    _validate_optional_columns(settings, validated)
-    _validate_duplicate_approval(settings, validated)
-    _validate_backup(settings, validated)
-    _validate_accounts(settings, validated)
-    _validate_cost_basis(settings, validated)
-    _validate_display(settings, validated)
-    _validate_checks(settings, validated)
-    _validate_quotes(settings, validated)
-    _validate_contribution_room(settings, validated)
-
-    return validated
+    if unusable.reason:
+        console_warning(f"{path}: {written} {unusable.reason}; {fallback}.")
 
 
-def _validate_passthrough_keys(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Copy every `_PASSTHROUGH_KEYS` entry that type-checks.
+def report_unknown(path: str) -> None:
+    """Warn that a key names no setting."""
+    console_warning(f"{path}: unknown setting, ignoring it.")
 
-    Values of the wrong type, and explicit nulls, leave the default in
-    place.
+
+def _listed(choices: Iterable[str]) -> str:
+    """Join choices as `a, b or c`."""
+    *rest, last = choices
+    return f"{', '.join(rest)} or {last}" if rest else last
+
+
+def _is_scalar(value: object) -> bool:
+    """Whether a value is a string or a number, which YAML booleans are not."""
+    return isinstance(value, str | int | float) and not isinstance(value, bool)
+
+
+# -- SCALARS ------------------------------------------------------------------
+
+
+def as_written(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Keep the value as written, for a block whose own parser judges it."""
+    return value
+
+
+def text(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a string or a number, as a string."""
+    return str(value) if _is_scalar(value) else Unusable("is not text")
+
+
+def boolean(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a YAML boolean."""
+    return value if isinstance(value, bool) else Unusable("is not true or false")
+
+
+def positive_int(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a whole number above zero."""
+    # bool is a subclass of int, so `true` must not read as 1.
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return Unusable("is not a positive whole number")
+
+
+def log_level(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a logging level name, in any case."""
+    level = str(value).upper()
+    if level in logging.getLevelNamesMapping():
+        return level
+    return Unusable(f"is not a log level ({_listed(_LOG_LEVELS)})")
+
+
+def currency(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a currency the app can value in, in any case."""
+    code = str(value).upper()
+    if code in SUPPORTED_CURRENCIES:
+        return code
+    return Unusable(f"is not {_listed(sorted(SUPPORTED_CURRENCIES))}")
+
+
+def one_of(spellings: Mapping[str, object]) -> Validator:
+    """Accept a value whose lower-cased spelling is one of `spellings`."""
+    unusable = Unusable(f"is not one of {', '.join(spellings)}")
+
+    def validate(value: Any, _path: str) -> Any:  # noqa: ANN401
+        spelling = str(value).lower()
+        return spelling if spelling in spellings else unusable
+
+    return validate
+
+
+def names(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Accept a list of names, or one name as a list of one.
+
+    Each name is trimmed, and an empty entry (a stray `-`) is dropped.
     """
-    for key, (expected, coerce) in _PASSTHROUGH_KEYS.items():
-        value = settings.get(key)
-        if value is not None and isinstance(value, expected):
-            validated[key] = coerce(value)
+    if _is_scalar(value):
+        value = [value]
+    if not isinstance(value, list):
+        return Unusable("is not a name or a list of names")
+    trimmed = (str(entry).strip() for entry in value if entry is not None)
+    return [name for name in trimmed if name]
 
 
-def _validate_accounts(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `accounts` block, normalising both `map` forms."""
-    accounts = _mapping_block(settings, "accounts")
-    if accounts is None:
-        return
-
-    current = validated["accounts"]
-    if isinstance(accounts.get("naming_convention"), bool):
-        current["naming_convention"] = accounts["naming_convention"]
-
-    defaults = accounts.get("defaults")
-    if isinstance(defaults, dict):
-        # Each default is set on its own, so pinning one leaves the other as it was.
-        # `false` is a meaningful convention, so test for the key.
-        for key, spellings in _FEE_SPELLINGS.items():
-            if key in defaults and str(defaults[key]).lower() in spellings:
-                current["defaults"][key] = str(defaults[key]).lower()
-
-    raw_map = _mapping_block(accounts, "map", "accounts.map")
-    if raw_map is not None:
-        current["map"] = _account_map(raw_map)
+# -- COMBINATORS --------------------------------------------------------------
 
 
-def _account_map(raw_map: dict[Any, Any]) -> dict[str, dict[str, Any]]:
-    """Normalise `accounts.map`, keyed by the upper-cased account name.
+def fields(
+    *,
+    shorthand: str | None = None,
+    strict: bool = False,
+    finish: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+    **validators: Validator,
+) -> Validator:
+    """Accept a mapping of named fields, each checked by its own validator.
 
-    An entry with nothing usable is dropped with a warning. Two keys that differ
-    only in case and disagree stop the load, since either could be the one meant.
-
-    Raises:
-        ConfigError: When two keys name one account with different settings.
-    """
-    resolved: dict[str, dict[str, Any]] = {}
-    written_as: dict[str, str] = {}
-    for key, value in raw_map.items():
-        if isinstance(key, bool):
-            console_warning(
-                f"accounts.map: ignoring {key}, which YAML read as a boolean "
-                '(an unquoted ON, OFF, YES or NO). Quote the name (for example "ON").',
-            )
-            continue
-        name = str(key).strip().upper()
-        entry = _account_entry(value)
-        if entry is None:
-            console_warning(
-                f"accounts.map: ignoring {key}, which has no usable type or "
-                "fee setting.",
-            )
-            continue
-        if name in resolved and resolved[name] != entry:
-            msg = (
-                f"accounts.map: {written_as[name]} and {key} name the same "
-                "account with different settings. Keep one of them."
-            )
-            raise ConfigError(msg)
-        resolved[name] = entry
-        written_as[name] = str(key)
-    return resolved
-
-
-def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
-    """Normalise one `accounts.map` entry, or None when it is unusable."""
-    entry = value if isinstance(value, dict) else {"type": value}
-    account_type = entry.get("type")
-    normalized: dict[str, Any] = {}
-
-    if account_type is not None:
-        if str(account_type).upper() == MARGIN_MARKER:
-            normalized["type"] = AccountType.NON_REGISTERED
-            normalized["margin"] = True
-        else:
-            parsed = parse_account_type(str(account_type))
-            if parsed is None:
-                return None
-            normalized["type"] = parsed
-
-    for key, spellings in _FEE_SPELLINGS.items():
-        if key in entry and str(entry[key]).lower() in spellings:
-            normalized[key] = str(entry[key]).lower()
-
-    return normalized or None
-
-
-def _validate_cost_basis(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `cost_basis` block."""
-    cost_basis = settings.get("cost_basis")
-    if not isinstance(cost_basis, dict):
-        return
-    if isinstance(cost_basis.get("auto_getfx"), bool):
-        validated["cost_basis"]["auto_getfx"] = cost_basis["auto_getfx"]
-
-
-def _validate_checks(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `checks` block."""
-    checks = settings.get("checks")
-    if not isinstance(checks, dict):
-        return
-    current = validated["checks"]
-    for key in ("disabled", "ignore_tickers", "ignore_accounts"):
-        value = checks.get(key)
-        if isinstance(value, list):
-            current[key] = [str(entry).strip() for entry in value if entry]
-
-
-def _validate_quotes(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `quotes` block, keeping the default on any bad value."""
-    quotes = settings.get("quotes")
-    if not isinstance(quotes, dict):
-        return
-
-    current = validated["quotes"]
-    for key in (
-        "ttl_minutes",
-        "metadata_ttl_days",
-        "fundamentals_ttl_hours",
-        "timeout_seconds",
-    ):
-        value = quotes.get(key)
-        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
-            current[key] = value
-
-    overrides = quotes.get("symbol_overrides")
-    if isinstance(overrides, dict):
-        current["symbol_overrides"] = {
-            str(key): str(value) for key, value in overrides.items() if key and value
-        }
-
-
-def _validate_contribution_room(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate `contribution_room`, dropping anything unresolvable.
-
-    Keys are account types, then calendar years. A type the engine does not
-    know, or a year that is not a number, is skipped. A known type without
-    yearly room (an RESP's limit is lifetime and per beneficiary) is skipped
-    with a warning, since the user meant it and would otherwise never learn
-    that it is ignored.
-    """
-    room = settings.get("contribution_room")
-    if not isinstance(room, dict):
-        return
-
-    resolved: dict[AccountType, dict[int, Decimal]] = {}
-    for name, years in room.items():
-        if not isinstance(years, dict):
-            continue
-        account_type = parse_account_type(str(name))
-        if account_type is None:
-            continue
-        if account_type not in ROOM_BEARING_TYPES:
-            console_warning(
-                f"contribution_room: ignoring {account_type}, which has no "
-                "yearly contribution room (only TFSA, RRSP and FHSA do).",
-            )
-            continue
-        limits = _room_years(years)
-        if limits:
-            resolved[account_type] = limits
-
-    validated["contribution_room"] = resolved
-
-
-def _room_years(years: dict[Any, Any]) -> dict[int, Decimal]:
-    """Read one account type's year-to-limit mapping."""
-    limits: dict[int, Decimal] = {}
-    for year, limit in years.items():
-        try:
-            limits[int(str(year).strip())] = dec(float(limit))
-        except (TypeError, ValueError):
-            continue
-    return limits
-
-
-def _validate_display(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `display` block."""
-    display = settings.get("display")
-    if not isinstance(display, dict):
-        return
-    currency = str(display.get("currency", "")).upper()
-    if currency in SUPPORTED_CURRENCIES:
-        validated["display"] = {"currency": currency}
-
-
-def _validate_log_level(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-    key: str,
-) -> None:
-    """Validate one log level setting, falling back to its default on a bad value."""
-    level = str(settings.get(key, validated[key])).upper()
-    if level not in logging.getLevelNamesMapping():
-        level = validated[key]
-    validated[key] = level
-
-
-def _validate_sheets(settings: dict[str, Any], validated: dict[str, Any]) -> None:
-    """Validate `sheets`, keeping only the known sheet names."""
-    sheets = settings.get("sheets")
-    if not isinstance(sheets, dict):
-        return
-    validated["sheets"].update(
-        {
-            name: str(value)
-            for name, value in sheets.items()
-            if name in validated["sheets"] and value is not None
-        },
-    )
-
-
-def _validate_header_keywords(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate `header_keywords`, dropping mappings for unknown columns."""
-    header_keywords = settings.get("header_keywords")
-    if not isinstance(header_keywords, dict):
-        return
-    validated["header_keywords"].update(
-        {
-            column: list(keywords)
-            for column, keywords in header_keywords.items()
-            # Add internal fields that are not in the default mapping here.
-            if isinstance(keywords, list)
-            and (
-                column in validated["header_keywords"] or column == str(Column.Txn.FEE)
-            )
-        },
-    )
-
-
-def _validate_optional_columns(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate `optional_columns`, skipping each entry that cannot be used."""
-    columns = _mapping_block(settings, "optional_columns")
-    if columns is None:
-        return
-    usable: dict[str, Any] = {}
-    for name, entry in columns.items():
-        try:
-            OptionalField.from_config_entry(str(name), entry)
-        except ValueError as error:
-            console_warning(f"optional_columns: ignoring {name}. {error}")
-        else:
-            usable[str(name)] = entry
-    validated["optional_columns"] = usable
-
-
-def _mapping_block(
-    container: Mapping[str, Any],
-    key: str,
-    label: str | None = None,
-) -> dict[str, Any] | None:
-    """Read one settings block that must be a mapping.
-
-    An absent key is simply not configured. A key that is present but empty (a
-    bare `map:`) or holds a list or scalar is lost, so it is reported.
+    A field left empty is not configured, and an unknown field is reported.
 
     Args:
-        container: The mapping the block sits in.
-        key: The block's key.
-        label: How the block is named in the warning, when not just `key`.
+        shorthand: The field a lone value stands for, so `TFSA` reads as
+            `{type: TFSA}`.
+        strict: Whether an unusable field makes the whole entry unusable, rather
+            than only being dropped.
+        finish: Applied to the usable fields, for a rule spanning several.
+        **validators: The validator of each field.
 
     Returns:
-        The block, or None when it is absent or unusable.
+        The validator. Its result holds the usable fields only.
     """
-    if key not in container:
-        return None
-    block = container[key]
-    if isinstance(block, dict):
-        return block
-    console_warning(
-        f"{label or key}: ignoring it, because it must hold a mapping of settings.",
-    )
-    return None
+
+    def validate(value: Any, path: str) -> Any:  # noqa: ANN401
+        written_short = shorthand is not None and not isinstance(value, dict)
+        if written_short:
+            value = {shorthand: value}
+        if not isinstance(value, dict):
+            return NOT_A_MAPPING
+        usable: dict[str, Any] = {}
+        for name, entry in value.items():
+            if name not in validators:
+                report_unknown(f"{path}.{name}")
+                continue
+            if entry is None:
+                continue
+            # A lone value stands for the whole entry, so it is named by the entry.
+            field_path = path if written_short else f"{path}.{name}"
+            result = validators[name](entry, field_path)
+            if isinstance(result, Unusable):
+                entry_name = path.rsplit(".", 1)[-1]
+                fallback = f"ignoring {entry_name}" if strict else "ignoring it"
+                report_unusable(field_path, entry, result, fallback)
+                if strict:
+                    return REPORTED
+                continue
+            usable[name] = result
+        return finish(usable) if finish else usable
+
+    return validate
 
 
-def _validate_duplicate_approval(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `duplicate_approval` block."""
-    duplicate_approval = settings.get("duplicate_approval")
-    if not isinstance(duplicate_approval, dict):
-        return
-    current = validated["duplicate_approval"]
-    for key in ("column_name", "approval_value"):
-        if duplicate_approval.get(key) is not None:
-            current[key] = str(duplicate_approval[key])
+def map_of(key: Validator, value: Validator, *, clash_stops: bool = False) -> Validator:
+    """Accept a mapping keyed by data, such as account names or years.
+
+    An entry left empty is dropped, and so is one whose key or value cannot be
+    used, with a warning.
+
+    Args:
+        key: Normalises each key.
+        value: Checks each value.
+        clash_stops: Whether two keys normalising to one with different values
+            stop the load, since either could be the one meant.
+
+    Returns:
+        The validator.
+    """
+
+    def validate(raw: Any, path: str) -> Any:  # noqa: ANN401
+        if not isinstance(raw, dict):
+            return NOT_A_MAPPING
+        usable: dict[Any, Any] = {}
+        written_as: dict[Any, Any] = {}
+        for written, entry in raw.items():
+            if entry is None:
+                continue
+            name = key(written, path)
+            if isinstance(name, Unusable):
+                console_warning(f"{path}: ignoring {written}, which {name.reason}.")
+                continue
+            entry_path = f"{path}.{written}"
+            result = value(entry, entry_path)
+            if isinstance(result, Unusable):
+                report_unusable(entry_path, entry, result, "ignoring it")
+                continue
+            if clash_stops and name in usable and usable[name] != result:
+                msg = (
+                    f"{path}: {written_as[name]} and {written} name the same "
+                    "entry with different settings. Keep one of them."
+                )
+                raise ConfigError(msg)
+            usable[name] = result
+            written_as[name] = written
+        return usable
+
+    return validate
 
 
-def _validate_backup(
-    settings: dict[str, Any],
-    validated: dict[str, Any],
-) -> None:
-    """Validate the `backup` block."""
-    backup = settings.get("backup")
-    if not isinstance(backup, dict):
-        return
-    current = validated["backup"]
+def non_empty(validate: Validator) -> Validator:
+    """Wrap `validate` so an empty result is dropped.
 
-    if isinstance(backup.get("enabled"), bool):
-        current["enabled"] = backup["enabled"]
+    Whatever emptied it was reported where it happened, or was left empty.
+    """
 
-    if backup.get("path") is not None:
-        current["path"] = str(backup["path"])
+    def check(value: Any, path: str) -> Any:  # noqa: ANN401
+        result = validate(value, path)
+        return result if isinstance(result, Unusable) or result else REPORTED
 
-    max_backups = backup.get("max_backups")
-    # bool is a subclass of int, so `max_backups: true` must not read as 1.
-    if (
-        isinstance(max_backups, int)
-        and not isinstance(max_backups, bool)
-        and max_backups > 0
-    ):
-        current["max_backups"] = max_backups
+    return check
+
+
+# -- FOLIO VALUES -------------------------------------------------------------
+
+
+def account_name(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read an account name, upper-cased so a lookup never depends on YAML casing."""
+    if isinstance(value, bool):
+        return Unusable(
+            "YAML read as a boolean (an unquoted ON, OFF, YES or NO). "
+            'Quote the name (for example "ON")',
+        )
+    return str(value).strip().upper()
+
+
+def account_type(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read an account type or one of its aliases, or `MARGIN`."""
+    if str(value).upper() == MARGIN_MARKER:
+        return MARGIN_MARKER
+    return parse_account_type(str(value)) or Unusable("is not an account type")
+
+
+def expand_margin(entry: dict[str, Any]) -> dict[str, Any]:
+    """Read a `MARGIN` type as a non-registered account that trades on margin."""
+    if entry.get("type") == MARGIN_MARKER:
+        return {**entry, "type": AccountType.NON_REGISTERED, "margin": True}
+    return entry
+
+
+def room_type(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read an account type with yearly contribution room."""
+    parsed = parse_account_type(str(value))
+    if parsed is None:
+        return Unusable("is not an account type")
+    if parsed not in ROOM_BEARING_TYPES:
+        return Unusable(
+            "has no yearly contribution room (only TFSA, RRSP and FHSA do)",
+        )
+    return parsed
+
+
+def year(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read a calendar year."""
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return Unusable("is not a year")
+
+
+def money(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read an amount of money."""
+    try:
+        return dec(float(value))
+    except (TypeError, ValueError):
+        return Unusable("is not an amount")
+
+
+def field_type(value: Any, _path: str) -> Any:  # noqa: ANN401
+    """Read an optional column's data type."""
+    try:
+        return FieldType(str(value).lower()).value
+    except ValueError:
+        return Unusable(f"is not one of {', '.join(kind.value for kind in FieldType)}")

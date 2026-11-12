@@ -16,14 +16,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import yaml
 
 from config.optional_fields import OptionalFieldsConfig
+from config.settings import build_defaults, validate_config
 from config.transforms import TransformsConfig
-from config.validation import (
-    FEE_CONVENTIONS,
-    FEE_SIGNS,
-    ConfigError,
-    validate_config,
-)
-from domain import AccountType, Column, FeeConvention, FeeSign
+from config.validation import FEE_CONVENTIONS, FEE_SIGNS, ConfigError
+from domain import AccountType, FeeConvention, FeeSign
 from term import console_warning
 
 if TYPE_CHECKING:
@@ -34,81 +30,7 @@ class Config:
     """Configuration for the folio."""
 
     DEFAULT_CONFIG: ClassVar[MappingProxyType[str, Any]] = MappingProxyType(
-        {
-            "folio_path": "data/folio.xlsx",
-            "data_path": "data",
-            "log_level": "ERROR",
-            "audit_log_level": "INFO",
-            "sheets": {
-                "tickers": "Tickers",
-                "txns": "Txns",
-                "fx": "FX",
-            },
-            "header_keywords": {
-                str(Column.Txn.TXN_DATE): [
-                    "txndate",
-                    "transaction date",
-                    "date",
-                    "tradedate",
-                    "reportdate",
-                ],
-                str(Column.Txn.ACTION): ["action", "type", "activity"],
-                str(Column.Txn.AMOUNT): ["amount", "value", "total"],
-                str(Column.Txn.CURRENCY): ["$", "currency", "curr"],
-                str(Column.Txn.PRICE): ["price", "unit price", "share price"],
-                str(Column.Txn.UNITS): ["units", "shares", "qty", "quantity"],
-                str(Column.Txn.TICKER): ["ticker", "symbol", "stock"],
-                str(Column.Txn.ACCOUNT): ["account", "alias", "account id"],
-                str(Column.Txn.SETTLE_DATE): ["settledate", "settlement date"],
-            },
-            "header_ignore": [],
-            "duplicate_approval": {
-                "column_name": "Duplicate",
-                "approval_value": "OK",
-            },
-            "backup": {
-                "enabled": True,
-                "path": "backups",
-                "max_backups": 50,
-            },
-            "brokers": {
-                "ibkr": {
-                    "FlexReport": "111111",
-                    "CashActivity": "999999",
-                },
-                "wealthsimple": {
-                    "user_agent": (
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) "
-                        "Gecko/20100101 Firefox/143.0"
-                    ),
-                    "exclude_accounts": ["Cash"],
-                },
-            },
-            "optional_columns": {},
-            "transforms": {"rules": []},
-            "accounts": {
-                "naming_convention": True,
-                "map": {},
-                "defaults": {"amount_includes_fees": "auto", "fee_sign": "auto"},
-            },
-            "cost_basis": {
-                "auto_getfx": True,
-            },
-            "display": {"currency": "CAD"},
-            "checks": {
-                "disabled": [],
-                "ignore_tickers": [],
-                "ignore_accounts": [],
-            },
-            "quotes": {
-                "ttl_minutes": 15,
-                "metadata_ttl_days": 30,
-                "fundamentals_ttl_hours": 24,
-                "timeout_seconds": 20,
-                "symbol_overrides": {},
-            },
-            "contribution_room": {},
-        },
+        build_defaults(),
     )
 
     def __init__(
@@ -472,7 +394,7 @@ class Config:
         else:
             configuration = _read_settings(config_yaml)
 
-        configuration = validate_config(configuration, cls.DEFAULT_CONFIG)
+        configuration = validate_config(configuration)
         return cls(resolved_root, configuration)
 
     @staticmethod

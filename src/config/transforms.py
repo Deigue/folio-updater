@@ -169,12 +169,10 @@ class TransformsConfig:
     def _block_list(transforms_config: dict[str, Any], key: str) -> list[Any]:
         """Read one block's list of entries.
 
-        A bare `key:` (YAML null) is an empty block. Any other non-list is
-        ignored with a warning, since the user wrote something that is lost.
+        A non-list is ignored with a warning, since the user wrote something
+        that is lost.
         """
         value = transforms_config.get(key)
-        if value is None:
-            return []
         if not isinstance(value, list):
             console_warning(f"transforms: ignoring {key}, which is not a list.")
             return []

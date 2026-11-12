@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Collection
+    from collections.abc import Collection, Mapping
 
 
 class FieldType(Enum):
@@ -35,46 +35,21 @@ class OptionalField:
         self.field_type = field_type
 
     @classmethod
-    def from_config_entry(cls, name: str, entry: object) -> OptionalField:
-        """Create an OptionalField from config entry.
+    def from_config_entry(cls, name: str, entry: Mapping[str, Any]) -> OptionalField:
+        """Create an OptionalField from a validated `optional_columns` entry.
 
         Args:
-            name: Field name
-            entry: Dict with 'keywords' (a name or a list of names, default the
-                field's own name) and 'type'
+            name: The resolved column name.
+            entry: Its `keywords` (default the column's own name) and `type`
+                (default `string`), as validation left them.
 
         Returns:
             OptionalField instance
-
-        Raises:
-            ValueError: If the entry is not a mapping, its type is not a valid
-                FieldType, or its keywords are not a name or a list of names.
         """
-        if not isinstance(entry, dict):
-            msg = f"Field '{name}' needs a mapping with a type and keywords."
-            raise ValueError(msg)  # noqa: TRY004
-        keywords = entry.get("keywords", [name])
-        # A lone name is one keyword, not the letters of a string.
-        if isinstance(keywords, str):
-            keywords = [keywords]
-        if not isinstance(keywords, list):
-            msg = f"Keywords for field '{name}' must be a name or a list of names."
-            raise ValueError(msg)  # noqa: TRY004
-        type_str = entry.get("type", "string")
-        try:
-            field_type = FieldType(str(type_str).lower())
-        except ValueError as e:
-            valid_types = [ft.value for ft in FieldType]
-            msg = (
-                f"Invalid field type '{type_str}' for field '{name}'. "
-                f"Valid types: {valid_types}"
-            )
-            raise ValueError(msg) from e
-        # A stray empty list item (YAML null) is no keyword.
         return cls(
             name=name,
-            keywords=[str(k) for k in keywords if k is not None],
-            field_type=field_type,
+            keywords=entry.get("keywords", [name]),
+            field_type=FieldType(entry.get("type", FieldType.STRING.value)),
         )
 
 
