@@ -150,6 +150,11 @@ def parse_obj[T](deserializer: Callable[[dict], T], obj: object) -> T:
     return deserializer(obj)
 
 
+def parse_obj_optional[T](deserializer: Callable[[dict], T], obj: object) -> T | None:
+    """Deserialize an optional nested object: None stays None, a dict is parsed."""
+    return None if obj is None else parse_obj(deserializer, obj)
+
+
 class SerializableModel(ABC):
     """Abstract base class for a model built from an API response dictionary."""
 

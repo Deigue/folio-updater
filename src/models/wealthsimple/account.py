@@ -16,7 +16,40 @@ from models.base import (
     from_str,
     from_str_strict,
     parse_obj,
+    parse_obj_optional,
 )
+
+
+@dataclass
+class AccountOwnerInvitation(SerializableModel):
+    """An invitation to co-own an account."""
+
+    id: str
+    created_at: datetime | None
+    invitee_name: str | None
+    invitee_email: str | None
+    inviter_name: str | None
+    inviter_email: str | None
+    updated_at: datetime | None
+    sent_at: datetime | None
+    status: str | None
+    typename: str | None
+
+    @staticmethod
+    def from_dict(obj: dict) -> "AccountOwnerInvitation":
+        """Create AccountOwnerInvitation from a dictionary."""
+        return AccountOwnerInvitation(
+            id=from_str_strict(obj.get("id")),
+            created_at=from_datetime_optional(obj.get("createdAt")),
+            invitee_name=from_str(obj.get("inviteeName")),
+            invitee_email=from_str(obj.get("inviteeEmail")),
+            inviter_name=from_str(obj.get("inviterName")),
+            inviter_email=from_str(obj.get("inviterEmail")),
+            updated_at=from_datetime_optional(obj.get("updatedAt")),
+            sent_at=from_datetime_optional(obj.get("sentAt")),
+            status=from_str(obj.get("status")),
+            typename=from_str(obj.get("__typename")),
+        )
 
 
 @dataclass
@@ -31,8 +64,8 @@ class AccountOwner(SerializableModel):
     name: str | None
     email: str | None
     ownership_type: str | None
-    active_invitation: str | None
-    sent_invitations: list[Any]
+    active_invitation: AccountOwnerInvitation | None
+    sent_invitations: list[AccountOwnerInvitation]
     typename: str | None
 
     @staticmethod
@@ -49,8 +82,14 @@ class AccountOwner(SerializableModel):
             name=from_str(obj.get("name")),
             email=from_str(obj.get("email")),
             ownership_type=from_str(obj.get("ownershipType")),
-            active_invitation=from_str(obj.get("activeInvitation")),
-            sent_invitations=from_list(lambda x: x, obj.get("sentInvitations") or []),
+            active_invitation=parse_obj_optional(
+                AccountOwnerInvitation.from_dict,
+                obj.get("activeInvitation"),
+            ),
+            sent_invitations=from_list(
+                lambda x: parse_obj(AccountOwnerInvitation.from_dict, x),
+                obj.get("sentInvitations") or [],
+            ),
             typename=from_str(obj.get("__typename")),
         )
 
@@ -221,12 +260,8 @@ class CustodianAccount(SerializableModel):
 
 
 @dataclass
-class WealthsimpleAccount(SerializableModel):
-    """Wealthsimple account data.
-
-    Attributes:
-        id: The unique identifier for the account.
-    """
+class LinkedAccount(SerializableModel):
+    """An account linked to another, as Wealthsimple sends it: no financials."""
 
     id: str
     archived_at: datetime | None
@@ -244,10 +279,61 @@ class WealthsimpleAccount(SerializableModel):
     account_features: list[Any]
     account_owners: list[AccountOwner]
     account_type: str | None
-    typename: str | None
-    linked_account: str | None
-    financials: AccountFinancials
     custodian_accounts: list[CustodianAccount]
+    typename: str | None
+
+    @staticmethod
+    def from_dict(obj: dict) -> "LinkedAccount":
+        """Create a LinkedAccount from a dictionary."""
+        return LinkedAccount(**LinkedAccount._fields_from(obj))
+
+    @staticmethod
+    def _fields_from(obj: dict) -> dict[str, Any]:
+        """Parse the fields every Wealthsimple account carries, linked or not."""
+        return {
+            "id": from_str_strict(obj.get("id")),
+            "archived_at": from_datetime_optional(obj.get("archivedAt")),
+            "branch": from_str(obj.get("branch")),
+            "closed_at": from_datetime_optional(obj.get("closedAt")),
+            "created_at": from_datetime_required(obj, "createdAt", "Account"),
+            "cache_expired_at": from_datetime_optional(obj.get("cacheExpiredAt")),
+            "currency": from_enum(Currency, obj.get("currency")),
+            "required_identity_verification": from_str(
+                obj.get("requiredIdentityVerification"),
+            ),
+            "unified_account_type": from_str(obj.get("unifiedAccountType")),
+            "supported_currencies": from_list(
+                lambda x: from_enum(Currency, x),
+                obj.get("supportedCurrencies"),
+            ),
+            "nickname": from_str(obj.get("nickname")),
+            "status": from_str(obj.get("status")),
+            "account_owner_configuration": from_str(
+                obj.get("accountOwnerConfiguration"),
+            ),
+            "account_features": from_list(
+                lambda x: x,
+                obj.get("accountFeatures") or [],
+            ),
+            "account_owners": from_list(
+                lambda x: parse_obj(AccountOwner.from_dict, x),
+                obj.get("accountOwners") or [],
+            ),
+            "account_type": from_str(obj.get("type")),
+            "custodian_accounts": from_list(
+                lambda x: parse_obj(CustodianAccount.from_dict, x),
+                obj.get("custodianAccounts") or [],
+            ),
+            "typename": from_str(obj.get("__typename")),
+        }
+
+
+@dataclass
+class WealthsimpleAccount(LinkedAccount):
+    """A Wealthsimple account: every account's fields, its link and financials."""
+
+    linked_account: LinkedAccount | None
+    financials: AccountFinancials
     number: str | None
     description: str | None
 
@@ -260,37 +346,12 @@ class WealthsimpleAccount(SerializableModel):
     def from_dict(obj: dict) -> "WealthsimpleAccount":
         """Create a WealthsimpleAccount from a dictionary."""
         return WealthsimpleAccount(
-            id=from_str_strict(obj.get("id")),
-            archived_at=from_datetime_optional(obj.get("archivedAt")),
-            branch=from_str(obj.get("branch")),
-            closed_at=from_datetime_optional(obj.get("closedAt")),
-            created_at=from_datetime_required(obj, "createdAt", "Account"),
-            cache_expired_at=from_datetime_optional(obj.get("cacheExpiredAt")),
-            currency=from_enum(Currency, obj.get("currency")),
-            required_identity_verification=from_str(
-                obj.get("requiredIdentityVerification"),
+            **LinkedAccount._fields_from(obj),  # noqa: SLF001 (the base's own parser)
+            linked_account=parse_obj_optional(
+                LinkedAccount.from_dict,
+                obj.get("linkedAccount"),
             ),
-            unified_account_type=from_str(obj.get("unifiedAccountType")),
-            supported_currencies=from_list(
-                lambda x: from_enum(Currency, x),
-                obj.get("supportedCurrencies"),
-            ),
-            nickname=from_str(obj.get("nickname")),
-            status=from_str(obj.get("status")),
-            account_owner_configuration=from_str(obj.get("accountOwnerConfiguration")),
-            account_features=from_list(lambda x: x, obj.get("accountFeatures") or []),
-            account_owners=from_list(
-                lambda x: parse_obj(AccountOwner.from_dict, x),
-                obj.get("accountOwners") or [],
-            ),
-            account_type=from_str(obj.get("type")),
-            typename=from_str(obj.get("__typename")),
-            linked_account=from_str(obj.get("linkedAccount")),
             financials=parse_obj(AccountFinancials.from_dict, obj.get("financials")),
-            custodian_accounts=from_list(
-                lambda x: parse_obj(CustodianAccount.from_dict, x),
-                obj.get("custodianAccounts") or [],
-            ),
             number=from_str(obj.get("number")),
             description=from_str(obj.get("description")),
         )

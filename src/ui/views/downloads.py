@@ -33,7 +33,7 @@ def show_activities_preview(
     show_data_table(
         [
             {
-                "Date": activity.occurred_at.strftime("%Y-%m-%d"),
+                "Date": activity.occurred_on.isoformat(),
                 "Action": activity.type,
                 "Ticker": activity.asset_symbol or "",
                 "Amount": float(activity.amount) if activity.amount else 0,

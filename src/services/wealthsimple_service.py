@@ -621,7 +621,7 @@ class WealthsimpleService:
                 units = str(split_to)
 
         return [
-            activity.occurred_at.strftime("%Y-%m-%d"),  # TxnDate
+            activity.occurred_on.isoformat(),  # TxnDate
             action,  # Action
             amount,  # Amount
             activity.currency or "",  # $

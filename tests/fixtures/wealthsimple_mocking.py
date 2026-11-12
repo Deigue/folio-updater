@@ -224,7 +224,7 @@ def create_mock_activities(
         # Create a full activity dictionary with all required fields
         full_activity = {
             "accountId": activity.get("account_id", "test-account-1"),
-            "occurredAt": activity.get("occurred_at", "2025-10-02T12:00:00-04:00"),
+            "occurredAt": activity.get("occurred_at", "2025-10-02T16:00:00+00:00"),
             "amount": activity.get("amount", "100.00"),
             "assetSymbol": activity.get("asset_symbol", "SPY"),
             "assetQuantity": activity.get("asset_quantity", "1.0"),
@@ -330,10 +330,48 @@ def mock_account(
     }
 
 
+def mock_invitation(invitation_id: str) -> dict[str, Any]:
+    """Build a mock invitation to co-own an account, as Wealthsimple sends it."""
+    return {
+        "id": invitation_id,
+        "createdAt": "2024-03-01T15:00:00+00:00",
+        "inviteeName": "Invitee Example",
+        "inviteeEmail": "invitee@example.com",
+        "inviterName": "Inviter Example",
+        "inviterEmail": "inviter@example.com",
+        "updatedAt": "2024-03-02T15:00:00+00:00",
+        "sentAt": "2024-03-01T15:00:00+00:00",
+        "status": "pending",
+        "__typename": "AccountOwnerInvitation",
+    }
+
+
+def mock_linked_account(account_id: str, linked_id: str) -> dict[str, Any]:
+    """Build a mock account that is linked to another, with one inviting owner."""
+    owner = {
+        "accountId": account_id,
+        "ownershipType": "primary",
+        "activeInvitation": mock_invitation("test-invitation-1"),
+        "sentInvitations": [mock_invitation("test-invitation-2")],
+        "__typename": "AccountOwner",
+    }
+    # A linked account arrives without the fields only the top-level account carries.
+    top_level_only = {"financials", "number", "description", "linkedAccount"}
+    linked = {
+        key: value
+        for key, value in mock_account(linked_id, None, "ca_cash").items()
+        if key not in top_level_only
+    }
+    return mock_account(account_id, "WS-TFSA") | {
+        "accountOwners": [owner],
+        "linkedAccount": linked,
+    }
+
+
 def get_mock_accounts() -> list[dict[str, Any]]:
     """Get mock account data for testing: the accounts the activities belong to."""
     return [
-        mock_account("test-tfsa-1", "WS-TFSA"),
+        mock_linked_account("test-tfsa-1", "test-cash-1"),
         mock_account("test-non-registered-1", "WS-PERSONAL", "ca_non_registered"),
     ]
 
@@ -345,7 +383,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # BUY activity to test DIY_BUY action normalization
             {
                 "account_id": "test-tfsa-1",
-                "occurred_at": "2025-10-02T12:00:00-04:00",
+                "occurred_at": "2025-10-02T16:00:00+00:00",
                 "amount": "287.74",
                 "asset_symbol": "SPY",
                 "asset_quantity": "1.0",
@@ -359,7 +397,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # SELL activity to test DIY_SELL action normalization
             {
                 "account_id": "test-non-registered-1",
-                "occurred_at": "2025-10-03T10:30:00-04:00",
+                "occurred_at": "2025-10-03T14:30:00+00:00",
                 "amount": "150.50",
                 "asset_symbol": "VTI",
                 "asset_quantity": "0.5",
@@ -373,7 +411,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # SPLIT activity to test CORPORATE_ACTION + SUBDIVISION normalization
             {
                 "account_id": "test-tfsa-1",
-                "occurred_at": "2025-10-04T09:00:00-04:00",
+                "occurred_at": "2025-10-04T13:00:00+00:00",
                 "amount": "",
                 "asset_symbol": "AAPL",
                 "asset_quantity": "",
@@ -387,7 +425,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # CONTRIBUTION activity to test INTERNAL_TRANSFER
             {
                 "account_id": "test-tfsa-1",
-                "occurred_at": "2025-10-05T15:00:00-04:00",
+                "occurred_at": "2025-10-05T19:00:00+00:00",
                 "amount": "1000.00",
                 "asset_symbol": "",
                 "asset_quantity": "",
@@ -402,7 +440,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # entirely. It's only ever created from the statement.
             {
                 "account_id": "test-tfsa-1",
-                "occurred_at": "2025-10-06T11:00:00-04:00",
+                "occurred_at": "2025-10-06T15:00:00+00:00",
                 "amount": None,
                 "asset_symbol": "",
                 "asset_quantity": "",
@@ -416,7 +454,7 @@ def get_mock_activities() -> list[dict[str, Any]]:
             # Test edge cases: decimal normalization, price calculation
             {
                 "account_id": "test-tfsa-1",
-                "occurred_at": "2025-10-07T14:00:00-04:00",
+                "occurred_at": "2025-10-07T18:00:00+00:00",
                 "amount": "123.45",
                 "asset_symbol": "XIC.TO",  # Test Canadian ticker
                 "asset_quantity": "4.1",

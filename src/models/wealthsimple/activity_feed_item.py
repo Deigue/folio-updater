@@ -1,8 +1,9 @@
 """Activity Feed Item from Wealthsimple."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
+from domain import TORONTO_TZ
 from models.base import SerializableModel, from_datetime_required, from_str
 
 
@@ -55,6 +56,11 @@ class ActivityFeedItem(SerializableModel):
     reference: str | None
     typename: str | None
     description: str | None
+
+    @property
+    def occurred_on(self) -> date:
+        """The day it occurred in Toronto: Wealthsimple reports the time in UTC."""
+        return self.occurred_at.astimezone(TORONTO_TZ).date()
 
     @staticmethod
     def from_dict(obj: dict) -> "ActivityFeedItem":
