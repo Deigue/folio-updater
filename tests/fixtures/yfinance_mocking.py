@@ -1,4 +1,4 @@
-"""A stand-in yfinance, so the quote fetches run their real adapter code."""
+"""A stand-in yfinance, so the Yahoo adapter runs its real code against it."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class FakeTicker:
 
     def __init__(
         self,
-        fast: FastInfo | FailingFastInfo,
+        fast: object,
         info: dict | None = None,
         splits: pd.Series | None = None,
     ) -> None:

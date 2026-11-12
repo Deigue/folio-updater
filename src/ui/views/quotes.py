@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table as RichTable
 
-from services.quotes_service import is_stale
+from services.quote_service import is_stale
 from ui.cells import EM_DASH, price, signed
 from ui.format import short_age
 from ui.layout.fit import fit_table

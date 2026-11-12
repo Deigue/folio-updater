@@ -30,7 +30,7 @@ from exporters.sheets import (
     traded_tickers_sheet,
     transactions_sheet,
 )
-from services.quotes_service import QuotesService
+from services.quote_service import QuoteService
 from services.symbols import load_symbol_resolver
 
 if TYPE_CHECKING:
@@ -150,7 +150,7 @@ class FolioSources:
                 (name, resolver.canonical(name))
                 for name in stored_txns.traded_tickers()
             ],
-            quotes=QuotesService.cached(),
+            quotes=QuoteService.cached(),
             moves=moves or {},
         )
 

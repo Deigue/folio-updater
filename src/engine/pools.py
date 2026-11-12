@@ -25,8 +25,7 @@ from engine.flows import (
 )
 from engine.fx_rates import load_fx_rates
 from engine.holdings import UNITS_SUSPECT, FolioHoldings
-from services.quotes_service import QuotesService
-from services.symbols import load_symbol_resolver
+from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -401,9 +400,4 @@ def _quotes(
     symbols = ledger.held_symbols
     if not symbols:
         return {}
-    return QuotesService.get_quotes(
-        symbols,
-        load_symbol_resolver(),
-        refresh=refresh,
-        offline=offline,
-    )
+    return QuoteService.get_quotes(symbols, refresh=refresh, offline=offline)

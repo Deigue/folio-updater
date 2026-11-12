@@ -25,7 +25,7 @@ from engine.fx_rates import load_fx_rates
 from engine.gain_since_buy import bought_symbols
 from exporters.output import PARQUET_SUFFIX, write_frame_parquet
 from exporters.sheets import acb_buildup_sheet, acb_summary_sheet, ledger_sheet
-from services.quotes_service import QuotesService
+from services.quote_service import QuoteService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
 from ui.format import (
@@ -170,9 +170,8 @@ def show_acb(  # noqa: PLR0917
 
     quotes: dict[str, Quote] = {}
     if not summary:
-        quotes = QuotesService.get_quotes(
+        quotes = QuoteService.get_quotes(
             bought_symbols(report.rows),
-            load_symbol_resolver(),
             refresh=refresh,
             offline=offline,
         )

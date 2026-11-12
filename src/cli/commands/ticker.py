@@ -34,7 +34,7 @@ from engine.ticker import (
     symbol_holdings,
 )
 from exporters.sheets import performance_sheet, ticker_sheet
-from services.quotes_service import QuotesService
+from services.quote_service import QuoteService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_warning
 from ui.format import cache_badge, freshness_note
@@ -146,9 +146,8 @@ def _report_one(
 
     resolver = load_symbol_resolver()
     canonical = resolver.canonical(symbol)
-    quote = QuotesService.get_quotes(
+    quote = QuoteService.get_quotes(
         [canonical],
-        resolver,
         refresh=refresh,
         offline=offline,
         fundamentals=True,
@@ -174,16 +173,11 @@ def _report_one(
             # Asking created a "not found" row in the cache. That row is how a
             # holding Yahoo cannot price avoids being re-asked on every run, but
             # for a symbol nobody holds it is just a typo, kept forever.
-            QuotesService.clear([canonical])
+            QuoteService.clear([canonical])
             console_error(f"Yahoo Finance does not know '{canonical}'.")
         raise typer.Exit(1)
 
-    moves = fetch_moves(
-        {canonical: quote},
-        resolver,
-        refresh=refresh,
-        offline=offline,
-    )[canonical]
+    moves = fetch_moves({canonical: quote}, refresh=refresh, offline=offline)[canonical]
 
     per_currency: list[SymbolHoldings] = []
     if traded:
@@ -266,9 +260,8 @@ def _report_matrix(
         return
 
     # Held securities were priced with the folio; only named ones may be new.
-    quotes = QuotesService.get_quotes(
+    quotes = QuoteService.get_quotes(
         wanted,
-        resolver,
         refresh=refresh and bool(symbols),
         offline=offline,
     )
@@ -278,14 +271,14 @@ def _report_matrix(
     ]
     if unknown:
         if not offline:
-            QuotesService.clear(unknown)
+            QuoteService.clear(unknown)
         console_warning(f"Nothing known about: {', '.join(unknown)}.")
         wanted = [name for name in wanted if name not in unknown]
     if not wanted:
         raise typer.Exit(1)
 
     priced = {name: quotes[name] for name in wanted}
-    moves = fetch_moves(priced, resolver, refresh=refresh, offline=offline)
+    moves = fetch_moves(priced, refresh=refresh, offline=offline)
     rows = performance_rows(valued, priced, moves)
     if sort is not None or not symbols:
         rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)

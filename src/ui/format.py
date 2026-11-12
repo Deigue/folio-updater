@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from services.quotes_service import is_stale
+from services.quote_service import is_stale
 from term.console import supports_unicode
 from ui.cells import WARN_GLYPH, display_round
 

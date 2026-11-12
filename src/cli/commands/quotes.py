@@ -12,7 +12,7 @@ import typer
 from app import bootstrap
 from cli.commands.common import require_ledger
 from engine.ledger import LedgerUnavailableError, open_ledger
-from services.quotes_service import QuotesService
+from services.quote_service import QuoteService
 from services.symbols import load_symbol_resolver
 from term import console_error, console_info, console_print, console_success
 from ui.views.quotes import quotes_table
@@ -73,7 +73,7 @@ def _refresh(wanted: Sequence[str]) -> None:
         console_info("No open holdings to price.")
         return
 
-    result = QuotesService.refresh(symbols, load_symbol_resolver())
+    result = QuoteService.refresh(symbols)
     console_success(
         f"Fetched {result.fetched} quote(s); "
         f"{result.not_found} not found, {len(result.failed)} failed.",
@@ -87,14 +87,14 @@ def _refresh(wanted: Sequence[str]) -> None:
 
 def _clear(wanted: Sequence[str]) -> None:
     """Drop cached quotes, all of them or just the ones asked for."""
-    dropped = QuotesService.clear(wanted or None)
+    dropped = QuoteService.clear(wanted or None)
     target = ", ".join(wanted) or "every symbol"
     console_success(f"Cleared {dropped} cached quote(s) for {target}.")
 
 
 def _list(wanted: Sequence[str]) -> None:
     """Print what the cache currently holds."""
-    quotes = QuotesService.cached(wanted or None)
+    quotes = QuoteService.cached(wanted or None)
     if not quotes:
         console_info("No quotes cached yet. Run `folio quotes --refresh`.")
         return

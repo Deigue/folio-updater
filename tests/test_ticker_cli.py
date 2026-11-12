@@ -5,18 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from yfinance.exceptions import YFPricesMissingError
 
 from cli.main import app
 from domain import QuoteStatus
-from services.quotes_service import QuotesService
-from services.symbols import SymbolResolver
+from services.quote_service import QuoteService
 
-from .fixtures.yfinance_mocking import (
-    FailingFastInfo,
-    FakeTicker,
-    stand_in_provider,
-)
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
@@ -28,6 +21,7 @@ from .helpers.seed import seed_fx, seed_transaction
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
 
 FX = {f"2025-08-{day}": "1.25" for day in range(14, 21)}
@@ -116,24 +110,18 @@ def test_ticker_refuses_what_it_cannot_show(
     assert_in_output(reason, result)
 
 
-@pytest.mark.no_mock_quotes
-def test_a_failed_lookup_is_not_reported_as_not_found(temp_ctx: TempContext) -> None:
-    resolver = SymbolResolver([])
-    not_found = FailingFastInfo(YFPricesMissingError("MSFT", ""))
-    failing = FailingFastInfo(OSError("connection reset by peer"))
+def test_a_failed_lookup_is_not_reported_as_not_found(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
     with temp_ctx() as ctx:
         _seed()
         # An earlier answer, cached: the provider did not know the symbol then.
-        with stand_in_provider({"MSFT": FakeTicker(not_found)}):
-            QuotesService.refresh(["MSFT"], resolver)
+        QuoteService.refresh(["MSFT"])
 
-        with stand_in_provider({"MSFT": FakeTicker(failing)}):
-            result = run_cli_with_config(
-                ctx.config,
-                app,
-                ["ticker", "MSFT", "--refresh"],
-            )
-        cached = QuotesService.cached(["MSFT"])
+        quote_provider.failed = {"MSFT"}
+        result = run_cli_with_config(ctx.config, app, ["ticker", "MSFT", "--refresh"])
+        cached = QuoteService.cached(["MSFT"])
 
     assert result.exit_code == 1
     assert_in_output("Could not get a quote for 'MSFT' from Yahoo Finance", result)

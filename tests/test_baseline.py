@@ -52,8 +52,7 @@ from engine.gain_since_buy import bought_symbols, with_gains_since_buy
 from engine.ledger import open_ledger
 from engine.pools import FolioValuation
 from engine.ticker import symbol_holdings
-from services.quotes_service import QuotesService
-from services.symbols import SymbolResolver, load_symbol_resolver
+from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Iterator
@@ -110,14 +109,13 @@ class _Table:
 def cached_quote_data() -> dict[str, dict[str, Any]]:
     """Quote every demo symbol at its close on the demo's last day.
 
-    Overrides the suite's stand-in provider, keyed by provider symbol.
+    Overrides what the suite's fake provider answers with.
 
     Returns:
-        Provider symbol mapped to its raw price and metadata fields.
+        Symbol mapped to its raw price and metadata fields.
     """
-    resolver = SymbolResolver(())
     return {
-        resolver.provider_symbol(symbol): {
+        symbol: {
             "price": float(price_on(symbol, END)),
             "prev_close": float(price_on(symbol, END.replace(day=END.day - 1))),
             "currency": str(currency_of(symbol)),
@@ -532,7 +530,7 @@ def test_every_gain_since_buy_keeps_its_figures(
     demo_ledger: Ledger,
 ) -> None:
     frame = demo_ledger.frame
-    quotes = QuotesService.get_quotes(bought_symbols(frame), load_symbol_resolver())
+    quotes = QuoteService.get_quotes(bought_symbols(frame))
     valued = with_gains_since_buy(frame, quotes, _rates_through_end())
     trades = valued[valued[str(Column.Txn.ACTION)].isin([Action.BUY, Action.SELL])]
     figures = [

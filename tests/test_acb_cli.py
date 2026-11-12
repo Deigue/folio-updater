@@ -42,10 +42,10 @@ from .helpers.seed import TICKER, seed_cash, seed_fx, seed_transaction
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
     from pathlib import Path
-    from unittest.mock import MagicMock
 
     from app import AppContext
 
+    from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
 
 FX = {
@@ -861,7 +861,7 @@ def test_acb_export_to_parquet(temp_ctx: TempContext, tmp_path: Path) -> None:
 def test_acb_prices_only_the_buys_it_shows(
     temp_ctx: TempContext,
     tmp_path: Path,
-    quotes_fetch: MagicMock,
+    quote_provider: FakeQuoteProvider,
 ) -> None:
     target = tmp_path / "shown.parquet"
     with temp_ctx() as ctx:
@@ -874,7 +874,7 @@ def test_acb_prices_only_the_buys_it_shows(
         )
 
         assert_cli_success(result)
-        asked = {s for call in quotes_fetch.call_args_list for s in call.args[0]}
+        asked = {s for batch in quote_provider.asked("prices") for s in batch}
         assert asked == {TICKER}
         # Ten units bought for 1,000 USD, quoted at 200.
         assert pd.read_parquet(target)["AcctGain_USD"].tolist() == [1000]
@@ -883,7 +883,7 @@ def test_acb_prices_only_the_buys_it_shows(
 def test_acb_offline_asks_for_no_quotes_and_leaves_a_buy_blank(
     temp_ctx: TempContext,
     tmp_path: Path,
-    quotes_fetch: MagicMock,
+    quote_provider: FakeQuoteProvider,
 ) -> None:
     target = tmp_path / "offline.parquet"
     with temp_ctx() as ctx:
@@ -895,20 +895,20 @@ def test_acb_offline_asks_for_no_quotes_and_leaves_a_buy_blank(
         )
 
         assert_cli_success(result)
-        quotes_fetch.assert_not_called()
+        assert not quote_provider.calls
         assert pd.read_parquet(target)["AcctGain_USD"].isna().all()
 
 
 def test_acb_summary_asks_for_no_quotes(
     temp_ctx: TempContext,
-    quotes_fetch: MagicMock,
+    quote_provider: FakeQuoteProvider,
 ) -> None:
     with temp_ctx() as ctx:
         seed_usd_holding(ticker=TICKER)
         result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
 
     assert_cli_success(result)
-    quotes_fetch.assert_not_called()
+    assert not quote_provider.calls
 
 
 def test_acb_on_an_empty_folio(temp_ctx: TempContext) -> None:

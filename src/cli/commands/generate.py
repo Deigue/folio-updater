@@ -31,8 +31,7 @@ from exporters.folio_workbook import (
     folio_sheets,
     parse_sections,
 )
-from services.quotes_service import QuotesService
-from services.symbols import load_symbol_resolver
+from services.quote_service import QuoteService
 from term import console_error, console_info, console_success, console_warning
 from term.progress import spinner
 from ui.format import freshness_note
@@ -120,9 +119,8 @@ def write_folio(
         )
         if Section.ACB in sections:
             # The Ledger prices every buy, of holdings since closed as well.
-            QuotesService.get_quotes(
+            QuoteService.get_quotes(
                 [s for s in bought_symbols(ledger.frame) if s not in valuation.quotes],
-                load_symbol_resolver(),
                 refresh=refresh,
                 offline=offline,
             )
@@ -136,12 +134,7 @@ def write_folio(
                     else "Fetching price history..."
                 ),
             )
-            moves = fetch_moves(
-                valuation.quotes,
-                load_symbol_resolver(),
-                refresh=refresh,
-                offline=offline,
-            )
+            moves = fetch_moves(valuation.quotes, refresh=refresh, offline=offline)
     note = freshness_note(ledger.computed_at, valuation.quotes)
     sheets = folio_sheets(
         FolioSources.read(valuation, moves=moves),

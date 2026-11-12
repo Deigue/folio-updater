@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from domain import PriceRange
 from domain.numeric import ONE
 from services.price_history import session_day
-from services.quotes_service import QuotesService
+from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
     from models import Quote
     from services.price_history import PricePoint, RangeHistory
-    from services.symbols import SymbolResolver
 
 SESSION_RANGES = frozenset({PriceRange.DAY_1, PriceRange.DAYS_2})
 
@@ -144,7 +143,6 @@ def _close_before(stored: RangeHistory, first: date) -> Decimal:
 
 def fetch_moves(
     quotes: Mapping[str, Quote],
-    resolver: SymbolResolver,
     *,
     refresh: bool = False,
     offline: bool = False,
@@ -155,8 +153,7 @@ def fetch_moves(
     behind `2h` to `1wk` live, both in one batch for every security.
 
     Args:
-        quotes: Each security's quote, keyed by canonical symbol.
-        resolver: Supplies the provider spelling for each symbol.
+        quotes: Each security's quote, keyed by symbol.
         refresh: Refetch the stored history regardless of when it was fetched.
         offline: Never touch the network: stored history only, no intraday.
 
@@ -164,8 +161,8 @@ def fetch_moves(
         Each security mapped to its move over every range.
     """
     symbols = list(quotes)
-    history = QuotesService.history(symbols, resolver, refresh=refresh, offline=offline)
-    intraday = QuotesService.intraday(symbols, resolver, offline=offline)
+    history = QuoteService.history(symbols, refresh=refresh, offline=offline)
+    intraday = QuoteService.intraday(symbols, offline=offline)
     return {
         symbol: price_moves(
             quotes[symbol],

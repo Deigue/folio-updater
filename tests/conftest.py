@@ -6,7 +6,7 @@ import logging
 import shutil
 import sqlite3
 from contextlib import ExitStack, contextmanager
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -25,10 +25,11 @@ from domain import TORONTO_TZ, Currency
 from engine.settlement import settlement_calculator
 from models import FxRate
 from services import FxService
-from services.quotes_service import PriceFetch, QuotesService
+from services.quote_service import QuoteService
 from term.console import override_console
 
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
+from .fixtures.fake_quote_provider import FakeQuoteProvider, provider_price
 from .fixtures.saved_ledger import memory_saved_ledger  # noqa: F401
 from .helpers.seed import reset_seed_state
 
@@ -184,34 +185,17 @@ def mock_fx_data(
         yield
 
 
-def _cached_prices(
-    cached_quote_data: dict[str, dict[str, Any]],
-    provider_symbols: list[str],
-) -> dict[str, dict[str, Any]]:
-    """Answer a price fetch from the cached quotes, as the provider would."""
-    return {
-        provider_symbol: {
-            "price": cached_quote_data[provider_symbol]["price"],
-            "prev_close": cached_quote_data[provider_symbol]["prev_close"],
-            "currency": cached_quote_data[provider_symbol]["currency"],
-            "quote_time": datetime.now(UTC).isoformat(),
-        }
-        for provider_symbol in provider_symbols
-        if provider_symbol in cached_quote_data
-    }
-
-
 @pytest.fixture(scope="session")
 def cached_quote_data() -> dict[str, dict[str, Any]]:
-    """Build a deterministic stand-in for the quote provider.
+    """Build what the fake quote provider answers with.
 
-    Keyed by the **Yahoo** spelling, since that is what the fetch seams are
-    handed. Prices are round numbers so a test can assert an exact market value
-    rather than a tolerance, and each symbol's previous close differs from its
-    price so the day-move columns have something to show.
+    The fake spells every symbol as itself, so this is keyed by symbol. Prices
+    are round numbers so a test can assert an exact market value rather than a
+    tolerance, and each symbol's previous close differs from its price so the
+    day-move columns have something to show.
 
     Returns:
-        Provider symbol mapped to its raw price and metadata fields.
+        Symbol mapped to its raw price and metadata fields.
     """
     return {
         "TESTTKR": {
@@ -245,70 +229,37 @@ def cached_quote_data() -> dict[str, dict[str, Any]]:
 
 
 @pytest.fixture(autouse=True)
-def mock_quotes(
-    request: pytest.FixtureRequest,
+def quote_provider(
+    monkeypatch: pytest.MonkeyPatch,
     cached_quote_data: dict[str, dict[str, Any]],
-) -> Generator[None, Any]:
-    """Keep the test suite off Yahoo Finance.
+) -> FakeQuoteProvider:
+    """Keep the test suite off the real quote provider.
 
-    Patches the network seams rather than `yfinance` itself, so a test can
-    still assert that the module was never imported. The reachability probe
-    says the provider is up even under `no_mock_quotes`, which stands in a
-    fake provider and must not open a real connection to check on it.
+    Every test gets a fake answering from `cached_quote_data`. A test that needs
+    other answers sets them on the fake, and one asserting what was requested
+    reads its `calls`.
+
+    Returns:
+        The fake standing in for the provider.
     """
-    probe = patch("services.quotes_service._provider_reachable", return_value=True)
-    if request.node.get_closest_marker("no_mock_quotes"):
-        with probe:
-            yield
-        return
-
-    def prices(provider_symbols: list[str]) -> PriceFetch:
-        return PriceFetch(prices=_cached_prices(cached_quote_data, provider_symbols))
-
-    def metadata(provider_symbols: list[str]) -> dict[str, dict[str, Any]]:
-        return {
-            provider_symbol: {
+    fake = FakeQuoteProvider(
+        prices_known={
+            symbol: provider_price(data["price"], data["prev_close"], data["currency"])
+            for symbol, data in cached_quote_data.items()
+        },
+        info={
+            symbol: {
                 "splits": (),
                 **{
-                    key: cached_quote_data[provider_symbol][key]
+                    key: data[key]
                     for key in ("name", "sector", "exchange", "market_cap", "currency")
                 },
             }
-            for provider_symbol in provider_symbols
-            if provider_symbol in cached_quote_data
-        }
-
-    with (
-        probe,
-        patch.object(QuotesService, "_fetch_prices", side_effect=prices),
-        patch.object(QuotesService, "_fetch_metadata", side_effect=metadata),
-        patch.object(QuotesService, "_fetch_history", return_value={}),
-        patch.object(QuotesService, "_fetch_intraday", return_value={}),
-    ):
-        yield
-
-
-@pytest.fixture
-def quotes_fetch(
-    cached_quote_data: dict[str, dict[str, Any]],
-) -> Generator[MagicMock, Any]:
-    """Stub the quote fetch the usual way, but hand back the spy.
-
-    For a test that needs to assert *which* symbols were requested, or that
-    nothing was requested at all.
-
-    Yields:
-        The mock standing in for `QuotesService._fetch_prices`.
-    """
-
-    def prices(provider_symbols: list[str]) -> PriceFetch:
-        return PriceFetch(prices=_cached_prices(cached_quote_data, provider_symbols))
-
-    with (
-        patch.object(QuotesService, "_fetch_metadata", return_value={}),
-        patch.object(QuotesService, "_fetch_prices", side_effect=prices) as fetch,
-    ):
-        yield fetch
+            for symbol, data in cached_quote_data.items()
+        },
+    )
+    monkeypatch.setattr(QuoteService, "provider", fake)
+    return fake
 
 
 @pytest.fixture

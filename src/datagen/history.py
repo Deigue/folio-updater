@@ -25,8 +25,7 @@ from datagen.demo import (
     month_index,
 )
 from datagen.history_data import FIRST_MONTH
-from services.quotes_service import load_yfinance
-from services.symbols import SymbolResolver
+from services.yahoo_provider import load_yfinance, yahoo_spelling
 
 _DATA = Path(__file__).with_name("history_data.py")
 _DOCSTRING = (
@@ -109,16 +108,13 @@ def refresh_price_history() -> None:  # pragma: no cover
     """
     yf = load_yfinance()
     months = month_index(END) + 1
-    resolver = SymbolResolver([], {})
     closes: dict[str, list[str]] = {}
     dividend_events: dict[str, list[str]] = {}
     split_events: dict[str, list[str]] = {}
 
     derived: list[str] = []
     for symbol in (*SYMBOLS, USDCAD):
-        provider_symbol = (
-            "CAD=X" if symbol == USDCAD else resolver.provider_symbol(symbol)
-        )
+        provider_symbol = "CAD=X" if symbol == USDCAD else yahoo_spelling(symbol)
         ticker = yf.Ticker(provider_symbol)
         history = ticker.history(
             start=FIRST_DAY.isoformat(),

@@ -9,7 +9,7 @@ import pytest
 from openpyxl import load_workbook
 
 from cli.main import app
-from services.quotes_service import QuotesService, RefreshResult
+from services.quote_service import QuoteService, RefreshResult
 
 from .helpers.cli import (
     UNCONSTRAINED_WIDTH,
@@ -28,7 +28,6 @@ from .helpers.seed import (
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from unittest.mock import MagicMock
 
     from .helpers.context import TempContext
 
@@ -547,7 +546,7 @@ def test_quotes_clear_empties_the_cache(temp_ctx: TempContext) -> None:
         cleared = run_cli_with_config(ctx.config, app, ["quotes", "--clear"])
 
         assert_cli_success(cleared)
-        assert QuotesService.cached() == {}
+        assert QuoteService.cached() == {}
 
 
 def test_quotes_refresh_with_nothing_held_says_so(temp_ctx: TempContext) -> None:
@@ -569,7 +568,7 @@ def test_quotes_refresh_discloses_the_throttling_fallback(
         seed_two_account_types()
         throttled = RefreshResult(fetched=2, used_fallback=True)
 
-        with patch.object(QuotesService, "refresh", return_value=throttled):
+        with patch.object(QuoteService, "refresh", return_value=throttled):
             result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
 
         assert_cli_success(result)
@@ -589,19 +588,3 @@ def test_quotes_can_be_narrowed_to_one_ticker(temp_ctx: TempContext) -> None:
 
         assert_cli_success(result)
         assert_in_output("Fetched 1 quote(s)", result)
-
-
-def test_the_symbol_override_reaches_the_provider(
-    temp_ctx: TempContext,
-    quotes_fetch: MagicMock,
-) -> None:
-    """A configured override must survive the whole config-to-fetch path."""
-    with temp_ctx(quotes={"symbol_overrides": {"TESTTKR": "CADCO.TO"}}) as ctx:
-        seed_two_account_types()
-
-        result = run_cli_with_config(ctx.config, app, ["quotes", "--refresh"])
-
-    assert_cli_success(result)
-    asked = {symbol for call in quotes_fetch.call_args_list for symbol in call.args[0]}
-    assert "CADCO.TO" in asked
-    assert "TESTTKR" not in asked

@@ -24,10 +24,10 @@ from .helpers.seed import seed_transaction, seed_two_account_types
 
 if TYPE_CHECKING:
     from pathlib import Path
-    from unittest.mock import MagicMock
 
     from app.app_context import AppContext
 
+    from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.cli import CliTestResult
     from .helpers.context import TempContext
 
@@ -76,7 +76,7 @@ def test_generate_writes_a_sheet_for_every_view_of_the_folio(
 def test_the_ledger_sheet_prices_buys_of_closed_holdings_too(
     temp_ctx: TempContext,
     tmp_path: Path,
-    quotes_fetch: MagicMock,
+    quote_provider: FakeQuoteProvider,
 ) -> None:
     with temp_ctx() as ctx:
         seed_transaction()  # Something open, so the folio has a dashboard to value.
@@ -93,7 +93,7 @@ def test_the_ledger_sheet_prices_buys_of_closed_holdings_too(
         result = _generate(ctx, target, "--only", "acb")
 
         assert_cli_success(result)
-        asked = {s for call in quotes_fetch.call_args_list for s in call.args[0]}
+        asked = {s for batch in quote_provider.asked("prices") for s in batch}
         assert "OTHER" in asked
         rows = list(load_workbook(target)["Ledger"].iter_rows(values_only=True))
         header = next(row for row in rows if "Acct Gain USD" in row)

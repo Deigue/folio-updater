@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from unittest.mock import MagicMock
 
+    from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
 
 IBKR_FILE = "ibkr_TradeConfirmation_20260901_20261003.csv"
@@ -219,7 +220,7 @@ def test_clean_run_goes_through_every_stage(
 def test_offline_imports_what_waits_and_touches_no_network(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
-    quotes_fetch: MagicMock,
+    quote_provider: FakeQuoteProvider,
     boc_fetch: MagicMock,
 ) -> None:
     """Offline, nothing is downloaded or fetched, yet the run still finishes."""
@@ -246,7 +247,7 @@ def test_offline_imports_what_waits_and_touches_no_network(
         assert result.exit_code == 0
         assert (config.processed_path / WS_FILE).exists()
         assert config.folio_path.exists()
-        assert not quotes_fetch.called
+        assert not quote_provider.calls
         assert not boc_fetch.called
         assert_in_output("statement not fetched offline", result)
 
