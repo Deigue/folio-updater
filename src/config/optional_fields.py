@@ -35,23 +35,34 @@ class OptionalField:
         self.field_type = field_type
 
     @classmethod
-    def from_config_entry(cls, name: str, entry: dict) -> OptionalField:
+    def from_config_entry(cls, name: str, entry: object) -> OptionalField:
         """Create an OptionalField from config entry.
 
         Args:
             name: Field name
-            entry: Dict with 'keywords' and 'type'
+            entry: Dict with 'keywords' (a name or a list of names, default the
+                field's own name) and 'type'
 
         Returns:
             OptionalField instance
 
         Raises:
-            ValueError: If type_str is not a valid FieldType
+            ValueError: If the entry is not a mapping, its type is not a valid
+                FieldType, or its keywords are not a name or a list of names.
         """
+        if not isinstance(entry, dict):
+            msg = f"Field '{name}' needs a mapping with a type and keywords."
+            raise ValueError(msg)  # noqa: TRY004
         keywords = entry.get("keywords", [name])
+        # A lone name is one keyword, not the letters of a string.
+        if isinstance(keywords, str):
+            keywords = [keywords]
+        if not isinstance(keywords, list):
+            msg = f"Keywords for field '{name}' must be a name or a list of names."
+            raise ValueError(msg)  # noqa: TRY004
         type_str = entry.get("type", "string")
         try:
-            field_type = FieldType(type_str.lower())
+            field_type = FieldType(str(type_str).lower())
         except ValueError as e:
             valid_types = [ft.value for ft in FieldType]
             msg = (
@@ -59,7 +70,12 @@ class OptionalField:
                 f"Valid types: {valid_types}"
             )
             raise ValueError(msg) from e
-        return cls(name=name, keywords=keywords, field_type=field_type)
+        # A stray empty list item (YAML null) is no keyword.
+        return cls(
+            name=name,
+            keywords=[str(k) for k in keywords if k is not None],
+            field_type=field_type,
+        )
 
 
 class OptionalFieldsConfig:

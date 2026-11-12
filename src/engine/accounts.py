@@ -121,8 +121,8 @@ _Overrides = tuple[tuple[str, AccountType, bool], ...]
 def resolve_account(name: str) -> Account:
     """Read what an account is from its name, or from its `accounts.map` entry.
 
-    Resolution order: an exact match in `accounts.map` (then its upper-cased
-    name), then a right-to-left scan of the name's tokens (so `IBKR-TFSA`
+    Resolution order: a match in `accounts.map` (whose keys are upper-case),
+    then a right-to-left scan of the name's tokens (so `IBKR-TFSA`
     resolves on `TFSA`, not on a broker code that happens to collide), then a
     substring scan of the whole name (which catches `WSTFSA`), then UNKNOWN. A
     `MARGIN` token or map value means non-registered with margin: margin is not
@@ -163,7 +163,8 @@ def _resolve_against(
 ) -> Account:
     """Resolve an account against fixed config inputs, once per input."""
     mapped = {key: (account_type, margin) for key, account_type, margin in overrides}
-    override = mapped.get(name) or mapped.get(name.upper())
+    upper = name.upper()
+    override = mapped.get(upper)
     if override is not None:
         return Account(name, *override, fees=fees)
 
@@ -171,7 +172,6 @@ def _resolve_against(
         logger.debug("Naming convention disabled; %s is UNKNOWN", name)
         return Account(name, AccountType.UNKNOWN, fees=fees)
 
-    upper = name.upper()
     tokens = [token for token in _TOKEN_SPLIT.split(upper) if token]
     for token in reversed(tokens):
         if token in _MARKERS:

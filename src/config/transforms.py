@@ -30,6 +30,11 @@ def _refuse_boolean(field: str) -> dict[str, Any]:
     return {}
 
 
+def _warn_ignored(what: str, reason: str) -> None:
+    """Warn that a transforms entry was dropped, and why."""
+    console_warning(f"transforms: ignoring {what}, because {reason}.")
+
+
 class TransformRule:
     """A single transformation rule with conditions and actions."""
 
@@ -147,24 +152,33 @@ class TransformsConfig:
         if not transforms_config:  # pragma: no cover
             return
 
+        # Each block parses on its own
         self.cancellations = self._parse_cancellations(transforms_config)
 
-        rules_list = transforms_config.get("rules", [])
-        if not isinstance(rules_list, list):  # pragma: no cover
-            return
-
-        for rule_config in rules_list:
+        for rule_config in self._block_list(transforms_config, "rules"):
             rule = self._parse_rule(rule_config)
             if rule:
                 self.rules.append(rule)
 
-        # Parse merge groups
-        merge_groups_list = transforms_config.get("merge_groups", [])
-        if isinstance(merge_groups_list, list):
-            for group_config in merge_groups_list:
-                merge_group = self._parse_merge_group(group_config)
-                if merge_group:
-                    self.merge_groups.append(merge_group)
+        for group_config in self._block_list(transforms_config, "merge_groups"):
+            merge_group = self._parse_merge_group(group_config)
+            if merge_group:
+                self.merge_groups.append(merge_group)
+
+    @staticmethod
+    def _block_list(transforms_config: dict[str, Any], key: str) -> list[Any]:
+        """Read one block's list of entries.
+
+        A bare `key:` (YAML null) is an empty block. Any other non-list is
+        ignored with a warning, since the user wrote something that is lost.
+        """
+        value = transforms_config.get(key)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            console_warning(f"transforms: ignoring {key}, which is not a list.")
+            return []
+        return value
 
     def _parse_rule(self, rule_config: object) -> TransformRule | None:
         """Parse a single rule configuration.
@@ -175,13 +189,21 @@ class TransformsConfig:
         Returns:
             Parsed TransformRule or None if invalid
         """
-        if not isinstance(rule_config, dict):  # pragma: no cover
-            return None
+        conditions = (
+            rule_config.get("conditions") if isinstance(rule_config, dict) else None
+        )
+        actions = rule_config.get("actions") if isinstance(rule_config, dict) else None
 
-        conditions = rule_config.get("conditions", {})
-        actions = rule_config.get("actions", {})
-
-        if not conditions or not actions:  # pragma: no cover
+        if not (
+            isinstance(conditions, dict)
+            and isinstance(actions, dict)
+            and conditions
+            and actions
+        ):
+            _warn_ignored(
+                "a rule",
+                "it needs conditions and actions, each a mapping with something in it",
+            )
             return None
 
         processed_conditions = self._process_conditions(conditions)
@@ -204,9 +226,7 @@ class TransformsConfig:
         Returns:
             The rules that parsed, in the order given.
         """
-        cancellations = transforms_config.get("cancellations", [])
-        if not isinstance(cancellations, list):  # pragma: no cover
-            return []
+        cancellations = self._block_list(transforms_config, "cancellations")
         parsed = (self._parse_cancel_rule(config) for config in cancellations)
         return [rule for rule in parsed if rule is not None]
 
@@ -219,11 +239,17 @@ class TransformsConfig:
         Returns:
             Parsed CancelRule or None if invalid
         """
-        if not isinstance(cancel_config, dict):  # pragma: no cover
+        if not isinstance(cancel_config, dict):
+            _warn_ignored("a cancellation rule", "it must be a mapping")
             return None
 
         name = cancel_config.get("name", "")
-        conditions = self._process_conditions(cancel_config.get("conditions", {}))
+        raw_conditions = cancel_config.get("conditions")
+        conditions = (
+            self._process_conditions(raw_conditions)
+            if isinstance(raw_conditions, dict)
+            else {}
+        )
         match_fields = cancel_config.get("match_fields", [])
         amount_field = cancel_config.get("amount_field", Column.Txn.AMOUNT)
         if not all(
@@ -233,7 +259,11 @@ class TransformsConfig:
                 isinstance(match_fields, list) and match_fields,
                 isinstance(amount_field, str) and amount_field,
             ],
-        ):  # pragma: no cover
+        ):
+            _warn_ignored(
+                f"cancellation rule {name!r}",
+                "it needs a name, conditions, match_fields and an amount_field",
+            )
             return None
 
         return CancelRule(
@@ -252,7 +282,8 @@ class TransformsConfig:
         Returns:
             Parsed MergeGroup or None if invalid
         """
-        if not isinstance(group_config, dict):  # pragma: no cover
+        if not isinstance(group_config, dict):
+            _warn_ignored("a merge group", "it must be a mapping")
             return None
 
         name = group_config.get("name", "")
@@ -273,7 +304,12 @@ class TransformsConfig:
                 isinstance(target_action, str) and target_action,
                 isinstance(amount_field, str) and amount_field,
             ],
-        ):  # pragma: no cover
+        ):
+            _warn_ignored(
+                f"merge group {name!r}",
+                "it needs a name, match_fields, at least two source_actions, "
+                "a target_action and an amount_field",
+            )
             return None
 
         return MergeGroup(

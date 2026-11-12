@@ -95,6 +95,24 @@ ACCOUNT_TYPE_ALIASES: dict[str, AccountType] = {
 }
 
 
+def parse_account_type(value: str) -> AccountType | None:
+    """Read an account type, in any case and using any recognised alias.
+
+    Args:
+        value: The spelling to read.
+
+    Returns:
+        The account type, or None when it is not one the engine knows.
+    """
+    token = value.strip().upper()
+    if token in ACCOUNT_TYPE_ALIASES:
+        return ACCOUNT_TYPE_ALIASES[token]
+    try:
+        return AccountType(token)
+    except ValueError:
+        return None
+
+
 class FeeConvention(StrEnum):
     """Whether a trade's `Amount` already contains the commission.
 

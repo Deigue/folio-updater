@@ -17,7 +17,12 @@ import yaml
 
 from config.optional_fields import OptionalFieldsConfig
 from config.transforms import TransformsConfig
-from config.validation import FEE_CONVENTIONS, FEE_SIGNS, validate_config
+from config.validation import (
+    FEE_CONVENTIONS,
+    FEE_SIGNS,
+    ConfigError,
+    validate_config,
+)
 from domain import AccountType, Column, FeeConvention, FeeSign
 from term import console_warning
 
@@ -351,9 +356,7 @@ class Config:
 
     def _account_setting(self, account: str, key: str, default: str) -> Any:  # noqa: ANN401
         """Read one setting from an account's `accounts.map` entry, else the default."""
-        mapping = self.account_map
-        entry = mapping.get(account) or mapping.get(account.upper()) or {}
-        return entry.get(key, default)
+        return self.account_map.get(account.upper(), {}).get(key, default)
 
     @property
     def auto_getfx(self) -> bool:
@@ -467,8 +470,7 @@ class Config:
                     sort_keys=False,
                 )
         else:
-            with Path.open(config_yaml, "r", encoding="utf-8") as f:
-                configuration = yaml.safe_load(f) or {}
+            configuration = _read_settings(config_yaml)
 
         configuration = validate_config(configuration, cls.DEFAULT_CONFIG)
         return cls(resolved_root, configuration)
@@ -556,6 +558,33 @@ class Config:
     def __repr__(self) -> str:
         """Return a concise representation of the Config object."""
         return f"<Config config_path={self.config_path}>"
+
+
+def _read_settings(config_yaml: Path) -> dict[str, Any]:
+    """Read a config file's top-level settings.
+
+    Raises:
+        ConfigError: When the file is not valid YAML or does not hold a mapping.
+    """
+    try:
+        with Path.open(config_yaml, "r", encoding="utf-8") as f:
+            settings = yaml.safe_load(f)
+    except yaml.MarkedYAMLError as error:
+        where = f" line {error.problem_mark.line + 1}" if error.problem_mark else ""
+        msg = f"{config_yaml.name}{where}: {error.problem or 'invalid YAML'}"
+        raise ConfigError(msg) from error
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as error:
+        msg = f"{config_yaml.name} cannot be read: {error}"
+        raise ConfigError(msg) from error
+    if settings is None:
+        return {}
+    if not isinstance(settings, dict):
+        msg = (
+            f"{config_yaml.name} must hold settings as key: value pairs, "
+            f"not a {type(settings).__name__}."
+        )
+        raise ConfigError(msg)
+    return settings
 
 
 def write_missing_setting(config_path: Path, key: str, value: dict[str, Any]) -> bool:

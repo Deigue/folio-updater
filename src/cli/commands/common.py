@@ -9,7 +9,7 @@ import typer
 
 from cli.selection import Selection, SelectionError, select_transactions
 from db import txns
-from domain import ACCOUNT_TYPE_ALIASES, AccountType, Grain
+from domain import AccountType, Grain, parse_account_type
 from engine.accounts import FOLIO, Pool
 from engine.ledger import LedgerUnavailableError, open_ledger
 from exporters import ParquetExporter
@@ -65,24 +65,6 @@ def require_ledger(
     except LedgerUnavailableError as error:
         console_error(f"{error} {FIX_UNCONVERTIBLE}")
         raise typer.Exit(1) from error
-
-
-def parse_account_type(value: str) -> AccountType | None:
-    """Read a `--type` argument as an `AccountType`.
-
-    Args:
-        value: The argument, in any case, using any recognised alias.
-
-    Returns:
-        The account type, or None when it is not one the engine knows.
-    """
-    token = value.strip().upper()
-    if token in ACCOUNT_TYPE_ALIASES:
-        return ACCOUNT_TYPE_ALIASES[token]
-    try:
-        return AccountType(token)
-    except ValueError:
-        return None
 
 
 def resolve_pool(

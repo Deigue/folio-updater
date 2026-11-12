@@ -98,7 +98,7 @@ accounts:
   map:
     TEST-ACCOUNT:
       type: NON_REGISTERED
-      amount_include_fees: excluded
+      amount_includes_fees: excluded
   defaults:
     amount_includes_fees: auto
 cost_basis:
@@ -218,6 +218,10 @@ accounts:
     amount_includes_fees: auto     # auto | true | false
     fee_sign: auto                 # auto | negative | positive
 ```
+
+Map keys are matched in any case. A type may be any of the aliases above. An entry that
+cannot be used is skipped with a warning, and two keys that differ only in case but disagree
+stop the command until one is removed.
 
 `amount_includes_fees` says whether a broker's `Amount` on a trade already contains the
 commission. QuestTrade's does; Interactive Brokers' and Wealthsimple's do not. The

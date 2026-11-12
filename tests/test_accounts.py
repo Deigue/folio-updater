@@ -129,6 +129,8 @@ def test_fee_rules_come_from_the_accounts_map(temp_ctx: TempContext) -> None:
                     "type": "NON_REGISTERED",
                     "amount_includes_fees": False,
                 },
+                # A lower-case key and a type alias, neither readable from the name.
+                "zz-joint": {"type": "PERSONAL", "amount_includes_fees": True},
             },
         },
     }
@@ -137,6 +139,9 @@ def test_fee_rules_come_from_the_accounts_map(temp_ctx: TempContext) -> None:
             FeeConvention.INCLUDED,
             FeeSign.NEGATIVE,
         )
+        joint = resolve_account("ZZ-JOINT")
+        assert joint.account_type is AccountType.NON_REGISTERED
+        assert joint.fees == FeeRules(FeeConvention.INCLUDED, FeeSign.AUTO)
         # A setting the entry leaves out falls back to the default.
         assert resolve_account("IBKR-PERSONAL").fees == FeeRules(
             FeeConvention.EXCLUDED,

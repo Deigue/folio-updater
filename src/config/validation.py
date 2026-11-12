@@ -11,6 +11,7 @@ import logging
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from config.optional_fields import OptionalField
 from domain import (
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
@@ -19,6 +20,7 @@ from domain import (
     Column,
     FeeConvention,
     FeeSign,
+    parse_account_type,
 )
 from domain.numeric import dec
 from term import console_warning
@@ -26,6 +28,11 @@ from term import console_warning
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from decimal import Decimal
+
+
+class ConfigError(ValueError):
+    """The config file cannot be used as written, so the command stops."""
+
 
 # How `amount_includes_fees` is spelled in YAML.
 FEE_CONVENTIONS: dict[str, FeeConvention] = {
@@ -56,7 +63,6 @@ _PASSTHROUGH_KEYS: dict[str, tuple[type, Callable[[Any], Any]]] = {
     "data_path": (object, str),
     "header_ignore": (list, list),
     "brokers": (dict, dict),
-    "optional_columns": (dict, dict),
     "transforms": (dict, dict),
 }
 
@@ -81,6 +87,7 @@ def validate_config(
     _validate_log_level(settings, validated, "audit_log_level")
     _validate_sheets(settings, validated)
     _validate_header_keywords(settings, validated)
+    _validate_optional_columns(settings, validated)
     _validate_duplicate_approval(settings, validated)
     _validate_backup(settings, validated)
     _validate_accounts(settings, validated)
@@ -113,8 +120,8 @@ def _validate_accounts(
     validated: dict[str, Any],
 ) -> None:
     """Validate the `accounts` block, normalising both `map` forms."""
-    accounts = settings.get("accounts")
-    if not isinstance(accounts, dict):
+    accounts = _mapping_block(settings, "accounts")
+    if accounts is None:
         return
 
     current = validated["accounts"]
@@ -129,15 +136,46 @@ def _validate_accounts(
             if key in defaults and str(defaults[key]).lower() in spellings:
                 current["defaults"][key] = str(defaults[key]).lower()
 
-    raw_map = accounts.get("map")
-    if isinstance(raw_map, dict):
-        current["map"] = {
-            name: entry
-            for name, entry in (
-                (str(name), _account_entry(value)) for name, value in raw_map.items()
+    raw_map = _mapping_block(accounts, "map", "accounts.map")
+    if raw_map is not None:
+        current["map"] = _account_map(raw_map)
+
+
+def _account_map(raw_map: dict[Any, Any]) -> dict[str, dict[str, Any]]:
+    """Normalise `accounts.map`, keyed by the upper-cased account name.
+
+    An entry with nothing usable is dropped with a warning. Two keys that differ
+    only in case and disagree stop the load, since either could be the one meant.
+
+    Raises:
+        ConfigError: When two keys name one account with different settings.
+    """
+    resolved: dict[str, dict[str, Any]] = {}
+    written_as: dict[str, str] = {}
+    for key, value in raw_map.items():
+        if isinstance(key, bool):
+            console_warning(
+                f"accounts.map: ignoring {key}, which YAML read as a boolean "
+                '(an unquoted ON, OFF, YES or NO). Quote the name (for example "ON").',
             )
-            if entry is not None
-        }
+            continue
+        name = str(key).strip().upper()
+        entry = _account_entry(value)
+        if entry is None:
+            console_warning(
+                f"accounts.map: ignoring {key}, which has no usable type or "
+                "fee setting.",
+            )
+            continue
+        if name in resolved and resolved[name] != entry:
+            msg = (
+                f"accounts.map: {written_as[name]} and {key} name the same "
+                "account with different settings. Keep one of them."
+            )
+            raise ConfigError(msg)
+        resolved[name] = entry
+        written_as[name] = str(key)
+    return resolved
 
 
 def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
@@ -147,15 +185,14 @@ def _account_entry(value: Any) -> dict[str, Any] | None:  # noqa: ANN401
     normalized: dict[str, Any] = {}
 
     if account_type is not None:
-        name = str(account_type).upper()
-        if name == MARGIN_MARKER:
+        if str(account_type).upper() == MARGIN_MARKER:
             normalized["type"] = AccountType.NON_REGISTERED
             normalized["margin"] = True
         else:
-            try:
-                normalized["type"] = AccountType(name)
-            except ValueError:
+            parsed = parse_account_type(str(account_type))
+            if parsed is None:
                 return None
+            normalized["type"] = parsed
 
     for key, spellings in _FEE_SPELLINGS.items():
         if key in entry and str(entry[key]).lower() in spellings:
@@ -238,9 +275,8 @@ def _validate_contribution_room(
     for name, years in room.items():
         if not isinstance(years, dict):
             continue
-        try:
-            account_type = AccountType(str(name).strip().upper())
-        except ValueError:
+        account_type = parse_account_type(str(name))
+        if account_type is None:
             continue
         if account_type not in ROOM_BEARING_TYPES:
             console_warning(
@@ -324,6 +360,54 @@ def _validate_header_keywords(
             )
         },
     )
+
+
+def _validate_optional_columns(
+    settings: dict[str, Any],
+    validated: dict[str, Any],
+) -> None:
+    """Validate `optional_columns`, skipping each entry that cannot be used."""
+    columns = _mapping_block(settings, "optional_columns")
+    if columns is None:
+        return
+    usable: dict[str, Any] = {}
+    for name, entry in columns.items():
+        try:
+            OptionalField.from_config_entry(str(name), entry)
+        except ValueError as error:
+            console_warning(f"optional_columns: ignoring {name}. {error}")
+        else:
+            usable[str(name)] = entry
+    validated["optional_columns"] = usable
+
+
+def _mapping_block(
+    container: Mapping[str, Any],
+    key: str,
+    label: str | None = None,
+) -> dict[str, Any] | None:
+    """Read one settings block that must be a mapping.
+
+    An absent key is simply not configured. A key that is present but empty (a
+    bare `map:`) or holds a list or scalar is lost, so it is reported.
+
+    Args:
+        container: The mapping the block sits in.
+        key: The block's key.
+        label: How the block is named in the warning, when not just `key`.
+
+    Returns:
+        The block, or None when it is absent or unusable.
+    """
+    if key not in container:
+        return None
+    block = container[key]
+    if isinstance(block, dict):
+        return block
+    console_warning(
+        f"{label or key}: ignoring it, because it must hold a mapping of settings.",
+    )
+    return None
 
 
 def _validate_duplicate_approval(

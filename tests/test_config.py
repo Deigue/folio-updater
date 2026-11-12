@@ -9,13 +9,15 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn
 
+import pandas as pd
 import pytest
 import yaml
 
 from app import bootstrap
 from app.logging_setup import SharedLogHandler, get_audit_logger
-from config import Config, write_missing_setting
-from domain import AccountType, FeeConvention, FeeSign
+from config import Config, ConfigError, write_missing_setting
+from domain import TXN_ESSENTIALS, AccountType, FeeConvention, FeeSign
+from ingest.mappers import TransactionMapper
 
 from .helpers.console import capture_output
 
@@ -25,10 +27,14 @@ if TYPE_CHECKING:
     from .helpers.context import TempContext
 
 
-def test_a_missing_config_is_created_with_the_defaults(tmp_path: Path) -> None:
+def test_a_missing_or_empty_config_loads_the_defaults(tmp_path: Path) -> None:
     config = Config.load(tmp_path)
     with Path.open(config.config_path) as f:
         assert yaml.safe_load(f) == Config.DEFAULT_CONFIG
+
+    # A file the user blanked is read as no settings, not refused.
+    config.config_path.write_text("", encoding="utf-8")
+    assert Config.load(tmp_path).log_level == Config.DEFAULT_CONFIG["log_level"]
 
 
 def test_a_missing_absolute_data_folder_is_created(
@@ -65,6 +71,98 @@ rules:
         ({"Ticker": ["ON"]}, {"Ticker": "ONSEMI"}),
     ]
     assert captured.get_text().count("holds a YAML boolean") == 2
+
+
+PAY_GROUP = """
+  - name: pay
+    match_fields: [Ticker]
+    source_actions: [Dividends, Tax]
+    target_action: DIVIDEND
+"""
+UNDO_RULE = """
+  - name: undo
+    conditions: {Action: [CANCELLATION]}
+    match_fields: [Ticker]
+"""
+
+
+def test_a_bare_rules_key_keeps_the_merge_and_cancellation_rules(
+    temp_ctx: TempContext,
+) -> None:
+    """`rules:` with nothing under it is YAML null, and must not stop the parse."""
+    transforms = yaml.safe_load(
+        f"rules:\nmerge_groups:{PAY_GROUP}cancellations:{UNDO_RULE}",
+    )
+    with capture_output() as captured, temp_ctx(transforms=transforms) as ctx:
+        parsed = ctx.config.transforms
+
+    assert parsed.rules == []
+    assert [group.name for group in parsed.merge_groups] == ["pay"]
+    assert [rule.name for rule in parsed.cancellations] == ["undo"]
+    assert "ignoring" not in captured.get_text()
+
+
+def test_transform_entries_that_cannot_be_used_warn_and_the_rest_survive(
+    temp_ctx: TempContext,
+) -> None:
+    """A stray `-`, a bare word or a half-written entry is lost, so it is reported."""
+    transforms = yaml.safe_load(
+        f"""
+rules:
+  - conditions: {{Ticker: [MSFT]}}
+    actions: {{Ticker: SPY}}
+  -
+  - just text
+  - conditions: {{Ticker: [NFLX]}}
+merge_groups:{PAY_GROUP}  - name: short
+    match_fields: [Ticker]
+    source_actions: [Dividends]
+    target_action: DIVIDEND
+  -
+cancellations:{UNDO_RULE}  - name: no-conditions
+    match_fields: [Ticker]
+  -
+""",
+    )
+    with capture_output() as captured, temp_ctx(transforms=transforms) as ctx:
+        parsed = ctx.config.transforms
+
+    assert [rule.actions for rule in parsed.rules] == [{"Ticker": "SPY"}]
+    assert [group.name for group in parsed.merge_groups] == ["pay"]
+    assert [rule.name for rule in parsed.cancellations] == ["undo"]
+    text = captured.get_text()
+    assert text.count("ignoring a rule") == 3
+    assert "ignoring merge group 'short'" in text
+    assert text.count("ignoring a merge group") == 1
+    assert "ignoring cancellation rule 'no-conditions'" in text
+    assert text.count("ignoring a cancellation rule") == 1
+
+    # A block that is not a list is lost whole, so that is reported too.
+    with capture_output() as captured, temp_ctx(transforms={"rules": "oops"}) as ctx:
+        assert ctx.config.transforms.rules == []
+    assert "ignoring rules, which is not a list" in captured.get_text()
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        pytest.param("log_level: [unclosed\n", r"config\.yaml line \d+", id="syntax"),
+        pytest.param("- a\n- b\n", r"config\.yaml .*key: value", id="not-a-mapping"),
+        pytest.param(
+            "accounts:\n  map:\n    zz-tfsa: TFSA\n    ZZ-TFSA: RRSP\n",
+            r"zz-tfsa and ZZ-TFSA",
+            id="conflicting-account-keys",
+        ),
+    ],
+)
+def test_a_config_file_that_cannot_be_used_stops_the_load(
+    tmp_path: Path,
+    text: str,
+    reason: str,
+) -> None:
+    (tmp_path / "config.yaml").write_text(text, encoding="utf-8")
+    with pytest.raises(ConfigError, match=reason):
+        Config.load(tmp_path)
 
 
 def test_a_log_rollover_another_process_blocks_is_skipped_quietly(
@@ -108,27 +206,36 @@ def test_absolute_path_kept(tmp_path: Path, temp_ctx: TempContext) -> None:
 
 
 def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
-    with temp_ctx(
-        {
-            "log_level": 3,
-            "audit_log_level": "LOUD",
-            "sheets": {"tickers": "Tickers", "txns": None, "unknown_sheet": "Nope"},
-            "header_ignore": "notalist",
-            "brokers": "notadict",
-            "backup": {"max_backups": True},
-            "duplicate_approval": {"column_name": None, "approval_value": 1},
-            "header_keywords": {
-                "TxnDate": ["txndate", "transaction date", "date"],
-                "Action": ["action", "type", "activity"],
-                "Amount": ["amount", "value", "total"],
-                "$": ["$", "currency", "curr"],
-                "Price": ["price", "unit price", "share price"],
-                "Units": ["units", "shares", "qty", "quantity"],
-                "Ticker": ["ticker", "symbol", "stock"],
-                "InvalidKeyword": ["invalid"],
+    with (
+        capture_output() as captured,
+        temp_ctx(
+            {
+                "optional_columns": {
+                    "Memo": {"keywords": "note"},
+                    "Odd": {"type": "bogus"},
+                    "Blank": None,
+                    "Count": {"keywords": 5},
+                },
+                "log_level": 3,
+                "audit_log_level": "LOUD",
+                "sheets": {"tickers": "Tickers", "txns": None, "unknown_sheet": "Nope"},
+                "header_ignore": "notalist",
+                "brokers": "notadict",
+                "backup": {"max_backups": True},
+                "duplicate_approval": {"column_name": None, "approval_value": 1},
+                "header_keywords": {
+                    "TxnDate": ["txndate", "transaction date", "date"],
+                    "Action": ["action", "type", "activity"],
+                    "Amount": ["amount", "value", "total"],
+                    "$": ["$", "currency", "curr"],
+                    "Price": ["price", "unit price", "share price"],
+                    "Units": ["units", "shares", "qty", "quantity"],
+                    "Ticker": ["ticker", "symbol", "stock"],
+                    "InvalidKeyword": ["invalid"],
+                },
             },
-        },
-    ) as ctx:
+        ) as ctx,
+    ):
         config = ctx.config
         assert config.log_level == "ERROR"  # Defaults to ERROR on bad value
         assert config.audit_log_level == "INFO"
@@ -140,6 +247,13 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
         assert config.max_backups == 50  # A bool is not a backup count.
         assert config.duplicate_approval_column == "Duplicate"
         assert config.duplicate_approval_value == "1"
+        # An unusable optional column is skipped, and a lone keywords string
+        # is one keyword.
+        fields = config.optional_fields.get_all_fields()
+        assert set(fields) == {"Memo"}
+        assert fields["Memo"].keywords == ["note"]
+    for skipped in ("Odd", "Blank", "Count"):
+        assert f"optional_columns: ignoring {skipped}." in captured.get_text()
 
 
 @pytest.fixture
@@ -314,12 +428,16 @@ def test_accounts_map_accepts_both_forms(temp_ctx: TempContext) -> None:
             "map": {
                 "WS-PERSONAL": "NON_REGISTERED",
                 "QT-TFSA": {"type": "TFSA", "amount_includes_fees": True},
+                "zz-joint": {"type": "PERSONAL", "amount_includes_fees": True},
             },
         },
     }
     with temp_ctx(overrides) as ctx:
         assert ctx.config.account_map["WS-PERSONAL"]["type"] == "NON_REGISTERED"
         assert ctx.config.account_map["QT-TFSA"]["type"] == "TFSA"
+        # Keys are upper-cased and a type alias resolves, keeping the fee setting.
+        assert ctx.config.account_map["ZZ-JOINT"]["type"] == "NON_REGISTERED"
+        assert ctx.config.fee_convention_for("ZZ-JOINT") is FeeConvention.INCLUDED
         assert ctx.config.fee_convention_for("QT-TFSA") is FeeConvention.INCLUDED
         assert ctx.config.fee_convention_for("WS-PERSONAL") is FeeConvention.AUTO
 
@@ -330,16 +448,59 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
             "map": {
                 "GOOD-TFSA": "TFSA",
                 "BAD": "NOT_A_TYPE",
+                True: "TFSA",  # an unquoted ON, read by YAML as a boolean
                 "ODD-RRSP": {"type": "RRSP", "amount_includes_fees": "maybe"},
             },
         },
     }
-    with temp_ctx(overrides) as ctx:
-        assert "BAD" not in ctx.config.account_map
+    with capture_output() as captured, temp_ctx(overrides) as ctx:
+        assert set(ctx.config.account_map) == {"GOOD-TFSA", "ODD-RRSP"}
         assert ctx.config.account_map["GOOD-TFSA"]["type"] == "TFSA"
+        assert "ignoring BAD" in captured.get_text()
+        assert "ignoring True, which YAML read as a boolean" in captured.get_text()
         # The bad fee value is dropped, but the usable type survives.
         assert ctx.config.account_map["ODD-RRSP"]["type"] == "RRSP"
         assert ctx.config.fee_convention_for("ODD-RRSP") is FeeConvention.AUTO
+
+
+@pytest.mark.parametrize(
+    ("overrides", "label"),
+    [
+        pytest.param({"accounts": None}, "accounts", id="empty-accounts"),
+        pytest.param({"accounts": {"map": None}}, "accounts.map", id="empty-map"),
+        pytest.param({"accounts": {"map": ["ZZ-TFSA"]}}, "accounts.map", id="map-list"),
+        pytest.param({"optional_columns": ["Memo"]}, "optional_columns", id="columns"),
+    ],
+)
+def test_a_block_that_is_present_but_not_a_mapping_warns(
+    temp_ctx: TempContext,
+    overrides: dict[str, object],
+    label: str,
+) -> None:
+    with capture_output() as captured, temp_ctx(overrides):
+        pass
+    assert f"{label}: ignoring it" in captured.get_text()
+
+
+def test_an_absent_account_map_is_not_warned_about(
+    temp_ctx: TempContext,
+) -> None:
+    """Leaving `map` out is not configuring it, so there is nothing to warn about."""
+    with capture_output() as captured, temp_ctx({"accounts": {"defaults": {}}}):
+        pass
+    assert "ignoring it" not in captured.get_text()
+
+
+def test_a_lone_keywords_string_matches_only_that_header(
+    temp_ctx: TempContext,
+) -> None:
+    """`keywords: note` once read as the four headers n, o, t and e."""
+    frame = pd.DataFrame(columns=[*TXN_ESSENTIALS, "note", "n"])
+    with temp_ctx({"optional_columns": {"Memo": {"keywords": "note"}}}):
+        mapped = TransactionMapper.map_headers(frame)
+    assert "Memo" in mapped.columns
+    assert "n" in mapped.columns
+    assert "note" not in mapped.columns
 
 
 def test_cost_basis_and_display_blocks(temp_ctx: TempContext) -> None:

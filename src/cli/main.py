@@ -744,11 +744,16 @@ def show_version() -> None:
 
 def main() -> None:
     """Entry point for the CLI application."""
+    from config import ConfigError
     from db import DatabaseError
     from db.migrations import MigrationError
 
     try:
         app()
+    except ConfigError as error:
+        # Every command reads config.yaml first, so any of them can stop here.
+        console_error(str(error))
+        sys.exit(1)
     except MigrationError as error:
         # Opening the folio is where it is migrated, so any command can stop here.
         console_error(str(error))
