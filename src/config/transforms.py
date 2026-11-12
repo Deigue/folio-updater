@@ -4,8 +4,34 @@ from __future__ import annotations
 
 from typing import Any
 
+from config.validation import Unusable, report_unknown, report_unusable
 from domain import Column
 from term import console_warning
+
+# The keys each kind of transforms entry may hold.
+_RULE_KEYS = frozenset({"conditions", "actions"})
+_MERGE_GROUP_KEYS = frozenset(
+    {
+        "name",
+        "match_fields",
+        "source_actions",
+        "target_action",
+        "amount_field",
+        "operations",
+    },
+)
+_CANCEL_RULE_KEYS = frozenset({"name", "conditions", "match_fields", "amount_field"})
+
+
+def _report_unknown_keys(
+    entry: dict[str, Any],
+    known: frozenset[str],
+    path: str,
+) -> None:
+    """Report each key of a transforms entry that names nothing it reads."""
+    for key in entry:
+        if key not in known:
+            report_unknown(f"{path}.{key}")
 
 
 def _refuse_boolean(field: str) -> dict[str, Any]:
@@ -155,38 +181,48 @@ class TransformsConfig:
         # Each block parses on its own
         self.cancellations = self._parse_cancellations(transforms_config)
 
-        for rule_config in self._block_list(transforms_config, "rules"):
-            rule = self._parse_rule(rule_config)
+        for path, rule_config in self._block_list(transforms_config, "rules"):
+            rule = self._parse_rule(rule_config, path)
             if rule:
                 self.rules.append(rule)
 
-        for group_config in self._block_list(transforms_config, "merge_groups"):
-            merge_group = self._parse_merge_group(group_config)
+        for path, group in self._block_list(transforms_config, "merge_groups"):
+            merge_group = self._parse_merge_group(group, path)
             if merge_group:
                 self.merge_groups.append(merge_group)
 
     @staticmethod
-    def _block_list(transforms_config: dict[str, Any], key: str) -> list[Any]:
-        """Read one block's list of entries.
+    def _block_list(
+        transforms_config: dict[str, Any],
+        key: str,
+    ) -> list[tuple[str, Any]]:
+        """Read one block's entries, each with its path, such as `transforms.rules[1]`.
 
         A non-list is ignored with a warning, since the user wrote something
-        that is lost.
+        that is lost. Entries are counted from 1, as they read in the file.
         """
         value = transforms_config.get(key)
         if not isinstance(value, list):
-            console_warning(f"transforms: ignoring {key}, which is not a list.")
+            unusable = Unusable("is not a list")
+            report_unusable(f"transforms.{key}", value, unusable, "ignoring it")
             return []
-        return value
+        return [
+            (f"transforms.{key}[{number}]", entry)
+            for number, entry in enumerate(value, start=1)
+        ]
 
-    def _parse_rule(self, rule_config: object) -> TransformRule | None:
+    def _parse_rule(self, rule_config: object, path: str) -> TransformRule | None:
         """Parse a single rule configuration.
 
         Args:
             rule_config: Raw rule configuration
+            path: Where it sits, for warnings.
 
         Returns:
             Parsed TransformRule or None if invalid
         """
+        if isinstance(rule_config, dict):
+            _report_unknown_keys(rule_config, _RULE_KEYS, path)
         conditions = (
             rule_config.get("conditions") if isinstance(rule_config, dict) else None
         )
@@ -225,14 +261,15 @@ class TransformsConfig:
             The rules that parsed, in the order given.
         """
         cancellations = self._block_list(transforms_config, "cancellations")
-        parsed = (self._parse_cancel_rule(config) for config in cancellations)
+        parsed = (self._parse_cancel_rule(entry, path) for path, entry in cancellations)
         return [rule for rule in parsed if rule is not None]
 
-    def _parse_cancel_rule(self, cancel_config: object) -> CancelRule | None:
+    def _parse_cancel_rule(self, cancel_config: object, path: str) -> CancelRule | None:
         """Parse a single cancellation rule configuration.
 
         Args:
             cancel_config: Raw cancellation rule configuration
+            path: Where it sits, for warnings.
 
         Returns:
             Parsed CancelRule or None if invalid
@@ -240,6 +277,7 @@ class TransformsConfig:
         if not isinstance(cancel_config, dict):
             _warn_ignored("a cancellation rule", "it must be a mapping")
             return None
+        _report_unknown_keys(cancel_config, _CANCEL_RULE_KEYS, path)
 
         name = cancel_config.get("name", "")
         raw_conditions = cancel_config.get("conditions")
@@ -271,11 +309,12 @@ class TransformsConfig:
             amount_field=amount_field,
         )
 
-    def _parse_merge_group(self, group_config: object) -> MergeGroup | None:
+    def _parse_merge_group(self, group_config: object, path: str) -> MergeGroup | None:
         """Parse a single merge group configuration.
 
         Args:
             group_config: Raw merge group configuration
+            path: Where it sits, for warnings.
 
         Returns:
             Parsed MergeGroup or None if invalid
@@ -283,6 +322,7 @@ class TransformsConfig:
         if not isinstance(group_config, dict):
             _warn_ignored("a merge group", "it must be a mapping")
             return None
+        _report_unknown_keys(group_config, _MERGE_GROUP_KEYS, path)
 
         name = group_config.get("name", "")
         match_fields = group_config.get("match_fields", [])

@@ -85,11 +85,6 @@ Rows are grouped by currency, each group having its own subtotal.
 `--currency USD` **drops CAD-denominated holdings**, whose USD figures are blank by
 design, and totals in USD.
 
-> [!NOTE]
-> `display.currency` in `config.yaml` does not apply here. It exists to pick a single
-> cost-base currency for `folio acb`; a dashboard's job is to show you what your
-> broker shows you.
-
 **`Wt%`, `Folio%` and `PnL%`** are never taken on the row's own currency, but on a
 single common one, so a USD holding's 5% and a CAD holding's 5% means the same thing.
 

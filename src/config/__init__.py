@@ -286,11 +286,6 @@ class Config:
         return self._settings["cost_basis"]["auto_getfx"]
 
     @property
-    def display_currency(self) -> str:
-        """Default currency cost-base outputs to."""
-        return self._settings["display"]["currency"]
-
-    @property
     def checks_disabled(self) -> list[str]:
         """Slugs of the `folio check` checks that should not run."""
         return self._settings["checks"]["disabled"]
@@ -458,7 +453,6 @@ class Config:
             "Account Overrides": account_overrides or "none configured",
             "Account Fee Default": self.account_fee_default,
             "Auto GetFX": self.auto_getfx,
-            "Display Currency": self.display_currency,
             "Checks Disabled": self.checks_disabled or "none",
             "Checks Ignoring": (
                 (self.checks_ignore_tickers + self.checks_ignore_accounts) or "nothing"

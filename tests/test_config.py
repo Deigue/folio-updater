@@ -17,7 +17,7 @@ import yaml
 from app import bootstrap
 from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, ConfigError, write_missing_setting
-from config.settings import SETTINGS, validate_config
+from config.settings import SETTINGS, validate_config, written_value
 from domain import TXN_ESSENTIALS, AccountType, FeeConvention, FeeSign
 from ingest.mappers import TransactionMapper
 
@@ -202,7 +202,7 @@ cancellations:{UNDO_RULE}  - name: no-conditions
     # A block that is not a list is lost whole, so that is reported too.
     with capture_output() as captured, temp_ctx(transforms={"rules": "oops"}) as ctx:
         assert ctx.config.transforms.rules == []
-    assert "ignoring rules, which is not a list" in captured.get_text()
+    assert "transforms.rules: oops is not a list; ignoring it." in captured.get_text()
 
 
 @pytest.mark.parametrize(
@@ -214,6 +214,11 @@ cancellations:{UNDO_RULE}  - name: no-conditions
             "accounts:\n  map:\n    zz-tfsa: TFSA\n    ZZ-TFSA: RRSP\n",
             r"zz-tfsa and ZZ-TFSA",
             id="conflicting-account-keys",
+        ),
+        pytest.param(
+            "contribution_room:\n  TFSA: {2025: 7000}\n  tfsa: {2025: 6500}\n",
+            r"TFSA and tfsa",
+            id="conflicting-room-types",
         ),
     ],
 )
@@ -409,7 +414,6 @@ def test_cost_base_defaults(temp_ctx: TempContext) -> None:
         assert config.account_naming_convention is True
         assert config.account_fee_default == "auto"
         assert config.auto_getfx is True
-        assert config.display_currency == "CAD"
         assert config.acb_parquet.name == "acb.parquet"
 
 
@@ -575,8 +579,8 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
         ),
         pytest.param(
             {"accounts": {"map": {"ZZ-RRSP": {"type": "RRSP", "fee_sign": "up"}}}},
-            "accounts.map.ZZ-RRSP.fee_sign: up is not one of auto, negative, positive; "
-            "ignoring it.",
+            "accounts.map.ZZ-RRSP.fee_sign: up is not one of auto, negative or "
+            "positive; ignoring it.",
             id="entry-field",
         ),
         pytest.param(
@@ -593,6 +597,32 @@ def test_unparseable_account_entries_are_dropped(temp_ctx: TempContext) -> None:
             {"contribution_room": {"TFSA": {"twenty": 7000}}},
             "contribution_room.TFSA: ignoring twenty, which is not a year.",
             id="nested-entry-key",
+        ),
+        pytest.param(
+            {"contribution_room": {"TFSA": {2026: True}}},
+            "contribution_room.TFSA.2026: True is not an amount; ignoring it.",
+            id="boolean-amount",
+        ),
+        pytest.param(
+            {"contribution_room": {"TFSA": {2026: "lots"}}},
+            "contribution_room.TFSA.2026: lots is not an amount; ignoring it.",
+            id="word-amount",
+        ),
+        pytest.param(
+            {"contribution_room": {"TFSA": {2026: float("inf")}}},
+            "contribution_room.TFSA.2026: inf is not an amount; ignoring it.",
+            id="infinite-amount",
+        ),
+        pytest.param(
+            {"brokers": {"ibkr": {"Trades": [1]}}},
+            "brokers.ibkr.Trades: [1] is not text; ignoring it.",
+            id="broker-query-id",
+        ),
+        pytest.param(
+            {"log_level": "FATAL"},
+            "log_level: FATAL is not a log level (DEBUG, INFO, WARNING, ERROR or "
+            "CRITICAL); using ERROR.",
+            id="log-level-alias",
         ),
     ],
 )
@@ -618,6 +648,8 @@ def test_a_value_that_cannot_be_used_warns(
             id="entry-field",
         ),
         pytest.param({"accounts": {"defaults": {}}}, id="empty-mapping"),
+        pytest.param({"quotes": {"ttl_minutes": ""}}, id="empty-string"),
+        pytest.param({"quotes": []}, id="empty-list-block"),
     ],
 )
 def test_a_setting_left_empty_takes_its_default_quietly(
@@ -645,6 +677,12 @@ def test_a_setting_left_empty_takes_its_default_quietly(
             "accounts.map.ZZ-TFSA.colour",
             id="inside-an-entry",
         ),
+        pytest.param(
+            {"transforms": {"merge_groups": [{"name": "pay", "matchfields": []}]}},
+            "transforms.merge_groups[1].matchfields",
+            id="inside-a-transform",
+        ),
+        pytest.param({"display": {"currency": "USD"}}, "display", id="retired-display"),
     ],
 )
 def test_an_unknown_key_warns(
@@ -683,19 +721,36 @@ def test_a_lone_keywords_string_matches_only_that_header(
     assert "note" not in mapped.columns
 
 
-def test_cost_basis_and_display_blocks(temp_ctx: TempContext) -> None:
-    overrides = {
-        "cost_basis": {"auto_getfx": False},
-        "display": {"currency": "usd"},
-    }
-    with temp_ctx(overrides) as ctx:
+def test_cost_basis_block(temp_ctx: TempContext) -> None:
+    with temp_ctx({"cost_basis": {"auto_getfx": False}}) as ctx:
         assert ctx.config.auto_getfx is False
-        assert ctx.config.display_currency == "USD"
 
 
-def test_invalid_display_currency_falls_back(temp_ctx: TempContext) -> None:
-    with temp_ctx({"display": {"currency": "GBP"}}) as ctx:
-        assert ctx.config.display_currency == "CAD"
+DOCS = Path(__file__).resolve().parents[1] / "docs" / "configuration.md"
+
+
+def _documented_example() -> dict[str, Any]:
+    """Read the YAML block under `## Example structure` in the configuration docs."""
+    text = DOCS.read_text(encoding="utf-8")
+    section = text.split("## Example structure", 1)[1]
+    return yaml.safe_load(section.split("```yaml", 1)[1].split("```", 1)[0])
+
+
+def test_the_documented_example_shows_every_setting_and_loads_cleanly(
+    tmp_path: Path,
+) -> None:
+    example = _documented_example()
+
+    missing = [s.path for s in SETTINGS if written_value(example, s.path) is None]
+    assert missing == []
+    with capture_output() as captured:
+        Config(tmp_path, validate_config(example))
+    assert captured.get_text() == ""
+
+
+def test_every_top_level_setting_has_a_row_in_the_docs_table() -> None:
+    text = DOCS.read_text(encoding="utf-8")
+    assert [key for key in Config.DEFAULT_CONFIG if f"| **`{key}`**" not in text] == []
 
 
 def test_fee_default_of_false_is_honoured(temp_ctx: TempContext) -> None:

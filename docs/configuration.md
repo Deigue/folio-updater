@@ -27,8 +27,8 @@ header_keywords:
   SettleDate: ["SettleDate", "Settlement Date", "Settle"]
 header_ignore: ["ID", "ClientAccountID", "OtherCommission", "Account Number", "Expiry"]
 duplicate_approval:
-  column: Duplicate
-  value: OK
+  column_name: Duplicate
+  approval_value: OK
 backup:
   enabled: true
   path: backups
@@ -88,8 +88,8 @@ transforms:
       amount_field: "Amount"
 brokers:
   ibkr:
-    FlexReport: "FLEX_QUERY_ID_FOR_TRADES"
-    CashActivity: "FLEX_QUERY_ID_FOR_CASH_ACTIVITIES"
+    FlexReport: "111111"  # placeholder: your Flex Query ID for trades
+    CashActivity: "999999"  # placeholder: your Flex Query ID for cash activities
   wealthsimple:
     user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0"
     exclude_accounts: ["Cash"]
@@ -101,10 +101,9 @@ accounts:
       amount_includes_fees: excluded
   defaults:
     amount_includes_fees: auto
+    fee_sign: auto
 cost_basis:
   auto_getfx: true
-display:
-  currency: CAD
 checks:
   disabled: []
   ignore_tickers: []
@@ -112,6 +111,7 @@ checks:
 quotes:
   ttl_minutes: 15
   metadata_ttl_days: 30
+  fundamentals_ttl_hours: 24
   timeout_seconds: 20
   symbol_overrides: {}
 contribution_room:
@@ -136,7 +136,6 @@ contribution_room:
 | **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](commands/download/ibkr-integration.md#configuration) and [Wealthsimple Configuration](commands/download/wealthsimple-integration.md#configuration) for more details.                                                                                    |
 | **`accounts`**           | Overrides for the cost-base engine's account handling. See [Account resolution](#account-resolution) below.                                                                                                                                                                                                             |
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
-| **`display`**            | `currency` (`CAD` or `USD`): the currency cost-base output defaults to.                                                                                                                                                                                                                                                 |
 | **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
 | **`quotes`**             | Quote cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                                  |
 | **`contribution_room`**  | CRA contribution limits by account type and year. See [Contribution room](#contribution-room) below.                                                                                                                                                                                                                    |

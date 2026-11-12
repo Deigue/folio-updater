@@ -1,8 +1,4 @@
-"""Every setting `config.yaml` holds, declared once.
-
-The defaults, the generated `config.yaml` and validation are all built from
-`SETTINGS`, so a setting cannot reach one of them and miss another.
-"""
+"""Every `config.yaml` setting, declared once for its default and its validation."""
 
 from __future__ import annotations
 
@@ -19,10 +15,10 @@ from config.validation import (
     account_type,
     as_written,
     boolean,
-    currency,
     expand_margin,
     field_type,
     fields,
+    left_empty,
     log_level,
     map_of,
     money,
@@ -118,7 +114,7 @@ SETTINGS: tuple[Setting, ...] = (
     Setting(
         "brokers.ibkr",
         {"FlexReport": "111111", "CashActivity": "999999"},
-        map_of(text, as_written),
+        map_of(text, text),
         "Flex Query ID by query name; a name with Activity is cash activity.",
     ),
     Setting(
@@ -195,7 +191,6 @@ SETTINGS: tuple[Setting, ...] = (
         validate=boolean,
         doc="Let cost-base commands fetch missing FX rates.",
     ),
-    Setting("display.currency", "CAD", currency, "Currency cost-base output uses."),
     Setting("checks.disabled", [], names, "folio check checks that do not run."),
     Setting("checks.ignore_tickers", [], names, "Securities folio check ignores."),
     Setting("checks.ignore_accounts", [], names, "Accounts folio check ignores."),
@@ -227,7 +222,11 @@ SETTINGS: tuple[Setting, ...] = (
     Setting(
         "contribution_room",
         {},
-        map_of(room_type, non_empty(map_of(year, money))),
+        map_of(
+            room_type,
+            non_empty(map_of(year, money, clash_stops=True)),
+            clash_stops=True,
+        ),
         "CRA contribution limits by account type and year.",
     ),
 )
@@ -256,8 +255,8 @@ def validate_config(settings: dict[str, Any]) -> dict[str, Any]:
     """
     validated = build_defaults()
     for setting in SETTINGS:
-        written = _written(settings, setting.path)
-        if written is None:
+        written = written_value(settings, setting.path)
+        if left_empty(written):
             continue
         value = setting.validate(written, setting.path)
         if isinstance(value, Unusable):
@@ -270,7 +269,7 @@ def validate_config(settings: dict[str, Any]) -> dict[str, Any]:
     return validated
 
 
-def _written(settings: dict[str, Any], path: str) -> Any:  # noqa: ANN401
+def written_value(settings: dict[str, Any], path: str) -> Any:  # noqa: ANN401
     """Find a setting's written value, or None when the file does not hold one."""
     value: Any = settings
     for key in path.split("."):
@@ -302,7 +301,7 @@ def _report_unexpected(block: dict[str, Any], prefix: str) -> None:
             report_unknown(path)
         elif isinstance(value, dict):
             _report_unexpected(value, f"{path}.")
-        elif value is not None:
+        elif not left_empty(value) and value != []:
             report_unusable(path, value, NOT_A_MAPPING, "using the defaults")
 
 

@@ -45,9 +45,8 @@ def _resolve_currency(requested: str | None) -> DisplayCurrency:
     """Read the `--currency` argument.
 
     Defaults to `native`, which keeps every holding in the currency it trades
-    in and groups the table by currency. That is the view a holder recognises
-    from their broker; `display.currency` deliberately does not apply here,
-    since it exists to pick a single cost-base currency for `folio acb`.
+    in and groups the table by currency: the view a holder recognises from
+    their broker.
 
     Raises:
         typer.Exit: If the argument is not a currency the app can value in.

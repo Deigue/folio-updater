@@ -7,7 +7,7 @@ with a reason is reported, while one without is dropped.
 
 from __future__ import annotations
 
-import logging
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +15,6 @@ from config.optional_fields import FieldType
 from domain import (
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
-    SUPPORTED_CURRENCIES,
     AccountType,
     FeeConvention,
     FeeSign,
@@ -72,21 +71,24 @@ def report_unusable(
     unusable: Unusable,
     fallback: str,
 ) -> None:
-    """Warn that a written value is not used, unless that was already reported.
-
-    Args:
-        path: The setting's dotted path.
-        written: The value as written.
-        unusable: Why it cannot be used.
-        fallback: What happens instead, such as "using 15" or "ignoring it".
-    """
+    """Warn that a written value is not used, unless that was already reported."""
     if unusable.reason:
         console_warning(f"{path}: {written} {unusable.reason}; {fallback}.")
+
+
+def report_ignored(path: str, key: object, unusable: Unusable) -> None:
+    """Warn that an entry of a block keyed by data is dropped for its key."""
+    console_warning(f"{path}: ignoring {key}, which {unusable.reason}.")
 
 
 def report_unknown(path: str) -> None:
     """Warn that a key names no setting."""
     console_warning(f"{path}: unknown setting, ignoring it.")
+
+
+def left_empty(value: object) -> bool:
+    """Whether a value was left empty (`key:` or `key: ""`), so is not written."""
+    return value is None or (isinstance(value, str) and not value.strip())
 
 
 def _listed(choices: Iterable[str]) -> str:
@@ -129,22 +131,14 @@ def positive_int(value: Any, _path: str) -> Any:  # noqa: ANN401
 def log_level(value: Any, _path: str) -> Any:  # noqa: ANN401
     """Accept a logging level name, in any case."""
     level = str(value).upper()
-    if level in logging.getLevelNamesMapping():
+    if level in _LOG_LEVELS:
         return level
     return Unusable(f"is not a log level ({_listed(_LOG_LEVELS)})")
 
 
-def currency(value: Any, _path: str) -> Any:  # noqa: ANN401
-    """Accept a currency the app can value in, in any case."""
-    code = str(value).upper()
-    if code in SUPPORTED_CURRENCIES:
-        return code
-    return Unusable(f"is not {_listed(sorted(SUPPORTED_CURRENCIES))}")
-
-
 def one_of(spellings: Mapping[str, object]) -> Validator:
     """Accept a value whose lower-cased spelling is one of `spellings`."""
-    unusable = Unusable(f"is not one of {', '.join(spellings)}")
+    unusable = Unusable(f"is not one of {_listed(spellings)}")
 
     def validate(value: Any, _path: str) -> Any:  # noqa: ANN401
         spelling = str(value).lower()
@@ -203,7 +197,7 @@ def fields(
             if name not in validators:
                 report_unknown(f"{path}.{name}")
                 continue
-            if entry is None:
+            if left_empty(entry):
                 continue
             # A lone value stands for the whole entry, so it is named by the entry.
             field_path = path if written_short else f"{path}.{name}"
@@ -232,9 +226,6 @@ def map_of(key: Validator, value: Validator, *, clash_stops: bool = False) -> Va
         value: Checks each value.
         clash_stops: Whether two keys normalising to one with different values
             stop the load, since either could be the one meant.
-
-    Returns:
-        The validator.
     """
 
     def validate(raw: Any, path: str) -> Any:  # noqa: ANN401
@@ -243,11 +234,11 @@ def map_of(key: Validator, value: Validator, *, clash_stops: bool = False) -> Va
         usable: dict[Any, Any] = {}
         written_as: dict[Any, Any] = {}
         for written, entry in raw.items():
-            if entry is None:
+            if left_empty(entry):
                 continue
             name = key(written, path)
             if isinstance(name, Unusable):
-                console_warning(f"{path}: ignoring {written}, which {name.reason}.")
+                report_ignored(path, written, name)
                 continue
             entry_path = f"{path}.{written}"
             result = value(entry, entry_path)
@@ -329,15 +320,15 @@ def year(value: Any, _path: str) -> Any:  # noqa: ANN401
 
 def money(value: Any, _path: str) -> Any:  # noqa: ANN401
     """Read an amount of money."""
+    unusable = Unusable("is not an amount")
+    if not _is_scalar(value):
+        return unusable
     try:
-        return dec(float(value))
-    except (TypeError, ValueError):
-        return Unusable("is not an amount")
-
-
-def field_type(value: Any, _path: str) -> Any:  # noqa: ANN401
-    """Read an optional column's data type."""
-    try:
-        return FieldType(str(value).lower()).value
+        amount = float(value)
     except ValueError:
-        return Unusable(f"is not one of {', '.join(kind.value for kind in FieldType)}")
+        return unusable
+    return dec(amount) if math.isfinite(amount) else unusable
+
+
+# An optional column's data type.
+field_type = one_of({kind.value: kind for kind in FieldType})
