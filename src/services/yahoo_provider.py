@@ -12,7 +12,7 @@ import socket
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
@@ -20,15 +20,16 @@ from typing import TYPE_CHECKING, Any, Literal
 from app import get_config
 from domain import TORONTO_TZ
 from domain.numeric import dec
-from models import QuoteSplit
+from models import Fundamentals, QuoteSplit
+from models.cells import read_number, read_text
+from models.columns import Kind, column_of
 from services.price_history import PricePoint, months_back
 from services.quote_provider import (
     HistoryBars,
     IntradayBars,
     PriceFetch,
+    ProviderDescription,
     ProviderPrice,
-    read_number,
-    read_text,
 )
 from term import announce
 
@@ -205,6 +206,7 @@ class YahooProvider:
 
     def spell(self, symbol: str) -> str:
         """Spell a symbol as Yahoo does, or as configured for it."""
+        # Read per call, not kept, so an override added with a config reload applies.
         overrides = {
             str(key).strip().upper(): str(value)
             for key, value in get_config().quotes_symbol_overrides.items()
@@ -248,9 +250,9 @@ class YahooProvider:
             return _PriceAttempt(
                 provider_symbol,
                 ProviderPrice(
-                    price=read_number(price),
-                    prev_close=read_number(_previous_close(fast)),
-                    currency=read_text(_attr(fast, "currency")),
+                    price=read_number(price, provider=True),
+                    prev_close=read_number(_previous_close(fast), provider=True),
+                    currency=read_text(_attr(fast, "currency"), provider=True),
                     quote_time=now,
                 ),
             )
@@ -287,19 +289,21 @@ class YahooProvider:
             if closes
         }
 
-    def describe(self, provider_symbols: Sequence[str]) -> dict[str, dict]:
+    def describe(
+        self,
+        provider_symbols: Sequence[str],
+    ) -> dict[str, ProviderDescription]:
         """Fetch name, sector, exchange, market cap and fundamentals for a batch.
 
         Args:
             provider_symbols: Provider spellings to describe.
 
         Returns:
-            Each provider symbol mapped to its metadata fields, the
-            fundamentals keyed by their `Fundamentals` field names.
+            Each provider symbol the provider described, mapped to what it said.
         """
         yf = load_yfinance()
 
-        def _describe(provider_symbol: str) -> tuple[str, dict] | None:
+        def _describe(provider_symbol: str) -> tuple[str, ProviderDescription] | None:
             try:
                 ticker = yf.Ticker(provider_symbol)
                 info = ticker.info
@@ -308,43 +312,21 @@ class YahooProvider:
                 return None
             if not info:
                 return None
-            return provider_symbol, {
-                "name": info.get("shortName") or info.get("longName"),
-                "sector": info.get("sector"),
-                "exchange": info.get("exchange") or info.get("fullExchangeName"),
-                "market_cap": info.get("marketCap"),
-                "currency": info.get("currency"),
-                "quote_type": info.get("quoteType"),
-                "trailing_pe": info.get("trailingPE"),
-                "forward_pe": info.get("forwardPE"),
-                "eps": _first(info, "trailingEps", "epsTrailingTwelveMonths"),
-                "beta": _first(info, "beta", "beta3Year"),
-                "dividend_rate": _first(
-                    info,
-                    "dividendRate",
-                    "trailingAnnualDividendRate",
+            return provider_symbol, ProviderDescription(
+                name=read_text(
+                    info.get("shortName") or info.get("longName"),
+                    provider=True,
                 ),
-                "dividend_yield": _from_percent(info.get("dividendYield")),
-                "last_dividend": info.get("lastDividendValue"),
-                "ex_dividend_date": _epoch_date(info.get("exDividendDate")),
-                # An earnings time is a moment in the trading day, so it is read
-                # on the market's clock: after the close is still the same day.
-                "earnings_date": _epoch_date(
-                    _first(info, "earningsTimestampStart", "earningsTimestamp"),
-                    TORONTO_TZ,
+                sector=read_text(info.get("sector"), provider=True),
+                exchange=read_text(
+                    info.get("exchange") or info.get("fullExchangeName"),
+                    provider=True,
                 ),
-                "high_52": info.get("fiftyTwoWeekHigh"),
-                "low_52": info.get("fiftyTwoWeekLow"),
-                "avg_50": info.get("fiftyDayAverage"),
-                "avg_200": info.get("twoHundredDayAverage"),
-                "volume": _first(info, "regularMarketVolume", "volume"),
-                "avg_volume": info.get("averageVolume"),
-                "expense_ratio": _from_percent(info.get("netExpenseRatio")),
-                "total_assets": _first(info, "totalAssets", "netAssets"),
-                "category": info.get("category"),
-                "fund_family": info.get("fundFamily"),
-                "splits": _split_history(ticker),
-            }
+                market_cap=read_number(info.get("marketCap"), provider=True),
+                currency=read_text(info.get("currency"), provider=True),
+                fundamentals=_fundamentals(info),
+                splits=_split_history(ticker),
+            )
 
         return dict(_run_concurrently(_describe, provider_symbols))
 
@@ -495,6 +477,51 @@ def _close_column(frame: Any, provider_symbol: str) -> Any:  # noqa: ANN401 (pan
     return frame["Close"]
 
 
+def _fundamentals(info: Mapping[str, Any]) -> Fundamentals:
+    """Read the fundamentals out of a provider's info, in one set of units."""
+    raw: dict[str, object] = {
+        "quote_type": info.get("quoteType"),
+        "trailing_pe": info.get("trailingPE"),
+        "forward_pe": info.get("forwardPE"),
+        "eps": _first(info, "trailingEps", "epsTrailingTwelveMonths"),
+        "beta": _first(info, "beta", "beta3Year"),
+        "dividend_rate": _first(
+            info,
+            "dividendRate",
+            "trailingAnnualDividendRate",
+        ),
+        "dividend_yield": _from_percent(info.get("dividendYield")),
+        "last_dividend": info.get("lastDividendValue"),
+        "ex_dividend_date": _epoch_date(info.get("exDividendDate")),
+        # An earnings time is a moment in the trading day, so it is read
+        # on the market's clock: after the close is still the same day.
+        "earnings_date": _epoch_date(
+            _first(info, "earningsTimestampStart", "earningsTimestamp"),
+            TORONTO_TZ,
+        ),
+        "high_52": info.get("fiftyTwoWeekHigh"),
+        "low_52": info.get("fiftyTwoWeekLow"),
+        "avg_50": info.get("fiftyDayAverage"),
+        "avg_200": info.get("twoHundredDayAverage"),
+        "volume": _first(info, "regularMarketVolume", "volume"),
+        "avg_volume": info.get("averageVolume"),
+        "expense_ratio": _from_percent(info.get("netExpenseRatio")),
+        "total_assets": _first(info, "totalAssets", "netAssets"),
+        "category": info.get("category"),
+        "fund_family": info.get("fundFamily"),
+    }
+    read: dict[str, Any] = {}
+    for item in fields(Fundamentals):
+        numeric = column_of(item).kind is Kind.NUMBER
+        value = raw.get(item.name)
+        read[item.name] = (
+            read_number(value, provider=True)
+            if numeric
+            else read_text(value, provider=True)
+        )
+    return Fundamentals(**read)
+
+
 def _split_history(ticker: Any) -> tuple[QuoteSplit, ...] | None:  # noqa: ANN401
     """Read a ticker's split history, or None when it could not be fetched."""
     try:
@@ -519,7 +546,7 @@ def _first(info: Mapping[str, Any], *keys: str) -> object | None:
 
 def _from_percent(value: object) -> Decimal | None:
     """Turn a provider percentage (0.77 meaning 0.77%) into a ratio."""
-    if read_text(value) is None:
+    if read_text(value, provider=True) is None:
         return None
     number = dec(value)
     return number / 100 if number else None

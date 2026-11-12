@@ -6,7 +6,7 @@ import math
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from domain.numeric import dec
+from domain.numeric import MISSING_TEXT, dec
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -17,14 +17,43 @@ def is_missing(value: object) -> bool:
     return value is None or (isinstance(value, float) and math.isnan(value))
 
 
-def read_text(value: object) -> str | None:
-    """Read a nullable text cell exactly as stored."""
-    return None if is_missing(value) else str(value)
+def read_text(value: object, *, provider: bool = False) -> str | None:
+    """Read a nullable text cell exactly as stored.
+
+    Args:
+        value: The cell.
+        provider: Read it as a quote provider sends it instead: trimmed, with
+            pandas' missing markers ("nan", "None") read as blank.
+
+    Returns:
+        The text, or None for a blank cell.
+    """
+    if is_missing(value):
+        return None
+    text = str(value)
+    if not provider:
+        return text
+    text = text.strip()
+    return None if not text or text.lower() in MISSING_TEXT else text
 
 
-def read_number(value: object) -> Decimal | None:
-    """Read a nullable number cell, keeping a NULL a None rather than a zero."""
-    return None if is_missing(value) else dec(value)
+def read_number(value: object, *, provider: bool = False) -> Decimal | None:
+    """Read a nullable number cell, keeping a NULL a None rather than a zero.
+
+    Args:
+        value: The cell.
+        provider: Read it as a quote provider sends it instead: blank as
+            `read_text` reads it, and a zero blank too, since nothing trades at
+            zero and a provider sends one for a figure it lacks.
+
+    Returns:
+        The number, or None for a blank cell.
+    """
+    if not provider:
+        return None if is_missing(value) else dec(value)
+    if read_text(value, provider=True) is None:
+        return None
+    return dec(value) or None
 
 
 def read_moment(value: object) -> datetime | None:

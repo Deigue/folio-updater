@@ -17,10 +17,10 @@ from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
     resolve_pool,
-    typed_symbols,
     write_or_exit,
 )
 from domain import CurrencyColumns
+from domain.text import strip_upper
 from engine.acb_report import AcbReport, AcbShape, NoUsdFiguresError
 from engine.fx_rates import load_fx_rates
 from engine.gain_since_buy import bought_symbols
@@ -143,7 +143,8 @@ def show_acb(  # noqa: PLR0917
     shape = (
         AcbShape.SUMMARY if summary else AcbShape.BUILDUP if symbol else AcbShape.LEDGER
     )
-    canonical = typed_symbols([symbol])[0] if symbol else None
+    # A typed symbol means what trades under that name today: no rename is followed.
+    canonical = strip_upper(symbol) if symbol else None
     if year is not None:
         date_from, date_to = f"{year}-01-01", f"{year}-12-31"
     # A file for another program carries every currency, so it never refuses one.

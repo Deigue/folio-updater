@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap
-from cli.commands.common import require_ledger, typed_symbols
+from cli.commands.common import require_ledger
+from domain.text import unique_upper
 from engine.ledger import LedgerUnavailableError, open_ledger
 from services.quote_service import QuoteService
 from term import console_error, console_info, console_print, console_success
@@ -43,7 +44,8 @@ def manage_quotes(
         console_error("Pick one of --refresh or --clear.")
         raise typer.Exit(1)
 
-    wanted = typed_symbols(symbols)
+    # A typed symbol means what trades under that name today: no rename is followed.
+    wanted = unique_upper(symbols)
 
     if clear:
         _clear(wanted)

@@ -234,3 +234,40 @@ def test_each_table_is_built_from_its_model(
             built = get_columns(conn, table)
 
     assert built == [column.name for column in stored_columns(model)]
+
+
+def test_day_change_needs_both_sides() -> None:
+    assert Quote(
+        symbol="X",
+        provider_symbol="X",
+        price=Decimal(12),
+        prev_close=Decimal(10),
+    ).day_change == Decimal(2)
+    assert Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change is None
+    assert (
+        Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change_pct is None
+    )
+    # 93 against a 52-week high of 100: seven percent below it.
+    off_high = Quote(
+        symbol="X",
+        provider_symbol="X",
+        price=Decimal(93),
+        fundamentals=Fundamentals(high_52=Decimal(100)),
+    )
+    assert off_high.from_high_52 == Decimal("-0.07")
+    assert (
+        Quote(symbol="X", provider_symbol="X", price=Decimal(93)).from_high_52 is None
+    )
+
+
+def test_a_zero_price_is_not_a_price() -> None:
+    """Nothing trades at zero, so a quote holding a zero price is not priced."""
+    quote = Quote(
+        symbol="X",
+        provider_symbol="X",
+        price=Decimal(0),
+        fetched_at=datetime.now(UTC),
+        status=QuoteStatus.OK,
+    )
+
+    assert not quote.priced

@@ -109,7 +109,8 @@ class FolioSources:
             tables to write.
         txns: The stored transactions, as the database holds them.
         rates: The stored USDCAD rates.
-        tickers: Each traded ticker, paired with the symbol it resolves to.
+        tickers: Each traded ticker, paired with each symbol it resolves to on
+            the dates it was traded.
         quotes: The whole quote cache, keyed by symbol, for the tickers sheet.
         moves: Each held symbol's price move over every range, for the
             Performance sheet. Empty when that sheet was not asked for.
@@ -142,14 +143,19 @@ class FolioSources:
             The sources, ready to print.
         """
         resolver = load_symbol_resolver()
+        txns = sorted(stored_txns.read(), key=lambda txn: txn.txn_id)
+        # Each row resolves on its own date, as the replay does: a ticker reused
+        # after its rename names two securities, and gets a row for each.
+        tickers = {
+            (txn.ticker, resolver.canonical(txn.ticker, txn.txn_date))
+            for txn in txns
+            if txn.ticker
+        }
         return cls(
             valuation=valuation,
-            txns=sorted(stored_txns.read(), key=lambda txn: txn.txn_id),
+            txns=txns,
             rates=fx_rates.read(),
-            tickers=[
-                (name, resolver.canonical(name))
-                for name in stored_txns.traded_tickers()
-            ],
+            tickers=sorted(tickers),
             quotes=QuoteService.cached(),
             moves=moves or {},
         )

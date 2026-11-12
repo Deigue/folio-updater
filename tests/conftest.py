@@ -25,6 +25,7 @@ from domain import TORONTO_TZ, Currency
 from engine.settlement import settlement_calculator
 from models import FxRate
 from services import FxService
+from services.quote_provider import ProviderDescription
 from services.quote_service import QuoteService
 from term.console import override_console
 
@@ -248,13 +249,16 @@ def quote_provider(
             for symbol, data in cached_quote_data.items()
         },
         info={
-            symbol: {
-                "splits": (),
-                **{
-                    key: data[key]
-                    for key in ("name", "sector", "exchange", "market_cap", "currency")
-                },
-            }
+            symbol: ProviderDescription(
+                name=data["name"],
+                sector=data["sector"],
+                exchange=data["exchange"],
+                market_cap=None
+                if data["market_cap"] is None
+                else Decimal(str(data["market_cap"])),
+                currency=data["currency"],
+                splits=(),
+            )
             for symbol, data in cached_quote_data.items()
         },
     )

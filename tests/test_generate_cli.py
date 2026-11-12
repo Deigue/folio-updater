@@ -12,12 +12,13 @@ from pandas.testing import assert_frame_equal
 
 from cli.main import app
 from datagen import ensure_data_exists
-from db import drop_table, get_columns, get_connection, get_row_count
+from db import aliases, drop_table, get_columns, get_connection, get_row_count
 from db.backup import backup_file
 from domain import Column, Table
 from engine.ledger import LedgerUnavailableError
 from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
+from models import TickerAlias
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
 from .helpers.seed import seed_transaction, seed_two_account_types
@@ -279,6 +280,29 @@ def test_an_empty_folio_writes_nothing(temp_ctx: TempContext, tmp_path: Path) ->
         assert_cli_success(result)
         assert_in_output("No transactions", result)
         assert not target.exists()
+
+
+def test_a_ticker_reused_after_its_rename_gets_a_row_per_security(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    with temp_ctx() as ctx:
+        seed_transaction(ticker="OLDCO", currency="CAD", date="2025-08-14")
+        renamed = TickerAlias(
+            old_ticker="OLDCO",
+            new_ticker="NEWCO",
+            effective_date="2025-08-15",
+        )
+        aliases.write([renamed])
+        # A new listing under the old name, after the rename.
+        seed_transaction(ticker="OLDCO", currency="CAD", date="2025-08-18")
+        target = tmp_path / "folio.xlsx"
+
+        assert_cli_success(_generate(ctx, target))
+        sheet = pd.read_excel(target, sheet_name=ctx.config.tickers_sheet, header=2)
+
+    pairs = set(zip(sheet[Column.Ticker.TICKER], sheet["Symbol"], strict=True))
+    assert pairs == {("OLDCO", "NEWCO"), ("OLDCO", "OLDCO")}
 
 
 def test_generate_command(temp_ctx: TempContext) -> None:

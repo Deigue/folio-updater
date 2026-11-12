@@ -5,31 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
-from domain.numeric import dec
+from models import Fundamentals
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import date
     from decimal import Decimal
 
+    from models import QuoteSplit
     from services.price_history import PricePoint
-
-
-def read_text(value: object) -> str | None:
-    """Read a nullable text cell."""
-    if value is None:
-        return None
-    text = str(value).strip()
-    return None if not text or text.lower() in {"nan", "none", "<na>"} else text
-
-
-def read_number(value: object) -> Decimal | None:
-    """Read a nullable numeric cell."""
-    if read_text(value) is None:
-        return None
-    number = dec(value)
-    # `dec` maps anything unparseable to zero, and a zero price is not a price.
-    return number or None
 
 
 @dataclass(frozen=True)
@@ -47,6 +31,30 @@ class ProviderPrice:
     prev_close: Decimal | None
     currency: str | None
     quote_time: str
+
+
+@dataclass(frozen=True)
+class ProviderDescription:
+    """What the provider says about one provider symbol beyond its price.
+
+    Attributes:
+        name: The security's name.
+        sector: Its sector.
+        exchange: The exchange it lists on.
+        market_cap: Its market capitalisation.
+        currency: The currency code as the provider spells it.
+        fundamentals: Its valuation, dividend and fund figures.
+        splits: Its split history: None when it could not be fetched, empty
+            when there are none.
+    """
+
+    name: str | None = None
+    sector: str | None = None
+    exchange: str | None = None
+    market_cap: Decimal | None = None
+    currency: str | None = None
+    fundamentals: Fundamentals = field(default_factory=Fundamentals)
+    splits: tuple[QuoteSplit, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -112,8 +120,11 @@ class QuoteProvider(Protocol):
         """Fetch the last few daily closes for a batch, in one request."""
         ...
 
-    def describe(self, provider_symbols: Sequence[str]) -> dict[str, dict]:
-        """Describe a batch: name, sector, fundamentals and splits, by field name."""
+    def describe(
+        self,
+        provider_symbols: Sequence[str],
+    ) -> dict[str, ProviderDescription]:
+        """Describe a batch: name, sector, fundamentals and splits."""
         ...
 
     def history(

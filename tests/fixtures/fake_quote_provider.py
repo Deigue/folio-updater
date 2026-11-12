@@ -11,6 +11,7 @@ from services.quote_provider import (
     HistoryBars,
     IntradayBars,
     PriceFetch,
+    ProviderDescription,
     ProviderPrice,
 )
 
@@ -60,7 +61,7 @@ class FakeQuoteProvider:
     throttled: set[str] = field(default_factory=set)
     failed: set[str] = field(default_factory=set)
     closes: dict[str, list[PricePoint]] = field(default_factory=dict)
-    info: dict[str, dict] = field(default_factory=dict)
+    info: dict[str, ProviderDescription] = field(default_factory=dict)
     bars: dict[str, HistoryBars] = field(default_factory=dict)
     live: dict[str, IntradayBars] = field(default_factory=dict)
     up: bool = True
@@ -101,7 +102,10 @@ class FakeQuoteProvider:
         self.calls.append(("daily_closes", asked))
         return {s: self.closes[s] for s in asked if s in self.closes}
 
-    def describe(self, provider_symbols: Sequence[str]) -> dict[str, dict]:
+    def describe(
+        self,
+        provider_symbols: Sequence[str],
+    ) -> dict[str, ProviderDescription]:
         """Answer from `info`."""
         asked = list(provider_symbols)
         self.calls.append(("describe", asked))

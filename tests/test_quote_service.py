@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 
 from db import get_connection, get_rows
 from domain import Column, Currency, PriceRange, QuoteStatus, Table
-from models import Fundamentals, Quote, QuoteSplit
+from models import Quote, QuoteSplit
 from services.price_history import PricePoint
-from services.quote_provider import HistoryBars, IntradayBars
+from services.quote_provider import HistoryBars, IntradayBars, ProviderDescription
 from services.quote_service import (
     NOT_FOUND_TTL_DAYS,
     QuoteService,
@@ -326,30 +326,6 @@ def test_a_batch_of_quotes_is_as_old_as_its_oldest(temp_ctx: TempContext) -> Non
         assert QuoteService.quote_age({"CCC": never}) == (None, True)
 
 
-def test_day_change_needs_both_sides() -> None:
-    assert Quote(
-        symbol="X",
-        provider_symbol="X",
-        price=Decimal(12),
-        prev_close=Decimal(10),
-    ).day_change == Decimal(2)
-    assert Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change is None
-    assert (
-        Quote(symbol="X", provider_symbol="X", price=Decimal(12)).day_change_pct is None
-    )
-    # 93 against a 52-week high of 100: seven percent below it.
-    off_high = Quote(
-        symbol="X",
-        provider_symbol="X",
-        price=Decimal(93),
-        fundamentals=Fundamentals(high_52=Decimal(100)),
-    )
-    assert off_high.from_high_52 == Decimal("-0.07")
-    assert (
-        Quote(symbol="X", provider_symbol="X", price=Decimal(93)).from_high_52 is None
-    )
-
-
 def test_reading_an_empty_cache_is_not_an_error(temp_ctx: TempContext) -> None:
     with temp_ctx():
         assert QuoteService.cached() == {}
@@ -445,9 +421,9 @@ def test_unknown_split_history_is_asked_for_inside_the_metadata_ttl(
     quote_provider: FakeQuoteProvider,
 ) -> None:
     with temp_ctx(quotes={"metadata_ttl_days": 30}):
-        quote_provider.info = {"TESTTKR": {"name": "Test", "splits": None}}
+        quote_provider.info = {"TESTTKR": ProviderDescription(name="Test")}
         QuoteService.refresh(["TESTTKR"])
-        quote_provider.info = {"TESTTKR": {"name": "Test", "splits": ()}}
+        quote_provider.info = {"TESTTKR": ProviderDescription(name="Test", splits=())}
         QuoteService.refresh(["TESTTKR"])
         QuoteService.refresh(["TESTTKR"])
 
@@ -460,12 +436,13 @@ def test_a_failed_split_fetch_keeps_the_history_already_cached(
     quote_provider: FakeQuoteProvider,
 ) -> None:
     split = QuoteSplit("2022-06-10", Decimal(4))
+    known = ProviderDescription(name="Test", splits=(split,))
 
     # With no TTL to speak of, every refresh asks for the metadata again.
     with temp_ctx(quotes={"metadata_ttl_days": 0}):
-        quote_provider.info = {"TESTTKR": {"name": "Test", "splits": (split,)}}
+        quote_provider.info = {"TESTTKR": known}
         QuoteService.refresh(["TESTTKR"])
-        quote_provider.info = {"TESTTKR": {"name": "Test", "splits": None}}
+        quote_provider.info = {"TESTTKR": ProviderDescription(name="Test")}
         QuoteService.refresh(["TESTTKR"])
 
         assert QuoteService.cached()["TESTTKR"].splits == (split,)
@@ -484,19 +461,6 @@ def test_clearing_no_symbols_clears_nothing(temp_ctx: TempContext) -> None:
 
         assert QuoteService.clear([]) == 0
         assert set(QuoteService.cached()) == {"TESTTKR"}
-
-
-def test_a_zero_price_is_not_a_price() -> None:
-    """Nothing trades at zero, so a zero is a failure in numeric clothing."""
-    quote = Quote(
-        symbol="X",
-        provider_symbol="X",
-        price=Decimal(0),
-        fetched_at=datetime.now(UTC),
-        status=QuoteStatus.OK,
-    )
-
-    assert not quote.priced
 
 
 def _monthly(anchor: int) -> HistoryBars:

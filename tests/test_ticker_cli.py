@@ -140,7 +140,7 @@ def test_a_typed_symbol_means_what_trades_under_it_today(
         run_cli_with_config(
             ctx.config,
             app,
-            ["symbol", "--add", "OLDCO", "NEWCO", "2030-01-01"],
+            ["symbol", "--add", "OLDCO", "NEWCO", "2025-09-01"],
         )
 
         renamed = run_cli_with_config(ctx.config, app, ["ticker", "NEWCO"])

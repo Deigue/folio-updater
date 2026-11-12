@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from app import get_config
 from db import quote_history
 from db import quotes as quote_store
 from domain import TORONTO_TZ, Currency, PriceRange, QuoteStatus
-from models import Fundamentals, Quote, QuoteHistory
-from models.columns import Kind, column_of
+from domain.text import unique_upper
+from models import Quote, QuoteHistory
+from models.cells import read_text
 from services.price_history import (
     PricePoint,
     RangeHistory,
     condense,
     condense_intraday,
 )
-from services.quote_provider import ProviderPrice, read_number, read_text
+from services.quote_provider import ProviderDescription, ProviderPrice
 from services.yahoo_provider import YahooProvider
 
 if TYPE_CHECKING:
@@ -50,14 +51,9 @@ class RefreshResult:
     used_fallback: bool = False
 
 
-def _unique_upper(symbols: Iterable[str]) -> list[str]:
-    """Upper-case symbols, keeping the first of any that then repeat."""
-    return list(dict.fromkeys(symbol.upper() for symbol in symbols))
-
-
 def _currency(value: object) -> Currency | None:
     """Read a currency cell, or None when the app does not support it."""
-    text = read_text(value)
+    text = read_text(value, provider=True)
     if text is None:
         return None
     try:
@@ -85,7 +81,7 @@ class QuoteService:
             Each symbol mapped to its cached `Quote`. Symbols with no row are
             simply absent.
         """
-        wanted = None if symbols is None else [symbol.upper() for symbol in symbols]
+        wanted = None if symbols is None else unique_upper(symbols)
         return quote_store.read(wanted)
 
     @classmethod
@@ -112,7 +108,7 @@ class QuoteService:
             be priced is still present, carrying `price = None`, so a caller
             can tell "unpriced" apart from "not asked for".
         """
-        wanted = _unique_upper(symbols)
+        wanted = unique_upper(symbols)
         if not wanted:
             return {}
 
@@ -167,7 +163,7 @@ class QuoteService:
         Returns:
             Each symbol mapped to its quote, as `get_quotes` returns them.
         """
-        wanted = _unique_upper(symbols)
+        wanted = unique_upper(symbols)
         new = set(wanted) - cls.cached(wanted).keys()
         quotes = cls.get_quotes(
             wanted,
@@ -197,15 +193,16 @@ class QuoteService:
         Returns:
             A tally of what happened.
         """
-        wanted = _unique_upper(symbols)
+        wanted = unique_upper(symbols)
         if not wanted:
             return RefreshResult()
-        provider = cls.provider
-        if not provider.reachable():
+        spellings = cls._spellings(wanted)
+        if not spellings:
             return RefreshResult(failed=frozenset(wanted))
 
+        provider = cls.provider
         known = dict(cached) if cached is not None else cls.cached(wanted)
-        provider_symbols = {symbol: provider.spell(symbol) for symbol in wanted}
+        provider_symbols = {symbol: spelled for spelled, symbol in spellings.items()}
 
         fetch = provider.prices(list(provider_symbols.values()))
         prices = dict(fetch.prices)
@@ -289,7 +286,7 @@ class QuoteService:
         known: Mapping[str, Quote],
         prices: Mapping[str, ProviderPrice],
         max_age: timedelta,
-    ) -> dict[str, dict]:
+    ) -> dict[str, ProviderDescription]:
         """Fetch metadata for the symbols that are stale under the slower TTL.
 
         Describing a symbol is a full scrape per symbol and heavily rate-limited,
@@ -327,7 +324,7 @@ class QuoteService:
         Returns:
             Number of rows removed.
         """
-        wanted = None if symbols is None else [symbol.upper() for symbol in symbols]
+        wanted = None if symbols is None else unique_upper(symbols)
         if wanted == []:
             return 0
         # A symbol's history goes with its quote, so both tables are cleared.
@@ -356,7 +353,7 @@ class QuoteService:
             Each symbol with any history mapped to its ranges. A symbol the
             provider has no history for is absent.
         """
-        wanted = _unique_upper(symbols)
+        wanted = unique_upper(symbols)
         if not wanted:
             return {}
         stored = _read_history(wanted)
@@ -391,13 +388,11 @@ class QuoteService:
         Returns:
             Each symbol the provider had bars for, mapped to its ranges.
         """
-        wanted = _unique_upper(symbols)
-        provider = cls.provider
-        if offline or not wanted or not provider.reachable():
+        provider_symbols = {} if offline else cls._spellings(unique_upper(symbols))
+        if not provider_symbols:
             return {}
-        provider_symbols = {provider.spell(symbol): symbol for symbol in wanted}
         try:
-            fetched = provider.intraday(list(provider_symbols))
+            fetched = cls.provider.intraday(list(provider_symbols))
         except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.debug("Could not fetch intraday bars: %s", error)
             return {}
@@ -420,12 +415,11 @@ class QuoteService:
         The fetch returns only symbols it found history for, so one the
         provider returned nothing for keeps whatever it had.
         """
-        provider = cls.provider
-        if not provider.reachable():
+        provider_symbols = cls._spellings(symbols)
+        if not provider_symbols:
             return {}
-        provider_symbols = {provider.spell(symbol): symbol for symbol in symbols}
         try:
-            fetched = provider.history(list(provider_symbols), today=today)
+            fetched = cls.provider.history(list(provider_symbols), today=today)
         except Exception as error:  # noqa: BLE001 (the provider raises freely)
             logger.warning(
                 "Could not fetch price history (%s); using what is kept",
@@ -449,6 +443,13 @@ class QuoteService:
             _write_history(symbol, ranges, now)
             written[symbol] = (now, ranges)
         return written
+
+    @classmethod
+    def _spellings(cls, symbols: Sequence[str]) -> dict[str, str]:
+        """Map each provider spelling back to its symbol; nothing when unreachable."""
+        if not symbols or not cls.provider.reachable():
+            return {}
+        return {cls.provider.spell(symbol): symbol for symbol in symbols}
 
     @classmethod
     def _fill_gaps(
@@ -523,7 +524,7 @@ def _merge(  # noqa: PLR0913, PLR0917
     provider_symbol: str,
     known: Quote | None,
     price: ProviderPrice | None,
-    meta: dict | None,
+    meta: ProviderDescription | None,
     now: datetime,
 ) -> tuple[Quote, QuoteStatus]:
     """Fold a fetch result over whatever was already cached.
@@ -552,17 +553,16 @@ def _merge(  # noqa: PLR0913, PLR0917
     if meta is not None:
         updated = replace(
             updated,
-            name=read_text(meta.get("name")) or updated.name,
-            sector=read_text(meta.get("sector")) or updated.sector,
-            exchange=read_text(meta.get("exchange")) or updated.exchange,
-            market_cap=read_number(meta.get("market_cap")) or updated.market_cap,
-            currency=_currency(meta.get("currency")) or updated.currency,
+            name=meta.name or updated.name,
+            sector=meta.sector or updated.sector,
+            exchange=meta.exchange or updated.exchange,
+            market_cap=meta.market_cap or updated.market_cap,
+            currency=_currency(meta.currency) or updated.currency,
             meta_fetched_at=now,
-            fundamentals=_fundamentals(meta),
+            fundamentals=meta.fundamentals,
         )
-        splits = meta.get("splits")
-        if splits is not None:
-            updated = replace(updated, splits=splits)
+        if meta.splits is not None:
+            updated = replace(updated, splits=meta.splits)
     return updated, QuoteStatus.OK
 
 
@@ -575,16 +575,6 @@ def _tally(result: RefreshResult, outcome: QuoteStatus) -> RefreshResult:
     if outcome is QuoteStatus.OK:
         return replace(result, fetched=result.fetched + 1)
     return replace(result, not_found=result.not_found + 1)
-
-
-def _fundamentals(values: Mapping[Any, Any]) -> Fundamentals:
-    """Read fundamentals out of a mapping keyed by their field names."""
-    read: dict[str, Any] = {}
-    for item in fields(Fundamentals):
-        raw = values.get(item.name)
-        numeric = column_of(item).kind is Kind.NUMBER
-        read[item.name] = read_number(raw) if numeric else read_text(raw)
-    return Fundamentals(**read)
 
 
 def _write_history(

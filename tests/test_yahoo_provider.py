@@ -136,11 +136,13 @@ def test_a_ticker_reused_after_its_rename_is_quoted_under_its_own_symbol(
     temp_ctx: TempContext,
     yahoo: YahooProvider,  # noqa: ARG001 (puts the real adapter in place)
 ) -> None:
-    # SPY became VOO, and a new security has since listed as SPY.
+    # Here and not on the fake: the fake spells every symbol as itself, so only
+    # the real spelling could follow a rename. SPY became VOO, and a new
+    # security has since listed as SPY.
     renamed = TickerAlias(
         old_ticker="SPY",
         new_ticker="VOO",
-        effective_date="2030-01-01",
+        effective_date="2025-01-01",
     )
     tickers = {
         "SPY": FakeTicker(FastInfo(12.5, 12.0, "USD")),
@@ -250,10 +252,10 @@ def test_describing_reads_info() -> None:
     with stand_in_provider(tickers):
         described = YahooProvider().describe(list(tickers))
 
-    assert described["AAA"]["name"] == "Alpha Inc"
-    assert described["AAA"]["sector"] == "Technology"
-    assert described["AAA"]["market_cap"] == 1_000
-    assert described["LONG"]["name"] == "Long Name Inc"
+    assert described["AAA"].name == "Alpha Inc"
+    assert described["AAA"].sector == "Technology"
+    assert described["AAA"].market_cap == 1_000
+    assert described["LONG"].name == "Long Name Inc"
     # A failed scrape costs a description, never a price.
     assert set(described) == {"AAA", "LONG"}
 

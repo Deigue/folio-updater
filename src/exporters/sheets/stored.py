@@ -159,7 +159,7 @@ def traded_tickers_sheet(
 
     Args:
         tickers: Each ticker as the transactions spell it, paired with the
-            symbol it resolves to today. The two differ across a rename.
+            symbol it resolved to when traded. The two differ across a rename.
         quotes: The quote cache, keyed by resolved symbol. A ticker with no
             cached quote still gets its row.
         name: What the sheet is called.

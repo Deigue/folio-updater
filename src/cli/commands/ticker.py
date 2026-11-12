@@ -20,10 +20,10 @@ from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
     resolve_pool,
-    typed_symbols,
     write_or_exit,
 )
 from domain import Column, Currency, Grain, QuoteStatus
+from domain.text import strip_upper, unique_upper
 from engine.performance import fetch_moves
 from engine.pools import FolioValuation
 from engine.ticker import (
@@ -145,7 +145,8 @@ def _report_one(
         get_args(CurrencyChoice),
     )
 
-    canonical = typed_symbols([symbol])[0]
+    # A typed symbol means what trades under that name today: no rename is followed.
+    canonical = strip_upper(symbol)
     quote = QuoteService.lookup(
         [canonical],
         refresh=refresh,
@@ -248,15 +249,15 @@ def _report_matrix(
         valued = valuation.value(pool)
 
     if symbols:
-        wanted = typed_symbols(symbols)
+        wanted = unique_upper(symbols)
         quotes = QuoteService.lookup(wanted, refresh=refresh, offline=offline)
     else:
         wanted = valued.open_symbols if valued is not None else []
+        if not wanted:
+            console_warning(f"No open holdings in {pool.label} to compare.")
+            return
         # Held securities were priced with the folio, so this reads the cache.
         quotes = QuoteService.get_quotes(wanted, offline=offline)
-    if not wanted:
-        console_warning(f"No open holdings in {pool.label} to compare.")
-        return
 
     traded = set() if ledger.frame.empty else set(ledger.frame[Column.Ledger.SYMBOL])
     unknown = [
