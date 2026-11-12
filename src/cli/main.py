@@ -28,6 +28,13 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
+# The groups `folio --help` lists its commands under, in the order shown.
+_GROUP_DAILY = "Daily"
+_GROUP_TRANSACTIONS = "Transactions"
+_GROUP_ANALYSIS = "Analysis"
+_GROUP_DATA = "Data"
+_GROUP_WORKBOOK_SETUP = "Workbook & setup"
+
 
 @app.callback()
 def _command_scope(ctx: typer.Context) -> None:
@@ -39,248 +46,10 @@ def _command_scope(ctx: typer.Context) -> None:
     ctx.with_resource(backup_scope())
 
 
-@app.command("import", help="Import transactions from files")
-def import_transactions_cmd(
-    file: str | None = typer.Option(
-        None,
-        "-f",
-        "--file",
-        help="Specific file to import",
-    ),
-    directory: str | None = typer.Option(
-        None,
-        "-d",
-        "--dir",
-        help=("Directory with files to import."),
-    ),
-    *,
-    verbose: bool = typer.Option(
-        False,
-        "-v",
-        "--verbose",
-        help="Display the final imported transactions",
-    ),
-) -> None:
-    """Import transactions into the folio."""
-    from cli.commands.import_data import import_transaction_files
-
-    import_transaction_files(file=file, directory=directory, verbose=verbose)
-
-
-@app.command("add", help="Add a single transaction to the folio")
-def add_cmd(  # noqa: PLR0917
-    txn_type: str | None = typer.Option(
-        None,
-        "-t",
-        "--type",
-        help="Action (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
-    ),
-    date: str | None = typer.Option(
-        None,
-        "-d",
-        "--date",
-        help="Transaction date in YYYY-MM-DD format (default: today)",
-    ),
-    account: str | None = typer.Option(
-        None,
-        "-a",
-        "--account",
-        help="Account alias the transaction belongs to",
-    ),
-    currency: str | None = typer.Option(
-        None,
-        "-c",
-        "--currency",
-        help="Transaction currency (USD or CAD)",
-    ),
-    symbol: str | None = typer.Option(None, "-s", "--symbol", help="Security symbol"),
-    amount: str | None = typer.Option(
-        None,
-        "-m",
-        "--amount",
-        help="Total transaction amount",
-    ),
-    price: str | None = typer.Option(
-        None,
-        "-p",
-        "--price",
-        help="Price per unit (units BEFORE the split for SPLIT)",
-    ),
-    units: str | None = typer.Option(
-        None,
-        "-u",
-        "--units",
-        help="Number of units (units AFTER the split for SPLIT)",
-    ),
-    fee: str | None = typer.Option(None, "-f", "--fee", help="Transaction fee"),
-    set_values: list[str] | None = typer.Option(
-        None,
-        "--set",
-        help="KEY=VALUE for optional columns, repeatable (e.g. --set Description=RSU)",
-    ),
-    *,
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Add even if it duplicates an existing transaction",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Validate and preview the transaction without writing it",
-    ),
-) -> None:
-    """Add a single transaction to the folio."""
-    from cli.commands.add import add_transaction
-
-    add_transaction(
-        action=txn_type,
-        date=date,
-        account=account,
-        currency=currency,
-        ticker=symbol,
-        amount=amount,
-        price=price,
-        units=units,
-        fee=fee,
-        set_values=set_values,
-        force=force,
-        dry_run=dry_run,
-    )
-
-
-@app.command("getfx", help="Update FX rates")
-def getfx_cmd() -> None:
-    """Update FX rates."""
-    from cli.commands.getfx import update_fx_rates
-
-    update_fx_rates()
-
-
-@app.command("generate", help="Write the whole folio to one workbook")
-def generate_cmd(
-    out: str | None = typer.Option(
-        None,
-        "--out",
-        help="Write here instead of the configured folio path",
-    ),
-    only: str | None = typer.Option(
-        None,
-        "--only",
-        help="Only these sections: summary, perf, dash, accounts, acb, stored",
-    ),
-    *,
-    offline: bool = typer.Option(
-        False,
-        "-o",
-        "--offline",
-        help="Use cached quotes only, never touching the network",
-    ),
-    refresh: bool = typer.Option(
-        False,
-        "-r",
-        "--refresh",
-        help="Refetch quotes and replay the cost base",
-    ),
-) -> None:
-    """Write the whole folio to one workbook."""
-    from cli.commands.generate import generate_excel
-
-    generate_excel(out=out, only=only, offline=offline, refresh=refresh)
-
-
-@app.command("demo", help="Create a demo folio from real market history")
-def demo_cmd() -> None:
-    """Create a demo folio from real market history."""
-    from cli.commands.demo import create_folio
-
-    create_folio()
-
-
-@app.command("settle-info", help="Show settlement date information")
-def settle_info_cmd(
-    file: str | None = typer.Option(
-        None,
-        "-f",
-        "--file",
-        help="Monthly statement file to confirm settlement dates from",
-    ),
-    *,
-    import_flag: bool = typer.Option(
-        False,
-        "-i",
-        "--import",
-        help="Import statement files to confirm settlement dates",
-    ),
-    verbose: bool = typer.Option(
-        False,
-        "-v",
-        "--verbose",
-        help="List every statement row weighed, matched or not",
-    ),
-) -> None:
-    """Show settlement date information."""
-    from cli.commands.settle_info import settlement_info
-
-    settlement_info(file=file, import_flag=import_flag, verbose=verbose)
-
-
-@app.command("download", help="Download transactions from brokers")
-def download_cmd(
-    broker: str = typer.Option(
-        "ibkr",
-        "-b",
-        "--broker",
-        help="Broker to download from (default: 'ibkr')",
-    ),
-    from_date: str | None = typer.Option(
-        None,
-        "-f",
-        "--from",
-        help="Date in YYYY-MM-DD format (default: latest transaction from broker)",
-    ),
-    to_date: str | None = typer.Option(
-        None,
-        "-t",
-        "--to",
-        help="Date in YYYY-MM-DD format (default: today)",
-    ),
-    *,
-    credentials: bool = typer.Option(
-        False,
-        "-c",
-        "--credentials",
-        help="Reset credentials for the broker",
-    ),
-    statement: bool = typer.Option(
-        False,
-        "-s",
-        "--statement",
-        help="Download monthly statement using from date (Wealthsimple only)",
-    ),
-    reference_code: str | None = typer.Option(
-        None,
-        "-r",
-        "--reference",
-        help="Reference code to retry download for IBKR",
-    ),
-) -> None:
-    """Download transactions from broker and save as CSV files."""
-    from cli.commands.download import download_statements
-
-    download_statements(
-        broker=broker,
-        from_date=from_date,
-        to_date=to_date,
-        credentials=credentials,
-        statement=statement,
-        reference_code=reference_code,
-    )
-
-
 @app.command(
     "update",
     help="Catch up: download, import, statements, check, generate, then report",
+    rich_help_panel=_GROUP_DAILY,
 )
 def update_cmd(
     *,
@@ -301,128 +70,11 @@ def update_cmd(
     run_update(resume=resume, offline=offline)
 
 
-@app.command("symbol", help="Manage ticker aliases", no_args_is_help=True)
-def symbol_cmd(
-    add: tuple[str, str, str] | None = typer.Option(
-        None,
-        "-a",
-        "--add",
-        help="Add an alias. Usage: --add <OLD_TICKER> <NEW_TICKER> <YYYY-MM-DD>",
-    ),
-    delete: str = typer.Option(
-        None,
-        "-d",
-        "--delete",
-        help="Delete an alias by specifying the OLD_TICKER.",
-    ),
-    *,
-    list_all: bool = typer.Option(
-        False,
-        "-l",
-        "--list",
-        help="List all aliases.",
-    ),
-) -> None:
-    """Manage ticker aliases for tracking symbol changes over time."""
-    from cli.commands.symbol import manage_symbols
-
-    manage_symbols(add, delete, list_all=list_all)
-
-
 @app.command(
-    "acb",
-    help="Show the adjusted cost base buildup for a symbol",
-    no_args_is_help=True,
+    "dash",
+    help="Show holdings, cash and flows, valued at their quotes",
+    rich_help_panel=_GROUP_DAILY,
 )
-def acb_cmd(  # noqa: PLR0917
-    symbol: str | None = typer.Argument(
-        None,
-        help="Security to report on. Required unless --summary or --export.",
-    ),
-    account_type: str | None = typer.Option(
-        None,
-        "-t",
-        "--type",
-        help="Pool by account type: nreg (default), all, tfsa, rrsp, ...",
-    ),
-    account: str | None = typer.Option(
-        None,
-        "-a",
-        "--account",
-        help="Report a single broker account instead of a pooled type",
-    ),
-    currency: str = typer.Option(
-        "both",
-        "-c",
-        "--currency",
-        help="CAD, USD, or both (default: both for USD holdings)",
-    ),
-    date_from: str | None = typer.Option(
-        None,
-        "--from",
-        help="Only transactions on or after this date (YYYY-MM-DD)",
-    ),
-    date_to: str | None = typer.Option(
-        None,
-        "--to",
-        help="Only transactions on or before this date (YYYY-MM-DD)",
-    ),
-    year: int | None = typer.Option(
-        None,
-        "-y",
-        "--year",
-        help="Shorthand for --from YYYY-01-01 --to YYYY-12-31",
-    ),
-    export: str | None = typer.Option(
-        None,
-        "-e",
-        "--export",
-        help="Write it to a .xlsx, .csv or .parquet file instead of printing",
-    ),
-    *,
-    show_all: bool = typer.Option(
-        False,
-        "--all",
-        help="Include DIVIDEND and FCH rows",
-    ),
-    summary: bool = typer.Option(
-        False,
-        "-s",
-        "--summary",
-        help="One row per symbol instead of a per-transaction buildup",
-    ),
-    refresh: bool = typer.Option(
-        False,
-        "-r",
-        "--refresh",
-        help="Refetch the quotes and replay the cost base",
-    ),
-    offline: bool = typer.Option(
-        False,
-        "--offline",
-        help="Never touch the network: price from cached quotes only",
-    ),
-) -> None:
-    """Show the adjusted cost base buildup for a symbol."""
-    from cli.commands.acb import show_acb
-
-    show_acb(
-        symbol=symbol,
-        account_type=account_type,
-        account=account,
-        currency=currency,
-        date_from=date_from,
-        date_to=date_to,
-        year=year,
-        export=export,
-        show_all=show_all,
-        summary=summary,
-        refresh=refresh,
-        offline=offline,
-    )
-
-
-@app.command("dash", help="Show holdings, cash and flows, valued at their quotes")
 def dash_cmd(
     account_type: str | None = typer.Option(
         None,
@@ -512,6 +164,7 @@ def dash_cmd(
 @app.command(
     "ticker",
     help="Show one security in focus, or compare several over every range",
+    rich_help_panel=_GROUP_DAILY,
 )
 def ticker_cmd(
     symbols: list[str] | None = typer.Argument(
@@ -592,66 +245,11 @@ def ticker_cmd(
     )
 
 
-@app.command("quotes", help="Inspect or refresh the market quote cache")
-def quotes_cmd(
-    symbols: list[str] | None = typer.Argument(
-        None,
-        help="Securities to act on. Every cached one when none are given.",
-    ),
-    ticker: str | None = typer.Option(
-        None,
-        "-t",
-        "--ticker",
-        help="Limit the action to one security (same as naming it)",
-    ),
-    *,
-    refresh: bool = typer.Option(
-        False,
-        "-r",
-        "--refresh",
-        help="Refetch prices for the held symbols named, or every held one",
-    ),
-    clear: bool = typer.Option(
-        False,
-        "-c",
-        "--clear",
-        help="Drop cached quotes and their price history",
-    ),
-) -> None:
-    """Inspect or refresh the market quote cache."""
-    from cli.commands.quotes import manage_quotes
-
-    manage_quotes(
-        [*(symbols or []), *([ticker] if ticker else [])],
-        refresh=refresh,
-        clear=clear,
-    )
-
-
-@app.command("check", help="Check the folio for missing or inconsistent transactions")
-def check_cmd(
-    only: str | None = typer.Option(
-        None,
-        "--only",
-        help="Report only one check, e.g. --only unit-balances",
-    ),
-    *,
-    as_json: bool = typer.Option(
-        False,
-        "--json",
-        help="Emit machine-readable results instead of the report",
-    ),
-) -> None:
-    """Check the folio for missing or inconsistent transactions."""
-    from cli.commands.check import run_folio_checks
-
-    run_folio_checks(only=only, as_json=as_json)
-
-
 @app.command(
     "query",
     help="Query transactions from the database",
     no_args_is_help=True,
+    rich_help_panel=_GROUP_TRANSACTIONS,
 )
 def query_cmd(
     terms: list[str] = typer.Argument(
@@ -665,7 +263,98 @@ def query_cmd(
     query_transactions(terms)
 
 
-@app.command("edit", help="Edit transactions in the folio", no_args_is_help=True)
+@app.command(
+    "add",
+    help="Add a single transaction to the folio",
+    rich_help_panel=_GROUP_TRANSACTIONS,
+)
+def add_cmd(  # noqa: PLR0917
+    txn_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Action (BUY, SELL, SPLIT, ROC, DIVIDEND, ...)",
+    ),
+    date: str | None = typer.Option(
+        None,
+        "-d",
+        "--date",
+        help="Transaction date in YYYY-MM-DD format (default: today)",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Account alias the transaction belongs to",
+    ),
+    currency: str | None = typer.Option(
+        None,
+        "-c",
+        "--currency",
+        help="Transaction currency (USD or CAD)",
+    ),
+    symbol: str | None = typer.Option(None, "-s", "--symbol", help="Security symbol"),
+    amount: str | None = typer.Option(
+        None,
+        "-m",
+        "--amount",
+        help="Total transaction amount",
+    ),
+    price: str | None = typer.Option(
+        None,
+        "-p",
+        "--price",
+        help="Price per unit (units BEFORE the split for SPLIT)",
+    ),
+    units: str | None = typer.Option(
+        None,
+        "-u",
+        "--units",
+        help="Number of units (units AFTER the split for SPLIT)",
+    ),
+    fee: str | None = typer.Option(None, "-f", "--fee", help="Transaction fee"),
+    set_values: list[str] | None = typer.Option(
+        None,
+        "--set",
+        help="KEY=VALUE for optional columns, repeatable (e.g. --set Description=RSU)",
+    ),
+    *,
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Add even if it duplicates an existing transaction",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and preview the transaction without writing it",
+    ),
+) -> None:
+    """Add a single transaction to the folio."""
+    from cli.commands.add import add_transaction
+
+    add_transaction(
+        action=txn_type,
+        date=date,
+        account=account,
+        currency=currency,
+        ticker=symbol,
+        amount=amount,
+        price=price,
+        units=units,
+        fee=fee,
+        set_values=set_values,
+        force=force,
+        dry_run=dry_run,
+    )
+
+
+@app.command(
+    "edit",
+    help="Edit transactions in the folio",
+    no_args_is_help=True,
+    rich_help_panel=_GROUP_TRANSACTIONS,
+)
 def edit_cmd(
     selection: list[str] = typer.Argument(
         ...,
@@ -701,6 +390,7 @@ def edit_cmd(
     "delete",
     help="Delete transactions from the folio",
     no_args_is_help=True,
+    rich_help_panel=_GROUP_TRANSACTIONS,
 )
 def delete_cmd(
     selection: list[str] = typer.Argument(
@@ -725,7 +415,375 @@ def delete_cmd(
     delete_transactions(selection, force=force, dry_run=dry_run)
 
 
-@app.command("version")
+@app.command(
+    "import",
+    help="Import transactions from files",
+    rich_help_panel=_GROUP_TRANSACTIONS,
+)
+def import_transactions_cmd(
+    file: str | None = typer.Option(
+        None,
+        "-f",
+        "--file",
+        help="Specific file to import",
+    ),
+    directory: str | None = typer.Option(
+        None,
+        "-d",
+        "--dir",
+        help=("Directory with files to import."),
+    ),
+    *,
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Display the final imported transactions",
+    ),
+) -> None:
+    """Import transactions into the folio."""
+    from cli.commands.import_data import import_transaction_files
+
+    import_transaction_files(file=file, directory=directory, verbose=verbose)
+
+
+@app.command(
+    "acb",
+    help="Show the adjusted cost base buildup for a symbol",
+    no_args_is_help=True,
+    rich_help_panel=_GROUP_ANALYSIS,
+)
+def acb_cmd(  # noqa: PLR0917
+    symbol: str | None = typer.Argument(
+        None,
+        help="Security to report on. Required unless --summary or --export.",
+    ),
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Pool by account type: nreg (default), all, tfsa, rrsp, ...",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Report a single broker account instead of a pooled type",
+    ),
+    currency: str = typer.Option(
+        "both",
+        "-c",
+        "--currency",
+        help="CAD, USD, or both (default: both for USD holdings)",
+    ),
+    date_from: str | None = typer.Option(
+        None,
+        "--from",
+        help="Only transactions on or after this date (YYYY-MM-DD)",
+    ),
+    date_to: str | None = typer.Option(
+        None,
+        "--to",
+        help="Only transactions on or before this date (YYYY-MM-DD)",
+    ),
+    year: int | None = typer.Option(
+        None,
+        "-y",
+        "--year",
+        help="Shorthand for --from YYYY-01-01 --to YYYY-12-31",
+    ),
+    export: str | None = typer.Option(
+        None,
+        "-e",
+        "--export",
+        help="Write it to a .xlsx, .csv or .parquet file instead of printing",
+    ),
+    *,
+    show_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Include DIVIDEND and FCH rows",
+    ),
+    summary: bool = typer.Option(
+        False,
+        "-s",
+        "--summary",
+        help="One row per symbol instead of a per-transaction buildup",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "-r",
+        "--refresh",
+        help="Refetch the quotes and replay the cost base",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Never touch the network: price from cached quotes only",
+    ),
+) -> None:
+    """Show the adjusted cost base buildup for a symbol."""
+    from cli.commands.acb import show_acb
+
+    show_acb(
+        symbol=symbol,
+        account_type=account_type,
+        account=account,
+        currency=currency,
+        date_from=date_from,
+        date_to=date_to,
+        year=year,
+        export=export,
+        show_all=show_all,
+        summary=summary,
+        refresh=refresh,
+        offline=offline,
+    )
+
+
+@app.command(
+    "check",
+    help="Check the folio for missing or inconsistent transactions",
+    rich_help_panel=_GROUP_ANALYSIS,
+)
+def check_cmd(
+    only: str | None = typer.Option(
+        None,
+        "--only",
+        help="Report only one check, e.g. --only unit-balances",
+    ),
+    *,
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine-readable results instead of the report",
+    ),
+) -> None:
+    """Check the folio for missing or inconsistent transactions."""
+    from cli.commands.check import run_folio_checks
+
+    run_folio_checks(only=only, as_json=as_json)
+
+
+@app.command(
+    "download",
+    help="Download transactions from brokers",
+    rich_help_panel=_GROUP_DATA,
+)
+def download_cmd(
+    broker: str = typer.Option(
+        "ibkr",
+        "-b",
+        "--broker",
+        help="Broker to download from (default: 'ibkr')",
+    ),
+    from_date: str | None = typer.Option(
+        None,
+        "-f",
+        "--from",
+        help="Date in YYYY-MM-DD format (default: latest transaction from broker)",
+    ),
+    to_date: str | None = typer.Option(
+        None,
+        "-t",
+        "--to",
+        help="Date in YYYY-MM-DD format (default: today)",
+    ),
+    *,
+    credentials: bool = typer.Option(
+        False,
+        "-c",
+        "--credentials",
+        help="Reset credentials for the broker",
+    ),
+    statement: bool = typer.Option(
+        False,
+        "-s",
+        "--statement",
+        help="Download monthly statement using from date (Wealthsimple only)",
+    ),
+    reference_code: str | None = typer.Option(
+        None,
+        "-r",
+        "--reference",
+        help="Reference code to retry download for IBKR",
+    ),
+) -> None:
+    """Download transactions from broker and save as CSV files."""
+    from cli.commands.download import download_statements
+
+    download_statements(
+        broker=broker,
+        from_date=from_date,
+        to_date=to_date,
+        credentials=credentials,
+        statement=statement,
+        reference_code=reference_code,
+    )
+
+
+@app.command("getfx", help="Update FX rates", rich_help_panel=_GROUP_DATA)
+def getfx_cmd() -> None:
+    """Update FX rates."""
+    from cli.commands.getfx import update_fx_rates
+
+    update_fx_rates()
+
+
+@app.command(
+    "quotes",
+    help="Inspect or refresh the market quote cache",
+    rich_help_panel=_GROUP_DATA,
+)
+def quotes_cmd(
+    symbols: list[str] | None = typer.Argument(
+        None,
+        help="Securities to act on. Every cached one when none are given.",
+    ),
+    ticker: str | None = typer.Option(
+        None,
+        "-t",
+        "--ticker",
+        help="Limit the action to one security (same as naming it)",
+    ),
+    *,
+    refresh: bool = typer.Option(
+        False,
+        "-r",
+        "--refresh",
+        help="Refetch prices for the held symbols named, or every held one",
+    ),
+    clear: bool = typer.Option(
+        False,
+        "-c",
+        "--clear",
+        help="Drop cached quotes and their price history",
+    ),
+) -> None:
+    """Inspect or refresh the market quote cache."""
+    from cli.commands.quotes import manage_quotes
+
+    manage_quotes(
+        [*(symbols or []), *([ticker] if ticker else [])],
+        refresh=refresh,
+        clear=clear,
+    )
+
+
+@app.command(
+    "symbol",
+    help="Manage ticker aliases",
+    no_args_is_help=True,
+    rich_help_panel=_GROUP_DATA,
+)
+def symbol_cmd(
+    add: tuple[str, str, str] | None = typer.Option(
+        None,
+        "-a",
+        "--add",
+        help="Add an alias. Usage: --add <OLD_TICKER> <NEW_TICKER> <YYYY-MM-DD>",
+    ),
+    delete: str = typer.Option(
+        None,
+        "-d",
+        "--delete",
+        help="Delete an alias by specifying the OLD_TICKER.",
+    ),
+    *,
+    list_all: bool = typer.Option(
+        False,
+        "-l",
+        "--list",
+        help="List all aliases.",
+    ),
+) -> None:
+    """Manage ticker aliases for tracking symbol changes over time."""
+    from cli.commands.symbol import manage_symbols
+
+    manage_symbols(add, delete, list_all=list_all)
+
+
+@app.command(
+    "settle-info",
+    help="Show settlement date information",
+    rich_help_panel=_GROUP_DATA,
+)
+def settle_info_cmd(
+    file: str | None = typer.Option(
+        None,
+        "-f",
+        "--file",
+        help="Monthly statement file to confirm settlement dates from",
+    ),
+    *,
+    import_flag: bool = typer.Option(
+        False,
+        "-i",
+        "--import",
+        help="Import statement files to confirm settlement dates",
+    ),
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="List every statement row weighed, matched or not",
+    ),
+) -> None:
+    """Show settlement date information."""
+    from cli.commands.settle_info import settlement_info
+
+    settlement_info(file=file, import_flag=import_flag, verbose=verbose)
+
+
+@app.command(
+    "generate",
+    help="Write the whole folio to one workbook",
+    rich_help_panel=_GROUP_WORKBOOK_SETUP,
+)
+def generate_cmd(
+    out: str | None = typer.Option(
+        None,
+        "--out",
+        help="Write here instead of the configured folio path",
+    ),
+    only: str | None = typer.Option(
+        None,
+        "--only",
+        help="Only these sections: summary, perf, dash, accounts, acb, stored",
+    ),
+    *,
+    offline: bool = typer.Option(
+        False,
+        "-o",
+        "--offline",
+        help="Use cached quotes only, never touching the network",
+    ),
+    refresh: bool = typer.Option(
+        False,
+        "-r",
+        "--refresh",
+        help="Refetch quotes and replay the cost base",
+    ),
+) -> None:
+    """Write the whole folio to one workbook."""
+    from cli.commands.generate import generate_excel
+
+    generate_excel(out=out, only=only, offline=offline, refresh=refresh)
+
+
+@app.command(
+    "demo",
+    help="Create a demo folio from real market history",
+    rich_help_panel=_GROUP_WORKBOOK_SETUP,
+)
+def demo_cmd() -> None:
+    """Create a demo folio from real market history."""
+    from cli.commands.demo import create_folio
+
+    create_folio()
+
+
+@app.command("version", rich_help_panel=_GROUP_WORKBOOK_SETUP)
 def show_version() -> None:
     """Show the version and exit."""
     config = bootstrap.reload_config()

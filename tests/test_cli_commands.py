@@ -78,6 +78,17 @@ def patch_progress(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Progress, "__init__", new_init)
 
 
+def test_every_command_is_listed_under_a_help_group() -> None:
+    """A command without a group would sit apart from the rest in `folio --help`."""
+    ungrouped = [
+        command.name
+        for command in cli_app.registered_commands
+        if not command.rich_help_panel
+    ]
+
+    assert ungrouped == []
+
+
 def test_import_command(temp_ctx: TempContext) -> None:
     """Test import command default behavior."""
     with temp_ctx() as ctx:
