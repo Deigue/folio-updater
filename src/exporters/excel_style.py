@@ -21,6 +21,9 @@ _PERCENT_SIGNED = '0.00%;-0.00%;"-"'
 NUMBER_FORMATS: dict[Fmt, str] = {
     Fmt.TEXT: "@",
     Fmt.DATE: "@",  # dates are stored as YYYY-MM-DD text, and sort as such
+    Fmt.ACCOUNT: "@",
+    Fmt.ACTION: "@",
+    Fmt.CURRENCY: "@",
     Fmt.ID: "0",
     Fmt.MONEY: _MONEY,
     Fmt.MONEY_SIGNED: _MONEY_SIGNED,

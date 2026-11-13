@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from exporters.sheet_spec import Fmt
+from ui.layout.columns import FormattedColumn
 from ui.vocabulary import DOWNLOAD_DROP_ORDER
 from ui.widgets import show_data_table
 
@@ -47,6 +49,10 @@ def show_activities_preview(
         title=f"Downloaded Source Rows Preview ({len(activities)} total)",
         max_rows=PREVIEW_ROWS,
         drop_order=DOWNLOAD_DROP_ORDER,
+        columns=(
+            FormattedColumn("Date", fmt=Fmt.DATE, no_wrap=True),
+            FormattedColumn("Currency", fmt=Fmt.CURRENCY, no_wrap=True),
+        ),
     )
 
 

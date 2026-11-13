@@ -13,9 +13,11 @@ from typing import TYPE_CHECKING
 from rich.markup import escape
 
 from domain import Column, SettlementOutcome
+from exporters.sheet_spec import Fmt
 from models import UpdateStage
 from term import StatusMark, console_print, console_rule, get_symbol
 from term.console import console_panel
+from ui.layout.columns import FormattedColumn
 from ui.transaction_table import show_source_rows, show_transactions
 from ui.vocabulary import (
     RULE_UPDATE,
@@ -96,6 +98,7 @@ def _show_changes(report: UpdateReport) -> None:
             title=f"Settlement dates confirmed ({len(confirmed)})",
             max_rows=len(confirmed),
             theme=THEME_SUCCESS,
+            columns=(FormattedColumn(SETTLEMENT_HEADER, fmt=Fmt.DATE, no_wrap=True),),
         )
     else:
         console_print(f"{get_symbol(StatusMark.INFO)}No settlement dates confirmed.")

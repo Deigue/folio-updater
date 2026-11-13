@@ -13,6 +13,7 @@ from rich.text import Text
 from domain import TORONTO_TZ, PriceRange
 from engine.accounts import account_type_of
 from engine.ticker import range_extremes
+from exporters.sheet_spec import Fmt
 from term import console_print
 from term.size import terminal_size
 from ui.cells import (
@@ -37,6 +38,7 @@ from ui.cells import (
 )
 from ui.layout.bars import position_bar
 from ui.layout.charts import ChartStyle, area_chart
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit
 from ui.layout.tiles import COLUMN_GAP, Tile, TilingLayout
 from ui.vocabulary import (
@@ -85,6 +87,32 @@ _MULTIPLE_FROM = Decimal(10)
 _CHART_STYLE = ChartStyle(up=GAIN, down=LOSS, level=FLAT, guide=CHART_GUIDE)
 
 _POOL_DROP_ORDER = ("Weight", "Book", "Unreal%", "Total%", "Divs", "Realized")
+
+
+def _figure(header: str, fmt: Fmt, *, coarse: bool = False) -> FormattedColumn:
+    """Describe a right-aligned column of figures."""
+    return FormattedColumn(
+        header,
+        fmt=fmt,
+        coarse=coarse,
+        justify="right",
+        no_wrap=True,
+    )
+
+
+# A holding's figures in each pool, after its name and before its weights.
+_POOL_FIGURES = (
+    _figure("Units", Fmt.UNITS),
+    _figure("Avg", Fmt.PRICE),
+    _figure("Book", Fmt.MONEY),
+    _figure("Market", Fmt.MONEY),
+    _figure("Unreal", Fmt.MONEY_SIGNED),
+    _figure("Unreal%", Fmt.PERCENT_SIGNED, coarse=True),
+    _figure("Realized", Fmt.MONEY_SIGNED),
+    _figure("Divs", Fmt.MONEY),
+    _figure("Total", Fmt.MONEY_SIGNED),
+    _figure("Total%", Fmt.PERCENT_SIGNED, coarse=True),
+)
 
 # Matrix columns, conceded in this order on a narrow terminal.
 _MATRIX_DROP_ORDER = ("Wt%", "2d", "2h", "5y", "Market")
@@ -415,27 +443,14 @@ def _pool_table(holdings: SymbolHoldings, *, by_account: bool) -> RichTable:
         border_style=TABLE_BORDER,
         header_style=TABLE_HEADER,
     )
-    headers = (
-        "Pool",
-        "Units",
-        "Avg",
-        "Book",
-        "Market",
-        "Unreal",
-        "Unreal%",
-        "Realized",
-        "Divs",
-        "Total",
-        "Total%",
-        share,
-        "Folio%",
+    columns = (
+        FormattedColumn("Pool", no_wrap=True),
+        *_POOL_FIGURES,
+        _figure(share, Fmt.PERCENT, coarse=True),
+        _figure("Folio%", Fmt.PERCENT, coarse=True),
     )
-    for header in headers:
-        table.add_column(
-            header,
-            justify="left" if header == "Pool" else "right",
-            no_wrap=True,
-        )
+    for column in columns:
+        add_column(table, column)
 
     for line in holdings.lines:
         cells = _closed_cells(line) if line.holding.closed else _open_cells(line)
@@ -585,11 +600,18 @@ def show_matrix(
         border_style=TABLE_BORDER,
         header_style=TABLE_HEADER,
     )
-    table.add_column("Symbol", no_wrap=True)
-    for header in ("Last", "Market", *(("Wt%",) if pool_weight else ()), "Folio%"):
-        table.add_column(header, justify="right", no_wrap=True)
-    for price_range in PriceRange:
-        table.add_column(str(price_range), justify="right", no_wrap=True)
+    weights = ("Wt%", "Folio%") if pool_weight else ("Folio%",)
+    columns = (
+        FormattedColumn("Symbol", no_wrap=True),
+        _figure("Last", Fmt.PRICE),
+        _figure("Market", Fmt.MONEY),
+        *(_figure(header, Fmt.PERCENT, coarse=True) for header in weights),
+        # A move reads as a percentage or, past ten times, a multiple: either
+        # way its decimals are what tell the rows apart.
+        *(_figure(str(price_range), Fmt.PERCENT_SIGNED) for price_range in PriceRange),
+    )
+    for column in columns:
+        add_column(table, column)
 
     extremes = range_extremes(rows)
     for row in rows:

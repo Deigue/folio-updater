@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from enum import StrEnum
 
-from domain import AccountType, Action, Column, Currency
+from domain import AccountType, Action, Currency
 
 
 class TransactionContext(StrEnum):
@@ -178,19 +178,7 @@ SHORT_HEADERS = {
     "Dividends": "Divs",
 }
 
-# Percentages that are candidates to drop decimals.
-COARSE_PERCENT_HEADERS = frozenset(
-    {
-        "Unreal%",
-        "Unrl%",
-        "Total%",
-        "Wt%",
-        "Folio%",
-        "Gain%",
-        "Gain%\nUSD",
-    },
-)
-# `Change%` and `PnL%` are excluded as their precision is important.
+# A percentage with decimals, found inside a cell.
 PERCENT_RUN = re.compile(r"-?[\d,]*\d\.\d+%")
 
 SHORT_ACTIONS = {
@@ -202,18 +190,7 @@ SHORT_ACTIONS = {
     str(Action.TFR_OUT): "TFO",
 }
 
-ACTION_HEADERS = (str(Column.Txn.ACTION), SHORT_HEADERS[str(Column.Txn.ACTION)])
-
-
-def with_short_forms(headers: frozenset[str]) -> frozenset[str]:
-    """Headers with their respective short forms, if any."""
-    short = {SHORT_HEADERS[name] for name in headers if name in SHORT_HEADERS}
-    return frozenset(headers | short)
-
-
-ROUNDABLE_HEADERS = with_short_forms(
-    frozenset({"Price", "Avg", "Avg\nUSD", "Last", "Change"}),
-)
+# A number with decimals, found inside a cell.
 DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+")
 
 # As above, detects decimals but excludes percentages.
@@ -223,30 +200,6 @@ MONEY_DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+(?!\d*%)")
 # already gone. Anything touching a `%` or a `.` is left alone.
 INTEGER_RUN = re.compile(r"(?<![\d.,])-?\d[\d,]*(?![\d.,%])")
 
-# Columns the cent-dropping and magnitude rungs leave alone...
-CENTLESS_EXEMPT_HEADERS = with_short_forms(
-    frozenset(
-        {
-            "Change",
-            "Avg",
-            "Avg\nUSD",
-            "Rate",
-            "Last",
-            "Price",
-            "Units",
-            "Symbol",
-            "Name",
-            # Identifiers and dates are exact by nature: never rounded or scaled.
-            "TxnId",
-            "TxnDate",
-            "SettleDate",
-            "Settlement",
-            "Date",
-            "EffectiveDate",
-        },
-    ),
-)
-
 # Thresholds the magnitude rung abbreviates at, largest first.
 MAGNITUDES: tuple[tuple[float, str], ...] = (
     (1_000_000_000_000, "T"),
@@ -255,19 +208,9 @@ MAGNITUDES: tuple[tuple[float, str], ...] = (
     (1_000, "K"),
 )
 
-CURRENCY_HEADERS = frozenset({str(Column.Txn.CURRENCY), "Currency", "$"})
-CURRENCY_HOSTS = frozenset(
-    {
-        str(Column.Txn.AMOUNT),
-        SHORT_HEADERS[str(Column.Txn.AMOUNT)],
-        str(Column.Txn.PRICE),
-    },
-)
-
 # Account shortening
 ACCOUNT_WIDTH = 9
 ACCOUNT_MIN_WORD = 2
-ACCOUNT_HEADERS = (str(Column.Txn.ACCOUNT), SHORT_HEADERS[str(Column.Txn.ACCOUNT)])
 ACCOUNT_SEPARATORS = re.compile(r"([-_ /.])")
 
 DOWNLOAD_DROP_ORDER = ("Currency",)

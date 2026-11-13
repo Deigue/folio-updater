@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from rich.markup import escape
@@ -10,9 +10,11 @@ from rich.table import Table
 
 from domain import Column
 from domain.numeric import dec, q2
+from exporters.sheet_spec import TXN_FORMATS, Fmt
 from term.console import console_print
 from ui.cells import money, style
 from ui.format import decimals, safe_str
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
 from ui.vocabulary import (
@@ -40,29 +42,40 @@ if TYPE_CHECKING:
     type _Row = Mapping[str, object]
 
 
-@dataclass(frozen=True)
-class _TxnColumn:
-    """How a standard transaction column is rendered in a table."""
-
-    max_width: int
-    justify: JustifyMethod = "left"
-    style: str | None = None
+def _txn_column(
+    name: str,
+    max_width: int,
+    justify: JustifyMethod = "left",
+    style: str = "",
+) -> FormattedColumn:
+    """Describe how a standard transaction column is rendered in a table."""
+    return FormattedColumn(
+        name,
+        fmt=TXN_FORMATS.get(name, Fmt.TEXT),
+        style=style,
+        justify=justify,
+        no_wrap=True,
+        max_width=max_width,
+    )
 
 
 # Standard transaction columns, in display order. Column definitions and row
 # cells are both derived from this, so the two can never drift apart.
-_TXN_COLUMN_SPECS: dict[str, _TxnColumn] = {
-    Column.Txn.TXN_ID: _TxnColumn(max_width=6, style="dim"),
-    Column.Txn.SETTLE_DATE: _TxnColumn(max_width=10),
-    Column.Txn.TXN_DATE: _TxnColumn(max_width=10),
-    Column.Txn.ACTION: _TxnColumn(max_width=12),
-    Column.Txn.AMOUNT: _TxnColumn(max_width=12, justify="right"),
-    Column.Txn.CURRENCY: _TxnColumn(max_width=4),
-    Column.Txn.PRICE: _TxnColumn(max_width=10, justify="right"),
-    Column.Txn.UNITS: _TxnColumn(max_width=10, justify="right"),
-    Column.Txn.TICKER: _TxnColumn(max_width=12),
-    Column.Txn.ACCOUNT: _TxnColumn(max_width=15),
-    Column.Txn.FEE: _TxnColumn(max_width=8, justify="right"),
+_TXN_COLUMN_SPECS: dict[str, FormattedColumn] = {
+    column.key: column
+    for column in (
+        _txn_column(Column.Txn.TXN_ID, 6, style="dim"),
+        _txn_column(Column.Txn.SETTLE_DATE, 10),
+        _txn_column(Column.Txn.TXN_DATE, 10),
+        _txn_column(Column.Txn.ACTION, 12),
+        _txn_column(Column.Txn.AMOUNT, 12, "right"),
+        _txn_column(Column.Txn.CURRENCY, 4),
+        _txn_column(Column.Txn.PRICE, 10, "right"),
+        _txn_column(Column.Txn.UNITS, 10, "right"),
+        _txn_column(Column.Txn.TICKER, 12),
+        _txn_column(Column.Txn.ACCOUNT, 15),
+        _txn_column(Column.Txn.FEE, 8, "right"),
+    )
 }
 
 # Shown only outside the import context, where TxnIds do not exist yet.
@@ -335,36 +348,30 @@ def _add_table_columns(
         spec = _TXN_COLUMN_SPECS.get(column)
         if spec is None:  # non-standard column, handled below
             continue
-        width = spec.max_width
         if column in widen:
             # Make room for an inline "old -> new" diff.
-            table.add_column(
-                column,
-                style=spec.style,
-                justify=spec.justify,
+            width = spec.max_width or 0
+            spec = replace(
+                spec,
                 no_wrap=False,
                 min_width=width + _DIFF_EXTRA_WIDTH,
                 max_width=width * 2 + _DIFF_EXTRA_WIDTH,
             )
-        else:
-            table.add_column(
-                column,
-                style=spec.style,
-                justify=spec.justify,
-                no_wrap=True,
-                max_width=width,
-            )
+        add_column(table, spec)
 
     if context != TransactionContext.GENERAL:
         return
 
-    # Add any additional (non-standard) columns the rows carry
+    # Add any additional (non-standard) columns the rows carry, as text
     for col in _extra_columns(rows):
-        table.add_column(
-            col,
-            no_wrap=col not in widen,
-            max_width=15 if col not in widen else 33,
-            overflow="ellipsis" if col not in widen else "fold",
+        add_column(
+            table,
+            FormattedColumn(
+                col,
+                no_wrap=col not in widen,
+                max_width=15 if col not in widen else 33,
+                overflow="ellipsis" if col not in widen else "fold",
+            ),
         )
 
 

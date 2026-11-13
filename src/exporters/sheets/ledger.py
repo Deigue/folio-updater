@@ -14,14 +14,14 @@ from engine.frames import (
     grain_column,
 )
 from exporters.excel_style import COST_BASE_TAB
-from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable
+from exporters.sheet_spec import TXN_FORMATS, Col, Fmt, Row, Sheet, SheetTable
 from exporters.sheets.acb import (
     MEASURE_FORMATS,
     USD,
     acb_notes,
     measure_header,
 )
-from exporters.sheets.stored import TXN_FORMATS, TXN_QUIET
+from exporters.sheets.stored import TXN_QUIET
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

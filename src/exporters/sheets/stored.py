@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from domain import INTERNAL_COLUMNS, Column
 from exporters.excel_style import STORED_TAB
-from exporters.sheet_spec import Col, Fmt, Row, Sheet, SheetTable, row_of
+from exporters.sheet_spec import TXN_FORMATS, Col, Fmt, Row, Sheet, SheetTable, row_of
 from models import txns_frame
 
 if TYPE_CHECKING:
@@ -14,18 +14,6 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from models import FxRate, Quote, Txn
-
-# How a stored transaction column reads. Anything unlisted, including a user's
-# optional columns, is text.
-TXN_FORMATS: dict[str, Fmt] = {
-    str(Column.Txn.TXN_DATE): Fmt.DATE,
-    str(Column.Txn.SETTLE_DATE): Fmt.DATE,
-    str(Column.Txn.AMOUNT): Fmt.MONEY_SIGNED,
-    str(Column.Txn.PRICE): Fmt.PRICE,
-    str(Column.Txn.UNITS): Fmt.UNITS,
-    str(Column.Txn.FEE): Fmt.MONEY,
-    str(Column.Txn.SETTLE_CALCULATED): Fmt.ID,
-}
 
 # Columns whose zero says nothing at all.
 TXN_QUIET = frozenset(

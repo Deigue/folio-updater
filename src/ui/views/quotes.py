@@ -6,9 +6,11 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table as RichTable
 
+from exporters.sheet_spec import Fmt
 from services.quote_service import QuoteService
 from ui.cells import EM_DASH, price, signed
 from ui.format import short_age
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
 
@@ -16,6 +18,19 @@ if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
     from models import Quote
+
+_SYMBOL = FormattedColumn("Symbol", no_wrap=True)
+_HELD = FormattedColumn("Held", no_wrap=True)
+# Everything after the symbol and whether it is held, in display order.
+_QUOTE_COLUMNS = (
+    FormattedColumn("Provider", no_wrap=True),
+    FormattedColumn("Name"),
+    FormattedColumn("Price", fmt=Fmt.PRICE, justify="right"),
+    FormattedColumn("Prev", fmt=Fmt.PRICE, justify="right"),
+    FormattedColumn("$", fmt=Fmt.CURRENCY, no_wrap=True),
+    FormattedColumn("Age", justify="right", no_wrap=True),
+    FormattedColumn("Status", no_wrap=True),
+)
 
 
 def quotes_table(
@@ -38,16 +53,13 @@ def quotes_table(
         header_style=TABLE_HEADER,
         border_style=TABLE_BORDER,
     )
-    table.add_column("Symbol", no_wrap=True)
-    if held is not None:
-        table.add_column("Held", no_wrap=True)
-    table.add_column("Provider", no_wrap=True)
-    table.add_column("Name")
-    table.add_column("Price", justify="right")
-    table.add_column("Prev", justify="right")
-    table.add_column("$", no_wrap=True)
-    table.add_column("Age", justify="right", no_wrap=True)
-    table.add_column("Status", no_wrap=True)
+    columns = (
+        _SYMBOL,
+        *((_HELD,) if held is not None else ()),
+        *_QUOTE_COLUMNS,
+    )
+    for column in columns:
+        add_column(table, column)
 
     for quote in sorted(quotes, key=lambda q: q.symbol):
         owned = [] if held is None else [_held(quote.symbol in held)]

@@ -8,6 +8,7 @@ counts; this only lays them out.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -16,8 +17,10 @@ from rich.table import Table as RichTable
 
 from domain import Action, Column, DiagnosticCode, Grain
 from engine.frames import grain_column
+from exporters.sheet_spec import Fmt
 from term import console_print, console_warning, supports_unicode
 from ui.cells import graded, lifetime_return
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
 from ui.vocabulary import (
@@ -41,12 +44,48 @@ if TYPE_CHECKING:
 
     from engine.acb_report import AcbReport
 
+
+def _figure(header: str, fmt: Fmt, *, coarse: bool = False) -> FormattedColumn:
+    """Describe a right-aligned column of figures."""
+    return FormattedColumn(header, fmt=fmt, coarse=coarse, justify="right")
+
+
+def _in_usd(column: FormattedColumn) -> FormattedColumn:
+    """Describe the same column holding its figures in USD."""
+    header = f"{column.header}\nUSD"
+    return replace(column, header=header, key=header)
+
+
+# Which transaction a row is.
+_IDENTITY = (
+    FormattedColumn("Settlement", fmt=Fmt.DATE, no_wrap=True),
+    FormattedColumn("TxnId", fmt=Fmt.ID, no_wrap=True),
+    FormattedColumn("Action", fmt=Fmt.ACTION, no_wrap=True),
+)
+
+# What each transaction moved, in display order.
+_MOVEMENTS = (
+    _figure("Units", Fmt.UNITS),
+    _figure("Held", Fmt.UNITS),
+    _figure("Price", Fmt.PRICE),
+    _figure("Amount", Fmt.MONEY_SIGNED),
+    _figure("Fee", Fmt.MONEY),
+)
+
 # Column families the buildup renders, by ledger measure (also the header).
-_MEASURES = ("Delta", "ACB", "Avg", "Realized")
+_MEASURE_COLUMNS = (
+    _figure("Delta", Fmt.MONEY_SIGNED),
+    _figure("ACB", Fmt.MONEY),
+    _figure("Avg", Fmt.PRICE),
+    _figure("Realized", Fmt.MONEY_SIGNED),
+)
+_MEASURES = tuple(column.key for column in _MEASURE_COLUMNS)
 
-# The row's own gain, in USD where USD is shown and in CAD otherwise. Never dropped.
-_GAIN_HEADERS = ("Gain", "Gain%")
-
+# The row's own gain and its return.
+_GAIN = (
+    _figure("Gain", Fmt.MONEY_SIGNED),
+    _figure("Gain%", Fmt.PERCENT_SIGNED, coarse=True),
+)
 _BUILDUP_DROP_ORDER = (
     "TxnId",
     "Delta",
@@ -63,6 +102,16 @@ _BUILDUP_DROP_ORDER = (
 
 _SUMMARY_DROP_ORDER = ("Realized\nUSD", "ACB\nUSD", "Avg\nUSD")
 
+# The summary's figures: units, then the cost base, average and realized gain in
+# either currency. Left-aligned, like every other column `show_data_table` draws.
+_SUMMARY_COLUMNS = tuple(
+    replace(column, justify="left", no_wrap=True)
+    for column in (
+        _figure("Units", Fmt.UNITS),
+        *_MEASURE_COLUMNS[1:],
+        *(_in_usd(column) for column in _MEASURE_COLUMNS[1:]),
+    )
+)
 _RISE, _FALL = ("▲", "▼") if supports_unicode() else ("^", "v")
 _SUPERFICIAL_LOSS_GLYPH = " ⚠" if supports_unicode() else " !"
 
@@ -128,23 +177,22 @@ def _build_table(
         header_style=TABLE_HEADER,
         border_style=TABLE_BORDER,
     )
-    for name in ("Settlement", "TxnId", "Action"):
-        table.add_column(name, no_wrap=True)
-    for name in ("Units", "Held", "Price", "Amount", "Fee"):
-        table.add_column(name, justify="right")
-    for header in _MEASURES:
+    columns = [*_IDENTITY, *_MOVEMENTS]
+    for column in _MEASURE_COLUMNS:
         if show_cad:
-            table.add_column(header, justify="right")
+            columns.append(column)
         if show_usd:
-            table.add_column(f"{header}\nUSD", justify="right")
-    # One currency of the row's own gain: two more columns is all the width spares.
-    for header in _GAIN_HEADERS:
-        table.add_column(f"{header}\nUSD" if show_usd else header, justify="right")
+            columns.append(_in_usd(column))
+    # The row's own gain, in USD where USD is shown and in CAD otherwise, never
+    # dropped. One currency only: two more columns is all the width spares.
+    columns.extend(_in_usd(column) if show_usd else column for column in _GAIN)
     if show_cad:
-        table.add_column("Proceeds", justify="right")
+        columns.append(_figure("Proceeds", Fmt.MONEY))
     if show_usd:
-        table.add_column("Rate", justify="right")
-    table.add_column("Flags")
+        columns.append(_figure("Rate", Fmt.RATE))
+    columns.append(FormattedColumn("Flags"))
+    for column in columns:
+        add_column(table, column)
 
     for _, row in rows.iterrows():
         table.add_row(
@@ -353,6 +401,7 @@ def show_summary(report: AcbReport, badge: str) -> None:
         title=f"Cost base summary - {label}",
         max_rows=len(records),
         drop_order=_SUMMARY_DROP_ORDER,
+        columns=_SUMMARY_COLUMNS,
     )
     _print_footer(report.flag_counts)
 

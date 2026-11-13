@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pytest
 from rich.table import Table
 
+from exporters.sheet_spec import Fmt
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit, fit_table, overflow
-from ui.vocabulary import CENTLESS_EXEMPT_HEADERS, ROUNDABLE_HEADERS, SHORT_HEADERS
 
 from .helpers.console import capture_output
 
@@ -16,11 +16,16 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-def _table(headers: Sequence[str], *rows: Sequence[str]) -> Table:
-    """Build a plain table with the given headers and rows."""
+def _col(header: str, fmt: Fmt = Fmt.TEXT, *, coarse: bool = False) -> FormattedColumn:
+    """Describe one column of a test table."""
+    return FormattedColumn(header, fmt=fmt, coarse=coarse, no_wrap=True)
+
+
+def _table(columns: Sequence[FormattedColumn], *rows: Sequence[str]) -> Table:
+    """Build a table whose columns say how their values read."""
     table = Table(show_header=True)
-    for header in headers:
-        table.add_column(header, no_wrap=True)
+    for column in columns:
+        add_column(table, column)
     for row in rows:
         table.add_row(*row)
     return table
@@ -33,9 +38,20 @@ def _rendered(table: Table, width: int) -> str:
         return capturing.get_text()
 
 
+_SYMBOL = _col("Symbol")
+# Wide money columns that leave a narrow table no room without shrinking.
+_MONEY_COLUMNS = (
+    _col("Book", Fmt.MONEY),
+    _col("Market", Fmt.MONEY),
+    _col("Unreal", Fmt.MONEY_SIGNED),
+    _col("Total", Fmt.MONEY_SIGNED),
+)
+_MONEY_CELLS = ("54,321.98", "76,543.21", "22,221.23", "23,010.45")
+
+
 def test_a_table_that_already_fits_is_left_alone() -> None:
     with capture_output(200):
-        result = fit(_table(["Symbol", "Book"], ["AAA", "1,234.56"]))
+        result = fit(_table([_SYMBOL, _col("Book", Fmt.MONEY)], ["AAA", "1,234.56"]))
 
     assert result.dropped == ()
     assert result.note == ""
@@ -44,8 +60,9 @@ def test_a_table_that_already_fits_is_left_alone() -> None:
 
 def test_blank_columns_go_without_being_asked() -> None:
     """A column nothing filled in is pure cost, whatever the width."""
+    columns = [_SYMBOL, _col("Realized", Fmt.MONEY_SIGNED), _col("Book", Fmt.MONEY)]
     with capture_output(200):
-        result = fit(_table(["Symbol", "Realized", "Book"], ["AAA", "", "1,234.56"]))
+        result = fit(_table(columns, ["AAA", "", "1,234.56"]))
 
     assert [str(c.header) for c in result.table.columns] == ["Symbol", "Book"]
     # No need to tell the caller a blank column disappeared.
@@ -53,11 +70,17 @@ def test_blank_columns_go_without_being_asked() -> None:
 
 
 def test_headers_shorten_before_anything_is_dropped() -> None:
-    headers = ["Symbol", "Realized", "Unreal", "Market", "Change%"]
+    columns = [
+        _SYMBOL,
+        _col("Realized", Fmt.MONEY_SIGNED),
+        _col("Unreal", Fmt.MONEY_SIGNED),
+        _col("Market", Fmt.MONEY),
+        _col("Change%", Fmt.PERCENT_SIGNED),
+    ]
     row = ["AAA", "1,234.56", "2,345.67", "3,456.78", "1.23%"]
 
     with capture_output(36):
-        result = fit(_table(headers, row), drop_order=("Realized",))
+        result = fit(_table(columns, row), drop_order=("Realized",))
 
     rendered = [str(c.header) for c in result.table.columns]
     # The column survived; only its header gave ground.
@@ -66,19 +89,16 @@ def test_headers_shorten_before_anything_is_dropped() -> None:
 
 
 def test_a_day_percentage_keeps_both_decimals() -> None:
-    headers = ["Symbol", "Change%", "PnL%", "Book", "Market", "Unreal", "Total"]
-    row = [
-        "AAA",
-        "-0.07%",
-        "6.18%",
-        "54,321.98",
-        "76,543.21",
-        "22,221.23",
-        "23,010.45",
+    columns = [
+        _SYMBOL,
+        _col("Change%", Fmt.PERCENT_SIGNED),
+        _col("PnL%", Fmt.PERCENT_SIGNED),
+        *_MONEY_COLUMNS,
     ]
+    row = ["AAA", "-0.07%", "6.18%", *_MONEY_CELLS]
 
     with capture_output(50):
-        result = fit(_table(headers, row))
+        result = fit(_table(columns, row))
 
     rendered = _rendered(result.table, 50)
     assert "-0.07%" in rendered, "a day move lost the decimal that carries it"
@@ -86,19 +106,16 @@ def test_a_day_percentage_keeps_both_decimals() -> None:
 
 
 def test_a_cumulative_percentage_gives_up_its_second_decimal() -> None:
-    headers = ["Symbol", "Unreal%", "Total%", "Book", "Market", "Unreal", "Total"]
-    row = [
-        "AAA",
-        "27.38%",
-        "28.45%",
-        "54,321.98",
-        "76,543.21",
-        "22,221.23",
-        "2,301.05",
+    columns = [
+        _SYMBOL,
+        _col("Unreal%", Fmt.PERCENT_SIGNED, coarse=True),
+        _col("Total%", Fmt.PERCENT_SIGNED, coarse=True),
+        *_MONEY_COLUMNS,
     ]
+    row = ["AAA", "27.38%", "28.45%", *_MONEY_CELLS]
 
     with capture_output(50):
-        result = fit(_table(headers, row))
+        result = fit(_table(columns, row))
 
     rendered = _rendered(result.table, 50)
     # 27.4% says everything 27.38% did about a holding kept for years.
@@ -107,11 +124,11 @@ def test_a_cumulative_percentage_gives_up_its_second_decimal() -> None:
 
 
 def test_money_gives_up_its_cents_before_a_column_goes() -> None:
-    headers = ["Symbol", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
-
     with capture_output(42):
-        result = fit(_table(headers, row), drop_order=("Total",))
+        result = fit(
+            _table([_SYMBOL, *_MONEY_COLUMNS], ["AAA", *_MONEY_CELLS]),
+            drop_order=("Total",),
+        )
 
     rendered = _rendered(result.table, 42)
     assert "54,322" in rendered
@@ -121,22 +138,28 @@ def test_money_gives_up_its_cents_before_a_column_goes() -> None:
 
 
 def test_money_gives_up_its_scale_before_a_column_goes() -> None:
-    headers = ["Symbol", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
-
     with capture_output(30):
-        result = fit(_table(headers, row), drop_order=("Total",))
+        result = fit(
+            _table([_SYMBOL, *_MONEY_COLUMNS], ["AAA", *_MONEY_CELLS]),
+            drop_order=("Total",),
+        )
 
     rendered = _rendered(result.table, 30)
     assert "K" in rendered
 
 
 def test_ids_and_dates_are_never_abbreviated() -> None:
-    headers = ["TxnId", "SettleDate", "TxnDate", "Amount", "Book"]
+    columns = [
+        _col("TxnId", Fmt.ID),
+        _col("SettleDate", Fmt.DATE),
+        _col("TxnDate", Fmt.DATE),
+        _col("Amount", Fmt.MONEY_SIGNED),
+        _col("Book", Fmt.MONEY),
+    ]
     row = ["4,100", "2025-03-04", "2025-03-06", "54,321.98", "76,543.21"]
 
     with capture_output(30):
-        result = fit(_table(headers, row))
+        result = fit(_table(columns, row))
 
     rendered = _rendered(result.table, 60)
     assert "4,100" in rendered
@@ -146,33 +169,103 @@ def test_ids_and_dates_are_never_abbreviated() -> None:
 
 def test_a_price_keeps_its_cents_while_money_loses_them() -> None:
     """A per-unit price is small enough that its cents are the point."""
-    headers = ["Symbol", "Last", "Book", "Market", "Unreal", "Total"]
-    row = ["AAA", "295.45", "54,321.98", "76,543.21", "22,221.23", "23,010.45"]
+    columns = [_SYMBOL, _col("Last", Fmt.PRICE), *_MONEY_COLUMNS]
 
     with capture_output(50):
-        result = fit(_table(headers, row))
+        result = fit(_table(columns, ["AAA", "295.45", *_MONEY_CELLS]))
 
     rendered = _rendered(result.table, 50)
     assert "295.45" in rendered
 
 
+def test_a_rate_keeps_its_decimals_on_a_narrow_table() -> None:
+    columns = [_SYMBOL, *_MONEY_COLUMNS, _col("Rate", Fmt.RATE)]
+
+    with capture_output(30):
+        result = fit(_table(columns, ["SPY", *_MONEY_CELLS, "1.3817"]))
+
+    assert "1.3817" in _rendered(result.table, 80)
+
+
+def test_a_folded_price_keeps_its_decimals_on_a_narrow_table() -> None:
+    columns = [
+        _SYMBOL,
+        _col("Price", Fmt.PRICE),
+        _col("$", Fmt.CURRENCY),
+        *_MONEY_COLUMNS,
+    ]
+    table = _table(
+        columns,
+        ["SPY", "0.0731", "CAD", *_MONEY_CELLS],
+        ["MSFT", "0.0468", "CAD", *_MONEY_CELLS],
+    )
+
+    with capture_output(30):
+        result = fit(table)
+
+    rendered = _rendered(result.table, 80)
+    assert "Price CAD" in rendered
+    assert "0.07" in rendered, "the folded price lost its cents"
+
+
+def test_a_date_keeps_its_value_on_a_narrow_table() -> None:
+    columns = [_col("Settles", Fmt.DATE), *_MONEY_COLUMNS]
+
+    with capture_output(30):
+        result = fit(_table(columns, ["2026-02-17", *_MONEY_CELLS]))
+
+    assert "2026-02-17" in _rendered(result.table, 80)
+
+
+def test_a_description_keeps_its_numbers_on_a_narrow_table() -> None:
+    columns = [_col("Description"), *_MONEY_COLUMNS]
+
+    with capture_output(30):
+        result = fit(_table(columns, ["DIV ON 2400 SHS", *_MONEY_CELLS]))
+
+    assert "DIV ON 2400 SHS" in _rendered(result.table, 80)
+
+
 def test_columns_are_dropped_last_and_in_the_order_given() -> None:
-    headers = ["Symbol", "Name", "Book", "Folio%", "Market"]
+    columns = [
+        _SYMBOL,
+        _col("Name"),
+        _col("Book", Fmt.MONEY),
+        _col("Folio%", Fmt.PERCENT),
+        _col("Market", Fmt.MONEY),
+    ]
     row = ["AAA", "A Long Company Name Inc", "54,321.98", "3.21%", "76,543.21"]
 
     with capture_output(28):
-        result = fit(_table(headers, row), drop_order=("Name", "Book", "Folio%"))
+        result = fit(_table(columns, row), drop_order=("Name", "Book", "Folio%"))
 
     assert result.dropped[0] == "Name", "the least useful column went first"
     assert "Name" not in [str(c.header) for c in result.table.columns]
 
 
+def test_a_folded_column_is_still_dropped_by_its_header() -> None:
+    columns = [_SYMBOL, _col("Price", Fmt.PRICE), _col("$", Fmt.CURRENCY), _col("Name")]
+    row = ["SPY", "512.3391", "CAD", "A Very Long Exchange Traded Fund Name"]
+
+    # Too narrow even for "Price CAD" once the name has gone.
+    with capture_output(14):
+        result = fit(_table(columns, row), drop_order=("Name", "Price"))
+
+    assert result.dropped == ("Name", "Price")
+    assert "Price CAD" not in [str(c.header) for c in result.table.columns]
+
+
 def test_the_reader_is_told_what_went_missing() -> None:
-    headers = ["Symbol", "Name", "Book", "Market"]
+    columns = [
+        _SYMBOL,
+        _col("Name"),
+        _col("Book", Fmt.MONEY),
+        _col("Market", Fmt.MONEY),
+    ]
     row = ["AAA", "A Long Company Name Inc", "54,321.98", "76,543.21"]
 
     with capture_output(26):
-        result = fit(_table(headers, row), drop_order=("Name", "Book"))
+        result = fit(_table(columns, row), drop_order=("Name", "Book"))
 
     assert result.dropped
     assert "hidden" in result.note
@@ -182,11 +275,11 @@ def test_the_reader_is_told_what_went_missing() -> None:
 
 
 def test_the_note_is_singular_for_one_column() -> None:
-    headers = ["Symbol", "Name", "Market"]
+    columns = [_SYMBOL, _col("Name"), _col("Market", Fmt.MONEY)]
     row = ["AAA", "A Very Long Company Name Incorporated", "76,543.21"]
 
     with capture_output(30):
-        result = fit(_table(headers, row), drop_order=("Name",))
+        result = fit(_table(columns, row), drop_order=("Name",))
 
     assert result.dropped == ("Name",)
     assert "see it." in result.note
@@ -195,30 +288,17 @@ def test_the_note_is_singular_for_one_column() -> None:
 def test_fit_table_still_returns_just_the_table() -> None:
     """The plain form every existing caller uses."""
     with capture_output(200):
-        table = fit_table(_table(["Symbol", "Book"], ["AAA", "1.00"]))
+        table = fit_table(_table([_SYMBOL, _col("Book", Fmt.MONEY)], ["AAA", "1.00"]))
 
     assert isinstance(table, Table)
 
 
 def test_overflow_reports_zero_for_a_table_that_fits() -> None:
     with capture_output(200):
-        assert overflow(_table(["Symbol"], ["AAA"])) == 0
+        assert overflow(_table([_SYMBOL], ["AAA"])) == 0
 
 
 def test_overflow_measures_the_overrun() -> None:
-    headers = [f"Column{index}" for index in range(12)]
+    columns = [_col(f"Column{index}") for index in range(12)]
     with capture_output(40):
-        assert overflow(_table(headers, ["x"] * 12)) > 0
-
-
-@pytest.mark.parametrize("headers", [ROUNDABLE_HEADERS, CENTLESS_EXEMPT_HEADERS])
-def test_every_exempt_header_carries_its_short_form(headers: frozenset[str]) -> None:
-    """Otherwise the rule lapses the moment `_shorten_headers` runs.
-
-    This is the invariant behind `with_short_forms`, asserted directly so a
-    new column added to either set cannot reintroduce the bug.
-    """
-    for name in headers:
-        short = SHORT_HEADERS.get(name)
-        if short is not None:
-            assert short in headers, f"{name} is exempt but {short} is not"
+        assert overflow(_table(columns, ["x"] * 12)) > 0

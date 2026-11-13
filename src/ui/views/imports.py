@@ -18,6 +18,7 @@ from domain import (
     Column,
     SettlementOutcome,
 )
+from exporters.sheet_spec import Fmt
 from term.console import (
     StatusMark,
     active_console,
@@ -28,6 +29,7 @@ from term.console import (
 )
 from term.keys import getch
 from ui.format import safe_str
+from ui.layout.columns import FormattedColumn
 from ui.layout.paging import available_height
 from ui.layout.tiles import Tile, TilingLayout
 from ui.transaction_table import (
@@ -134,6 +136,11 @@ def show_import_summary(
     )
 
 
+def _count(header: str) -> FormattedColumn:
+    """Describe a summary column counting what an import did."""
+    return FormattedColumn(header, fmt=Fmt.COUNT, no_wrap=True)
+
+
 def show_files_summary(outcomes: Sequence[FileImport]) -> None:
     """Tabulate what every file of a directory import did.
 
@@ -153,6 +160,7 @@ def show_files_summary(outcomes: Sequence[FileImport]) -> None:
         title="Import Summary",
         max_rows=20,
         theme=THEME_SUCCESS,
+        columns=(_count("Transactions"),),
     )
 
 
@@ -188,6 +196,9 @@ def show_statements_summary(
         ],
         title="Statement Import Summary",
         max_rows=20,
+        columns=tuple(
+            map(_count, ("Confirmed", "Unplaced", "Transfers", "Rejected")),
+        ),
     )
 
 

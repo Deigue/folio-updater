@@ -14,24 +14,19 @@ from typing import TYPE_CHECKING
 from rich.measure import Measurement
 from rich.padding import Padding
 
+from exporters.sheet_spec import Fmt
 from term.console import active_console
+from ui.layout.columns import fmt_of, is_coarse, key_of
 from ui.vocabulary import (
-    ACCOUNT_HEADERS,
     ACCOUNT_MIN_WORD,
     ACCOUNT_SEPARATORS,
     ACCOUNT_WIDTH,
-    ACTION_HEADERS,
-    CENTLESS_EXEMPT_HEADERS,
-    COARSE_PERCENT_HEADERS,
-    CURRENCY_HEADERS,
-    CURRENCY_HOSTS,
     DECIMAL_RUN,
     INTEGER_RUN,
     MAGNITUDES,
     MONEY_DECIMAL_RUN,
     MONEY_PRECISION,
     PERCENT_RUN,
-    ROUNDABLE_HEADERS,
     SHORT_ACTIONS,
     SHORT_HEADERS,
     SNUG_PADDING,
@@ -40,12 +35,20 @@ from ui.vocabulary import (
 
 if TYPE_CHECKING:
     import re
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
-    from rich.table import Table
+    from rich.table import Column, Table
 
 # A width no table will reach, used to ask Rich how wide one wants to be.
 _UNBOUNDED_WIDTH = 10_000
+
+# Money can give up its cents, then its scale. A count only has scale to give.
+_MONEY_FMTS = frozenset({Fmt.MONEY, Fmt.MONEY_SIGNED, Fmt.LARGE})
+_SCALED_FMTS = _MONEY_FMTS | {Fmt.COUNT}
+# Per-unit prices carry more decimals than they must, down to cents.
+_PRICE_FMTS = frozenset({Fmt.PRICE, Fmt.PRICE_SIGNED})
+# The columns a shared currency can be folded into the header of.
+_CURRENCY_HOST_FMTS = frozenset({Fmt.MONEY, Fmt.MONEY_SIGNED, *_PRICE_FMTS})
 
 
 def overflow(table: Table) -> int:
@@ -94,36 +97,52 @@ def _drop_columns(table: Table, drop_order: Sequence[str]) -> list[str]:
 
     Args:
         table: The table about to be printed.
-        drop_order: Column headers ordered by least to most important
+        drop_order: Column keys ordered by least to most important
 
     Returns:
-        The headers actually dropped, in the order they went, so the caller can
+        The keys actually dropped, in the order they went, so the caller can
         tell the reader what is missing.
     """
     dropped: list[str] = []
-    for header in drop_order:
+    for key in drop_order:
         if not overflow(table):
             return dropped
-        wanted = {header, SHORT_HEADERS.get(header, header)}
         for index in reversed(range(len(table.columns))):
-            if str(table.columns[index].header) in wanted:
+            if key_of(table.columns[index]) == key:
                 del table.columns[index]
-                dropped.append(header)
+                dropped.append(key)
     return dropped
+
+
+def _rewrite(
+    table: Table,
+    wanted: Callable[[Column], bool],
+    change: Callable[[str], str],
+) -> None:
+    """Rewrite every cell of the columns wanted, one cell at a time."""
+    for column in table.columns:
+        if not wanted(column):
+            continue
+        # Rich offers no public way to rewrite a built column's cells.
+        cells = column._cells  # noqa: SLF001
+        cells[:] = [change(str(cell)) for cell in cells]
+
+
+def _of_fmt(*fmts: Fmt) -> Callable[[Column], bool]:
+    """Pick the columns whose values read in any of these formats."""
+    return lambda column: fmt_of(column) in fmts
+
+
+def _shorten_action(text: str) -> str:
+    """Swap an action for its code."""
+    for action, code in SHORT_ACTIONS.items():
+        text = text.replace(action, code)
+    return text
 
 
 def _shorten_actions(table: Table) -> None:
     """Swap each action for its code."""
-    for column in table.columns:
-        if str(column.header) not in ACTION_HEADERS:
-            continue
-
-        cells = column._cells  # noqa: SLF001
-        for index, cell in enumerate(cells):
-            text = str(cell)
-            for action, code in SHORT_ACTIONS.items():
-                text = text.replace(action, code)
-            cells[index] = text
+    _rewrite(table, _of_fmt(Fmt.ACTION), _shorten_action)
 
 
 def _shrink_account(name: str) -> str:
@@ -153,37 +172,34 @@ def _shrink_account(name: str) -> str:
 
 def _shrink_accounts(table: Table) -> None:
     """Shorten every account name in the table, where one is on show."""
-    for column in table.columns:
-        if str(column.header) not in ACCOUNT_HEADERS:
-            continue
-        # Rich offers no public way to rewrite a built column's cells.
-        cells = column._cells  # noqa: SLF001
-        cells[:] = [_shrink_account(str(cell)) for cell in cells]
+    _rewrite(table, _of_fmt(Fmt.ACCOUNT), _shrink_account)
+
+
+def _to_precision(places: int) -> Callable[[re.Match[str]], str]:
+    """Re-render each number found inside a cell at `places` decimals."""
+
+    def render(match: re.Match[str]) -> str:
+        # Rounded before formatting, so a residue below the last place reads
+        # 0.00 rather than -0.00.
+        number = round(float(match.group().replace(",", "")), places) + 0.0
+        return f"{number:,.{places}f}"
+
+    return render
 
 
 def _reduce_precision(table: Table) -> None:
-    """Round the columns that carry more decimals than they must down to cents."""
-    for column in table.columns:
-        if str(column.header) not in ROUNDABLE_HEADERS:
-            continue
-        cells = column._cells  # noqa: SLF001
-        cells[:] = [DECIMAL_RUN.sub(_to_cents, str(cell)) for cell in cells]
-
-
-def _to_cents(match: re.Match[str]) -> str:
-    """Re-render one number found inside a cell at cent precision."""
-    # Rounded before formatting, so a residue below a cent reads 0.00, not -0.00.
-    number = round(float(match.group().replace(",", "")), MONEY_PRECISION) + 0.0
-    return f"{number:,.{MONEY_PRECISION}f}"
+    """Round prices, which carry more decimals than they must, down to cents."""
+    to_cents = _to_precision(MONEY_PRECISION)
+    _rewrite(
+        table,
+        _of_fmt(*_PRICE_FMTS),
+        lambda text: DECIMAL_RUN.sub(to_cents, text),
+    )
 
 
 def _coarsen_percents(table: Table) -> None:
     """Drop the second decimal from the percentages that could spare it."""
-    for column in table.columns:
-        if str(column.header) not in COARSE_PERCENT_HEADERS:
-            continue
-        cells = column._cells  # noqa: SLF001
-        cells[:] = [PERCENT_RUN.sub(_to_one_decimal, str(cell)) for cell in cells]
+    _rewrite(table, is_coarse, lambda text: PERCENT_RUN.sub(_to_one_decimal, text))
 
 
 def _to_one_decimal(match: re.Match[str]) -> str:
@@ -197,33 +213,29 @@ def _drop_cents(table: Table) -> None:
 
     The cheapest information a wide table can give up: on a five-figure market
     value the cents are noise. Exact figures still in `--export` and
-    in `folio acb`. Percentages and per-unit prices are exempt.
+    in `folio acb`.
     """
-    for column in table.columns:
-        if str(column.header) in CENTLESS_EXEMPT_HEADERS:
-            continue
-        cells = column._cells  # noqa: SLF001
-        cells[:] = [MONEY_DECIMAL_RUN.sub(_to_whole, str(cell)) for cell in cells]
-
-
-def _to_whole(match: re.Match[str]) -> str:
-    """Re-render one number found inside a cell at whole-unit precision."""
-    return f"{float(match.group().replace(',', '')):,.0f}"
+    to_whole = _to_precision(0)
+    _rewrite(
+        table,
+        _of_fmt(*_MONEY_FMTS),
+        lambda text: MONEY_DECIMAL_RUN.sub(to_whole, text),
+    )
 
 
 def _use_magnitudes(table: Table) -> None:
-    """Abbreviate large money figures to K, M, B or T.
+    """Abbreviate large money figures and counts to K, M, B or T.
 
     The last thing tried before whole columns start disappearing: losing the
     scale of a number is worse than losing its cents, but better than losing
     the column entirely.
     """
-    for column in table.columns:
-        if str(column.header) in CENTLESS_EXEMPT_HEADERS:
-            continue
-        cells = column._cells  # noqa: SLF001
-        cells[:] = [MONEY_DECIMAL_RUN.sub(_to_magnitude, str(cell)) for cell in cells]
-        cells[:] = [INTEGER_RUN.sub(_to_magnitude, str(cell)) for cell in cells]
+
+    def scaled(text: str) -> str:
+        text = MONEY_DECIMAL_RUN.sub(_to_magnitude, text)
+        return INTEGER_RUN.sub(_to_magnitude, text)
+
+    _rewrite(table, _of_fmt(*_SCALED_FMTS), scaled)
 
 
 def _to_magnitude(match: re.Match[str]) -> str:
@@ -237,18 +249,21 @@ def _to_magnitude(match: re.Match[str]) -> str:
 
 
 def _fold_currency(table: Table) -> None:
-    """Move a currency every row shares out of its column and into a header."""
+    """Move a currency every row shares out of its column and into a header.
+
+    Only the header changes: the column keeps its format and its key.
+    """
     found = [
         index
         for index, column in enumerate(table.columns)
-        if str(column.header) in CURRENCY_HEADERS
+        if fmt_of(column) is Fmt.CURRENCY
     ]
     if not found:
         return
 
     shared = {str(cell).strip() for cell in table.columns[found[0]].cells}
     host = next(
-        (column for column in table.columns if str(column.header) in CURRENCY_HOSTS),
+        (column for column in table.columns if fmt_of(column) in _CURRENCY_HOST_FMTS),
         None,
     )
     if len(shared) != 1 or host is None:
@@ -275,7 +290,7 @@ class FitResult:
 
     Attributes:
         table: The table, adjusted in place and ready to print.
-        dropped: Headers given up entirely, least valuable first.
+        dropped: Keys of the columns given up entirely, least valuable first.
     """
 
     table: Table
@@ -297,17 +312,19 @@ def fit(table: Table, drop_order: Sequence[str] = ()) -> FitResult:
     """Fit a table smartly to the terminal, reporting at what cost.
 
     Empty columns are dropped first. Then we squeeze padding, shorten headers
-    and cells. Then fold currencies into headers and round figures to cents.
+    and cells. Then fold currencies into headers and round prices to cents.
     Then coarse percentages lose a decimal, money loses its cents and finally
-    its scale. Only then do we drop columns, on the caller's own priority
-    order.
+    money and counts lose their scale. Only then do we drop columns, on the
+    caller's own priority order.
 
     Args:
         table: The table about to be printed. Adjusted in place.
-        drop_order: Headers this table can give up as last resort, least->most important
+        drop_order: Keys of the columns this table can give up as a last
+            resort, least to most important. A formatted column's key is the
+            header it was added with.
 
     Returns:
-        The fitted table alongside the headers it had to give up.
+        The fitted table alongside the keys of the columns it had to give up.
     """
     _drop_blank(table)
     for concede in (
@@ -336,7 +353,8 @@ def fit_table(table: Table, drop_order: Sequence[str] = ()) -> Table:
 
     Args:
         table: The table about to be printed. Adjusted in place.
-        drop_order: Headers this table can give up as last resort, least->most important
+        drop_order: Keys of the columns this table can give up as a last
+            resort, least to most important.
 
     Returns:
         The same table, for printing inline.

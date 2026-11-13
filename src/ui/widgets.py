@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
+from exporters.sheet_spec import TXN_FORMATS, Fmt
 from term.console import console_panel, console_print
 from ui.format import safe_str
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
 
@@ -22,6 +24,7 @@ def show_data_table(
     *,
     theme: str = TABLE_BORDER,
     drop_order: Sequence[str] = (),
+    columns: Sequence[FormattedColumn] = (),
 ) -> None:
     """Display generic data in a Rich table.
 
@@ -32,7 +35,11 @@ def show_data_table(
         title: Optional title for the table
         max_rows: Maximum number of rows to display
         theme: Border color theme for the table
-        drop_order: Headers to drop as last resort by least->most important
+        drop_order: Keys of the columns to drop as last resort, least to most
+            important
+        columns: The columns that are neither text nor a transaction column,
+            found by key. Any other key is a text column, which fitting never
+            rounds.
     """
     if not data:
         console_print("[yellow]No data to display[/yellow]")
@@ -51,8 +58,15 @@ def show_data_table(
     )
 
     # Add columns based on first row keys
+    given = {column.key: column for column in columns}
     for key in display_data[0]:
-        table.add_column(str(key), no_wrap=True)
+        header = str(key)
+        column = given.get(header) or FormattedColumn(
+            header,
+            fmt=TXN_FORMATS.get(header, Fmt.TEXT),
+            no_wrap=True,
+        )
+        add_column(table, column)
 
     for row in display_data:
         table.add_row(*[safe_str(value) for value in row.values()])

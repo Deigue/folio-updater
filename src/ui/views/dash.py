@@ -20,6 +20,7 @@ from engine.pools import (
     UnitsSuspect,
     Unpriced,
 )
+from exporters.sheet_spec import Fmt
 from term import console_print
 from ui.cells import (
     UNICODE,
@@ -37,6 +38,7 @@ from ui.cells import (
     weight,
 )
 from ui.layout.bars import hbar, meter
+from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit
 from ui.layout.tiles import Tile, TilingLayout
 from ui.vocabulary import (
@@ -65,7 +67,6 @@ if TYPE_CHECKING:
     from decimal import Decimal
 
     from rich.console import RenderableType
-    from rich.table import JustifyMethod
 
     from engine.flows import Flows, Room
     from engine.holdings import ClosedTotals, CurrencyTotals, Holding, HoldingSet
@@ -78,23 +79,45 @@ class _HoldingColumn:
     """How one dashboard column is rendered.
 
     Attributes:
-        header: Column heading.
+        column: The table column it fills.
         cell: Reads the rendered string for one holding.
-        justify: Alignment.
         wide_only: Shown only when `--wide` asked for it.
         muted: Reference data rather than performance, so drawn quieter.
     """
 
-    header: str
+    column: FormattedColumn
     cell: Callable[[Holding], str]
-    justify: JustifyMethod = "right"
     wide_only: bool = False
     muted: bool = False
+
+    @property
+    def header(self) -> str:
+        """The heading it was given, before any shortening."""
+        return self.column.key
 
     def render(self, holding: Holding) -> str:
         """Render this column's cell for one holding row."""
         text = self.cell(holding)
         return style(text, REFERENCE_STYLE) if self.muted else text
+
+
+def _figure(
+    header: str,
+    cell: Callable[[Holding], str],
+    fmt: Fmt,
+    *,
+    coarse: bool = False,
+    muted: bool = False,
+) -> _HoldingColumn:
+    """Describe a right-aligned column of one figure per holding."""
+    column = FormattedColumn(
+        header,
+        fmt=fmt,
+        coarse=coarse,
+        justify="right",
+        no_wrap=True,
+    )
+    return _HoldingColumn(column, cell, muted=muted)
 
 
 def _weight_bar(holding: Holding) -> str:
@@ -117,37 +140,56 @@ def _symbol_cell(holding: Holding) -> str:
 # marked `wide_only`; everything else is always offered, then conceded by
 # `fit_table` if the terminal is too narrow to hold it.
 _HOLDING_COLUMNS: tuple[_HoldingColumn, ...] = (
-    _HoldingColumn("Symbol", _symbol_cell, justify="left"),
-    _HoldingColumn(
-        "Name",
-        lambda h: h.name or "",
-        justify="left",
-        wide_only=True,
+    _HoldingColumn(FormattedColumn("Symbol", no_wrap=True), _symbol_cell),
+    _HoldingColumn(FormattedColumn("Name"), lambda h: h.name or "", wide_only=True),
+    _figure("Units", lambda h: units(h.units), Fmt.UNITS, muted=True),
+    _figure("Avg", lambda h: price(h.avg_cost), Fmt.PRICE, muted=True),
+    _figure("Last", lambda h: price(h.price), Fmt.PRICE),
+    _figure("Change", lambda h: signed(price(h.change), h.change), Fmt.PRICE_SIGNED),
+    # A day's move keeps both decimals: its second one is often all of it.
+    _figure("Change%", lambda h: day_move(h.change_pct), Fmt.PERCENT_SIGNED),
+    _figure("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl), Fmt.MONEY_SIGNED),
+    _figure("PnL%", lambda h: day_move(h.day_pnl_pct), Fmt.PERCENT_SIGNED),
+    _figure(
+        "Unreal",
+        lambda h: signed(money(h.unrealized), h.unrealized),
+        Fmt.MONEY_SIGNED,
     ),
-    _HoldingColumn("Units", lambda h: units(h.units), muted=True),
-    _HoldingColumn("Avg", lambda h: price(h.avg_cost), muted=True),
-    _HoldingColumn("Last", lambda h: price(h.price)),
-    _HoldingColumn("Change", lambda h: signed(price(h.change), h.change)),
-    _HoldingColumn("Change%", lambda h: day_move(h.change_pct)),
-    _HoldingColumn("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl)),
-    _HoldingColumn("PnL%", lambda h: day_move(h.day_pnl_pct)),
-    _HoldingColumn("Unreal", lambda h: signed(money(h.unrealized), h.unrealized)),
-    _HoldingColumn("Unreal%", lambda h: lifetime_return(h.unrealized_pct)),
+    _figure(
+        "Unreal%",
+        lambda h: lifetime_return(h.unrealized_pct),
+        Fmt.PERCENT_SIGNED,
+        coarse=True,
+    ),
     # Realized and Divs blank their zeros
-    _HoldingColumn(
+    _figure(
         "Realized",
         lambda h: signed(money(h.realized, blank_zero=True), h.realized),
+        Fmt.MONEY_SIGNED,
     ),
-    _HoldingColumn("Divs", lambda h: income(h.dividends)),
-    _HoldingColumn("Total", lambda h: signed(money(h.total_pnl), h.total_pnl)),
-    _HoldingColumn("Total%", lambda h: lifetime_return(h.total_pnl_pct)),
-    _HoldingColumn("Book", lambda h: money(h.book_value), muted=True),
-    _HoldingColumn("Market", lambda h: money(h.market_value)),
-    _HoldingColumn("Wt%", lambda h: weight(h.weight_in_pool)),
+    _figure("Divs", lambda h: income(h.dividends), Fmt.MONEY),
+    _figure(
+        "Total",
+        lambda h: signed(money(h.total_pnl), h.total_pnl),
+        Fmt.MONEY_SIGNED,
+    ),
+    _figure(
+        "Total%",
+        lambda h: lifetime_return(h.total_pnl_pct),
+        Fmt.PERCENT_SIGNED,
+        coarse=True,
+    ),
+    _figure("Book", lambda h: money(h.book_value), Fmt.MONEY, muted=True),
+    _figure("Market", lambda h: money(h.market_value), Fmt.MONEY),
+    _figure("Wt%", lambda h: weight(h.weight_in_pool), Fmt.PERCENT, coarse=True),
     # The bar has a column of its own so every `Wt%` figure, totals included,
     # stays right-aligned. Totals rows leave it blank.
-    _HoldingColumn("Weight", _weight_bar, justify="left", wide_only=True),
-    _HoldingColumn("Folio%", lambda h: weight(h.weight_in_folio)),
+    _HoldingColumn(
+        FormattedColumn("Weight", no_wrap=True),
+        _weight_bar,
+        wide_only=True,
+    ),
+    _figure("Folio%", lambda h: weight(h.weight_in_folio), Fmt.PERCENT, coarse=True),
 )
 
 # Column drop order as terminals get too narrow.
@@ -215,11 +257,7 @@ def holdings_table(
         border_style=TABLE_BORDER,
     )
     for spec in specs:
-        table.add_column(
-            spec.header,
-            justify=spec.justify,
-            no_wrap=spec.header != "Name",
-        )
+        add_column(table, spec.column)
 
     for group in holdings.by_currency:
         for holding in group.members:

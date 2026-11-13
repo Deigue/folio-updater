@@ -7,6 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
+from domain import Column
 from domain.cells import is_blank
 
 if TYPE_CHECKING:
@@ -30,6 +31,10 @@ class Fmt(StrEnum):
     RATIO = "ratio"  # a plain ratio at two places, such as a P/E or a beta
     LARGE = "large"  # an amount too large to read whole: 3.81T, 35.16B, 512.40M
     COUNT = "count"  # a count read by magnitude: 27.01M, 168.06K
+    # Text a terminal table shortens in its own way when it runs out of room.
+    ACCOUNT = "account"
+    ACTION = "action"
+    CURRENCY = "currency"
 
 
 class Role(StrEnum):
@@ -193,6 +198,21 @@ class Sheet:
 
 
 DATA_ROLES = frozenset({Role.DATA, Role.MUTED, Role.CLOSED})
+
+# How a stored transaction column reads, in a sheet or a terminal table.
+# Anything unlisted, including a user's optional columns, is text.
+TXN_FORMATS: dict[str, Fmt] = {
+    str(Column.Txn.TXN_DATE): Fmt.DATE,
+    str(Column.Txn.SETTLE_DATE): Fmt.DATE,
+    str(Column.Txn.ACTION): Fmt.ACTION,
+    str(Column.Txn.AMOUNT): Fmt.MONEY_SIGNED,
+    str(Column.Txn.CURRENCY): Fmt.CURRENCY,
+    str(Column.Txn.ACCOUNT): Fmt.ACCOUNT,
+    str(Column.Txn.PRICE): Fmt.PRICE,
+    str(Column.Txn.UNITS): Fmt.UNITS,
+    str(Column.Txn.FEE): Fmt.MONEY,
+    str(Column.Txn.SETTLE_CALCULATED): Fmt.ID,
+}
 
 # Decimals a reader should see, per format. A workbook displays a value at this
 # precision while the cell keeps every digit; a CSV, having nowhere to hide the
