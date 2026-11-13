@@ -30,9 +30,9 @@ from domain import (
     TXN_ESSENTIALS,
     Action,
     Column,
+    resolve_action,
 )
 from ingest import prepare_transactions
-from ingest.validation import TransactionFormatter
 from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import show_transactions
 
@@ -72,31 +72,14 @@ SPLIT_LABELS: dict[str, str] = {
 }
 
 
-def _normalize_action(value: str) -> str | None:
-    """Normalize an action, applying the same aliases imports accept.
-
-    Args:
-        value: Raw action text from the CLI or a prompt.
-
-    Returns:
-        The canonical Action value, or None if it is not recognized.
-    """
-    action = value.strip().upper()
-    action = TransactionFormatter.ACTION_ALIASES.get(action, action)
-    try:
-        return Action(action).value
-    except ValueError:
-        return None
-
-
-def _resolve_action(action: str | None) -> str:
+def _prompt_action(action: str | None) -> str:
     """Resolve the action from the option, prompting until one is valid."""
     valid = ", ".join(a.value for a in Action)
     while True:
         text: str = action if action is not None else typer.prompt("Type")
-        normalized = _normalize_action(text)
+        normalized = resolve_action(text)
         if normalized is not None:
-            return normalized
+            return normalized.value
         console_error(f"Unknown type '{text}'. Valid types: {valid}")
         action = None
 
@@ -299,7 +282,7 @@ def add_transaction(  # noqa: PLR0917
     """
     bootstrap.reload_config()
 
-    resolved_action = _resolve_action(action)
+    resolved_action = _prompt_action(action)
     supplied: dict[str, str | None] = {
         Column.Txn.TXN_DATE: date,
         Column.Txn.ACCOUNT: account,

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 
 from dateparser.date import DateDataParser
 
-from domain import TORONTO_TZ, Action, Column, Currency
+from domain import ACTION_ALIASES, TORONTO_TZ, Action, Column, Currency
 from services.price_history import months_back
 
 if TYPE_CHECKING:
@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 _DECEMBER_MONTH = 12
 _TIME_UNITS = {"day", "week", "month", "year"}
 _MAX_LOOSE_DATE_WORDS = 3
+_MONTHS_PER_YEAR = 12
+# Words that make the 4-digit number after them a calendar year, not a TxnId.
+_YEAR_WORDS = {"IN", "DURING", "YEAR"}
 _MONTH_NUMBERS = {
     "january": 1, "jan": 1,
     "february": 2, "feb": 2,
@@ -191,6 +194,10 @@ def _process_term_for_filters(
         elif term in vocabulary.accounts:
             query.filters.append(QueryFilter(Column.Txn.ACCOUNT, ":", term))
             processed = True
+        # Last, so a held ticker or account spelled like an alias (B, FX) wins.
+        elif (alias := ACTION_ALIASES.get(term_upper)) in vocabulary.actions:
+            query.filters.append(QueryFilter(Column.Txn.ACTION, ":", str(alias)))
+            processed = True
     return processed
 
 
@@ -211,12 +218,32 @@ def _try_parse_natural_language_date(
     """
     term_upper = terms[start_index].upper()
 
+    consumed = _try_parse_year_phrase(terms, start_index, query)
+    if consumed is not None:
+        return consumed
+
     # "in <date phrase>" -> filler word, only consumed when a date actually follows
     if term_upper == "IN" and start_index + 1 < len(terms):
         consumed = _try_parse_date_phrase(terms, start_index + 1, query)
         return None if consumed is None else consumed + 1
 
     return _try_parse_date_phrase(terms, start_index, query)
+
+
+def _try_parse_year_phrase(
+    terms: list[str],
+    start_index: int,
+    query: ParsedQuery,
+) -> int | None:
+    """Try 'in 2022', 'during 2022' or 'year 2022' as that calendar year."""
+    if terms[start_index].upper() not in _YEAR_WORDS or start_index + 1 >= len(terms):
+        return None
+    year = terms[start_index + 1]
+    if not re.fullmatch(r"\d{4}", year):
+        return None
+    query.filters.append(QueryFilter(Column.Txn.TXN_DATE, ">=", f"{year}-01-01"))
+    query.filters.append(QueryFilter(Column.Txn.TXN_DATE, "<=", f"{year}-12-31"))
+    return 2
 
 
 def _try_parse_date_phrase(
@@ -704,16 +731,21 @@ def _parse_exact_date_phrase(phrase_lower: str) -> tuple[str | None, str | None]
 
 
 def _offset_from_today(count: int, unit: str) -> tuple[str, str]:
-    """Resolve 'N units back from today' into a (start_date, today) string pair."""
+    """Resolve 'N units back from today' into a (start_date, today) string pair.
+
+    Months and years step back by the calendar, clamping the day to the month's
+    end, so a year back from February 29 is February 28.
+    """
     unit = unit.rstrip("s")  # Remove plural
-    unit_map = {
-        "day": timedelta(days=count),
-        "week": timedelta(weeks=count),
-        "month": timedelta(days=count * 30),
-        "year": timedelta(days=count * 365),
-    }
     today = datetime.now(TORONTO_TZ).date()
-    start_date = today - unit_map[unit]
+    if unit == "month":
+        start_date = months_back(today, count)
+    elif unit == "year":
+        start_date = months_back(today, count * _MONTHS_PER_YEAR)
+    elif unit == "week":
+        start_date = today - timedelta(weeks=count)
+    else:
+        start_date = today - timedelta(days=count)
     return start_date.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")
 
 
@@ -853,9 +885,12 @@ def _try_parse_sort(
 ) -> bool:
     """Try to parse a sort specification.
 
+    `sort:a,-b` is `sort:a sort:-b`: each part takes its own `-` for descending.
+    One unknown column rejects the whole term, so nothing is half-applied.
+
     Args:
-        term: The term to parse (e.g., "sort:Ticker" or "sort:-Amount").
-        query: The query object to add the sort to.
+        term: The term to parse (e.g., "sort:Ticker" or "sort:Account,-Amount").
+        query: The query object to add the sorts to.
         valid_columns: Mapping of column aliases to actual column names.
 
     Returns:
@@ -864,20 +899,14 @@ def _try_parse_sort(
     if not term.startswith("sort:"):
         return False
 
-    sort_spec = term[5:]  # Remove "sort:" prefix
-    descending = False
-
-    if sort_spec.startswith("-"):
-        descending = True
-        sort_spec = sort_spec[1:]
-
-    sort_column_lower = sort_spec.lower()
-    if sort_column_lower not in valid_columns:
-        return False
-
-    actual_column = valid_columns[sort_column_lower]
-    direction = "desc" if descending else "asc"
-    query.sorts.append(QuerySort(actual_column, direction))
+    sorts: list[QuerySort] = []
+    for part in term[len("sort:") :].split(","):
+        column = part.removeprefix("-").lower()
+        if column not in valid_columns:
+            return False
+        direction: SortDirection = "desc" if part.startswith("-") else "asc"
+        sorts.append(QuerySort(valid_columns[column], direction))
+    query.sorts.extend(sorts)
     return True
 
 

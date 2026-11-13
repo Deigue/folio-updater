@@ -107,3 +107,54 @@ ACTION_PROFILES: Mapping[Action, ActionProfile] = MappingProxyType(
         Action.FXT: _make_profile(Impact.NONE, {_AMOUNT}),
     },
 )
+
+# Fixed spellings read as an action wherever an action is typed or imported.
+# The spaced forms only match text that is one field, such as a source column.
+ACTION_ALIASES: Mapping[str, Action] = MappingProxyType(
+    {
+        "B": Action.BUY,
+        "BUYS": Action.BUY,
+        "PURCHASE": Action.BUY,
+        "BOUGHT": Action.BUY,
+        "S": Action.SELL,
+        "SELLS": Action.SELL,
+        "SOLD": Action.SELL,
+        "SALE": Action.SELL,
+        "DIV": Action.DIVIDEND,
+        "DIVS": Action.DIVIDEND,
+        "DIVIDENDS": Action.DIVIDEND,
+        "TRANSFER_IN": Action.TFR_IN,
+        "TRANSFER IN": Action.TFR_IN,
+        "TFRIN": Action.TFR_IN,
+        "TRANSFER_OUT": Action.TFR_OUT,
+        "TRANSFER OUT": Action.TFR_OUT,
+        "TFROUT": Action.TFR_OUT,
+        "CONTRIB": Action.CONTRIBUTION,
+        "CONTRIBUTIONS": Action.CONTRIBUTION,
+        "DEP": Action.CONTRIBUTION,
+        "DEPOSIT": Action.CONTRIBUTION,
+        "DEPOSITS": Action.CONTRIBUTION,
+        "FEE": Action.FCH,
+        "FEES": Action.FCH,
+        "INTEREST": Action.FCH,
+        "FOREX": Action.FXT,
+        "FX": Action.FXT,
+        "CURRENCY": Action.FXT,
+        "RETURN_OF_CAPITAL": Action.ROC,
+        "STOCK_SPLIT": Action.SPLIT,
+        "WITHDRAW": Action.WITHDRAWAL,
+        "WITHDRAWALS": Action.WITHDRAWAL,
+        "CASH_OUT": Action.WITHDRAWAL,
+    },
+)
+
+
+def resolve_action(text: str) -> Action | None:
+    """Read an action or one of its aliases, ignoring case and surrounding space."""
+    key = text.strip().upper()
+    if (alias := ACTION_ALIASES.get(key)) is not None:
+        return alias
+    try:
+        return Action(key)
+    except ValueError:
+        return None

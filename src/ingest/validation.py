@@ -33,12 +33,12 @@ from domain import (
     Action,
     Column,
     Sign,
+    resolve_action,
 )
 from engine.settlement import settlement_calculator
 
 logger = logging.getLogger(__name__)
 
-actions: list[str] = [action.value for action in Action]
 currencies: set[str] = {currency.value for currency in SUPPORTED_CURRENCIES}
 AUTO_FORMAT_DEBUG: str = "%d - Auto-formatted %s: '%s' -> '%s'"
 NON_NUMERIC: str = "NON-NUMERIC"
@@ -101,35 +101,6 @@ class TransactionFormatter:
         "C$": "CAD",
         "CAD$": "CAD",
         "CANADIAN": "CAD",
-    }
-
-    ACTION_ALIASES: ClassVar[dict[str, str]] = {
-        "B": "BUY",
-        "PURCHASE": "BUY",
-        "BOUGHT": "BUY",
-        "S": "SELL",
-        "SOLD": "SELL",
-        "SALE": "SELL",
-        "DIV": "DIVIDEND",
-        "DIVIDENDS": "DIVIDEND",
-        "TRANSFER_IN": "TFR_IN",
-        "TRANSFER IN": "TFR_IN",
-        "TFRIN": "TFR_IN",
-        "TRANSFER_OUT": "TFR_OUT",
-        "TRANSFER OUT": "TFR_OUT",
-        "TFROUT": "TFR_OUT",
-        "CONTRIB": "CONTRIBUTION",
-        "DEPOSIT": "CONTRIBUTION",
-        "FEE": "FCH",
-        "FEES": "FCH",
-        "INTEREST": "FCH",
-        "FOREX": "FXT",
-        "FX": "FXT",
-        "CURRENCY": "FXT",
-        "RETURN_OF_CAPITAL": "ROC",
-        "STOCK_SPLIT": "SPLIT",
-        "WITHDRAW": "WITHDRAWAL",
-        "CASH_OUT": "WITHDRAWAL",
     }
 
     def __init__(self, df: pd.DataFrame) -> None:
@@ -381,9 +352,8 @@ class TransactionFormatter:
 
     def _normalize_action(self, value: object) -> str | None:
         """Resolve an action alias (`bought`, `DIV`) to its canonical name."""
-        action = str(value).strip().upper()
-        mapped = self.ACTION_ALIASES.get(action, action)
-        return mapped if mapped in actions else None
+        action = resolve_action(str(value))
+        return None if action is None else action.value
 
     def _format_action_column(self, column: str, *, required: bool) -> None:
         """Format the action column."""

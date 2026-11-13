@@ -18,6 +18,9 @@ folio query since 2022
 folio query previous 2 weeks
 folio query last year
 folio query this year
+folio query in 2022
+folio query during 2022
+folio query year 2022
 folio query after November
 folio query before 2022
 folio query between 2021 and 2023
@@ -35,12 +38,23 @@ folio query 2025-11-01
 folio query 2025-05-01:2025-07-26
 ```
 
+Months and years count back by the calendar: on 2025-06-18, `last 12 months` starts on
+2024-06-18. A day the earlier month lacks becomes its last day, so a month back from March 31
+is the end of February. Days and weeks keep their fixed lengths.
+
+A 4-digit number on its own is a TxnId. Put `in`, `during` or `year` before it to mean a year.
+
 ### 2. General Text Search
 
 Terms not related to dates are treated as text searches across key columns
 
 - All searches are case insensitive
 - Check match exactly with Ticker, Action, Currency, Account
+- Action aliases that import accepts also match their action: `DIV` and `DIVS` for DIVIDEND,
+  `DEP`, `DEPOSIT` and `CONTRIBUTIONS` for CONTRIBUTION, `FEE` and `INTEREST` for FCH, `FX` for
+  FXT, `B` and `S` for BUY and SELL, and so on. A ticker or account the folio holds wins over an
+  alias spelled the same. Aliases with a space in them (`TRANSFER IN`) are read only by import;
+  in a query, use `TFR_IN` or `TFRIN`.
 - Partial matches for Account names
 - Apply search to other optional text columns like Description, if configured for your folio
   (see `optional_columns` in your config)
@@ -66,6 +80,7 @@ folio query BUY last 3 days
 folio query DIVIDEND since 2023
 folio query QQQM last 4 months BUY
 folio query CONTRIBUTION in sept 2023
+folio query DIV in 2022
 ```
 
 ---
@@ -77,11 +92,13 @@ Control the order of the results using the `sort:` prefix.
 - **Syntax:** `sort:column` for ascending, `sort:-column` for descending.
 - **Default Order:** If no sort is specified, results are sorted by `TxnDate` descending.
 - **Multiple Sorts:** You can provide multiple sort commands. They are applied in order.
+  `sort:a,b` is shorthand for `sort:a sort:b`, and each part takes its own `-`.
 
 ```bash
 folio query sort:-Amount
 # Sort by Ticker (A-Z), then by Transaction Date (newest first):**
 folio query sort:Ticker sort:-TxnDate
+folio query sort:account,-amount
 folio query AAPL PERSON last 2 years sort:units
 ```
 

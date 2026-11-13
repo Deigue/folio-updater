@@ -531,3 +531,100 @@ class TestQueryParser:
         assert query.end_limit is None
         assert not query.sorts
         assert set(query.text_searches) == {"limit:abc", "sort:Bogus"}
+
+    @pytest.mark.parametrize("word", ["in", "during", "year"])
+    def test_a_year_word_selects_that_calendar_year(self, word: str) -> None:
+        """'in 2022', 'during 2022' and 'year 2022' span Jan 1 to Dec 31."""
+        query = parse_query_terms(["dividend", word, "2019"])
+        assert [(f.column, f.operator, f.value) for f in query.filters] == [
+            (Column.Txn.TXN_DATE, ">=", "2019-01-01"),
+            (Column.Txn.TXN_DATE, "<=", "2019-12-31"),
+            (Column.Txn.ACTION, ":", "DIVIDEND"),
+        ]
+        assert not query.text_searches
+
+    def test_a_bare_year_stays_a_txn_id(self) -> None:
+        """A 4-digit number with no year word is left for the TxnId search."""
+        query = parse_query_terms(["2019"])
+        assert not query.filters
+        assert query.text_searches == ["2019"]
+
+    @pytest.mark.parametrize(
+        ("term", "action"),
+        [
+            ("DIV", "DIVIDEND"),
+            ("deposit", "CONTRIBUTION"),
+            ("DEP", "CONTRIBUTION"),
+            ("withdrawals", "WITHDRAWAL"),
+        ],
+    )
+    def test_an_action_alias_filters_by_its_action(
+        self,
+        term: str,
+        action: str,
+    ) -> None:
+        """A bare alias that import accepts filters by the action it stands for."""
+        query = parse_query_terms([term])
+        assert [(f.column, f.value) for f in query.filters] == [
+            (Column.Txn.ACTION, action),
+        ]
+
+    def test_a_held_ticker_beats_an_alias_spelled_the_same(self) -> None:
+        """B is the buy alias, but a folio holding ticker B means the ticker."""
+        vocabulary = QueryVocabulary(
+            columns=VOCABULARY.columns,
+            tickers={"B"},
+            accounts=set(),
+        )
+        query = query_parser.parse_query_terms(["B"], vocabulary)
+        assert [(f.column, f.value) for f in query.filters] == [
+            (Column.Txn.TICKER, "B"),
+        ]
+
+    def test_last_12_months_steps_back_by_calendar_months(self, today: date) -> None:
+        """12 months back from 2025-06-18 is 2024-06-18, not 360 days back."""
+        query = parse_query_terms(["last", "12", "months"])
+        assert [f.value for f in query.filters] == ["2024-06-18", today.isoformat()]
+
+    @pytest.mark.parametrize(
+        ("frozen", "terms", "start"),
+        [
+            pytest.param(
+                date(2025, 3, 31),
+                ["1", "month", "ago"],
+                "2025-02-28",
+                id="month_end_clamps",
+            ),
+            pytest.param(
+                date(2024, 2, 29),
+                ["last", "1", "year"],
+                "2023-02-28",
+                id="leap_day_clamps",
+            ),
+        ],
+    )
+    def test_a_calendar_offset_clamps_the_day(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        frozen: date,
+        terms: list[str],
+        start: str,
+    ) -> None:
+        """A day the earlier month lacks becomes that month's last day."""
+        _freeze_today(monkeypatch, frozen)
+        query = parse_query_terms(terms)
+        assert query.filters[0].value == start
+
+    def test_a_comma_sort_is_several_sorts_each_with_its_direction(self) -> None:
+        """sort:account,-amount is sort:account sort:-amount."""
+        query = parse_query_terms(["sort:account,-amount"])
+        assert [(s.column, s.direction) for s in query.sorts] == [
+            (Column.Txn.ACCOUNT, "asc"),
+            (Column.Txn.AMOUNT, "desc"),
+        ]
+
+    def test_a_comma_sort_with_an_unknown_column_is_a_text_search(self) -> None:
+        """One unknown part rejects the whole sort rather than half-applying it."""
+        query = parse_query_terms(["sort:account,bogus"])
+        assert not query.sorts
+        assert query.text_searches == ["sort:account,bogus"]
