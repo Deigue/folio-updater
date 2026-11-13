@@ -22,10 +22,12 @@ from urllib3.util.retry import Retry
 from app import get_config
 from domain import TORONTO_TZ, BrokerId
 from services.broker import (
+    PREVIEW_ROWS,
     BrokerError,
     BrokerFailure,
     DownloadResult,
     PartFailure,
+    PreviewTable,
     resolve_window,
 )
 from services.broker_files import ibkr_file_name, ibkr_retry_file_name
@@ -144,6 +146,7 @@ class IbkrBroker:
         window = resolve_window(self.id, start, end)
         files: list[Path] = []
         failures: list[PartFailure] = []
+        previews: list[PreviewTable] = []
         with _session() as session:
             for query_name, query_id in self._settings.queries.items():
                 progress(f"Downloading {query_name}...")
@@ -179,8 +182,13 @@ class IbkrBroker:
                     failures.append(PartFailure(query_name, e))
                     continue
                 files.append(path)
+                previews.append(_preview(query_name, content))
                 console_success(f"{query_name}: {lines} lines received")
-        return DownloadResult(files=tuple(files), failures=tuple(failures))
+        return DownloadResult(
+            files=tuple(files),
+            failures=tuple(failures),
+            previews=tuple(previews),
+        )
 
     def retry(self, reference_code: str, progress: Progress) -> DownloadResult:
         """Fetch the statement of an earlier request by its reference code.
@@ -192,7 +200,10 @@ class IbkrBroker:
             content = self._poll(session, reference_code, progress)
         path, lines = self._save(content, ibkr_retry_file_name(reference_code))
         console_success(f"{reference_code}: Received {lines} lines")
-        return DownloadResult(files=(path,))
+        return DownloadResult(
+            files=(path,),
+            previews=(_preview(reference_code, content),),
+        )
 
     # -- FLEX WEB SERVICE ----------------------------------------------------------
 
@@ -317,6 +328,23 @@ class IbkrBroker:
             raise BrokerError(self.id, BrokerFailure.NOT_SAVED, msg) from e
         logger.info('Saved %d lines to "%s"', len(lines), path)
         return path, len(lines)
+
+
+def _preview(title: str, content: str) -> PreviewTable:
+    """Preview a statement's first rows exactly as IBKR sent them.
+
+    A statement covering several accounts repeats its header before each one's
+    rows; those repeats are not rows of their own.
+    """
+    header, *rest = csv.reader(content.strip().splitlines())
+    rows = [row for row in rest if row and row != header]
+    width = len(header)
+    return PreviewTable(
+        title=title,
+        columns=tuple(header),
+        rows=tuple(tuple((row + [""] * width)[:width]) for row in rows[:PREVIEW_ROWS]),
+        total=len(rows),
+    )
 
 
 def _session() -> requests.Session:

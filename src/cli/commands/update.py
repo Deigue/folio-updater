@@ -134,7 +134,7 @@ def _download_stage(config: Config, report: UpdateReport) -> None:
     console_rule("Download", style=RULE_UPDATE)
     before = set(waiting_files(config.imports_path))
     try:
-        failed = _download_all(config)
+        failed = _download_all()
     except KeyboardInterrupt:  # pragma: no cover
         delete_new_files(config.imports_path, before)
         raise
@@ -150,18 +150,15 @@ def _download_stage(config: Config, report: UpdateReport) -> None:
     )
 
 
-def _download_all(config: Config) -> tuple[str, str] | None:
+def _download_all() -> tuple[str, str] | None:
     """Download IBKR, then Wealthsimple, stopping at the first failure.
-
-    Args:
-        config: The application configuration.
 
     Returns:
         The broker that failed and why, or None when both succeeded.
     """
     broker = "IBKR"
     try:
-        failures = download_ibkr(config, None, None)
+        failures = download_ibkr(None, None)
         if failures:
             return broker, "; ".join(failures)
         broker = "Wealthsimple"

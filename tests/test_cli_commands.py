@@ -714,7 +714,7 @@ def test_ibkr_download_scenarios(
             ["-b", "wealthsimple"],
             [],
             None,
-            "No source rows downloaded",
+            "No source files downloaded",
             id="no_transactions",
         ),
         pytest.param(

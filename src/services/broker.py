@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 
     from domain import BrokerId
 
+# How many source rows a download preview shows.
+PREVIEW_ROWS = 10
+
 # Shows what a download is doing now, such as "Downloading Trades...".
 type Progress = Callable[[str], None]
 

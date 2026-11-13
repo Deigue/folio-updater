@@ -13,6 +13,7 @@ from ws_api import CurlException, ManualLoginRequired
 from app import get_config
 from domain import TORONTO_TZ, BrokerId
 from services.broker import (
+    PREVIEW_ROWS,
     BrokerError,
     BrokerFailure,
     DownloadResult,
@@ -37,7 +38,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PREVIEW_ROWS = 10
 _PREVIEW_COLUMNS = (
     "Date",
     "Action",
@@ -165,7 +165,7 @@ def _preview(
         for activity in activities[:PREVIEW_ROWS]
     )
     return PreviewTable(
-        title="Downloaded Source Rows Preview",
+        title="Wealthsimple activities",
         columns=_PREVIEW_COLUMNS,
         rows=rows,
         total=len(activities),

@@ -20,7 +20,7 @@ from term import (
     console_warning,
 )
 from term.progress import spinner
-from ui.views.downloads import show_preview
+from ui.views.downloads import show_download
 from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
 
 if TYPE_CHECKING:
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from rich.progress import Progress
 
     from config import Config
+    from services import DownloadResult
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +78,16 @@ def download_statements(
         elif reference_code:
             _retry_ibkr(config, reference_code)
         else:
-            download_ibkr(config, from_date, to_date)
+            download_ibkr(from_date, to_date)
     except BrokerError as e:
         console_error(f"{reference_code or e.broker.value.upper()}: {e}")
         raise typer.Exit(1) from None
 
 
-def download_ibkr(
-    config: Config,
-    from_date: str | None,
-    to_date: str | None,
-) -> list[str]:
+def download_ibkr(from_date: str | None, to_date: str | None) -> list[str]:
     """Download every configured IBKR flex query into the imports folder.
 
     Args:
-        config: The application configuration.
         from_date: From date in YYYY-MM-DD format, or None for the overlap day.
         to_date: To date in YYYY-MM-DD format, or None for today.
 
@@ -105,12 +101,7 @@ def download_ibkr(
     with spinner(SPINNER_IBKR) as progress:
         result = ibkr.download(start, end, _describer(progress))
 
-    if result.files:
-        console_success(f'Files saved to: "{config.imports_path}"')
-        console_info("To import these files, run:")
-        console_info("  folio import")
-    else:
-        console_warning("No source files downloaded")
+    _show_download(result)
     return [f"{failure.part}: {failure.error}" for failure in result.failures]
 
 
@@ -121,7 +112,8 @@ def _retry_ibkr(config: Config, reference_code: str) -> None:
     with spinner(SPINNER_IBKR) as progress:
         describe = _describer(progress)
         describe("Downloading by reference code...")
-        ibkr.retry(reference_code, describe)
+        result = ibkr.retry(reference_code, describe)
+    _show_download(result)
 
 
 def _handle_credentials(broker: str) -> None:  # pragma: no cover
@@ -156,15 +148,7 @@ def download_wealthsimple(
     with spinner(SPINNER_WEALTHSIMPLE) as progress:
         result = wealthsimple.download(start, end, _describer(progress))
 
-    for preview in result.previews:
-        show_preview(preview)
-    if result.files:
-        for path in result.files:
-            console_success(f'File saved: "{path}"')
-        console_info("To import these files, run:")
-        console_info("  folio import")
-    else:
-        console_warning("No source rows downloaded")
+    _show_download(result)
 
 
 def download_ws_statement(from_date: str) -> list[Path]:
@@ -191,6 +175,14 @@ def download_ws_statement(from_date: str) -> list[Path]:
     else:
         console_warning("No statement rows downloaded")
     return files
+
+
+def _show_download(result: DownloadResult) -> None:
+    """Show what a download retrieved, and how to import it."""
+    show_download(result)
+    if result.files:
+        console_info("To import these files, run:")
+        console_info("  folio import")
 
 
 def _describer(progress: Progress) -> Callable[[str], None]:
