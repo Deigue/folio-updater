@@ -134,7 +134,7 @@ contribution_room:
 | **`optional_columns`**   | Optional: configure additional columns with specific data types and header mapping. Each key is the resolved column name, with `keywords` (list of header names to match) and `type` (data type: `date`, `numeric`, `currency`, `action`, or `string`). These fields won't cause import failures if missing or invalid. |
 | **`transforms`**         | Transaction transformation rules to automatically modify imported data. See [Transaction Transformations](import/transformations.md) and [Merge Transforms](import/merge-transforms.md) for more details.                                                                                                               |
 | **`brokers`**            | Configure broker-specific information. See [IBKR Configuration](commands/download/ibkr-integration.md#configuration) and [Wealthsimple Configuration](commands/download/wealthsimple-integration.md#configuration) for more details.                                                                                    |
-| **`accounts`**           | Overrides for the cost-base engine's account handling. See [Account resolution](#account-resolution) below.                                                                                                                                                                                                             |
+| **`accounts`**           | Overrides for each account's details. See [Account resolution](#account-resolution) below.                                                                                                                                                                                                                              |
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
 | **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
 | **`quotes`**             | Quote cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                                  |
@@ -213,6 +213,9 @@ accounts:
       type: TFSA
       amount_includes_fees: true
       fee_sign: negative
+    JOINT-CASH:                    # named without a broker prefix
+      type: NON_REGISTERED
+      broker: ws                   # ibkr | ws
   defaults:
     amount_includes_fees: auto     # auto | true | false
     fee_sign: auto                 # auto | negative | positive

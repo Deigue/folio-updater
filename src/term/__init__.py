@@ -17,6 +17,7 @@ from term.console import (
     get_symbol,
     supports_unicode,
 )
+from term.prompts import prompt_secret
 
 __all__ = [
     "StatusMark",
@@ -28,5 +29,6 @@ __all__ = [
     "console_success",
     "console_warning",
     "get_symbol",
+    "prompt_secret",
     "supports_unicode",
 ]

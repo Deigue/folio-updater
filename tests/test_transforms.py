@@ -112,6 +112,13 @@ def _column(result: pd.DataFrame, column: str) -> list[object]:
             {Column.Txn.ACTION: ["TFR_OUT", "TFR_IN", "BRW"]},
             id="contains_prefix",
         ),
+        # A value that is not a number is kept as text, even in a number column.
+        pytest.param(
+            {Column.Txn.ACTION: ["BUY", "DIVIDEND"], "Fee": [FEE_AMOUNT, 5.0]},
+            [{"conditions": {"Action": ["DIVIDEND"]}, "actions": {"Fee": "n/a"}}],
+            {"Fee": [FEE_AMOUNT, "n/a"]},
+            id="text_into_number_column",
+        ),
     ],
 )
 def test_transform_scenarios(
@@ -277,12 +284,15 @@ MERGE_CONFIG = {
 class TestMergeGroups:
     """Test merge group functionality."""
 
+    @pytest.mark.parametrize("as_text", [False, True], ids=["typed", "csv_text"])
     def test_groups_with_transforms(
         self,
         temp_ctx: TempContext,
         caplog: pytest.LogCaptureFixture,
+        *,
+        as_text: bool,
     ) -> None:
-        """Test merging multiple dividend/tax pairs for different tickers."""
+        """Merge dividend/tax pairs, also when every column is text as in a CSV."""
         caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
         with temp_ctx(MERGE_CONFIG):
             df = pd.DataFrame(
@@ -314,6 +324,8 @@ class TestMergeGroups:
                 },
             )
 
+            if as_text:
+                df = df.astype(str)
             result = TransactionTransformer.transform(df).df
             expected_rows = 2
             assert len(result) == expected_rows
@@ -324,7 +336,7 @@ class TestMergeGroups:
             expected_aapl = Decimal("26.5")
             actual_aapl = Decimal(str(aapl_row[Column.Txn.AMOUNT]))
             assert actual_aapl == expected_aapl
-            assert aapl_row[Column.Txn.UNITS] == 0  # From transform rule
+            assert Decimal(str(aapl_row[Column.Txn.UNITS])) == 0  # From the rule
 
             # Check SPY
             spy_row = result[result[Column.Txn.TICKER] == "SPY"].iloc[0]
@@ -332,7 +344,7 @@ class TestMergeGroups:
             expected_spy = Decimal("42.5")
             actual_spy = Decimal(str(spy_row[Column.Txn.AMOUNT]))
             assert actual_spy == expected_spy
-            assert spy_row[Column.Txn.UNITS] == 0  # From transform rule
+            assert Decimal(str(spy_row[Column.Txn.UNITS])) == 0  # From the rule
 
         # Each merged row is stored, with the source rows it took under it.
         lines = [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]

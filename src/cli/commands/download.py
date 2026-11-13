@@ -6,19 +6,16 @@ Handles downloading statements from brokers like IBKR.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING
 
 import typer
 
 from app import bootstrap, get_config
-from db import DatabaseError, txns
 from domain import TORONTO_TZ, BrokerId
-from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
+from services import BrokerError, IbkrBroker, WealthsimpleService, resolve_window
 from services.broker_files import ws_activities_file_name, ws_statement_file_name
-from services.price_history import months_back
 from term import (
-    announce,
     console_error,
     console_info,
     console_success,
@@ -29,8 +26,6 @@ from ui.views.downloads import show_activities_preview
 from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from datetime import date
     from pathlib import Path
 
     from config import Config
@@ -98,109 +93,53 @@ def download_ibkr(
 
     Args:
         config: The application configuration.
-        from_date: From date in YYYY-MM-DD format, or None for the latest stored.
+        from_date: From date in YYYY-MM-DD format, or None for the overlap day.
         to_date: To date in YYYY-MM-DD format, or None for today.
         reference_code: Retry one earlier request by its reference code instead.
 
     Returns:
         One line per query that failed, naming the query and the error. Empty
         when every query succeeded.
-    """
-    files_downloaded: bool = False
-    failures: list[str] = []
-    with IBKRService() as ibkr:
-        _ensure_ibkr_token(ibkr)
 
+    Raises:
+        typer.Exit: When nothing could be downloaded at all.
+    """
+    start, end = _parse_date(from_date), _parse_date(to_date)
+    ibkr = IbkrBroker(config.ibkr)
+    ibkr.sign_in()
+    try:
         with spinner(SPINNER_IBKR) as progress:
             task = progress.add_task("Downloading...", total=None)
 
+            def describe(text: str) -> None:
+                progress.update(task, description=text)
+
             if reference_code:
-                progress.update(task, description="Downloading by reference code...")
-                _handle_ibkr_reference_code(ibkr, reference_code)
-                return failures
+                describe("Downloading by reference code...")
+                ibkr.retry(reference_code, describe)
+                return []
+            result = ibkr.download(start, end, describe)
+    except BrokerError as e:
+        console_error(f"{reference_code or 'IBKR'}: {e}")
+        raise typer.Exit(1) from None
 
-            queries = _ibkr_queries(config)
-            resolved_to_date: str = _resolve_to_date(to_date)
-            resolved_from_date: str = _resolve_from_date(from_date, BrokerId.IBKR)
-            placeholder_ids = {"111111", "999999"}
-
-            for query_name, query_id in queries.items():
-                progress.update(task, description=f"Downloading {query_name}...")
-                if not query_id or query_id in placeholder_ids:
-                    console_warning(
-                        f"Skipping {query_name}: No valid query ID configured",
-                    )
-                    continue
-                try:
-                    request = DownloadRequest(
-                        query_name=query_name,
-                        query_id=query_id,
-                        from_date=resolved_from_date,
-                        to_date=resolved_to_date,
-                    )
-                    lines: int = ibkr.download_and_save_statement(request)
-                    files_downloaded = True
-                    console_success(f"{query_name}: {lines} lines received")
-                except IBKRServiceError as e:
-                    console_error(f"{query_name}: {e}")
-                    failures.append(f"{query_name}: {e}")
-
-    if files_downloaded:
+    if result.files:
         console_success(f'Files saved to: "{config.imports_path}"')
         console_info("To import these files, run:")
         console_info("  folio import")
     else:
         console_warning("No source files downloaded")
-    return failures
-
-
-def _ensure_ibkr_token(ibkr: IBKRService) -> None:
-    """Ensure IBKR token exists, prompting if necessary.
-
-    Args:
-        ibkr: The IBKR service instance.
-    """
-    try:
-        ibkr.get_token()
-    except IBKRServiceError:
-        console_info("No IBKR flex token found in keyring.")
-        new_token = typer.prompt(
-            "Enter your IBKR flex token",
-            hide_input=True,
-            confirmation_prompt=True,
-        )
-        ibkr.set_token(new_token)
-        console_success("Flex token stored securely")
-
-
-def _handle_ibkr_reference_code(ibkr: IBKRService, reference_code: str) -> None:
-    try:
-        lines = ibkr.download_and_save_statement(reference_code)
-        console_success(f"{reference_code}: Received {lines} lines")
-    except IBKRServiceError as e:
-        console_error(f"{reference_code}: {e}")
-        raise typer.Exit(1) from None
+    return [f"{failure.part}: {failure.error}" for failure in result.failures]
 
 
 def _handle_credentials(broker: str) -> None:  # pragma: no cover
-    """Manage credentials for the specified broker.
-
-    For IBKR, prompts to set/override the flex token.
-    For Wealthsimple, resets stored credentials.
+    """Reset the stored credentials of the specified broker.
 
     Args:
         broker: The broker identifier.
     """
     if broker == "ibkr":
-        console_info("Setting new IBKR flex token...")
-        with IBKRService() as ibkr:
-            new_token = typer.prompt(
-                "Enter your IBKR flex token",
-                hide_input=True,
-                confirmation_prompt=True,
-            )
-            ibkr.set_token(new_token)
-            announce.success("Flex token stored securely")
+        IbkrBroker(get_config().ibkr).reset_credentials()
     elif broker == "wealthsimple":
         ws = WealthsimpleService()
         ws.reset_credentials()
@@ -221,17 +160,14 @@ def download_wealthsimple(
         to_date (str | None): To date string IN YYYY-MM-DD format.
     """
     ws = WealthsimpleService()
-    resolved_to_date: str = _resolve_to_date(to_date)
-    resolved_from_date: str = _resolve_from_date(from_date, BrokerId.WS)
+    window = resolve_window(BrokerId.WS, _parse_date(from_date), _parse_date(to_date))
+    resolved_from_date = window.start.strftime("%Y%m%d")
+    resolved_to_date = window.end.strftime("%Y%m%d")
     ws.ensure_authenticated()
 
     with spinner(SPINNER_WEALTHSIMPLE) as progress:
-        from_dt = datetime.strptime(resolved_from_date, "%Y%m%d").replace(
-            tzinfo=TORONTO_TZ,
-        )
-        to_dt = datetime.strptime(resolved_to_date, "%Y%m%d").replace(
-            tzinfo=TORONTO_TZ,
-        )
+        from_dt = datetime.combine(window.start, time(), tzinfo=TORONTO_TZ)
+        to_dt = datetime.combine(window.end, time(), tzinfo=TORONTO_TZ)
         task = progress.add_task("Retrieving accounts...", total=None)
         accounts = ws.get_accounts()
         account_ids = [a.id for a in accounts]
@@ -306,102 +242,16 @@ def download_ws_statement(from_date: str) -> list[Path]:
     return [config.statements_path / name for name in exported_files]
 
 
-def latest_txn_date(broker: BrokerId) -> str | None:
-    """Return the date of a broker's latest stored transaction.
+def _parse_date(text: str | None) -> date | None:
+    """Read a YYYY-MM-DD date the user typed, or None when none was given.
 
-    This is the broker's overlap day: a download restarts on it, inclusive, so
-    its rows always arrive a second time.
-
-    Args:
-        broker: The broker whose accounts to read.
-
-    Returns:
-        The date as YYYY-MM-DD, or None when the broker has no transactions.
+    Raises:
+        typer.Exit: When the date is not YYYY-MM-DD.
     """
-    return txns.latest_date_for(broker)
-
-
-def _resolve_from_date(from_date_str: str | None, broker: BrokerId) -> str:
-    """Resolve the from date, using fallbacks if not specified.
-
-    Fallback to latest transaction date from broker, or first of current month.
-
-    Args:
-        from_date_str (str | None): The from date string provided by user.
-        broker (BrokerId): The broker downloaded from.
-
-    Returns:
-        str: The resolved from date in YYYYMMDD format.
-    """
-    if from_date_str:
-        return _format_date_for_api(from_date_str)
-
-    # Fallback handling
+    if not text:
+        return None
     try:
-        latest_date_str = latest_txn_date(broker)
-        if latest_date_str:
-            latest_date = datetime.strptime(
-                latest_date_str,
-                "%Y-%m-%d",
-            ).replace(tzinfo=TORONTO_TZ)
-            resolved_date = latest_date.strftime("%Y%m%d")
-            console_info(
-                f"from_date: Using latest {broker.upper()} transaction date: "
-                f"{latest_date_str}",
-            )
-            return resolved_date
-    except (ValueError, OSError, DatabaseError) as e:
-        console_warning(f"Warning: Could not determine latest transaction date: {e}")
-
-    current_date = datetime.now(tz=TORONTO_TZ)
-    fallback_date: date = current_date.replace(day=1)
-    if fallback_date == current_date:  # pragma: no cover
-        fallback_date = months_back(fallback_date, 1)
-    resolved_date = fallback_date.strftime("%Y%m%d")
-    formatted_date = fallback_date.strftime("%Y-%m-%d")
-    console_info(f"from_date: Using fallback date: {formatted_date}")
-    return resolved_date
-
-
-def _resolve_to_date(to_date_str: str | None) -> str:
-    """Resolve the to date, using today if not specified.
-
-    Args:
-        to_date_str (str | None): The to date string provided by user.
-
-    Returns:
-        str: The resolved to date in YYYYMMDD format.
-    """
-    if to_date_str:
-        return _format_date_for_api(to_date_str)
-    today = datetime.now(tz=TORONTO_TZ)
-    return today.strftime("%Y%m%d")
-
-
-def _ibkr_queries(config: Config) -> Mapping[str, str]:
-    """Return the configured IBKR flex queries, stopping when there are none."""
-    queries = config.ibkr.queries
-    if not queries:
-        console_error("Error: No IBKR flex queries configured in config.yaml")
-        console_error("Please add them under brokers.ibkr")
-        raise typer.Exit(1)
-    return queries
-
-
-def _format_date_for_api(date_str: str) -> str:
-    """Format date string to YYYYMMDD for API.
-
-    Args:
-        date_str (str): Date string in YYYY-MM-DD format.
-
-    Returns:
-        str: Date string in YYYYMMDD format.
-    """
-    try:
-        parsed_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
-            tzinfo=TORONTO_TZ,
-        )
-        return parsed_date.strftime("%Y%m%d")
+        return date.fromisoformat(text)
     except ValueError as e:
         console_error(f"Error: Invalid date format. Use YYYY-MM-DD: {e}")
         raise typer.Exit(1) from e

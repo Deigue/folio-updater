@@ -15,7 +15,6 @@ from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import create_txns_table, get_connection, get_row_count, get_rows
 from domain import Column, Table
-from services.ibkr_service import IBKRAuthenticationError
 from term.console import active_console
 
 from .fixtures.data_factory import create_transaction_data
@@ -588,11 +587,7 @@ def _seed_ibkr_trade(_monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _prompt_for_a_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    def no_token(_self: object) -> str:
-        msg = "No token found"
-        raise IBKRAuthenticationError(msg)
-
-    monkeypatch.setattr("services.ibkr_service.IBKRService.get_token", no_token)
+    monkeypatch.setattr("keyring.get_password", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("typer.prompt", lambda *_args, **_kwargs: "token-from-prompt")
 
 

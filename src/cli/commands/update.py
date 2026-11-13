@@ -21,7 +21,6 @@ from cli.commands.download import (
     download_ibkr,
     download_wealthsimple,
     download_ws_statement,
-    latest_txn_date,
 )
 from cli.commands.generate import write_folio
 from cli.commands.import_data import (
@@ -46,7 +45,7 @@ from engine.update_review import (
 )
 from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
-from services import IBKRServiceError, WealthsimpleServiceError
+from services import BrokerError, WealthsimpleServiceError
 from services.broker_files import (
     IBKR,
     WS,
@@ -72,7 +71,7 @@ if TYPE_CHECKING:
 
 _DOWNLOAD_NAMES = {IBKR: "ibkr", WS: "wealthsimple"}
 
-_DOWNLOAD_ERRORS = (IBKRServiceError, WealthsimpleServiceError, WSApiException, OSError)
+_DOWNLOAD_ERRORS = (BrokerError, WealthsimpleServiceError, WSApiException, OSError)
 
 
 def run_update(*, resume: bool = False, offline: bool = False) -> None:
@@ -92,7 +91,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> None:
     today = datetime.now(TORONTO_TZ).date()
     report = UpdateReport()
     first_new_id = txns.latest_id()
-    overlap_days = {IBKR: latest_txn_date(IBKR), WS: latest_txn_date(WS)}
+    overlap_days = {IBKR: txns.latest_date_for(IBKR), WS: txns.latest_date_for(WS)}
 
     if offline:
         console_info("Offline: skipping downloads, importing what is waiting.")

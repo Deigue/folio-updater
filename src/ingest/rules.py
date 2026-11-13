@@ -175,11 +175,16 @@ class TransactionTransformer:
             if new_value == "":
                 self.df.loc[mask, field_name] = pd.NA
             else:
-                # Try to convert new_value to match the column's dtype to avoid warnings
                 converted_value = self._convert_value_to_column_dtype(
                     field_name,
                     new_value,
                 )
+                column = self.df[field_name]
+                if isinstance(converted_value, str) and pd.api.types.is_numeric_dtype(
+                    column,
+                ):
+                    # pandas refuses text in a number column rather than widening it.
+                    self.df[field_name] = column.astype(object)
                 self.df.loc[mask, field_name] = converted_value
 
             self._transform_events.append(
@@ -568,10 +573,14 @@ class TransactionTransformer:
             Decimal("0.0000000001"),  # 10 decimal places (decimal[20,10])
         )
 
-        # Create merged row (use first row as template)
-        merged_row = group_df.iloc[0].copy()
+        # The first row is the template. A row of an all-text file is itself text,
+        # and pandas refuses a number in it, so it is widened to hold any value.
+        merged_row = group_df.iloc[0].astype(object)
         merged_row[Column.Txn.ACTION] = group.target_action
-        merged_row[group.amount_field] = float(total_amount)
+        merged_row[group.amount_field] = self._convert_value_to_column_dtype(
+            group.amount_field,
+            str(total_amount),
+        )
 
         for field, value in group.operations.items():
             if field in merged_row.index:

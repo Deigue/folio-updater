@@ -34,8 +34,9 @@ class IBKRMockContext:
         monkeypatch: pytest.MonkeyPatch,
         mock_csv_data: str,
         send_request_response: str = "ref123",
-        send_request_status: str = "Success",
+        send_request_error: tuple[str, str] | None = None,
         not_ready_polls: int = 0,
+        token: str | None = "test_token",  # noqa: S107
     ) -> None:
         """Initialize IBKR mock context.
 
@@ -43,16 +44,20 @@ class IBKRMockContext:
             monkeypatch: pytest monkeypatch fixture
             mock_csv_data: CSV data to return from GetStatement
             send_request_response: Reference code to return from SendRequest
-            send_request_status: Status to return from SendRequest
+            send_request_error: The error code and message SendRequest fails with,
+                or None to accept every request
             not_ready_polls: How many GetStatement requests are answered "not ready"
                 before the statement arrives
+            token: The flex token the keyring holds, or None for none stored
         """
         self.monkeypatch = monkeypatch
         self.mock_csv_data = mock_csv_data
         self.send_request_response = send_request_response
-        self.send_request_status = send_request_status
+        self.send_request_error = send_request_error
         self.not_ready_polls = not_ready_polls
+        self.token = token
         self.statement_requests = 0
+        self.sent_urls: list[str] = []
         self.written_csvs: dict[str, str] = {}
 
     def __enter__(self) -> Self:
@@ -83,10 +88,18 @@ class IBKRMockContext:
                     # Every mocked request succeeds.
                     return
 
-            if "SendRequest" in url:
+            self.sent_urls.append(url)
+            if "SendRequest" in url and self.send_request_error is not None:
+                code, message = self.send_request_error
                 MockResponse.text = (
-                    "<FlexStatementResponse>"
-                    f"<Status>{self.send_request_status}</Status>"
+                    "<FlexStatementResponse><Status>Fail</Status>"
+                    f"<ErrorCode>{code}</ErrorCode>"
+                    f"<ErrorMessage>{message}</ErrorMessage>"
+                    "</FlexStatementResponse>"
+                )
+            elif "SendRequest" in url:
+                MockResponse.text = (
+                    "<FlexStatementResponse><Status>Success</Status>"
                     f"<ReferenceCode>{self.send_request_response}</ReferenceCode>"
                     "</FlexStatementResponse>"
                 )
@@ -138,7 +151,7 @@ class IBKRMockContext:
         self.monkeypatch.setattr(
             keyring,
             "get_password",
-            lambda *_args, **_kwargs: "test_token",
+            lambda *_args, **_kwargs: self.token,
         )
         self.monkeypatch.setattr(
             keyring,
