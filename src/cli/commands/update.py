@@ -45,7 +45,7 @@ from engine.update_review import (
 )
 from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
-from services import BrokerError, WealthsimpleServiceError
+from services import BrokerError, WealthsimpleClientError
 from services.broker_files import (
     IBKR,
     WS,
@@ -71,7 +71,7 @@ if TYPE_CHECKING:
 
 _DOWNLOAD_NAMES = {IBKR: "ibkr", WS: "wealthsimple"}
 
-_DOWNLOAD_ERRORS = (BrokerError, WealthsimpleServiceError, WSApiException, OSError)
+_DOWNLOAD_ERRORS = (BrokerError, WealthsimpleClientError, WSApiException, OSError)
 
 
 def run_update(*, resume: bool = False, offline: bool = False) -> None:
@@ -161,7 +161,7 @@ def _download_all(config: Config) -> tuple[str, str] | None:
     """
     broker = "IBKR"
     try:
-        failures = download_ibkr(config, None, None, None)
+        failures = download_ibkr(config, None, None)
         if failures:
             return broker, "; ".join(failures)
         broker = "Wealthsimple"

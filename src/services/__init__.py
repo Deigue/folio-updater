@@ -9,26 +9,32 @@ from services.broker import (
     BrokerError,
     BrokerFailure,
     DownloadResult,
-    resolve_window,
+    PreviewTable,
+    StatementBroker,
 )
+from services.broker_registry import BrokerRegistry, Brokers
 from services.fx_service import FxService
 from services.ibkr_broker import IbkrBroker
 from services.quote_service import QuoteService, RefreshResult
 from services.symbols import SymbolResolver, load_symbol_resolver
-from services.wealthsimple_service import WealthsimpleService, WealthsimpleServiceError
+from services.wealthsimple_broker import WealthsimpleBroker
+from services.wealthsimple_client import WealthsimpleClientError
 
 __all__ = [
     "Broker",
     "BrokerError",
     "BrokerFailure",
+    "BrokerRegistry",
+    "Brokers",
     "DownloadResult",
     "FxService",
     "IbkrBroker",
+    "PreviewTable",
     "QuoteService",
     "RefreshResult",
+    "StatementBroker",
     "SymbolResolver",
-    "WealthsimpleService",
-    "WealthsimpleServiceError",
+    "WealthsimpleBroker",
+    "WealthsimpleClientError",
     "load_symbol_resolver",
-    "resolve_window",
 ]

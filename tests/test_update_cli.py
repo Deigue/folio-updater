@@ -12,8 +12,8 @@ import pytest
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import txns
-from services import WealthsimpleServiceError
-from services.wealthsimple_service import WealthsimpleAuthenticationError
+from services import WealthsimpleClientError
+from services.wealthsimple_client import WealthsimpleAuthenticationError
 
 from .fixtures.data_factory import create_transaction_data
 from .fixtures.dataframe_cache import register_test_dataframe
@@ -167,7 +167,7 @@ def test_an_update_over_the_demo_stops_until_you_replace_it(
 
 @pytest.mark.parametrize(
     ("statement_error", "named"),
-    [(OFFLINE, OFFLINE), ("", "WealthsimpleServiceError")],
+    [(OFFLINE, OFFLINE), ("", "WealthsimpleClientError")],
     ids=["with-a-message", "without-a-message"],
 )
 def test_clean_run_goes_through_every_stage(
@@ -193,7 +193,7 @@ def test_clean_run_goes_through_every_stage(
             create_transaction_data(config.imports_path / WS_FILE)
 
         def offline_statement(_month_start: str) -> list[Path]:
-            raise WealthsimpleServiceError(statement_error)
+            raise WealthsimpleClientError(statement_error)
 
         monkeypatch.setattr("cli.commands.update.download_ibkr", ibkr)
         monkeypatch.setattr("cli.commands.update.download_wealthsimple", wealthsimple)

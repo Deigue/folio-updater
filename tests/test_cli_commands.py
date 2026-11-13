@@ -748,6 +748,25 @@ def test_wealthsimple_download_scenarios(
             ws_mock.assert_csv_written(expected_csv)
 
 
+def test_wealthsimple_credentials_forget_the_stored_login(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resetting credentials removes the stored session and the stored username."""
+    with temp_ctx() as ctx, WealthsimpleMockContext(monkeypatch) as ws_mock:
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-b", "wealthsimple", "--credentials"],
+        )
+
+    assert_cli_success(cli_result)
+    assert [key for _service, key in ws_mock.deleted_secrets] == [
+        "test_username",
+        "default_username",
+    ]
+
+
 def _download_wealthsimple_csv(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
@@ -805,11 +824,6 @@ def test_wealthsimple_download_passes_an_amount_and_units_it_cannot_read_through
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An odd amount or units does not stop the download: the row is written as sent."""
-    # The preview reads amounts as numbers, which is not what is under test.
-    monkeypatch.setattr(
-        "cli.commands.download.show_activities_preview",
-        lambda *_args: None,
-    )
     content = _download_wealthsimple_csv(
         temp_ctx,
         monkeypatch,

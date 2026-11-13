@@ -10,43 +10,23 @@ from ui.vocabulary import DOWNLOAD_DROP_ORDER
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    from models.wealthsimple import ActivityFeedItem, WealthsimpleAccount
+    from services import PreviewTable
 
 PREVIEW_ROWS = 10
 DESCRIPTION_WIDTH = 30
 
 
-def show_activities_preview(
-    activities: Sequence[ActivityFeedItem],
-    accounts: Sequence[WealthsimpleAccount],
-) -> None:
-    """Show the first few Wealthsimple source rows a download retrieved.
-
-    Args:
-        activities: Everything retrieved, newest first.
-        accounts: The accounts they came from, to name each activity's account.
-    """
-    names = {
-        account.id: account.nickname or account.account_type or account.id
-        for account in accounts
-    }
+def show_preview(preview: PreviewTable) -> None:
+    """Show the first few source rows a download retrieved."""
     show_data_table(
         [
             {
-                "Date": activity.occurred_on.isoformat(),
-                "Action": activity.type,
-                "Ticker": activity.asset_symbol or "",
-                "Amount": float(activity.amount) if activity.amount else 0,
-                "Currency": activity.currency,
-                "Account": names.get(activity.account_id or "")
-                or (activity.account_id[:8] + "..." if activity.account_id else ""),
-                "Description": _shorten(activity.description),
+                column: _shorten(cell) if column == "Description" else cell
+                for column, cell in zip(preview.columns, row, strict=True)
             }
-            for activity in activities[:PREVIEW_ROWS]
+            for row in preview.rows
         ],
-        title=f"Downloaded Source Rows Preview ({len(activities)} total)",
+        title=f"{preview.title} ({preview.total} total)",
         max_rows=PREVIEW_ROWS,
         drop_order=DOWNLOAD_DROP_ORDER,
         columns=(
@@ -56,10 +36,8 @@ def show_activities_preview(
     )
 
 
-def _shorten(description: str | None) -> str:
+def _shorten(description: str) -> str:
     """Cut a description to the width the preview has room for."""
-    if description is None:
-        return ""
     if len(description) > DESCRIPTION_WIDTH:
         return description[:DESCRIPTION_WIDTH] + "..."
     return description

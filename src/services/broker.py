@@ -53,11 +53,22 @@ class PartFailure:
 
 
 @dataclass(frozen=True)
+class PreviewTable:
+    """The first few source rows of a download, as text cells under their columns."""
+
+    title: str
+    columns: tuple[str, ...]
+    rows: tuple[tuple[str, ...], ...]
+    total: int
+
+
+@dataclass(frozen=True)
 class DownloadResult:
-    """The source files one download wrote, and the parts that failed."""
+    """The source files one download wrote, the parts that failed, and previews."""
 
     files: tuple[Path, ...] = ()
     failures: tuple[PartFailure, ...] = ()
+    previews: tuple[PreviewTable, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -101,6 +112,26 @@ class Broker(Protocol):
             BrokerError: When nothing could be downloaded at all.
         """
         ...
+
+
+class MonthlyStatementSource(Protocol):
+    """A broker publishing monthly statements, the source of actual settlement dates."""
+
+    def monthly_statements(self, month: str, progress: Progress) -> list[Path]:
+        """Download every account's monthly statement into the statements inbox.
+
+        Args:
+            month: The YYYY-MM month.
+            progress: Shows what the download is doing now.
+
+        Returns:
+            The statement files written, empty when the month is not published yet.
+        """
+        ...
+
+
+class StatementBroker(Broker, MonthlyStatementSource, Protocol):
+    """A broker downloaded from that also publishes monthly statements."""
 
 
 def resolve_window(

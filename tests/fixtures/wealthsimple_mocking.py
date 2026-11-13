@@ -45,6 +45,7 @@ class WealthsimpleMockContext:
         self.statement_error = statement_error
         self.token_attempts: list[str | None] = []
         self.written_csvs: dict[str, str] = {}
+        self.deleted_secrets: list[tuple[str, str]] = []
 
     def __enter__(self) -> Self:
         """Set up all Wealthsimple mocks."""
@@ -129,11 +130,11 @@ class WealthsimpleMockContext:
                 return cls()
 
         self.monkeypatch.setattr(
-            "services.wealthsimple_service.WealthsimpleAPI",
+            "services.wealthsimple_client.WealthsimpleAPI",
             MockWealthsimpleAPI,
         )
         self.monkeypatch.setattr(
-            "services.wealthsimple_service.WSAPISession",
+            "services.wealthsimple_client.WSAPISession",
             MockWSAPISession,
         )
 
@@ -181,6 +182,11 @@ class WealthsimpleMockContext:
             keyring,
             "set_password",
             lambda *_args, **_kwargs: None,
+        )
+        self.monkeypatch.setattr(
+            keyring,
+            "delete_password",
+            lambda service, key: self.deleted_secrets.append((service, key)),
         )
 
     def assert_csv_written(self, expected_content: str) -> None:

@@ -1,8 +1,6 @@
-"""Wealthsimple Service.
+"""The Wealthsimple API client: login, sessions, and source rows as CSV.
 
-This service handles interactions with the Wealthsimple API.
-
-Authentication Tokens are managed using the keyring library.
+`WealthsimpleBroker` downloads through it. Session tokens are kept in the keyring.
 """
 
 from __future__ import annotations
@@ -40,6 +38,8 @@ from services.symbols import normalize_canadian_ticker
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from datetime import datetime
+
+    from config.brokers import WealthsimpleSettings
 
 
 logger = logging.getLogger(__name__)
@@ -88,28 +88,25 @@ def _statement_unpublished(error: ws_api.WSApiException) -> bool:
     )
 
 
-class WealthsimpleServiceError(Exception):
-    """Base exception for Wealthsimple service errors."""
+class WealthsimpleClientError(Exception):
+    """Base exception for Wealthsimple client errors."""
 
 
-class WealthsimpleAuthenticationError(WealthsimpleServiceError):
+class WealthsimpleAuthenticationError(WealthsimpleClientError):
     """Raised when authentication fails."""
 
 
-class WealthsimpleService:
-    """Service for interacting with the Wealthsimple API."""
+class WealthsimpleClient:
+    """Talks to the Wealthsimple API for `WealthsimpleBroker`."""
 
-    def __init__(self, username: str | None = None) -> None:
-        """Initialize the WealthsimpleService.
-
-        Args:
-            username: Wealthsimple username (email). If None, will use stored or prompt.
-        """
-        self._username: str | None = username
+    def __init__(self, settings: WealthsimpleSettings) -> None:
+        """Sign in and download as `settings` says, for the stored or prompted user."""
+        self._settings = settings
+        self._username: str | None = None
         self._ws_api: WealthsimpleAPI | None = None
         self._session: WSAPISession | None = None
 
-        WealthsimpleAPI.set_user_agent(get_config().wealthsimple.user_agent)
+        WealthsimpleAPI.set_user_agent(settings.user_agent)
 
     def _get_keyring_session_key(self, username: str) -> str:
         """Get the keyring key for storing session data."""
@@ -403,12 +400,12 @@ class WealthsimpleService:
             List of WealthsimpleAccount objects
 
         Raises:
-            WealthsimpleServiceError: If API not initialized
+            WealthsimpleClientError: If API not initialized
         """
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
         accounts = [WealthsimpleAccount.from_dict(a) for a in accounts]
-        excluded = get_config().wealthsimple.exclude_accounts
+        excluded = self._settings.exclude_accounts
         if excluded:
             accounts = [
                 a
@@ -440,7 +437,7 @@ class WealthsimpleService:
             List of activity feed items
 
         Raises:
-            WealthsimpleServiceError: If API not initialized
+            WealthsimpleClientError: If API not initialized
         """
         ws = self.ensure_authenticated()
         activities = ws.get_activities(
@@ -473,7 +470,7 @@ class WealthsimpleService:
             the month's statement is not published yet.
 
         Raises:
-            WealthsimpleServiceError: If API not initialized
+            WealthsimpleClientError: If API not initialized
         """
         ws = self.ensure_authenticated()
         try:
@@ -502,7 +499,7 @@ class WealthsimpleService:
             Dictionary mapping security IDs to units held
 
         Raises:
-            WealthsimpleServiceError: If API not initialized
+            WealthsimpleClientError: If API not initialized
         """
         ws = self.ensure_authenticated()
         balances = ws.get_account_balances(account_id)
