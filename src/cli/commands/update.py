@@ -67,6 +67,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from config import Config
+    from domain import BrokerId
     from models import FileImport
 
 _DOWNLOAD_NAMES = {IBKR: "ibkr", WS: "wealthsimple"}
@@ -222,7 +223,7 @@ def _download_fixes(broker: str, error: str, removed: list[str]) -> tuple[str, .
 def _import_stage(
     config: Config,
     report: UpdateReport,
-    overlap_days: dict[str, str | None],
+    overlap_days: dict[BrokerId, str | None],
 ) -> None:
     """Import every waiting file and review each one.
 

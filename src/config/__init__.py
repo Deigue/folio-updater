@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import yaml
 
+from config.brokers import IbkrSettings, WealthsimpleSettings
 from config.optional_fields import OptionalFieldsConfig
 from config.settings import build_defaults, validate_config
 from config.transforms import TransformsConfig
-from config.validation import FEE_CONVENTIONS, FEE_SIGNS, ConfigError
-from domain import AccountType, FeeConvention, FeeSign
+from config.validation import BROKER_IDS, FEE_CONVENTIONS, FEE_SIGNS, ConfigError
+from domain import AccountType, BrokerId, FeeConvention, FeeSign
 from term import console_warning
 
 if TYPE_CHECKING:
@@ -192,9 +193,18 @@ class Config:
         return self._settings["backup"]["max_backups"]
 
     @property
-    def brokers(self) -> dict[str, dict[str, str]]:
-        """Get broker configuration."""
-        return self._settings["brokers"]
+    def ibkr(self) -> IbkrSettings:
+        """What folio downloads from IBKR."""
+        return IbkrSettings(queries=MappingProxyType(self._settings["brokers"]["ibkr"]))
+
+    @property
+    def wealthsimple(self) -> WealthsimpleSettings:
+        """How folio signs in to Wealthsimple and what it leaves out."""
+        settings = self._settings["brokers"]["wealthsimple"]
+        return WealthsimpleSettings(
+            user_agent=settings["user_agent"],
+            exclude_accounts=tuple(settings["exclude_accounts"]),
+        )
 
     @property
     def tickers_sheet(self) -> str:
@@ -276,7 +286,19 @@ class Config:
         )
         return FEE_SIGNS.get(str(value).lower(), FeeSign.AUTO)
 
-    def _account_setting(self, account: str, key: str, default: str) -> Any:  # noqa: ANN401
+    def broker_of(self, account: str) -> BrokerId | None:
+        """Return the broker holding an account, or None for one folio never downloads.
+
+        The account's `accounts.map` entry decides when it names a broker; otherwise
+        the name's `<BROKER>-` prefix does.
+        """
+        mapped = self._account_setting(account, "broker", None)
+        if mapped is not None:
+            return BROKER_IDS[mapped]
+        name = account.upper()
+        return next((b for b in BrokerId if name.startswith(b.account_prefix)), None)
+
+    def _account_setting(self, account: str, key: str, default: str | None) -> Any:  # noqa: ANN401
         """Read one setting from an account's `accounts.map` entry, else the default."""
         return self.account_map.get(account.upper(), {}).get(key, default)
 
@@ -446,7 +468,7 @@ class Config:
                 f"{'enabled' if self.backup_enabled else 'disabled'}, "
                 f"max {self.max_backups}, at {self.backup_path}"
             ),
-            "Brokers": sorted(self.brokers) or "none configured",
+            "Brokers": sorted(self._settings["brokers"]) or "none configured",
             "Optional Columns": f"{len(self.optional_fields)} field(s) configured",
             "Transforms": transforms,
             "Account Naming Convention": self.account_naming_convention,

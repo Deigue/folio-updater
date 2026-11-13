@@ -16,7 +16,6 @@ from db.queries import (
     build_sort_clause,
     delete_rows,
     earliest_transaction_date,
-    get_broker_latest_txn_date,
     get_distinct_set,
     get_distinct_values,
     get_max_value,
@@ -26,7 +25,7 @@ from db.queries import (
     trial_insert_rows,
     update_rows,
 )
-from domain import Column, Table
+from domain import BrokerId, Column, Table
 from models import Txn, TxnOperator, TxnSort
 
 if TYPE_CHECKING:
@@ -114,11 +113,11 @@ def matching(selection: TxnSelection) -> list[Txn]:
     return _txns(rows)
 
 
-def calculated_settlements(broker: str | None = None) -> list[Txn]:
+def calculated_settlements(broker: BrokerId | None = None) -> list[Txn]:
     """Return those whose settlement date is calculated, soonest settling first.
 
     Args:
-        broker: Narrow to accounts whose name holds this, in any case.
+        broker: Narrow to the accounts held at this broker.
 
     Returns:
         The transactions, by settlement date then TxnId.
@@ -126,8 +125,9 @@ def calculated_settlements(broker: str | None = None) -> list[Txn]:
     where = _IS_CALCULATED
     params: list[object] = [1]
     if broker is not None:
-        where += f' AND UPPER("{Column.Txn.ACCOUNT}") LIKE ?'
-        params.append(f"%{broker.upper()}%")
+        held = _accounts_at(broker)
+        where += f" AND {build_in_clause(Column.Txn.ACCOUNT, held)}"
+        params.extend(held)
     with get_connection() as conn:
         return _txns(
             get_records(
@@ -203,10 +203,25 @@ def latest_settlement_date() -> str | None:
         return get_max_value(conn, Table.TXNS, Column.Txn.SETTLE_DATE)
 
 
-def latest_date_for(broker: str) -> str | None:
+def latest_date_for(broker: BrokerId) -> str | None:
     """Return a broker's latest transaction date, or None when it has none."""
+    held = _accounts_at(broker)
     with get_connection() as conn:
-        return get_broker_latest_txn_date(conn, broker)
+        return get_max_value(
+            conn,
+            Table.TXNS,
+            Column.Txn.TXN_DATE,
+            where=build_in_clause(Column.Txn.ACCOUNT, held),
+            params=held,
+        )
+
+
+def _accounts_at(broker: BrokerId) -> list[str]:
+    """Return the stored accounts held at `broker`."""
+    config = get_config()
+    return sorted(
+        account for account in accounts() if config.broker_of(account) is broker
+    )
 
 
 def append(new: Sequence[NewTxn]) -> list[int]:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from config.validation import (
+    BROKER_IDS,
     FEE_CONVENTIONS,
     FEE_SIGNS,
     NOT_A_MAPPING,
@@ -167,11 +168,12 @@ SETTINGS: tuple[Setting, ...] = (
                     type=account_type,
                     amount_includes_fees=one_of(FEE_CONVENTIONS),
                     fee_sign=one_of(FEE_SIGNS),
+                    broker=one_of(BROKER_IDS),
                 ),
             ),
             clash_stops=True,
         ),
-        "Per-account type and fee overrides.",
+        "Per-account type, fee and broker overrides.",
     ),
     Setting(
         "accounts.defaults.amount_includes_fees",

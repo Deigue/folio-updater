@@ -13,7 +13,7 @@ import typer
 
 from app import bootstrap, get_config
 from db import DatabaseError, txns
-from domain import TORONTO_TZ
+from domain import TORONTO_TZ, BrokerId
 from services import DownloadRequest, IBKRService, IBKRServiceError, WealthsimpleService
 from services.broker_files import ws_activities_file_name, ws_statement_file_name
 from services.price_history import months_back
@@ -29,6 +29,7 @@ from ui.views.downloads import show_activities_preview
 from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import date
     from pathlib import Path
 
@@ -118,12 +119,12 @@ def download_ibkr(
                 _handle_ibkr_reference_code(ibkr, reference_code)
                 return failures
 
-            broker_config: dict[str, str] = _get_broker_config(config, "ibkr")
+            queries = _ibkr_queries(config)
             resolved_to_date: str = _resolve_to_date(to_date)
-            resolved_from_date: str = _resolve_from_date(from_date, "ibkr")
+            resolved_from_date: str = _resolve_from_date(from_date, BrokerId.IBKR)
             placeholder_ids = {"111111", "999999"}
 
-            for query_name, query_id in broker_config.items():
+            for query_name, query_id in queries.items():
                 progress.update(task, description=f"Downloading {query_name}...")
                 if not query_id or query_id in placeholder_ids:
                     console_warning(
@@ -221,7 +222,7 @@ def download_wealthsimple(
     """
     ws = WealthsimpleService()
     resolved_to_date: str = _resolve_to_date(to_date)
-    resolved_from_date: str = _resolve_from_date(from_date, "ws")
+    resolved_from_date: str = _resolve_from_date(from_date, BrokerId.WS)
     ws.ensure_authenticated()
 
     with spinner(SPINNER_WEALTHSIMPLE) as progress:
@@ -305,14 +306,14 @@ def download_ws_statement(from_date: str) -> list[Path]:
     return [config.statements_path / name for name in exported_files]
 
 
-def latest_txn_date(broker: str) -> str | None:
+def latest_txn_date(broker: BrokerId) -> str | None:
     """Return the date of a broker's latest stored transaction.
 
     This is the broker's overlap day: a download restarts on it, inclusive, so
     its rows always arrive a second time.
 
     Args:
-        broker: Broker key as it appears in account names (`ibkr`, `ws`).
+        broker: The broker whose accounts to read.
 
     Returns:
         The date as YYYY-MM-DD, or None when the broker has no transactions.
@@ -320,14 +321,14 @@ def latest_txn_date(broker: str) -> str | None:
     return txns.latest_date_for(broker)
 
 
-def _resolve_from_date(from_date_str: str | None, broker: str) -> str:
+def _resolve_from_date(from_date_str: str | None, broker: BrokerId) -> str:
     """Resolve the from date, using fallbacks if not specified.
 
     Fallback to latest transaction date from broker, or first of current month.
 
     Args:
         from_date_str (str | None): The from date string provided by user.
-        broker (str): The broker identifier.
+        broker (BrokerId): The broker downloaded from.
 
     Returns:
         str: The resolved from date in YYYYMMDD format.
@@ -377,24 +378,14 @@ def _resolve_to_date(to_date_str: str | None) -> str:
     return today.strftime("%Y%m%d")
 
 
-def _get_broker_config(config: Config, broker: str) -> dict[str, str]:
-    """Get broker configuration for the specified broker.
-
-    Args:
-        config (Config): The application configuration.
-        broker (str): The broker identifier.
-
-    Returns:
-        dict[str, str]: The broker configuration.
-    """
-    broker_config: dict[str, str] | None = config.brokers.get(broker)
-    if not broker_config:
-        console_error(
-            f"Error: No configuration found for broker '{broker}' in config.yaml",
-        )
-        console_error("Please add broker configuration to config.yaml")
+def _ibkr_queries(config: Config) -> Mapping[str, str]:
+    """Return the configured IBKR flex queries, stopping when there are none."""
+    queries = config.ibkr.queries
+    if not queries:
+        console_error("Error: No IBKR flex queries configured in config.yaml")
+        console_error("Please add them under brokers.ibkr")
         raise typer.Exit(1)
-    return broker_config
+    return queries
 
 
 def _format_date_for_api(date_str: str) -> str:

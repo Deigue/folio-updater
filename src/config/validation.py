@@ -16,6 +16,7 @@ from domain import (
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
     AccountType,
+    BrokerId,
     FeeConvention,
     FeeSign,
     parse_account_type,
@@ -61,6 +62,7 @@ FEE_CONVENTIONS: dict[str, FeeConvention] = {
 
 # How `fee_sign` is spelled in YAML.
 FEE_SIGNS: dict[str, FeeSign] = {sign.value: sign for sign in FeeSign}
+BROKER_IDS: dict[str, BrokerId] = {broker.value: broker for broker in BrokerId}
 
 _LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 

@@ -18,7 +18,7 @@ from app import bootstrap
 from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, ConfigError, write_missing_setting
 from config.settings import SETTINGS, validate_config, written_value
-from domain import TXN_ESSENTIALS, AccountType, FeeConvention, FeeSign
+from domain import TXN_ESSENTIALS, AccountType, BrokerId, FeeConvention, FeeSign
 from ingest.mappers import TransactionMapper
 
 from .helpers.console import capture_output
@@ -309,7 +309,7 @@ def test_settings_that_cannot_be_read_fall_back(temp_ctx: TempContext) -> None:
         assert config.audit_log_level == "INFO"
         assert "InvalidKeyword" not in config.header_keywords
         assert config.header_ignore == []
-        assert config.brokers == Config.DEFAULT_CONFIG["brokers"]
+        assert config.ibkr.queries == Config.DEFAULT_CONFIG["brokers"]["ibkr"]
         assert config.txn_sheet == "Txns"
         assert "unknown_sheet" not in config.sheets
         assert config.max_backups == 50  # A bool is not a backup count.
@@ -779,6 +779,33 @@ def test_fee_sign_is_set_per_account_and_defaults_to_auto(
         assert ctx.config.fee_sign_for("QT-TFSA") is FeeSign.NEGATIVE
         assert ctx.config.fee_sign_for("WS-TFSA") is FeeSign.POSITIVE
         assert ctx.config.fee_sign_for("OTHER-TFSA") is FeeSign.AUTO
+
+
+def test_an_account_belongs_to_the_broker_its_map_entry_or_prefix_names(
+    temp_ctx: TempContext,
+) -> None:
+    overrides = {
+        "accounts": {
+            "map": {
+                "JOINT-CASH": {"type": "PERSONAL", "broker": "ws"},
+                "IBKR-SPARE": {"type": "TFSA", "broker": "WS"},
+                "ODD-TFSA": {"type": "TFSA", "broker": "nobank"},
+            },
+        },
+    }
+    with capture_output() as captured, temp_ctx(overrides) as ctx:
+        assert ctx.config.broker_of("ibkr-tfsa") is BrokerId.IBKR
+        assert ctx.config.broker_of("WS-RRSP") is BrokerId.WS
+        assert ctx.config.broker_of("joint-cash") is BrokerId.WS
+        # The map entry wins over the name's prefix.
+        assert ctx.config.broker_of("IBKR-SPARE") is BrokerId.WS
+        # Only a prefix counts, never the broker's letters elsewhere in the name.
+        assert ctx.config.broker_of("NEWS-TFSA") is None
+        assert ctx.config.broker_of("QT-TFSA") is None
+        # An unknown broker is reported and dropped, keeping the rest of the entry.
+        assert ctx.config.broker_of("ODD-TFSA") is None
+        assert ctx.config.account_map["ODD-TFSA"]["type"] == "TFSA"
+        assert "accounts.map.ODD-TFSA.broker: nobank" in captured.get_text()
 
 
 def test_fee_sign_default_can_be_pinned_without_losing_the_convention_default(

@@ -41,8 +41,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
     from datetime import datetime
 
-    from config import Config
-
 
 logger = logging.getLogger(__name__)
 
@@ -111,16 +109,7 @@ class WealthsimpleService:
         self._ws_api: WealthsimpleAPI | None = None
         self._session: WSAPISession | None = None
 
-        config: Config = get_config()
-        ws_config = config.brokers.get("wealthsimple", {})
-        user_agent: str = ws_config.get(
-            "user_agent",
-            (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) "
-                "Gecko/20100101 Firefox/143.0"
-            ),
-        )
-        WealthsimpleAPI.set_user_agent(user_agent)
+        WealthsimpleAPI.set_user_agent(get_config().wealthsimple.user_agent)
 
     def _get_keyring_session_key(self, username: str) -> str:
         """Get the keyring key for storing session data."""
@@ -419,10 +408,8 @@ class WealthsimpleService:
         ws = self.ensure_authenticated()
         accounts = ws.get_accounts()
         accounts = [WealthsimpleAccount.from_dict(a) for a in accounts]
-        config = get_config()
-        ws_config = config.brokers.get("wealthsimple", {})
-        if ws_config.get("exclude_accounts"):
-            excluded = ws_config["exclude_accounts"]
+        excluded = get_config().wealthsimple.exclude_accounts
+        if excluded:
             accounts = [
                 a
                 for a in accounts

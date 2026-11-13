@@ -113,6 +113,18 @@ def parse_account_type(value: str) -> AccountType | None:
         return None
 
 
+class BrokerId(StrEnum):
+    """A broker folio downloads from, valued as its account prefix in lower case."""
+
+    IBKR = "ibkr"
+    WS = "ws"
+
+    @property
+    def account_prefix(self) -> str:
+        """How an account name held at this broker starts (`IBKR-`)."""
+        return f"{self.value.upper()}-"
+
+
 class FeeConvention(StrEnum):
     """Whether a trade's `Amount` already contains the commission.
 

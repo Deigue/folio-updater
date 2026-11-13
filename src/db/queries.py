@@ -161,12 +161,24 @@ def get_max_value(
     connection: sqlite3.Connection,
     table_name: str,
     column_name: str,
+    where: str | None = None,
+    params: list | tuple | None = None,
 ) -> str | None:
-    """Return the maximum value in a column, or None without a table or a value."""
+    """Return the maximum value in a column, or None without a table or a value.
+
+    Args:
+        connection: The database connection.
+        table_name: The table to read.
+        column_name: The column to take the maximum of.
+        where: A condition narrowing the rows, with `?` placeholders.
+        params: The values for the placeholders in `where`.
+    """
     if not table_exists(connection, table_name):
         return None
     query = f'SELECT MAX("{column_name}") FROM "{table_name}"'
-    result = connection.execute(query).fetchone()
+    if where:
+        query += f" WHERE {where}"
+    result = connection.execute(query, params or ()).fetchone()
     return result[0] if result and result[0] else None
 
 
@@ -180,29 +192,6 @@ def earliest_transaction_date(connection: sqlite3.Connection) -> str | None:
         The date as YYYY-MM-DD, or None when the folio has no transactions.
     """
     return get_min_value(connection, Table.TXNS, Column.Txn.TXN_DATE)
-
-
-def get_broker_latest_txn_date(
-    connection: sqlite3.Connection,
-    broker: str,
-) -> str | None:
-    """Return the latest transaction date among the accounts whose name holds `broker`.
-
-    Args:
-        connection: The database connection.
-        broker: Broker key as it appears in account names, in any case.
-
-    Returns:
-        The date as YYYY-MM-DD, or None when the broker has no transactions.
-    """
-    if not table_exists(connection, Table.TXNS):
-        return None
-    query = (
-        f'SELECT MAX("{Column.Txn.TXN_DATE}") FROM "{Table.TXNS}" '
-        f'WHERE UPPER("{Column.Txn.ACCOUNT}") LIKE UPPER(?)'
-    )
-    result = connection.execute(query, (f"%{broker}%",)).fetchone()
-    return result[0] if result and result[0] else None
 
 
 def get_min_value(

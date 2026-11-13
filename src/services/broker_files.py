@@ -10,9 +10,11 @@ import re
 import shutil
 from pathlib import Path
 
-# Broker keys as they appear in account names and download file names.
-IBKR = "ibkr"
-WS = "ws"
+from domain import BrokerId
+
+# Brokers as their download file names start.
+IBKR = BrokerId.IBKR
+WS = BrokerId.WS
 
 SUPPORTED_SUFFIXES = (".csv", ".xlsx")
 
@@ -44,7 +46,7 @@ def ws_statement_file_name(account: str, month: str) -> str:
     return f"{_STATEMENT_PREFIX}_{account}_{month.replace('-', '')}.csv"
 
 
-def broker_of(name: str) -> str | None:
+def broker_of(name: str) -> BrokerId | None:
     """Return the broker a file name came from, or None for any other file."""
     for broker in (IBKR, WS):
         if name.startswith(f"{broker}_"):

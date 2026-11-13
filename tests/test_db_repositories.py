@@ -32,7 +32,7 @@ from db import (
     update_rows,
 )
 from db.catalog import get_revisions
-from domain import Action, Column, Currency, PriceRange, QuoteStatus, Table
+from domain import Action, BrokerId, Column, Currency, PriceRange, QuoteStatus, Table
 from models import (
     FxRate,
     NewTxn,
@@ -548,16 +548,31 @@ def test_last_takes_the_tail_and_keeps_the_order(temp_ctx: TempContext) -> None:
         assert _ids(TxnSelection(last=2)) == [middle, oldest]
 
 
+# An account with no broker prefix, mapped to Wealthsimple.
+_JOINT_AT_WS = {
+    "accounts": {"map": {"JOINT-CASH": {"type": "PERSONAL", "broker": "ws"}}},
+}
+
+
 def test_calculated_settlements_can_be_narrowed_to_a_broker(
     temp_ctx: TempContext,
 ) -> None:
-    with temp_ctx():
-        seed_transaction(date=_JAN, settle_date=_FEB, account="ZED-TFSA")
-        second = seed_transaction(date="2025-09-08", account="YON-RRSP")
-        third = seed_transaction(date="2025-08-11", account="ZED-TFSA")
+    with temp_ctx(_JOINT_AT_WS):
+        seed_transaction(date=_JAN, settle_date=_FEB, account="WS-TFSA")
+        mapped = seed_transaction(date="2025-09-08", account="JOINT-CASH")
+        look_alike = seed_transaction(date="2025-08-25", account="NEWS-RRSP")
+        prefixed = seed_transaction(date="2025-08-11", account="WS-TFSA")
 
-        assert [txn.txn_id for txn in txns.calculated_settlements()] == [third, second]
-        assert [txn.txn_id for txn in txns.calculated_settlements("zed")] == [third]
+        assert [txn.txn_id for txn in txns.calculated_settlements()] == [
+            prefixed,
+            look_alike,
+            mapped,
+        ]
+        assert [txn.txn_id for txn in txns.calculated_settlements(BrokerId.WS)] == [
+            prefixed,
+            mapped,
+        ]
+        assert txns.calculated_settlements(BrokerId.IBKR) == []
 
 
 def test_txns_count_all_and_calculated(temp_ctx: TempContext) -> None:
@@ -603,13 +618,13 @@ def test_txns_know_their_accounts_and_columns(temp_ctx: TempContext) -> None:
 
 
 def test_latest_date_for_a_broker(temp_ctx: TempContext) -> None:
-    with temp_ctx():
-        seed_transaction(date=_JAN, account="ZED-TFSA")
-        seed_transaction(date=_FEB, account="ZED-RRSP")
-        seed_transaction(date=_MAR, account="YON-RRSP")
+    with temp_ctx(_JOINT_AT_WS):
+        seed_transaction(date=_JAN, account="WS-TFSA")
+        seed_transaction(date=_FEB, account="JOINT-CASH")
+        seed_transaction(date=_MAR, account="NEWS-RRSP")
 
-        assert txns.latest_date_for("zed") == _FEB
-        assert txns.latest_date_for("nobroker") is None
+        assert txns.latest_date_for(BrokerId.WS) == _FEB
+        assert txns.latest_date_for(BrokerId.IBKR) is None
 
 
 # -- TXN WRITES -----------------------------------------------------------------
@@ -779,11 +794,6 @@ _READS: list[tuple[str, Callable[[sqlite3.Connection], object], object]] = [
         "get_distinct_values",
         lambda conn: queries.get_distinct_values(conn, Table.TXNS, Column.Txn.TICKER),
         [],
-    ),
-    (
-        "get_broker_latest_txn_date",
-        lambda conn: queries.get_broker_latest_txn_date(conn, "IBKR"),
-        None,
     ),
     ("get_revisions", get_revisions, {}),
     (
