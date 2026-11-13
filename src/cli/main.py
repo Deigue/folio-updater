@@ -67,7 +67,8 @@ def update_cmd(
     """Catch the folio up in one go and report what changed."""
     from cli.commands.update import run_update
 
-    run_update(resume=resume, offline=offline)
+    if run_update(resume=resume, offline=offline).failed:
+        raise typer.Exit(1)
 
 
 @app.command(

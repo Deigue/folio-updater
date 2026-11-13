@@ -342,6 +342,11 @@ class WealthsimpleAccount(LinkedAccount):
         """The name folio records the account under: its nickname, else its id."""
         return self.nickname or self.id
 
+    @property
+    def display_name(self) -> str:
+        """The name a preview shows: its nickname, else its type, else its id."""
+        return self.nickname or self.account_type or self.id
+
     @staticmethod
     def from_dict(obj: dict) -> "WealthsimpleAccount":
         """Create a WealthsimpleAccount from a dictionary."""

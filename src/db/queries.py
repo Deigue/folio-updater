@@ -164,15 +164,7 @@ def get_max_value(
     where: str | None = None,
     params: list | tuple | None = None,
 ) -> str | None:
-    """Return the maximum value in a column, or None without a table or a value.
-
-    Args:
-        connection: The database connection.
-        table_name: The table to read.
-        column_name: The column to take the maximum of.
-        where: A condition narrowing the rows, with `?` placeholders.
-        params: The values for the placeholders in `where`.
-    """
+    """Return a column's maximum over the rows `where` keeps, or None without one."""
     if not table_exists(connection, table_name):
         return None
     query = f'SELECT MAX("{column_name}") FROM "{table_name}"'

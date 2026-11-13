@@ -124,6 +124,16 @@ class BrokerId(StrEnum):
         """How an account name held at this broker starts (`IBKR-`)."""
         return f"{self.value.upper()}-"
 
+    @property
+    def display_name(self) -> str:
+        """The broker's name as messages give it."""
+        return "Wealthsimple" if self is BrokerId.WS else self.value.upper()
+
+    @property
+    def cli_name(self) -> str:
+        """How `folio download -b` names the broker."""
+        return "wealthsimple" if self is BrokerId.WS else self.value
+
 
 class FeeConvention(StrEnum):
     """Whether a trade's `Amount` already contains the commission.

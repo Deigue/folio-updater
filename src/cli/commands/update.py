@@ -11,17 +11,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import typer
-from ws_api import WSApiException
-
 from app import bootstrap, get_config
 from cli.commands.common import export_to_parquet, require_ledger
 from cli.commands.dash import show_types
-from cli.commands.download import (
-    download_ibkr,
-    download_wealthsimple,
-    download_ws_statement,
-)
+from cli.commands.download import download_from, download_monthly_statements
 from cli.commands.generate import write_folio
 from cli.commands.import_data import (
     confirm_demo_replacement,
@@ -29,7 +22,7 @@ from cli.commands.import_data import (
 )
 from cli.commands.settle_info import archive_statement, import_single_statement
 from db import txns
-from domain import TORONTO_TZ, SettlementOutcome
+from domain import TORONTO_TZ, BrokerId, SettlementOutcome
 from engine.checks import CheckReport, run_checks
 from engine.pools import FolioValuation
 from engine.update_review import (
@@ -45,11 +38,9 @@ from engine.update_review import (
 )
 from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
-from services import BrokerError, WealthsimpleClientError
+from services import BrokerError, BrokerFailure, BrokerRegistry
 from services.broker_files import (
-    IBKR,
-    WS,
-    broker_of,
+    broker_of_file,
     date_range_of,
     delete_new_files,
     statements_for_month,
@@ -66,15 +57,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from config import Config
-    from domain import BrokerId
     from models import FileImport
 
-_DOWNLOAD_NAMES = {IBKR: "ibkr", WS: "wealthsimple"}
 
-_DOWNLOAD_ERRORS = (BrokerError, WealthsimpleClientError, WSApiException, OSError)
-
-
-def run_update(*, resume: bool = False, offline: bool = False) -> None:
+def run_update(*, resume: bool = False, offline: bool = False) -> UpdateReport:
     """Catch the folio up and report what changed.
 
     Args:
@@ -84,14 +70,14 @@ def run_update(*, resume: bool = False, offline: bool = False) -> None:
             files and statements already waiting, and value the folio from
             cached quotes and rates.
 
-    Raises:
-        typer.Exit: With 1 when a stage stopped the run.
+    Returns:
+        The report shown, failed when a stage stopped the run.
     """
     config = bootstrap.reload_config()
     today = datetime.now(TORONTO_TZ).date()
     report = UpdateReport()
     first_new_id = txns.latest_id()
-    overlap_days = {IBKR: txns.latest_date_for(IBKR), WS: txns.latest_date_for(WS)}
+    overlap_days = {broker: txns.latest_date_for(broker) for broker in BrokerId}
 
     if offline:
         console_info("Offline: skipping downloads, importing what is waiting.")
@@ -117,8 +103,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> None:
             show_workbook_link(report.workbook)
 
     show_update_report(report)
-    if report.failed:
-        raise typer.Exit(1)
+    return report
 
 
 # -- DOWNLOAD -------------------------------------------------------------------
@@ -134,48 +119,47 @@ def _download_stage(config: Config, report: UpdateReport) -> None:
     console_rule("Download", style=RULE_UPDATE)
     before = set(waiting_files(config.imports_path))
     try:
-        failed = _download_all()
+        error = _download_all()
     except KeyboardInterrupt:  # pragma: no cover
         delete_new_files(config.imports_path, before)
         raise
-    if failed is None:
+    if error is None:
         return
 
-    broker, error = failed
     removed = delete_new_files(config.imports_path, before)
     report.failure = HardFailure(
         stage=UpdateStage.DOWNLOAD,
-        error=f"{broker} download failed: {error}",
-        next_steps=_download_fixes(broker, error, removed),
+        error=f"{error.broker.display_name} download failed: {error}",
+        next_steps=_download_fixes(error, removed),
     )
 
 
-def _download_all() -> tuple[str, str] | None:
-    """Download IBKR, then Wealthsimple, stopping at the first failure.
+def _download_all() -> BrokerError | None:
+    """Download from every broker in turn, stopping at the first that fails.
 
     Returns:
-        The broker that failed and why, or None when both succeeded.
+        Why a broker failed, or None when every one succeeded. A broker whose
+        parts failed is described by its most actionable kind and every part's
+        error.
     """
-    broker = "IBKR"
-    try:
-        failures = download_ibkr(None, None)
-        if failures:
-            return broker, "; ".join(failures)
-        broker = "Wealthsimple"
-        download_wealthsimple(None, None)
-    except _DOWNLOAD_ERRORS as error:
-        return broker, str(error) or type(error).__name__
-    except typer.Exit:
-        return broker, "see the message above"
+    for broker in BrokerRegistry.load().all():
+        try:
+            result = download_from(broker, None, None)
+        except BrokerError as error:
+            return error
+        if result.failures:
+            ranked = list(BrokerFailure)
+            kind = min((f.error.kind for f in result.failures), key=ranked.index)
+            detail = "; ".join(f"{f.part}: {f.error}" for f in result.failures)
+            return BrokerError(broker.id, kind, detail)
     return None
 
 
-def _download_fixes(broker: str, error: str, removed: list[str]) -> tuple[str, ...]:
-    """Spell out how to recover from a failed download.
+def _download_fixes(error: BrokerError, removed: list[str]) -> tuple[str, ...]:
+    """Spell out how to recover from a failed download, by what went wrong.
 
     Args:
-        broker: The broker that failed.
-        error: Why it failed.
+        error: Why the download failed.
         removed: Files this run downloaded and then removed.
 
     Returns:
@@ -187,28 +171,27 @@ def _download_fixes(broker: str, error: str, removed: list[str]) -> tuple[str, .
             f"Removed {len(removed)} file(s) this run downloaded, so nothing "
             f"partial gets imported: {', '.join(removed)}",
         )
-    lowered = error.lower()
-    if broker == "IBKR" and ("1012" in lowered or "expired" in lowered):
-        steps.extend(
-            (
-                (
-                    "The IBKR flex token has expired. Create a new one in the "
-                    "IBKR portal, then store it:"
-                ),
-                "folio download -b ibkr --credentials",
-            ),
-        )
-    elif broker == "Wealthsimple" and "auth" in lowered:
-        steps.extend(
-            (
-                "Wealthsimple could not log in. Reset the login:",
-                "folio download -b wealthsimple --credentials",
-            ),
-        )
-    else:
-        steps.append(
-            "If the broker is busy or still preparing the report, wait a few minutes.",
-        )
+    name = error.broker.display_name
+    credentials = f"folio download -b {error.broker.cli_name} --credentials"
+    match error.kind:
+        case BrokerFailure.CREDENTIALS_EXPIRED:
+            steps.extend(
+                (f"The {name} credentials have expired. Store new ones:", credentials),
+            )
+        case BrokerFailure.LOGIN_FAILED:
+            steps.extend((f"{name} could not log in. Reset the login:", credentials))
+        case BrokerFailure.NOT_CONFIGURED:
+            steps.append(f"Set up {name} under brokers in config.yaml.")
+        case BrokerFailure.NOT_SAVED:
+            steps.append(
+                "Close the file if another program has it open, and check there "
+                "is space on the disk.",
+            )
+        case _:
+            steps.append(
+                "If the broker is busy or still preparing the statement, wait a few "
+                "minutes. If it keeps failing, logs/folio.log has the detail.",
+            )
     steps.extend(("Then run:", "folio update"))
     return tuple(steps)
 
@@ -251,7 +234,7 @@ def _import_stage(
     for outcome in outcomes:
         if outcome.results is None:
             continue
-        broker = broker_of(outcome.path.name)
+        broker = broker_of_file(outcome.path.name)
         review = review_import(
             outcome.path.name,
             outcome.results,
@@ -319,13 +302,12 @@ def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:
         ),
     ]
     for outcome in failed:
-        broker = broker_of(outcome.path.name)
+        broker = broker_of_file(outcome.path.name)
         date_range = date_range_of(outcome.path.name)
         if broker and date_range:
             from_date, to_date = date_range
             steps.append(
-                f"folio download -b {_DOWNLOAD_NAMES[broker]} "
-                f"-f {from_date} -t {to_date}",
+                f"folio download -b {broker.cli_name} -f {from_date} -t {to_date}",
             )
     steps.extend(
         (
@@ -362,7 +344,7 @@ def _statement_stage(
         offline: Import only the statements already waiting, fetching none.
     """
     console_rule("Statements", style=RULE_UPDATE)
-    calculated = txns.calculated_settlements(WS)
+    calculated = txns.calculated_settlements(BrokerId.WS)
     months = statement_months([txn.settle_date for txn in calculated], today)
     if not months:  # pragma: no cover
         console_info("No calculated settlement date waits on a published statement.")
@@ -376,7 +358,7 @@ def _statement_stage(
                 f"{month} statement not fetched offline; to fetch it: folio update",
             )
         elif not files:
-            files = _fetch_statement(month, report)
+            files = _download_statement(month, report)
         if files:
             imported.add(month)
         for path in files:
@@ -403,7 +385,7 @@ def _statement_stage(
             progress.add_task("Exporting to Parquet...", total=None)
             ParquetExporter().export_all()
 
-    remaining = txns.calculated_settlements(WS)
+    remaining = txns.calculated_settlements(BrokerId.WS)
     on_hand = {
         month
         for month in statement_months([txn.settle_date for txn in remaining], today)
@@ -418,7 +400,7 @@ def _statement_stage(
         )
 
 
-def _fetch_statement(month: str, report: UpdateReport) -> list[Path]:
+def _download_statement(month: str, report: UpdateReport) -> list[Path]:
     """Download one month's statement, noting when it is missing or failed.
 
     Args:
@@ -429,14 +411,17 @@ def _fetch_statement(month: str, report: UpdateReport) -> list[Path]:
         The statement files written, empty when there are none.
     """
     try:
-        files = download_ws_statement(f"{month}-01")
-    except _DOWNLOAD_ERRORS as error:
+        files = download_monthly_statements(
+            BrokerRegistry.load().wealthsimple,
+            month,
+        )
+    except BrokerError as error:
         report.concerns.append(
             Concern(
                 stage=UpdateStage.STATEMENTS,
                 title=f"{month} statement download failed",
                 why=(
-                    f"{str(error) or type(error).__name__}. Its settlement dates stay "
+                    f"{error.detail or error.kind}. Its settlement dates stay "
                     "calculated until the statement is imported."
                 ),
                 commands=("folio update --resume",),

@@ -1,7 +1,4 @@
-"""Download command for the folio CLI.
-
-Handles downloading statements from brokers like IBKR.
-"""
+"""The `folio download` command, and the download steps `folio update` shares."""
 
 from __future__ import annotations
 
@@ -12,7 +9,8 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import bootstrap, get_config
-from services import BrokerError, BrokerRegistry, IbkrBroker
+from domain import BrokerId
+from services import BrokerError, BrokerRegistry
 from term import (
     console_error,
     console_info,
@@ -21,7 +19,7 @@ from term import (
 )
 from term.progress import spinner
 from ui.views.downloads import show_download
-from ui.vocabulary import SPINNER_IBKR, SPINNER_WEALTHSIMPLE
+from ui.vocabulary import SPINNER_BROKERS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,12 +27,9 @@ if TYPE_CHECKING:
 
     from rich.progress import Progress
 
-    from config import Config
-    from services import DownloadResult
+    from services import Broker, DownloadResult, RetryingBroker, StatementBroker
 
 logger = logging.getLogger(__name__)
-
-SUPPORTED_BROKERS = {"ibkr", "wealthsimple"}
 
 
 def download_statements(
@@ -49,7 +44,7 @@ def download_statements(
     """Download transactions from broker and save as CSV file.
 
     Args:
-        broker: Broker to download from.
+        broker: Broker to download from, as `-b` names it.
         from_date: From date in YYYY-MM-DD format, or None for the latest stored.
         to_date: To date in YYYY-MM-DD format, or None for today.
         credentials: Reset the broker's stored credentials instead.
@@ -59,130 +54,89 @@ def download_statements(
     Raises:
         typer.Exit: On an unusable request.
     """
-    config = bootstrap.reload_config()
-    if broker not in SUPPORTED_BROKERS:
+    bootstrap.reload_config()
+    chosen = next((b for b in BrokerId if b.cli_name == broker), None)
+    if chosen is None:
         console_error(
-            f"Broker '{broker}' not supported. Supported brokers: {SUPPORTED_BROKERS}",
+            f"Broker '{broker}' not supported. Supported brokers: "
+            f"{', '.join(b.cli_name for b in BrokerId)}",
         )
         raise typer.Exit(1)
 
-    if credentials:  # pragma: no cover
-        _handle_credentials(broker)
+    brokers = BrokerRegistry.load()
+    if credentials:
+        brokers.get(chosen).reset_credentials()
         return
 
     try:
-        if broker == "wealthsimple" and statement and from_date:
-            download_ws_statement(from_date)
-        elif broker == "wealthsimple":
-            download_wealthsimple(from_date, to_date)
-        elif reference_code:
-            _retry_ibkr(config, reference_code)
+        if chosen is BrokerId.WS and statement and from_date:
+            _download_and_list_statements(brokers.wealthsimple, from_date[:7])
+        elif chosen is BrokerId.IBKR and reference_code:
+            _retry(brokers.ibkr, reference_code)
         else:
-            download_ibkr(from_date, to_date)
+            start, end = _parse_date(from_date), _parse_date(to_date)
+            if download_from(brokers.get(chosen), start, end).files:
+                console_info("To import these files, run:")
+                console_info("  folio import")
     except BrokerError as e:
-        console_error(f"{reference_code or e.broker.value.upper()}: {e}")
+        console_error(f"{reference_code or e.broker.display_name}: {e}")
         raise typer.Exit(1) from None
 
 
-def download_ibkr(from_date: str | None, to_date: str | None) -> list[str]:
-    """Download every configured IBKR flex query into the imports folder.
+def download_from(
+    broker: Broker,
+    start: date | None,
+    end: date | None,
+) -> DownloadResult:
+    """Sign in, download under the broker's spinner, and show what came.
 
-    Args:
-        from_date: From date in YYYY-MM-DD format, or None for the overlap day.
-        to_date: To date in YYYY-MM-DD format, or None for today.
+    The step `folio download` and `folio update` share; each adds its own advice.
+
+    Raises:
+        BrokerError: When nothing could be downloaded at all.
+    """
+    broker.sign_in()
+    with spinner(SPINNER_BROKERS[broker.id]) as progress:
+        result = broker.download(start, end, _describer(progress))
+    show_download(result)
+    return result
+
+
+def download_monthly_statements(source: StatementBroker, month: str) -> list[Path]:
+    """Sign in and download every account's monthly statement for a YYYY-MM month.
 
     Returns:
-        One line per query that failed, naming the query and the error. Empty
-        when every query succeeded.
+        The statement files written, empty when the month is not published yet.
+
+    Raises:
+        BrokerError: When the statements could not be downloaded.
     """
-    start, end = _parse_date(from_date), _parse_date(to_date)
-    ibkr = BrokerRegistry.load().ibkr
-    ibkr.sign_in()
-    with spinner(SPINNER_IBKR) as progress:
-        result = ibkr.download(start, end, _describer(progress))
-
-    _show_download(result)
-    return [f"{failure.part}: {failure.error}" for failure in result.failures]
+    source.sign_in()
+    with spinner(SPINNER_BROKERS[source.id]) as progress:
+        return source.monthly_statements(month, _describer(progress))
 
 
-def _retry_ibkr(config: Config, reference_code: str) -> None:
-    """Fetch the statement of an earlier IBKR request by its reference code."""
-    ibkr = IbkrBroker(config.ibkr)
-    ibkr.sign_in()
-    with spinner(SPINNER_IBKR) as progress:
+def _download_and_list_statements(source: StatementBroker, month: str) -> None:
+    """Download a month's statements, and show where they went and how to import."""
+    files = download_monthly_statements(source, month)
+    if not files:
+        console_warning("No statement rows downloaded")
+        return
+    console_success(f'Files saved to: "{get_config().statements_path}"')
+    for path in files:
+        console_info(f"  - {path.name}")
+    console_info("To import these statement files, run:")
+    console_info("  folio settle-info --import")
+
+
+def _retry(broker: RetryingBroker, reference_code: str) -> None:
+    """Download the statement of an earlier request again by its reference code."""
+    broker.sign_in()
+    with spinner(SPINNER_BROKERS[broker.id]) as progress:
         describe = _describer(progress)
         describe("Downloading by reference code...")
-        result = ibkr.retry(reference_code, describe)
-    _show_download(result)
-
-
-def _handle_credentials(broker: str) -> None:  # pragma: no cover
-    """Reset the stored credentials of the specified broker.
-
-    Args:
-        broker: The broker identifier.
-    """
-    brokers = BrokerRegistry.load()
-    if broker == "ibkr":
-        brokers.ibkr.reset_credentials()
-    elif broker == "wealthsimple":
-        brokers.wealthsimple.reset_credentials()
-    else:
-        console_error(f"Credential management not supported for broker '{broker}'")
-        raise typer.Exit(1)
-
-
-def download_wealthsimple(
-    from_date: str | None,
-    to_date: str | None,
-) -> None:
-    """Download every Wealthsimple account's activities into the imports folder.
-
-    Args:
-        from_date: From date in YYYY-MM-DD format, or None for the overlap day.
-        to_date: To date in YYYY-MM-DD format, or None for today.
-    """
-    start, end = _parse_date(from_date), _parse_date(to_date)
-    wealthsimple = BrokerRegistry.load().wealthsimple
-    wealthsimple.sign_in()
-    with spinner(SPINNER_WEALTHSIMPLE) as progress:
-        result = wealthsimple.download(start, end, _describer(progress))
-
-    _show_download(result)
-
-
-def download_ws_statement(from_date: str) -> list[Path]:
-    """Download every Wealthsimple account's monthly statement for a month.
-
-    Args:
-        from_date: Any YYYY-MM-DD day of the month, such as '2024-05-01' for May 2024.
-
-    Returns:
-        The statement files written, one per account with transactions. Empty
-        when the month has no statement yet.
-    """
-    wealthsimple = BrokerRegistry.load().wealthsimple
-    wealthsimple.sign_in()
-    with spinner(SPINNER_WEALTHSIMPLE) as progress:
-        files = wealthsimple.monthly_statements(from_date[:7], _describer(progress))
-
-    if files:
-        console_success(f'Files saved to: "{get_config().statements_path}"')
-        for path in files:
-            console_info(f"  - {path.name}")
-        console_info("To import these statement files, run:")
-        console_info("  folio settle-info --import")
-    else:
-        console_warning("No statement rows downloaded")
-    return files
-
-
-def _show_download(result: DownloadResult) -> None:
-    """Show what a download retrieved, and how to import it."""
+        result = broker.retry(reference_code, describe)
     show_download(result)
-    if result.files:
-        console_info("To import these files, run:")
-        console_info("  folio import")
 
 
 def _describer(progress: Progress) -> Callable[[str], None]:

@@ -468,7 +468,10 @@ class Config:
                 f"{'enabled' if self.backup_enabled else 'disabled'}, "
                 f"max {self.max_backups}, at {self.backup_path}"
             ),
-            "Brokers": sorted(self._settings["brokers"]) or "none configured",
+            "Brokers": (
+                f"{BrokerId.IBKR.display_name} ({len(self.ibkr.queries)} flex "
+                f"queries), {BrokerId.WS.display_name}"
+            ),
             "Optional Columns": f"{len(self.optional_fields)} field(s) configured",
             "Transforms": transforms,
             "Account Naming Convention": self.account_naming_convention,

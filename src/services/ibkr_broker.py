@@ -92,8 +92,11 @@ class IbkrBroker:
     # -- CREDENTIALS -------------------------------------------------------------
 
     def sign_in(self) -> None:
-        """Ask for the flex token when the keyring holds none."""
-        if keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME):
+        """Ask for the flex token when the keyring holds none and a query needs it."""
+        if not self._real_queries() or keyring.get_password(
+            KEYRING_SERVICE,
+            KEYRING_USERNAME,
+        ):
             return
         console_info("No IBKR flex token found in keyring.")
         self._store_token()
@@ -110,6 +113,14 @@ class IbkrBroker:
             prompt_secret("Enter your IBKR flex token"),
         )
         announce.success("Flex token stored securely")
+
+    def _real_queries(self) -> dict[str, str]:
+        """Return the queries with a real ID, leaving out any still a placeholder."""
+        return {
+            name: query_id
+            for name, query_id in self._settings.queries.items()
+            if query_id and query_id not in _PLACEHOLDER_QUERY_IDS
+        }
 
     def _token(self) -> str:
         token = keyring.get_password(KEYRING_SERVICE, KEYRING_USERNAME)
@@ -143,18 +154,18 @@ class IbkrBroker:
                 BrokerFailure.NOT_CONFIGURED,
                 "No IBKR flex queries configured in config.yaml, under brokers.ibkr",
             )
+        queries = self._real_queries()
+        for query_name in self._settings.queries.keys() - queries.keys():
+            console_warning(f"Skipping {query_name}: No valid query ID configured")
+        if not queries:
+            return DownloadResult()
         window = resolve_window(self.id, start, end)
         files: list[Path] = []
         failures: list[PartFailure] = []
         previews: list[PreviewTable] = []
         with _session() as session:
-            for query_name, query_id in self._settings.queries.items():
+            for query_name, query_id in queries.items():
                 progress(f"Downloading {query_name}...")
-                if not query_id or query_id in _PLACEHOLDER_QUERY_IDS:
-                    console_warning(
-                        f"Skipping {query_name}: No valid query ID configured",
-                    )
-                    continue
                 try:
                     reference_code = self._send_request(
                         session,
@@ -191,7 +202,7 @@ class IbkrBroker:
         )
 
     def retry(self, reference_code: str, progress: Progress) -> DownloadResult:
-        """Fetch the statement of an earlier request by its reference code.
+        """Download the statement of an earlier request again, by its reference code.
 
         Raises:
             BrokerError: When the statement cannot be fetched or saved.

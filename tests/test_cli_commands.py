@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from .fixtures.fake_broker import FakeBrokers
     from .helpers.context import TempContext
 
 runner = CliRunner()
@@ -618,7 +619,7 @@ FLEX_REPORT = {"brokers": {"ibkr": {"FlexReport": "abc123"}}}
         ),
         pytest.param(
             [],
-            None,
+            FLEX_REPORT,
             _prompt_for_a_missing_token,
             "Flex token stored securely",
             False,
@@ -952,6 +953,25 @@ def test_wealthsimple_statement_not_published_yet_is_not_an_error(
         )
         assert_in_output("No statement rows downloaded", cli_result)
         ws_mock.assert_no_csv_written()
+
+
+def test_a_reference_code_retries_through_the_registry(
+    temp_ctx: TempContext,
+    brokers: FakeBrokers,
+) -> None:
+    """`-r` asks the registry's IBKR broker for that one earlier request."""
+    with temp_ctx() as ctx:
+        brokers.ibkr.files = ("ibkr_ref_4242.csv",)
+        cli_result = run_cli_with_config(
+            ctx.config,
+            cli_app,
+            ["download", "-r", "4242"],
+        )
+
+        assert_cli_success(cli_result)
+        assert brokers.ibkr.retries == ["4242"]
+        assert brokers.ibkr.downloads == []
+        assert (ctx.config.imports_path / "ibkr_ref_4242.csv").exists()
 
 
 def test_ibkr_download_waits_for_a_statement_that_is_not_ready(

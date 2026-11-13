@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from app import get_config
+from domain import BrokerId
 from services.ibkr_broker import IbkrBroker
 from services.wealthsimple_broker import WealthsimpleBroker
 
@@ -13,15 +14,23 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from config import Config
-    from services.broker import Broker, StatementBroker
+    from services.broker import Broker, RetryingBroker, StatementBroker
 
 
 @dataclass(frozen=True)
 class Brokers:
     """Every broker folio downloads from."""
 
-    ibkr: Broker
+    ibkr: RetryingBroker
     wealthsimple: StatementBroker
+
+    def all(self) -> tuple[Broker, ...]:
+        """Every broker, in the order an update downloads them."""
+        return (self.ibkr, self.wealthsimple)
+
+    def get(self, broker: BrokerId) -> Broker:
+        """Return one broker."""
+        return self.wealthsimple if broker is BrokerId.WS else self.ibkr
 
 
 def _configured(config: Config) -> Brokers:

@@ -12,13 +12,9 @@ from pathlib import Path
 
 from domain import BrokerId
 
-# Brokers as their download file names start.
-IBKR = BrokerId.IBKR
-WS = BrokerId.WS
-
 SUPPORTED_SUFFIXES = (".csv", ".xlsx")
 
-_STATEMENT_PREFIX = f"{WS}_statement"
+_STATEMENT_PREFIX = f"{BrokerId.WS}_statement"
 _DATE_RANGE = re.compile(r"_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})")
 _STATEMENT_NAME = re.compile(
     rf"^{_STATEMENT_PREFIX}_(?P<account>.+)_\d{{6}}$",
@@ -28,17 +24,17 @@ _STATEMENT_NAME = re.compile(
 
 def ibkr_file_name(query_name: str, from_date: str, to_date: str) -> str:
     """Name the file of one IBKR flex query, with dates as YYYYMMDD."""
-    return f"{IBKR}_{query_name}_{from_date}_{to_date}.csv"
+    return f"{BrokerId.IBKR}_{query_name}_{from_date}_{to_date}.csv"
 
 
 def ibkr_retry_file_name(reference_code: str) -> str:
     """Name the file of an IBKR request retried by its reference code."""
-    return f"{IBKR}_ref_{reference_code}.csv"
+    return f"{BrokerId.IBKR}_ref_{reference_code}.csv"
 
 
 def ws_activities_file_name(from_date: str, to_date: str) -> str:
     """Name a Wealthsimple activities file, with dates as YYYYMMDD."""
-    return f"{WS}_activities_{from_date}_{to_date}.csv"
+    return f"{BrokerId.WS}_activities_{from_date}_{to_date}.csv"
 
 
 def ws_statement_file_name(account: str, month: str) -> str:
@@ -46,9 +42,9 @@ def ws_statement_file_name(account: str, month: str) -> str:
     return f"{_STATEMENT_PREFIX}_{account}_{month.replace('-', '')}.csv"
 
 
-def broker_of(name: str) -> BrokerId | None:
+def broker_of_file(name: str) -> BrokerId | None:
     """Return the broker a file name came from, or None for any other file."""
-    for broker in (IBKR, WS):
+    for broker in BrokerId:
         if name.startswith(f"{broker}_"):
             return broker
     return None

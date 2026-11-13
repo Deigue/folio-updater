@@ -12,8 +12,8 @@ import pytest
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import txns
-from services import WealthsimpleClientError
-from services.wealthsimple_client import WealthsimpleAuthenticationError
+from domain import BrokerId
+from services import BrokerError, BrokerFailure, PartFailure
 
 from .fixtures.data_factory import create_transaction_data
 from .fixtures.dataframe_cache import register_test_dataframe
@@ -22,9 +22,9 @@ from .helpers.folio import txn_total
 from .helpers.seed import TSX_TICKER, seed_cash, seed_transaction
 
 if TYPE_CHECKING:
-    from pathlib import Path
     from unittest.mock import MagicMock
 
+    from .fixtures.fake_broker import FakeBrokers
     from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
 
@@ -37,38 +37,56 @@ OFFLINE = "offline"
 pytestmark = pytest.mark.usefixtures("quiet_logging")
 
 
-def _no_call(*_args: object, **_kwargs: object) -> None:
-    """Stand in for a stage that must not run."""
-    msg = "this download should not have run"
-    raise AssertionError(msg)
+def _ibkr(kind: BrokerFailure, detail: str) -> BrokerError:
+    return BrokerError(BrokerId.IBKR, kind, detail)
+
+
+def _ws(kind: BrokerFailure, detail: str) -> BrokerError:
+    return BrokerError(BrokerId.WS, kind, detail)
 
 
 @pytest.mark.parametrize(
-    ("ibkr_failures", "ws_error", "hint"),
+    ("ibkr_failure", "ibkr_error", "ws_error", "hint"),
     [
         (
-            ["CashActivity: IBKR API Error 1012: Token has expired."],
+            _ibkr(BrokerFailure.CREDENTIALS_EXPIRED, "IBKR API Error 1012"),
+            None,
             None,
             "folio download -b ibkr --credentials",
         ),
         (
-            ["CashActivity: IBKR API Error 1019: Statement generation in progress."],
+            _ibkr(BrokerFailure.BUSY, "Statement not ready after 10 attempts."),
+            None,
             None,
             "wait a few minutes",
         ),
         (
-            [],
-            "Login failed to authenticate",
+            None,
+            _ibkr(BrokerFailure.NOT_CONFIGURED, "No IBKR flex queries configured"),
+            None,
+            "Set up IBKR under brokers in config.yaml",
+        ),
+        (
+            None,
+            None,
+            _ws(BrokerFailure.LOGIN_FAILED, "Login failed"),
             "folio download -b wealthsimple --credentials",
         ),
+        (
+            None,
+            None,
+            _ws(BrokerFailure.NOT_SAVED, "Permission denied"),
+            "Close the file if another program has it open",
+        ),
     ],
-    ids=["ibkr-token-expired", "ibkr-busy", "ws-login"],
+    ids=["ibkr-token-expired", "ibkr-busy", "ibkr-unset", "ws-login", "ws-not-saved"],
 )
 def test_failed_download_stops_and_cleans_up(
     temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
-    ibkr_failures: list[str],
-    ws_error: str | None,
+    brokers: FakeBrokers,
+    ibkr_failure: BrokerError | None,
+    ibkr_error: BrokerError | None,
+    ws_error: BrokerError | None,
     hint: str,
 ) -> None:
     """A broker failure stops before import and removes only this run's files."""
@@ -76,19 +94,11 @@ def test_failed_download_stops_and_cleans_up(
         config = ctx.config
         earlier = config.imports_path / "earlier_download.csv"
         earlier.touch()
-
-        def ibkr(*_args: object) -> list[str]:
-            (config.imports_path / IBKR_FILE).write_text("partial")
-            return ibkr_failures
-
-        def wealthsimple(*_args: object) -> None:
-            raise WealthsimpleAuthenticationError(ws_error)
-
-        monkeypatch.setattr("cli.commands.update.download_ibkr", ibkr)
-        monkeypatch.setattr(
-            "cli.commands.update.download_wealthsimple",
-            wealthsimple if ws_error else _no_call,
-        )
+        brokers.ibkr.files = (IBKR_FILE,)
+        if ibkr_failure is not None:
+            brokers.ibkr.failures = (PartFailure("CashActivity", ibkr_failure),)
+        brokers.ibkr.error = ibkr_error
+        brokers.wealthsimple.error = ws_error
 
         result = run_cli_with_config(config, cli_app, ["update"])
 
@@ -99,6 +109,9 @@ def test_failed_download_stops_and_cleans_up(
         assert_in_output("Removed 1 file(s) this run downloaded", result)
         assert_in_output(hint, result)
         assert_not_in_output("Folio workbook", result)
+        # A broker that failed stops the run before the next is asked.
+        ibkr_failed = ibkr_failure is not None or ibkr_error is not None
+        assert len(brokers.wealthsimple.downloads) == (not ibkr_failed)
 
 
 def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
@@ -167,12 +180,12 @@ def test_an_update_over_the_demo_stops_until_you_replace_it(
 
 @pytest.mark.parametrize(
     ("statement_error", "named"),
-    [(OFFLINE, OFFLINE), ("", "WealthsimpleClientError")],
+    [(OFFLINE, OFFLINE), ("", "unexpected response")],
     ids=["with-a-message", "without-a-message"],
 )
 def test_clean_run_goes_through_every_stage(
     temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
+    brokers: FakeBrokers,
     statement_error: str,
     named: str,
 ) -> None:
@@ -186,20 +199,12 @@ def test_clean_run_goes_through_every_stage(
         seed_transaction(account=WS_ACCOUNT)  # a calculated date from a past month
         seed_cash("TFR_OUT", amount="-100", account=WS_ACCOUNT)
 
-        def ibkr(*_args: object) -> list[str]:
-            return []
-
-        def wealthsimple(*_args: object) -> None:
-            create_transaction_data(config.imports_path / WS_FILE)
-
-        def offline_statement(_month_start: str) -> list[Path]:
-            raise WealthsimpleClientError(statement_error)
-
-        monkeypatch.setattr("cli.commands.update.download_ibkr", ibkr)
-        monkeypatch.setattr("cli.commands.update.download_wealthsimple", wealthsimple)
-        monkeypatch.setattr(
-            "cli.commands.update.download_ws_statement",
-            offline_statement,
+        brokers.wealthsimple.files = (WS_FILE,)
+        brokers.wealthsimple.write = create_transaction_data
+        brokers.wealthsimple.statement_error = BrokerError(
+            BrokerId.WS,
+            BrokerFailure.UNEXPECTED_RESPONSE,
+            statement_error,
         )
 
         result = run_cli_with_config(config, cli_app, ["update"])
@@ -219,7 +224,7 @@ def test_clean_run_goes_through_every_stage(
 
 def test_offline_imports_what_waits_and_touches_no_network(
     temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
+    brokers: FakeBrokers,
     quote_provider: FakeQuoteProvider,
     boc_fetch: MagicMock,
 ) -> None:
@@ -232,12 +237,6 @@ def test_offline_imports_what_waits_and_touches_no_network(
             currency="CAD",
         )  # a calculated date from a past month, with no statement on hand
         create_transaction_data(config.imports_path / WS_FILE)
-        for download in (
-            "download_ibkr",
-            "download_wealthsimple",
-            "download_ws_statement",
-        ):
-            monkeypatch.setattr(f"cli.commands.update.{download}", _no_call)
         # The rates a folio already holds are all an offline run can convert with.
         run_cli_with_config(config, cli_app, ["getfx"])
         boc_fetch.reset_mock()
@@ -249,12 +248,14 @@ def test_offline_imports_what_waits_and_touches_no_network(
         assert config.folio_path.exists()
         assert not quote_provider.calls
         assert not boc_fetch.called
+        assert brokers.ibkr.downloads == brokers.wealthsimple.downloads == []
+        assert brokers.wealthsimple.statement_months == []
         assert_in_output("statement not fetched offline", result)
 
 
 def test_statement_on_hand_is_imported_not_fetched(
     temp_ctx: TempContext,
-    monkeypatch: pytest.MonkeyPatch,
+    brokers: FakeBrokers,
 ) -> None:
     """A month waiting in the statements folder is imported, not fetched.
 
@@ -288,21 +289,10 @@ def test_statement_on_hand_is_imported_not_fetched(
                 },
             ),
         )
-        fetched: list[str] = []
-
-        def unpublished(month_start: str) -> list[Path]:
-            fetched.append(month_start)
-            return []
-
-        monkeypatch.setattr(
-            "cli.commands.update.download_ws_statement",
-            unpublished,
-        )
-
         result = run_cli_with_config(config, cli_app, ["update", "--resume"])
 
         assert result.exit_code == 0
-        assert fetched == ["2025-07-01"]
+        assert brokers.wealthsimple.statement_months == ["2025-07"]
         assert not statement.exists()
         assert (config.statements_processed_path / statement.name).exists()
         assert_in_output("Nothing new to import", result)

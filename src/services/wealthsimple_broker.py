@@ -147,10 +147,7 @@ def _preview(
     accounts: Sequence[WealthsimpleAccount],
 ) -> PreviewTable:
     """Preview the first activities retrieved, each account by its nickname."""
-    names = {
-        account.id: account.nickname or account.account_type or account.id
-        for account in accounts
-    }
+    names = {account.id: account.display_name for account in accounts}
     rows = tuple(
         (
             activity.occurred_on.isoformat(),
@@ -158,8 +155,7 @@ def _preview(
             activity.asset_symbol or "",
             activity.amount or "",
             activity.currency or "",
-            names.get(activity.account_id or "")
-            or (activity.account_id[:8] + "..." if activity.account_id else ""),
+            names.get(activity.account_id or "") or activity.account_id or "",
             activity.description or "",
         )
         for activity in activities[:PREVIEW_ROWS]

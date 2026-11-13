@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from domain import BrokerId
 from services.broker_files import (
-    IBKR,
-    WS,
-    broker_of,
+    broker_of_file,
     date_range_of,
     ibkr_file_name,
     ibkr_retry_file_name,
@@ -43,15 +42,18 @@ def test_names_keep_the_format_existing_downloads_use() -> None:
 @pytest.mark.parametrize(
     ("name", "broker"),
     [
-        (ibkr_file_name("TradeConfirmation", "20260105", "20260206"), IBKR),
-        (ibkr_retry_file_name("7654321"), IBKR),
-        (ws_activities_file_name("20260105", "20260206"), WS),
-        (ws_statement_file_name("WS-TEST", "2026-01"), WS),
+        (ibkr_file_name("TradeConfirmation", "20260105", "20260206"), BrokerId.IBKR),
+        (ibkr_retry_file_name("7654321"), BrokerId.IBKR),
+        (ws_activities_file_name("20260105", "20260206"), BrokerId.WS),
+        (ws_statement_file_name("WS-TEST", "2026-01"), BrokerId.WS),
         ("my_transactions.xlsx", None),
     ],
 )
-def test_a_name_says_which_broker_it_came_from(name: str, broker: str | None) -> None:
-    assert broker_of(name) == broker
+def test_a_name_says_which_broker_it_came_from(
+    name: str,
+    broker: BrokerId | None,
+) -> None:
+    assert broker_of_file(name) is broker
 
 
 @pytest.mark.parametrize(

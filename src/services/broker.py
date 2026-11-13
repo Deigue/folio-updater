@@ -26,14 +26,17 @@ type Progress = Callable[[str], None]
 
 
 class BrokerFailure(StrEnum):
-    """What went wrong with a broker, which decides how to recover."""
+    """What went wrong with a broker, which decides how to recover.
+
+    Listed most actionable first, so of several failures the earliest decides.
+    """
 
     CREDENTIALS_EXPIRED = "credentials expired"
     LOGIN_FAILED = "login failed"
     NOT_CONFIGURED = "not configured"
+    NOT_SAVED = "not saved"
     BUSY = "busy"
     UNEXPECTED_RESPONSE = "unexpected response"
-    NOT_SAVED = "not saved"
 
 
 class BrokerError(Exception):
@@ -117,6 +120,22 @@ class Broker(Protocol):
         ...
 
 
+class ReferenceRetry(Protocol):
+    """A broker whose earlier request can be downloaded again by its reference code."""
+
+    def retry(self, reference_code: str, progress: Progress) -> DownloadResult:
+        """Download the statement of an earlier request into the imports inbox.
+
+        Raises:
+            BrokerError: When the statement cannot be downloaded or saved.
+        """
+        ...
+
+
+class RetryingBroker(Broker, ReferenceRetry, Protocol):
+    """A broker downloaded from that can also retry an earlier request."""
+
+
 class MonthlyStatementSource(Protocol):
     """A broker publishing monthly statements, the source of actual settlement dates."""
 
@@ -154,7 +173,7 @@ def resolve_window(
 
 def _restart_day(broker: BrokerId, today: date) -> date:
     """Return the broker's overlap day, or the fallback first of a month."""
-    name = broker.value.upper()
+    name = broker.display_name
     try:
         overlap_day = txns.latest_date_for(broker)
         if overlap_day:

@@ -6,7 +6,7 @@ import re
 from decimal import Decimal
 from enum import StrEnum
 
-from domain import AccountType, Action, Currency
+from domain import AccountType, Action, BrokerId, Currency
 
 
 class TransactionContext(StrEnum):
@@ -54,8 +54,7 @@ SPINNER_PARQUET = "green"
 SPINNER_DEMO = "sea_green3"
 SPINNER_FX = "cyan"
 SPINNER_GENERATE = "yellow"
-SPINNER_IBKR = "red"
-SPINNER_WEALTHSIMPLE = "dark_goldenrod"
+SPINNER_BROKERS = {BrokerId.IBKR: "red", BrokerId.WS: "dark_goldenrod"}
 SPINNER_STATEMENT = "dark_violet"
 
 # Rules that open a section of a long command.

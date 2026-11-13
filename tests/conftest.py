@@ -21,15 +21,16 @@ from app import AppContext, get_config
 from app.logging_setup import AUDIT_LOGGER
 from datagen import DemoFolio
 from datagen.demo import END, START
-from domain import TORONTO_TZ, Currency
+from domain import TORONTO_TZ, BrokerId, Currency
 from engine.settlement import settlement_calculator
 from models import FxRate
-from services import FxService
+from services import BrokerRegistry, Brokers, FxService
 from services.quote_provider import ProviderDescription
 from services.quote_service import QuoteService
 from term.console import override_console
 
 from .fixtures.dataframe_cache import dataframe_cache_patching  # noqa: F401
+from .fixtures.fake_broker import FakeBroker, FakeBrokers
 from .fixtures.fake_quote_provider import FakeQuoteProvider, provider_price
 from .fixtures.saved_ledger import memory_saved_ledger  # noqa: F401
 from .helpers.seed import reset_seed_state
@@ -227,6 +228,26 @@ def cached_quote_data() -> dict[str, dict[str, Any]]:
             "market_cap": 250_000_000.0,
         },
     }
+
+
+@pytest.fixture
+def brokers(monkeypatch: pytest.MonkeyPatch) -> FakeBrokers:
+    """Download from fakes instead of IBKR and Wealthsimple.
+
+    Returns:
+        The fakes, for a test to set what each writes or raises, and to read
+        what each was asked for.
+    """
+    fakes = FakeBrokers(
+        ibkr=FakeBroker(BrokerId.IBKR),
+        wealthsimple=FakeBroker(BrokerId.WS),
+    )
+    monkeypatch.setattr(
+        BrokerRegistry,
+        "factory",
+        lambda _config: Brokers(ibkr=fakes.ibkr, wealthsimple=fakes.wealthsimple),
+    )
+    return fakes
 
 
 @pytest.fixture(autouse=True)
