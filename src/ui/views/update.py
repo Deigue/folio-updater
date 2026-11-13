@@ -17,6 +17,7 @@ from exporters.sheet_spec import Fmt
 from models import UpdateStage
 from term import StatusMark, console_print, console_rule, get_symbol
 from term.console import console_panel
+from ui.cells import long_date, money, signed
 from ui.layout.columns import FormattedColumn
 from ui.transaction_table import show_source_rows, show_transactions
 from ui.vocabulary import (
@@ -29,8 +30,10 @@ from ui.vocabulary import (
 from ui.widgets import show_data_table
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
+    from engine.since_update import SinceUpdate
     from models import Concern, UpdateReport
 
 _CONCERN_STYLE = "yellow"
@@ -49,15 +52,21 @@ def show_workbook_link(path: Path) -> None:
     )
 
 
-def show_update_report(report: UpdateReport) -> None:
+def show_update_report(
+    report: UpdateReport,
+    since: Sequence[SinceUpdate] | None = None,
+) -> None:
     """Print the end-of-run report.
 
     Args:
         report: What the run did and what it raised.
+        since: What changed in each account type and the folio since the
+            previous update, empty on the first, None when no baseline was saved.
     """
     console_print("")
     console_rule("Update Report", style=RULE_UPDATE)
     _show_changes(report)
+    _show_since(since)
     _show_concerns(report.concerns)
     _show_notes("Pending, a later update resolves these", report.pending)
     _show_notes("Expected, nothing to do", report.expected)
@@ -102,6 +111,43 @@ def _show_changes(report: UpdateReport) -> None:
         )
     else:
         console_print(f"{get_symbol(StatusMark.INFO)}No settlement dates confirmed.")
+
+
+_CHANGE_COLUMNS = tuple(
+    FormattedColumn(header, fmt=Fmt.MONEY, justify="right")
+    for header in ("Growth", "Net Deposits", "Dividends")
+)
+
+
+def _show_since(since: Sequence[SinceUpdate] | None) -> None:
+    """Print what changed in each account type and the folio, in CAD."""
+    if since is None:
+        return
+    if not since:
+        console_print(
+            f"{get_symbol(StatusMark.INFO)}First baseline saved; changes "
+            "show from the next update.",
+        )
+        return
+    show_data_table(
+        [
+            {
+                "Pool": change.pool.label,
+                "Growth": signed(money(change.growth, plus=True), change.growth),
+                "Net Deposits": money(change.net_deposits, plus=True, blank_zero=True),
+                "Dividends": money(change.dividends, plus=True, blank_zero=True),
+                "New txns": str(change.new_txns or ""),
+            }
+            for change in since
+        ],
+        title=f"Since the last update ({long_date(since[0].saved_on)}), in CAD",
+        max_rows=len(since),
+        theme=THEME_SUCCESS,
+        columns=(
+            *_CHANGE_COLUMNS,
+            FormattedColumn("New txns", justify="right"),
+        ),
+    )
 
 
 def _show_concerns(concerns: list[Concern]) -> None:

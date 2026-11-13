@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - `folio query` understands `in 2022`, `during 2022` and `year 2022`, action aliases such as
 `DIV`, `DEPOSIT` and `DEP`, and multi-column sorts like `sort:a,-b`.
+- `folio update` and `folio dash` show what changed since the last update: growth, net deposits,
+dividends and new transactions, in CAD.
 - `folio update --offline` runs all steps offline (no downloads, no fx, no quotes)
 - Ticker alias changes from `folio symbol` are recorded in the audit log.
 - Demo folio now includes a US dollar deposit, US dollar trade at a broker who prices

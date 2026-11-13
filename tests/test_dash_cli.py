@@ -8,7 +8,9 @@ from unittest.mock import patch
 import pytest
 from openpyxl import load_workbook
 
+from cli.commands.common import save_update_baseline
 from cli.main import app
+from db import update_baselines
 from services.quote_service import QuoteService, RefreshResult
 
 from .helpers.cli import (
@@ -42,6 +44,28 @@ def test_dash_renders_a_holding_and_a_total(temp_ctx: TempContext) -> None:
         assert_in_output("TESTTKR", result)
         assert_in_output("Portfolio", result)
         assert_in_output("2 held", result)
+        # Nothing has saved a baseline yet, so there is nothing to count from.
+        assert_not_in_output("since", result)
+
+
+def test_dash_counts_what_is_new_at_its_scope_and_never_moves_the_baseline(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        seed_two_account_types()
+        save_update_baseline()
+        saved = update_baselines.read()
+        seed_transaction(account="WS-TFSA", amount="-250", price="50", units="5")
+
+        tfsa = run_cli_with_config(ctx.config, app, ["dash", "-t", "tfsa"])
+        again = run_cli_with_config(ctx.config, app, ["dash", "-t", "tfsa"])
+        personal = run_cli_with_config(ctx.config, app, ["dash", "-a", "WS-PERSONAL"])
+
+        assert update_baselines.read() == saved
+        assert_in_output("+1 txn", tfsa)
+        assert_in_output("+1 txn", again)
+        assert_in_output("since", personal)
+        assert_not_in_output("+1 txn", personal)
 
 
 def test_dash_offline_still_renders_cost_base(temp_ctx: TempContext) -> None:

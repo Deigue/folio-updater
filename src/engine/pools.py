@@ -16,15 +16,18 @@ from domain import (
     Grain,
 )
 from domain.constants import TORONTO_TZ
-from engine.accounts import Pool, account_type_of
+from domain.numeric import ZERO
+from engine.accounts import FOLIO, Pool, account_type_of
 from engine.flows import (
     build_flows,
     contributions_by_type_year,
     room_history,
     withdrawals_by_type_year,
 )
+from engine.frames import POOL_COLUMN
 from engine.fx_rates import load_fx_rates
-from engine.holdings import UNITS_SUSPECT, FolioHoldings
+from engine.holdings import UNITS_SUSPECT, FolioHoldings, latest_rate
+from models import UpdateBaseline
 from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
@@ -356,6 +359,50 @@ class FolioValuation:
         )
         return ValuedPool(pool=pool, holdings=holdings, flows=flows)
 
+    @property
+    def usd_cad(self) -> Decimal:
+        """Today's CAD per USD: the latest rate the folio holds.
+
+        Zero when it holds none, which only a folio with no USD to convert can
+        do: a USD transaction cannot be replayed without a rate.
+        """
+        rate, _ = latest_rate(self.folio_holdings.fx)
+        return rate or ZERO
+
+    def pool_totals(self, pool: Pool, saved_at: datetime) -> UpdateBaseline:
+        """Total one pool the way an update baseline holds it.
+
+        Args:
+            pool: The pool to total.
+            saved_at: When the totals are taken.
+
+        Returns:
+            The pool's market value (holdings plus cash) in CAD, its net deposits
+            and dividends in the currency each moved in, and its transaction count.
+        """
+        flows = build_flows(self.ledger, pool, contributions=self.contributions)
+        holdings = self.folio_holdings.holdings(pool, currency=Currency.CAD)
+        held = holdings.total_market if holdings.holdings else ZERO
+        deposits = flows.net_deposits
+        return UpdateBaseline(
+            grain=pool.grain,
+            pool=pool.name,
+            saved_at=saved_at,
+            market_value=(
+                None if held is None else held + cad_total(flows.cash, self.usd_cad)
+            ),
+            net_deposits_cad=deposits.get(Currency.CAD, ZERO),
+            net_deposits_usd=deposits.get(Currency.USD, ZERO),
+            dividends_cad=flows.dividends.get(Currency.CAD, ZERO),
+            dividends_usd=flows.dividends.get(Currency.USD, ZERO),
+            txn_count=self._txn_count(pool),
+        )
+
+    def every_pool_totals(self, saved_at: datetime) -> list[UpdateBaseline]:
+        """Total every pool at every grain, as `pool_totals` totals one."""
+        pools = {pool for pool, _ in self.ledger.cash} | set(self.ledger.holdings)
+        return [self.pool_totals(pool, saved_at) for pool in sorted(pools | {FOLIO})]
+
     def account_types(self) -> list[str]:
         """Every account type with a holding, in a stable order."""
         return self._pool_names(Column.Ledger.ACCT_TYPE)
@@ -385,9 +432,21 @@ class FolioValuation:
         valued_pools = (self.value(pool, sort=sort, reverse=reverse) for pool in pools)
         return [valued for valued in valued_pools if valued.occupied]
 
+    def _txn_count(self, pool: Pool) -> int:
+        """Count the transactions in one pool."""
+        frame = self.ledger.frame
+        if pool.grain is Grain.FOLIO:
+            return len(frame)
+        return int((frame[POOL_COLUMN[pool.grain]].astype(str) == pool.name).sum())
+
     def _pool_names(self, column: str) -> list[str]:
         """Name every pool a column holds, in a stable order."""
         return sorted({str(value) for value in self.ledger.frame[column].dropna()})
+
+
+def cad_total(amounts: Mapping[Currency, Decimal], usd_cad: Decimal) -> Decimal:
+    """Sum per-currency amounts in CAD."""
+    return amounts.get(Currency.CAD, ZERO) + amounts.get(Currency.USD, ZERO) * usd_cad
 
 
 def _quotes(

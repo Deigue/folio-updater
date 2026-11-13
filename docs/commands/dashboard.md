@@ -188,6 +188,27 @@ Two independent caches feed this table, and the header ages both:
 A quote past its TTL is highlighted, because a stale price silently makes every
 market value and unrealized gain on the page wrong.
 
+## Since the last update
+
+Under the freshness line, one line says what changed in the pool shown since the
+last `folio update` or `folio import`, all in CAD:
+
+```text
+Δ since Nov 10, 2026 · growth +1,234.56 · deposits +500.00 · dividends +25.76 · +3 txns (CAD)
+```
+
+- **Growth** is the change in market value (holdings plus cash) less the net
+  deposits added since, so a contribution is not mistaken for a gain.
+- **Deposits** and **dividends** are what moved since. A USD amount is converted
+  at today's rate.
+- A figure that did not move is left out, and a pool where nothing moved says
+  `no change`. With `--by-type` the line covers the whole folio.
+
+Only `folio update` and `folio import` move the point these figures count from;
+running `folio dash` any number of times never does. The line appears once the
+first update or import has saved it. `folio update` ends its report with the
+same figures for every account type and the folio, before it saves the new point.
+
 ## Diagnostics
 
 A pool whose units the replay knows to be wrong (an `OVERSELL`, or a holding

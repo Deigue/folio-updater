@@ -10,7 +10,11 @@ from pathlib import Path
 import typer
 
 from app import bootstrap, get_config
-from cli.commands.common import export_to_parquet, refuse_unsupported_file
+from cli.commands.common import (
+    export_to_parquet,
+    refuse_unsupported_file,
+    save_update_baseline,
+)
 from datagen import DemoFolio, is_demo_folio
 from db import DatabaseError
 from importers import import_transactions
@@ -152,6 +156,7 @@ def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
     outcome = import_file(file_path, verbose=verbose)
     if outcome.imported > 0:
         export_to_parquet()
+        save_update_baseline()
     else:
         console_warning(f"No transactions imported from {file_path.name}")
 
@@ -204,5 +209,6 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
     if total_imported > 0:
         console_success(f"Total transactions imported: {total_imported}")
         export_to_parquet()
+        save_update_baseline()
     else:
         console_warning("No transactions imported")

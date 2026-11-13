@@ -12,6 +12,8 @@ from db import txns
 from domain import AccountType, Grain, parse_account_type
 from engine.accounts import FOLIO, Pool
 from engine.ledger import LedgerUnavailableError, open_ledger
+from engine.pools import FolioValuation
+from engine.since_update import record_update
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from services.broker_files import SUPPORTED_SUFFIXES, is_supported
@@ -65,6 +67,20 @@ def require_ledger(
     except LedgerUnavailableError as error:
         console_error(f"{error} {FIX_UNCONVERTIBLE}")
         raise typer.Exit(1) from error
+
+
+def save_update_baseline() -> None:
+    """Save every pool's totals now, for later reports to say what changed since.
+
+    The import that calls this has already stored its rows, so a folio that
+    cannot be valued keeps its earlier baseline rather than failing the import.
+    """
+    try:
+        ledger = open_ledger(priced=True)
+    except LedgerUnavailableError as error:
+        console_warning(f"Kept the earlier update baseline: {error}")
+        return
+    record_update(FolioValuation.build(ledger), [])
 
 
 def resolve_pool(

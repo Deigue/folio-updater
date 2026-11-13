@@ -22,9 +22,11 @@ from cli.commands.import_data import (
 )
 from cli.commands.settle_info import archive_statement, import_single_statement
 from db import txns
-from domain import TORONTO_TZ, BrokerId, SettlementOutcome
+from domain import TORONTO_TZ, BrokerId, Grain, SettlementOutcome
+from engine.accounts import FOLIO, Pool
 from engine.checks import CheckReport, run_checks
 from engine.pools import FolioValuation
+from engine.since_update import record_update
 from engine.update_review import (
     review_checks,
     review_import,
@@ -57,6 +59,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from config import Config
+    from engine.since_update import SinceUpdate
     from models import FileImport
 
 
@@ -94,15 +97,16 @@ def run_update(*, resume: bool = False, offline: bool = False) -> UpdateReport:
 
     report.new_txns = txns.since(first_new_id)
 
+    since: list[SinceUpdate] | None = None
     if not report.failed:
         _review_transfers(report)
         _check_stage(report, offline=offline)
         _generate_stage(report, offline=offline)
-        _dashboard_stage(offline=offline)
+        since = _dashboard_stage(offline=offline)
         if report.workbook is not None:
             show_workbook_link(report.workbook)
 
-    show_update_report(report)
+    show_update_report(report, since)
     return report
 
 
@@ -472,12 +476,24 @@ def _generate_stage(report: UpdateReport, *, offline: bool) -> None:
         report.concerns.append(concern)
 
 
-def _dashboard_stage(*, offline: bool) -> None:
-    """Show every account type's dashboard, valued in the currency it trades in."""
+def _dashboard_stage(*, offline: bool) -> list[SinceUpdate] | None:
+    """Save the new baseline, then show every account type's dashboard.
+
+    Each pool is totalled once: the change since the previous update is read
+    from the same totals that are saved, then shown.
+
+    Returns:
+        What changed in each account type and the folio since the previous
+        update, empty when this is the first, or None for a folio with no
+        transactions, which saves nothing.
+    """
     console_rule("Dashboard", style=RULE_UPDATE)
     ledger = require_ledger(priced=True, offline=offline)
-    if not ledger.frame.empty:
-        show_types(
-            FolioValuation.build(ledger, currency="native", offline=offline),
-            offline=offline,
-        )
+    if ledger.frame.empty:
+        return None
+    valuation = FolioValuation.build(ledger, currency="native", offline=offline)
+    types = [Pool(Grain.TYPE, name) for name in valuation.account_types()]
+    since = record_update(valuation, [*types, FOLIO]) or []
+    folio = next((change for change in since if change.pool == FOLIO), None)
+    show_types(valuation, offline=offline, since=folio)
+    return since

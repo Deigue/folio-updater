@@ -405,7 +405,7 @@ class FolioHoldings:
         Raises:
             UnknownSortError: If `sort` is not a sortable measure.
         """
-        rate, rate_date = _latest_rate(self.fx)
+        rate, rate_date = latest_rate(self.fx)
         priced_totals = ZERO
         excluded = 0
         partial: list[Holding] = []
@@ -866,7 +866,7 @@ def converted_price(
     return from_cad.value, prev_usd
 
 
-def _latest_rate(fx: FxRates) -> tuple[Decimal | None, str | None]:
+def latest_rate(fx: FxRates) -> tuple[Decimal | None, str | None]:
     """Find the most recent USDCAD rate held, to disclose beside a valuation."""
     found = fx.as_of(_today(fx))
     if found is None:

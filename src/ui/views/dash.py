@@ -23,12 +23,14 @@ from engine.pools import (
 from exporters.sheet_spec import Fmt
 from term import console_print
 from ui.cells import (
+    DELTA_GLYPH,
     UNICODE,
     WARN_GLYPH,
     currency_tint,
     day_move,
     income,
     lifetime_return,
+    long_date,
     money,
     percent,
     price,
@@ -71,6 +73,7 @@ if TYPE_CHECKING:
     from engine.flows import Flows, Room
     from engine.holdings import ClosedTotals, CurrencyTotals, Holding, HoldingSet
     from engine.pools import Disclosure, Return, ValuedPool
+    from engine.since_update import SinceUpdate
     from ui.layout.fit import FitResult
 
 
@@ -571,6 +574,7 @@ def show_by_type(
     wide: bool = False,
     show_closed: bool = False,
     badge: str | None = None,
+    since: SinceUpdate | None = None,
 ) -> None:
     """Print one dashboard per account type, flows tiled above the holdings.
 
@@ -584,9 +588,9 @@ def show_by_type(
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
+        since: What changed in the whole folio since the latest update.
     """
-    if badge:
-        console_print(badge)
+    _print_header(badge, since)
 
     by_tile = {Tile(flows_panel(valued)): valued for valued in valued_pools}
     layout = TilingLayout(list(by_tile))
@@ -614,6 +618,7 @@ def show_dashboard(
     wide: bool = False,
     show_closed: bool = False,
     badge: str | None = None,
+    since: SinceUpdate | None = None,
 ) -> None:
     """Print one pool's dashboard: badge, flows panel, then holdings.
 
@@ -622,11 +627,50 @@ def show_dashboard(
         wide: Offer the wide-only columns.
         show_closed: Break the aggregate "Closed" row open per holding.
         badge: Cache-freshness line, printed above everything.
+        since: What changed in the pool since the latest update.
     """
-    if badge:
-        console_print(badge)
+    _print_header(badge, since)
     console_print(flows_panel(valued))
     _print_holdings(valued, wide=wide, show_closed=show_closed)
+
+
+def _print_header(badge: str | None, since: SinceUpdate | None) -> None:
+    """Print the freshness line, then what changed since the latest update."""
+    if badge:
+        console_print(badge)
+    if since is not None:
+        console_print(_since_line(since))
+
+
+_SINCE_SEPARATOR = style(" · " if UNICODE else " | ", "dim")
+
+
+def _since_line(since: SinceUpdate) -> str:
+    """Word what changed since the latest update on one line, in CAD.
+
+    One line whatever the scope, so the flows panels keep their height. A figure
+    that did not move is left out.
+    """
+    parts = []
+    if since.growth:
+        growth = signed(money(since.growth, plus=True), since.growth)
+        parts.append(f"{style('growth', 'dim')} {growth}")
+    for label, amount in (
+        ("deposits", since.net_deposits),
+        ("dividends", since.dividends),
+    ):
+        if amount:
+            parts.append(f"{style(label, 'dim')} {money(amount, plus=True)}")
+    if since.new_txns:
+        plural = "" if since.new_txns == 1 else "s"
+        parts.append(f"+{since.new_txns} txn{plural}")
+    saved = style(f"since {long_date(since.saved_on)}", "dim")
+    figures = (
+        f"{_SINCE_SEPARATOR.join(parts)} {style('(CAD)', 'dim')}"
+        if parts
+        else style("no change", "dim")
+    )
+    return f"[cyan]{DELTA_GLYPH}[/cyan] {saved}{_SINCE_SEPARATOR}{figures}"
 
 
 def _print_holdings(

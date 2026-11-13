@@ -251,6 +251,7 @@ class Table(StrEnum):
     QUOTES = "Quotes"
     QUOTE_HISTORY = "QuoteHistory"
     REVISIONS = "Revisions"
+    UPDATE_BASELINES = "UpdateBaselines"
 
 
 class Column(StrEnum):
@@ -363,3 +364,16 @@ class Column(StrEnum):
 
         TABLE_NAME = "TableName"
         TOKEN = "Token"  # noqa: S105 - a column name, not a secret
+
+    class UpdateBaseline(StrEnum):
+        """One pool's totals as the latest update or import left them."""
+
+        GRAIN = "Grain"
+        POOL = "Pool"  # The account or account type; empty for the folio pool
+        SAVED_AT = "SavedAt"
+        MARKET_VALUE = "MarketValue"  # CAD, holdings plus cash
+        NET_DEPOSITS_CAD = "NetDepositsCAD"
+        NET_DEPOSITS_USD = "NetDepositsUSD"
+        DIVIDENDS_CAD = "DividendsCAD"
+        DIVIDENDS_USD = "DividendsUSD"
+        TXN_COUNT = "TxnCount"

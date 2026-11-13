@@ -17,6 +17,7 @@ from db import (
     revisions,
     schema,
     txns,
+    update_baselines,
 )
 from db.backup import backup_folio, backup_scope, current_backup
 from db.catalog import (
@@ -79,5 +80,6 @@ __all__ = [
     "schema",
     "trial_insert_rows",
     "txns",
+    "update_baselines",
     "update_rows",
 ]

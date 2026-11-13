@@ -23,9 +23,10 @@ from cli.commands.common import (
     write_or_exit,
 )
 from domain import Currency, Grain
-from engine.accounts import Pool
+from engine.accounts import FOLIO, Pool
 from engine.holdings import SORT_NAMES, UnknownSortError
 from engine.pools import FolioValuation
+from engine.since_update import since_update
 from exporters.output import CSV_SUFFIX
 from exporters.sheets import pool_sheet, pooled_dashboard_sheet
 from term import console_error, console_info, console_warning
@@ -37,6 +38,7 @@ if TYPE_CHECKING:
 
     from engine.holdings import DisplayCurrency
     from engine.pools import ValuedPool
+    from engine.since_update import SinceUpdate
 
 _CURRENCIES = ("native", "CAD", "USD")
 
@@ -104,6 +106,7 @@ def show_types(
     show_closed: bool = False,
     export: str | None = None,
     offline: bool = False,
+    since: SinceUpdate | None = None,
 ) -> None:
     """Tile one panel per account type, or export them.
 
@@ -116,6 +119,7 @@ def show_types(
             closed holding.
         export: Write the valued holdings to this path instead of printing.
         offline: Whether the network was kept out of it, which is said.
+        since: What changed in the whole folio since the latest update.
 
     Raises:
         typer.Exit: If the export path names a format that cannot be written.
@@ -136,6 +140,7 @@ def show_types(
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),
+        since=since,
     )
 
 
@@ -206,14 +211,12 @@ def show_dash(
             show_closed=show_closed,
             export=export,
             offline=offline,
+            since=since_update(valuation, FOLIO),
         )
         return
 
-    valued = valuation.value(
-        resolve_pool(account, account_type),
-        sort=sort,
-        reverse=reverse,
-    )
+    pool = resolve_pool(account, account_type)
+    valued = valuation.value(pool, sort=sort, reverse=reverse)
 
     if export:
         _export([valued], export, _note(valuation))
@@ -224,4 +227,5 @@ def show_dash(
         wide=wide,
         show_closed=show_closed,
         badge=_badge(valuation, offline=offline),
+        since=since_update(valuation, pool),
     )

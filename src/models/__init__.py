@@ -31,6 +31,7 @@ from models.txn_selection import (
     TxnSelection,
     TxnSort,
 )
+from models.update_baseline import UpdateBaseline
 from models.update_report import Concern, HardFailure, UpdateReport, UpdateStage
 
 __all__ = [
@@ -57,6 +58,7 @@ __all__ = [
     "TxnSearch",
     "TxnSelection",
     "TxnSort",
+    "UpdateBaseline",
     "UpdateReport",
     "UpdateStage",
     "new_txns_from_frame",

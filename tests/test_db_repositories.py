@@ -29,10 +29,20 @@ from db import (
     quotes,
     revisions,
     txns,
+    update_baselines,
     update_rows,
 )
 from db.catalog import get_revisions
-from domain import Action, BrokerId, Column, Currency, PriceRange, QuoteStatus, Table
+from domain import (
+    Action,
+    BrokerId,
+    Column,
+    Currency,
+    Grain,
+    PriceRange,
+    QuoteStatus,
+    Table,
+)
 from models import (
     FxRate,
     NewTxn,
@@ -44,6 +54,7 @@ from models import (
     TxnSearch,
     TxnSelection,
     TxnSort,
+    UpdateBaseline,
 )
 
 from .helpers.seed import seed_transaction
@@ -1080,3 +1091,49 @@ def test_dropping_txns_and_aliases_removes_their_tables(temp_ctx: TempContext) -
             tables = get_tables(conn)
         assert Table.TXNS not in tables
         assert Table.TICKER_ALIASES not in tables
+
+
+# -- UPDATE BASELINES -----------------------------------------------------------
+
+
+def _baseline(grain: Grain, pool: str, market_value: str | None) -> UpdateBaseline:
+    """Build one pool's baseline, its flows in both currencies."""
+    return UpdateBaseline(
+        grain=grain,
+        pool=pool,
+        saved_at=datetime(2023, 4, 11, 20, 5, tzinfo=UTC),
+        market_value=None if market_value is None else Decimal(market_value),
+        net_deposits_cad=Decimal(7300),
+        net_deposits_usd=Decimal("410.5"),
+        dividends_cad=Decimal(0),
+        dividends_usd=Decimal("12.25"),
+        txn_count=17,
+    )
+
+
+def test_baselines_read_back_as_written(temp_ctx: TempContext) -> None:
+    folio = _baseline(Grain.FOLIO, "", "9123.45")
+    unpriced = _baseline(Grain.ACCOUNT, "ACCT-ONE", None)
+    with temp_ctx():
+        update_baselines.replace([folio, unpriced])
+
+        assert sorted(update_baselines.read(), key=lambda b: b.grain) == sorted(
+            [folio, unpriced],
+            key=lambda b: b.grain,
+        )
+
+
+def test_a_baseline_replace_drops_every_earlier_pool(temp_ctx: TempContext) -> None:
+    """Only the latest baseline is kept, so a pool gone since is gone from it."""
+    with temp_ctx():
+        update_baselines.replace([_baseline(Grain.ACCOUNT, "ACCT-ONE", "50")])
+        newer = _baseline(Grain.ACCOUNT, "ACCT-TWO", "75")
+
+        update_baselines.replace([newer])
+
+        assert update_baselines.read() == [newer]
+
+
+def test_baselines_read_empty_before_any_is_saved(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        assert update_baselines.read() == []

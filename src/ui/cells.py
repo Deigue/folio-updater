@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 UNICODE = supports_unicode()
 WARN_GLYPH = "⚠" if UNICODE else "!"
 EM_DASH = "—" if UNICODE else "-"
+DELTA_GLYPH = "Δ" if UNICODE else "+/-"
 
 PERCENT_PRECISION = 2
 
@@ -51,18 +52,25 @@ def display_round(number: float, precision: int) -> float:
     return round(number, precision) + 0.0
 
 
-def money(value: Decimal | None, *, blank_zero: bool = False) -> str:
+def money(
+    value: Decimal | None,
+    *,
+    blank_zero: bool = False,
+    plus: bool = False,
+) -> str:
     """Render a money figure, leaving a genuine blank blank.
 
     Rounded to cents *before* the sign is read, so an FX residue of a
     millionth of a cent prints as `0.00` rather than the alarming `-0.00`.
+    `plus` marks a gain with a leading `+`, for a change.
     """
     if value is None:
         return EM_DASH
     number = float(q2(value)) + 0.0  # collapses -0.0, which reads as a real debit
     if blank_zero and number == 0:
         return ""
-    return f"{number:,.{MONEY_PRECISION}f}"
+    flag = "+" if plus and number > 0 else ""
+    return f"{flag}{number:,.{MONEY_PRECISION}f}"
 
 
 def price(value: Decimal | None) -> str:

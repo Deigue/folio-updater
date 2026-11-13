@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -13,8 +14,14 @@ from typer.testing import CliRunner
 
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import create_txns_table, get_connection, get_row_count, get_rows
-from domain import Column, Table
+from db import (
+    create_txns_table,
+    get_connection,
+    get_row_count,
+    get_rows,
+    update_baselines,
+)
+from domain import TORONTO_TZ, Column, Grain, Table
 from term.console import active_console
 
 from .fixtures.data_factory import create_transaction_data
@@ -44,6 +51,7 @@ from .helpers.seed import (
     STATEMENT_TRADE_DATE,
     TSX_TICKER,
     TXN_DATE,
+    seed_fx,
     seed_transaction,
     statement_buy,
 )
@@ -104,6 +112,24 @@ def test_import_command(temp_ctx: TempContext) -> None:
         with get_connection() as conn:
             count = get_row_count(conn, Table.TXNS)
             assert count == EXPECTED_TRANSACTION_COUNT
+
+
+@pytest.mark.real_parquet_export
+def test_an_import_saves_every_pools_baseline(temp_ctx: TempContext) -> None:
+    """Reports compare against what the import left, at every grain."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        create_transaction_data(config.imports_path / "transactions.xlsx")
+        # The synthetic rows trade in the days ahead, past any published rate.
+        today = datetime.now(TORONTO_TZ).date()
+        seed_fx({str(today + timedelta(days=n)): "1.3125" for n in range(10)})
+
+        run_cli_with_config(config, cli_app, ["import"])
+
+        baselines = update_baselines.read()
+        assert {baseline.grain for baseline in baselines} == set(Grain)
+        folio = next(b for b in baselines if b.grain is Grain.FOLIO)
+        assert folio.txn_count == EXPECTED_TRANSACTION_COUNT
 
 
 def test_import_command_without_files_to_import(temp_ctx: TempContext) -> None:

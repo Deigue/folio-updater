@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import Column, Table
-from models import FxRate, Quote, QuoteHistory, TickerAlias, Txn
+from models import FxRate, Quote, QuoteHistory, TickerAlias, Txn, UpdateBaseline
 from models.columns import Kind, StoredColumn, stored_columns
 
 if TYPE_CHECKING:
@@ -19,6 +19,7 @@ TABLE_MODELS: dict[Table, type[DataclassInstance]] = {
     Table.TICKER_ALIASES: TickerAlias,
     Table.QUOTES: Quote,
     Table.QUOTE_HISTORY: QuoteHistory,
+    Table.UPDATE_BASELINES: UpdateBaseline,
 }
 
 # Tables whose every write moves their change token, read by the saved ledger.

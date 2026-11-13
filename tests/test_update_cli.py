@@ -9,10 +9,11 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from cli.commands.common import save_update_baseline
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import txns
-from domain import BrokerId
+from db import txns, update_baselines
+from domain import BrokerId, Grain
 from services import BrokerError, BrokerFailure, PartFailure
 
 from .fixtures.data_factory import create_transaction_data
@@ -129,6 +130,8 @@ def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
         assert_in_output("folio update --resume", result)
         assert_in_output("folio download -b ibkr -f 2026-09-01 -t 2026-10-03", result)
         assert_not_in_output("Folio workbook", result)
+        # A failed run moves nothing, so its rows still count as new next time.
+        assert update_baselines.read() == []
 
 
 def test_a_database_error_stops_the_import_with_the_way_back(
@@ -220,6 +223,18 @@ def test_clean_run_goes_through_every_stage(
         assert "only warned: folio check" in expected
         assert_in_output("Folio workbook:", result)
         assert_in_output("Update finished with", result)
+        folio = next(b for b in update_baselines.read() if b.grain is Grain.FOLIO)
+        assert folio.txn_count == txn_total()
+
+
+def test_an_update_of_an_empty_folio_saves_no_baseline(temp_ctx: TempContext) -> None:
+    """With nothing to value there is nothing to count changes from."""
+    with temp_ctx() as ctx:
+        result = run_cli_with_config(ctx.config, cli_app, ["update", "--offline"])
+
+        assert result.exit_code == 0
+        assert update_baselines.read() == []
+        assert_not_in_output("baseline saved", result)
 
 
 def test_offline_imports_what_waits_and_touches_no_network(
@@ -251,6 +266,26 @@ def test_offline_imports_what_waits_and_touches_no_network(
         assert brokers.ibkr.downloads == brokers.wealthsimple.downloads == []
         assert brokers.wealthsimple.statement_months == []
         assert_in_output("statement not fetched offline", result)
+
+
+def test_a_second_update_reports_what_changed_since_the_first(
+    temp_ctx: TempContext,
+) -> None:
+    """The deltas count from the earlier baseline, which the run then replaces."""
+    with temp_ctx() as ctx:
+        config = ctx.config
+        seed_transaction(account=WS_ACCOUNT, ticker=f"{TSX_TICKER}.TO", currency="CAD")
+        run_cli_with_config(config, cli_app, ["getfx"])
+        save_update_baseline()
+        create_transaction_data(config.imports_path / WS_FILE)
+
+        result = run_cli_with_config(config, cli_app, ["update", "--offline"])
+
+        assert result.exit_code == 0
+        assert_in_output("Since the last update", result)
+        assert_in_output("+2 txns", result)
+        folio = next(b for b in update_baselines.read() if b.grain is Grain.FOLIO)
+        assert folio.txn_count == txn_total()
 
 
 def test_statement_on_hand_is_imported_not_fetched(
