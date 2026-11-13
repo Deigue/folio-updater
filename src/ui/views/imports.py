@@ -680,11 +680,10 @@ def _invalid_table(
 
     for col in cols_to_show:
         max_w = 20 if col == str(Column.REJECTION_REASON) else 12
-        table.add_column(str(col), overflow="ellipsis", max_width=max_w)
+        table.add_column(str(col), overflow="ellipsis", no_wrap=True, max_width=max_w)
 
     for _, row in df.iterrows():
-        row_vals = [safe_str(row.get(c, ""))[:15] for c in cols_to_show]
-        table.add_row(*row_vals)
+        table.add_row(*(safe_str(row.get(c, "")) for c in cols_to_show))
 
     return table
 
@@ -710,11 +709,10 @@ def _dupes_table(
     available_cols = [c for c in TXN_ESSENTIALS if c in df.columns]
 
     for col in available_cols:
-        table.add_column(str(col), overflow="ellipsis", max_width=15)
+        table.add_column(str(col), overflow="ellipsis", no_wrap=True, max_width=15)
 
     for _, row in df.iterrows():
-        row_vals = [safe_str(row.get(c, ""))[:15] for c in available_cols]
-        table.add_row(*row_vals)
+        table.add_row(*(safe_str(row.get(c, "")) for c in available_cols))
 
     return table
 

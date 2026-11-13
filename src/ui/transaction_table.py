@@ -13,7 +13,7 @@ from domain.numeric import dec, q2
 from exporters.sheet_spec import TXN_FORMATS, Fmt
 from term.console import console_print
 from ui.cells import money, style
-from ui.format import decimals, safe_str
+from ui.format import decimals, is_number, safe_str
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
@@ -87,8 +87,12 @@ _DIFF_EXTRA_WIDTH = 6
 # Optional Description Column
 _DESCRIPTION = "Description"
 
+# Why a source row was rejected: shown last in every context, wrapped in full.
+_REASON = str(Column.REJECTION_REASON)
+_REASON_COLUMN = FormattedColumn(_REASON, no_wrap=False, overflow="fold", max_width=40)
+
 # Columns with special handling: any other column a row carries is non-standard.
-_KNOWN_COLUMNS = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED}
+_KNOWN_COLUMNS = {*_TXN_COLUMN_SPECS, Column.Txn.SETTLE_CALCULATED, _REASON}
 
 _NOTHING_TO_SHOW = "[yellow]No transactions to display[/yellow]"
 
@@ -126,18 +130,24 @@ def _ordered_columns(
 
     Returns:
         Standard columns for the context, followed by any non-standard
-        columns the rows carry (GENERAL context only).
+        columns the rows carry (GENERAL context only), then the rejection
+        reason when a row has one.
     """
     columns = [
         column
         for column in _TXN_COLUMN_SPECS
         if context != TransactionContext.IMPORT or column not in _ID_COLUMNS
     ]
-    if context != TransactionContext.GENERAL:
-        return columns
-
-    columns.extend(_extra_columns(rows))
+    if context == TransactionContext.GENERAL:
+        columns.extend(_extra_columns(rows))
+    if _has_reason(rows):
+        columns.append(_REASON)
     return columns
+
+
+def _has_reason(rows: Sequence[_Row]) -> bool:
+    """Whether any of the rows carries a rejection reason."""
+    return any(safe_str(row.get(_REASON)) for row in rows)
 
 
 def _txn_drop_order(rows: Sequence[_Row], context: TransactionContext) -> list[str]:
@@ -153,7 +163,7 @@ def _txn_drop_order(rows: Sequence[_Row], context: TransactionContext) -> list[s
     optional = [
         column
         for column in _ordered_columns(rows, context)
-        if column not in _TXN_COLUMN_SPECS
+        if column not in _TXN_COLUMN_SPECS and column != _REASON
     ]
     ordered = [column for column in optional if column != _DESCRIPTION]
     ordered.extend(column for column in optional if column == _DESCRIPTION)
@@ -162,9 +172,16 @@ def _txn_drop_order(rows: Sequence[_Row], context: TransactionContext) -> list[s
 
 
 def _money_cell(value: object, *, blank_zero: bool) -> str:
-    """Render a raw `Txns` money value, blank when the transaction has none."""
-    if not safe_str(value):
+    """Render a raw `Txns` money value, blank when the transaction has none.
+
+    A rejected source row can hold text that is not a number: it is shown as it
+    was found, never as 0.00.
+    """
+    text = safe_str(value)
+    if not text:
         return ""
+    if not is_number(text):
+        return escape(text)
     return money(dec(value), blank_zero=blank_zero)
 
 
@@ -345,34 +362,31 @@ def _add_table_columns(
             diff, and which therefore wrap instead of truncating
     """
     for column in _ordered_columns(rows, context):
-        spec = _TXN_COLUMN_SPECS.get(column)
-        if spec is None:  # non-standard column, handled below
-            continue
-        if column in widen:
-            # Make room for an inline "old -> new" diff.
-            width = spec.max_width or 0
-            spec = replace(
-                spec,
-                no_wrap=False,
-                min_width=width + _DIFF_EXTRA_WIDTH,
-                max_width=width * 2 + _DIFF_EXTRA_WIDTH,
-            )
-        add_column(table, spec)
+        add_column(table, _column_spec(column, widen))
 
-    if context != TransactionContext.GENERAL:
-        return
 
-    # Add any additional (non-standard) columns the rows carry, as text
-    for col in _extra_columns(rows):
-        add_column(
-            table,
-            FormattedColumn(
-                col,
-                no_wrap=col not in widen,
-                max_width=15 if col not in widen else 33,
-                overflow="ellipsis" if col not in widen else "fold",
-            ),
+def _column_spec(column: str, widen: Container[str]) -> FormattedColumn:
+    """Describe how one of `_ordered_columns` renders."""
+    if column == _REASON:
+        return _REASON_COLUMN
+    spec = _TXN_COLUMN_SPECS.get(column)
+    if spec is None:  # A non-standard column the rows carry, shown as text.
+        return FormattedColumn(
+            column,
+            no_wrap=column not in widen,
+            max_width=15 if column not in widen else 33,
+            overflow="ellipsis" if column not in widen else "fold",
         )
+    if column not in widen:
+        return spec
+    # Make room for an inline "old -> new" diff.
+    width = spec.max_width or 0
+    return replace(
+        spec,
+        no_wrap=False,
+        min_width=width + _DIFF_EXTRA_WIDTH,
+        max_width=width * 2 + _DIFF_EXTRA_WIDTH,
+    )
 
 
 def _row_cells(row: _Row, columns: Sequence[str]) -> dict[str, str]:

@@ -197,16 +197,15 @@ class TransactionFormatter:
 
             audit.stage("REJECT %d invalid row(s)", len(labels), level=logging.WARNING)
 
-            for idx in sorted(labels):
-                if idx < len(self.original_df):
-                    row = self.original_df.iloc[idx]
-                    reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
-                    reason_str = ", ".join(reasons)
-                    audit.row(
-                        AuditMark.REMOVED,
-                        f"{format_transaction_summary(row)} ({reason_str})",
-                        level=logging.WARNING,
-                    )
+            # Labels, not positions: rules may have used up rows before this.
+            for idx, row in self.original_df.loc[sorted(labels)].iterrows():
+                reasons = self.rejection_reasons.get(idx, ["Unknown reason"])
+                reason_str = ", ".join(reasons)
+                audit.row(
+                    AuditMark.REMOVED,
+                    f"{format_transaction_summary(row)} ({reason_str})",
+                    level=logging.WARNING,
+                )
 
     def _log_formatting_changes(
         self,
@@ -220,34 +219,26 @@ class TransactionFormatter:
         if not audit.enabled(logging.DEBUG):
             return
 
+        # Rows are matched by label: rejected rows are gone from formatted_df by
+        # now, and rules may have used up others before formatting began.
+        kept = self.formatted_df.index
         try:
             for column in self.formatted_df.columns:
                 if column not in original_df.columns:
                     continue
 
-                orig_str = original_df[column].astype(str).fillna("")
-                curr_str = self.formatted_df[column].astype(str).fillna("")
-                changed_mask = orig_str != curr_str
+                orig = original_df.loc[kept, column]
+                curr = self.formatted_df[column]
+                changed_mask = orig.astype(str) != curr.astype(str)
 
-                if changed_mask.any():
-                    for idx in changed_mask[changed_mask].index:
-                        orig_val = (
-                            original_df[column].iloc[idx]
-                            if idx < len(original_df)
-                            else ""
-                        )
-                        curr_val = (
-                            self.formatted_df[column].iloc[idx]
-                            if idx < len(self.formatted_df)
-                            else ""
-                        )
-                        audit.debug(
-                            AUTO_FORMAT_DEBUG,
-                            idx,
-                            column,
-                            orig_val,
-                            curr_val,
-                        )
+                for idx in changed_mask[changed_mask].index:
+                    audit.debug(
+                        AUTO_FORMAT_DEBUG,
+                        idx,
+                        column,
+                        orig.loc[idx],
+                        curr.loc[idx],
+                    )
         except (TypeError, ValueError) as exc:
             logger.warning(
                 "Comparison failed for column '%s' due to error: %s",
@@ -363,7 +354,12 @@ class TransactionFormatter:
             self._format_date_column(column, required=False)
 
     def _format_date_column(self, column: str, *, required: bool) -> None:
-        """Format the date column."""
+        """Format the date column.
+
+        A column of Excel date cells arrives as datetime64, which would turn the
+        formatted text back into timestamps, so the column is made object first.
+        """
+        self.formatted_df[column] = self.formatted_df[column].astype("object")
         self._apply_column_rules(
             column,
             self.formatted_df.index,

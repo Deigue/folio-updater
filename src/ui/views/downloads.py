@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from exporters.sheet_spec import Fmt
 from term import console_success, console_warning
+from ui.format import is_number
 from ui.layout.columns import FormattedColumn
 from ui.vocabulary import DOWNLOAD_DROP_ORDER
 from ui.widgets import show_data_table
@@ -72,7 +72,7 @@ def _column(header: str, cells: Sequence[str]) -> FormattedColumn:
         max_width=min(CELL_WIDTH, longest),
         overflow="ellipsis",
         no_wrap=True,
-        justify="right" if all(_is_number(cell) for cell in filled) else "left",
+        justify="right" if all(is_number(cell) for cell in filled) else "left",
     )
 
 
@@ -80,13 +80,5 @@ def _is_date(text: str) -> bool:
     try:
         date.fromisoformat(text)
     except ValueError:
-        return False
-    return True
-
-
-def _is_number(text: str) -> bool:
-    try:
-        Decimal(text)
-    except InvalidOperation:
         return False
     return True

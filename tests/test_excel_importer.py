@@ -520,6 +520,26 @@ def test_a_row_already_in_the_folio_needs_approval(temp_ctx: TempContext) -> Non
         assert _imported(approved_path, sheet) == 1  # The approved duplicate
 
 
+def test_a_workbook_of_date_cells_stores_text_dates(temp_ctx: TempContext) -> None:
+    """Date cells are stored as text dates, so importing them again finds duplicates."""
+    with temp_ctx() as ctx:
+        sheet = ctx.config.txn_sheet
+        rows = _valid_rows().iloc[:2].copy()
+        rows[Column.Txn.TXN_DATE] = pd.to_datetime(
+            ["2022-06-13 00:00", "2022-06-14 09:45"],
+        )
+        rows[Column.Txn.SETTLE_DATE] = pd.to_datetime(["2022-06-15", "2022-06-16"])
+        path = ctx.config.folio_path.parent / "date_cells.xlsx"
+        register_test_dataframe(path, rows, sheet)
+
+        assert _imported(path, sheet) == 2
+        with get_connection() as conn:
+            stored = get_rows(conn, Table.TXNS)
+        assert stored[Column.Txn.TXN_DATE].tolist() == ["2022-06-13", "2022-06-14"]
+        assert stored[Column.Txn.SETTLE_DATE].tolist() == ["2022-06-15", "2022-06-16"]
+        assert _imported(path, sheet) == 0
+
+
 def _audit_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
     """Return the audit trail's lines, as they would read in audit.log."""
     return [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]
@@ -556,6 +576,56 @@ def test_an_import_entry_names_its_stages_rows_and_txn_ids(
         "=" * 80,
         "",
     ]
+
+
+@pytest.mark.usefixtures("audit_info")
+def test_a_rejected_row_after_a_cancellation_is_named_in_the_audit_trail(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Rows a cancellation uses up first do not shift which row the trail names."""
+    config = {
+        "transforms": {
+            "cancellations": [
+                {
+                    "name": "Broker Cancellation",
+                    "conditions": {"Description": ["CANCELLATION"]},
+                    "match_fields": ["Account", "$", "Action"],
+                },
+            ],
+        },
+    }
+    with temp_ctx(config) as ctx:
+        sheet = ctx.config.txn_sheet
+        rows = {
+            Column.Txn.TXN_DATE: [
+                "2021-11-02",
+                "2021-11-03",
+                "NOT-A-DATE",
+                "2021-11-05",
+                "2021-11-08",
+            ],
+            Column.Txn.ACTION: ["CONTRIBUTION"] * 5,
+            Column.Txn.AMOUNT: [3100.0, -3100.0, 275.0, 640.0, 910.0],
+            Column.Txn.CURRENCY: ["CAD"] * 5,
+            Column.Txn.PRICE: [pd.NA] * 5,
+            Column.Txn.UNITS: [pd.NA] * 5,
+            Column.Txn.TICKER: [pd.NA] * 5,
+            Column.Txn.ACCOUNT: ["TEST-ACCOUNT"] * 5,
+            "Description": ["", "CANCELLATION", "", "", ""],
+        }
+        path = _register(
+            ctx.config.folio_path.parent / "cancellation.xlsx",
+            rows,
+            sheet,
+        )
+
+        assert _imported(path, sheet) == 2
+
+    lines = _audit_lines(caplog)
+    rejected = lines.index("  REJECT 1 invalid row(s)")
+    assert lines[rejected + 1].startswith("    - TxnDate=NOT-A-DATE|")
+    assert "|Amount=275.0|" in lines[rejected + 1]
 
 
 @pytest.mark.usefixtures("audit_info")

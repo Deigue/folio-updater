@@ -8,6 +8,7 @@ cache timestamp into a phrase a reader can judge.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -34,6 +35,14 @@ def safe_str(value: Any) -> str:
     if pd.isna(value):
         return ""
     return str(value)
+
+
+def is_number(text: str) -> bool:
+    """Whether text reads as a finite number; NaN and infinity do not count."""
+    try:
+        return Decimal(text).is_finite()
+    except InvalidOperation:
+        return False
 
 
 def decimals(value: Any, precision: int, minimum: int = 0) -> str:
