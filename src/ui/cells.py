@@ -41,6 +41,8 @@ UNICODE = supports_unicode()
 WARN_GLYPH = "⚠" if UNICODE else "!"
 EM_DASH = "—" if UNICODE else "-"
 DELTA_GLYPH = "Δ" if UNICODE else "+/-"
+RISE, FALL = ("▲", "▼") if UNICODE else ("^", "v")
+TREE_BRANCH = "└" if UNICODE else "`-"
 
 PERCENT_PRECISION = 2
 

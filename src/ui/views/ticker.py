@@ -18,6 +18,8 @@ from term import console_print
 from term.size import terminal_size
 from ui.cells import (
     EM_DASH,
+    FALL,
+    RISE,
     UNICODE,
     WARN_GLYPH,
     clock_time,
@@ -183,7 +185,9 @@ def _header(quote: Quote, aliases: Sequence[str]) -> Panel:
     ]
     if quote.priced:
         change = quote.day_change
-        arrow = "" if change is None or change == 0 else ("▲ " if change > 0 else "▼ ")
+        arrow = (
+            "" if change is None or change == 0 else f"{RISE if change > 0 else FALL} "
+        )
         line = (
             f"[bold]{price(quote.price)}[/bold] {quote.currency or ''}   "
             f"{signed(arrow + price(change), change)} "

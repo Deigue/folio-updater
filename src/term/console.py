@@ -64,6 +64,22 @@ _SYMBOLS = {
     StatusMark.INFO: "ℹ  " if _UNICODE_SUPPORTED else "[INFO] ",
 }
 
+
+def _replace_unencodable() -> None:
+    """Print a character the output's code page lacks as `?` instead of raising.
+
+    Redirected to a file or pipe on Windows, Python encodes in a code page such
+    as cp1252, and text folio does not control (a broker's description) can hold
+    characters it cannot encode.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
+_replace_unencodable()
+
 # The default console. Callers reach it through `active_console()`
 _console = Console(legacy_windows=(sys.platform == "win32" and not _UNICODE_SUPPORTED))
 
