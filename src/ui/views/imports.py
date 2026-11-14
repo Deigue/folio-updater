@@ -28,6 +28,7 @@ from term.console import (
     get_symbol,
 )
 from term.keys import getch
+from ui.cells import TREE_BRANCH
 from ui.format import safe_str
 from ui.layout.columns import FormattedColumn
 from ui.layout.paging import available_height
@@ -560,7 +561,7 @@ def _merge_table(
         tree_content.append(f"[green]+ {merged}[/green]")
         for _, src_row in event.source_rows.iterrows():
             source = _summary(src_row, Column.Txn.TICKER)
-            tree_content.append(f"  [red]└ {source}[/red]")
+            tree_content.append(f"  [red]{TREE_BRANCH} {source}[/red]")
 
     for line in tree_content:
         table.add_row(line)
@@ -588,11 +589,12 @@ def _cancel_table(events: list[CancelEvent]) -> Table:
             f"[red]- {_summary(event.cancellation, Column.Txn.ACCOUNT)}[/red]",
         )
         if event.cancelled is None:
-            table.add_row("  [yellow]└ nothing in this file to void[/yellow]")
-        else:
             table.add_row(
-                f"  [red]└ {_summary(event.cancelled, Column.Txn.ACCOUNT)}[/red]",
+                f"  [yellow]{TREE_BRANCH} nothing in this file to void[/yellow]",
             )
+        else:
+            voided = _summary(event.cancelled, Column.Txn.ACCOUNT)
+            table.add_row(f"  [red]{TREE_BRANCH} {voided}[/red]")
     return table
 
 

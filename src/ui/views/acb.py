@@ -18,8 +18,8 @@ from rich.table import Table as RichTable
 from domain import Action, Column, DiagnosticCode, Grain
 from engine.frames import grain_column
 from exporters.sheet_spec import Fmt
-from term import console_print, console_warning, supports_unicode
-from ui.cells import graded, lifetime_return
+from term import console_print, console_warning
+from ui.cells import FALL, RISE, WARN_GLYPH, graded, lifetime_return
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.layout.paging import page_frame, page_title
@@ -112,8 +112,7 @@ _SUMMARY_COLUMNS = tuple(
         *(_in_usd(column) for column in _MEASURE_COLUMNS[1:]),
     )
 )
-_RISE, _FALL = ("▲", "▼") if supports_unicode() else ("^", "v")
-_SUPERFICIAL_LOSS_GLYPH = " ⚠" if supports_unicode() else " !"
+_SUPERFICIAL_LOSS_GLYPH = f" {WARN_GLYPH}"
 
 
 def _format(value: float | None, precision: int, *, blank_zero: bool = False) -> str:
@@ -267,8 +266,8 @@ def _arrow(direction: int | None) -> str:
     if not direction:
         return ""
     if direction > 0:
-        return f"[{GAIN}]{_RISE}[/{GAIN}]"
-    return f"[{LOSS}]{_FALL}[/{LOSS}]"
+        return f"[{GAIN}]{RISE}[/{GAIN}]"
+    return f"[{LOSS}]{FALL}[/{LOSS}]"
 
 
 def _render_row(
