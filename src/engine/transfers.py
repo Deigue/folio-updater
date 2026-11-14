@@ -24,7 +24,7 @@ from itertools import count
 from typing import TYPE_CHECKING
 
 from domain import Action
-from domain.numeric import ZERO
+from domain.numeric import CENT, UNIT_EPSILON, ZERO
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -38,13 +38,13 @@ TRANSFER_ACTIONS = (Action.TFR_IN, Action.TFR_OUT)
 
 # Tolerance for fractional leftovers to snap.
 DUST_UNITS = Decimal("1e-9")
-CASH_TOLERANCE = Decimal("0.01")
+CASH_TOLERANCE = CENT
 
 # Institutional transfer window for settlement.
 TRANSFER_WINDOW_DAYS = 5
 
 # How far apart two legs' unit counts may sit and still be the same transfer.
-UNIT_MATCH_TOLERANCE = Decimal("0.0001")
+UNIT_MATCH_TOLERANCE = UNIT_EPSILON
 
 
 def _shift(settle: str, days: int) -> str:

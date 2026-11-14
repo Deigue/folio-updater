@@ -23,9 +23,7 @@ if TYPE_CHECKING:
     from domain import ActionProfile
 
 from app import audit, get_config
-from app.audit import AuditMark
-from config.optional_fields import FieldType
-from db.helpers import format_transaction_summary
+from app.audit import AuditMark, format_transaction_summary
 from domain import (
     ACTION_PROFILES,
     SUPPORTED_CURRENCIES,
@@ -36,6 +34,9 @@ from domain import (
     resolve_action,
 )
 from engine.settlement import settlement_calculator
+from models import TxnFields
+from models.columns import Kind, columns_of_kind
+from models.optional_field import FieldType
 
 logger = logging.getLogger(__name__)
 
@@ -484,10 +485,7 @@ class TransactionFormatter:
             self._format_string_for_rows(column, rows, required=False)
 
         numeric_fields: list[str] = [
-            Column.Txn.AMOUNT,
-            Column.Txn.PRICE,
-            Column.Txn.UNITS,
-            Column.Txn.FEE,
+            *columns_of_kind(TxnFields, Kind.NUMBER),
             *self._optional_columns(FieldType.NUMERIC),
         ]
 

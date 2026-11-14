@@ -12,9 +12,9 @@ import logging
 import pandas as pd
 
 from app import audit, get_config
-from app.audit import AuditMark
+from app.audit import AuditMark, audit_rows
 from db import txns
-from db.helpers import audit_rows, generate_keys, txn_keys
+from models.txn_keys import generate_keys, txn_keys
 
 
 class TransactionFilter:

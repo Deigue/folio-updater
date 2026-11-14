@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app import get_config
-from config.optional_fields import FieldType
 from db.backup import backup_folio
 from db.catalog import add_column_to_table, drop_table, get_columns
 from db.connection import get_connection
@@ -27,6 +26,7 @@ from db.queries import (
 )
 from domain import BrokerId, Column, Table
 from models import Txn, TxnOperator, TxnSort
+from models.optional_field import FieldType
 
 if TYPE_CHECKING:
     import sqlite3

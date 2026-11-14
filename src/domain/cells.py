@@ -25,3 +25,8 @@ def is_blank(value: object) -> bool:
         return bool(pd.isna(value))  # ty: ignore[no-matching-overload]
     except (TypeError, ValueError):  # only arrays reach here
         return False
+
+
+def has_value(value: object) -> bool:
+    """Report whether a cell holds something: not blank, and not only whitespace."""
+    return not is_blank(value) and str(value).strip() != ""

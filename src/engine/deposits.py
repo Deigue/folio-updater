@@ -41,7 +41,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain import Action, Currency, Grain
-from domain.numeric import ONE, ZERO
+from domain.numeric import HALF_CENT, ONE, ZERO
 from engine.accounts import Pool
 from engine.transfers import TRANSFER_ACTIONS
 from engine.types import DepositShare, TransferTotals
@@ -61,7 +61,7 @@ _PerCurrency = dict[Currency, Decimal]
 # A pool emptied by several legs divides by a slightly smaller pool basis each time,
 # and fractions do not recombine exactly, so a fully transferred account can be left
 # holding a millionth of a cent of deposits.
-DEPOSIT_DUST = Decimal("0.005")
+DEPOSIT_DUST = HALF_CENT
 
 
 def fraction_leaving(value_leaving: Decimal, basis_cad: Decimal) -> Decimal:

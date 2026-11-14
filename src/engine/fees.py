@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain import Action, FeeConvention, FeeSign
-from domain.numeric import ONE, ZERO
+from domain.numeric import CENT, ONE, ZERO
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Baseline slack when reconciling a trade's Amount against Price * Units.
-FEE_MATCH_TOLERANCE = Decimal("0.01")
+FEE_MATCH_TOLERANCE = CENT
 
 # Brokers can round Price to 2dp, so Price * Units is out by up to half a cent
 # per unit regardless of commission. Widen tolerance to capture subcent rounding for

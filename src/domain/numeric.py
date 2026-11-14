@@ -9,7 +9,11 @@ ZERO = Decimal(0)
 ONE = Decimal(1)
 
 # One cent, the exponent money is quantised to.
-_Q2 = Decimal("0.01")
+CENT = Decimal("0.01")
+# Half a cent: the most two figures rounded to the cent can differ by.
+HALF_CENT = Decimal("0.005")
+# A ten-thousandth of a unit: below it, two unit counts are the same.
+UNIT_EPSILON = Decimal("0.0001")
 
 
 def dec(value: object) -> Decimal:
@@ -54,7 +58,7 @@ def _from_text(text: str) -> Decimal:
 
 def q2(value: Decimal) -> Decimal:
     """Round money to the cent, a half cent going up as brokers and CRA forms do."""
-    return value.quantize(_Q2, rounding=ROUND_HALF_UP)
+    return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 def safe_div(numerator: Decimal, denominator: Decimal) -> Decimal:

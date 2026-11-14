@@ -18,10 +18,16 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from app.logging_setup import get_audit_logger
+from domain import TXN_ESSENTIALS, Column
+from domain.cells import has_value
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Mapping, Sequence
     from pathlib import Path
+
+    import pandas as pd
+
+    from models import Txn
 
 INDENT = "  "
 FOOTER = "=" * 80
@@ -177,3 +183,51 @@ def entry(heading: str, *args: object) -> Generator[AuditEntry]:
     finally:
         _open.reset(token)
         audit_entry.footer()
+
+
+def format_transaction_summary(row: pd.Series | Mapping[str, object]) -> str:
+    """Format a transaction row as one line of the audit trail.
+
+    Args:
+        row: The row, keyed by column name.
+
+    Returns:
+        The fields as `name=value`, joined by `|`.
+    """
+    parts = []
+    txn_id = row.get(Column.Txn.TXN_ID)
+    if has_value(txn_id):
+        parts.append(f"{Column.Txn.TXN_ID}={txn_id}")
+    for col in TXN_ESSENTIALS:
+        value = row.get(col)
+        parts.append(f"{col}={value if has_value(value) else 'N/A'}")
+    for col in (Column.Txn.FEE, Column.Txn.SETTLE_DATE):
+        value = row.get(col)
+        if has_value(value):
+            parts.append(f"{col}={value}")
+    return "|".join(parts)
+
+
+def audit_rows(
+    mark: AuditMark,
+    transactions: pd.DataFrame,
+    *,
+    level: int = logging.INFO,
+) -> None:
+    """Write each transaction as one marked row of the audit trail, under its stage.
+
+    Args:
+        mark: What happened to the rows.
+        transactions: The rows, one audit line each.
+        level: The level the stage above them was written at.
+    """
+    if enabled(level):
+        for summary in transactions.apply(format_transaction_summary, axis=1):
+            row(mark, summary, level=level)
+
+
+def audit_txns(mark: AuditMark, transactions: Sequence[Txn]) -> None:
+    """Write each transaction as one marked row of the audit trail, under its stage."""
+    if enabled(logging.INFO):
+        for txn in transactions:
+            row(mark, format_transaction_summary(txn.to_row()))

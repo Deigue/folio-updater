@@ -14,14 +14,13 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import audit, bootstrap
-from app.audit import AuditMark
+from app.audit import AuditMark, audit_txns
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
     resolve_selection,
 )
 from db import current_backup, txns
-from db.helpers import audit_txns
 from term import console_error, console_info, console_success
 from ui.transaction_table import page_transactions
 

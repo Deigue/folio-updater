@@ -1,80 +1,19 @@
-"""Database helper utilities.
-
-This module contains utility functions for database operations including
-table management and transaction formatting.
-"""
+"""The synthetic key that tells two transactions are the same one."""
 
 from __future__ import annotations
 
 import hashlib
-import logging
 from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from app import audit
-from domain import TXN_ESSENTIALS, Column
-from domain.cells import is_blank
-from models import txns_frame
+from domain import TXN_ESSENTIALS
+from models.txn import txns_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Mapping, Sequence
+    from collections.abc import Collection, Sequence
 
-    from app.audit import AuditMark
-    from models import Txn
-
-
-def format_transaction_summary(row: pd.Series | Mapping[str, object]) -> str:
-    """Format a transaction row as one line of the audit trail.
-
-    Args:
-        row: The row, keyed by column name.
-
-    Returns:
-        The fields as `name=value`, joined by `|`.
-    """
-    parts = []
-    txn_id = row.get(Column.Txn.TXN_ID)
-    if _is_set(txn_id):
-        parts.append(f"{Column.Txn.TXN_ID}={txn_id}")
-    for col in TXN_ESSENTIALS:
-        value = row.get(col)
-        parts.append(f"{col}={value if _is_set(value) else 'N/A'}")
-    for col in (Column.Txn.FEE, Column.Txn.SETTLE_DATE):
-        value = row.get(col)
-        if _is_set(value):
-            parts.append(f"{col}={value}")
-    return "|".join(parts)
-
-
-def audit_rows(
-    mark: AuditMark,
-    transactions: pd.DataFrame,
-    *,
-    level: int = logging.INFO,
-) -> None:
-    """Write each transaction as one marked row of the audit trail, under its stage.
-
-    Args:
-        mark: What happened to the rows.
-        transactions: The rows, one audit line each.
-        level: The level the stage above them was written at.
-    """
-    if audit.enabled(level):
-        for summary in transactions.apply(format_transaction_summary, axis=1):
-            audit.row(mark, summary, level=level)
-
-
-def audit_txns(mark: AuditMark, transactions: Sequence[Txn]) -> None:
-    """Write each transaction as one marked row of the audit trail, under its stage."""
-    if audit.enabled(logging.INFO):
-        for txn in transactions:
-            audit.row(mark, format_transaction_summary(txn.to_row()))
-
-
-def _is_set(value: object) -> bool:
-    """Whether a field holds a value, rather than nothing or an empty cell."""
-    return not is_blank(value) and value != ""
+    from models.txn import Txn
 
 
 # Amounts from source files don't always reproduce bit-for-bit between exports:

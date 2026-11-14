@@ -11,20 +11,20 @@ import numpy as np
 import pandas as pd
 
 from app import audit, get_config
-from app.audit import AuditMark
-from db.helpers import format_transaction_summary
+from app.audit import AuditMark, format_transaction_summary
 from domain import Column
+from domain.numeric import HALF_CENT
 from models import CancelEvent, MergeEvent, TransformEvent
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from config.transforms import CancelRule, MergeGroup, TransformRule
+    from models.import_rules import CancelRule, MergeGroup, TransformRule
 
 
 CONTAINS_PREFIX = "contains:"
 # A cancellation and the row it voids carry amounts that sum to zero.
-_CANCEL_TOLERANCE = 0.005
+_CANCEL_TOLERANCE = float(HALF_CENT)
 
 
 @dataclass(frozen=True)

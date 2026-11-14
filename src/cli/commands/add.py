@@ -18,10 +18,9 @@ import pandas as pd
 import typer
 
 from app import audit, bootstrap, get_config
-from app.audit import AuditMark
+from app.audit import AuditMark, audit_txns
 from cli.commands.common import export_to_parquet
 from db import IntegrityError, current_backup, txns
-from db.helpers import audit_txns, generate_keys, txns_with_keys
 from domain import (
     ACTION_PROFILES,
     ALWAYS_REQUIRED,
@@ -33,6 +32,7 @@ from domain import (
     resolve_action,
 )
 from ingest import prepare_transactions
+from models.txn_keys import generate_keys, txns_with_keys
 from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import show_transactions
 

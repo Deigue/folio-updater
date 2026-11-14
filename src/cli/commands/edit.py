@@ -17,19 +17,20 @@ import pandas as pd
 import typer
 
 from app import audit, bootstrap, get_config
-from app.audit import AuditMark
+from app.audit import AuditMark, format_transaction_summary
 from cli.commands.common import (
     confirm_selection,
     export_to_parquet,
     resolve_selection,
 )
 from cli.query_parser import get_valid_column_names
-from config.optional_fields import FieldType
 from db import IntegrityError, current_backup, txns
-from db.helpers import format_transaction_summary, generate_keys, txns_with_keys
 from domain import Column
 from ingest.validation import TransactionFormatter, parse_date
-from models import txns_frame, txns_from_frame
+from models import TxnFields, txns_frame, txns_from_frame
+from models.columns import Kind, columns_of_kind
+from models.optional_field import FieldType
+from models.txn_keys import generate_keys, txns_with_keys
 from term import console_error, console_info, console_success, console_warning
 from ui.transaction_table import page_changes, show_transactions
 
@@ -47,16 +48,6 @@ DIVISION_DECIMALS = Decimal("0.0000000001")
 
 # Derived or identifying columns that an edit must not set directly.
 PROTECTED_COLUMNS = (Column.Txn.TXN_ID, Column.Txn.SETTLE_CALCULATED)
-
-# Columns whose stored value is numeric, and so accept arithmetic.
-NUMERIC_COLUMNS = (
-    Column.Txn.AMOUNT,
-    Column.Txn.PRICE,
-    Column.Txn.UNITS,
-    Column.Txn.FEE,
-)
-
-DATE_COLUMNS = (Column.Txn.TXN_DATE, Column.Txn.SETTLE_DATE)
 
 # Editing any of these invalidates a settlement date that was calculated from
 # them, so the calculator is asked to work it out again.
@@ -106,7 +97,7 @@ def _numeric_columns(live_columns: list[str]) -> set[str]:
     """Columns that hold numbers, including configured optional fields."""
     optional_fields = get_config().optional_fields
     return {
-        *NUMERIC_COLUMNS,
+        *columns_of_kind(TxnFields, Kind.NUMBER),
         *optional_fields.columns_of_type(FieldType.NUMERIC, live_columns),
     }
 
@@ -115,7 +106,7 @@ def _date_columns(live_columns: list[str]) -> set[str]:
     """Columns that hold dates, including configured optional fields."""
     optional_fields = get_config().optional_fields
     return {
-        *DATE_COLUMNS,
+        *columns_of_kind(TxnFields, Kind.DATE),
         *optional_fields.columns_of_type(FieldType.DATE, live_columns),
     }
 

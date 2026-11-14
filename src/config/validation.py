@@ -11,7 +11,6 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from config.optional_fields import FieldType
 from domain import (
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
@@ -22,6 +21,7 @@ from domain import (
     parse_account_type,
 )
 from domain.numeric import dec
+from models.optional_field import FieldType
 from term import console_warning
 
 if TYPE_CHECKING:

@@ -11,8 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 from app import audit, get_config
-from app.audit import AuditMark
-from db.helpers import audit_rows
+from app.audit import AuditMark, audit_rows
 from domain import TXN_ESSENTIALS, Column
 
 if TYPE_CHECKING:

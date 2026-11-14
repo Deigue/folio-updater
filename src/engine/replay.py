@@ -38,7 +38,7 @@ from domain import (
     DiagnosticCode,
     Grain,
 )
-from domain.numeric import ONE, ZERO, q2, safe_div
+from domain.numeric import HALF_CENT, ONE, ZERO, q2, safe_div
 from engine.accounts import Account, Pool, resolve_account
 from engine.deposits import NetDeposits
 from engine.transfers import DUST_UNITS, TRANSFER_ACTIONS, Crossing, pair_transfers
@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 
 # A single-leg FXT's Amount, Units and Price are three views of one conversion,
 # so they must agree. Half a cent tolerance to capture subcent rounding.
-FXT_TOLERANCE = Decimal("0.005")
+FXT_TOLERANCE = HALF_CENT
 
 # A realized loss followed by a buy of the same symbol inside this window is a
 # superficial-loss candidate. Just a flag.

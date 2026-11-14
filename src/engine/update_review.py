@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 
 from domain import TXN_ESSENTIALS, Action, CheckStatus, Column, SettlementOutcome
+from domain.cells import has_value
+from domain.dates import iso_day
+from domain.numeric import CENT
 from models import Concern, Txn, UpdateStage, txns_frame
 
 if TYPE_CHECKING:
@@ -28,7 +31,7 @@ if TYPE_CHECKING:
 LOOKALIKE_TRANSFER_DAYS = 3
 # How far back a late cancellation looks for the stored row it voids.
 CANCEL_WINDOW_DAYS = 31
-_AMOUNT_TOLERANCE = 0.01
+_AMOUNT_TOLERANCE = float(CENT)
 _MONTH = "%Y-%m"
 
 # Every `folio add` needs these; a row lacking one gets a placeholder.
@@ -58,11 +61,6 @@ _ADD_OPTIONS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _present(value: object) -> bool:
-    """Report whether a cell holds something, treating blanks as missing."""
-    return not pd.isna(value) and str(value).strip() != ""  # ty: ignore[no-matching-overload]
-
-
 def _essentials(df: pd.DataFrame) -> list[str]:
     """Return the essential transaction columns a frame actually carries."""
     return [str(column) for column in TXN_ESSENTIALS if column in df.columns]
@@ -85,7 +83,7 @@ def add_command(row: pd.Series, *, force: bool = False) -> str:
     parts = ["folio add"]
     for column, option in _ADD_OPTIONS:
         value = row.get(column)
-        if _present(value):
+        if has_value(value):
             shown = str(value).strip()
         elif column in _ADD_REQUIRED:
             shown = f"<{_PLACEHOLDERS.get(column, column.lower())}>"
@@ -116,7 +114,7 @@ def header_rows(invalid: pd.DataFrame, source_columns: Iterable[str]) -> pd.Seri
     essentials = _essentials(invalid)
 
     def is_header(row: pd.Series) -> bool:
-        values = [str(row[c]).strip() for c in essentials if _present(row[c])]
+        values = [str(row[c]).strip() for c in essentials if has_value(row[c])]
         return bool(values) and all(value in names for value in values)
 
     return invalid.apply(is_header, axis=1).astype(bool)
@@ -162,7 +160,7 @@ def _row_summary(row: Mapping[Any, Any]) -> str:
         Column.Txn.ACCOUNT,
     )
     return " ".join(
-        str(row.get(column)).strip() for column in columns if _present(row.get(column))
+        str(row.get(column)).strip() for column in columns if has_value(row.get(column))
     )
 
 
@@ -194,7 +192,10 @@ def odd_merges(events: Iterable[MergeEvent]) -> list[MergeEvent]:
     return odd
 
 
-def before_overlap_day(rejected: pd.DataFrame, overlap_day: str | None) -> pd.DataFrame:
+def before_overlap_day(
+    rejected: pd.DataFrame,
+    overlap_day: str | None,
+) -> pd.DataFrame:
     """Return database duplicates dated before the broker's overlap day.
 
     A download restarts on the overlap day, the broker's latest stored trade
@@ -445,14 +446,6 @@ def review_late_cancellations(
     return concerns
 
 
-def _day(text: str) -> date | None:
-    """Read a stored date, or None for one the calendar lacks."""
-    try:
-        return date.fromisoformat(text)
-    except ValueError:
-        return None
-
-
 def _cancelled_candidates(row: dict[str, object], txns: Sequence[Txn]) -> list[Txn]:
     """Find stored transactions a cancellation could void.
 
@@ -475,10 +468,10 @@ def _cancelled_candidates(row: dict[str, object], txns: Sequence[Txn]) -> list[T
         for txn in txns
         if txn.amount is not None
         and abs(float(txn.amount) + amount.iloc[0]) < _AMOUNT_TOLERANCE
-        and (day := _day(txn.txn_date)) is not None
+        and (day := iso_day(txn.txn_date)) is not None
         and first <= day <= last
-        and (not _present(account) or txn.account == str(account))
-        and (not _present(currency) or str(txn.currency) == str(currency))
+        and (not has_value(account) or txn.account == str(account))
+        and (not has_value(currency) or str(txn.currency) == str(currency))
     ]
     return sorted(found, key=lambda txn: txn.txn_date)
 
@@ -516,7 +509,7 @@ def transfer_like_pairs(
 
 def _is_transfer_like(out: Txn, into: Txn, days: int) -> bool:
     """Whether a withdrawal and a contribution could be one transfer."""
-    day_out, day_in = _day(out.txn_date), _day(into.txn_date)
+    day_out, day_in = iso_day(out.txn_date), iso_day(into.txn_date)
     return (
         out.currency is into.currency
         and out.account != into.account

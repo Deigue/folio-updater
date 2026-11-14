@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date
 from typing import TYPE_CHECKING
 
+from domain.dates import iso_day
 from exporters.sheet_spec import Fmt
 from term import console_success, console_warning
 from ui.format import is_number
@@ -77,8 +77,4 @@ def _column(header: str, cells: Sequence[str]) -> FormattedColumn:
 
 
 def _is_date(text: str) -> bool:
-    try:
-        date.fromisoformat(text)
-    except ValueError:
-        return False
-    return True
+    return iso_day(text) is not None

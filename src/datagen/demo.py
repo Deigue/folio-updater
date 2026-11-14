@@ -36,7 +36,6 @@ from db import (
     create_txns_table,
     txns,
 )
-from db.helpers import generate_keys
 from domain import (
     TAXABLE_ACCOUNT_TYPES,
     TORONTO_TZ,
@@ -46,13 +45,14 @@ from domain import (
     Column,
     Currency,
 )
-from domain.numeric import dec
+from domain.numeric import CENT, dec
 from engine.flows import room_year
 from engine.replay import SUPERFICIAL_LOSS_DAYS
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
 from exporters import ParquetExporter
 from importers import insert_transactions
 from models import TickerAlias
+from models.txn_keys import generate_keys
 from services import FxService
 from term import console_warning
 
@@ -115,7 +115,6 @@ CRA_ROOM: dict[str, dict[int, int]] = {
 # Every demo account is named MOCK-something, or MOCK2- for the second broker.
 _DEMO_ACCOUNT = re.compile(r"^MOCK\d*-")
 
-_CENT = Decimal("0.01")
 _RATE_PLACES = Decimal("0.0001")
 
 
@@ -220,7 +219,7 @@ def price_on(symbol: str, on: date) -> Decimal:
     adjusted = before + (after - before) * Decimal(on.day) / Decimal(days_in_month)
     if symbol == USDCAD:
         return adjusted.quantize(_RATE_PLACES)
-    return (adjusted * split_factor(symbol, on)).quantize(_CENT)
+    return (adjusted * split_factor(symbol, on)).quantize(CENT)
 
 
 @cache
@@ -314,7 +313,7 @@ class _Account:
         """Charge the commission on a trade of `units` units."""
         if self.fee_included:
             return Decimal("4.95")
-        return max(Decimal(1), Decimal("0.01") * units).quantize(_CENT)
+        return max(Decimal(1), Decimal("0.01") * units).quantize(CENT)
 
 
 PERSONAL = _Account("MOCK-PERSONAL", AccountType.NON_REGISTERED)
@@ -552,7 +551,7 @@ class _Simulation:
         if pays > END:
             return
         for account in ACCOUNTS:
-            amount = (self._held(account, symbol) * per_share).quantize(_CENT)
+            amount = (self._held(account, symbol) * per_share).quantize(CENT)
             if amount > 0:
                 self._dividends.append((pays, account, symbol, amount))
 
@@ -644,7 +643,7 @@ class _Simulation:
     def interest(self, day: date, account: _Account) -> None:
         """Pay a quarter's interest on idle Canadian cash, at 2.5% a year."""
         earned = (self._balance(account, Currency.CAD) * Decimal("0.00625")).quantize(
-            _CENT,
+            CENT,
         )
         if earned > 0:
             self.financial_charge(day, account, earned)
@@ -661,7 +660,7 @@ class _Simulation:
         if usd <= 0:
             msg = f"{account.name} has no Canadian cash to convert on {day}"
             raise DemoScenarioError(msg)
-        cad = (usd * rate).quantize(_CENT)
+        cad = (usd * rate).quantize(CENT)
         self._add(account, Currency.CAD, -cad)
         self._add_later(
             _settles(day, Currency.CAD),
@@ -708,7 +707,7 @@ class _Simulation:
             units = _affordable_units(account, price, spend)
             if not units:
                 return
-        gross = (price * units).quantize(_CENT)
+        gross = (price * units).quantize(CENT)
         fee = account.fee(units) if commission else Decimal(0)
         self._add(account, currency, -(gross + fee))
         key = (account.name, symbol)
@@ -756,7 +755,7 @@ class _Simulation:
             raise DemoScenarioError(msg)
         currency = currency_of(symbol)
         price = price_on(symbol, day)
-        gross = (price * units).quantize(_CENT)
+        gross = (price * units).quantize(CENT)
         fee = account.fee(units)
         removed = self._cost[key] * units / held
         gain = gross - fee - removed
@@ -788,7 +787,7 @@ class _Simulation:
         drops, and never below zero.
         """
         paid = self._paid.get((account.name, symbol, day.year), Decimal(0))
-        amount = (paid * Decimal(share)).quantize(_CENT)
+        amount = (paid * Decimal(share)).quantize(CENT)
         key = (account.name, symbol)
         if not 0 < amount < self._cost.get(key, Decimal(0)):
             msg = f"Return of capital on {symbol} would not fit its cost base"

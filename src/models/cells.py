@@ -2,19 +2,14 @@
 
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from domain.cells import is_blank
 from domain.numeric import MISSING_TEXT, dec
 
 if TYPE_CHECKING:
     from decimal import Decimal
-
-
-def is_missing(value: object) -> bool:
-    """Whether a cell holds nothing: NULL, or the NaN a frame reads NULL as."""
-    return value is None or (isinstance(value, float) and math.isnan(value))
 
 
 def read_text(value: object, *, provider: bool = False) -> str | None:
@@ -28,7 +23,7 @@ def read_text(value: object, *, provider: bool = False) -> str | None:
     Returns:
         The text, or None for a blank cell.
     """
-    if is_missing(value):
+    if is_blank(value):
         return None
     text = str(value)
     if not provider:
@@ -50,7 +45,7 @@ def read_number(value: object, *, provider: bool = False) -> Decimal | None:
         The number, or None for a blank cell.
     """
     if not provider:
-        return None if is_missing(value) else dec(value)
+        return None if is_blank(value) else dec(value)
     if read_text(value, provider=True) is None:
         return None
     return dec(value) or None

@@ -69,6 +69,11 @@ def stored_columns(model: type[DataclassInstance]) -> tuple[StoredColumn, ...]:
     return tuple(c for c in columns if c.key) + tuple(c for c in columns if not c.key)
 
 
+def columns_of_kind(model: type[DataclassInstance], kind: Kind) -> tuple[str, ...]:
+    """Name a model's columns that hold `kind`, in table order."""
+    return tuple(c.name for c in stored_columns(model) if c.kind is kind)
+
+
 def _declared(model: type[DataclassInstance]) -> list[StoredColumn]:
     """Collect the columns a model's fields declare, in field order."""
     columns: list[StoredColumn] = []

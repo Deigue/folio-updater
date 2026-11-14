@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from app import audit
-from app.audit import AuditMark
+from app.audit import AuditMark, audit_txns, format_transaction_summary
 from db import DatabaseError, IntegrityError, current_backup, txns
-from db.helpers import audit_txns, format_transaction_summary
 from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome
+from domain.numeric import CENT, UNIT_EPSILON
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
@@ -548,8 +548,8 @@ def _parse_transaction_description(
     return ticker, units, txn_date
 
 
-_AMOUNT_TOLERANCE = 0.01
-_UNITS_TOLERANCE = 0.0001
+_AMOUNT_TOLERANCE = float(CENT)
+_UNITS_TOLERANCE = float(UNIT_EPSILON)
 
 
 def _within(stored: Decimal | None, stated: float, tolerance: float) -> bool:
