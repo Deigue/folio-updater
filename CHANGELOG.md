@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [0.8.26] - 2026-11-13
+
+### Added
+
 - `folio query` understands `in 2022`, `during 2022` and `year 2022`, action aliases such as
 `DIV`, `DEPOSIT` and `DEP`, and multi-column sorts like `sort:a,-b`.
 - `folio update` and `folio dash` show what changed since the last update: growth, net deposits,
@@ -41,6 +55,8 @@ history when no answer received.
 - `folio generate` now shows while it is retrieving information from Yahoo Finance.
 - Updated to pandas 3.1
 - Updated Parquet engine to `pyarrow`
+- A cancellation rule only voids rows within the same file. A cancelling row with nothing
+to void is rejected with a reason, and raised as a concern.
 
 ### Deprecated
 

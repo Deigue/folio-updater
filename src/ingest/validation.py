@@ -69,7 +69,7 @@ def _to_decimal_format(value: str) -> str | None:
 _TICKER_PATTERN = re.compile(r"^[A-Z0-9.-]+$")
 
 
-def _normalize_numeric(value: object) -> str | None:
+def normalize_numeric(value: object) -> str | None:
     """Strip currency dressing off a numeric cell, or None if it isn't one."""
     cleaned = str(value).strip().replace("$", "").replace(",", "")
     return _to_decimal_format(cleaned)
@@ -542,7 +542,7 @@ class TransactionFormatter:
         self._apply_column_rules(
             column,
             indices,
-            _normalize_numeric,
+            normalize_numeric,
             required=required,
             reject_invalid=True,
         )

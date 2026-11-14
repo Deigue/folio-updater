@@ -10,12 +10,18 @@ the commands required to fix them.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from domain import TXN_ESSENTIALS, Action, CheckStatus, Column, SettlementOutcome
+from domain import (
+    NOTHING_TO_VOID,
+    TXN_ESSENTIALS,
+    Action,
+    CheckStatus,
+    Column,
+    SettlementOutcome,
+)
 from domain.cells import has_value
 from domain.dates import iso_day
 from domain.numeric import CENT
@@ -23,14 +29,14 @@ from models import Concern, Txn, UpdateStage, txns_frame
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
+    from datetime import date
 
     from engine.checks import CheckResult
     from models import CancelEvent, ImportResults, MergeEvent, SettlementMatch
 
 # Cash moves between two of the user's own accounts land a few days apart at most.
 LOOKALIKE_TRANSFER_DAYS = 3
-# How far back a late cancellation looks for the stored row it voids.
-CANCEL_WINDOW_DAYS = 31
+# Two transfer legs carry the same amount to within a cent.
 _AMOUNT_TOLERANCE = float(CENT)
 _MONTH = "%Y-%m"
 
@@ -272,7 +278,6 @@ def _review_cancellations(
             f"{filename}: cancelled by the broker, both left out: "
             f"{_row_summary(event.cancelled)}"
             for event in events
-            if event.cancelled is not None
         ),
     )
 
@@ -291,14 +296,17 @@ def _review_invalid(filename: str, results: ImportResults) -> ImportReview:
         if headers.any()
         else ()
     )
-    unpaid = upcoming_dividends(invalid) & ~headers
+    # A cancellation is never a dividend waiting to pay, whatever its action.
+    nothing_to_void = invalid[Column.REJECTION_REASON] == NOTHING_TO_VOID
+    unpaid = upcoming_dividends(invalid) & ~headers & ~nothing_to_void
     pending = tuple(
         f"Dividend announced, not paid yet: {_row_summary(row)}"
         for row in invalid[unpaid].to_dict("records")
     )
-    real = invalid[~headers & ~unpaid]
+    concerns = _cancellations_with_nothing_to_void(filename, invalid[nothing_to_void])
+    real = invalid[~headers & ~unpaid & ~nothing_to_void]
     if real.empty:
-        return ImportReview(pending=pending, expected=expected)
+        return ImportReview(concerns=concerns, pending=pending, expected=expected)
     concern = Concern(
         stage=UpdateStage.IMPORT,
         title=f"{len(real)} invalid row(s) rejected from {filename}",
@@ -311,7 +319,35 @@ def _review_invalid(filename: str, results: ImportResults) -> ImportReview:
         details=_reasons(real),
         commands=tuple(add_command(row) for _, row in real.iterrows()),
     )
-    return ImportReview(concerns=(concern,), pending=pending, expected=expected)
+    return ImportReview(
+        concerns=(*concerns, concern),
+        pending=pending,
+        expected=expected,
+    )
+
+
+def _cancellations_with_nothing_to_void(
+    filename: str,
+    rows: pd.DataFrame,
+) -> tuple[Concern, ...]:
+    """Raise cancellations rejected for having nothing in their file to void.
+
+    Each never becomes a transaction, so `folio add` is no fix: the row it
+    cancels may be in the folio already, from an earlier import.
+    """
+    if rows.empty:
+        return ()
+    concern = Concern(
+        stage=UpdateStage.IMPORT,
+        title=f"{len(rows)} cancellation(s) with nothing to void in {filename}",
+        why=(
+            "The broker cancelled a row that is not in this file. If that row "
+            "was imported earlier, find it with `folio query` and delete it. If "
+            "the rejected row is a genuine transaction, add it by hand."
+        ),
+        rows=rows[_essentials(rows)],
+    )
+    return (concern,)
 
 
 def _review_intra_duplicates(filename: str, intra: pd.DataFrame) -> ImportReview:
@@ -399,81 +435,6 @@ def _review_tally(filename: str, results: ImportResults) -> ImportReview:
         ),
     )
     return ImportReview(concerns=(concern,))
-
-
-def review_late_cancellations(
-    filename: str,
-    events: Iterable[CancelEvent],
-    txns: Sequence[Txn],
-) -> list[Concern]:
-    """Raise cancellations whose voided row was not in the same file.
-
-    The row such a cancellation voids was most likely stored by an earlier
-    import. Stored rows on the same account and currency, with the opposite
-    amount, from the month before the cancellation, are offered for deletion.
-
-    Args:
-        filename: The file the cancellations came from.
-        events: Cancellations found while importing it.
-        txns: Every stored transaction.
-
-    Returns:
-        One concern per cancellation that voided nothing in its file.
-    """
-    concerns: list[Concern] = []
-    for event in events:
-        if event.cancelled is not None:
-            continue
-        row = event.cancellation
-        candidates = _cancelled_candidates(row, txns)
-        found = bool(candidates)
-        concerns.append(
-            Concern(
-                stage=UpdateStage.IMPORT,
-                title=f"Cancellation in {filename}: {_row_summary(row)}",
-                why=(
-                    "The broker cancelled a row that was not in this file, so it "
-                    "is probably already in the folio. Delete the one it cancels "
-                    "(the earliest, if several are listed)."
-                    if found
-                    else "The broker cancelled a row that is neither in this file "
-                    "nor in the folio. Check the broker's activity for it."
-                ),
-                rows=txns_frame(candidates),
-                commands=tuple(f"folio delete {txn.txn_id}" for txn in candidates),
-            ),
-        )
-    return concerns
-
-
-def _cancelled_candidates(row: dict[str, object], txns: Sequence[Txn]) -> list[Txn]:
-    """Find stored transactions a cancellation could void.
-
-    Args:
-        row: The cancelling row.
-        txns: Every stored transaction.
-
-    Returns:
-        The matching transactions, earliest first.
-    """
-    amount = pd.to_numeric(pd.Series([row.get(Column.Txn.AMOUNT)]), errors="coerce")
-    when = pd.to_datetime(str(row.get(Column.Txn.TXN_DATE)), errors="coerce")
-    if amount.isna().iloc[0] or pd.isna(when):
-        return []
-    last = when.date()
-    first = last - timedelta(days=CANCEL_WINDOW_DAYS)
-    account, currency = row.get(Column.Txn.ACCOUNT), row.get(Column.Txn.CURRENCY)
-    found = [
-        txn
-        for txn in txns
-        if txn.amount is not None
-        and abs(float(txn.amount) + amount.iloc[0]) < _AMOUNT_TOLERANCE
-        and (day := iso_day(txn.txn_date)) is not None
-        and first <= day <= last
-        and (not has_value(account) or txn.account == str(account))
-        and (not has_value(currency) or str(txn.currency) == str(currency))
-    ]
-    return sorted(found, key=lambda txn: txn.txn_date)
 
 
 def transfer_like_pairs(

@@ -572,8 +572,8 @@ def _merge_table(
 def _cancel_table(events: list[CancelEvent]) -> Table:
     """Build a table for cancellations: each cancelling row and what it voided.
 
-    Both rows are left out of the import; a cancellation with nothing in
-    the file to void says so.
+    Both rows are left out of the import. A cancellation with nothing in the
+    file to void is a rejected row instead.
     """
     table = Table(
         title=f"Cancelled ({len(events)})",
@@ -585,16 +585,10 @@ def _cancel_table(events: list[CancelEvent]) -> Table:
     )
     table.add_column("tree")
     for event in events:
-        table.add_row(
-            f"[red]- {_summary(event.cancellation, Column.Txn.ACCOUNT)}[/red]",
-        )
-        if event.cancelled is None:
-            table.add_row(
-                f"  [yellow]{TREE_BRANCH} nothing in this file to void[/yellow]",
-            )
-        else:
-            voided = _summary(event.cancelled, Column.Txn.ACCOUNT)
-            table.add_row(f"  [red]{TREE_BRANCH} {voided}[/red]")
+        cancellation = _summary(event.cancellation, Column.Txn.ACCOUNT)
+        table.add_row(f"[red]- {cancellation}[/red] [dim]({event.rule.name})[/dim]")
+        voided = _summary(event.cancelled, Column.Txn.ACCOUNT)
+        table.add_row(f"  [red]{TREE_BRANCH} {voided}[/red]")
     return table
 
 

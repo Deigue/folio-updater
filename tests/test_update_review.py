@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import ClassVar
 
 import pandas as pd
+import pytest
 
-from domain import Action, CheckStatus, Column, SettlementOutcome
+from domain import NOTHING_TO_VOID, Action, CheckStatus, Column, SettlementOutcome
 from engine.checks import CheckFinding, CheckResult
 from engine.update_review import (
     ImportReview,
@@ -17,7 +17,6 @@ from engine.update_review import (
     odd_merges,
     review_checks,
     review_import,
-    review_late_cancellations,
     review_statement,
     review_stuck,
     review_transfer_pairs,
@@ -34,6 +33,7 @@ from models import (
     Txn,
     UpdateStage,
 )
+from models.import_rules import CancelRule
 
 from .helpers.replay import make_row
 from .helpers.seed import ACCOUNT, TICKER, TSX_TICKER, VENTURE_TICKER
@@ -70,6 +70,12 @@ BARE_WITHDRAWAL_ROW = {
     Column.Txn.ACCOUNT: ACCOUNT,
     Column.REJECTION_REASON: "MISSING $, MISSING Amount",
 }
+CANCEL_RULE = CancelRule(
+    name="Broker Cancellation",
+    conditions={"Description": ["CANCELLATION"]},
+    match_fields=["Account"],
+    amount_field=Column.Txn.AMOUNT,
+)
 # A broker cancelling a contribution, and the contribution, as mapped.
 CANCEL_ROW: dict[str, object] = {
     Column.Txn.TXN_DATE: "2026-09-08",
@@ -240,6 +246,31 @@ class TestImportReview:
         assert "-c <currency> -m <amount>" in concern.commands[0]
         assert concern.commands[0].startswith("folio add -t WITHDRAWAL")
 
+    @pytest.mark.parametrize(
+        "beside",
+        [
+            pytest.param([], id="alone"),
+            pytest.param([BARE_WITHDRAWAL_ROW], id="beside"),
+        ],
+    )
+    def test_a_cancellation_with_nothing_to_void_is_its_own_concern(
+        self,
+        beside: list[dict[str, object]],
+    ) -> None:
+        """It offers no `folio add`, which would store the cancellation itself."""
+        rejected = {**CANCEL_ROW, Column.REJECTION_REASON: NOTHING_TO_VOID}
+        invalid = pd.DataFrame([rejected, *beside])
+
+        concerns = review_import("cash.csv", _results(invalid=invalid), None).concerns
+
+        assert len(concerns) == 1 + len(beside)
+        concern = concerns[0]
+        assert concern.title == "1 cancellation(s) with nothing to void in cash.csv"
+        assert concern.commands == ()
+        assert len(concern.rows) == 1
+        if beside:
+            assert concerns[1].title == "1 invalid row(s) rejected from cash.csv"
+
     def test_unpaid_dividend_is_pending(self) -> None:
         """A dividend listed before it pays waits on a future download (statement)."""
         invalid = pd.DataFrame([MISSING_AMOUNT_ROW])
@@ -251,7 +282,11 @@ class TestImportReview:
 
     def test_paired_cancellation_is_expected(self) -> None:
         """A cancellation that voided its row in the file is noted, not raised."""
-        event = CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW)
+        event = CancelEvent(
+            rule=CANCEL_RULE,
+            cancellation=CANCEL_ROW,
+            cancelled=DEPOSIT_ROW,
+        )
         review = review_import("cash.csv", _results(cancels=[event]), None)
         assert review.concerns == ()
         voided = f"2026-09-07 Deposits/Withdrawals 8000 CAD {ACCOUNT}"
@@ -506,55 +541,3 @@ class TestChecksAndPrices:
         assert concern.title.endswith(VENTURE_TICKER)
         assert f"folio ticker {VENTURE_TICKER}" in concern.commands
         assert review_unpriced([]) is None
-
-
-class TestLateCancellations:
-    """Cancellations whose voided row was imported by an earlier run."""
-
-    STORED: ClassVar[list[Txn]] = [
-        _stored(5, "2026-08-01", Action.CONTRIBUTION, "8000", ACCOUNT),
-        _stored(9, "2026-09-07", Action.CONTRIBUTION, "8000", ACCOUNT),
-        _stored(10, "2026-09-07", Action.CONTRIBUTION, "8000", OTHER_ACCOUNT),
-    ]
-
-    def test_offers_the_stored_row(self) -> None:
-        """Only a recent stored row of the same account and currency is offered."""
-        concerns = review_late_cancellations(
-            "cash.csv",
-            [CancelEvent(cancellation=CANCEL_ROW)],
-            self.STORED,
-        )
-        assert [c.commands for c in concerns] == [("folio delete 9",)]
-
-    def test_a_stored_date_the_calendar_lacks_is_never_offered(self) -> None:
-        """A stored date like the 30th of February is skipped, not fatal."""
-        impossible = _stored(11, "2026-02-30", Action.CONTRIBUTION, "8000", ACCOUNT)
-        concerns = review_late_cancellations(
-            "cash.csv",
-            [CancelEvent(cancellation=CANCEL_ROW)],
-            [*self.STORED, impossible],
-        )
-        assert [c.commands for c in concerns] == [("folio delete 9",)]
-
-    def test_a_cancellation_with_no_readable_amount_offers_nothing(self) -> None:
-        """Without an amount to match, no stored row can be named."""
-        concerns = review_late_cancellations(
-            "cash.csv",
-            [CancelEvent(cancellation={**CANCEL_ROW, Column.Txn.AMOUNT: "n/a"})],
-            self.STORED,
-        )
-        assert [c.commands for c in concerns] == [()]
-
-    def test_nothing_stored_to_void(self) -> None:
-        """With nothing to offer, the concern says to check the broker."""
-        concerns = review_late_cancellations(
-            "cash.csv",
-            [
-                CancelEvent(cancellation=CANCEL_ROW),
-                CancelEvent(cancellation=CANCEL_ROW, cancelled=DEPOSIT_ROW),
-            ],
-            [],
-        )
-        assert len(concerns) == 1
-        assert concerns[0].commands == ()
-        assert "neither in this file nor in the folio" in concerns[0].why

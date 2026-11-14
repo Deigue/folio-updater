@@ -92,12 +92,17 @@ transforms:
 - `amount_field` (optional, default `Amount`): the cancelled row carries the
   opposite amount here.
 
-Each cancelling row voids the **earliest** matching row on or before its date, and
-both are left out of the import. The [audit log](../audit.md) lists them under the rule's `CANCEL` stage, marked `x`.
+Each cancelling row voids the **earliest** matching row on or before its date in the
+**same file**, and both are left out of the import. Amounts written as text, such as
+`$1,250.00`, still match. The [audit log](../audit.md) lists them under the rule's
+`CANCEL` stage, marked `x`, and the import audit names the rule.
 
-A cancelling row with nothing to void in its file is still left out: the row it
-voids was most likely imported earlier. `folio update` then lists the stored rows
-it could void, with the `folio delete` command for each.
+A cancelling row with nothing to void in its file is **rejected**, with the reason
+`Cancellation with nothing to void in this file`, so it is never silently lost. Folio
+never matches it against transactions already stored: their signs and actions have been
+normalized since they were imported, so a cancellation cannot be told from a genuine row.
+If the row it cancels was imported earlier, delete that transaction with `folio delete`;
+if the rejected row was a genuine transaction, add it with `folio add`.
 
 ## Processing Order
 

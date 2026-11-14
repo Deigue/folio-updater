@@ -11,7 +11,8 @@ import pytest
 
 from app.logging_setup import AUDIT_LOGGER
 from domain import Column
-from ingest.rules import TransactionTransformer
+from ingest import prepare_transactions
+from ingest.rules import NOTHING_TO_VOID, TransactionTransformer
 
 if TYPE_CHECKING:
     from .helpers.context import TempContext
@@ -178,58 +179,112 @@ def _cash_rows(rows: list[tuple[str, str, str, str]]) -> pd.DataFrame:
     )
 
 
+def _audit_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """Return what the audit trail recorded."""
+    return [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]
+
+
 @pytest.mark.parametrize(
-    ("rows", "kept", "voided"),
+    "deposit",
     [
-        pytest.param(
-            [
-                ("2026-09-08", "-8000", "ACCT", "CANCELLATION"),
-                ("2026-09-07", "8000", "ACCT", "DEPOSIT"),
-                ("2026-09-08", "8000", "ACCT", "DEPOSIT"),
-            ],
-            ["2026-09-08"],
-            "2026-09-07",
-            id="earliest-on-or-before",
-        ),
-        pytest.param(
-            [
-                ("2026-09-08", "-8000", "ACCT", "CANCELLATION"),
-                ("2026-09-09", "8000", "ACCT", "DEPOSIT"),
-                ("2026-09-07", "8000", "OTHER", "DEPOSIT"),
-                ("2026-09-07", "500", "ACCT", "DEPOSIT"),
-            ],
-            ["2026-09-09", "2026-09-07", "2026-09-07"],
-            None,
-            id="nothing-to-void",
-        ),
+        pytest.param("8000", id="plain"),
+        pytest.param("$8,000.00", id="written-as-text"),
     ],
 )
-def test_cancellations(
+def test_a_cancellation_voids_the_earliest_matching_row_on_or_before_it(
     temp_ctx: TempContext,
-    rows: list[tuple[str, str, str, str]],
-    kept: list[str],
-    voided: str | None,
+    deposit: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A cancellation drops itself and the earliest matching row before it."""
+    """Both rows leave the import, and the event names the rule."""
     caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
-    with temp_ctx(CANCEL_CONFIG):
-        outcome = TransactionTransformer.transform(_cash_rows(rows))
-        result, cancels = outcome.df, outcome.cancels
-
-    assert result[Column.Txn.TXN_DATE].tolist() == kept
-    assert len(cancels) == 1
-    cancelled = cancels[0].cancelled
-    assert (None if cancelled is None else cancelled[Column.Txn.TXN_DATE]) == voided
-    stage, cancellation, target = (
-        r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER
+    rows = _cash_rows(
+        [
+            ("2026-09-08", "-8000", "ACCT", "CANCELLATION"),
+            ("2026-09-07", deposit, "ACCT", "DEPOSIT"),
+            ("2026-09-08", deposit, "ACCT", "DEPOSIT"),
+        ],
     )
+    with temp_ctx(CANCEL_CONFIG):
+        outcome = TransactionTransformer.transform(rows)
+
+    assert outcome.df[Column.Txn.TXN_DATE].tolist() == ["2026-09-08"]
+    assert outcome.invalid.empty
+    (event,) = outcome.cancels
+    assert event.rule.name == "Broker Cancellation"
+    assert event.cancelled[Column.Txn.TXN_DATE] == "2026-09-07"
+    stage, cancellation, voided = _audit_lines(caplog)
     assert stage == "  CANCEL 'Broker Cancellation'"
     assert cancellation.startswith("    x TxnDate=2026-09-08|")
-    if voided is None:
-        assert target == "      ? nothing in this file for it to void"
-    else:
-        assert target.startswith(f"      x TxnDate={voided}|")
+    assert voided.startswith("      x TxnDate=2026-09-07|")
+
+
+def test_a_cancellation_with_nothing_to_void_is_rejected(
+    temp_ctx: TempContext,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A later row, another account or another amount is never voided."""
+    caplog.set_level(logging.INFO, logger=AUDIT_LOGGER)
+    rows = _cash_rows(
+        [
+            ("2026-09-08", "-8000", "ACCT", "CANCELLATION"),
+            ("2026-09-09", "8000", "ACCT", "DEPOSIT"),
+            ("2026-09-07", "8000", "OTHER", "DEPOSIT"),
+            ("2026-09-07", "500", "ACCT", "DEPOSIT"),
+        ],
+    )
+    with temp_ctx(CANCEL_CONFIG):
+        outcome = TransactionTransformer.transform(rows)
+
+    assert outcome.df[Column.Txn.TXN_DATE].tolist() == [
+        "2026-09-09",
+        "2026-09-07",
+        "2026-09-07",
+    ]
+    assert outcome.cancels == []
+    assert outcome.invalid["Description"].tolist() == ["CANCELLATION"]
+    assert outcome.invalid[Column.REJECTION_REASON].tolist() == [
+        NOTHING_TO_VOID,
+    ]
+    stage, rejected = _audit_lines(caplog)
+    assert stage == "  CANCEL 'Broker Cancellation'"
+    assert rejected.startswith("    - TxnDate=2026-09-08|")
+    assert rejected.endswith(f"({NOTHING_TO_VOID})")
+
+
+@pytest.mark.parametrize(
+    "blank_account",
+    [pytest.param(False, id="alone"), pytest.param(True, id="beside-an-invalid-row")],
+)
+def test_an_import_rejects_a_cancellation_with_nothing_to_void(
+    temp_ctx: TempContext,
+    *,
+    blank_account: bool,
+) -> None:
+    """It joins the invalid rows with its reason, and the tally still adds up."""
+    rows = _cash_rows(
+        [
+            ("2026-09-08", "-640", "ACCT", "CANCELLATION"),
+            ("2026-09-07", "250", "ACCT", "DEPOSIT"),
+            ("2026-09-07", "75", "ACCT", "DEPOSIT"),
+        ],
+    ).assign(**{Column.Txn.ACTION: "CONTRIBUTION"})
+    # Not mapped from a file, so the trade columns are added as empty.
+    for column in (Column.Txn.TICKER, Column.Txn.PRICE, Column.Txn.UNITS):
+        rows[column] = None
+    rows[Column.Txn.FEE] = None
+    if blank_account:
+        rows.loc[2, Column.Txn.ACCOUNT] = None
+
+    with temp_ctx(CANCEL_CONFIG):
+        results = prepare_transactions(rows, map_headers=False)
+
+    reasons = results.invalid_df[Column.REJECTION_REASON].tolist()
+    assert reasons[0] == NOTHING_TO_VOID
+    assert len(reasons) == (2 if blank_account else 1)
+    assert results.cancel_events == []
+    # Nothing is stored yet, so the approved rows are what the tally must reach.
+    assert len(results.approved) == results.expected_count()
 
 
 def test_cancellation_rule_needs_its_fields(temp_ctx: TempContext) -> None:

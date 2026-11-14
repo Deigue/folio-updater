@@ -30,7 +30,6 @@ from engine.since_update import record_update
 from engine.update_review import (
     review_checks,
     review_import,
-    review_late_cancellations,
     review_statement,
     review_stuck,
     review_transfer_pairs,
@@ -248,8 +247,6 @@ def _import_stage(
         report.pending.extend(review.pending)
         report.expected.extend(review.expected)
 
-    _review_late_cancellations(outcomes, report)
-
     if any(outcome.imported for outcome in outcomes):
         export_to_parquet()
 
@@ -260,28 +257,6 @@ def _import_stage(
             error="\n".join(f"{o.path.name}: {o.error}" for o in failed),
             next_steps=_import_fixes(config, failed),
         )
-
-
-def _review_late_cancellations(
-    outcomes: list[FileImport],
-    report: UpdateReport,
-) -> None:
-    """Raise cancellations that voided nothing in their own file.
-
-    Args:
-        outcomes: Every file imported this run.
-        report: Where the concerns are recorded.
-    """
-    late = [
-        (outcome.path.name, outcome.results.cancel_events)
-        for outcome in outcomes
-        if outcome.results is not None
-        and any(event.cancelled is None for event in outcome.results.cancel_events)
-    ]
-    if late:  # pragma: no cover
-        stored = txns.read()
-        for filename, events in late:
-            report.concerns.extend(review_late_cancellations(filename, events, stored))
 
 
 def _import_fixes(config: Config, failed: list[FileImport]) -> tuple[str, ...]:

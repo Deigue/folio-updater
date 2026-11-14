@@ -59,6 +59,8 @@ audit_log_level: INFO   # audit.log (same levels)
 Stages that set something aside or keep something unexpected are written at `WARNING`:
 `REJECT`, `SKIP` (a rule whose fields the file does not have), and an import's `KEEP`
 (a column or value kept against a setting). `FAILED` lines are written at `ERROR`.
+A cancelling row with nothing in its file to void is rejected under its `CANCEL` stage,
+as a `-` row at `WARNING` naming the reason, not under `REJECT`.
 
 A `folio add --dry-run` writes no entry. A `folio edit` or `folio delete` dry run never
 reaches the log either.

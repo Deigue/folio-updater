@@ -11,6 +11,9 @@ TORONTO_TZ = ZoneInfo("America/Toronto")
 # Weekdays in a week: Monday to Friday, the days a market is open.
 WEEKDAYS = 5
 
+# Why a cancelling row with nothing in its file to void is rejected.
+NOTHING_TO_VOID = "Cancellation with nothing to void in this file"
+
 
 # Internal transaction fields that are essential for processing. A tuple, so no
 # caller can reorder it and silently change the duplicate key for every import.

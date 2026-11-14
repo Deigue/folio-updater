@@ -17,6 +17,7 @@ from domain import SettlementOutcome
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from models.import_rules import CancelRule
     from models.txn import NewTxn, Txn
 
 
@@ -52,20 +53,17 @@ class TransformEvent:
 
 @dataclass
 class CancelEvent:
-    """A broker row that cancels an earlier one, and the row it voided.
+    """A broker row that cancels an earlier one in the same file, and that row.
 
     Attributes:
+        rule: The cancellation rule that matched.
         cancellation: The cancelling row, as read.
-        cancelled: The row it voided, or None when the file held no row for it
-            (the voided row may already be stored from an earlier import).
+        cancelled: The row it voided.
     """
 
+    rule: CancelRule
     cancellation: dict[str, Any]
-    cancelled: dict[str, Any] | None = None
-
-    def rows(self) -> int:
-        """Return how many rows the cancellation took out of the import."""
-        return 1 if self.cancelled is None else 2
+    cancelled: dict[str, Any]
 
 
 @dataclass(eq=False)
@@ -125,7 +123,7 @@ class ImportResults:
 
     def cancelled_count(self) -> int:
         """Return how many rows cancellations took out, cancelling rows included."""
-        return sum(event.rows() for event in self.cancel_events)
+        return 2 * len(self.cancel_events)
 
     def expected_count(self) -> int:
         """Return how many rows should have been imported, by tallying each stage.

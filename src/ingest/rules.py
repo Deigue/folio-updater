@@ -12,8 +12,9 @@ import pandas as pd
 
 from app import audit, get_config
 from app.audit import AuditMark, format_transaction_summary
-from domain import Column
+from domain import NOTHING_TO_VOID, Column
 from domain.numeric import HALF_CENT
+from ingest.validation import normalize_numeric
 from models import CancelEvent, MergeEvent, TransformEvent
 
 if TYPE_CHECKING:
@@ -35,13 +36,16 @@ class RuleOutcome:
         df: The rows left after every rule has run.
         merges: One event per merged transaction.
         transforms: One event per field a transform rule changed.
-        cancels: One event per cancellation row.
+        cancels: One event per cancellation that voided a row.
+        invalid: Cancelling rows with nothing in the file to void, rejected as
+            invalid rows, each with its reason.
     """
 
     df: pd.DataFrame
     merges: list[MergeEvent]
     transforms: list[TransformEvent]
     cancels: list[CancelEvent]
+    invalid: pd.DataFrame
 
 
 class TransactionTransformer:
@@ -60,6 +64,7 @@ class TransactionTransformer:
         self._merge_events: list[MergeEvent] = []
         self._transform_events: list[TransformEvent] = []
         self._cancel_events: list[CancelEvent] = []
+        self._invalid: list[pd.Series] = []
 
     @staticmethod
     def transform(df: pd.DataFrame) -> RuleOutcome:
@@ -72,7 +77,7 @@ class TransactionTransformer:
             The transformed rows and the events the rules produced.
         """
         if df.empty:  # pragma: no cover
-            return RuleOutcome(df, [], [], [])
+            return RuleOutcome(df, [], [], [], pd.DataFrame())
         transformer = TransactionTransformer(df)
         transformer._apply_transforms()
         return RuleOutcome(
@@ -80,6 +85,7 @@ class TransactionTransformer:
             transformer._merge_events,
             transformer._transform_events,
             transformer._cancel_events,
+            transformer._invalid_cancellations(),
         )
 
     @staticmethod
@@ -222,9 +228,10 @@ class TransactionTransformer:
         """Drop each cancelling row together with the row it voids.
 
         A cancelling row voids the earliest row on or before it that shares
-        every match field and carries the opposite amount. One with nothing to
-        void in this file is dropped alone: the row it voids may already be
-        stored, and a cancellation is never a transaction of its own.
+        every match field and carries the opposite amount. A stored row is never
+        matched: its sign and action have been normalized since, so a
+        cancellation cannot be told from a genuine row. One with nothing to void
+        in this file is rejected instead, so it is never silently lost.
 
         Args:
             rule: The cancellation rule to apply.
@@ -243,7 +250,10 @@ class TransactionTransformer:
         if mask is None or not mask.any():
             return
 
-        amounts = pd.to_numeric(self.df[rule.amount_field], errors="coerce")
+        amounts = pd.to_numeric(
+            self.df[rule.amount_field].map(normalize_numeric),
+            errors="coerce",
+        )
         dates = pd.to_datetime(
             self.df.get(Column.Txn.TXN_DATE, pd.Series(index=self.df.index)),
             errors="coerce",
@@ -268,15 +278,13 @@ class TransactionTransformer:
                 dates.iloc[found].to_numpy(na_value=np.datetime64("NaT", "ns")),
                 kind="stable",
             )
-            voided = int(found[order[0]]) if len(found) else None
-            self._record_cancel(
-                rule,
-                self.df.iloc[pos],
-                None if voided is None else self.df.iloc[voided],
-            )
             dropped.append(int(pos))
-            if voided is not None:
-                dropped.append(voided)
+            if not len(found):
+                self._reject_cancellation(rule, self.df.iloc[pos])
+                continue
+            voided = int(found[order[0]])
+            self._record_cancel(rule, self.df.iloc[pos], self.df.iloc[voided])
+            dropped.append(voided)
 
         self.df = self.df.drop(index=self.df.index[dropped])
 
@@ -284,37 +292,42 @@ class TransactionTransformer:
         self,
         rule: CancelRule,
         cancellation: pd.Series,
-        cancelled: pd.Series | None,
+        cancelled: pd.Series,
     ) -> None:
-        """Log one cancellation and keep it for the import audit.
+        """Log one cancellation and keep it for the import audit."""
+        self._cancel_stage(rule)
+        audit.row(AuditMark.VOIDED, format_transaction_summary(cancellation))
+        audit.row(AuditMark.VOIDED, format_transaction_summary(cancelled), depth=3)
+        self._cancel_events.append(
+            CancelEvent(
+                rule=rule,
+                cancellation={str(k): v for k, v in cancellation.items()},
+                cancelled={str(k): v for k, v in cancelled.items()},
+            ),
+        )
 
-        Args:
-            rule: The rule that matched.
-            cancellation: The cancelling row.
-            cancelled: The row it voids, or None when the file held none.
-        """
+    def _reject_cancellation(self, rule: CancelRule, cancellation: pd.Series) -> None:
+        """Log a cancelling row with nothing to void, and keep it to be rejected."""
+        self._cancel_stage(rule)
+        audit.row(
+            AuditMark.REMOVED,
+            f"{format_transaction_summary(cancellation)} ({NOTHING_TO_VOID})",
+            level=logging.WARNING,
+        )
+        self._invalid.append(cancellation)
+
+    def _cancel_stage(self, rule: CancelRule) -> None:
+        """Open the audit stage of a rule, once per import."""
         if rule.name not in self._cancel_rules_seen:
             self._cancel_rules_seen.add(rule.name)
             audit.stage("CANCEL '%s'", rule.name)
-        audit.row(AuditMark.VOIDED, format_transaction_summary(cancellation))
-        if cancelled is None:
-            audit.row(
-                AuditMark.UNRESOLVED,
-                "nothing in this file for it to void",
-                depth=3,
-                level=logging.WARNING,
-            )
-        else:
-            audit.row(AuditMark.VOIDED, format_transaction_summary(cancelled), depth=3)
-        self._cancel_events.append(
-            CancelEvent(
-                cancellation={str(k): v for k, v in cancellation.items()},
-                cancelled=(
-                    None
-                    if cancelled is None
-                    else {str(k): v for k, v in cancelled.items()}
-                ),
-            ),
+
+    def _invalid_cancellations(self) -> pd.DataFrame:
+        """Return the cancelling rows with nothing to void, each with its reason."""
+        if not self._invalid:
+            return pd.DataFrame()
+        return pd.DataFrame(self._invalid).assign(
+            **{str(Column.REJECTION_REASON): NOTHING_TO_VOID},
         )
 
     def _create_field_mask(

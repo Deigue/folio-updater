@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import pandas as pd
 
 from app import audit
 
@@ -13,9 +13,6 @@ from ingest.mappers import TransactionMapper
 from ingest.rules import TransactionTransformer
 from ingest.validation import TransactionFormatter
 from models import ImportResults, new_txns_from_frame
-
-if TYPE_CHECKING:
-    import pandas as pd
 
 
 def prepare_transactions(
@@ -51,6 +48,7 @@ def prepare_transactions(
     )
     ruled = TransactionTransformer.transform(mapped_df)
     formatted_df, invalid_df = TransactionFormatter.format_and_validate(ruled.df)
+    invalid_df = _with_invalid_cancellations(ruled.invalid, invalid_df)
     intra_approved_df = TransactionFilter.filter_intra_import_duplicates(formatted_df)
     db_approved_df = TransactionFilter.filter_db_duplicates(intra_approved_df)
     cleaned_df = TransactionFilter.remove_approval_column(db_approved_df)
@@ -65,6 +63,18 @@ def prepare_transactions(
         cancel_events=ruled.cancels,
         transform_events=ruled.transforms,
     )
+
+
+def _with_invalid_cancellations(
+    cancellations: pd.DataFrame,
+    invalid: pd.DataFrame,
+) -> pd.DataFrame:
+    """Reject cancellations with nothing to void alongside the invalid rows."""
+    if cancellations.empty:
+        return invalid
+    if invalid.empty:
+        return cancellations
+    return pd.concat([cancellations, invalid])
 
 
 def _rejected(before: pd.DataFrame, after: pd.DataFrame) -> pd.DataFrame:

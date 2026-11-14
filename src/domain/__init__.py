@@ -11,7 +11,13 @@ from domain.actions import (
     ActionProfile,
     resolve_action,
 )
-from domain.constants import INTERNAL_COLUMNS, TORONTO_TZ, TXN_ESSENTIALS, WEEKDAYS
+from domain.constants import (
+    INTERNAL_COLUMNS,
+    NOTHING_TO_VOID,
+    TORONTO_TZ,
+    TXN_ESSENTIALS,
+    WEEKDAYS,
+)
 from domain.enums import (
     ACCOUNT_TYPE_ALIASES,
     MARGIN_MARKER,
@@ -45,6 +51,7 @@ __all__ = [
     "ALWAYS_REQUIRED",
     "INTERNAL_COLUMNS",
     "MARGIN_MARKER",
+    "NOTHING_TO_VOID",
     "ROOM_BEARING_TYPES",
     "SUPPORTED_CURRENCIES",
     "TAXABLE_ACCOUNT_TYPES",
