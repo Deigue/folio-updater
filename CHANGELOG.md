@@ -23,6 +23,9 @@ salem, withdrawal, contribution and then buy instead (across tax types)
 to specify what sign fees are recorded as for transactions.
 - `folio check` warns when a trade fits the wrong fee convention from its accounts
 designated convention.
+- `folio query` shows totals under its results: how many matched, the dates they span, the net
+amount and commissions per currency, net units and the average price for one ticker, and the
+average and per-month amount for one action. They stay under every page in at most two lines.
 
 ### Changed
 

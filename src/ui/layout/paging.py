@@ -10,7 +10,7 @@ from term.size import terminal_size
 from ui.vocabulary import TABLE_BORDER
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 # Lines used by the stats summary panel at the top.
 STATS_PANEL_LINES = 3
@@ -18,12 +18,12 @@ STATS_PANEL_LINES = 3
 # Lines used by the expansion prompt at the bottom.
 PROMPT_LINES = 2
 
+# The pager's one bottom line: rows shown and the keys that move between pages.
+NAVIGATION_HEIGHT = 1
+
 # Chrome for a bordered, headered table: top border, header text, header
 # separator, and bottom border (verified against Rich's actual output).
 TABLE_HEADER_HEIGHT = 4
-
-# Page progress display height (e.g., "Showing transactions 1-15 of 100").
-PAGE_PROGRESS_HEIGHT = 1
 
 # The console.rule() line printed above each page (title + page counter).
 PAGE_RULE_HEIGHT = 1
@@ -56,9 +56,9 @@ def available_height(
     """
     _, height = terminal_size()
     if pages:
-        # Paged full-screen table: console.rule + progress line + prompt.
+        # Paged full-screen table: console.rule + navigation line.
         # No stats panel is shown in this flow.
-        reserved_lines = PAGE_RULE_HEIGHT + PAGE_PROGRESS_HEIGHT + PROMPT_LINES
+        reserved_lines = PAGE_RULE_HEIGHT + NAVIGATION_HEIGHT
     else:
         # Tiled audit view: stats panel + expansion prompt.
         reserved_lines = STATS_PANEL_LINES + PROMPT_LINES
@@ -67,29 +67,15 @@ def available_height(
     return max(height - reserved_lines, MINIMUM_HEIGHT)
 
 
-def _get_pagination_prompt(current_page: int, total_pages: int) -> str:
-    """Get navigation prompt based on current page position.
-
-    Args:
-        current_page: Current page number (0-indexed)
-        total_pages: Total number of pages
-
-    Returns:
-        Navigation prompt text
-    """
-    is_first = current_page == 0
-    is_last = current_page == total_pages - 1
-
-    if is_first and not is_last:
-        return "[dim]Press [bold]n[/bold] for next page, [bold]q[/bold] to quit[/dim]"
-    if is_last and not is_first:
-        return (
-            "[dim]Press [bold]p[/bold] for previous page, [bold]q[/bold] to quit[/dim]"
-        )
-    return (
-        "[dim]Press [bold]n[/bold] for next,"
-        " [bold]p[/bold] for previous, [bold]q[/bold] to quit[/dim]"
-    )
+def _navigation_line(start: int, end: int, total: int, page: int, pages: int) -> str:
+    """Render the rows a page shows and the keys that move off it, on one line."""
+    keys = []
+    if page < pages - 1:
+        keys.append("[bold]n[/bold] next")
+    if page > 0:
+        keys.append("[bold]p[/bold] prev")
+    keys.append("[bold]q[/bold] quit")
+    return f"[dim]{start + 1}-{end} of {total} · {' · '.join(keys)}[/dim]"
 
 
 def _handle_pagination_input(
@@ -124,6 +110,8 @@ def page_frame(
     *,
     badge: str | None = None,
     reserved: int = 0,
+    page_footer: Sequence[str] = (),
+    final_footer: Sequence[str] = (),
 ) -> None:
     """Drive the n/p/q pager over a row range, delegating pages to `render`.
 
@@ -135,6 +123,10 @@ def page_frame(
         badge: Optional status line (e.g. from `freshness_badge`) printed
             above every page
         reserved: Further lines each page draws that the height budget cannot see
+        page_footer: Lines printed under every page, one terminal line each.
+        final_footer: Lines printed once the rows are all shown or the pager
+            exits: pages draw on a screen discarded on quit, so this copy is the
+            one left behind.
     """
     if total_rows == 0:
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
@@ -148,6 +140,7 @@ def page_frame(
     # (a script, CI, `> file`), and getch would wait on the console forever.
     if not active_console().is_interactive:
         render(0, total_rows)
+        _print_lines(final_footer)
         return
 
     if page_size is None:
@@ -155,11 +148,12 @@ def page_frame(
             table=True,
             pages=True,
             # The badge is redrawn above every page, so it costs the table a row.
-            reserved=reserved + (1 if badge else 0),
+            reserved=reserved + (1 if badge else 0) + len(page_footer),
         )
 
     if total_rows <= page_size:
         render(0, total_rows)
+        _print_lines(final_footer)
         return
 
     total_pages = (total_rows + page_size - 1) // page_size
@@ -177,11 +171,19 @@ def page_frame(
                 title,
                 badge,
                 render,
+                page_footer,
             )
             if should_exit:
                 break
 
     active_console().rule("End of Transactions", style="dim")
+    _print_lines(final_footer)
+
+
+def _print_lines(lines: Sequence[str]) -> None:
+    """Print each line as it is."""
+    for line in lines:
+        console_print(line)
 
 
 def page_title(title: str, start: int, end: int, total: int) -> str | None:
@@ -210,6 +212,7 @@ def _render_one_page(  # noqa: PLR0917
     title: str,
     badge: str | None,
     render: Callable[[int, int], None],
+    footer: Sequence[str],
 ) -> tuple[int, bool]:
     """Draw one page inside the pager loop and read the next navigation input.
 
@@ -228,13 +231,10 @@ def _render_one_page(  # noqa: PLR0917
         console_print(badge)
 
     render(start_idx, end_idx)
-
+    _print_lines(footer)
     active_console().print(
-        f"[dim]Showing transactions {start_idx + 1}-{end_idx} of {total_rows}[/dim]",
+        _navigation_line(start_idx, end_idx, total_rows, current_page, total_pages),
     )
-
-    prompt = _get_pagination_prompt(current_page, total_pages)
-    active_console().print(f"\n{prompt}")
 
     try:
         user_input = getch()

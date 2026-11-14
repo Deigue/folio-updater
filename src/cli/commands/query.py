@@ -8,6 +8,8 @@ import typer
 
 from app import bootstrap
 from cli.selection import SelectionError, select_transactions
+from db import txns
+from engine.query_totals import query_totals, resolved_fees
 from term import announce, console_error
 from ui.transaction_table import page_transactions
 
@@ -40,6 +42,9 @@ def query_transactions(terms: list[str]) -> None:
 
     if results:
         announce.info(f"Found {len(results)} matching transaction(s).")
-        page_transactions(results, title="Query Results")
+        charged = {txn.account for txn in results if txn.fee}
+        fees = resolved_fees(charged, txns.read() if charged else [])
+        totals = query_totals(results, fees)
+        page_transactions(results, title="Query Results", totals=totals)
     else:
         announce.info("No transactions found matching the criteria.")

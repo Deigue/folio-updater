@@ -158,6 +158,26 @@ folio query sort:txnid last 5
 
 ---
 
+## Totals
+
+A footer under the results adds up every transaction the query matched, not just the page on
+screen, and never adds one currency to another:
+
+- How many matched, and the dates they span.
+- The net amount per currency, and the commissions per currency. Each account's fee sign is
+  applied, so a rebate takes off what a commission adds.
+- The net units, when every result is the same ticker and none is a split.
+- `Avg Price`, the price averaged over units, when every result is a buy, or every result a sell,
+  of the same ticker.
+- The average amount and a figure per month, when every result has the same action:
+  `folio query div` shows the average dividend and the dividends per month.
+
+```text
+Totals for all 24 · 2024-01-19 to 2025-12-19 · CAD 412.80 · avg 17.20 · 17.20/mo
+```
+
+---
+
 ## Combining All Features
 
 You can mix and match for ultimate control.

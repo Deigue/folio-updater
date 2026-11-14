@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from rich.markup import escape
 from rich.table import Table
+from rich.text import Text
 
 from domain import Column
 from domain.numeric import dec, q2
 from exporters.sheet_spec import TXN_FORMATS, Fmt
 from term.console import console_print
-from ui.cells import money, style
+from term.size import terminal_size
+from ui.cells import currency_tint, money, price, style, units
 from ui.format import decimals, is_number, safe_str
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
     from rich.console import JustifyMethod
 
     from models import TxnFields
+    from models.query_totals import QueryTotals
 
     type _Row = Mapping[str, object]
 
@@ -455,14 +458,23 @@ def _page(
     title: str,
     page_size: int | None,
     context: TransactionContext,
+    totals: QueryTotals | None = None,
 ) -> None:
-    """Display rows a page at a time."""
+    """Display rows a page at a time, with the totals under every page."""
 
     def render(start: int, end: int) -> None:
         page = rows[start:end]
         _show(page, page_title(title, start, end, len(rows)), len(page), context)
 
-    page_frame(len(rows), title, page_size, render)
+    width, _ = terminal_size()
+    page_frame(
+        len(rows),
+        title,
+        page_size,
+        render,
+        page_footer=totals_lines(totals, width, TOTALS_PAGE_LINES) if totals else (),
+        final_footer=totals_lines(totals, width) if totals else (),
+    )
 
 
 def page_transactions(
@@ -470,6 +482,7 @@ def page_transactions(
     title: str = "Transactions",
     page_size: int | None = None,
     context: TransactionContext = TransactionContext.GENERAL,
+    totals: QueryTotals | None = None,
 ) -> None:
     """Display transactions with paging support for large datasets.
 
@@ -479,8 +492,104 @@ def page_transactions(
         page_size: Number of transactions per page. If None, calculated dynamically
             based on available console height
         context: Transaction context to specify column visibility
+        totals: What every transaction adds up to, shown under each page.
     """
-    _page(_txn_rows(txns), title, page_size, context)
+    _page(_txn_rows(txns), title, page_size, context, totals)
+
+
+# The most lines the totals take under a page, so the table keeps its height.
+TOTALS_PAGE_LINES = 2
+_SEPARATOR = " · "
+
+
+@dataclass(frozen=True)
+class _Item:
+    """One figure of the totals footer, and when it is dropped to save space.
+
+    Attributes:
+        text: The figure, as markup.
+        drop: Its place in the drop order (lower goes first), or None to keep it.
+    """
+
+    text: str
+    drop: int | None = None
+
+
+# Dropped in this order when the footer needs more lines than it may take.
+_PER_MONTH, _COMMISSIONS, _AVERAGE, _SPAN = range(4)
+
+
+def totals_lines(
+    totals: QueryTotals,
+    width: int,
+    max_lines: int | None = None,
+) -> list[str]:
+    """Render the totals as lines no wider than `width`.
+
+    Args:
+        totals: What the transactions add up to.
+        width: The terminal's width.
+        max_lines: The most lines to use, dropping the least needed figures to
+            fit; None keeps every figure.
+
+    Returns:
+        The lines, as markup.
+    """
+    items = _totals_items(totals)
+    lines = _wrap(items, width)
+    for level in (_PER_MONTH, _COMMISSIONS, _AVERAGE, _SPAN):
+        if max_lines is None or len(lines) <= max_lines:
+            break
+        items = [item for item in items if item.drop != level]
+        lines = _wrap(items, width)
+    if max_lines is not None and len(lines) > max_lines:
+        # Only the per-currency nets are left: keep what fits, and say more follows.
+        lines = [*lines[: max_lines - 1], f"{lines[max_lines - 1]}{_SEPARATOR}..."]
+    return lines
+
+
+def _totals_items(totals: QueryTotals) -> list[_Item]:
+    """List the footer's figures in reading order."""
+    items = [
+        _Item(f"[bold]Totals for all {totals.count}[/bold]"),
+        _Item(f"{totals.first_date} to {totals.last_date}", _SPAN),
+    ]
+    if totals.units is not None:
+        items.append(_Item(f"{units(totals.units)} units"))
+    if totals.average_price is not None:
+        items.append(_Item(f"Avg Price {price(totals.average_price)}"))
+    for sums in totals.by_currency:
+        items.append(
+            _Item(
+                currency_tint(
+                    sums.currency,
+                    f"{sums.currency} {money(sums.net_amount)}",
+                ),
+            ),
+        )
+        if sums.commissions:
+            items.append(_Item(f"commission {money(sums.commissions)}", _COMMISSIONS))
+        if sums.average_amount is not None:
+            items.append(_Item(f"avg {money(sums.average_amount)}", _AVERAGE))
+        if sums.per_month is not None:
+            items.append(_Item(f"{money(sums.per_month)}/mo", _PER_MONTH))
+    return items
+
+
+def _wrap(items: Sequence[_Item], width: int) -> list[str]:
+    """Join the figures with separators, starting a new line when one would overflow."""
+    lines: list[str] = []
+    current = ""
+    for item in items:
+        candidate = f"{current}{_SEPARATOR}{item.text}" if current else item.text
+        if current and Text.from_markup(candidate).cell_len > width:
+            lines.append(current)
+            current = item.text
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
 
 
 def page_source_rows(
