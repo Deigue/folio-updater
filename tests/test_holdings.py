@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -1008,6 +1009,64 @@ def test_sorting_by_something_that_is_not_a_column_is_refused(
         pytest.raises(UnknownSortError, match="Cannot sort by 'nonsense'"),
     ):
         sort_holdings(_sortable(), "nonsense")
+
+
+def _typed(holdings: list[Holding], types: dict[str, str | None]) -> list[Holding]:
+    """Give each holding the security type a test wants."""
+    return [replace(h, security_type=types[h.symbol]) for h in holdings]
+
+
+def test_a_second_column_orders_the_ties_of_the_first(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        holdings = _typed(_sortable(), {"BIG": "ETF", "MID": "EQUITY", "AAA": "ETF"})
+
+        assert [h.symbol for h in sort_holdings(holdings, "type,market")] == [
+            "MID",
+            "BIG",
+            "AAA",
+        ]
+        # A leading minus flips only its own column.
+        assert [h.symbol for h in sort_holdings(holdings, "type, -market")] == [
+            "MID",
+            "AAA",
+            "BIG",
+        ]
+        # Reversing flips every column.
+        ordered = sort_holdings(holdings, "TYPE,market", reverse=True)
+        assert [h.symbol for h in ordered] == ["AAA", "BIG", "MID"]
+
+
+def test_a_holding_with_no_text_sinks_in_either_direction(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        holdings = _typed(_sortable(), {"BIG": "ETF", "MID": None, "AAA": "EQUITY"})
+
+        for reverse in (False, True):
+            assert sort_holdings(holdings, "type", reverse=reverse)[-1].symbol == "MID"
+
+
+def test_a_bad_column_among_several_is_named(temp_ctx: TempContext) -> None:
+    with (
+        temp_ctx(),
+        pytest.raises(UnknownSortError, match="Cannot sort by 'sectr'"),
+    ):
+        sort_holdings(_sortable(), "type,sectr")
+
+
+def test_a_holding_carries_its_quotes_security_type(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        seed_transaction(ticker="SPY", amount="-1000", price="100", units="10")
+        quote = _quote("SPY", "110", "109")
+        quote = replace(
+            quote,
+            fundamentals=replace(quote.fundamentals, quote_type="ETF"),
+        )
+
+        (holding,) = _value({"SPY": quote}, currency="native").holdings
+
+        assert holding.security_type == "ETF"
 
 
 def test_holdings_takes_a_sort(temp_ctx: TempContext) -> None:

@@ -26,6 +26,8 @@ designated convention.
 - `folio query` shows totals under its results: how many matched, the dates they span, the net
 amount and commissions per currency, net units and the average price for one ticker, and the
 average and per-month amount for one action. They stay under every page in at most two lines.
+- `folio dash -s` takes several columns, applied left to right (`-s type,-total`), with new
+`type` (security type) and `sector` columns. `folio dash --help` lists every sort column.
 
 ### Changed
 

@@ -24,7 +24,7 @@ from cli.commands.common import (
 )
 from domain import Currency, Grain
 from engine.accounts import FOLIO, Pool
-from engine.holdings import SORT_NAMES, UnknownSortError
+from engine.holdings import UnknownSortError, parse_sort
 from engine.pools import FolioValuation
 from engine.since_update import since_update
 from exporters.output import CSV_SUFFIX
@@ -184,9 +184,12 @@ def show_dash(
         raise typer.Exit(1)
 
     shown = _resolve_currency(currency)
-    if sort is not None and sort.strip().lower() not in SORT_NAMES:
-        console_error(str(UnknownSortError(sort)))
-        raise typer.Exit(1)
+    if sort is not None:
+        try:
+            parse_sort(sort)
+        except UnknownSortError as error:
+            console_error(f"{error} Run `folio dash --help` for every sort column.")
+            raise typer.Exit(1) from error
 
     # Quotes are today's, so the rate that converts them has to be too.
     ledger = require_ledger(refresh=refresh, priced=True, offline=offline)

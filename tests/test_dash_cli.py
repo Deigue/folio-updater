@@ -133,8 +133,8 @@ _REFUSED_REQUESTS = [
     ),
     pytest.param(
         ["dash", "-s", "nonsense"],
-        # The message also names what could have been used instead.
-        ["Cannot sort by 'nonsense'", "market"],
+        # The message also says where every sort column is listed.
+        ["Cannot sort by 'nonsense'", "folio dash --help"],
         id="unknown-sort-column",
     ),
     pytest.param(

@@ -14,6 +14,7 @@ import typer
 
 from app import bootstrap
 from config import Config
+from engine.holdings import SORT_KEYS, SortKey
 from term import console_error, console_info, console_print
 
 __version__ = _pkg_version("folio-updater")
@@ -71,9 +72,22 @@ def update_cmd(
         raise typer.Exit(1)
 
 
+def _sort_columns() -> str:
+    """List every `dash --sort` column and what it orders by, aliases together."""
+    names: dict[SortKey, list[str]] = {}
+    for name, key in SORT_KEYS.items():
+        names.setdefault(key, []).append(name)
+    rows = "\n".join(
+        f"  [bold]{', '.join(aliases)}[/bold]: {key.meaning}"
+        for key, aliases in names.items()
+    )
+    return f"Sort columns:\n{rows}"
+
+
 @app.command(
     "dash",
     help="Show holdings, cash and flows, valued at their quotes",
+    epilog=_sort_columns(),
     rich_help_panel=_GROUP_DAILY,
 )
 def dash_cmd(
@@ -99,7 +113,10 @@ def dash_cmd(
         None,
         "-s",
         "--sort",
-        help="Order by a column, e.g. -s total. Numbers sort largest first.",
+        help=(
+            "Order by columns, left to right, e.g. -s type,-total. Numbers sort "
+            "largest first, text A to Z; a leading - flips one column."
+        ),
     ),
     export: str | None = typer.Option(
         None,

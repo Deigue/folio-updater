@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal
 
 from domain import Currency, DiagnosticCode, Grain
+from domain.cells import has_value
 from domain.numeric import ONE, ZERO, safe_div
 from engine.accounts import FOLIO, Pool
 
@@ -34,6 +36,8 @@ class Holding:
         symbol: Canonical security symbol.
         name: Short name from the quote, when one is cached.
         sector: Sector from the quote, when one is cached.
+        security_type: The kind of security the quote says it is (ETF, EQUITY,
+            ...), when one is cached.
         pool: The account, account type or folio this is pooled over.
         currency: The currency the figures are expressed in.
         units: Units held after the last transaction.
@@ -74,6 +78,7 @@ class Holding:
     book_value: Decimal
     # Defaults begin here: a field above this line is required of every holding.
     sector: str | None = None
+    security_type: str | None = None
     price: Decimal | None = None
     prev_close: Decimal | None = None
     change: Decimal | None = None
@@ -396,8 +401,9 @@ class FolioHoldings:
             pool: The pool to value.
             currency: Currency to express the figures in, or `"native"`.
             folio_market: Total market value of the whole folio, in CAD.
-            sort: The column to order by, or None for market value.
-            reverse: Flip the sort's natural direction.
+            sort: The columns to order by, such as `type,-total`, or None for
+                market value.
+            reverse: Flip every sort column's natural direction.
 
         Returns:
             The pool's holdings and totals.
@@ -424,9 +430,9 @@ class FolioHoldings:
                 priced_totals += holding.market_value_totals
 
         holdings = _with_weights(partial, priced_totals, folio_market)
-        if sort is None:
-            holdings.sort(key=_by_value, reverse=True)
-        else:
+        # Market value first, so holdings the sort columns tie keep that order.
+        holdings.sort(key=_by_value, reverse=True)
+        if sort is not None:
             holdings = sort_holdings(holdings, sort, reverse=reverse)
         closed.sort(key=lambda h: h.symbol)
 
@@ -661,6 +667,7 @@ def _holding(holding_state: HoldingState, ctx: _Context) -> Holding | None:
         symbol=symbol,
         name=quote.name if quote else None,
         sector=quote.sector if quote else None,
+        security_type=quote.fundamentals.quote_type if quote else None,
         pool=ctx.pool,
         currency=shown,
         units=held,
@@ -898,83 +905,135 @@ def _sum_ratios(values: Iterable[Decimal | None]) -> Decimal | None:
     return sum(present, ZERO) if present else None
 
 
-# sort key to table heading to sort by, and whether the value is text
-_SORT_KEYS: dict[str, tuple[str, bool]] = {
-    "symbol": ("symbol", True),
-    "name": ("name", True),
-    "units": ("units", False),
-    "avg": ("avg_cost", False),
-    "last": ("price", False),
-    "price": ("price", False),
-    "change": ("change", False),
-    "change%": ("change_pct", False),
-    "pnl": ("day_pnl", False),
-    "pnl%": ("day_pnl_pct", False),
-    "unreal": ("unrealized", False),
-    "unreal%": ("unrealized_pct", False),
-    "realized": ("realized", False),
-    "divs": ("dividends", False),
-    "dividends": ("dividends", False),
-    "total": ("total_pnl", False),
-    "total%": ("total_pnl_pct", False),
-    "book": ("book_value_totals", False),
-    "market": ("market_value_totals", False),
-    "wt%": ("weight_in_pool", False),
-    "folio%": ("weight_in_folio", False),
-}
+@dataclass(frozen=True)
+class SortKey:
+    """A column the holdings can be ordered by.
 
-SORT_NAMES: tuple[str, ...] = tuple(dict.fromkeys(_SORT_KEYS))
+    Attributes:
+        attribute: The `Holding` field it reads.
+        text: Whether it holds text, which sorts A to Z; numbers sort largest first.
+        meaning: What it orders by, for the help.
+    """
+
+    attribute: str
+    text: bool
+    meaning: str
+
+
+_PRICE = SortKey("price", text=False, meaning="Price")
+_DIVIDENDS = SortKey("dividends", text=False, meaning="Dividends received")
+
+# Every name `--sort` accepts. Two names sharing one key are aliases.
+SORT_KEYS: Mapping[str, SortKey] = MappingProxyType(
+    {
+        "symbol": SortKey("symbol", text=True, meaning="Symbol"),
+        "name": SortKey("name", text=True, meaning="Security name"),
+        "type": SortKey("security_type", text=True, meaning="Security type"),
+        "sector": SortKey("sector", text=True, meaning="Sector"),
+        "units": SortKey("units", text=False, meaning="Units held"),
+        "avg": SortKey("avg_cost", text=False, meaning="Average cost"),
+        "last": _PRICE,
+        "price": _PRICE,
+        "change": SortKey("change", text=False, meaning="Day change per unit"),
+        "change%": SortKey("change_pct", text=False, meaning="Day change, percent"),
+        "pnl": SortKey("day_pnl", text=False, meaning="Day gain"),
+        "pnl%": SortKey("day_pnl_pct", text=False, meaning="Day gain, share of pool"),
+        "unreal": SortKey("unrealized", text=False, meaning="Unrealized gain"),
+        "unreal%": SortKey(
+            "unrealized_pct",
+            text=False,
+            meaning="Unrealized gain, share of book",
+        ),
+        "realized": SortKey("realized", text=False, meaning="Realized gain"),
+        "divs": _DIVIDENDS,
+        "dividends": _DIVIDENDS,
+        "total": SortKey("total_pnl", text=False, meaning="Total gain"),
+        "total%": SortKey(
+            "total_pnl_pct",
+            text=False,
+            meaning="Total gain, share of book",
+        ),
+        "book": SortKey("book_value_totals", text=False, meaning="Book value"),
+        "market": SortKey("market_value_totals", text=False, meaning="Market value"),
+        "wt%": SortKey("weight_in_pool", text=False, meaning="Weight in the pool"),
+        "folio%": SortKey("weight_in_folio", text=False, meaning="Weight in the folio"),
+    },
+)
 
 
 class UnknownSortError(ValueError):
     """A `--sort` argument naming something that is not a column."""
 
     def __init__(self, name: str) -> None:
-        """Report the bad input, and present the valid options."""
+        """Report the bad input."""
         self.name = name
-        super().__init__(
-            f"Cannot sort by '{name}'. Try one of: {', '.join(SORT_NAMES)}.",
-        )
+        super().__init__(f"Cannot sort by '{name}'.")
+
+
+def parse_sort(spec: str) -> tuple[tuple[SortKey, bool], ...]:
+    """Read sort columns such as `type,-total`, each with whether it is flipped.
+
+    Args:
+        spec: Names from `SORT_KEYS`, comma-separated and matched
+            case-insensitively; a leading `-` flips that column.
+
+    Returns:
+        Each column's key, and True where its natural direction is flipped.
+
+    Raises:
+        UnknownSortError: If a name is not a sortable column.
+    """
+    keys: list[tuple[SortKey, bool]] = []
+    for part in spec.split(","):
+        name = part.strip().lower()
+        flipped = name.startswith("-")
+        key = SORT_KEYS.get(name.removeprefix("-").strip())
+        if key is None:
+            raise UnknownSortError(part.strip())
+        keys.append((key, flipped))
+    return tuple(keys)
 
 
 def sort_holdings(
     holdings: list[Holding],
-    name: str,
+    spec: str,
     *,
     reverse: bool = False,
 ) -> list[Holding]:
-    """Order holdings by one measure.
+    """Order holdings by one column, then the next within its ties, and so on.
 
-    Numbers sort largest-first and text A-to-Z, reverse flips the order.
+    Each column keeps its natural direction (numbers largest first, text A to
+    Z) unless flipped, and a holding with no value in it always sinks to the
+    bottom. Holdings every column ties keep the order they came in.
 
     Args:
         holdings: The holdings to order.
-        name: A name from `SORT_NAMES`, matched case-insensitively.
-        reverse: Flip the natural direction.
+        spec: The columns, as `parse_sort` reads them.
+        reverse: Flip every column's direction.
 
     Returns:
         A new, ordered list.
 
     Raises:
-        UnknownSortError: If `name` is not a sortable measure.
+        UnknownSortError: If a column is not a sortable measure.
     """
-    key = _SORT_KEYS.get(name.strip().lower())
-    if key is None:
-        raise UnknownSortError(name)
-    attribute, is_text = key
+    ordered = list(holdings)
+    # Stable sorts from the last column to the first leave the first in charge.
+    for key, flipped in reversed(parse_sort(spec)):
+        ordered = _sorted_by(ordered, key, flip=flipped != reverse)
+    return ordered
 
-    if is_text:
-        return sorted(
-            holdings,
-            key=lambda h: str(getattr(h, attribute) or "").upper(),
-            reverse=reverse,
-        )
 
-    # An unpriced holding will always sink to the bottom.
-    valued = [h for h in holdings if getattr(h, attribute) is not None]
-    blank = [h for h in holdings if getattr(h, attribute) is None]
-    valued.sort(key=lambda h: getattr(h, attribute), reverse=not reverse)
-    return valued + blank
+def _sorted_by(holdings: list[Holding], key: SortKey, *, flip: bool) -> list[Holding]:
+    """Order holdings by one column, blanks last whatever the direction."""
+    values = [(holding, getattr(holding, key.attribute)) for holding in holdings]
+    blank = [holding for holding, value in values if not has_value(value)]
+    valued = [(holding, value) for holding, value in values if has_value(value)]
+    if key.text:
+        valued.sort(key=lambda pair: str(pair[1]).upper(), reverse=flip)
+    else:
+        valued.sort(key=lambda pair: pair[1], reverse=not flip)
+    return [holding for holding, _ in valued] + blank
 
 
 def _by_value(holding: Holding) -> tuple[int, Decimal]:

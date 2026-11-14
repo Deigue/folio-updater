@@ -30,8 +30,8 @@ folio dash --by-type            # a panel per account type, side by side
 | Option             | Effect                                                |
 | ------------------ | ----------------------------------------------------- |
 | `-c`, `--currency` | `native` *(default)*, `CAD` or `USD`                  |
-| `-s`, `--sort`     | Order by a column, e.g. `-s total`                    |
-| `-r`, `--reverse`  | Flip the sort direction                               |
+| `-s`, `--sort`     | Order by columns, e.g. `-s total` or `-s type,-total` |
+| `-r`, `--reverse`  | Flip every sort column's direction                    |
 | `-w`, `--wide`     | Add the columns a narrow terminal cannot fit          |
 | `--show-closed`    | Break the aggregate `Closed` row into one row each    |
 | `-o`, `--offline`  | Use cached quotes only, never touching the network    |
@@ -41,17 +41,24 @@ folio dash --by-type            # a panel per account type, side by side
 ## Sorting
 
 ```bash
-folio dash -s total      # biggest total gain first
-folio dash -s total -r   # worst first
-folio dash -s symbol     # A to Z
+folio dash -s total           # biggest total gain first
+folio dash -s total -r        # worst first
+folio dash -s symbol          # A to Z
+folio dash -s type,total      # by security type, biggest total gain first within each
+folio dash -s sector,-total   # by sector, worst total gain first within each
 ```
 
 **Numbers sort largest-first and text A-to-Z**, which is what you want almost
-every time. `-r` flips whichever applies. Unpriced holdings sink to the bottom.
+every time. Several columns apply left to right: each one orders the ties of the
+column before it, and holdings every column ties stay in market value order. A
+leading `-` flips one column; `-r` flips them all. A holding with no value in a
+column (unpriced, or no quote to read a type or sector from) sinks to the bottom.
 Money measures sort on the CAD value, so a mixed-currency pool orders by what each
-holding is really worth.
+holding is really worth. Rows stay grouped by currency, so sorting never mixes the
+groups.
 
-Sort by any of: `symbol`, `name`, `units`, `avg`, `last`, `change`, `change%`,
+`folio dash --help` lists every sort column: `symbol`, `name`, `type` (security
+type: ETF, EQUITY, ...), `sector`, `units`, `avg`, `last`, `change`, `change%`,
 `pnl`, `pnl%`, `unreal`, `unreal%`, `realized`, `divs`, `total`, `total%`, `book`,
 `market`, `wt%`, `folio%`.
 
