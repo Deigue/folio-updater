@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from app import bootstrap, get_config
+from app import get_config
 from cli.commands.common import export_to_parquet, require_ledger
 from cli.commands.dash import show_types
 from cli.commands.download import download_from, download_monthly_statements
@@ -75,7 +75,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> UpdateReport:
     Returns:
         The report shown, failed when a stage stopped the run.
     """
-    config = bootstrap.reload_config()
+    config = get_config()
     today = datetime.now(TORONTO_TZ).date()
     report = UpdateReport()
     first_new_id = txns.latest_id()

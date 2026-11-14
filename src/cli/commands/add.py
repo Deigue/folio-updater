@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import typer
 
-from app import audit, bootstrap, get_config
+from app import audit, get_config
 from app.audit import AuditMark, audit_txns
 from cli.commands.common import export_to_parquet
 from db import IntegrityError, current_backup, txns
@@ -280,8 +280,6 @@ def add_transaction(  # noqa: PLR0917
         force: Insert without confirming a duplicate clash.
         dry_run: Validate and preview without writing.
     """
-    bootstrap.reload_config()
-
     resolved_action = _prompt_action(action)
     supplied: dict[str, str | None] = {
         Column.Txn.TXN_DATE: date,

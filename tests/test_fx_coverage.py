@@ -16,7 +16,7 @@ from domain import TORONTO_TZ, Column, Table
 from engine.ledger import open_ledger
 from services import FxService
 
-from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
+from .helpers.cli import assert_cli_success, assert_in_output, run_cli
 from .helpers.seed import seed_fx, seed_transaction
 
 if TYPE_CHECKING:
@@ -183,12 +183,12 @@ def test_getfx_backfills_rates_older_than_the_ones_held(
     boc_fetch: MagicMock,
 ) -> None:
     """`folio getfx` has to reach back for newly imported history, not just forward."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         oldest_txn = rate_dates[-20]
         seed_transaction(date=oldest_txn, settle_date=oldest_txn)
         _seed_rates(rate_dates[-1:])
 
-        result = run_cli_with_config(ctx.config, app, ["getfx"])
+        result = run_cli(app, ["getfx"])
 
         # Fetched from the earliest transaction date, not from MAX(Date) + 1.
         assert boc_fetch.call_args.args == (oldest_txn,)
@@ -282,12 +282,12 @@ def test_a_failed_fx_download_only_warns(
 
 
 def test_getfx_command_refills_the_fx_table(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         ensure_data_exists()
         with get_connection() as conn:
             drop_table(conn, Table.FX)
 
-        cli_result = run_cli_with_config(ctx.config, app, ["getfx"])
+        cli_result = run_cli(app, ["getfx"])
 
         assert_cli_success(cli_result)
         assert_in_output("Successfully updated", cli_result)

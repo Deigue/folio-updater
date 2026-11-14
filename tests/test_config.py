@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 import yaml
 
-from app import bootstrap
+from app import reload_config
 from app.logging_setup import SharedLogHandler, get_audit_logger
 from config import Config, ConfigError, write_missing_setting
 from config.settings import SETTINGS, validate_config, written_value
@@ -371,7 +371,7 @@ def test_reload_config_reads_the_file_again(
                 f,
             )
 
-        new_config: Config = bootstrap.reload_config(tmp_path)
+        new_config: Config = reload_config(tmp_path)
 
     assert new_config.folio_path == good_folio
     assert new_config.tickers_sheet == "TKR"
@@ -390,14 +390,14 @@ def test_the_audit_log_records_info_until_its_own_level_is_raised(
     """`log_level` quiets folio.log only, and a raised audit level takes on reload."""
     config_yaml = tmp_path / "config.yaml"
     config_yaml.write_text("log_level: ERROR\n", encoding="utf-8")
-    bootstrap.reload_config(tmp_path)
+    reload_config(tmp_path)
     get_audit_logger().info("ADD TXN first")
 
     config_yaml.write_text(
         "log_level: ERROR\naudit_log_level: ERROR\n",
         encoding="utf-8",
     )
-    bootstrap.reload_config(tmp_path)
+    reload_config(tmp_path)
     get_audit_logger().info("ADD TXN second")
 
     audit = (project_logs / "audit.log").read_text(encoding="utf-8")

@@ -19,6 +19,7 @@ from rich.console import Console
 
 from app import AppContext, get_config
 from app.logging_setup import AUDIT_LOGGER
+from config import Config
 from datagen import DemoFolio
 from datagen.demo import END, START
 from domain import TORONTO_TZ, BrokerId, Currency
@@ -136,6 +137,23 @@ def reset_app_context() -> None:
     """Automatically reset AppContext before each test."""
     AppContext.reset_singleton()
     reset_seed_state()
+
+
+@pytest.fixture(autouse=True)
+def no_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fail a test that reads the config before loading one of its own.
+
+    Loading without a project root finds the real project, and its folio.
+    """
+    load = Config.load
+
+    def load_from(project_root: Path | None = None) -> Config:
+        if project_root is None:
+            msg = "No config loaded: use temp_ctx, or load one from a temp root"
+            raise AssertionError(msg)
+        return load(project_root)
+
+    monkeypatch.setattr(Config, "load", staticmethod(load_from))
 
 
 # Command modules that re-export Parquet after mutating the folio. They bind

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import audit, bootstrap
+from app import audit
 from app.audit import AuditMark
 from db import aliases, current_backup
 from domain import Column
@@ -140,7 +140,6 @@ def manage_symbols(
         )
         raise typer.Exit(1)
 
-    bootstrap.reload_config()
     if add:
         add_alias(old_ticker=add[0], new_ticker=add[1], effective_date=add[2])
     elif list_all:

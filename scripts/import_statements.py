@@ -4,10 +4,10 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog
 
-from app import bootstrap
+from app import reload_config
 from importers import import_statements
 
-bootstrap.reload_config()
+reload_config()
 
 # Use tkinter to open a native file picker
 root = tk.Tk()

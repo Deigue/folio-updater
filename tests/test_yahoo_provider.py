@@ -356,13 +356,13 @@ def test_split_history_is_cached_with_the_metadata(
 DAYS = pd.DatetimeIndex(["2026-09-29", "2026-09-30"])
 
 
-def test_daily_closes_come_from_one_batched_download() -> None:
+def test_daily_closes_come_from_one_batched_download(temp_ctx: TempContext) -> None:
     frame = pd.DataFrame(
         {("AAA", "Close"): [10.0, 11.0], ("BBB", "Close"): [20.0, None]},
         DAYS,
     )
 
-    with stand_in_provider({}, frame) as stand_in:
+    with temp_ctx(), stand_in_provider({}, frame) as stand_in:
         closes = YahooProvider().daily_closes(["AAA", "BBB", "MISSING"])
 
     assert stand_in.downloaded == [["AAA", "BBB", "MISSING"]]
@@ -376,19 +376,22 @@ def test_daily_closes_come_from_one_batched_download() -> None:
     assert "MISSING" not in closes
 
 
-def test_daily_closes_read_a_single_symbol_download() -> None:
+def test_daily_closes_read_a_single_symbol_download(temp_ctx: TempContext) -> None:
     # A flat frame, with the fields alone, is read as the one symbol asked for.
     frame = pd.DataFrame({"Close": [11.0]}, DAYS[-1:])
 
-    with stand_in_provider({}, frame):
+    with temp_ctx(), stand_in_provider({}, frame):
         closes = YahooProvider().daily_closes(["AAA"])
 
     assert closes == {"AAA": [PricePoint("2026-09-30", Decimal(11))]}
 
 
 @pytest.mark.parametrize("frame", [pd.DataFrame(), None])
-def test_an_empty_download_has_no_closes(frame: pd.DataFrame | None) -> None:
-    with stand_in_provider({}, frame):
+def test_an_empty_download_has_no_closes(
+    temp_ctx: TempContext,
+    frame: pd.DataFrame | None,
+) -> None:
+    with temp_ctx(), stand_in_provider({}, frame):
         assert YahooProvider().daily_closes(["AAA"]) == {}
 
 

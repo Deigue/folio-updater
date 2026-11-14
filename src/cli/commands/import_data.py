@@ -9,7 +9,7 @@ from pathlib import Path
 
 import typer
 
-from app import bootstrap, get_config
+from app import get_config
 from cli.commands.common import (
     export_to_parquet,
     refuse_unsupported_file,
@@ -50,7 +50,7 @@ def import_transaction_files(
     Raises:
         typer.Exit: On an unusable request.
     """
-    config = bootstrap.reload_config()
+    config = get_config()
 
     if file and directory:
         console_error("Cannot specify both --file and --dir options")

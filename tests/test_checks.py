@@ -39,7 +39,7 @@ from engine.fx_rates import FxRates
 from engine.ledger import Ledger, open_ledger
 from ui.views.checks import _print_findings
 
-from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
+from .helpers.cli import assert_in_output, assert_not_in_output, run_cli
 from .helpers.console import capture_output
 from .helpers.replay import make_row, run
 from .helpers.seed import seed_cash, seed_fx, seed_transaction
@@ -1156,37 +1156,36 @@ def seed_oversold_folio() -> None:
 
 
 def test_check_reports_a_clean_folio(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_clean_folio()
-        result = run_cli_with_config(ctx.config, app, ["check"])
+        result = run_cli(app, ["check"])
     assert result.exit_code == 0
     assert_in_output("Unit balances", result)
     assert_in_output("checks pass", result)
 
 
 def test_check_exits_non_zero_when_a_check_fails(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_oversold_folio()
-        result = run_cli_with_config(ctx.config, app, ["check"])
+        result = run_cli(app, ["check"])
     assert result.exit_code == 1
     assert_in_output("check failed", result)
 
 
 def test_a_passing_check_prints_no_findings(temp_ctx: TempContext) -> None:
     """A correct result must never appear under a failing heading."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_oversold_folio()
-        result = run_cli_with_config(ctx.config, app, ["check"])
+        result = run_cli(app, ["check"])
     # Settlement dates passes here, so nothing may be listed beneath it.
     assert_in_output("Settlement dates", result)
     assert_not_in_output("settles 2025", result)
 
 
 def test_only_narrows_to_one_check(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_oversold_folio()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["check", "--only", "unit-balances"],
         )
@@ -1195,10 +1194,9 @@ def test_only_narrows_to_one_check(temp_ctx: TempContext) -> None:
 
 
 def test_only_rejects_a_name_that_is_not_a_check(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_clean_folio()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["check", "--only", "unit-balence"],
         )
@@ -1208,9 +1206,9 @@ def test_only_rejects_a_name_that_is_not_a_check(temp_ctx: TempContext) -> None:
 
 
 def test_json_output_is_machine_readable(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_oversold_folio()
-        result = run_cli_with_config(ctx.config, app, ["check", "--json"])
+        result = run_cli(app, ["check", "--json"])
     payload = json.loads(result.plain_output)
     assert payload["failed"] >= 1
     slugs = {entry["slug"] for entry in payload["checks"]}
@@ -1243,7 +1241,7 @@ def test_a_report_tallies_its_failures_and_warnings() -> None:
 
 def test_a_folio_with_only_warnings_still_exits_zero(temp_ctx: TempContext) -> None:
     """A warning is worth seeing, but it must not fail a script that gates on this."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx({"2025-08-14": "1.3500"})
         seed_cash(
             "CONTRIBUTION",
@@ -1259,7 +1257,7 @@ def test_a_folio_with_only_warnings_still_exits_zero(temp_ctx: TempContext) -> N
             settle_date="2025-08-14",
             account="IBKR-PERSONAL",
         )
-        result = run_cli_with_config(ctx.config, app, ["check"])
+        result = run_cli(app, ["check"])
     assert result.exit_code == 0
     assert_in_output("1 warning.", result)
 
@@ -1325,10 +1323,10 @@ def test_a_cached_run_reports_exactly_what_a_fresh_one_does(
     """The cache carries diagnostics now, so the second run must not differ."""
     with temp_ctx() as ctx:
         seed_oversold_folio()
-        first = run_cli_with_config(ctx.config, app, ["check", "--json"])
+        first = run_cli(app, ["check", "--json"])
         # The cache is written by the first run; the second reads it back.
         assert ctx.config.acb_parquet.with_suffix(".meta.json").exists()
-        second = run_cli_with_config(ctx.config, app, ["check", "--json"])
+        second = run_cli(app, ["check", "--json"])
     assert json.loads(first.plain_output) == json.loads(second.plain_output)
 
 
@@ -1410,6 +1408,6 @@ def test_check_replays_when_the_saved_diagnostics_are_unreadable(
         spoil(saved)
         # Diagnostics are read only when asked for, so opening still reuses.
         assert open_ledger().computed_at is not None
-        result = run_cli_with_config(ctx.config, app, ["check"])
+        result = run_cli(app, ["check"])
     assert result.exit_code == 1
     assert_in_output("Unit balances", result)

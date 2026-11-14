@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap
 from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
@@ -124,8 +123,6 @@ def show_acb(  # noqa: PLR0917
     Raises:
         typer.Exit: On an unusable request.
     """
-    bootstrap.reload_config()
-
     if symbol is None and not (summary or export):
         console_error(
             "A SYMBOL is required unless you asked for --summary or --export.",

@@ -19,7 +19,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.seed import ACCOUNT, TICKER, seed_transaction
 
@@ -48,12 +48,11 @@ class TestEditLiteral:
 
     def test_edit_single_field(self, temp_ctx: TempContext) -> None:
         """A literal value replaces the stored one."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
             )
@@ -63,12 +62,11 @@ class TestEditLiteral:
 
     def test_edit_multiple_fields(self, temp_ctx: TempContext) -> None:
         """Several --set options apply in one call."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [
                     "edit",
@@ -88,13 +86,12 @@ class TestEditLiteral:
 
     def test_untouched_columns_are_preserved(self, temp_ctx: TempContext) -> None:
         """Only the edited column moves."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             original = _row(txn_id)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
             )
@@ -113,14 +110,13 @@ class TestEditLiteral:
 
     def test_other_rows_are_untouched(self, temp_ctx: TempContext) -> None:
         """Rows outside the selection are not rewritten."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             edited_id = seed_transaction(amount="-1502.50")
             other_id = seed_transaction(ticker="OTHERTKR", amount="-900.00")
             other_before = _row(other_id)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(edited_id), "--set", "Price=175.20", "--force"],
             )
@@ -148,12 +144,11 @@ class TestEditArithmetic:
         expected: str,
     ) -> None:
         """Each operator computes against the row's current value."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", operation, "--force"],
             )
@@ -163,12 +158,11 @@ class TestEditArithmetic:
 
     def test_arithmetic_is_exact(self, temp_ctx: TempContext) -> None:
         """Decimal maths avoids binary float drift."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction(price="17.52")
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price*=10", "--force"],
             )
@@ -178,13 +172,12 @@ class TestEditArithmetic:
 
     def test_batch_arithmetic_by_query_terms(self, temp_ctx: TempContext) -> None:
         """Query terms apply the same operation to every matched row."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             first = seed_transaction(price="10", amount="-100.00")
             second = seed_transaction(price="20", amount="-200.00")
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", TICKER, "--set", "Price*=10", "--force"],
             )
@@ -195,7 +188,7 @@ class TestEditArithmetic:
 
     def test_split_migration_scenario(self, temp_ctx: TempContext) -> None:
         """A manually split-adjusted history is un-adjusted, end to end."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             # History that was manually split-adjusted: price /10, units *10.
             txn_id = seed_transaction(
@@ -205,8 +198,7 @@ class TestEditArithmetic:
                 units="100",
                 amount="-1234.00",
             )
-            split = run_cli_with_config(
-                ctx.config,
+            split = run_cli(
                 cli_app,
                 [
                     "add",
@@ -228,8 +220,7 @@ class TestEditArithmetic:
             )
             assert_cli_success(split)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [
                     "edit",
@@ -258,13 +249,12 @@ class TestEditSettlement:
         temp_ctx: TempContext,
     ) -> None:
         """An explicit SettleDate is authoritative and loses the tag."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             assert _row(txn_id)[Column.Txn.SETTLE_CALCULATED] == 1
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "SettleDate=2025-08-29", "--force"],
             )
@@ -279,14 +269,13 @@ class TestEditSettlement:
         temp_ctx: TempContext,
     ) -> None:
         """A calculated settlement date follows its transaction date."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = _row(txn_id)
             assert before[Column.Txn.SETTLE_CALCULATED] == 1
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "TxnDate=2025-08-20", "--force"],
             )
@@ -299,18 +288,16 @@ class TestEditSettlement:
 
     def test_txn_date_edit_keeps_a_manual_date(self, temp_ctx: TempContext) -> None:
         """A manually set settlement date is never recalculated."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
-            manual = run_cli_with_config(
-                ctx.config,
+            manual = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "SettleDate=2025-08-29", "--force"],
             )
             assert_cli_success(manual)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "TxnDate=2025-08-20", "--force"],
             )
@@ -322,13 +309,12 @@ class TestEditSettlement:
 
     def test_invalid_settle_date_is_rejected(self, temp_ctx: TempContext) -> None:
         """A bad SettleDate errors instead of being silently recalculated."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = _row(txn_id)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "SettleDate=notadate", "--force"],
             )
@@ -380,13 +366,12 @@ class TestEditValidation:
         message: str,
     ) -> None:
         """Refuse invalid edits. Must leave the row untouched."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             txn_id = seed_transaction()
             before = _row(txn_id)
             flags = [flag for value in spec for flag in ("--set", value)]
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), *flags, "--force"],
             )
@@ -400,7 +385,7 @@ class TestEditValidation:
         temp_ctx: TempContext,
     ) -> None:
         """One row with no value to compute from aborts the whole edit."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             priced = seed_transaction(price="10", amount="-100.00")
             unpriced = seed_transaction(
@@ -411,8 +396,7 @@ class TestEditValidation:
             )
             before = _row(priced)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", TICKER, "--set", "Price*=10", "--force"],
             )
@@ -428,12 +412,11 @@ class TestEditDuplicates:
 
     def test_no_op_edit_reports_no_changes(self, temp_ctx: TempContext) -> None:
         """Setting a field to the value it already has is not a duplicate."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=150.25", "--force"],
             )
@@ -446,12 +429,11 @@ class TestEditDuplicates:
         temp_ctx: TempContext,
     ) -> None:
         """A stored whole number is the same value as the one typed."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction(amount="-100")
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Amount=-100", "--force"],
             )
@@ -464,12 +446,11 @@ class TestEditDuplicates:
         temp_ctx: TempContext,
     ) -> None:
         """Editing only a non-essential field never clashes with itself."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction(fee="4.95")
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Fee=1.50"],
                 user_input="y\n",
@@ -481,11 +462,10 @@ class TestEditDuplicates:
 
     def test_edit_the_only_transaction(self, temp_ctx: TempContext) -> None:
         """With nothing else in the folio there is nothing to clash with."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
             )
@@ -495,14 +475,13 @@ class TestEditDuplicates:
 
     def test_edit_onto_another_row_prompts(self, temp_ctx: TempContext) -> None:
         """An edit that would duplicate an existing row asks first."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             target = seed_transaction(price="150.25", amount="-1502.50")
             other = seed_transaction(price="999.99", amount="-1502.50")
             before = _row(other)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(other), "--set", "Price=150.25"],
                 user_input="y\nn\n",
@@ -516,13 +495,12 @@ class TestEditDuplicates:
 
     def test_force_applies_a_duplicating_edit(self, temp_ctx: TempContext) -> None:
         """--force accepts the duplicate without prompting."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             seed_transaction(price="150.25", amount="-1502.50")
             other = seed_transaction(price="999.99", amount="-1502.50")
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(other), "--set", "Price=150.25", "--force"],
             )
@@ -536,12 +514,11 @@ class TestEditSigns:
 
     def test_buy_amount_is_forced_negative(self, temp_ctx: TempContext) -> None:
         """A positive Amount on a BUY is corrected on the way in."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Amount=3000", "--force"],
             )
@@ -560,12 +537,11 @@ class TestEditFlow:
         temp_ctx: TempContext,
     ) -> None:
         """The pending change shows the stored value, which was not typed in."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--dry-run"],
             )
@@ -575,13 +551,12 @@ class TestEditFlow:
 
     def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
         """--dry-run previews without writing."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = _row(txn_id)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--dry-run"],
             )
@@ -592,13 +567,12 @@ class TestEditFlow:
 
     def test_declining_writes_nothing(self, temp_ctx: TempContext) -> None:
         """Answering no leaves the transaction alone."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = _row(txn_id)
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20"],
                 user_input="n\n",
@@ -614,12 +588,11 @@ class TestEditFlow:
         audit_trail: list[str],
     ) -> None:
         """Answering yes writes the edit, logged as a diff with the old and new row."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20"],
                 user_input="y\n",
@@ -645,8 +618,7 @@ class TestEditFlow:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
             )
@@ -665,13 +637,12 @@ class TestEditFlow:
         audit_trail: list[str],
     ) -> None:
         """Rows that matched but were not written fail the command and its entry."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
             with patch.object(edit_module, "_write_edits", return_value=0):
-                cli_result = run_cli_with_config(
-                    ctx.config,
+                cli_result = run_cli(
                     cli_app,
                     ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
                 )
@@ -685,11 +656,10 @@ class TestEditSelection:
 
     def test_unknown_txn_id_fails(self, temp_ctx: TempContext) -> None:
         """An unknown TxnId is an error."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", "999999", "--set", "Price=1", "--force"],
             )
@@ -699,11 +669,10 @@ class TestEditSelection:
 
     def test_no_matches_fails(self, temp_ctx: TempContext) -> None:
         """Query terms matching nothing are an error."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", "ticker:NOSUCHTICKER", "--set", "Price=1", "--force"],
             )
@@ -713,11 +682,10 @@ class TestEditSelection:
 
     def test_unbounded_selection_is_refused(self, temp_ctx: TempContext) -> None:
         """A selection with no filters cannot rewrite the whole folio."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["edit", "sort:Amount", "--set", "Price=1", "--force"],
             )

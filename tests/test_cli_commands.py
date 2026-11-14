@@ -44,7 +44,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.seed import (
     STATEMENT_PRICE,
@@ -103,7 +103,7 @@ def test_import_command(temp_ctx: TempContext) -> None:
         config = ctx.config
         txn_file = config.imports_path / "transactions.xlsx"
         create_transaction_data(txn_file, config.txn_sheet)
-        cli_result = run_cli_with_config(config, cli_app, ["import"])
+        cli_result = run_cli(cli_app, ["import"])
         assert_cli_success(cli_result)
         assert_in_output(
             f"{EXPECTED_TRANSACTION_COUNT} transactions imported",
@@ -124,7 +124,7 @@ def test_an_import_saves_every_pools_baseline(temp_ctx: TempContext) -> None:
         today = datetime.now(TORONTO_TZ).date()
         seed_fx({str(today + timedelta(days=n)): "1.3125" for n in range(10)})
 
-        run_cli_with_config(config, cli_app, ["import"])
+        run_cli(cli_app, ["import"])
 
         baselines = update_baselines.read()
         assert {baseline.grain for baseline in baselines} == set(Grain)
@@ -137,7 +137,7 @@ def test_import_command_without_files_to_import(temp_ctx: TempContext) -> None:
     with temp_ctx() as ctx:
         config = ctx.config
         assert not config.folio_path.exists()
-        cli_result = run_cli_with_config(config, cli_app, ["import"])
+        cli_result = run_cli(cli_app, ["import"])
         assert cli_result.exit_code == 1
         assert_in_output("No supported files found", cli_result)
 
@@ -149,8 +149,7 @@ def test_import_command_file(temp_ctx: TempContext) -> None:
         config = ctx.config
         test_file = config.project_root / "test_import.xlsx"
         create_transaction_data(test_file)
-        cli_result = run_cli_with_config(
-            config,
+        cli_result = run_cli(
             cli_app,
             ["import", "--file", str(test_file)],
         )
@@ -182,8 +181,7 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         file_count: int = 2
         create_transaction_data(file1)
         create_transaction_data(file2)
-        cli_result = run_cli_with_config(
-            config,
+        cli_result = run_cli(
             cli_app,
             ["import", "--dir", str(import_dir)],
         )
@@ -210,7 +208,7 @@ def test_importing_several_files_backs_the_folio_up_once(
         create_transaction_data(config.imports_path / "transactions1.xlsx")
         create_transaction_data(config.imports_path / "transactions2.xlsx")
 
-        cli_result = run_cli_with_config(config, cli_app, ["import"])
+        cli_result = run_cli(cli_app, ["import"])
         backups = sorted(p.name for p in config.backup_path.rglob("folio_*.db"))
 
     assert_in_output(
@@ -244,7 +242,7 @@ def test_redirected_import_never_waits_on_a_keypress(temp_ctx: TempContext) -> N
             config.txn_sheet,
         )
         with patch("ui.views.imports.getch", return_value="q") as getch:
-            cli_result = run_cli_with_config(config, cli_app, ["import"])
+            cli_result = run_cli(cli_app, ["import"])
 
     assert_in_output(f"Invalid ({invalid_rows})", cli_result)
     assert_not_in_output("to expand", cli_result)
@@ -253,7 +251,7 @@ def test_redirected_import_never_waits_on_a_keypress(temp_ctx: TempContext) -> N
 
 def test_settle_info_command(temp_ctx: TempContext) -> None:
     """Test settle info command output."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         ensure_data_exists()
         with get_connection() as conn:
             # Count transactions with SETTLE_CALCULATED = 1, this should represent
@@ -266,7 +264,7 @@ def test_settle_info_command(temp_ctx: TempContext) -> None:
                 where,
                 params,
             )
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["settle-info"])
+        cli_result = run_cli(cli_app, ["settle-info"])
         assert_in_output(
             f"Calculated settlement dates: {calculated_count}",
             cli_result,
@@ -295,8 +293,7 @@ def test_settle_info_import_reads_the_named_file(temp_ctx: TempContext) -> None:
         statement_file = ctx.config.project_root / "test_statement.xlsx"
         register_test_dataframe(statement_file, _seed_statement_buy())
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import", "-f", str(statement_file)],
         )
@@ -316,8 +313,7 @@ def test_settle_info_import_leaves_an_archived_statement_in_place(
         statement_file = ctx.config.statements_processed_path / "test_statement.xlsx"
         register_test_dataframe(statement_file, _seed_statement_buy())
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import", "-f", str(statement_file)],
         )
@@ -333,8 +329,7 @@ def test_import_leaves_an_archived_file_in_place(temp_ctx: TempContext) -> None:
         source = ctx.config.processed_path / "test_import.xlsx"
         create_transaction_data(source)
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["import", "--file", str(source)],
         )
@@ -358,8 +353,7 @@ def test_a_named_file_with_an_unsupported_suffix_is_refused(
         source = ctx.config.project_root / "old.xls"
         source.touch()
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             [*command, str(source)],
         )
@@ -377,7 +371,7 @@ def test_an_unsupported_file_in_the_imports_folder_is_not_read(
     with temp_ctx() as ctx:
         (ctx.config.imports_path / "old.xls").touch()
 
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["import"])
+        cli_result = run_cli(cli_app, ["import"])
 
     assert cli_result.exit_code == 1
     assert_in_output("No supported files found", cli_result)
@@ -390,8 +384,7 @@ def test_settle_info_import_reads_the_statements_folder(
         statement_file = ctx.config.statements_path / "test_statement.xlsx"
         register_test_dataframe(statement_file, _seed_statement_buy())
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import"],
         )
@@ -422,8 +415,7 @@ def test_settle_info_import_creates_and_displays_transfer(
         statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202501.xlsx"
         register_test_dataframe(statement_file, transfer_df)
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import", "-f", str(statement_file)],
         )
@@ -461,8 +453,7 @@ def test_settle_info_import_reports_skipped_cash_transfers(
         statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202507.xlsx"
         register_test_dataframe(statement_file, transfer_df)
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import", "-f", str(statement_file)],
         )
@@ -505,8 +496,7 @@ def test_settle_info_verbose_lists_every_candidate_row(
         statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
         register_test_dataframe(statement_file, statement_df)
 
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--import", "--verbose", "-f", str(statement_file)],
         )
@@ -548,7 +538,7 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
             pd.DataFrame([statement_buy(price="99.99")]),
         )
 
-        first = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
+        first = run_cli(cli_app, ["settle-info", "--import"])
         assert_cli_success(first)
         assert_in_output("Success", first)
         assert_in_output("No updates", first)  # the RRSP statement matches nothing
@@ -563,7 +553,7 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
             statements_dir / tfsa,
             pd.DataFrame([statement_buy()]),
         )
-        second = run_cli_with_config(ctx.config, cli_app, ["settle-info", "--import"])
+        second = run_cli(cli_app, ["settle-info", "--import"])
         assert_cli_success(second)
         assert_in_output("Found 1 statement file(s)", second)
         assert_in_output("Up to date", second)
@@ -585,7 +575,7 @@ def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
             ),
         )
 
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["settle-info", "-i"])
+        cli_result = run_cli(cli_app, ["settle-info", "-i"])
 
         left_in_place = statement.exists()
 
@@ -597,10 +587,9 @@ def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
 
 def test_settle_info_verbose_requires_import(temp_ctx: TempContext) -> None:
     """`--verbose` describes an import, so it is refused on its own."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         create_txns_table()
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["settle-info", "--verbose"],
         )
@@ -705,12 +694,12 @@ def test_ibkr_download_scenarios(
 ) -> None:
     mock_csv_data = get_default_mock_csv() if writes_csv else ""
     with (
-        temp_ctx(query_ids) as ctx,
+        temp_ctx(query_ids),
         IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
     ):
         if setup is not None:
             setup(monkeypatch)
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
+        cli_result = run_cli(cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
@@ -762,10 +751,10 @@ def test_wealthsimple_download_scenarios(
     expected_output: str,
 ) -> None:
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         WealthsimpleMockContext(monkeypatch, mock_activities=activities) as ws_mock,
     ):
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["download", *cli_args])
+        cli_result = run_cli(cli_app, ["download", *cli_args])
 
         assert_cli_success(cli_result)
         assert_in_output(expected_output, cli_result)
@@ -780,9 +769,8 @@ def test_wealthsimple_credentials_forget_the_stored_login(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Resetting credentials removes the stored session and the stored username."""
-    with temp_ctx() as ctx, WealthsimpleMockContext(monkeypatch) as ws_mock:
-        cli_result = run_cli_with_config(
-            ctx.config,
+    with temp_ctx(), WealthsimpleMockContext(monkeypatch) as ws_mock:
+        cli_result = run_cli(
             cli_app,
             ["download", "-b", "wealthsimple", "--credentials"],
         )
@@ -803,15 +791,14 @@ def _download_wealthsimple_csv(
     """Run a Wealthsimple download over the mock API and return the CSV it wrote."""
     mock_activities = create_mock_activities(activities)
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         WealthsimpleMockContext(
             monkeypatch,
             mock_accounts=accounts,
             mock_activities=mock_activities,
         ) as ws_mock,
     ):
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["download", "-b", "wealthsimple"],
         )
@@ -906,15 +893,14 @@ def test_wealthsimple_download_stops_when_the_payload_shape_changes(
 ) -> None:
     """A field of an unexpected type stops the download, so it is noticed and fixed."""
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         WealthsimpleMockContext(
             monkeypatch,
             mock_accounts=[_account_with_owners("yes")],
             mock_activities=get_mock_activities(),
         ) as ws_mock,
     ):
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["download", "-b", "wealthsimple"],
         )
@@ -934,15 +920,14 @@ def test_wealthsimple_download_refreshes_an_expired_access_token(
         response={"errors": [{"extensions": {"code": "UNAUTHENTICATED"}}]},
     )
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         WealthsimpleMockContext(
             monkeypatch,
             mock_activities=get_mock_activities(),
             token_error=expired,
         ) as ws_mock,
     ):
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["download", "-b", "wealthsimple"],
         )
@@ -963,11 +948,10 @@ def test_wealthsimple_statement_not_published_yet_is_not_an_error(
         response={"data": {"monthlyStatement": None}},
     )
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         WealthsimpleMockContext(monkeypatch, statement_error=unpublished) as ws_mock,
     ):
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["download", "-b", "wealthsimple", "--statement", "-f", "2024-01-01"],
         )
@@ -988,8 +972,7 @@ def test_a_reference_code_retries_through_the_registry(
     """`-r` asks the registry's IBKR broker for that one earlier request."""
     with temp_ctx() as ctx:
         brokers.ibkr.files = ("ibkr_ref_4242.csv",)
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["download", "-r", "4242"],
         )
@@ -1007,10 +990,10 @@ def test_ibkr_download_waits_for_a_statement_that_is_not_ready(
     """A statement still being generated is asked for again until it arrives."""
     mock_csv_data = get_default_mock_csv()
     with (
-        temp_ctx({"brokers": {"ibkr": {"FlexReport": "abc123"}}}) as ctx,
+        temp_ctx({"brokers": {"ibkr": {"FlexReport": "abc123"}}}),
         IBKRMockContext(monkeypatch, mock_csv_data, not_ready_polls=2) as ibkr_mock,
     ):
-        cli_result = run_cli_with_config(ctx.config, cli_app, ["download"])
+        cli_result = run_cli(cli_app, ["download"])
 
         assert_cli_success(cli_result)
         assert_in_output("FlexReport: 3 lines received", cli_result)
@@ -1021,8 +1004,7 @@ def test_ibkr_download_waits_for_a_statement_that_is_not_ready(
 def test_version_command(tmp_path: Path, temp_ctx: TempContext) -> None:
     """The paths reported are the folio's own, here the temp one."""
     with temp_ctx() as ctx:
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             cli_app,
             ["version"],
             width=UNCONSTRAINED_WIDTH,

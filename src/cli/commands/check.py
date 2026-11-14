@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap, get_config
+from app import get_config
 from cli.commands.common import require_ledger
 from engine.checks import CheckReport, UnknownCheckError, run_checks, validate_slugs
 from term import console_error
@@ -61,8 +61,6 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
         typer.Exit: With 1 when any check failed, or when the request named a
             check that does not exist.
     """
-    bootstrap.reload_config()
-
     if only is not None:
         try:
             validate_slugs([only])

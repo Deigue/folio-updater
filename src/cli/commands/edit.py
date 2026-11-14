@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import pandas as pd
 import typer
 
-from app import audit, bootstrap, get_config
+from app import audit, get_config
 from app.audit import AuditMark, format_transaction_summary
 from cli.commands.common import (
     confirm_selection,
@@ -519,8 +519,6 @@ def edit_transactions(
         force: Apply without confirming, and allow duplicates.
         dry_run: Preview the before/after without writing.
     """
-    bootstrap.reload_config()
-
     operations = _parse_set_options(set_values)
     selection = resolve_selection(terms, verb="edit")
 

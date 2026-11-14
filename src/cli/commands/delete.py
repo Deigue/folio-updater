@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import audit, bootstrap
+from app import audit
 from app.audit import AuditMark, audit_txns
 from cli.commands.common import (
     confirm_selection,
@@ -54,8 +54,6 @@ def delete_transactions(
         force: Delete without asking for confirmation.
         dry_run: Preview the matched transactions without deleting.
     """
-    bootstrap.reload_config()
-
     selection: Selection = resolve_selection(terms, verb="delete")
     matched = selection.transactions
     page_transactions(matched, title="Transactions to Delete")

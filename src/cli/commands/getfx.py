@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import typer
 
-from app import bootstrap
 from exporters import ParquetExporter
 from term import console_error, console_success, console_warning
 from term.progress import spinner
@@ -16,8 +15,6 @@ from ui.vocabulary import SPINNER_FX
 
 def update_fx_rates() -> None:
     """Update FX rates in the folio."""
-    bootstrap.reload_config()
-
     try:
         exporter = ParquetExporter()
         with spinner(SPINNER_FX) as progress:

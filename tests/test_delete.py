@@ -17,7 +17,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.folio import ticker_rows, txn_ids, txn_total
 from .helpers.seed import TICKER, seed_transaction
@@ -38,13 +38,12 @@ class TestDeleteSelection:
         audit_trail: list[str],
     ) -> None:
         """A single TxnId deletes exactly that row, logged whole with its backup."""
-        with temp_ctx(backup={"enabled": True}) as ctx:
+        with temp_ctx(backup={"enabled": True}):
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), "--force"],
             )
@@ -62,14 +61,13 @@ class TestDeleteSelection:
 
     def test_delete_multiple_txn_ids(self, temp_ctx: TempContext) -> None:
         """Several TxnIds are all deleted in one call."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             first = seed_transaction(amount="-1502.50")
             second = seed_transaction(amount="-1602.50")
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(first), str(second), "--force"],
             )
@@ -82,13 +80,12 @@ class TestDeleteSelection:
 
     def test_repeated_txn_id_deletes_once(self, temp_ctx: TempContext) -> None:
         """A TxnId given twice is deduplicated rather than counted twice."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), str(txn_id), "--force"],
             )
@@ -99,14 +96,13 @@ class TestDeleteSelection:
 
     def test_delete_by_query_terms(self, temp_ctx: TempContext) -> None:
         """Query terms select a batch the same way `folio query` would."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             seed_transaction(amount="-1502.50")
             seed_transaction(amount="-1602.50")
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", TICKER, "--force"],
             )
@@ -121,12 +117,11 @@ class TestDeleteConfirmation:
 
     def test_preview_shows_matched_rows(self, temp_ctx: TempContext) -> None:
         """The matched transactions are shown before the prompt."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id)],
                 user_input="n\n",
@@ -138,13 +133,12 @@ class TestDeleteConfirmation:
 
     def test_declining_deletes_nothing(self, temp_ctx: TempContext) -> None:
         """Answering no leaves the folio untouched."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id)],
                 user_input="n\n",
@@ -157,13 +151,12 @@ class TestDeleteConfirmation:
 
     def test_confirming_deletes(self, temp_ctx: TempContext) -> None:
         """Answering yes deletes exactly the previewed transaction."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id)],
                 user_input="y\n",
@@ -175,12 +168,11 @@ class TestDeleteConfirmation:
 
     def test_force_skips_the_prompt(self, temp_ctx: TempContext) -> None:
         """--force deletes without asking."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), "--force"],
             )
@@ -191,13 +183,12 @@ class TestDeleteConfirmation:
 
     def test_dry_run_writes_nothing(self, temp_ctx: TempContext) -> None:
         """--dry-run previews without deleting or prompting."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), "--dry-run"],
             )
@@ -210,12 +201,11 @@ class TestDeleteConfirmation:
 
     def test_bulk_delete_warns_about_the_share(self, temp_ctx: TempContext) -> None:
         """A selection covering most of the folio warns before the prompt."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             total = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", f"limit:{total}"],
                 user_input="n\n",
@@ -231,12 +221,11 @@ class TestDeleteGuards:
 
     def test_unknown_txn_id_fails(self, temp_ctx: TempContext) -> None:
         """An unknown TxnId is an error, not a silent no-op."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", "999999", "--force"],
             )
@@ -250,13 +239,12 @@ class TestDeleteGuards:
         temp_ctx: TempContext,
     ) -> None:
         """One bad id in the list aborts the whole delete."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), "999999", "--force"],
             )
@@ -268,12 +256,11 @@ class TestDeleteGuards:
 
     def test_no_matches_fails(self, temp_ctx: TempContext) -> None:
         """Query terms matching nothing are an error."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", "ticker:NOSUCHTICKER", "--force"],
             )
@@ -284,12 +271,11 @@ class TestDeleteGuards:
 
     def test_unbounded_selection_is_refused(self, temp_ctx: TempContext) -> None:
         """A selection with no filters cannot wipe the folio."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", "sort:Amount"],
             )
@@ -303,12 +289,11 @@ class TestDeleteGuards:
         temp_ctx: TempContext,
     ) -> None:
         """--force skips the prompt, never the safety rail."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", "sort:Amount", "--force"],
             )
@@ -319,12 +304,11 @@ class TestDeleteGuards:
 
     def test_limit_only_selection_is_allowed(self, temp_ctx: TempContext) -> None:
         """`limit:N` bounds a selection even without filters."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", "limit:2", "--force"],
             )
@@ -343,8 +327,7 @@ class TestDeleteSideEffects:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["delete", str(txn_id), "--force"],
             )
@@ -359,13 +342,12 @@ class TestDeleteSideEffects:
         audit_trail: list[str],
     ) -> None:
         """Rows that matched but were not removed fail the command and its entry."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             txn_id = seed_transaction()
 
             with patch.object(delete_module.txns, "delete", return_value=0):
-                cli_result = run_cli_with_config(
-                    ctx.config,
+                cli_result = run_cli(
                     cli_app,
                     ["delete", str(txn_id), "--force"],
                 )

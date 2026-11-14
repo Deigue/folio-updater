@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap
 from cli.commands.common import require_ledger
 from domain.text import unique_upper
 from engine.ledger import LedgerUnavailableError, open_ledger
@@ -38,8 +37,6 @@ def manage_quotes(
     Raises:
         typer.Exit: When both actions were asked for at once.
     """
-    bootstrap.reload_config()
-
     if refresh and clear:
         console_error("Pick one of --refresh or --clear.")
         raise typer.Exit(1)

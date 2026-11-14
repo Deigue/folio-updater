@@ -35,7 +35,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.seed import TICKER, seed_cash, seed_fx, seed_transaction
 
@@ -152,10 +152,9 @@ def test_acb_currency_usd_against_a_cad_holding_is_an_error(
     """An export would be every figure blank, so it is refused and nothing written."""
     target = tmp_path / "acb.csv"
     args = [arg.format(target=target) for arg in request_args]
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", *args, "--currency", "USD"],
         )
@@ -165,15 +164,15 @@ def test_acb_currency_usd_against_a_cad_holding_is_an_error(
 
 
 def test_acb_reports_the_conversion_basis(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_usd_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "MSFT"])
+        result = run_cli(app, ["acb", "MSFT"])
     assert_in_output("settlement date", result)
 
 
 def test_acb_account_grain(temp_ctx: TempContext) -> None:
     """One account holds its own 50 units; the TFSA type pools both, 550."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding(account="IBKR-TFSA")
         seed_transaction(
             action="BUY",
@@ -186,13 +185,11 @@ def test_acb_account_grain(temp_ctx: TempContext) -> None:
             price="10",
             units="500",
         )
-        single = run_cli_with_config(
-            ctx.config,
+        single = run_cli(
             app,
             ["acb", "RY.TO", "--account", "IBKR-TFSA"],
         )
-        pooled = run_cli_with_config(
-            ctx.config,
+        pooled = run_cli(
             app,
             ["acb", "RY.TO", "--type", "tfsa"],
         )
@@ -204,11 +201,11 @@ def test_acb_account_grain(temp_ctx: TempContext) -> None:
 
 def test_acb_folio_grain(temp_ctx: TempContext) -> None:
     """The folio pools a TFSA's 50 units with a taxable account's 50."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding(account="IBKR-TFSA")
         seed_cad_holding(account="IBKR-PERSONAL")
-        portfolio = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "-t", "all"])
-        taxable = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+        portfolio = run_cli(app, ["acb", "RY.TO", "-t", "all"])
+        taxable = run_cli(app, ["acb", "RY.TO"])
     # Only the pooled view ever holds both buys at once.
     assert_cli_success(portfolio)
     assert_in_output("Portfolio", portfolio)
@@ -218,10 +215,9 @@ def test_acb_folio_grain(temp_ctx: TempContext) -> None:
 
 
 def test_acb_unknown_type_errors(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "RY.TO", "--type", "banana"],
         )
@@ -230,7 +226,7 @@ def test_acb_unknown_type_errors(temp_ctx: TempContext) -> None:
 
 
 def test_acb_hides_income_rows_unless_all(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_transaction(
             action="DIVIDEND",
@@ -243,15 +239,15 @@ def test_acb_hides_income_rows_unless_all(temp_ctx: TempContext) -> None:
             price=None,
             units=None,
         )
-        without = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-        with_all = run_cli_with_config(ctx.config, app, ["acb", "RY.TO", "--all"])
+        without = run_cli(app, ["acb", "RY.TO"])
+        with_all = run_cli(app, ["acb", "RY.TO", "--all"])
     assert_not_in_output("DIVIDEND", without)
     assert_in_output("DIVIDEND", with_all)
 
 
 def test_acb_year_filter(temp_ctx: TempContext) -> None:
     """A year keeps its own rows and drops the rest; an empty year says so."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_transaction(
             action="BUY",
@@ -264,13 +260,11 @@ def test_acb_year_filter(temp_ctx: TempContext) -> None:
             price="9",
             units="100",
         )
-        this_year = run_cli_with_config(
-            ctx.config,
+        this_year = run_cli(
             app,
             ["acb", "RY.TO", "--year", "2025"],
         )
-        empty = run_cli_with_config(
-            ctx.config,
+        empty = run_cli(
             app,
             ["acb", "RY.TO", "--year", "2020"],
         )
@@ -282,10 +276,10 @@ def test_acb_year_filter(temp_ctx: TempContext) -> None:
 
 
 def test_acb_summary(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_usd_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
+        result = run_cli(app, ["acb", "--summary"])
     assert_cli_success(result)
     assert_in_output("Cost base summary", result)
     assert_in_output("RY.TO", result)
@@ -293,9 +287,9 @@ def test_acb_summary(temp_ctx: TempContext) -> None:
 
 
 def test_acb_requires_a_symbol_without_summary_or_export(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(ctx.config, app, ["acb", "-t", "nreg"])
+        result = run_cli(app, ["acb", "-t", "nreg"])
     assert result.exit_code == 1
     assert_in_output("SYMBOL is required", result)
 
@@ -321,10 +315,9 @@ def test_acb_export_writes_the_buildup_it_reports(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "acb.csv"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "RY.TO", "--export", str(target)],
         )
@@ -345,7 +338,7 @@ def test_acb_export_writes_txn_ids_as_plain_digits(
 ) -> None:
     """A TxnId is read back by `folio query` and `folio edit`, which take no comma."""
     target = tmp_path / "acb.csv"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx(FX)
         seed_transaction(
             action="BUY",
@@ -367,8 +360,7 @@ def test_acb_export_writes_txn_ids_as_plain_digits(
                 [Column.Txn.TICKER],
                 [Column.Txn.TXN_ID],
             )
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "RY.TO", "--export", str(target)],
         )
@@ -383,11 +375,10 @@ def test_acb_export_writes_the_summary_when_asked_for_one(
 ) -> None:
     """`--summary --export` used to write the buildup regardless."""
     target = tmp_path / "acb.csv"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_cad_holding(ticker="TSTKR.TO")
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "--summary", "--export", str(target)],
         )
@@ -403,11 +394,10 @@ def test_acb_export_without_a_symbol_writes_the_whole_ledger(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "acb.csv"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_cad_holding(ticker="TSTKR.TO")
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "--export", str(target)],
         )
@@ -425,7 +415,7 @@ def test_acb_flags_a_seeded_oversell(temp_ctx: TempContext) -> None:
     Reporting a problem is not the same as failing: `folio acb` is a reporting
     command, and gating a build on the folio's health belongs to `folio check`.
     """
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx(FX)
         seed_transaction(
             action="SELL",
@@ -438,25 +428,25 @@ def test_acb_flags_a_seeded_oversell(temp_ctx: TempContext) -> None:
             price="12",
             units="-50",
         )
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+        result = run_cli(app, ["acb", "RY.TO"])
     assert_cli_success(result)
     assert_in_output("OVERSELL", result)
 
 
 def test_acb_flags_a_superficial_loss_suspect(temp_ctx: TempContext) -> None:
     """A loss sale followed by a repurchase in the CRA window is highlighted."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_superficial_loss()
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+        result = run_cli(app, ["acb", "RY.TO"])
     assert_cli_success(result)
     assert_in_output("SUPERFICIAL_LOSS_SUSPECT", result)
 
 
 def test_acb_reports_freshness(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        first = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
-        second = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+        first = run_cli(app, ["acb", "RY.TO"])
+        second = run_cli(app, ["acb", "RY.TO"])
     assert_in_output("computed just now", first)
     assert_in_output("cached", second)
 
@@ -749,19 +739,18 @@ def test_an_interrupted_save_leaves_the_last_whole_one(temp_ctx: TempContext) ->
 
 def test_symbol_list_before_any_alias(temp_ctx: TempContext) -> None:
     """Test --list when the alias table has never been created."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_transaction()
-        cli_result = run_cli_with_config(ctx.config, app, ["symbol", "--list"])
+        cli_result = run_cli(app, ["symbol", "--list"])
         assert_cli_success(cli_result)
         assert_in_output("No ticker aliases found.", cli_result)
 
 
 def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
     """Test --delete when the alias table has never been created."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_transaction()
-        cli_result = run_cli_with_config(
-            ctx.config,
+        cli_result = run_cli(
             app,
             ["symbol", "--delete", "OLD"],
         )
@@ -771,11 +760,9 @@ def test_symbol_delete_before_any_alias(temp_ctx: TempContext) -> None:
 
 def test_symbol_command(temp_ctx: TempContext) -> None:
     """Add, list and delete ticker aliases with the symbol command."""
-    with temp_ctx() as ctx:
-        config = ctx.config
+    with temp_ctx():
         # 1. ADD
-        cli_result = run_cli_with_config(
-            config,
+        cli_result = run_cli(
             app,
             ["symbol", "--add", "OLD", "NEW", "2025-01-01"],
         )
@@ -786,23 +773,21 @@ def test_symbol_command(temp_ctx: TempContext) -> None:
             assert count == 1
 
         # 2. ADD another alias
-        cli_result = run_cli_with_config(
-            config,
+        cli_result = run_cli(
             app,
             ["symbol", "--add", "NEW", "NEWEST", "2025-02-01"],
         )
         assert_cli_success(cli_result)
 
         # 3. LIST aliases
-        cli_result = run_cli_with_config(config, app, ["symbol", "--list"])
+        cli_result = run_cli(app, ["symbol", "--list"])
         assert_cli_success(cli_result)
         assert_in_output("OLD", cli_result)
         assert_in_output("NEW", cli_result)
         assert_in_output("NEWEST", cli_result)
 
         # 4. DELETE an alias
-        cli_result = run_cli_with_config(
-            config,
+        cli_result = run_cli(
             app,
             ["symbol", "--delete", "OLD"],
         )
@@ -815,14 +800,14 @@ def test_symbol_command(temp_ctx: TempContext) -> None:
             assert remaining.iloc[0][Column.Aliases.OLD_TICKER] == "NEW"
 
         # 5. LIST once the last alias is gone
-        run_cli_with_config(config, app, ["symbol", "--delete", "NEW"])
-        cli_result = run_cli_with_config(config, app, ["symbol", "--list"])
+        run_cli(app, ["symbol", "--delete", "NEW"])
+        cli_result = run_cli(app, ["symbol", "--list"])
         assert_in_output("No ticker aliases found.", cli_result)
 
 
 def test_acb_pools_a_renamed_symbol_under_its_new_name(temp_ctx: TempContext) -> None:
     """Rows written before the rename pool under the new name, and only it."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx(FX)
         seed_transaction(
             action="BUY",
@@ -835,18 +820,16 @@ def test_acb_pools_a_renamed_symbol_under_its_new_name(temp_ctx: TempContext) ->
             price="10",
             units="100",
         )
-        run_cli_with_config(
-            ctx.config,
+        run_cli(
             app,
             ["symbol", "--add", "OLDCO", "NEWCO", "2025-10-31"],
         )
-        renamed = run_cli_with_config(
-            ctx.config,
+        renamed = run_cli(
             app,
             ["acb", "NEWCO", "--refresh"],
         )
         # A name typed means what trades under it today, never the renamed one.
-        old = run_cli_with_config(ctx.config, app, ["acb", "OLDCO"])
+        old = run_cli(app, ["acb", "OLDCO"])
 
     assert_cli_success(renamed)
     assert_in_output("1,000.00", renamed)
@@ -855,10 +838,9 @@ def test_acb_pools_a_renamed_symbol_under_its_new_name(temp_ctx: TempContext) ->
 
 def test_acb_export_to_parquet(temp_ctx: TempContext, tmp_path: Path) -> None:
     target = tmp_path / "acb_export.parquet"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "RY.TO", "--export", str(target)],
         )
@@ -872,11 +854,10 @@ def test_acb_prices_only_the_buys_it_shows(
     quote_provider: FakeQuoteProvider,
 ) -> None:
     target = tmp_path / "shown.parquet"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_usd_holding(ticker=TICKER)
         seed_usd_holding(ticker="OTHER")
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", TICKER, "--export", str(target)],
         )
@@ -894,10 +875,9 @@ def test_acb_offline_asks_for_no_quotes_and_leaves_a_buy_blank(
     quote_provider: FakeQuoteProvider,
 ) -> None:
     target = tmp_path / "offline.parquet"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_usd_holding(ticker=TICKER)
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", TICKER, "--offline", "--export", str(target)],
         )
@@ -911,23 +891,23 @@ def test_acb_summary_asks_for_no_quotes(
     temp_ctx: TempContext,
     quote_provider: FakeQuoteProvider,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_usd_holding(ticker=TICKER)
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
+        result = run_cli(app, ["acb", "--summary"])
 
     assert_cli_success(result)
     assert not quote_provider.calls
 
 
 def test_acb_on_an_empty_folio(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
-        result = run_cli_with_config(ctx.config, app, ["acb", "RY.TO"])
+    with temp_ctx():
+        result = run_cli(app, ["acb", "RY.TO"])
     assert_cli_success(result)
     assert_in_output("No transactions", result)
 
 
 def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx(FX)
         seed_cash(
             "CONTRIBUTION",
@@ -936,7 +916,7 @@ def test_acb_summary_with_no_holdings(temp_ctx: TempContext) -> None:
             settle_date="2025-08-14",
             account="IBKR-PERSONAL",
         )
-        result = run_cli_with_config(ctx.config, app, ["acb", "--summary"])
+        result = run_cli(app, ["acb", "--summary"])
     assert_cli_success(result)
     assert_in_output("No holdings", result)
 
@@ -953,10 +933,9 @@ def test_a_parquet_export_never_refuses_a_currency_choice(
 ) -> None:
     """The file is for another program, which takes every currency's figures."""
     target = tmp_path / "usd.parquet"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "RY.TO", "--currency", "USD", "--export", str(target)],
         )
@@ -969,11 +948,10 @@ def test_a_parquet_summary_holds_one_row_per_symbol(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "summary.parquet"
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_cad_holding()
         seed_cad_holding(ticker="TSTKR.TO")
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             app,
             ["acb", "--summary", "--export", str(target)],
         )

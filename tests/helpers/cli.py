@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -16,13 +15,11 @@ __all__ = [
     "assert_cli_success",
     "assert_in_output",
     "assert_not_in_output",
-    "run_cli_with_config",
+    "run_cli",
 ]
 
 if TYPE_CHECKING:
     from typer import Typer
-
-    from config import Config
 
 runner = CliRunner()
 
@@ -38,17 +35,15 @@ class CliTestResult:
     plain_output: str
 
 
-def run_cli_with_config(
-    config: Config,
+def run_cli(
     command_app: Typer,
     args: list[str],
     user_input: str | None = None,
     width: int = DEFAULT_WIDTH,
 ) -> CliTestResult:
-    """Run CLI commands with proper config mocking and capture plain output.
+    """Run a CLI command on the config already loaded, and capture plain output.
 
     Args:
-        config: The Config object to use for the test.
         command_app: The Typer app to run.
         args: The command and its arguments.
         user_input: Optional stdin text to answer interactive prompts, with each
@@ -59,12 +54,7 @@ def run_cli_with_config(
     Returns:
         A CliTestResult object with execution details.
     """
-    # Mock bootstrap.reload_config to return our test config
-    with (
-        patch("app.bootstrap.reload_config") as mock_reload,
-        capture_output(width) as bio,
-    ):
-        mock_reload.return_value = config
+    with capture_output(width) as bio:
         click_result = runner.invoke(command_app, args, input=user_input)
         return CliTestResult(
             exit_code=click_result.exit_code,

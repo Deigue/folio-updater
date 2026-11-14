@@ -14,7 +14,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.seed import seed_fx, seed_transaction
 
@@ -70,10 +70,10 @@ def test_ticker_serves_one_symbol_or_a_comparison(
     shown: list[str],
     hidden: list[str],
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         _seed()
 
-        result = run_cli_with_config(ctx.config, app, ["ticker", *args])
+        result = run_cli(app, ["ticker", *args])
 
     assert_cli_success(result)
     for text in shown:
@@ -101,10 +101,10 @@ def test_ticker_refuses_what_it_cannot_show(
     args: list[str],
     reason: str,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         _seed()
 
-        result = run_cli_with_config(ctx.config, app, ["ticker", *args])
+        result = run_cli(app, ["ticker", *args])
 
     assert result.exit_code == 1
     assert_in_output(reason, result)
@@ -114,13 +114,13 @@ def test_a_failed_lookup_is_not_reported_as_not_found(
     temp_ctx: TempContext,
     quote_provider: FakeQuoteProvider,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         _seed()
         # An earlier answer, cached: the provider did not know the symbol then.
         QuoteService.refresh(["MSFT"])
 
         quote_provider.failed = {"MSFT"}
-        result = run_cli_with_config(ctx.config, app, ["ticker", "MSFT", "--refresh"])
+        result = run_cli(app, ["ticker", "MSFT", "--refresh"])
         cached = QuoteService.cached(["MSFT"])
 
     assert result.exit_code == 1
@@ -134,17 +134,16 @@ def test_a_typed_symbol_means_what_trades_under_it_today(
     quote_provider: FakeQuoteProvider,
 ) -> None:
     quote_provider.prices_known["NEWCO"] = quote_provider.prices_known["TESTTKR"]
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_fx(FX)
         seed_transaction(ticker="OLDCO", amount="-1000", units="10")
-        run_cli_with_config(
-            ctx.config,
+        run_cli(
             app,
             ["symbol", "--add", "OLDCO", "NEWCO", "2025-09-01"],
         )
 
-        renamed = run_cli_with_config(ctx.config, app, ["ticker", "NEWCO"])
-        old = run_cli_with_config(ctx.config, app, ["ticker", "OLDCO"])
+        renamed = run_cli(app, ["ticker", "NEWCO"])
+        old = run_cli(app, ["ticker", "OLDCO"])
 
     assert_cli_success(renamed)
     assert_in_output("NEWCO held", renamed)
@@ -156,21 +155,20 @@ def test_a_typed_symbol_means_what_trades_under_it_today(
 def test_comparing_an_empty_folio_says_there_is_nothing_held(
     temp_ctx: TempContext,
 ) -> None:
-    with temp_ctx() as ctx:
-        result = run_cli_with_config(ctx.config, app, ["ticker"])
+    with temp_ctx():
+        result = run_cli(app, ["ticker"])
 
     assert_cli_success(result)
     assert_in_output("No open holdings in Portfolio to compare", result)
 
 
 def test_ticker_exports_either_view(temp_ctx: TempContext, tmp_path: Path) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         _seed()
 
         def export(*args: str) -> tuple[int, bool]:
             target = tmp_path / args[-1]
-            result = run_cli_with_config(
-                ctx.config,
+            result = run_cli(
                 app,
                 ["ticker", *args[:-1], "-e", str(target)],
             )
@@ -179,8 +177,7 @@ def test_ticker_exports_either_view(temp_ctx: TempContext, tmp_path: Path) -> No
         assert export("TESTTKR", "one.xlsx") == (0, True)
         assert export("all.csv") == (0, True)
         # One security's sheet holds several tables, which no CSV can.
-        refused = run_cli_with_config(
-            ctx.config,
+        refused = run_cli(
             app,
             ["ticker", "TESTTKR", "-e", str(tmp_path / "one.csv")],
         )

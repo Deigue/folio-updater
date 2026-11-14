@@ -18,12 +18,10 @@ from services.symbols import (
     normalize_canadian_ticker,
 )
 
-from .helpers.cli import assert_cli_success, run_cli_with_config
+from .helpers.cli import assert_cli_success, run_cli
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
-    from app import AppContext
-
     from .helpers.context import TempContext
 
 
@@ -138,8 +136,8 @@ def test_normalize_canadian_ticker() -> None:
 FOOTER = ["=" * 80, ""]
 
 
-def _symbol(ctx: AppContext, *args: str) -> None:
-    assert_cli_success(run_cli_with_config(ctx.config, cli_app, ["symbol", *args]))
+def _symbol(*args: str) -> None:
+    assert_cli_success(run_cli(cli_app, ["symbol", *args]))
 
 
 def _entries(lines: list[str]) -> list[list[str]]:
@@ -159,13 +157,13 @@ def test_each_alias_change_is_one_entry_naming_its_backup(
     audit_trail: list[str],
 ) -> None:
     """Added, replaced, re-added as it stands, removed, then removed again."""
-    with temp_ctx(backup={"enabled": True}) as ctx:
+    with temp_ctx(backup={"enabled": True}):
         seed_transaction(ticker="OLDCO")
-        _symbol(ctx, "--add", "oldco", "newco", "2025-06-16")
-        _symbol(ctx, "--add", "OLDCO", "OTHERCO", "2025-07-02")
-        _symbol(ctx, "--add", "OLDCO", "OTHERCO", "2025-07-02")
-        _symbol(ctx, "--delete", "oldco")
-        _symbol(ctx, "--delete", "OLDCO")
+        _symbol("--add", "oldco", "newco", "2025-06-16")
+        _symbol("--add", "OLDCO", "OTHERCO", "2025-07-02")
+        _symbol("--add", "OLDCO", "OTHERCO", "2025-07-02")
+        _symbol("--delete", "oldco")
+        _symbol("--delete", "OLDCO")
 
     added, replaced, unchanged, removed, missing = _entries(audit_trail)
     assert added[0] == "ADD ALIAS OLDCO (folio symbol)"
@@ -201,15 +199,14 @@ def test_an_alias_the_table_refuses_closes_failed(
     audit_trail: list[str],
 ) -> None:
     with (
-        temp_ctx() as ctx,
+        temp_ctx(),
         patch.object(
             aliases,
             "write",
             side_effect=sqlite3.IntegrityError("CHECK constraint failed"),
         ),
     ):
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             cli_app,
             ["symbol", "--add", "OLDCO", "NEWCO", "2025-06-16"],
         )

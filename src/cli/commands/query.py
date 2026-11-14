@@ -6,7 +6,6 @@ import logging
 
 import typer
 
-from app import bootstrap
 from cli.selection import SelectionError, select_transactions
 from db import txns
 from engine.query_totals import query_totals, resolved_fees
@@ -25,7 +24,6 @@ def query_transactions(terms: list[str]) -> None:
     Raises:
         typer.Exit: If the query could not run.
     """
-    bootstrap.reload_config()
     announce.info(f"Resolving selection terms: {terms}")
     try:
         selection = select_transactions(terms)

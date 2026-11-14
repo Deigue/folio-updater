@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap, get_config
+from app import get_config
 from cli.commands.common import refuse_unsupported_file
 from datagen import is_demo_folio
 from db import DatabaseError, txns
@@ -55,7 +55,6 @@ def settlement_info(
     Raises:
         typer.Exit: On an unusable request.
     """
-    bootstrap.reload_config()
     if file and not import_flag:
         console_error(
             "The [bold italic]--file[/bold italic] option only works with"

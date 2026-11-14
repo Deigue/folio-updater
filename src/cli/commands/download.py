@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap, get_config
+from app import get_config
 from domain import BrokerId
 from services import BrokerError, BrokerRegistry
 from term import (
@@ -54,7 +54,6 @@ def download_statements(
     Raises:
         typer.Exit: On an unusable request.
     """
-    bootstrap.reload_config()
     chosen = next((b for b in BrokerId if b.cli_name == broker), None)
     if chosen is None:
         console_error(

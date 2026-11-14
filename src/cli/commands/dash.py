@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap
 from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
@@ -177,8 +176,6 @@ def show_dash(
     Raises:
         typer.Exit: On an unusable request.
     """
-    bootstrap.reload_config()
-
     if by_type and (account or account_type):
         console_error("--by-type shows every type, so it takes no --type or --account.")
         raise typer.Exit(1)

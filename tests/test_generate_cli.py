@@ -20,13 +20,11 @@ from exporters.excel_writer import sheet_name
 from importers.excel_importer import import_transactions
 from models import TickerAlias
 
-from .helpers.cli import assert_cli_success, assert_in_output, run_cli_with_config
+from .helpers.cli import assert_cli_success, assert_in_output, run_cli
 from .helpers.seed import seed_transaction, seed_two_account_types
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from app.app_context import AppContext
 
     from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.cli import CliTestResult
@@ -50,10 +48,9 @@ EVERY_SHEET = [
 ]
 
 
-def _generate(ctx: AppContext, target: Path, *extra: str) -> CliTestResult:
+def _generate(target: Path, *extra: str) -> CliTestResult:
     """Run `folio generate` into `target`, with any extra arguments."""
-    return run_cli_with_config(
-        ctx.config,
+    return run_cli(
         app,
         ["generate", "--out", str(target), *extra],
     )
@@ -64,11 +61,11 @@ def test_generate_writes_a_sheet_for_every_view_of_the_folio(
     tmp_path: Path,
 ) -> None:
     """Only pools that hold something get a dashboard: no RRSP sheet here."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target)
+        result = _generate(target)
 
         assert_cli_success(result)
         assert load_workbook(target).sheetnames == EVERY_SHEET
@@ -79,7 +76,7 @@ def test_the_ledger_sheet_prices_buys_of_closed_holdings_too(
     tmp_path: Path,
     quote_provider: FakeQuoteProvider,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_transaction()  # Something open, so the folio has a dashboard to value.
         seed_transaction(ticker="OTHER", amount="-1000", price="100", units="10")
         seed_transaction(
@@ -91,7 +88,7 @@ def test_the_ledger_sheet_prices_buys_of_closed_holdings_too(
         )
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target, "--only", "acb")
+        result = _generate(target, "--only", "acb")
 
         assert_cli_success(result)
         asked = {s for batch in quote_provider.asked("prices") for s in batch}
@@ -119,7 +116,7 @@ def test_the_txns_sheet_imports_back_into_an_empty_folio(
     with temp_ctx() as ctx:
         seed_two_account_types()
         target = tmp_path / "folio.xlsx"
-        assert_cli_success(_generate(ctx, target))
+        assert_cli_success(_generate(target))
 
         with get_connection() as conn:
             stored = set(get_columns(conn, Table.TXNS))
@@ -140,12 +137,12 @@ def test_only_narrows_the_workbook_to_the_sections_named(
     temp_ctx: TempContext,
     tmp_path: Path,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
         # Spacing and a stray trailing comma are forgiven.
-        result = _generate(ctx, target, "--only", "acb, summary,")
+        result = _generate(target, "--only", "acb, summary,")
 
         assert_cli_success(result)
         assert load_workbook(target).sheetnames == [
@@ -160,11 +157,11 @@ def test_only_stored_writes_just_the_stored_sheets(
     temp_ctx: TempContext,
     tmp_path: Path,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target, "--only", "stored")
+        result = _generate(target, "--only", "stored")
 
         assert_cli_success(result)
         assert load_workbook(target).sheetnames == ["Txns", "FX", "Tickers"]
@@ -180,7 +177,7 @@ def test_generating_over_the_folio_keeps_a_backup_of_the_last_one(
         config = ctx.config
 
         for _ in range(2):
-            assert_cli_success(run_cli_with_config(config, app, ["generate"]))
+            assert_cli_success(run_cli(app, ["generate"]))
 
         kept = list((config.backup_path / "folio_xlsx").glob("*.xlsx"))
         assert len(kept) == 1
@@ -213,11 +210,11 @@ def test_only_refuses_a_section_that_does_not_exist(
     temp_ctx: TempContext,
     tmp_path: Path,
 ) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target, "--only", "dashboards")
+        result = _generate(target, "--only", "dashboards")
 
         assert result.exit_code == 1
         assert_in_output("summary, perf, dash, accounts, acb, stored", result)
@@ -226,11 +223,11 @@ def test_only_refuses_a_section_that_does_not_exist(
 
 def test_generate_refuses_a_csv(temp_ctx: TempContext, tmp_path: Path) -> None:
     """A workbook of a dozen sheets has nowhere to go in one table."""
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         target = tmp_path / "folio.csv"
 
-        result = _generate(ctx, target)
+        result = _generate(target)
 
         assert result.exit_code == 1
         assert_in_output("A CSV holds one table", result)
@@ -259,12 +256,12 @@ def test_an_unreplayable_folio_still_writes_its_stored_sheets(
         msg = "FX rates are empty, so USD cannot be converted."
         raise LedgerUnavailableError(msg)
 
-    with temp_ctx() as ctx:
+    with temp_ctx():
         seed_two_account_types()
         monkeypatch.setattr("cli.commands.generate.open_ledger", unreplayable)
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target)
+        result = _generate(target)
 
         assert_cli_success(result)
         assert_in_output("only the stored", result)
@@ -272,10 +269,10 @@ def test_an_unreplayable_folio_still_writes_its_stored_sheets(
 
 
 def test_an_empty_folio_writes_nothing(temp_ctx: TempContext, tmp_path: Path) -> None:
-    with temp_ctx() as ctx:
+    with temp_ctx():
         target = tmp_path / "folio.xlsx"
 
-        result = _generate(ctx, target)
+        result = _generate(target)
 
         assert_cli_success(result)
         assert_in_output("No transactions", result)
@@ -298,7 +295,7 @@ def test_a_ticker_reused_after_its_rename_gets_a_row_per_security(
         seed_transaction(ticker="OLDCO", currency="CAD", date="2025-08-18")
         target = tmp_path / "folio.xlsx"
 
-        assert_cli_success(_generate(ctx, target))
+        assert_cli_success(_generate(target))
         sheet = pd.read_excel(target, sheet_name=ctx.config.tickers_sheet, header=2)
 
     pairs = set(zip(sheet[Column.Ticker.TICKER], sheet["Symbol"], strict=True))
@@ -313,7 +310,7 @@ def test_generate_command(temp_ctx: TempContext) -> None:
         assert config.txn_parquet.exists()
         assert config.tickers_parquet.exists()
         assert not config.folio_path.exists()
-        cli_result = run_cli_with_config(config, app, ["generate"])
+        cli_result = run_cli(app, ["generate"])
         assert_cli_success(cli_result)
         assert_in_output("sheets to", cli_result)
         assert config.folio_path.exists()

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import typer
 
-from app import bootstrap
+from app import get_config
 from config import Config
 from engine.holdings import SORT_KEYS, SortKey
 from term import console_error, console_info, console_print
@@ -804,7 +804,7 @@ def demo_cmd() -> None:
 @app.command("version", rich_help_panel=_GROUP_WORKBOOK_SETUP)
 def show_version() -> None:
     """Show the version and exit."""
-    config = bootstrap.reload_config()
+    config = get_config()
     if getattr(sys, "frozen", False):
         app_path = Path(sys.executable).resolve()
     else:
@@ -827,7 +827,7 @@ def main() -> None:
     try:
         app()
     except ConfigError as error:
-        # Every command reads config.yaml first, so any of them can stop here.
+        # Every command reads config.yaml, so any of them can stop here.
         console_error(str(error))
         sys.exit(1)
     except MigrationError as error:

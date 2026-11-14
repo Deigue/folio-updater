@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal, get_args
 
 import typer
 
-from app import bootstrap
 from cli.commands.common import (
     parse_currency_choice,
     require_ledger,
@@ -90,7 +89,6 @@ def report_ticker(
     Raises:
         typer.Exit: On an unusable request, or a symbol nobody knows.
     """
-    bootstrap.reload_config()
     if len(symbols) == 1:
         if account or account_type or sort or reverse:
             console_error(

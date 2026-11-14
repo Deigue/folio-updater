@@ -17,7 +17,7 @@ from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
     assert_not_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.folio import ticker_txns, txn_total
 from .helpers.seed import ACCOUNT, TICKER, TXN_DATE
@@ -43,7 +43,7 @@ def _add_args(
         units: The --units given, or None to leave it off.
 
     Returns:
-        The argv for `run_cli_with_config`.
+        The argv for `run_cli`.
     """
     args = [
         "add",
@@ -88,11 +88,11 @@ class TestAddSuccess:
         audit_trail: list[str],
     ) -> None:
         """A fully specified BUY is added unprompted, logged with its TxnId."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(ctx.config, cli_app, BUY_ARGS)
+            cli_result = run_cli(cli_app, BUY_ARGS)
 
             assert_cli_success(cli_result)
             assert txn_total() == before + 1
@@ -119,11 +119,10 @@ class TestAddSuccess:
 
     def test_add_action_alias_is_normalized(self, temp_ctx: TempContext) -> None:
         """An action alias is normalized the same way imports normalize it."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 _add_args("div", Currency.CAD, "12.34", price=None, units=None),
             )
@@ -133,11 +132,10 @@ class TestAddSuccess:
 
     def test_add_fee_and_custom_column(self, temp_ctx: TempContext) -> None:
         """--fee and --set populate their columns, adding new ones as needed."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--fee", "4.95", "--set", "Notes=manual entry"],
             )
@@ -155,7 +153,7 @@ class TestAddSuccess:
         with temp_ctx() as ctx:
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(ctx.config, cli_app, BUY_ARGS)
+            cli_result = run_cli(cli_app, BUY_ARGS)
 
             assert_cli_success(cli_result)
             exported = pd.read_parquet(ctx.config.txn_parquet, engine="pyarrow")
@@ -170,13 +168,12 @@ class TestAddPrompting:
         temp_ctx: TempContext,
     ) -> None:
         """SPLIT prompts for Price/Units/Ticker and never for Amount."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             # TxnDate, Account, Currency, Ticker, Price, Units
             answers = f"{TXN_DATE}\n{ACCOUNT}\n{Currency.USD.value}\n{TICKER}\n1\n10\n"
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["add", "--type", "SPLIT"],
                 user_input=answers,
@@ -197,13 +194,12 @@ class TestAddPrompting:
 
     def test_roc_prompts_amount_not_price_units(self, temp_ctx: TempContext) -> None:
         """ROC prompts for Amount/Ticker and never for Price or Units."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             # TxnDate, Account, Currency, Ticker, Amount
             answers = f"{TXN_DATE}\n{ACCOUNT}\n{Currency.CAD.value}\n{TICKER}\n25.00\n"
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["add", "--type", "ROC"],
                 user_input=answers,
@@ -221,14 +217,13 @@ class TestAddPrompting:
 
     def test_date_prompt_defaults_to_today(self, temp_ctx: TempContext) -> None:
         """Accepting the TxnDate prompt default uses today's date."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             # Empty first answer accepts the default date.
             answers = f"\n{ACCOUNT}\n{Currency.CAD.value}\n{TICKER}\n25.00\n"
 
             before = datetime.now(TORONTO_TZ).strftime("%Y-%m-%d")
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["add", "--type", "ROC"],
                 user_input=answers,
@@ -241,14 +236,13 @@ class TestAddPrompting:
 
     def test_invalid_action_reprompts(self, temp_ctx: TempContext) -> None:
         """An unrecognized action is rejected and asked for again."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             answers = (
                 f"ROC\n{TXN_DATE}\n{ACCOUNT}\n{Currency.CAD.value}\n{TICKER}\n25.00\n"
             )
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 ["add", "--type", "NOTANACTION"],
                 user_input=answers,
@@ -282,12 +276,11 @@ class TestAddValidation:
         expected: str,
     ) -> None:
         """A malformed field aborts the add and reports the rejection reason."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, option, value],
             )
@@ -305,12 +298,11 @@ class TestAddValidation:
         audit_trail: list[str],
     ) -> None:
         """An empty Account is refused cleanly, the reason logged as FAILED."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--account", ""],
             )
@@ -323,12 +315,11 @@ class TestAddValidation:
 
     def test_invalid_set_value_is_rejected(self, temp_ctx: TempContext) -> None:
         """A --set argument that is not KEY=VALUE aborts the add."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--set", "justakey"],
             )
@@ -343,12 +334,11 @@ class TestAddValidation:
         audit_trail: list[str],
     ) -> None:
         """--dry-run previews the transaction, writing neither it nor an audit entry."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--dry-run"],
             )
@@ -361,11 +351,10 @@ class TestAddValidation:
 
     def test_dry_run_adds_no_column_for_an_extra(self, temp_ctx: TempContext) -> None:
         """Only a real write may widen the table."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--set", "BrokerRef=R-52", "--dry-run"],
             )
@@ -379,13 +368,12 @@ class TestAddDuplicates:
 
     def test_duplicate_declined_is_not_added(self, temp_ctx: TempContext) -> None:
         """Declining the duplicate prompt leaves the folio untouched."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
-            assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
+            assert_cli_success(run_cli(cli_app, BUY_ARGS))
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 BUY_ARGS,
                 user_input="n\n",
@@ -398,13 +386,12 @@ class TestAddDuplicates:
 
     def test_duplicate_confirmed_is_added(self, temp_ctx: TempContext) -> None:
         """Confirming the duplicate prompt adds the transaction anyway."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
-            assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
+            assert_cli_success(run_cli(cli_app, BUY_ARGS))
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 BUY_ARGS,
                 user_input="y\n",
@@ -415,13 +402,12 @@ class TestAddDuplicates:
 
     def test_force_skips_the_duplicate_prompt(self, temp_ctx: TempContext) -> None:
         """--force adds a duplicate without prompting."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
-            assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
+            assert_cli_success(run_cli(cli_app, BUY_ARGS))
             before = txn_total()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 [*BUY_ARGS, "--force"],
             )
@@ -436,11 +422,10 @@ class TestAddSigns:
 
     def test_buy_amount_is_forced_negative(self, temp_ctx: TempContext) -> None:
         """A BUY entered with a positive amount is stored as cash out."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 _add_args(amount="1502.50"),
             )
@@ -452,11 +437,10 @@ class TestAddSigns:
 
     def test_sell_units_are_forced_negative(self, temp_ctx: TempContext) -> None:
         """A SELL entered with positive units is stored as units disposed."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 _add_args("SELL"),
             )
@@ -472,10 +456,10 @@ class TestAddSettlement:
 
     def test_buy_settles_on_a_later_business_day(self, temp_ctx: TempContext) -> None:
         """A BUY gets a calculated settlement date after the transaction date."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            assert_cli_success(run_cli_with_config(ctx.config, cli_app, BUY_ARGS))
+            assert_cli_success(run_cli(cli_app, BUY_ARGS))
 
             row = _added_txn()
             assert int(row[Column.Txn.SETTLE_CALCULATED]) == 1
@@ -483,11 +467,10 @@ class TestAddSettlement:
 
     def test_roc_settles_same_day(self, temp_ctx: TempContext) -> None:
         """ROC is a same-day settling action."""
-        with temp_ctx() as ctx:
+        with temp_ctx():
             ensure_data_exists()
 
-            cli_result = run_cli_with_config(
-                ctx.config,
+            cli_result = run_cli(
                 cli_app,
                 _add_args("ROC", Currency.CAD, "25.00", price=None, units=None),
             )

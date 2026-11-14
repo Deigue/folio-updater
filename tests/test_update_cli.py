@@ -18,7 +18,7 @@ from services import BrokerError, BrokerFailure, PartFailure
 
 from .fixtures.data_factory import create_transaction_data
 from .fixtures.dataframe_cache import register_test_dataframe
-from .helpers.cli import assert_in_output, assert_not_in_output, run_cli_with_config
+from .helpers.cli import assert_in_output, assert_not_in_output, run_cli
 from .helpers.folio import txn_total
 from .helpers.seed import TSX_TICKER, seed_cash, seed_transaction
 
@@ -101,7 +101,7 @@ def test_failed_download_stops_and_cleans_up(
         brokers.ibkr.error = ibkr_error
         brokers.wealthsimple.error = ws_error
 
-        result = run_cli_with_config(config, cli_app, ["update"])
+        result = run_cli(cli_app, ["update"])
 
         assert result.exit_code == 1
         assert not (config.imports_path / IBKR_FILE).exists()
@@ -122,7 +122,7 @@ def test_failed_import_stops_and_keeps_file(temp_ctx: TempContext) -> None:
         broken = config.imports_path / IBKR_FILE
         broken.touch()  # nothing registered for it, so reading it fails
 
-        result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+        result = run_cli(cli_app, ["update", "--resume"])
 
         assert result.exit_code == 1
         assert broken.exists()
@@ -148,7 +148,7 @@ def test_a_database_error_stops_the_import_with_the_way_back(
             "append",
             side_effect=sqlite3.OperationalError("database is locked"),
         ):
-            result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+            result = run_cli(cli_app, ["update", "--resume"])
 
         assert result.exit_code == 1
         assert result.exception is None or isinstance(result.exception, SystemExit)
@@ -169,7 +169,7 @@ def test_an_update_over_the_demo_stops_until_you_replace_it(
         download = config.imports_path / WS_FILE
         create_transaction_data(download)
 
-        result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+        result = run_cli(cli_app, ["update", "--resume"])
 
         after = txn_total()
         kept = download.exists()
@@ -210,7 +210,7 @@ def test_clean_run_goes_through_every_stage(
             statement_error,
         )
 
-        result = run_cli_with_config(config, cli_app, ["update"])
+        result = run_cli(cli_app, ["update"])
 
         assert result.exit_code == 0
         assert config.folio_path.exists()
@@ -229,8 +229,8 @@ def test_clean_run_goes_through_every_stage(
 
 def test_an_update_of_an_empty_folio_saves_no_baseline(temp_ctx: TempContext) -> None:
     """With nothing to value there is nothing to count changes from."""
-    with temp_ctx() as ctx:
-        result = run_cli_with_config(ctx.config, cli_app, ["update", "--offline"])
+    with temp_ctx():
+        result = run_cli(cli_app, ["update", "--offline"])
 
         assert result.exit_code == 0
         assert update_baselines.read() == []
@@ -253,10 +253,10 @@ def test_offline_imports_what_waits_and_touches_no_network(
         )  # a calculated date from a past month, with no statement on hand
         create_transaction_data(config.imports_path / WS_FILE)
         # The rates a folio already holds are all an offline run can convert with.
-        run_cli_with_config(config, cli_app, ["getfx"])
+        run_cli(cli_app, ["getfx"])
         boc_fetch.reset_mock()
 
-        result = run_cli_with_config(config, cli_app, ["update", "--offline"])
+        result = run_cli(cli_app, ["update", "--offline"])
 
         assert result.exit_code == 0
         assert (config.processed_path / WS_FILE).exists()
@@ -275,11 +275,11 @@ def test_a_second_update_reports_what_changed_since_the_first(
     with temp_ctx() as ctx:
         config = ctx.config
         seed_transaction(account=WS_ACCOUNT, ticker=f"{TSX_TICKER}.TO", currency="CAD")
-        run_cli_with_config(config, cli_app, ["getfx"])
+        run_cli(cli_app, ["getfx"])
         save_update_baseline()
         create_transaction_data(config.imports_path / WS_FILE)
 
-        result = run_cli_with_config(config, cli_app, ["update", "--offline"])
+        result = run_cli(cli_app, ["update", "--offline"])
 
         assert result.exit_code == 0
         assert_in_output("Since the last update", result)
@@ -324,7 +324,7 @@ def test_statement_on_hand_is_imported_not_fetched(
                 },
             ),
         )
-        result = run_cli_with_config(config, cli_app, ["update", "--resume"])
+        result = run_cli(cli_app, ["update", "--resume"])
 
         assert result.exit_code == 0
         assert brokers.wealthsimple.statement_months == ["2025-07"]

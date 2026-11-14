@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import typer
 
-from app import bootstrap
 from cli.commands.generate import write_folio
 from datagen import ensure_data_exists
 from term import console_error, console_info, console_success
@@ -21,8 +20,6 @@ def create_folio() -> None:
     Builds two years of transactions across four accounts if the folio holds no
     data yet, so every command has something to show.
     """
-    bootstrap.reload_config()
-
     try:
         with spinner(SPINNER_DEMO) as progress:
             progress.add_task("Building the demo folio...", total=None)

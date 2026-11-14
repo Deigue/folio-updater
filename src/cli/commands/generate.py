@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import bootstrap, get_config
+from app import get_config
 from cli.commands.common import FIX_UNCONVERTIBLE, write_or_exit
 from db.backup import backup_file
 from engine.accounts import FOLIO
@@ -189,7 +189,6 @@ def generate_excel(
     Raises:
         typer.Exit: On an unusable request.
     """
-    bootstrap.reload_config()
     try:
         sections = parse_sections(only)
     except UnknownSectionError as error:

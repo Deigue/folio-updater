@@ -41,7 +41,7 @@ from .fixtures.data_factory import create_transaction_data
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
-    run_cli_with_config,
+    run_cli,
 )
 from .helpers.console import capture_output
 from .helpers.folio import txn_total
@@ -299,8 +299,7 @@ def test_importing_your_own_transactions_can_replace_the_demo(
         source = ctx.config.project_root / "mine.xlsx"
         create_transaction_data(source)
 
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             cli_app,
             ["import", "-f", str(source)],
             user_input="y\n",
@@ -339,8 +338,7 @@ def test_declining_keeps_the_demo_and_imports_nothing(
         source = ctx.config.project_root / "mine.xlsx"
         create_transaction_data(source)
 
-        result = run_cli_with_config(
-            ctx.config,
+        result = run_cli(
             cli_app,
             ["import", "-f", str(source)],
             user_input=answer,
@@ -368,7 +366,7 @@ def test_a_folio_with_an_account_of_your_own_is_not_the_demo(
         source = ctx.config.project_root / "mine.xlsx"
         create_transaction_data(source)
 
-        result = run_cli_with_config(ctx.config, cli_app, ["import", "-f", str(source)])
+        result = run_cli(cli_app, ["import", "-f", str(source)])
 
         after = txn_total()
 
@@ -386,7 +384,7 @@ def test_a_directory_import_asks_before_touching_the_demo(
         before = txn_total()
         create_transaction_data(ctx.config.imports_path / "mine.xlsx")
 
-        result = run_cli_with_config(ctx.config, cli_app, ["import"], user_input="n\n")
+        result = run_cli(cli_app, ["import"], user_input="n\n")
 
         after = txn_total()
 
@@ -532,7 +530,7 @@ def test_demo_command(temp_ctx: TempContext) -> None:
         assert not config.txn_parquet.exists()
         assert not config.tickers_parquet.exists()
         # * FX tested separately
-        cli_result = run_cli_with_config(config, cli_app, ["demo"])
+        cli_result = run_cli(cli_app, ["demo"])
         assert_cli_success(cli_result)
         assert_in_output("Demo folio created successfully!", cli_result)
         assert config.txn_parquet.exists()
@@ -546,6 +544,6 @@ def test_demo_command_reports_existing_data(temp_ctx: TempContext) -> None:
         ensure_data_exists()
         assert config.txn_parquet.exists()
 
-        cli_result = run_cli_with_config(config, cli_app, ["demo"])
+        cli_result = run_cli(cli_app, ["demo"])
         assert_cli_success(cli_result)
         assert_in_output("Demo folio not created due to existing data.", cli_result)
