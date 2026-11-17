@@ -342,19 +342,13 @@ def _statement_stage(
             imported.add(month)
         for path in files:
             result = import_single_statement(path, verbose=True, interactive=False)
-            archive_statement(path)
+            archive_statement(path, result)
             report.confirmed.extend(
                 match
                 for match in result.settlement_matches
                 if match.outcome is SettlementOutcome.CONFIRMED
             )
-            report.concerns.extend(
-                review_statement(
-                    path.name,
-                    result.settlement_matches,
-                    result.transfers_rejected,
-                ),
-            )
+            report.concerns.extend(review_statement(path.name, result))
             changed |= (
                 result.settlements_confirmed > 0 or result.transfers_created() > 0
             )

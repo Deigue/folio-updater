@@ -91,7 +91,7 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
             raise typer.Exit(1)
         refuse_unsupported_file(statement_path)
         results = [import_single_statement(statement_path, verbose=verbose)]
-        archive_statement(statement_path)
+        archive_statement(statement_path, results[0])
     else:
         results = _import_statements_from_directory(verbose=verbose)
 
@@ -166,16 +166,24 @@ def import_single_statement(
     return result
 
 
-def archive_statement(statement_path: Path) -> None:
+def archive_statement(statement_path: Path, result: StatementImportResult) -> None:
     """Move a processed statement out of the statements directory.
 
     Like an imported file, a statement is archived once it has been read,
     whatever it changed. The archive is kept for reference and never read
-    again.
+    again, so a statement whose transfers failed stays where it is: reading
+    it again retries them, and its confirmed dates read as already confirmed.
 
     Args:
         statement_path: The statement that was imported.
+        result: What importing it did.
     """
+    if result.transfer_error is not None:
+        console_warning(
+            f'Transfers in "{statement_path.name}" failed ({result.transfer_error}); '
+            "the statement is kept out of the archive to be read again",
+        )
+        return
     config = get_config()
     folder = config.statements_processed_path
     if archive(statement_path, folder) != statement_path:
@@ -250,7 +258,7 @@ def _import_statements_from_directory(
     imported: list[tuple[str, StatementImportResult]] = []
     for statement_file in statement_files:
         result = import_single_statement(statement_file, verbose=verbose)
-        archive_statement(statement_file)
+        archive_statement(statement_file, result)
         imported.append((statement_file.name, result))
 
     show_statements_summary(imported)

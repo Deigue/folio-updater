@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -20,6 +21,7 @@ from db import (
     get_connection,
     get_row_count,
     get_rows,
+    txns,
     update_baselines,
 )
 from domain import TORONTO_TZ, Column, Grain, Table
@@ -560,6 +562,50 @@ def test_settle_info_import_archives_every_statement(temp_ctx: TempContext) -> N
         assert_in_output("Up to date", second)
         assert_in_output("are already confirmed", second)
         assert (archive / "ws_statement_WS-TFSA_202604_1.xlsx").exists()
+
+
+def test_settle_info_import_keeps_a_statement_whose_transfers_failed(
+    temp_ctx: TempContext,
+) -> None:
+    """Its dates stay confirmed, and the statement waits to be read again."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        seed_transaction(
+            action="BUY",
+            date=STATEMENT_TRADE_DATE,
+            account="WS-TFSA",
+            currency="CAD",
+            ticker=f"{TSX_TICKER}.TO",
+            amount=f"-{STATEMENT_PRICE}",
+            price=STATEMENT_PRICE,
+            units="1",
+        )
+        statement = ctx.config.statements_path / "ws_statement_WS-TFSA_202604.xlsx"
+        transfer_in = {
+            "date": STATEMENT_TRADE_DATE,
+            "amount": 500.0,
+            "currency": "CAD",
+            "transaction": "TRFINRSP",
+            "description": "RSP account transfer in",
+        }
+        register_test_dataframe(statement, pd.DataFrame([statement_buy(), transfer_in]))
+
+        with patch(
+            "importers.excel_importer.insert_transactions",
+            side_effect=sqlite3.IntegrityError("UNIQUE constraint failed"),
+        ):
+            cli_result = run_cli(
+                cli_app,
+                ["settle-info", "--import"],
+                width=UNCONSTRAINED_WIDTH,
+            )
+
+        assert_cli_success(cli_result)
+        assert_in_output("Confirmed 1 settlement dates", cli_result)
+        assert_in_output("kept out of the archive", cli_result)
+        assert statement.exists()
+        assert not (ctx.config.statements_processed_path / statement.name).exists()
+        assert txns.count_calculated() == 0
 
 
 def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:

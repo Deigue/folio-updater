@@ -220,15 +220,29 @@ def _import_statement_rows(
             stmt_df,
             statement,
         )
+    except (OSError, ValueError, KeyError) as error:
+        logger.exception("Error processing statement %s", statement)
+        entry.failed(error)
+        return StatementImportResult()
+
+    # The dates are committed by now, so a transfer failure must not hide them.
+    try:
         transfer_df, rejected, skipped = _build_transfer_transactions(
             stmt_df,
             statement,
         )
         transfer_results = _store_transfers(transfer_df, rejected, skipped)
-    except (OSError, ValueError, KeyError) as error:
-        logger.exception("Error processing statement %s", statement)
-        entry.failed(error)
-        return StatementImportResult()
+    except (OSError, ValueError, KeyError, DatabaseError) as error:
+        logger.exception("Error storing transfers from statement %s", statement)
+        entry.failed(
+            f"{settlements_confirmed} settlement date(s) confirmed, "
+            f"then the transfers failed: {error}",
+        )
+        return StatementImportResult(
+            settlements_confirmed=settlements_confirmed,
+            settlement_matches=settlement_matches,
+            transfer_error=str(error),
+        )
     else:
         entry.done(
             "%d settlement date(s) confirmed, %d transfer(s) stored, "
@@ -280,33 +294,20 @@ def _confirm_settlement_dates(
         audit.stage("CONFIRM nothing: the folio holds no transactions")
         return 0, []
 
-    existing_txns = [txn for txn in all_txns if txn.settle_calculated]
-    actual_txns = [txn for txn in all_txns if not txn.settle_calculated]
-
+    weighed = _weigh_rows(df, account, all_txns)
+    paired = _pair_identical_trades(weighed)
     updates: list[Txn] = []
     results: list[SettlementMatch] = []
     pending: list[_PendingRow] = []
-    for _, row in df.iterrows():
-        try:
-            statement_row = _extract_statement_row_data(row, account)
-            if statement_row is None:
-                continue
-            matches = _match_transactions(existing_txns, statement_row)
-            result, update, held = _resolve_statement_match(
-                statement_row,
-                matches,
-                actual_txns,
-            )
-            results.append(result)
-            pending.append(held)
-            if update is not None:
-                updates.append(update)
-        except (ValueError, TypeError) as e:
-            console_warning(f"Skipping invalid statement row: {e}")
-            pending.append(
-                _PendingRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
-            )
+    for index, item in enumerate(weighed):
+        if isinstance(item, _PendingRow):
+            pending.append(item)
             continue
+        result, update, held = _resolve_statement_match(item, paired.get(index))
+        results.append(result)
+        pending.append(held)
+        if update is not None:
+            updates.append(update)
 
     confirmed = txns.update(updates)
     if results:
@@ -322,22 +323,112 @@ def _confirm_settlement_dates(
     return confirmed, results
 
 
+def _weigh_rows(
+    df: pd.DataFrame,
+    account: str | None,
+    all_txns: list[Txn],
+) -> list[_WeighedRow | _PendingRow]:
+    """Match each settling statement row against the folio's transactions.
+
+    Returns:
+        One entry per settling row, in statement order: the row with its
+        matches, or the reason it could not be read.
+    """
+    calculated = [txn for txn in all_txns if txn.settle_calculated]
+    actual = [txn for txn in all_txns if not txn.settle_calculated]
+    weighed: list[_WeighedRow | _PendingRow] = []
+    for _, row in df.iterrows():
+        try:
+            statement_row = _extract_statement_row_data(row, account)
+            if statement_row is None:
+                continue
+            weighed.append(
+                _WeighedRow(
+                    statement_row,
+                    calculated=_match_transactions(calculated, statement_row),
+                    actual=_match_transactions(actual, statement_row),
+                ),
+            )
+        except (ValueError, TypeError) as e:
+            console_warning(f"Skipping invalid statement row: {e}")
+            weighed.append(
+                _PendingRow(AuditMark.UNRESOLVED, f"invalid statement row: {e}"),
+            )
+    return weighed
+
+
+@dataclass(frozen=True)
+class _WeighedRow:
+    """A statement row with the transactions it matched.
+
+    Attributes:
+        statement_row: Fields extracted from the statement row.
+        calculated: Matched transactions whose settlement date is calculated.
+        actual: Matched transactions whose settlement date is already actual.
+    """
+
+    statement_row: _StatementRow
+    calculated: list[Txn]
+    actual: list[Txn]
+
+
+def _pair_identical_trades(
+    weighed: list[_WeighedRow | _PendingRow],
+) -> dict[int, Txn]:
+    """Pair rows that share identical transactions one to one, in TxnId order.
+
+    Identical trades in one account match every one of their statement rows
+    alike, so no row alone can confirm one. When as many rows share them as
+    there are transactions, which row settles which makes no difference.
+
+    Returns:
+        The transaction each paired row settles, keyed by its place in `weighed`.
+    """
+    groups: dict[tuple[int, ...], tuple[list[Txn], list[int]]] = {}
+    for index, item in enumerate(weighed):
+        if not isinstance(item, _WeighedRow) or item.statement_row.account is None:
+            continue
+        shared = sorted([*item.calculated, *item.actual], key=lambda t: t.txn_id)
+        if len(shared) > 1 and len({_identity(txn) for txn in shared}) == 1:
+            key = tuple(txn.txn_id for txn in shared)
+            groups.setdefault(key, (shared, []))[1].append(index)
+
+    paired: dict[int, Txn] = {}
+    for shared, indices in groups.values():
+        if len(indices) == len(shared):
+            paired.update(zip(indices, shared, strict=True))
+    return paired
+
+
+def _identity(txn: Txn) -> tuple[object, ...]:
+    """Return the fields a statement row is matched on, account included."""
+    return (
+        txn.action,
+        txn.txn_date,
+        txn.ticker,
+        txn.currency,
+        txn.account,
+        txn.amount,
+        txn.units,
+    )
+
+
 def _resolve_statement_match(
-    statement_row: _StatementRow,
-    matches: list[Txn],
-    actual_txns: list[Txn],
+    weighed: _WeighedRow,
+    paired: Txn | None,
 ) -> tuple[SettlementMatch, Txn | None, _PendingRow]:
     """Turn a row's candidate matches into an outcome, with an update for a hit.
 
     Args:
-        statement_row: Fields extracted from the statement row.
-        matches: Transactions with a calculated date that the row matched.
-        actual_txns: Transactions whose settlement date is already actual.
+        weighed: The statement row and the transactions it matched.
+        paired: The transaction an identical trade's row was paired with.
 
     Returns:
         The outcome recorded for this statement row, and the update to apply
-        when exactly one transaction matched (None otherwise).
+        when it confirms a transaction (None otherwise).
     """
+    statement_row = weighed.statement_row
+    matches = weighed.calculated
     result = SettlementMatch(
         outcome=SettlementOutcome.UNMATCHED,
         settle_date=statement_row.settlement_date,
@@ -351,8 +442,10 @@ def _resolve_statement_match(
         candidates=len(matches),
     )
 
-    if len(matches) == 1:
-        matched = matches[0]
+    if paired is None and len(matches) == 1:
+        paired = matches[0]
+    if paired is not None and paired.settle_calculated:
+        matched = paired
         result.txn_id = matched.txn_id
         result.outcome = SettlementOutcome.CONFIRMED
         update = replace(
@@ -370,15 +463,16 @@ def _resolve_statement_match(
     described = (
         f"{result.action} {result.ticker} on {result.txn_date} for {result.amount}"
     )
-    if len(matches) > 1:
+    if paired is None and len(matches) > 1:
         result.outcome = SettlementOutcome.AMBIGUOUS
         text = f"{len(matches)} matches for {described}, left unconfirmed"
         return result, None, _PendingRow(AuditMark.UNRESOLVED, text)
 
-    already = _match_transactions(actual_txns, statement_row)
-    if len(already) == 1:
+    if paired is None and len(weighed.actual) == 1:
+        paired = weighed.actual[0]
+    if paired is not None:
         result.outcome = SettlementOutcome.ALREADY_CONFIRMED
-        result.txn_id = already[0].txn_id
+        result.txn_id = paired.txn_id
         result.candidates = 1
         held = _PendingRow(
             AuditMark.UNCHANGED,

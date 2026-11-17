@@ -32,7 +32,12 @@ if TYPE_CHECKING:
     from datetime import date
 
     from engine.checks import CheckResult
-    from models import CancelEvent, ImportResults, MergeEvent, SettlementMatch
+    from models import (
+        CancelEvent,
+        ImportResults,
+        MergeEvent,
+        StatementImportResult,
+    )
 
 # Cash moves between two of the user's own accounts land a few days apart at most.
 LOOKALIKE_TRANSFER_DAYS = 3
@@ -582,24 +587,18 @@ def split_remaining(
     return stuck, pending
 
 
-def review_statement(
-    filename: str,
-    matches: Iterable[SettlementMatch],
-    transfers_rejected: int,
-) -> list[Concern]:
+def review_statement(filename: str, result: StatementImportResult) -> list[Concern]:
     """Review one statement's import.
 
     Args:
         filename: The statement imported.
-        matches: Every row weighed for a settlement date.
-        transfers_rejected: Transfers the statement held that could not be made.
+        result: What importing it did.
 
     Returns:
-        The concerns: unplaced rows and rejected transfers.
+        The concerns: unplaced rows, rejected transfers and failed transfers.
     """
     concerns: list[Concern] = []
-    confirmed = (SettlementOutcome.CONFIRMED, SettlementOutcome.ALREADY_CONFIRMED)
-    unplaced = [m for m in matches if m.outcome not in confirmed]
+    unplaced = result.settlement_unplaced()
     if unplaced:
         rows = pd.DataFrame(
             {
@@ -635,11 +634,13 @@ def review_statement(
             ),
         )
 
-    if transfers_rejected:
+    if result.transfers_rejected:
         concerns.append(
             Concern(
                 stage=UpdateStage.STATEMENTS,
-                title=f"{transfers_rejected} transfer(s) in {filename} not created",
+                title=(
+                    f"{result.transfers_rejected} transfer(s) in {filename} not created"
+                ),
                 why=(
                     "The statement lists transfers that could not be turned into "
                     "transactions; logs/audit.log names them. Add each by hand."
@@ -650,6 +651,21 @@ def review_statement(
                         "-s <ticker> -m <amount> -u <units>"
                     ),
                 ),
+            ),
+        )
+
+    if result.transfer_error is not None:
+        concerns.append(
+            Concern(
+                stage=UpdateStage.STATEMENTS,
+                title=f"Transfers in {filename} failed",
+                why=(
+                    "Storing the statement's transfers failed "
+                    f"({result.transfer_error}); its settlement dates are confirmed. "
+                    "The statement stays in the "
+                    "statements folder, and reading it again retries the transfers."
+                ),
+                commands=("folio settle-info -i",),
             ),
         )
     return concerns

@@ -191,6 +191,7 @@ class StatementImportResult:
     transfers_rejected: int = 0
     transfers_skipped: int = 0
     settlement_matches: list[SettlementMatch] = field(default_factory=list)
+    transfer_error: str | None = None
 
     def transfers_created(self) -> int:
         """Return number of transfer transactions created from this statement."""

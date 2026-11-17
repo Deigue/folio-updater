@@ -1081,6 +1081,140 @@ def test_import_statements_matches_identical_trades_by_account(
         assert int(personal_row[Column.Txn.SETTLE_CALCULATED]) == 1
 
 
+_IDENTICAL_BUY = {
+    "action": "BUY",
+    "date": STATEMENT_TRADE_DATE,
+    "account": "WS-TFSA",
+    "currency": "CAD",
+    "ticker": f"{TSX_TICKER}.TO",
+    "amount": f"-{STATEMENT_PRICE}",
+    "price": STATEMENT_PRICE,
+    "units": "1",
+}
+
+
+def _settle_dates(txn_ids: list[int]) -> list[tuple[str, bool]]:
+    """Return each transaction's settlement date and whether it is calculated."""
+    stored = {txn.txn_id: txn for txn in txns.read()}
+    return [
+        (stored[txn_id].settle_date, stored[txn_id].settle_calculated)
+        for txn_id in txn_ids
+    ]
+
+
+def test_import_statements_confirms_identical_trades_one_to_one(
+    temp_ctx: TempContext,
+) -> None:
+    """Two identical buys in one account and two statement rows are both confirmed."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_ids = [seed_transaction(**_IDENTICAL_BUY) for _ in range(2)]
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(
+            statement_file,
+            pd.DataFrame([statement_buy(), statement_buy()]),
+        )
+
+        result = import_statements(statement_file)
+
+        assert result.settlements_confirmed == 2
+        assert [m.outcome for m in result.settlement_matches] == [
+            SettlementOutcome.CONFIRMED,
+            SettlementOutcome.CONFIRMED,
+        ]
+        assert [m.txn_id for m in result.settlement_matches] == txn_ids
+        assert _settle_dates(txn_ids) == [(STATEMENT_SETTLE_DATE, False)] * 2
+
+
+def test_import_statements_reads_identical_trades_again_as_already_confirmed(
+    temp_ctx: TempContext,
+) -> None:
+    """A statement read again places identical trades, not reports them unmatched."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_ids = [seed_transaction(**_IDENTICAL_BUY) for _ in range(2)]
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(
+            statement_file,
+            pd.DataFrame([statement_buy(), statement_buy()]),
+        )
+        import_statements(statement_file)
+
+        second = import_statements(statement_file)
+
+        assert second.settlements_confirmed == 0
+        assert second.settlement_unplaced() == []
+        assert [(m.outcome, m.txn_id) for m in second.settlement_matches] == [
+            (SettlementOutcome.ALREADY_CONFIRMED, txn_ids[0]),
+            (SettlementOutcome.ALREADY_CONFIRMED, txn_ids[1]),
+        ]
+
+
+def _refuse_transfers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make storing a statement's transfers fail as the table would refuse them."""
+
+    def refuse(*_args: object, **_kwargs: object) -> ImportResults:
+        message = "UNIQUE constraint failed"
+        raise sqlite3.IntegrityError(message)
+
+    monkeypatch.setattr("importers.excel_importer.insert_transactions", refuse)
+
+
+def _statement_transfer_in() -> dict[str, object]:
+    """Build one statement row for an account transfer in."""
+    return {
+        "date": STATEMENT_SETTLE_DATE,
+        "amount": 500.0,
+        "currency": "CAD",
+        "transaction": "TRFINRSP",
+        "description": f"RSP account transfer in (executed at {STATEMENT_SETTLE_DATE})",
+    }
+
+
+def test_import_statements_keeps_confirmations_when_transfers_fail(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed transfer stage still reports the dates it already confirmed."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_id = seed_transaction(**_IDENTICAL_BUY)
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(
+            statement_file,
+            pd.DataFrame([statement_buy(), _statement_transfer_in()]),
+        )
+        _refuse_transfers(monkeypatch)
+
+        result = import_statements(statement_file)
+
+        assert result.settlements_confirmed == 1
+        assert [m.txn_id for m in result.settlement_matches] == [txn_id]
+        assert result.transfer_error == "UNIQUE constraint failed"
+        assert result.transfers_created() == 0
+        assert _settle_dates([txn_id]) == [(STATEMENT_SETTLE_DATE, False)]
+
+
+def test_import_statements_leaves_one_row_against_identical_trades_ambiguous(
+    temp_ctx: TempContext,
+) -> None:
+    """One statement row cannot say which of two identical buys it settles."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_ids = [seed_transaction(**_IDENTICAL_BUY) for _ in range(2)]
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(statement_file, pd.DataFrame([statement_buy()]))
+
+        result = import_statements(statement_file)
+
+        assert result.settlements_confirmed == 0
+        unplaced = result.settlement_unplaced()
+        assert [(m.outcome, m.candidates) for m in unplaced] == [
+            (SettlementOutcome.AMBIGUOUS, 2),
+        ]
+        assert [calculated for _, calculated in _settle_dates(txn_ids)] == [True, True]
+
+
 @pytest.mark.usefixtures("audit_info")
 def test_a_statement_entry_records_each_confirmed_date_old_and_new(
     temp_ctx: TempContext,
@@ -1122,7 +1256,8 @@ def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None
     """A statement row matching nothing is reported, not silently dropped.
 
     Rows that never settle on a business day (a dividend here) are not
-    candidates at all, so they are skipped rather than reported unmatched.
+    candidates at all, so they are skipped rather than reported unmatched, as
+    is a buy whose amount cannot be read.
     """
     with temp_ctx() as ctx:
         create_txns_table()
@@ -1140,6 +1275,7 @@ def test_import_statements_records_unmatched_rows(temp_ctx: TempContext) -> None
         statement_df = pd.DataFrame(
             [
                 statement_buy(price="99.99"),
+                {**statement_buy(), "amount": "n/a"},
                 {
                     "date": "2026-04-30",
                     "amount": 7.30,

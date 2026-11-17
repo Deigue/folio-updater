@@ -30,6 +30,7 @@ from models import (
     ImportResults,
     MergeEvent,
     SettlementMatch,
+    StatementImportResult,
     Txn,
     UpdateStage,
 )
@@ -500,16 +501,23 @@ class TestStatements:
             match(SettlementOutcome.UNMATCHED, VENTURE_TICKER),
             match(SettlementOutcome.AMBIGUOUS, TSX_TICKER),
         ]
-        concerns = review_statement("ws_statement_X_202609.csv", matches, 1)
-        unplaced, rejected = concerns
+        result = StatementImportResult(
+            settlement_matches=matches,
+            transfers_rejected=1,
+            transfer_error="disk I/O error",
+        )
+        concerns = review_statement("ws_statement_X_202609.csv", result)
+        unplaced, rejected, failed = concerns
         assert unplaced.rows["Result"].tolist() == ["no match", "ambiguous (2)"]
         assert unplaced.commands[0] == f"folio query {VENTURE_TICKER} 2026-09-03"
         assert unplaced.commands[1] == "folio edit <TxnId> --set SettleDate=2026-09-04"
         assert rejected.title.startswith("1 transfer(s)")
+        assert failed.title == "Transfers in ws_statement_X_202609.csv failed"
+        assert "disk I/O error" in failed.why
 
     def test_clean_statement(self) -> None:
         """A statement that placed everything raises nothing."""
-        assert review_statement("s.csv", [], 0) == []
+        assert review_statement("s.csv", StatementImportResult()) == []
 
 
 class TestChecksAndPrices:
