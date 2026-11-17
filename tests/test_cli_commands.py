@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
@@ -1014,10 +1015,28 @@ def test_version_command(tmp_path: Path, temp_ctx: TempContext) -> None:
     assert_in_output("application path:", cli_result)
     assert_in_output(f"config path: {tmp_path / 'config.yaml'}", cli_result)
     assert_in_output(f"folio path: {ctx.config.folio_path}", cli_result)
-    assert_in_output(f"data path: {ctx.config.data_path}", cli_result)
+    assert_in_output(f"data path: {ctx.config.db_path}", cli_result)
     assert_in_output(f"backup path: {ctx.config.backup_path}", cli_result)
     for path in (ctx.config.folio_path, ctx.config.data_path, ctx.config.backup_path):
         assert path.is_relative_to(tmp_path)
+    assert_in_output("no backup yet", cli_result)
+
+
+def test_version_dates_the_backups_by_the_newest_one(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        older = datetime(2031, 2, 3, 4, 5, 6, tzinfo=TORONTO_TZ)
+        newer = datetime(2031, 5, 6, 7, 8, 9, tzinfo=TORONTO_TZ)
+        for name, moment in (("a.db", older), ("b.db", newer)):
+            backup = ctx.config.backup_path / "folio" / name
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            backup.touch()
+            os.utime(backup, (moment.timestamp(), moment.timestamp()))
+
+        cli_result = run_cli(cli_app, ["version"], width=UNCONSTRAINED_WIDTH)
+
+    assert_cli_success(cli_result)
+    assert_in_output("2031-05-06 07:08:09 (last backup", cli_result)
+    assert_not_in_output("2031-02-03", cli_result)
 
 
 @pytest.mark.parametrize(

@@ -80,6 +80,10 @@ def decimals(value: Any, precision: int, minimum: int = 0) -> str:
 _JUST_NOW = 60
 _ONE_HOUR = 3600
 _ONE_DAY = 86400
+# Ages in days: under two weeks counts days, under a month weeks, under a year months.
+_DAYS_AS_DAYS = 14
+_DAYS_IN_MONTH = 30
+_DAYS_IN_YEAR = 365
 
 
 def format_freshness(computed_at: datetime | None) -> str:
@@ -97,23 +101,46 @@ def format_freshness(computed_at: datetime | None) -> str:
     """
     if computed_at is None:
         return "computed just now"
+    return f"cached {ago(computed_at)}"
 
-    now = datetime.now(computed_at.tzinfo)
-    elapsed = max((now - computed_at).total_seconds(), 0)
-    if elapsed < _JUST_NOW:
-        return "cached just now"
-    return f"cached {short_age(elapsed)} ago"
+
+def stamped(moment: datetime | None, verb: str = "modified") -> str:
+    """Stamp a moment with its age: `2026-05-12 09:30:00 (modified 6mo ago)`.
+
+    None stands for a file not written yet, which says so.
+    """
+    if moment is None:
+        return "not created yet"
+    return f"{moment:%Y-%m-%d %H:%M:%S} ({verb} {ago(moment)})"
+
+
+def ago(moment: datetime) -> str:
+    """Say how long ago a moment was: `just now`, `4m ago`, `6mo ago`."""
+    now = datetime.now(moment.tzinfo)
+    age = short_age(max((now - moment).total_seconds(), 0))
+    return age if age == "just now" else f"{age} ago"
 
 
 def short_age(seconds: float) -> str:
-    """Render an elapsed time at its largest unit: `just now`, `4m`, `3h`, `2d`."""
+    """Render an elapsed time at its largest unit: `just now`, `4m`, `3h`, `6mo`."""
     if seconds < _JUST_NOW:
         return "just now"
     if seconds < _ONE_HOUR:
         return f"{int(seconds // 60)}m"
     if seconds < _ONE_DAY:
         return f"{int(seconds // _ONE_HOUR)}h"
-    return f"{int(seconds // _ONE_DAY)}d"
+    return _days_age(int(seconds // _ONE_DAY))
+
+
+def _days_age(days: int) -> str:
+    """Render whole days as days, weeks, months or years: `13d`, `3w`, `6mo`, `1y`."""
+    if days < _DAYS_AS_DAYS:
+        return f"{days}d"
+    if days < _DAYS_IN_MONTH:
+        return f"{days // 7}w"
+    if days < _DAYS_IN_YEAR:
+        return f"{days // _DAYS_IN_MONTH}mo"
+    return f"{days // _DAYS_IN_YEAR}y"
 
 
 # Freshness icons

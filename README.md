@@ -21,7 +21,7 @@ folio acb NVDA
 
 `folio demo` builds two years of transactions across six demo accounts from real market history,
 and writes the folio workbook as `folio generate` does. `folio version` shows where the folio and
-its workbook are kept.
+its workbook are kept, and when each was last written.
 
 The demo is only built into an empty folio. When you are ready for your own transactions, your
 first import or update offers to replace it.
@@ -56,7 +56,7 @@ first import or update offers to replace it.
 | The cached quotes | `folio quotes` |
 | Settlement dates, calculated and actual | `folio settle-info` |
 | Everything, in one Excel workbook | `folio generate` |
-| Where the config, folio and backups are kept | `folio version` |
+| Where the config, folio and backups are kept, and when each last changed | `folio version` |
 
 ## Commands
 
@@ -93,7 +93,7 @@ Run `folio <command> --help` for each command's options.
 
 - **`folio generate`**: Write the whole folio to one workbook
 - **`folio demo`**: Build a realistic two-year demo folio from real market history, to explore every command
-- **`folio version`**: Show the version of folio-updater and where its files are kept
+- **`folio version`**: Show the version of folio-updater, where its files are kept and when each last changed
 
 ## Features
 
