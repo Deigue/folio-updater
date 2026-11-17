@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from db import update_baselines
+from domain import Grain
+from domain.numeric import ZERO
 from engine.freshness import Freshness, fx_rate_stale
-from models import Quote
+from models import Quote, UpdateBaseline
 
 if TYPE_CHECKING:
     from .helpers.context import TempContext
@@ -53,6 +56,46 @@ def test_freshness_ages_the_oldest_quote_and_flags_a_stale_one(
         quotes_at=old.fetched_at,
         quotes_stale=True,
     )
+
+
+@pytest.mark.parametrize(
+    ("days_ago", "stale"),
+    [(2, False), (8, True)],
+    ids=["within-a-week", "past-a-week"],
+)
+def test_freshness_ages_the_last_update_against_the_stale_setting(
+    temp_ctx: TempContext,
+    days_ago: int,
+    *,
+    stale: bool,
+) -> None:
+    saved_at = datetime.now(UTC) - timedelta(days=days_ago)
+    baseline = UpdateBaseline(
+        grain=Grain.ACCOUNT,
+        pool="ACCT-ONE",
+        saved_at=saved_at,
+        market_value=None,
+        net_deposits_cad=ZERO,
+        net_deposits_usd=ZERO,
+        dividends_cad=ZERO,
+        dividends_usd=ZERO,
+        txn_count=3,
+    )
+
+    with temp_ctx(update={"stale_days": 7}):
+        update_baselines.replace([baseline])
+        freshness = Freshness.of(None, {})
+
+    assert freshness.updated_at == saved_at
+    assert freshness.update_stale is stale
+
+
+def test_a_folio_never_updated_has_no_update_age(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        freshness = Freshness.of(None, {})
+
+    assert freshness.updated_at is None
+    assert not freshness.update_stale
 
 
 def test_quotes_never_fetched_are_nothing_cached_not_stale(

@@ -191,7 +191,7 @@ def _report_one(
     rate_date = conversion_date(per_currency, quote.currency)
     freshness = Freshness.of(ledger.computed_at, {canonical: quote}, rate_date)
     if export:
-        note = freshness_note(freshness)
+        note = freshness_note(freshness, with_update=traded)
         sheet = ticker_sheet(
             quote,
             moves,
@@ -209,7 +209,12 @@ def _report_one(
         per_currency,
         aliases=aliases,
         by_account=by_account,
-        badge=cache_badge(freshness, offline=offline, with_acb=traded),
+        badge=cache_badge(
+            freshness,
+            offline=offline,
+            with_acb=traded,
+            with_update=traded,
+        ),
     )
 
 
@@ -277,7 +282,7 @@ def _report_matrix(
     rate_date = None if valued is None else valued.freshness.fx_date
     freshness = Freshness.of(ledger.computed_at, priced, rate_date)
     if export:
-        note = freshness_note(freshness)
+        note = freshness_note(freshness, with_update=valued is not None)
         sheet = performance_sheet(
             rows,
             name=f"Performance - {pool.label}",
@@ -291,7 +296,12 @@ def _report_matrix(
         rows,
         title=pool.label,
         pool_weight=pool_weight,
-        badge=cache_badge(freshness, offline=offline, with_acb=valued is not None),
+        badge=cache_badge(
+            freshness,
+            offline=offline,
+            with_acb=valued is not None,
+            with_update=valued is not None,
+        ),
     )
 
 

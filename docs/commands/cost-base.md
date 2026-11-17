@@ -222,12 +222,13 @@ change to those, whichever command or tool makes it, and the next run replays
 automatically. Every table says which it was:
 
 ```text
-computed just now
-cached 15m ago
-acb cached 15m ago · quotes cached 3m ago
+● acb computed just now · updated Nov 14 (2d ago)
+⏱ acb cached 15m ago · quotes cached 3m ago · updated Nov 14 (2d ago)
 ```
 
-`--refresh` forces a replay. `--offline` uses only the quotes already cached.
+The line ends with the last update's date and age, yellow once it is older than
+`update.stale_days` (see [Freshness](dashboard.md#freshness)). `--refresh` forces a
+replay. `--offline` uses only the quotes already cached.
 
 ## FX coverage
 

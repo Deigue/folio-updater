@@ -453,6 +453,20 @@ def test_a_nonsense_quote_ttl_keeps_the_default(
         assert ctx.config.quotes_ttl_minutes == 15
 
 
+@pytest.mark.parametrize(
+    ("setting", "days"),
+    [({}, 7), ({"stale_days": 3}, 3)],
+    ids=["default", "set"],
+)
+def test_the_last_update_goes_stale_after_a_week_unless_set(
+    temp_ctx: TempContext,
+    setting: dict[str, object],
+    days: int,
+) -> None:
+    with temp_ctx(update=setting) as ctx:
+        assert ctx.config.update_stale_days == days
+
+
 def test_check_suppressions_are_trimmed_and_matched_in_upper_case(
     temp_ctx: TempContext,
 ) -> None:

@@ -323,6 +323,11 @@ class Config:
         return [name.upper() for name in self._settings["checks"]["ignore_accounts"]]
 
     @property
+    def update_stale_days(self) -> int:
+        """How many days after the last update reports call it stale."""
+        return self._settings["update"]["stale_days"]
+
+    @property
     def quotes_ttl_minutes(self) -> int:
         """How long a cached price stays fresh before a refetch is due."""
         return self._settings["quotes"]["ttl_minutes"]

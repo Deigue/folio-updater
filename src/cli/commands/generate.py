@@ -140,7 +140,7 @@ def write_folio(
     sheets = folio_sheets(
         FolioSources.read(valuation, moves=moves),
         sections,
-        notes=[freshness_note(folio.freshness)],
+        notes=[freshness_note(folio.freshness, with_update=False)],
     )
     return WrittenFolio(_write(target, sheets), unpriced=folio.holdings.unpriced)
 

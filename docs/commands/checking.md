@@ -21,6 +21,14 @@ Every check here is a by-product of the cost-base replay `folio acb` already per
 so running it costs just one replay. If `folio acb` has already ran and cached,
 `folio check` will be instant.
 
+Checks only see what has been imported, so a line above the results dates the last
+`folio update` or `folio import`, yellow once it is older than `update.stale_days`
+(see [Freshness](dashboard.md#freshness)):
+
+```text
+⏱ updated Nov 14 (2d ago)
+```
+
 ## Check Results
 
 ```text

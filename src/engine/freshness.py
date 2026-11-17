@@ -1,13 +1,15 @@
-"""How current a report's replay, quotes and FX rate are."""
+"""How current a report's last update, replay, quotes and FX rate are."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import numpy as np
 
+from app import get_config
+from db import update_baselines
 from domain.constants import TORONTO_TZ
 from services.quote_service import QuoteService
 
@@ -39,6 +41,9 @@ class Freshness:
         fx_date: The date of the FX rate a figure shown was converted at, or
             None when nothing was converted.
         fx_stale: Whether that rate is too old to be current.
+        updated_at: When the latest update or import saved the baseline, or
+            None before the first.
+        update_stale: Whether that was longer ago than `update.stale_days`.
     """
 
     replayed_at: datetime | None = None
@@ -46,6 +51,8 @@ class Freshness:
     quotes_stale: bool = False
     fx_date: str | None = None
     fx_stale: bool = False
+    updated_at: datetime | None = None
+    update_stale: bool = False
 
     @classmethod
     def of(
@@ -54,10 +61,20 @@ class Freshness:
         quotes: Mapping[str, Quote],
         fx_date: str | None = None,
     ) -> Freshness:
-        """Age a replay, the quotes a report shows and the rate it converted at."""
+        """Age the last update, a replay, the quotes shown and the rate converted at."""
         quotes_at, stale = QuoteService.quote_age(quotes)
-        # A cache holding nothing says so; calling it stale would add nothing.
-        aged = cls(replayed_at, quotes_at, stale and quotes_at is not None)
+        updated_at = _last_update()
+        update_stale = updated_at is not None and datetime.now(
+            updated_at.tzinfo,
+        ) - updated_at > timedelta(days=get_config().update_stale_days)
+        aged = cls(
+            replayed_at,
+            quotes_at,
+            # A cache holding nothing says so; calling it stale would add nothing.
+            stale and quotes_at is not None,
+            updated_at=updated_at,
+            update_stale=update_stale,
+        )
         return aged.converted_at(fx_date)
 
     @classmethod
@@ -75,3 +92,12 @@ class Freshness:
         today = datetime.now(TORONTO_TZ).date()
         stale = fx_date is not None and fx_rate_stale(fx_date, today)
         return replace(self, fx_date=fx_date, fx_stale=stale)
+
+
+def _last_update() -> datetime | None:
+    """When the latest update or import saved the baseline, None before the first.
+
+    A folio that was never updated, the demo among them, has no baseline.
+    """
+    saved = [baseline.saved_at for baseline in update_baselines.read()]
+    return max(saved, default=None)

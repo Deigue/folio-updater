@@ -183,17 +183,24 @@ The `Room` line appears only for TFSA, RRSP and FHSA pools, and only once
 keyed by account type and year, because a CRA limit covers every account of that
 type at once.
 
-## Cache freshness
+## Freshness
 
-Two independent caches feed this table, and the header ages both:
+The header ages everything behind the figures, on one line:
 
 ```text
-* acb computed just now . ~ quotes cached 15m ago
-~ acb cached 4d ago . ! quotes cached 6d ago (offline)
+⏱ acb cached 4h ago · quotes cached 5m ago · updated Nov 14 (2d ago)
+⚠ acb cached 4d ago · quotes cached 6d ago · fx rate from Nov 6 · updated Nov 4 (12d ago) (offline)
 ```
 
-A quote past its TTL is highlighted, because a stale price silently makes every
-market value and unrealized gain on the page wrong.
+One icon leads the line: ⚠ when any part is stale, ⏱ when any part is cached, and ●
+when everything was just computed. A stale part turns yellow:
+
+- a quote past its TTL, because a stale price silently makes every market value and
+  unrealized gain on the page wrong;
+- an FX rate more than three business days old, which is shown only then;
+- a last `folio update` or `folio import` older than `update.stale_days` (default 7,
+  see [Configuration](../configuration.md)). The update's date and age always show, so
+  you can tell at a glance when the folio last caught up.
 
 ## Since the last update
 

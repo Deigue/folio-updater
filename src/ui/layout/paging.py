@@ -120,7 +120,7 @@ def page_frame(
         title: Title for the display
         page_size: Rows per page. If None, calculated from console height
         render: Called with (start, end) to draw one page of rows
-        badge: Optional status line (e.g. from `freshness_badge`) printed
+        badge: Optional status line (e.g. from `cache_badge`) printed
             above every page
         reserved: Further lines each page draws that the height budget cannot see
         page_footer: Lines printed under every page, one terminal line each.

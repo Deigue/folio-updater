@@ -45,6 +45,9 @@ Details shown:
   row, which it would merely repeat. The non-registered row is badged **CRA**,
   since its cost base is the one that is taxed.
 
+The freshness line above it ages the quote, and once you hold the security, the cost
+base and the last update too (see [Freshness](dashboard.md#freshness)).
+
 ### The ranges
 
 | Range | Starts at                                                  | Drawn from        |

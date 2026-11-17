@@ -19,7 +19,9 @@ import typer
 from app import get_config
 from cli.commands.common import require_ledger
 from engine.checks import CheckReport, UnknownCheckError, run_checks, validate_slugs
+from engine.freshness import Freshness
 from term import console_error
+from ui.format import cache_badge
 from ui.views.checks import emit_json, print_report
 
 if TYPE_CHECKING:
@@ -83,7 +85,10 @@ def run_folio_checks(only: str | None = None, *, as_json: bool = False) -> None:
     if as_json:
         emit_json(report)
     else:
-        print_report(report, only=only)
+        # Checks read no quotes, so only the last update's age is worth saying.
+        freshness = Freshness.of(ledger.computed_at, {})
+        badge = cache_badge(freshness, with_acb=False, with_quotes=False)
+        print_report(report, only=only, badge=badge)
 
     if report.failed:
         raise typer.Exit(1)

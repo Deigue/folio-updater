@@ -17,7 +17,7 @@ from app import get_config
 from config import Config
 from domain import TORONTO_TZ
 from engine.holdings import SORT_KEYS, SortKey
-from term import console_error, console_info, console_print
+from term import console_error
 
 __version__ = _pkg_version("folio-updater")
 
@@ -806,37 +806,39 @@ def demo_cmd() -> None:
 @app.command("version", rich_help_panel=_GROUP_WORKBOOK_SETUP)
 def show_version() -> None:
     """Show the version and exit."""
-    from rich.markup import escape
-
-    from ui.format import stamped
+    from ui.views.version import PathTime
+    from ui.views.version import show_version as print_version
 
     config = get_config()
     if getattr(sys, "frozen", False):
-        app_path = Path(sys.executable).resolve()
-        app_when = stamped(_modified(app_path), "built")
+        exe = Path(sys.executable).resolve()
+        app = PathTime("application path", exe, _modified(exe), "built")
     else:
-        app_path = Config.get_default_root_directory()
+        root = Config.get_default_root_directory()
         # An editable install runs the source as it is, so its newest file is the build.
         source = Path(__file__).resolve().parents[1]
-        app_when = stamped(_newest(source, "*.py"), "source changed")
-    backup = _newest(config.backup_path, "*")
-    rows = [
-        ("application path", app_path, app_when),
-        ("config path", config.config_path, stamped(_modified(config.config_path))),
-        ("folio path", config.folio_path, stamped(_modified(config.folio_path))),
-        ("data path", config.db_path, stamped(_modified(config.db_path))),
-        (
-            "backup path",
-            config.backup_path,
-            "no backup yet" if backup is None else stamped(backup, "last backup"),
-        ),
-    ]
-    width = max(len(f"{label}: {path}") for label, path, _ in rows)
-
-    console_print(f"folio-updater version: {__version__}")
-    for label, path, when in rows:
-        line = escape(f"{label}: {path}".ljust(width))
-        console_info(f"{line}  [dim]{when}[/dim]")
+        app = PathTime(
+            "application path",
+            root,
+            _newest(source, "*.py"),
+            "source changed",
+        )
+    print_version(
+        __version__,
+        [
+            app,
+            PathTime("config path", config.config_path, _modified(config.config_path)),
+            PathTime("folio path", config.folio_path, _modified(config.folio_path)),
+            PathTime("data path", config.db_path, _modified(config.db_path)),
+            PathTime(
+                "backup path",
+                config.backup_path,
+                _newest(config.backup_path, "*"),
+                "last backup",
+                "no backup yet",
+            ),
+        ],
+    )
 
 
 def _modified(path: Path) -> datetime | None:

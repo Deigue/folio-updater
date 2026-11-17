@@ -196,6 +196,12 @@ SETTINGS: tuple[Setting, ...] = (
     Setting("checks.disabled", [], names, "folio check checks that do not run."),
     Setting("checks.ignore_tickers", [], names, "Securities folio check ignores."),
     Setting("checks.ignore_accounts", [], names, "Accounts folio check ignores."),
+    Setting(
+        "update.stale_days",
+        7,
+        positive_int,
+        "Days since the last update before reports call it stale.",
+    ),
     Setting("quotes.ttl_minutes", 15, positive_int, "Minutes a price stays fresh."),
     Setting(
         "quotes.metadata_ttl_days",

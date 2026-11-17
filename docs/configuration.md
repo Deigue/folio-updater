@@ -108,6 +108,8 @@ checks:
   disabled: []
   ignore_tickers: []
   ignore_accounts: []
+update:
+  stale_days: 7
 quotes:
   ttl_minutes: 15
   metadata_ttl_days: 30
@@ -137,6 +139,7 @@ contribution_room:
 | **`accounts`**           | Overrides for each account's details. See [Account resolution](#account-resolution) below.                                                                                                                                                                                                                              |
 | **`cost_basis`**         | `auto_getfx` (boolean): allow `folio acb` to fetch missing FX rates itself (default: true). Turn it off to keep cost-base commands entirely offline.                                                                                                                                                                    |
 | **`checks`**             | Suppression lists for `folio check`. See [Checking the Folio](commands/checking.md#configuration).                                                                                                                                                                                                                      |
+| **`update`**             | `stale_days` (integer): days after the last update or import before `folio dash`, `acb`, `check` and `ticker` show its age in yellow (default: 7).                                                                                                                                                                      |
 | **`quotes`**             | Quote cache settings for `folio dash` and `folio quotes`. See [Quotes](#quotes) below.                                                                                                                                                                                                                                  |
 | **`contribution_room`**  | CRA contribution limits by account type and year. See [Contribution room](#contribution-room) below.                                                                                                                                                                                                                    |
 

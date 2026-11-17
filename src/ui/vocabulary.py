@@ -7,6 +7,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from domain import AccountType, Action, BrokerId, Currency
+from term import supports_unicode
 
 
 class TransactionContext(StrEnum):
@@ -65,6 +66,20 @@ RULE_STATEMENT = "medium_purple3"
 STATUS_FAILED = "red"
 STATUS_SUCCESS = "green"
 STATUS_NO_DATA = "yellow"
+
+# --- Freshness ---------------------------------------------------------------
+
+# The icon leading a freshness line, for its most urgent part (a stale part
+# leads with the warning glyph), and the separator between its parts.
+FRESH_ICON, CACHED_ICON = ("●", "⏱") if supports_unicode() else ("*", "~")
+FRESHNESS_SEPARATOR = "·" if supports_unicode() else "|"
+
+# Ages in whole days: under two weeks they count days, under a month weeks,
+# under twelve months months, then years.
+AGE_WEEKS_FROM_DAYS = 14
+AGE_DAYS_PER_MONTH = 30
+AGE_MONTHS_PER_YEAR = 12
+AGE_DAYS_PER_YEAR = 365
 
 # --- Dashboard palette ------------------------------------------------------
 

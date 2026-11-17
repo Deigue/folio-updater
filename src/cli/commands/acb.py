@@ -30,8 +30,6 @@ from services.quote_service import QuoteService
 from term import console_error, console_info, console_warning
 from ui.format import (
     cache_badge,
-    format_freshness,
-    freshness_badge,
     freshness_note,
 )
 from ui.views.acb import show_buildup, show_summary
@@ -182,20 +180,12 @@ def show_acb(  # noqa: PLR0917
             report,
             export,
             parquet=parquet,
-            badge=(
-                freshness_note(freshness)
-                if quotes
-                else f"Cost base {format_freshness(ledger.computed_at)}."
-            ),
+            badge=freshness_note(freshness, with_quotes=bool(quotes)),
         )
     elif summary:
-        show_summary(report, freshness_badge(ledger.computed_at))
+        show_summary(report, cache_badge(freshness, with_quotes=False))
     elif report.rows.empty:
         console_warning(f"No {canonical} transactions in the {pool.label} pool.")
     else:
-        badge = (
-            cache_badge(freshness, offline=offline)
-            if quotes
-            else freshness_badge(ledger.computed_at)
-        )
+        badge = cache_badge(freshness, offline=offline, with_quotes=bool(quotes))
         show_buildup(report, badge)

@@ -86,8 +86,16 @@ def _print_summary(report: CheckReport) -> None:
         console_warning(message)
 
 
-def print_report(report: CheckReport, only: str | None) -> None:
-    """Print the report: one line per check, and detail under the ones that failed."""
+def print_report(report: CheckReport, only: str | None, badge: str = "") -> None:
+    """Print the report: one line per check, and detail under the ones that failed.
+
+    Args:
+        report: The checks' results.
+        only: The one check asked for, whose findings show even when it passed.
+        badge: The freshness line printed above the report, if any.
+    """
+    if badge:
+        console_print(badge)
     console_print("")
     for result in report.results:
         console_print(_heading(result))

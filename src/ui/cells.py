@@ -191,6 +191,11 @@ def long_date(iso: str | None) -> str | None:
     return f"{day:%b} {day.day}, {day.year}"
 
 
+def short_date(day: date) -> str:
+    """Render a recent date without its year: `Oct 28`."""
+    return f"{day:%b} {day.day}"
+
+
 def clock_time(iso: str) -> str:
     """Render a UTC timestamp as Toronto wall-clock time: `1:59 PM`."""
     moment = datetime.fromisoformat(iso).astimezone(TORONTO_TZ)
