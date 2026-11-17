@@ -457,12 +457,14 @@ def test_every_dashboard_pool_keeps_its_figures(
     request: pytest.FixtureRequest,
     demo_ledger: Ledger,
 ) -> None:
+    # One pricing serves every currency: the figures must match a fresh build.
+    valuation = FolioValuation.build(demo_ledger)
     rows = [
         row
         for display in _DISPLAY_CURRENCIES
         for row in _dashboard_rows(
             str(display),
-            _every_pool(FolioValuation.build(demo_ledger, currency=display)),
+            _every_pool(valuation.in_currency(display)),
         )
     ]
     header = ["Display", "Grain", "Pool", "Item", "Figure", "Value"]

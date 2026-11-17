@@ -21,6 +21,7 @@ from cli.commands.common import (
 from domain import CurrencyColumns
 from domain.text import strip_upper
 from engine.acb_report import AcbReport, AcbShape, NoUsdFiguresError
+from engine.freshness import Freshness
 from engine.fx_rates import load_fx_rates
 from engine.gain_since_buy import bought_symbols
 from exporters.output import PARQUET_SUFFIX, write_frame_parquet
@@ -174,6 +175,7 @@ def show_acb(  # noqa: PLR0917
             offline=offline,
         )
         report = report.priced(quotes, load_fx_rates())
+    freshness = Freshness.of(ledger.computed_at, quotes, report.fx_date)
 
     if export:
         _export(
@@ -181,7 +183,7 @@ def show_acb(  # noqa: PLR0917
             export,
             parquet=parquet,
             badge=(
-                freshness_note(ledger.computed_at, quotes)
+                freshness_note(freshness)
                 if quotes
                 else f"Cost base {format_freshness(ledger.computed_at)}."
             ),
@@ -192,7 +194,7 @@ def show_acb(  # noqa: PLR0917
         console_warning(f"No {canonical} transactions in the {pool.label} pool.")
     else:
         badge = (
-            cache_badge(quotes, computed_at=ledger.computed_at, offline=offline)
+            cache_badge(freshness, offline=offline)
             if quotes
             else freshness_badge(ledger.computed_at)
         )

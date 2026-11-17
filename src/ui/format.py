@@ -13,14 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from services.quote_service import QuoteService
 from term.console import supports_unicode
 from ui.cells import WARN_GLYPH, display_round
 
 if TYPE_CHECKING:
-    from collections.abc import Container, Mapping, Sequence
+    from collections.abc import Container, Sequence
 
-    from models import Quote
+    from engine.freshness import Freshness
 
 
 def safe_str(value: Any) -> str:
@@ -194,52 +193,54 @@ _QUOTES_LABEL = "quotes"
 
 
 def cache_badge(
-    quotes: Mapping[str, Quote],
+    freshness: Freshness,
     *,
-    computed_at: datetime | None = None,
     offline: bool = False,
     with_acb: bool = True,
 ) -> str:
     """Compose the freshness line for a priced report.
 
     Args:
-        quotes: The quotes the report was priced with.
-        computed_at: When the cost base was computed, or None if just now.
+        freshness: How current the report's replay, quotes and FX rate are.
         offline: Whether the network was kept out of it, which is said.
         with_acb: Age the cost base too. A report that read no folio leaves it
             out rather than claim a cost base it never used.
 
     Returns:
-        A Rich-markup line for cache-freshness status.
+        A Rich-markup line for cache-freshness status. A current FX rate is
+        left out: the report's own conversion note already dates it.
     """
-    quote_at, stale = QuoteService.quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    parts = [(_QUOTES_LABEL, quote_at)]
+    empty = freshness.quotes_at is None
+    parts = [(_QUOTES_LABEL, freshness.quotes_at)]
     if with_acb:
-        parts.insert(0, (_ACB_LABEL, computed_at))
+        parts.insert(0, (_ACB_LABEL, freshness.replayed_at))
     line = freshness_line(
         parts,
-        warn={_QUOTES_LABEL} if stale and not empty else set(),
+        warn={_QUOTES_LABEL} if freshness.quotes_stale else set(),
         missing={_QUOTES_LABEL} if empty else set(),
     )
+    if freshness.fx_stale:
+        stale = f"[yellow]fx rate from {freshness.fx_date}[/yellow]"
+        line += f" [dim]·[/dim] [red]{WARN_GLYPH}[/red] {stale}"
     return f"{line} [dim](offline)[/dim]" if offline else line
 
 
-def freshness_note(
-    computed_at: datetime | None,
-    quotes: Mapping[str, Quote],
-) -> str:
-    """Say how old both caches are (cost base cache + quotes cache date).
+def freshness_note(freshness: Freshness) -> str:
+    """Say how current the replay, the quotes and a stale FX rate are.
 
     Args:
-        computed_at: When the cost base was computed, or None if just now.
-        quotes: The quotes the sheet was priced with.
+        freshness: How current the sheet's replay, quotes and FX rate are.
 
     Returns:
         One sentence, such as `Cost base computed just now; quotes cached 15m
         ago.`
     """
-    quote_at, _ = QuoteService.quote_age(quotes)
-    empty = not any(quote.fetched_at for quote in quotes.values())
-    aged = "nothing cached" if empty else format_freshness(quote_at)
-    return f"Cost base {format_freshness(computed_at)}; quotes {aged}."
+    quotes = (
+        "nothing cached"
+        if freshness.quotes_at is None
+        else format_freshness(freshness.quotes_at)
+    )
+    note = f"Cost base {format_freshness(freshness.replayed_at)}; quotes {quotes}"
+    if freshness.fx_stale:
+        note += f"; FX rate from {freshness.fx_date} (stale)"
+    return f"{note}."

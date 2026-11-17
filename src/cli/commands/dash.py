@@ -23,6 +23,7 @@ from cli.commands.common import (
 )
 from domain import Currency, Grain
 from engine.accounts import FOLIO, Pool
+from engine.freshness import Freshness
 from engine.holdings import UnknownSortError, parse_sort
 from engine.pools import FolioValuation
 from engine.since_update import since_update
@@ -82,20 +83,6 @@ def _export(valued_pools: Sequence[ValuedPool], path: str, badge: str) -> None:
     console_info(f"Exported {count} holding(s) to {written}")
 
 
-def _badge(valuation: FolioValuation, *, offline: bool) -> str:
-    """Disclose how old both caches behind the dashboard are."""
-    return cache_badge(
-        valuation.quotes,
-        computed_at=valuation.ledger.computed_at,
-        offline=offline,
-    )
-
-
-def _note(valuation: FolioValuation) -> str:
-    """Say, as plain text for a sheet's notes, how old both caches are."""
-    return freshness_note(valuation.ledger.computed_at, valuation.quotes)
-
-
 def show_types(
     valuation: FolioValuation,
     *,
@@ -131,14 +118,15 @@ def show_types(
     if not valued_pools:
         console_warning("No open holdings in any account type.")
         return
+    freshness = Freshness.across([valued.freshness for valued in valued_pools])
     if export:
-        _export(valued_pools, export, _note(valuation))
+        _export(valued_pools, export, freshness_note(freshness))
         return
     show_by_type(
         valued_pools,
         wide=wide,
         show_closed=show_closed,
-        badge=_badge(valuation, offline=offline),
+        badge=cache_badge(freshness, offline=offline),
         since=since,
     )
 
@@ -219,13 +207,13 @@ def show_dash(
     valued = valuation.value(pool, sort=sort, reverse=reverse)
 
     if export:
-        _export([valued], export, _note(valuation))
+        _export([valued], export, freshness_note(valued.freshness))
         return
 
     show_dashboard(
         valued,
         wide=wide,
         show_closed=show_closed,
-        badge=_badge(valuation, offline=offline),
+        badge=cache_badge(valued.freshness, offline=offline),
         since=since_update(valuation, pool),
     )

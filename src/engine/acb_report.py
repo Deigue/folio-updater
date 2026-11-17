@@ -17,6 +17,7 @@ from engine.frames import (
     replay_ordered,
 )
 from engine.gain_since_buy import with_gains_since_buy
+from engine.holdings import latest_rate
 from models import txns_frame
 
 if TYPE_CHECKING:
@@ -91,6 +92,8 @@ class AcbReport:
             buildup, replay order otherwise. A view only ever reverses them.
         source: The whole ledger the rows were picked from.
         stored_columns: Columns the stored transactions added to `rows`.
+        fx_date: The date of today's rate a priced report converted a quote at,
+            or None when it converted none.
     """
 
     pool: Pool
@@ -100,6 +103,7 @@ class AcbReport:
     rows: pd.DataFrame
     source: pd.DataFrame = field(repr=False)
     stored_columns: tuple[str, ...] = ()
+    fx_date: str | None = None
 
     @classmethod
     def build(  # noqa: PLR0913
@@ -276,7 +280,17 @@ class AcbReport:
         rows = self.rows.copy()
         for column in _GAIN_COLUMNS:
             rows[column] = gains[column]
-        return replace(self, rows=rows)
+        converted = any(self._converts(quote) for quote in quotes.values())
+        _, rate_date = latest_rate(fx_rates)
+        return replace(self, rows=rows, fx_date=rate_date if converted else None)
+
+    def _converts(self, quote: Quote) -> bool:
+        """Whether a quote is shown in a currency column other than its own."""
+        if not quote.priced:
+            return False
+        if quote.currency is Currency.USD:
+            return self.currencies.cad
+        return quote.currency is Currency.CAD and self.currencies.usd
 
 
 def _usd_holdings(rows: pd.DataFrame, grain: Grain) -> set[str]:

@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from domain import Action, Column, Currency, DiagnosticCode, Grain, PriceRange
 from domain.numeric import ZERO, dec
 from engine.accounts import FOLIO, Pool
+from engine.pools import Conversion, Converted
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -89,6 +90,16 @@ class SymbolHoldings:
     fx_date: str | None = None
     first_buy: FirstBuy | None = None
 
+    def conversion(self, quoted: Currency | None) -> Converted | None:
+        """Say what its market value was converted at from the quote's currency.
+
+        None when the figures are in the currency the security is quoted in, so
+        nothing was converted.
+        """
+        if self.currency is quoted or self.fx_rate is None:
+            return None
+        return Converted(Conversion.VALUED, self.currency, self.fx_rate, self.fx_date)
+
     def held_for(self, today: date) -> tuple[int, int]:
         """Measure how long since the first transaction, in years and months.
 
@@ -120,6 +131,26 @@ class SymbolHoldings:
         for holding in (self.total, *(line.holding for line in self.lines)):
             seen.update(dict.fromkeys(holding.flags))
         return tuple(seen)
+
+
+def conversion_date(
+    per_currency: Sequence[SymbolHoldings],
+    quoted: Currency | None,
+) -> str | None:
+    """Date the rate any of a security's views converted its market value at.
+
+    Args:
+        per_currency: The security's holdings, once per currency shown.
+        quoted: The currency the security is quoted in.
+
+    Returns:
+        The rate's date, or None when every view kept the quote's currency.
+    """
+    conversions = (holdings.conversion(quoted) for holdings in per_currency)
+    return next(
+        (found.rate_date for found in conversions if found is not None),
+        None,
+    )
 
 
 def symbol_holdings(

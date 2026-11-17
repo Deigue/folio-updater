@@ -135,14 +135,14 @@ def write_folio(
                 ),
             )
             moves = fetch_moves(valuation.quotes, refresh=refresh, offline=offline)
-    note = freshness_note(ledger.computed_at, valuation.quotes)
+    # The folio's own pool converts whatever any sheet does: a mixed total.
+    folio = valuation.value(FOLIO)
     sheets = folio_sheets(
         FolioSources.read(valuation, moves=moves),
         sections,
-        notes=[note],
+        notes=[freshness_note(folio.freshness)],
     )
-    unpriced = valuation.value(FOLIO).holdings.unpriced
-    return WrittenFolio(_write(target, sheets), unpriced=unpriced)
+    return WrittenFolio(_write(target, sheets), unpriced=folio.holdings.unpriced)
 
 
 def _write(target: Path | None, sheets: Sequence[Sheet]) -> Path:

@@ -23,12 +23,14 @@ from cli.commands.common import (
 )
 from domain import Column, Currency, Grain, QuoteStatus
 from domain.text import strip_upper, unique_upper
+from engine.freshness import Freshness
 from engine.performance import fetch_moves
 from engine.pools import FolioValuation
 from engine.ticker import (
     MARKET_SORT,
     MATRIX_SORTS,
     UnknownMatrixSortError,
+    conversion_date,
     performance_rows,
     sort_performance,
     symbol_holdings,
@@ -186,8 +188,10 @@ def _report_one(
 
     family = load_symbol_resolver().family(canonical)
     aliases = [name for name in family if name != canonical]
+    rate_date = conversion_date(per_currency, quote.currency)
+    freshness = Freshness.of(ledger.computed_at, {canonical: quote}, rate_date)
     if export:
-        note = freshness_note(ledger.computed_at, {canonical: quote})
+        note = freshness_note(freshness)
         sheet = ticker_sheet(
             quote,
             moves,
@@ -205,12 +209,7 @@ def _report_one(
         per_currency,
         aliases=aliases,
         by_account=by_account,
-        badge=cache_badge(
-            {canonical: quote},
-            computed_at=ledger.computed_at,
-            offline=offline,
-            with_acb=traded,
-        ),
+        badge=cache_badge(freshness, offline=offline, with_acb=traded),
     )
 
 
@@ -274,8 +273,11 @@ def _report_matrix(
         rows = sort_performance(rows, sort or MARKET_SORT, reverse=reverse)
 
     pool_weight = pool.grain is not Grain.FOLIO
+    # Market values are in CAD, read from the pool: its conversion is theirs.
+    rate_date = None if valued is None else valued.freshness.fx_date
+    freshness = Freshness.of(ledger.computed_at, priced, rate_date)
     if export:
-        note = freshness_note(ledger.computed_at, priced)
+        note = freshness_note(freshness)
         sheet = performance_sheet(
             rows,
             name=f"Performance - {pool.label}",
@@ -289,12 +291,7 @@ def _report_matrix(
         rows,
         title=pool.label,
         pool_weight=pool_weight,
-        badge=cache_badge(
-            priced,
-            computed_at=ledger.computed_at,
-            offline=offline,
-            with_acb=valued is not None,
-        ),
+        badge=cache_badge(freshness, offline=offline, with_acb=valued is not None),
     )
 
 
@@ -320,16 +317,16 @@ def _per_currency(
 
     The native view is valued first, since it says which currency the security
     trades in: a CAD security has nothing to show in USD, so any choice shows
-    it in CAD, once.
+    it in CAD, once. The folio is valued once and shown in each currency.
     """
+    valuation = FolioValuation.build(ledger, offline=offline)
 
     def holdings_in(currency: DisplayCurrency) -> SymbolHoldings | None:
-        valuation = FolioValuation.build(
-            ledger,
-            currency=currency,
-            offline=offline,
+        return symbol_holdings(
+            valuation.in_currency(currency),
+            symbol,
+            by_account=by_account,
         )
-        return symbol_holdings(valuation, symbol, by_account=by_account)
 
     native = holdings_in("native")
     if native is None or choice in {"native", "USD"} or native.currency is Currency.CAD:

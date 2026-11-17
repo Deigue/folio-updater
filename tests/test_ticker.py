@@ -17,6 +17,7 @@ from engine.ticker import (
     FirstBuy,
     PerformanceRow,
     UnknownMatrixSortError,
+    conversion_date,
     performance_rows,
     range_extremes,
     sort_performance,
@@ -129,6 +130,22 @@ def test_a_holding_the_display_currency_hides_is_not_returned(
         in_usd = FolioValuation.build(open_ledger(), currency=Currency.USD)
 
         assert symbol_holdings(in_usd, "CADCO.TO") is None
+
+
+def test_a_usd_holding_shown_in_cad_names_the_rate_it_converted_at(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_two_types()
+        valuation = _valuation()
+
+        native = symbol_holdings(valuation, "TESTTKR")
+        in_cad = symbol_holdings(valuation.in_currency(Currency.CAD), "TESTTKR")
+
+        assert native is not None
+        assert in_cad is not None
+        assert conversion_date([native], Currency.USD) is None
+        assert conversion_date([native, in_cad], Currency.USD) == "2025-08-20"
 
 
 def _ranged(price_range: PriceRange, anchor: int) -> RangeHistory:

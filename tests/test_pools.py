@@ -121,6 +121,9 @@ def test_a_usd_only_pool_discloses_its_return_as_converted(
                 "2025-08-20",
             ),
         )
+        # The badge warns of the same rate, long behind today.
+        assert valued.freshness.fx_date == "2025-08-20"
+        assert valued.freshness.fx_stale
 
 
 def _mixed(
@@ -188,6 +191,7 @@ def test_hiding_part_of_a_pool_says_why_its_return_is_blank(
 
         assert valued.subtotal_return(usd) == Return()
         assert valued.disclosures == (TotalReturnHidden(1, Currency.USD),)
+        assert valued.freshness.fx_date is None
 
 
 def test_a_pool_with_no_cad_deposits_has_no_hidden_return_to_explain(

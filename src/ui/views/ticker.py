@@ -529,9 +529,10 @@ def _closed_cells(line: PoolLine) -> list[str]:
 
 def _conversion_notes(holdings: SymbolHoldings, quote: Quote) -> list[str]:
     """Say what a table in another currency than the quote's was converted at."""
-    if holdings.currency is quote.currency or holdings.fx_rate is None:
+    converted = holdings.conversion(quote.currency)
+    if converted is None:
         return []
-    rate = f"USDCAD {float(holdings.fx_rate):,.4f} ({holdings.fx_date})"
+    rate = f"USDCAD {float(converted.rate):,.4f} ({converted.rate_date})"
     note = (
         "[dim]Cost base at each transaction's settlement-date rate; "
         f"market value at {rate}.[/dim]"

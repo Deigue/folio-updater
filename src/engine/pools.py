@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -25,6 +25,7 @@ from engine.flows import (
     withdrawals_by_type_year,
 )
 from engine.frames import POOL_COLUMN
+from engine.freshness import Freshness
 from engine.fx_rates import load_fx_rates
 from engine.holdings import UNITS_SUSPECT, FolioHoldings, latest_rate
 from models import UpdateBaseline
@@ -129,11 +130,22 @@ class ValuedPool:
         pool: The pool this reports on.
         holdings: Its valued holdings and totals.
         flows: Its cash, contributions and cumulative income.
+        valuation_freshness: How current the valuation it came from is, before
+            this pool's own conversion.
     """
 
     pool: Pool
     holdings: HoldingSet
     flows: Flows
+    valuation_freshness: Freshness
+
+    @property
+    def freshness(self) -> Freshness:
+        """How current the pool's figures are, the rate it converted at included."""
+        converted = self._conversion()
+        return self.valuation_freshness.converted_at(
+            None if converted is None else converted.rate_date,
+        )
 
     @property
     def label(self) -> str:
@@ -260,6 +272,7 @@ class FolioValuation:
         contributions: Every type's per-year contributions, for the room line.
         withdrawals: Every type's per-year withdrawals, for the room history.
         quotes: The quote used for each held symbol.
+        freshness: How current the replay and the quotes are.
         folio_market: The whole folio's CAD market value, which is the
             denominator behind `Folio%` however narrow a pool is.
     """
@@ -270,6 +283,7 @@ class FolioValuation:
     contributions: Mapping[AccountType, Mapping[int, Decimal]]
     withdrawals: Mapping[AccountType, Mapping[int, Decimal]]
     quotes: dict[str, Quote]
+    freshness: Freshness
     folio_market: Decimal | None = None
 
     @classmethod
@@ -302,8 +316,16 @@ class FolioValuation:
             contributions=contributions_by_type_year(frame),
             withdrawals=withdrawals_by_type_year(frame),
             quotes=quotes,
+            freshness=Freshness.of(ledger.computed_at, quotes),
             folio_market=folio_holdings.market_value(),
         )
+
+    def in_currency(self, currency: DisplayCurrency) -> FolioValuation:
+        """Express the same priced folio in another currency.
+
+        Nothing is fetched or priced again: only `value` reads the currency.
+        """
+        return replace(self, currency=currency)
 
     @property
     def room_history(self) -> list[Room]:
@@ -357,7 +379,12 @@ class FolioValuation:
             room=get_config().contribution_room,
             contributions=self.contributions,
         )
-        return ValuedPool(pool=pool, holdings=holdings, flows=flows)
+        return ValuedPool(
+            pool=pool,
+            holdings=holdings,
+            flows=flows,
+            valuation_freshness=self.freshness,
+        )
 
     @property
     def usd_cad(self) -> Decimal:

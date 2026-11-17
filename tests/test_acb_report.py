@@ -389,6 +389,19 @@ def test_pricing_works_out_each_buys_gain_in_a_new_report() -> None:
     assert priced.rows[grain_column(Grain.TYPE, "Gain")].tolist() == [200]
     assert priced.rows[grain_column(Grain.TYPE, "GainPct")].tolist() == [0.2]
     assert grain_column(Grain.TYPE, "GainPct") not in report.rows.columns
+    # A CAD quote in CAD columns converts nothing.
+    assert priced.fx_date is None
+
+
+def test_pricing_a_usd_quote_in_cad_columns_names_the_rate_it_converted_at() -> None:
+    frame = _frame([_buy(1, "2024-01-02", currency="USD")])
+    report = AcbReport.build(frame, NREG, AcbShape.BUILDUP, symbol="AAA")
+    quote = replace(_quote("120"), currency=Currency.USD)
+
+    priced = report.priced({"AAA": quote}, FLAT_FX)
+
+    assert report.currencies.cad
+    assert priced.fx_date == "2020-01-01"
 
 
 def test_a_split_in_another_account_counts_toward_a_buys_gain() -> None:
