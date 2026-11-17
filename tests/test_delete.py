@@ -8,9 +8,9 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from cli.commands import delete as delete_module
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
+from db import txns
 from domain import Column
 
 from .helpers.cli import (
@@ -346,7 +346,7 @@ class TestDeleteSideEffects:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(delete_module.txns, "delete", return_value=0):
+            with patch.object(txns, "delete", return_value=0):
                 cli_result = run_cli(
                     cli_app,
                     ["delete", str(txn_id), "--force"],

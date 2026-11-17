@@ -1,6 +1,7 @@
 """Tests to verify the functionality of Parquet transaction exports."""
 
 import pandas as pd
+import pytest
 
 from datagen import ensure_data_exists
 from exporters import ParquetExporter
@@ -10,6 +11,7 @@ from .helpers.dataframe import verify_db_contents
 from .helpers.folio import txn_total
 
 
+@pytest.mark.real_parquet_export
 def test_export_transactions_parquet(temp_ctx: TempContext) -> None:
     """The Parquet export holds every transaction the database holds."""
     with temp_ctx() as ctx:

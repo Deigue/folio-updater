@@ -9,38 +9,30 @@ calculation and audit logging all behave identically.
 
 from __future__ import annotations
 
-import logging
 from contextlib import nullcontext
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import typer
 
-from app import audit, get_config
-from app.audit import AuditMark, audit_txns
-from cli.commands.common import export_to_parquet
-from db import IntegrityError, current_backup, txns
+from app import audit
+from cli.commands.common import commit, refusal
 from domain import (
     ACTION_PROFILES,
     ALWAYS_REQUIRED,
     SUPPORTED_CURRENCIES,
     TORONTO_TZ,
-    TXN_ESSENTIALS,
     Action,
     Column,
     resolve_action,
 )
-from ingest import prepare_transactions
-from models.txn_keys import generate_keys, txns_with_keys
-from term import console_error, console_info, console_success, console_warning
+from ingest.changes import AddPlan, PlanRefusedError, plan_add
+from term import console_error, console_info, console_warning
 from ui.transaction_table import show_transactions
 
 if TYPE_CHECKING:
     from app.audit import AuditEntry
-    from models import ImportResults, NewTxn, Txn
 
-logger = logging.getLogger(__name__)
 
 # Order fields are prompted in: when, where, then what and how much.
 PROMPT_ORDER: tuple[str, ...] = (
@@ -158,95 +150,32 @@ def _parse_extra_fields(values: list[str] | None) -> dict[str, str]:
     return extras
 
 
-def _build_dataframe(
+def _plan(
     fields: dict[str, str],
+    entry: AuditEntry,
     *,
     approve_duplicate: bool,
-) -> pd.DataFrame:
-    """Build the single-row DataFrame handed to the preparation pipeline.
-
-    Every essential column is seeded, even when the action does not use it.
-    Imports get that guarantee from header mapping; skipping mapping means
-    providing it here, since duplicate key generation reads all of them.
-    """
-    row: dict[str, object] = dict.fromkeys(TXN_ESSENTIALS, pd.NA)
-    row.update(fields)
-    if approve_duplicate:
-        config = get_config()
-        row[config.duplicate_approval_column] = config.duplicate_approval_value
-    return pd.DataFrame([row])
-
-
-def _show_rejections(results: ImportResults) -> None:
-    """Report why the transaction failed validation."""
-    console_error("Transaction was rejected:")
-    for _, row in results.invalid_df.iterrows():
-        reason = row.get(Column.REJECTION_REASON, "Unknown reason")
-        console_error(f"  {reason}")
-
-
-def _find_existing_duplicates(prepared_df: pd.DataFrame) -> list[Txn]:
-    """Find transactions already in the database matching the prepared row.
-
-    Uses the same synthetic key the duplicate filter uses, so the rows shown are
-    exactly the ones that caused the rejection.
-
-    Args:
-        prepared_df: The single-row prepared (formatted) DataFrame.
-
-    Returns:
-        Matching transactions from the database, empty if none.
-    """
-    return txns_with_keys(txns.read(), {generate_keys(prepared_df).iloc[0]})
-
-
-def _confirm_duplicate(prepared_df: pd.DataFrame) -> bool:
-    """Show the clashing transactions and ask whether to add anyway."""
-    matches = _find_existing_duplicates(prepared_df)
-    count = len(matches)
-    console_warning(
-        f"This transaction matches {count} existing transaction(s) in the folio:",
-    )
-    if matches:
-        show_transactions(matches, max_rows=len(matches))
-
-    return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
-
-
-def _insert_transaction(approved: NewTxn, entry: AuditEntry) -> Txn:
-    """Store the prepared transaction and return it with its TxnId.
-
-    Args:
-        approved: The transaction ingest passed.
-        entry: The audit entry the insert is recorded in.
+) -> AddPlan:
+    """Work out the transaction, or report why it is rejected and stop.
 
     Raises:
-        typer.Exit: If the database rejects the row.
-
-    Returns:
-        The stored transaction.
+        typer.Exit: If the transaction is invalid.
     """
     try:
-        [txn_id] = txns.append([approved])
-    except IntegrityError as e:
-        console_error(f"Database rejected the transaction: {e}")
-        entry.failed(f"the table refused the transaction: {e}")
-        raise typer.Exit(1) from e
+        return plan_add(fields, approve_duplicate=approve_duplicate)
+    except PlanRefusedError as refused:
+        entry.failed("the transaction is invalid")
+        raise refusal(refused) from refused
 
-    stored = approved.stored_as(txn_id)
-    audit.stage(
-        "STORE 1 transaction (TxnId %d); %s",
-        txn_id,
-        audit.describe_backup(current_backup()),
+
+def _confirm_duplicate(plan: AddPlan) -> bool:
+    """Show the clashing transactions and ask whether to add anyway."""
+    console_warning(
+        f"This transaction matches {len(plan.duplicates)} existing transaction(s) "
+        "in the folio:",
     )
-    audit_txns(AuditMark.STORED, [stored])
-    return stored
-
-
-def _prepare(fields: dict[str, str], *, approve_duplicate: bool) -> ImportResults:
-    """Run the transaction through the import preparation pipeline."""
-    df = _build_dataframe(fields, approve_duplicate=approve_duplicate)
-    return prepare_transactions(df, map_headers=False)
+    show_transactions(plan.duplicates, max_rows=len(plan.duplicates))
+    return typer.confirm("Add it anyway as an intentional duplicate?", default=False)
 
 
 def add_transaction(  # noqa: PLR0917
@@ -298,29 +227,17 @@ def add_transaction(  # noqa: PLR0917
     fields.update(_parse_extra_fields(set_values))
 
     with audit.muted() if dry_run else nullcontext(), audit.entry("ADD TXN") as entry:
-        results = _prepare(fields, approve_duplicate=force)
-
-        if not results.invalid_df.empty:
-            _show_rejections(results)
-            entry.failed("the transaction is invalid")
-            raise typer.Exit(1)
-
-        if not results.db_rejected_df.empty:
-            if not _confirm_duplicate(results.db_rejected_df):
+        plan = _plan(fields, entry, approve_duplicate=force)
+        if plan.duplicates:
+            if not _confirm_duplicate(plan):
                 console_info("Transaction not added.")
                 entry.done("nothing added: the duplicate was declined")
                 return
-            results = _prepare(fields, approve_duplicate=True)
+            plan = _plan(fields, entry, approve_duplicate=True)
 
         if dry_run:
             console_info("Dry run - nothing was written to the folio.")
-            show_transactions(results.approved, title="Would Add")
+            show_transactions([plan.new], title="Would Add")
             return
 
-        added = _insert_transaction(results.approved[0], entry)
-        entry.done("1 added; folio holds %d transactions", txns.count())
-
-    console_success(f"Added transaction (TxnId {added.txn_id})")
-    show_transactions([added], title="Added Transaction")
-
-    export_to_parquet()
+        commit(plan, entry)

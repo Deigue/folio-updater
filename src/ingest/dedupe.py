@@ -1,13 +1,15 @@
-"""Rejecting duplicates of rows the folio already holds.
+"""The one duplicate check, and the import stage that rejects what it finds.
 
-The last pipeline stage, and the only one that reads the database. Rows are
-keyed on TXN_ESSENTIALS and checked both against each other (intra) and against what
-is already stored.
+Rows are keyed on TXN_ESSENTIALS and checked both against each other (within the
+batch) and against stored transactions. The pipeline's filter turns the answer
+into rejections.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -15,6 +17,50 @@ from app import audit, get_config
 from app.audit import AuditMark, audit_rows
 from db import txns
 from models.txn_keys import generate_keys, txn_keys
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from models import Txn
+
+
+@dataclass(frozen=True)
+class Duplicates:
+    """Which rows of a batch are duplicates, and the stored transactions they match.
+
+    Attributes:
+        within: Per row, whether another row of the batch matches it (every copy).
+        of_stored: Per row, whether a stored transaction matches it.
+        matches: The stored transactions some row matches, in stored order.
+    """
+
+    within: pd.Series
+    of_stored: pd.Series
+    matches: list[Txn]
+
+
+def find_duplicates(rows: pd.DataFrame, stored: Sequence[Txn] = ()) -> Duplicates:
+    """Find the rows matching each other or one of the `stored` transactions.
+
+    Args:
+        rows: The batch, in table columns.
+        stored: The transactions to check against; leave out any the batch replaces.
+
+    Returns:
+        The duplicates found.
+    """
+    keys = generate_keys(rows)
+    stored_keys = txn_keys(stored)
+    batch_keys = set(keys)
+    return Duplicates(
+        within=keys.duplicated(keep=False),
+        of_stored=keys.isin(set(stored_keys)),
+        matches=[
+            txn
+            for txn, key in zip(stored, stored_keys, strict=True)
+            if key in batch_keys
+        ],
+    )
 
 
 class TransactionFilter:
@@ -33,20 +79,16 @@ class TransactionFilter:
         if txn_df.empty:  # pragma: no cover
             return txn_df
 
-        existing_keys = TransactionFilter._get_db_transaction_keys()
-        if not existing_keys:
+        stored = txns.read()
+        if not stored:
             return txn_df
 
-        new_keys_series: pd.Series[str] = generate_keys(txn_df)
-        new_keys: set[str] = set(new_keys_series)
         audit.debug(
-            "CHECK duplicates: %d existing keys, %d new keys",
-            len(existing_keys),
-            len(new_keys),
+            "CHECK duplicates: %d stored, %d new transactions",
+            len(stored),
+            len(txn_df),
         )
-        duplicates: set[str] = existing_keys & new_keys
-
-        is_duplicate: pd.Series[bool] = new_keys_series.isin(duplicates)
+        is_duplicate = find_duplicates(txn_df, stored).of_stored
         approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(
             txn_df,
             is_duplicate,
@@ -76,12 +118,8 @@ class TransactionFilter:
         if txn_df.empty:  # pragma: no cover
             return txn_df
 
-        # Use vectorized key generation
-        keys = generate_keys(txn_df)
-        duplicate_mask = keys.duplicated(keep=False)
-        duplicate_count = duplicate_mask.sum()
-
-        if duplicate_count == 0:
+        duplicate_mask = find_duplicates(txn_df).within
+        if not duplicate_mask.any():
             return txn_df
 
         approved_mask, rejected_mask = TransactionFilter._process_duplicate_approval(
@@ -180,12 +218,3 @@ class TransactionFilter:
             )
 
             audit_rows(AuditMark.REMOVED, txn_df[rejected_mask], level=logging.WARNING)
-
-    @staticmethod
-    def _get_db_transaction_keys() -> set[str]:
-        """Get synthetic keys for all existing transactions in the database.
-
-        Returns:
-            Set of synthetic keys for existing transactions.
-        """
-        return set(txn_keys(txns.read()))

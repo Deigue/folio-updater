@@ -7,10 +7,13 @@ folio. The only writes are schema: tables are created and new optional columns
 added. The caller stores whatever is returned.
 """
 
+from ingest.dedupe import Duplicates, find_duplicates
 from ingest.pipeline import prepare_transactions
 from ingest.rules import TransactionTransformer
 
 __all__ = [
+    "Duplicates",
     "TransactionTransformer",
+    "find_duplicates",
     "prepare_transactions",
 ]

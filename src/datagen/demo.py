@@ -51,8 +51,8 @@ from engine.replay import SUPERFICIAL_LOSS_DAYS
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
 from exporters import ParquetExporter
 from importers import insert_transactions
+from ingest import find_duplicates
 from models import TickerAlias
-from models.txn_keys import generate_keys
 from services import FxService
 from term import console_warning
 
@@ -1187,7 +1187,7 @@ class DemoFolio:
         sim.run()
         columns = [*TXN_ESSENTIALS, Column.Txn.FEE, Column.Txn.SETTLE_DATE]
         frame = pd.DataFrame(sim.rows, columns=columns)
-        if not generate_keys(frame).is_unique:
+        if find_duplicates(frame).within.any():
             msg = "The demo generated two identical transactions"
             raise DemoScenarioError(msg)
         return frame

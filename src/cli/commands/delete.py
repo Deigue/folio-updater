@@ -8,37 +8,16 @@ backed up first, and every removal is recorded in the audit trail.
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
-import typer
-
 from app import audit
-from app.audit import AuditMark, audit_txns
-from cli.commands.common import (
-    confirm_selection,
-    export_to_parquet,
-    resolve_selection,
-)
-from db import current_backup, txns
-from term import console_error, console_info, console_success
+from cli.commands.common import commit, confirm_selection, resolve_selection
+from ingest.changes import DeletePlan
+from term import console_info
 from ui.transaction_table import page_transactions
 
 if TYPE_CHECKING:
     from cli.selection import Selection
-    from models import Txn
-
-logger = logging.getLogger(__name__)
-
-
-def _log_removed(transactions: list[Txn]) -> None:
-    """Write the REMOVE stage: the backup that undoes it, then each removed row."""
-    audit.stage(
-        "REMOVE %d transaction(s); %s",
-        len(transactions),
-        audit.describe_backup(current_backup()),
-    )
-    audit_txns(AuditMark.REMOVED, transactions)
 
 
 def delete_transactions(
@@ -55,35 +34,16 @@ def delete_transactions(
         dry_run: Preview the matched transactions without deleting.
     """
     selection: Selection = resolve_selection(terms, verb="delete")
-    matched = selection.transactions
-    page_transactions(matched, title="Transactions to Delete")
+    plan = DeletePlan(removed=selection.transactions)
+    page_transactions(plan.removed, title="Transactions to Delete")
 
     if dry_run:
         console_info("Dry run - nothing was written to the folio.")
         return
 
-    if not confirm_selection(
-        len(matched),
-        verb="delete",
-        force=force,
-    ):
+    if not confirm_selection(len(plan.removed), verb="delete", force=force):
         console_info("No transactions deleted.")
         return
 
     with audit.entry("DELETE TXNS %s", selection.describe()) as entry:
-        deleted = txns.delete(selection.txn_ids)
-        _log_removed(matched)
-        if deleted == len(matched):
-            entry.done("%d deleted; folio holds %d transactions", deleted, txns.count())
-        else:
-            entry.failed(f"{len(matched)} transaction(s) matched but {deleted} deleted")
-
-    if deleted != len(matched):
-        console_error(
-            f"Deleted {deleted} of {len(matched)} transaction(s); "
-            "the folio is unchanged for the rest. See the log for details.",
-        )
-        raise typer.Exit(1)
-
-    console_success(f"Deleted {deleted} transaction(s)")
-    export_to_parquet()
+        commit(plan, entry)

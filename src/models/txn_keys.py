@@ -11,7 +11,7 @@ from domain import TXN_ESSENTIALS
 from models.txn import txns_frame
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Sequence
+    from collections.abc import Sequence
 
     from models.txn import Txn
 
@@ -25,11 +25,6 @@ _KEY_DECIMALS = 4
 def txn_keys(txns: Sequence[Txn]) -> list[str]:
     """Generate the synthetic key of each stored transaction, in order."""
     return generate_keys(txns_frame(txns)).tolist()
-
-
-def txns_with_keys(txns: Sequence[Txn], keys: Collection[str]) -> list[Txn]:
-    """Pick out the stored transactions whose synthetic key is one of `keys`."""
-    return [txn for txn, key in zip(txns, txn_keys(txns), strict=True) if key in keys]
 
 
 def generate_keys(txn_df: pd.DataFrame) -> pd.Series:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import shutil
 import sqlite3
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -24,6 +24,7 @@ from datagen import DemoFolio
 from datagen.demo import END, START
 from domain import TORONTO_TZ, BrokerId, Currency
 from engine.settlement import settlement_calculator
+from exporters import ParquetExporter
 from models import FxRate
 from services import BrokerRegistry, Brokers, FxService
 from services.quote_provider import ProviderDescription
@@ -156,35 +157,19 @@ def no_default_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Config, "load", staticmethod(load_from))
 
 
-# Command modules that re-export Parquet after mutating the folio. They bind
-# the helper by value (`from cli.commands.common import export_to_parquet`), so
-# the stub has to be installed in each importing namespace.
-_PARQUET_EXPORT_CALLERS = (
-    "cli.commands.add",
-    "cli.commands.delete",
-    "cli.commands.edit",
-    "cli.commands.import_data",
-)
-
-
 @pytest.fixture(autouse=True)
-def skip_parquet_export(request: pytest.FixtureRequest) -> Generator[None, Any]:
-    """Stub out the Parquet re-export that follows every folio mutation.
+def skip_parquet_export(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stub out the transactions Parquet export that follows every folio change.
 
-    Rewriting the whole transactions table through Parquet costs ~14ms and
-    runs after every add, edit, delete and import: the single most expensive
-    step in each. The export itself is covered directly by
-    test_transaction_exporter.py, and the tests that assert a mutation refreshes
-    the file carry the `real_parquet_export` marker to opt back in.
+    It costs ~14ms a change, the most expensive step in each. Tests that need the
+    file carry the `real_parquet_export` marker.
     """
     if request.node.get_closest_marker("real_parquet_export"):
-        yield
         return
-
-    with ExitStack() as stack:
-        for module in _PARQUET_EXPORT_CALLERS:
-            stack.enter_context(patch(f"{module}.export_to_parquet"))
-        yield
+    monkeypatch.setattr(ParquetExporter, "export_transactions", lambda _self: 0)
 
 
 @pytest.fixture(autouse=True)

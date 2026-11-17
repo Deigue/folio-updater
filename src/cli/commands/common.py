@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING
 
 import typer
 
-from app import get_config
+from app import audit, get_config
+from app.audit import AuditMark, audit_txns, format_transaction_summary
 from cli.selection import Selection, SelectionError, select_transactions
-from db import txns
+from db import IntegrityError, current_backup, txns
 from domain import AccountType, BrokerId, Grain, parse_account_type
 from domain.dates import today_in_toronto
 from engine.accounts import FOLIO, Pool
@@ -20,6 +21,7 @@ from engine.update_review import split_remaining
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
 from importers import import_statements
+from ingest.changes import AddPlan, DeletePlan, EditPlan, PlanRefusedError
 from models import StatementsRead
 from services.broker_files import (
     SUPPORTED_SUFFIXES,
@@ -29,6 +31,7 @@ from services.broker_files import (
 )
 from term import console_error, console_info, console_success, console_warning
 from term.progress import spinner
+from ui.transaction_table import show_transactions
 from ui.views.imports import (
     show_import_audit,
     show_import_summary,
@@ -40,9 +43,11 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
+    from app.audit import AuditEntry
     from engine.ledger import Ledger
     from exporters.sheet_spec import Sheet
-    from models import StatementImportResult
+    from ingest.changes import Plan
+    from models import StatementImportResult, Txn
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +201,121 @@ def export_to_parquet() -> None:
         console_success(f"Exported {exported} transactions to Parquet")
     except (OSError, ValueError, KeyError) as e:
         console_warning(f"Failed to export to Parquet: {e}")
+
+
+def refusal(refused: PlanRefusedError) -> typer.Exit:
+    """Report why a plan was refused, ready to be raised."""
+    console_error(refused.reason)
+    for detail in refused.details:
+        console_error(f"  {detail}")
+    return typer.Exit(1)
+
+
+def commit(plan: Plan, entry: AuditEntry) -> None:
+    """Write a plan through the Txns repository, log and report it, refresh Parquet.
+
+    The repository backs the folio up before writing, and the audit stage names
+    that backup.
+
+    Args:
+        plan: The change to write.
+        entry: The open audit entry the change is recorded in, closed here.
+    """
+    match plan:
+        case AddPlan():
+            stored = _store(plan, entry)
+            console_success(f"Added transaction (TxnId {stored.txn_id})")
+            show_transactions([stored], title="Added Transaction")
+        case EditPlan():
+            _update(plan, entry)
+            console_success(f"Updated {len(plan.after)} transaction(s)")
+        case DeletePlan():
+            _remove(plan, entry)
+            console_success(f"Deleted {len(plan.removed)} transaction(s)")
+    export_to_parquet()
+
+
+def _store(plan: AddPlan, entry: AuditEntry) -> Txn:
+    """Store the new transaction and log it under the STORE stage.
+
+    Raises:
+        typer.Exit: If the table refused it.
+    """
+    try:
+        [txn_id] = txns.append([plan.new])
+    except IntegrityError as e:
+        console_error(f"Database rejected the transaction: {e}")
+        entry.failed(f"the table refused the transaction: {e}")
+        raise typer.Exit(1) from e
+
+    stored = plan.new.stored_as(txn_id)
+    audit.stage(
+        "STORE 1 transaction (TxnId %d); %s",
+        txn_id,
+        audit.describe_backup(current_backup()),
+    )
+    audit_txns(AuditMark.STORED, [stored])
+    entry.done("1 added; folio holds %d transactions", txns.count())
+    return stored
+
+
+def _update(plan: EditPlan, entry: AuditEntry) -> None:
+    """Rewrite the edited transactions and log each change with the old and new row.
+
+    Both versions of the row are kept, so the folio can be reconstructed from the
+    log alone.
+
+    Raises:
+        typer.Exit: If the table refused the edit.
+    """
+    try:
+        updated = txns.update(plan.after)
+    except IntegrityError as e:
+        console_error(f"Database rejected the edit: {e}")
+        entry.failed(f"the table refused the edit: {e}")
+        raise typer.Exit(1) from e
+
+    audit.stage(
+        "UPDATE %d transaction(s); %s",
+        len(plan.after),
+        audit.describe_backup(current_backup()),
+    )
+    for old, new in zip(plan.before, plan.after, strict=True):
+        audit.row(AuditMark.CHANGED, f"TxnId {new.txn_id}: {plan.diff(old, new)}")
+        audit.row(AuditMark.REMOVED, format_transaction_summary(old.to_row()), depth=3)
+        audit.row(AuditMark.STORED, format_transaction_summary(new.to_row()), depth=3)
+
+    _require_all(entry, matched=len(plan.after), written=updated, verb="updated")
+    entry.done("%d updated", updated)
+
+
+def _remove(plan: DeletePlan, entry: AuditEntry) -> None:
+    """Delete the transactions and log each under the REMOVE stage."""
+    deleted = txns.delete([txn.txn_id for txn in plan.removed])
+    audit.stage(
+        "REMOVE %d transaction(s); %s",
+        len(plan.removed),
+        audit.describe_backup(current_backup()),
+    )
+    audit_txns(AuditMark.REMOVED, plan.removed)
+    _require_all(entry, matched=len(plan.removed), written=deleted, verb="deleted")
+    entry.done("%d deleted; folio holds %d transactions", deleted, txns.count())
+
+
+def _require_all(entry: AuditEntry, *, matched: int, written: int, verb: str) -> None:
+    """Fail the entry and the command when fewer rows were written than matched.
+
+    Raises:
+        typer.Exit: If fewer rows were written than matched.
+    """
+    if written == matched:
+        return
+    entry.failed(f"{matched} transaction(s) matched but {written} {verb}")
+    console_error(
+        f"{verb.capitalize()} {written} of {matched} transaction(s); "
+        "the folio is unchanged for the rest. See the log for details.",
+    )
+    raise typer.Exit(1)
 
 
 def resolve_selection(terms: Sequence[str], *, verb: str) -> Selection:

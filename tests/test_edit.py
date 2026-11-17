@@ -9,16 +9,22 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from cli.commands import edit as edit_module
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import get_connection, get_rows
+from db import get_connection, get_rows, txns
 from domain import Action, Column, Currency, Table
+from ingest.changes import (
+    Arithmetic,
+    Assign,
+    EditPlan,
+    PlanRefusedError,
+    SetOperation,
+    plan_edit,
+)
 
 from .helpers.cli import (
     assert_cli_success,
     assert_in_output,
-    assert_not_in_output,
     run_cli,
 )
 from .helpers.seed import ACCOUNT, TICKER, seed_transaction
@@ -41,6 +47,163 @@ def _row(txn_id: int) -> pd.Series:
         )
     assert len(rows) == 1, f"Expected TxnId {txn_id} to exist"
     return rows.iloc[0]
+
+
+def _plan(txn_ids: list[int], *operations: SetOperation) -> EditPlan:
+    """Plan an edit of the given stored transactions."""
+    return plan_edit(txns.by_ids(txn_ids), operations)
+
+
+def _assign(column: str, literal: str) -> Assign:
+    return Assign(column=column, raw=f"{column}={literal}", literal=literal)
+
+
+def _times(column: str, operand: str) -> Arithmetic:
+    return Arithmetic(
+        column=column,
+        raw=f"{column}*={operand}",
+        operator="*",
+        operand=Decimal(operand),
+    )
+
+
+class TestEditPlanSettlement:
+    """Settlement dates follow the edit, on the plan."""
+
+    def test_a_manual_settle_date_is_no_longer_calculated(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """An explicit SettleDate is authoritative and loses the tag."""
+        with temp_ctx():
+            txn_id = seed_transaction()
+
+            [after] = _plan(
+                [txn_id],
+                _assign(Column.Txn.SETTLE_DATE, "2025-08-29"),
+            ).after
+
+            assert after.settle_date == "2025-08-29"
+            assert not after.settle_calculated
+
+    def test_a_calculated_date_follows_its_transaction_date(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """Moving the transaction date recalculates a calculated settlement date."""
+        with temp_ctx():
+            txn_id = seed_transaction()
+
+            [after] = _plan([txn_id], _assign(Column.Txn.TXN_DATE, "2025-08-20")).after
+
+            assert after.txn_date == "2025-08-20"
+            assert after.settle_date is not None
+            assert after.settle_date > "2025-08-20"
+            assert after.settle_calculated
+
+    def test_a_manual_date_stays_put(self, temp_ctx: TempContext) -> None:
+        """A manually set settlement date is never recalculated."""
+        with temp_ctx():
+            txn_id = seed_transaction(settle_date="2025-08-29")
+
+            [after] = _plan([txn_id], _assign(Column.Txn.TXN_DATE, "2025-08-20")).after
+
+            assert after.settle_date == "2025-08-29"
+            assert not after.settle_calculated
+
+
+class TestEditPlanRefusals:
+    """Edits the plan refuses, with the reason."""
+
+    def test_arithmetic_on_an_empty_value_refuses_the_batch(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """One transaction with no value to compute from refuses the whole edit."""
+        with temp_ctx():
+            priced = seed_transaction(price="10", amount="-100.00")
+            unpriced = seed_transaction(
+                action="DIVIDEND",
+                amount="25.00",
+                price=None,
+                units=None,
+            )
+
+            with pytest.raises(PlanRefusedError) as refused:
+                _plan([priced, unpriced], _times(Column.Txn.PRICE, "10"))
+
+            assert refused.value.reason == (
+                f"Cannot apply 'Price*=10' on TxnId {unpriced}: current value is empty."
+            )
+
+    def test_an_invalid_result_names_the_transaction(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """Clearing a required field refuses the edit, naming the transaction."""
+        with temp_ctx():
+            txn_id = seed_transaction()
+
+            with pytest.raises(PlanRefusedError) as refused:
+                _plan([txn_id], _assign(Column.Txn.AMOUNT, ""))
+
+            assert (
+                refused.value.reason == "The edit would produce invalid transaction(s):"
+            )
+            [detail] = refused.value.details
+            assert detail.startswith(f"TxnId {txn_id}: ")
+
+
+class TestEditPlanDuplicates:
+    """Duplicates an edit would create, leaving out the rows being edited."""
+
+    def test_a_same_value_edit_changes_nothing(self, temp_ctx: TempContext) -> None:
+        """Setting a whole number to the value it holds is no change and no clash."""
+        with temp_ctx():
+            txn_id = seed_transaction(amount="-100")
+
+            plan = _plan([txn_id], _assign(Column.Txn.AMOUNT, "-100"))
+
+            assert plan.changed == []
+            assert not plan.duplicating
+
+    def test_a_non_essential_edit_does_not_match_itself(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """The transaction's own pre-edit self is not a duplicate."""
+        with temp_ctx():
+            txn_id = seed_transaction(fee="4.95")
+
+            plan = _plan([txn_id], _assign(Column.Txn.FEE, "1.50"))
+
+            assert plan.changed == [Column.Txn.FEE]
+            assert not plan.duplicating
+
+    def test_an_edit_onto_another_row_names_it(self, temp_ctx: TempContext) -> None:
+        """Matching a stored transaction outside the edit names that transaction."""
+        with temp_ctx():
+            target = seed_transaction(price="150.25", amount="-1502.50")
+            other = seed_transaction(price="999.99", amount="-1502.50")
+
+            plan = _plan([other], _assign(Column.Txn.PRICE, "150.25"))
+
+            assert [txn.txn_id for txn in plan.duplicates] == [target]
+            assert not plan.makes_identical
+
+    def test_two_edited_transactions_made_identical(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """An edit that makes two selected transactions the same is a duplicate."""
+        with temp_ctx():
+            first = seed_transaction(price="10", amount="-100.00")
+            second = seed_transaction(price="20", amount="-100.00")
+
+            plan = _plan([first, second], _assign(Column.Txn.PRICE, "30"))
+
+            assert plan.makes_identical
+            assert plan.duplicates == []
 
 
 class TestEditLiteral:
@@ -241,89 +404,6 @@ class TestEditArithmetic:
             assert Decimal(str(row[Column.Txn.UNITS])) == Decimal(10)
 
 
-class TestEditSettlement:
-    """Settlement date reconciliation."""
-
-    def test_manual_settle_date_clears_the_calculated_flag(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """An explicit SettleDate is authoritative and loses the tag."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction()
-            assert _row(txn_id)[Column.Txn.SETTLE_CALCULATED] == 1
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "SettleDate=2025-08-29", "--force"],
-            )
-
-            assert_cli_success(cli_result)
-            row = _row(txn_id)
-            assert row[Column.Txn.SETTLE_DATE] == "2025-08-29"
-            assert row[Column.Txn.SETTLE_CALCULATED] == 0
-
-    def test_txn_date_edit_recalculates_a_calculated_date(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """A calculated settlement date follows its transaction date."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction()
-            before = _row(txn_id)
-            assert before[Column.Txn.SETTLE_CALCULATED] == 1
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "TxnDate=2025-08-20", "--force"],
-            )
-
-            assert_cli_success(cli_result)
-            row = _row(txn_id)
-            assert row[Column.Txn.TXN_DATE] == "2025-08-20"
-            assert row[Column.Txn.SETTLE_DATE] > "2025-08-20"
-            assert row[Column.Txn.SETTLE_CALCULATED] == 1
-
-    def test_txn_date_edit_keeps_a_manual_date(self, temp_ctx: TempContext) -> None:
-        """A manually set settlement date is never recalculated."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction()
-            manual = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "SettleDate=2025-08-29", "--force"],
-            )
-            assert_cli_success(manual)
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "TxnDate=2025-08-20", "--force"],
-            )
-
-            assert_cli_success(cli_result)
-            row = _row(txn_id)
-            assert row[Column.Txn.SETTLE_DATE] == "2025-08-29"
-            assert row[Column.Txn.SETTLE_CALCULATED] == 0
-
-    def test_invalid_settle_date_is_rejected(self, temp_ctx: TempContext) -> None:
-        """A bad SettleDate errors instead of being silently recalculated."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction()
-            before = _row(txn_id)
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "SettleDate=notadate", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("is not a valid date", cli_result)
-            assert _row(txn_id).equals(before)
-
-
 _REFUSED_SETS = [
     pytest.param(
         ["Ticker*=2"],
@@ -380,35 +460,9 @@ class TestEditValidation:
             assert_in_output(message, cli_result)
             assert _row(txn_id).equals(before)
 
-    def test_arithmetic_on_empty_value_aborts_the_batch(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """One row with no value to compute from aborts the whole edit."""
-        with temp_ctx():
-            ensure_data_exists()
-            priced = seed_transaction(price="10", amount="-100.00")
-            unpriced = seed_transaction(
-                action="DIVIDEND",
-                amount="25.00",
-                price=None,
-                units=None,
-            )
-            before = _row(priced)
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", TICKER, "--set", "Price*=10", "--force"],
-            )
-
-            assert cli_result.exit_code == 1
-            assert_in_output("current value is empty", cli_result)
-            assert _row(priced).equals(before)
-            assert pd.isna(_row(unpriced)[Column.Txn.PRICE])
-
 
 class TestEditDuplicates:
-    """Duplicate detection that excludes the rows being edited."""
+    """The CLI's handling of no-op and duplicating edits."""
 
     def test_no_op_edit_reports_no_changes(self, temp_ctx: TempContext) -> None:
         """Setting a field to the value it already has is not a duplicate."""
@@ -423,55 +477,6 @@ class TestEditDuplicates:
 
             assert_cli_success(cli_result)
             assert_in_output("No changes to apply.", cli_result)
-
-    def test_no_op_edit_of_a_whole_number_reports_no_changes(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """A stored whole number is the same value as the one typed."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction(amount="-100")
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "Amount=-100", "--force"],
-            )
-
-            assert_cli_success(cli_result)
-            assert_in_output("No changes to apply.", cli_result)
-
-    def test_non_essential_edit_does_not_self_duplicate(
-        self,
-        temp_ctx: TempContext,
-    ) -> None:
-        """Editing only a non-essential field never clashes with itself."""
-        with temp_ctx():
-            ensure_data_exists()
-            txn_id = seed_transaction(fee="4.95")
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "Fee=1.50"],
-                user_input="y\n",
-            )
-
-            assert_cli_success(cli_result)
-            assert_not_in_output("create duplicate transaction(s)", cli_result)
-            assert Decimal(str(_row(txn_id)[Column.Txn.FEE])) == Decimal("1.50")
-
-    def test_edit_the_only_transaction(self, temp_ctx: TempContext) -> None:
-        """With nothing else in the folio there is nothing to clash with."""
-        with temp_ctx():
-            txn_id = seed_transaction()
-
-            cli_result = run_cli(
-                cli_app,
-                ["edit", str(txn_id), "--set", "Price=175.20", "--force"],
-            )
-
-            assert_cli_success(cli_result)
-            assert Decimal(str(_row(txn_id)[Column.Txn.PRICE])) == Decimal("175.20")
 
     def test_edit_onto_another_row_prompts(self, temp_ctx: TempContext) -> None:
         """An edit that would duplicate an existing row asks first."""
@@ -641,7 +646,7 @@ class TestEditFlow:
             ensure_data_exists()
             txn_id = seed_transaction()
 
-            with patch.object(edit_module, "_write_edits", return_value=0):
+            with patch.object(txns, "update", return_value=0):
                 cli_result = run_cli(
                     cli_app,
                     ["edit", str(txn_id), "--set", "Price=175.20", "--force"],

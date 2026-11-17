@@ -8,89 +8,43 @@ arithmetic operation against the row's current value (`Price*=10`)
 
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation, localcontext
-from typing import TYPE_CHECKING, Any
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING
 
-import pandas as pd
 import typer
 
 from app import audit, get_config
-from app.audit import AuditMark, format_transaction_summary
 from cli.commands.common import (
+    commit,
     confirm_selection,
-    export_to_parquet,
+    refusal,
     resolve_selection,
 )
 from cli.query_parser import get_valid_column_names
-from db import IntegrityError, current_backup, txns
+from db import txns
 from domain import Column
-from domain.numeric import STORED_DECIMALS
-from ingest.validation import TransactionFormatter, parse_date
-from models import TxnFields, txns_frame, txns_from_frame
+from ingest.changes import (
+    Arithmetic,
+    Assign,
+    EditPlan,
+    PlanRefusedError,
+    SetOperation,
+    plan_edit,
+)
+from ingest.validation import parse_date
+from models import TxnFields, txns_frame
 from models.columns import Kind, columns_of_kind
 from models.optional_field import FieldType
-from models.txn_keys import generate_keys, txns_with_keys
-from term import console_error, console_info, console_success, console_warning
+from term import console_error, console_info, console_warning
 from ui.transaction_table import page_changes, show_transactions
 
 if TYPE_CHECKING:
-    from app.audit import AuditEntry
     from models import Txn
-
-logger = logging.getLogger(__name__)
 
 ARITHMETIC_OPERATORS = "*/+-"
 
-# Division is exact enough for the NUMERIC(20,10) columns it lands in.
-DIVISION_PRECISION = 28
-
 # Derived or identifying columns that an edit must not set directly.
 PROTECTED_COLUMNS = (Column.Txn.TXN_ID, Column.Txn.SETTLE_CALCULATED)
-
-# Editing any of these invalidates a settlement date that was calculated from
-# them, so the calculator is asked to work it out again.
-SETTLEMENT_INPUTS = (
-    Column.Txn.TXN_DATE,
-    Column.Txn.ACTION,
-    Column.Txn.CURRENCY,
-)
-
-
-@dataclass(frozen=True)
-class Assign:
-    """A `--set Field=VALUE` instruction: every row gets the literal.
-
-    Attributes:
-        column: The real column name, e.g. "Currency" for `--set currency=CAD`.
-        raw: The original CLI text, used in error messages.
-        literal: The value to store.
-    """
-
-    column: str
-    raw: str
-    literal: str
-
-
-@dataclass(frozen=True)
-class Arithmetic:
-    """A `--set Field*=N` instruction: each row's value is worked out from its own.
-
-    Attributes:
-        column: The real column name.
-        raw: The original CLI text, used in error messages.
-        operator: One of `ARITHMETIC_OPERATORS`.
-        operand: The number applied to each row's current value.
-    """
-
-    column: str
-    raw: str
-    operator: str
-    operand: Decimal
-
-
-SetOperation = Assign | Arithmetic
 
 
 def _numeric_columns(live_columns: list[str]) -> set[str]:
@@ -244,259 +198,30 @@ def _parse_set_options(values: list[str]) -> list[SetOperation]:
     return operations
 
 
-def _apply_arithmetic(current: Any, operation: Arithmetic, txn_id: int) -> str:
-    """Apply an arithmetic `--set` to a row's current value.
-
-    Kept in Decimal from end to end so that, for example, 17.52 multiplied by
-    10 is exactly 175.2 rather than a binary float approximation.
-
-    Args:
-        current: The row's existing value for the column.
-        operation: The arithmetic operation to apply.
-        txn_id: TxnId of the row, for the error message.
+def _plan(selected: list[Txn], operations: list[SetOperation]) -> EditPlan:
+    """Work out the edit, or report why it is refused and stop.
 
     Raises:
-        typer.Exit: If the current value is missing or not a number.
-
-    Returns:
-        The new value as a plain decimal string.
-    """
-    text = "" if current is None or pd.isna(current) else str(current).strip()
-    if not text:
-        console_error(
-            f"Cannot apply '{operation.raw}' on TxnId {txn_id}: "
-            f"current value is empty.",
-        )
-        raise typer.Exit(1)
-
-    try:
-        value = Decimal(text)
-    except (InvalidOperation, ValueError):
-        console_error(
-            f"Cannot apply '{operation.raw}' on TxnId {txn_id}: "
-            f"'{text}' is not a number.",
-        )
-        raise typer.Exit(1) from None
-
-    operand = operation.operand
-    if operation.operator == "*":
-        result = value * operand
-    elif operation.operator == "+":
-        result = value + operand
-    elif operation.operator == "-":
-        result = value - operand
-    else:
-        with localcontext() as context:
-            context.prec = DIVISION_PRECISION
-            result = (value / operand).quantize(STORED_DECIMALS)
-        result = result.normalize()
-
-    return format(result, "f")
-
-
-def _build_edited(
-    selected: pd.DataFrame,
-    operations: list[SetOperation],
-) -> pd.DataFrame:
-    """Apply the `--set` operations to the selected rows.
-
-    Args:
-        selected: The transactions being edited, as they are now.
-        operations: The operations to apply.
-
-    Returns:
-        A copy of the rows with the new values, before formatting.
-    """
-    edited = selected.reset_index(drop=True).copy()
-    for operation in operations:
-        if isinstance(operation, Assign):
-            edited[operation.column] = operation.literal
-            continue
-        edited[operation.column] = [
-            _apply_arithmetic(
-                edited.at[position, operation.column],  # noqa: PD008
-                operation,
-                int(str(edited.at[position, Column.Txn.TXN_ID])),  # noqa: PD008
-            )
-            for position in range(len(edited))
-        ]
-    return edited
-
-
-def _apply_settlement_rules(
-    edited: pd.DataFrame,
-    operations: list[SetOperation],
-) -> None:
-    """Reconcile settlement dates with the edit, in place.
-
-    A manually supplied settlement date is authoritative and loses the
-    "calculated" tag. Otherwise, editing anything the settlement date was
-    calculated from makes the stored date stale, so it is cleared and the
-    formatter recalculates it. Manually set dates are never touched.
-
-    Args:
-        edited: The rows with `--set` values applied.
-        operations: The operations that were applied.
-    """
-    columns = {operation.column for operation in operations}
-
-    if Column.Txn.SETTLE_DATE in columns:
-        edited[Column.Txn.SETTLE_CALCULATED] = 0
-        return
-
-    if not columns & set(SETTLEMENT_INPUTS):
-        return
-
-    was_calculated = (
-        edited[Column.Txn.SETTLE_CALCULATED]
-        .astype("boolean")
-        .fillna(
-            value=False,
-        )
-    )
-    edited.loc[was_calculated, Column.Txn.SETTLE_DATE] = pd.NA
-
-
-def _validate(edited: pd.DataFrame) -> pd.DataFrame:
-    """Re-validate edited rows the way an import would.
-
-    Args:
-        edited: The rows with `--set` values applied.
-
-    Raises:
-        typer.Exit: If any row would be rejected.
-
-    Returns:
-        The formatted rows.
-    """
-    formatted, invalid = TransactionFormatter.format_and_validate(edited)
-
-    if not invalid.empty:
-        console_error("The edit would produce invalid transaction(s):")
-        for _, row in invalid.iterrows():
-            txn_id = row.get(Column.Txn.TXN_ID, "?")
-            reason = row.get(Column.REJECTION_REASON, "Unknown reason")
-            console_error(f"  TxnId {txn_id}: {reason}")
-        raise typer.Exit(1)
-
-    return formatted
-
-
-def _find_conflicts(formatted: pd.DataFrame, edited_ids: set[int]) -> list[Txn]:
-    """Find transactions the edited rows would collide with.
-
-    Checks the edited rows against each other and against every row in the
-    folio except the ones being edited, since those are about to be replaced.
-    Excluding them matters: an edit that leaves the essential fields alone
-    would otherwise be reported as a duplicate of its own pre-edit self.
-
-    Args:
-        formatted: The validated, post-edit rows.
-        edited_ids: TxnIds of the rows being edited.
-
-    Returns:
-        Existing transactions that clash, empty if there are none.
-    """
-    others = [txn for txn in txns.read() if txn.txn_id not in edited_ids]
-    return txns_with_keys(others, set(generate_keys(formatted)))
-
-
-def _has_internal_duplicates(formatted: pd.DataFrame) -> bool:
-    """Whether the edit would make two of the edited rows identical."""
-    return bool(generate_keys(formatted).duplicated().any())
-
-
-def _changed_columns(before: pd.DataFrame, after: pd.DataFrame) -> list[str]:
-    """List columns whose value changed for at least one row.
-
-    Values are compared as text with missing treated as empty, so a value
-    that only round-trips differently through SQLite is not a change.
-
-    Args:
-        before: The rows as they are now.
-        after: The rows once the edit is applied.
-
-    Returns:
-        Changed column names, excluding TxnId.
-    """
-
-    def normalize(frame: pd.DataFrame, column: str) -> pd.Series:
-        return frame[column].astype(object).where(frame[column].notna(), "").astype(str)
-
-    return [
-        column
-        for column in after.columns
-        if column != Column.Txn.TXN_ID
-        and column in before.columns
-        and not normalize(before, column).equals(normalize(after, column))
-    ]
-
-
-def _write_edits(formatted: pd.DataFrame, entry: AuditEntry) -> int:
-    """Write the edited rows, keyed on TxnId.
-
-    Args:
-        formatted: The validated, post-edit rows.
-        entry: The audit entry the edit is recorded in.
-
-    Raises:
-        typer.Exit: If the database rejects the update.
-
-    Returns:
-        Number of rows updated.
+        typer.Exit: If the plan is refused.
     """
     try:
-        return txns.update(txns_from_frame(formatted))
-    except IntegrityError as e:
-        console_error(f"Database rejected the edit: {e}")
-        entry.failed(f"the table refused the edit: {e}")
-        raise typer.Exit(1) from e
+        return plan_edit(selected, operations)
+    except PlanRefusedError as refused:
+        raise refusal(refused) from refused
 
 
-def _log_updated(
-    before: pd.DataFrame,
-    after: pd.DataFrame,
-    changed: list[str],
-) -> None:
-    """Write the UPDATE stage: each change field by field, then the old and new row.
-
-    Both versions of the row are kept, so the folio can be reconstructed from the
-    log alone.
-
-    Args:
-        before: The matched rows as they stood.
-        after: The matched rows as they were meant to end up.
-        changed: Columns the edit touches.
-    """
-    audit.stage(
-        "UPDATE %d transaction(s); %s",
-        len(after),
-        audit.describe_backup(current_backup()),
-    )
-    for position in range(len(after)):
-        old_row = before.iloc[position]
-        new_row = after.iloc[position]
-        diffs = "; ".join(
-            f"{column} {old_row.get(column)} -> {new_row.get(column)}"
-            for column in changed
-            if str(old_row.get(column)) != str(new_row.get(column))
-        )
-        audit.row(AuditMark.CHANGED, f"TxnId {new_row[Column.Txn.TXN_ID]}: {diffs}")
-        audit.row(AuditMark.REMOVED, format_transaction_summary(old_row), depth=3)
-        audit.row(AuditMark.STORED, format_transaction_summary(new_row), depth=3)
-
-
-def _confirm_conflicts(conflicts: list[Txn], *, internal: bool) -> bool:
+def _confirm_duplicates(plan: EditPlan) -> bool:
     """Show what the edit would duplicate and ask whether to go ahead."""
-    if internal:
+    if plan.makes_identical:
         console_warning(
             "This edit would make two of the selected transactions identical.",
         )
-    if conflicts:
+    if plan.duplicates:
         console_warning(
-            f"This edit matches {len(conflicts)} existing transaction(s) in the folio:",
+            f"This edit matches {len(plan.duplicates)} existing transaction(s) "
+            "in the folio:",
         )
-        show_transactions(conflicts, max_rows=len(conflicts))
+        show_transactions(plan.duplicates, max_rows=len(plan.duplicates))
 
     return typer.confirm(
         "Apply anyway and create duplicate transaction(s)?",
@@ -521,49 +246,31 @@ def edit_transactions(
     """
     operations = _parse_set_options(set_values)
     selection = resolve_selection(terms, verb="edit")
+    plan = _plan(selection.transactions, operations)
 
-    before = txns_frame(selection.transactions)
-    edited = _build_edited(before, operations)
-    _apply_settlement_rules(edited, operations)
-    after = _validate(edited)
-
-    changed = _changed_columns(before, after)
-    if not changed:
+    if not plan.changed:
         console_info("No changes to apply.")
         return
 
-    page_changes(before, after, changed, title="Pending Changes")
+    page_changes(
+        txns_frame(plan.before),
+        txns_frame(plan.after),
+        plan.changed,
+        title="Pending Changes",
+    )
 
     if dry_run:
         console_info("Dry run - nothing was written to the folio.")
         return
 
-    if not confirm_selection(len(after), verb="edit", force=force):
+    if not confirm_selection(len(plan.after), verb="edit", force=force):
         console_info("No transactions edited.")
         return
 
-    conflicts = _find_conflicts(after, set(selection.txn_ids))
-    internal = _has_internal_duplicates(after)
-    duplicating = (bool(conflicts) or internal) and not force
-    if duplicating and not _confirm_conflicts(conflicts, internal=internal):
+    if plan.duplicating and not force and not _confirm_duplicates(plan):
         console_info("No transactions edited.")
         return
 
     sets = ", ".join(operation.raw for operation in operations)
     with audit.entry("EDIT TXNS %s SET %s", selection.describe(), sets) as entry:
-        updated = _write_edits(after, entry)
-        _log_updated(before, after, changed)
-        if updated == len(after):
-            entry.done("%d updated", updated)
-        else:
-            entry.failed(f"{len(after)} transaction(s) matched but {updated} updated")
-
-    if updated != len(after):
-        console_error(
-            f"Updated {updated} of {len(after)} transaction(s); "
-            "the folio is unchanged for the rest. See the log for details.",
-        )
-        raise typer.Exit(1)
-
-    console_success(f"Updated {updated} transaction(s)")
-    export_to_parquet()
+        commit(plan, entry)
