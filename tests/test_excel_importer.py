@@ -704,6 +704,34 @@ def test_a_row_with_a_blank_account_is_rejected_by_name(temp_ctx: TempContext) -
     assert results.invalid_df[Column.REJECTION_REASON].tolist() == ["MISSING Account"]
 
 
+@pytest.mark.parametrize(
+    ("first", "second", "column"),
+    [
+        pytest.param("TxnDate", "ReportDate", "TxnDate", id="required"),
+        pytest.param("SettleDate", "Settlement Date", "SettleDate", id="optional"),
+    ],
+)
+def test_two_headers_mapping_to_one_column_stop_the_import(
+    temp_ctx: TempContext,
+    first: str,
+    second: str,
+    column: str,
+) -> None:
+    source = _valid_rows().assign(**{first: "2025-08-20", second: "2025-08-21"})
+
+    with (
+        temp_ctx(),
+        pytest.raises(
+            ValueError,
+            match=(
+                rf"Headers '{first}' and '{second}' both map to {column}\. "
+                r"Remap one of them in header_keywords or add one to header_ignore\."
+            ),
+        ),
+    ):
+        prepare_transactions(source)
+
+
 def test_a_fallback_account_is_not_written_into_the_source_frame(
     temp_ctx: TempContext,
 ) -> None:

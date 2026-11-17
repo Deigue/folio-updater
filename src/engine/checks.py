@@ -387,18 +387,18 @@ def _check_fee_conventions(folio: _LedgerIndex) -> _Outcome:
 
 
 def _shortfall_reason(folio: _LedgerIndex, diagnostic: Diagnostic) -> str:
-    """Say where the missing units went, from the grains the sale broke.
+    """Say where the missing units went, from the grains the transaction broke.
 
-    A sale that overdraws one account but not the account type is a transfer
-    nobody wrote down. One that overdraws the type but not the folio crossed
-    between types. One that overdraws the folio means the units were never
-    there at all.
+    A sale or transfer out that overdraws one account but not the account type
+    is a transfer nobody wrote down. One that overdraws the type but not the
+    folio crossed between types. One that overdraws the folio means the units
+    were never there at all.
     """
     computed = folio.row_of(diagnostic)
     acct_type = computed.acct_type if computed else None
-    if folio.fired_at(Grain.FOLIO, DiagnosticCode.OVERSELL, diagnostic.txn_id):
+    if folio.fired_at(Grain.FOLIO, diagnostic.code, diagnostic.txn_id):
         return "Those units are missing from the folio entirely."
-    if folio.fired_at(Grain.TYPE, DiagnosticCode.OVERSELL, diagnostic.txn_id):
+    if folio.fired_at(Grain.TYPE, diagnostic.code, diagnostic.txn_id):
         return (
             f"The {acct_type} total is short too, so this is either a transfer "
             f"between account types or a transaction that was never recorded."
@@ -412,48 +412,34 @@ def _shortfall_reason(folio: _LedgerIndex, diagnostic: Diagnostic) -> str:
 def _check_unit_balances(folio: _LedgerIndex) -> _Outcome:
     """Report holdings that go negative: the proof that a row is missing."""
     findings = []
-    explained: set[tuple[str | None, str | None]] = set()
     for diagnostic, computed in folio.tagged(
         DiagnosticCode.OVERSELL,
+        DiagnosticCode.TRANSFER_EXCEEDS_HOLDING,
         grain=Grain.ACCOUNT,
     ):
         row = computed.row
         held = diagnostic.value if diagnostic.value is not None else ZERO
-        sold = abs(row.units or ZERO)
-        explained.add((diagnostic.symbol, row.account))
+        taken = abs(row.units or ZERO)
+        took = (
+            f"sold {_units(taken)} units"
+            if diagnostic.code is DiagnosticCode.OVERSELL
+            else f"transferred {_units(taken)} units out"
+        )
         findings.append(
             CheckFinding(
                 subject=str(diagnostic.symbol or row.ticker),
                 detail=(
-                    f"{row.account} sold {_units(sold)} units on {row.txn_date} "
+                    f"{row.account} {took} on {row.txn_date} "
                     f"but only held {_units(max(held, ZERO))} there. "
-                    f"{_units(sold - held)} units are unaccounted for. "
+                    f"{_units(taken - held)} units are unaccounted for. "
                     f"{_shortfall_reason(folio, diagnostic)}"
                 ),
                 txn_ids=(row.txn_id,),
             ),
         )
 
-    # A holding left negative by a sale already reported above is the same
-    # defect seen from the other end. Reporting it twice pads the count and
-    # tells the reader nothing they were not just told.
-    for diagnostic in _ordered(
-        folio.at(Grain.ACCOUNT, DiagnosticCode.NEGATIVE_FINAL_UNITS),
-    ):
-        if (diagnostic.symbol, diagnostic.account) in explained:
-            continue
-        findings.append(
-            CheckFinding(
-                subject=str(diagnostic.symbol),
-                detail=(
-                    f"{diagnostic.account} ends holding "
-                    f"{_units(diagnostic.value or ZERO)} "
-                    f"units of it, which cannot happen. A purchase or a transfer "
-                    f"in is missing."
-                ),
-            ),
-        )
-
+    # Units only go negative through a sale or a transfer out, both reported
+    # above, so a holding that ends negative needs no finding of its own.
     subjects = {finding.subject for finding in findings}
     return _Outcome(
         findings,

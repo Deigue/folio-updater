@@ -13,7 +13,8 @@ import pandas as pd
 from app import audit, get_config
 from app.audit import AuditMark, format_transaction_summary
 from domain import NOTHING_TO_VOID, Column
-from domain.numeric import HALF_CENT
+from domain.cells import has_value
+from domain.numeric import HALF_CENT, STORED_DECIMALS
 from ingest.validation import normalize_numeric
 from models import CancelEvent, MergeEvent, TransformEvent
 
@@ -555,7 +556,10 @@ class TransactionTransformer:
             )
             return None
 
-        merged_row = self._create_merged_row(group, group_df)
+        total = self._summed_amount(group, group_df)
+        if total is None:
+            return None
+        merged_row = self._create_merged_row(group, group_df, total)
 
         audit.debug(
             "Merged %d row(s) into 1 %s for group %s",
@@ -566,26 +570,37 @@ class TransactionTransformer:
 
         return merged_row
 
+    @staticmethod
+    def _summed_amount(group: MergeGroup, group_df: pd.DataFrame) -> Decimal | None:
+        """Sum a group's amounts, a blank counting as zero.
+
+        Amounts are still raw text here, since validation runs later, so each is
+        stripped of `$` and `,` first. One that still cannot be read skips the
+        merge rather than being summed as nothing.
+        """
+        total = Decimal(0)
+        for raw in group_df[group.amount_field]:
+            if not has_value(raw):
+                continue
+            cleaned = normalize_numeric(raw)
+            if cleaned is None:
+                audit.stage(
+                    "SKIP merge group '%s' (unreadable amount: %r)",
+                    group.name,
+                    raw,
+                    level=logging.WARNING,
+                )
+                return None
+            total += Decimal(cleaned)
+        return total.quantize(STORED_DECIMALS)
+
     def _create_merged_row(
         self,
         group: MergeGroup,
         group_df: pd.DataFrame,
+        total_amount: Decimal,
     ) -> pd.Series:
-        """Create a merged row from a group of transactions.
-
-        Args:
-            group: MergeGroup configuration
-            group_df: DataFrame with transactions to merge
-
-        Returns:
-            Merged row as Series
-        """
-        # Sum the amounts - ensure numeric conversion and cast to Decimal
-        amount_series = pd.to_numeric(group_df[group.amount_field], errors="coerce")
-        total_amount = Decimal(str(amount_series.sum())).quantize(
-            Decimal("0.0000000001"),  # 10 decimal places (decimal[20,10])
-        )
-
+        """Create a merged row from a group of transactions and their summed amount."""
         # The first row is the template. A row of an all-text file is itself text,
         # and pandas refuses a number in it, so it is widened to hold any value.
         merged_row = group_df.iloc[0].astype(object)

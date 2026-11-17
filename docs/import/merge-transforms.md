@@ -58,6 +58,11 @@ The final action for the merged transaction. Typically `"DIVIDEND"`.
 
 The field containing the amount to sum. Usually `"Amount"`.
 
+Amounts written as text, such as `$1,250.00`, are read as numbers before they are summed,
+and a blank amount counts as zero. If one amount still cannot be read (`N/A`, say), that
+group's rows are left unmerged and the [audit log](../audit.md) warns with the rule's name
+and the value. Other groups under the same rule still merge.
+
 ### `operations` (optional)
 
 Additional field transformations to apply to the merged row. Common examples:

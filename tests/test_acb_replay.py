@@ -751,6 +751,35 @@ def test_transfer_unpaired_is_diagnosed() -> None:
     assert result.rows[-1].acct.acb_cad == D("1000")
 
 
+@pytest.mark.parametrize("paired", [True, False], ids=["paired", "unpaired"])
+def test_a_transfer_out_of_more_than_held_is_diagnosed(*, paired: bool) -> None:
+    rows = [
+        make_row(
+            1,
+            "2024-01-02",
+            Action.BUY,
+            amount="-1000",
+            units="100",
+            price="10",
+            account="QT-TFSA",
+        ),
+        make_row(2, "2024-05-01", Action.TFR_OUT, units="-150", account="QT-TFSA"),
+    ]
+    if paired:
+        rows.append(
+            make_row(3, "2024-05-01", Action.TFR_IN, units="150", account="WS-TFSA"),
+        )
+    result = run(rows)
+    exceeded = {
+        (d.txn_id, d.grain, d.value)
+        for d in result.diagnostics
+        if d.code is DiagnosticCode.TRANSFER_EXCEEDS_HOLDING
+    }
+    # Every grain is short, even where a paired transfer moves nothing.
+    assert exceeded == {(2, grain, D("100")) for grain in Grain}
+    assert (DiagnosticCode.TRANSFER_UNPAIRED in codes(result)) is not paired
+
+
 def test_cash_transfer_moves_no_acb() -> None:
     result = run(
         [
@@ -1837,6 +1866,31 @@ def test_pair_transfers_rejects_a_cash_amount_mismatch() -> None:
             "2024-05-01",
             Action.TFR_IN,
             amount="400",
+            ticker=None,
+            account="WS-TFSA",
+        ),
+    ]
+    pairs, unpaired = pair_transfers(rows)
+    assert pairs == []
+    assert len(unpaired) == 2
+
+
+def test_pair_transfers_rejects_cash_legs_in_different_currencies() -> None:
+    rows = [
+        make_row(
+            1,
+            "2024-05-01",
+            Action.TFR_OUT,
+            amount="-730",
+            ticker=None,
+            account="QT-TFSA",
+        ),
+        make_row(
+            2,
+            "2024-05-01",
+            Action.TFR_IN,
+            amount="730",
+            currency="USD",
             ticker=None,
             account="WS-TFSA",
         ),

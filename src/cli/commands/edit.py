@@ -26,6 +26,7 @@ from cli.commands.common import (
 from cli.query_parser import get_valid_column_names
 from db import IntegrityError, current_backup, txns
 from domain import Column
+from domain.numeric import STORED_DECIMALS
 from ingest.validation import TransactionFormatter, parse_date
 from models import TxnFields, txns_frame, txns_from_frame
 from models.columns import Kind, columns_of_kind
@@ -44,7 +45,6 @@ ARITHMETIC_OPERATORS = "*/+-"
 
 # Division is exact enough for the NUMERIC(20,10) columns it lands in.
 DIVISION_PRECISION = 28
-DIVISION_DECIMALS = Decimal("0.0000000001")
 
 # Derived or identifying columns that an edit must not set directly.
 PROTECTED_COLUMNS = (Column.Txn.TXN_ID, Column.Txn.SETTLE_CALCULATED)
@@ -288,7 +288,7 @@ def _apply_arithmetic(current: Any, operation: Arithmetic, txn_id: int) -> str:
     else:
         with localcontext() as context:
             context.prec = DIVISION_PRECISION
-            result = (value / operand).quantize(DIVISION_DECIMALS)
+            result = (value / operand).quantize(STORED_DECIMALS)
         result = result.normalize()
 
     return format(result, "f")

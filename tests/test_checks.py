@@ -294,16 +294,20 @@ def test_a_same_day_buy_then_sell_is_not_an_oversell() -> None:
     assert check(rows, "unit-balances").status is CheckStatus.OK
 
 
-def test_a_holding_left_negative_by_a_reported_sale_is_not_reported_twice() -> None:
-    """The oversell and the negative ending are one defect, not two."""
-    result = check(oversold_in_one_account(), "unit-balances")
-    assert len(result.findings) == 1
-
-
-def test_a_holding_left_negative_with_no_sale_is_reported() -> None:
+def test_a_transfer_out_of_more_than_held_is_reported() -> None:
     rows = [
         make_row(
             1,
+            "2025-01-14",
+            Action.BUY,
+            amount="-3300",
+            units="30",
+            price="110",
+            ticker="VFV.TO",
+            account="WS-TFSA",
+        ),
+        make_row(
+            2,
             "2025-02-10",
             Action.TFR_OUT,
             units="-40",
@@ -313,7 +317,44 @@ def test_a_holding_left_negative_with_no_sale_is_reported() -> None:
     ]
     result = check(rows, "unit-balances")
     assert result.status is CheckStatus.FAIL
-    assert "ends holding -40 units" in details(result)
+    assert len(result.findings) == 1
+    assert "WS-TFSA transferred 40 units out on 2025-02-10" in details(result)
+    assert "only held 30 there" in details(result)
+    assert "10 units are unaccounted for" in details(result)
+
+
+def test_an_over_transfer_within_one_type_is_measured_against_the_folio() -> None:
+    rows = [
+        make_row(
+            1,
+            "2025-01-14",
+            Action.BUY,
+            amount="-3300",
+            units="30",
+            price="110",
+            ticker="VFV.TO",
+            account="QT-TFSA",
+        ),
+        make_row(
+            2,
+            "2025-02-10",
+            Action.TFR_OUT,
+            units="-40",
+            ticker="VFV.TO",
+            account="QT-TFSA",
+        ),
+        make_row(
+            3,
+            "2025-02-10",
+            Action.TFR_IN,
+            units="40",
+            ticker="VFV.TO",
+            account="WS-TFSA",
+        ),
+    ]
+    result = check(rows, "unit-balances")
+    assert "QT-TFSA transferred 40 units out" in details(result)
+    assert "missing from the folio entirely" in details(result)
 
 
 # --- cash balances ------------------------------------------------------------

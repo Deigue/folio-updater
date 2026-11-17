@@ -408,6 +408,62 @@ class TestMergeGroups:
         assert lines[merge + 2].startswith("      - TxnDate=2025-09-10|Action=Div")
         assert lines[merge + 3].startswith("      - TxnDate=2025-09-10|Action=With")
 
+    @staticmethod
+    def _dividend_pairs(amounts: list[object]) -> pd.DataFrame:
+        """Two dividend and withholding pairs, AAPL then SPY, with the given amounts."""
+        return pd.DataFrame(
+            {
+                Column.Txn.TXN_DATE: ["2025-03-14"] * 4,
+                Column.Txn.ACTION: ["Dividends", "Withholding Tax"] * 2,
+                Column.Txn.AMOUNT: amounts,
+                Column.Txn.CURRENCY: ["USD"] * 4,
+                Column.Txn.PRICE: ["0"] * 4,
+                Column.Txn.UNITS: ["1"] * 4,
+                Column.Txn.TICKER: ["AAPL", "AAPL", "SPY", "SPY"],
+                Column.Txn.ACCOUNT: ["MOCK"] * 4,
+            },
+        )
+
+    def test_text_amounts_are_cleaned_before_summing(
+        self,
+        temp_ctx: TempContext,
+    ) -> None:
+        """Text amounts like `$1,250.00` sum as numbers, and a blank adds nothing."""
+        with temp_ctx(MERGE_CONFIG):
+            df = self._dividend_pairs(["$1,250.00", "-$187.50", "", "-0.80"])
+            result = TransactionTransformer.transform(df).df
+            amounts = dict(
+                zip(result[Column.Txn.TICKER], result[Column.Txn.AMOUNT], strict=True),
+            )
+            assert Decimal(str(amounts["AAPL"])) == Decimal("1062.5")
+            # A blank amount counts as nothing, so the pair still merges.
+            assert Decimal(str(amounts["SPY"])) == Decimal("-0.8")
+
+    def test_an_unreadable_amount_skips_only_its_merge(
+        self,
+        temp_ctx: TempContext,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """An amount that cannot be read leaves its group unmerged, and warns.
+
+        The unmerged rows then fail validation, so the import rejects them with
+        a reason rather than storing them.
+        """
+        with temp_ctx(MERGE_CONFIG), caplog.at_level(logging.WARNING, AUDIT_LOGGER):
+            df = self._dividend_pairs(["N/A", "-2.10", "18.40", "-2.76"])
+            results = prepare_transactions(df, map_headers=False)
+        assert [(t.ticker, t.action) for t in results.approved] == [
+            ("SPY", "DIVIDEND"),
+        ]
+        rejected = results.invalid_df
+        assert rejected[Column.Txn.TICKER].tolist() == ["AAPL", "AAPL"]
+        assert "INVALID Amount" in rejected[Column.REJECTION_REASON].iloc[0]
+        warned = [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER]
+        assert any(
+            "Dividend Withholding Tax Merge" in line and "'N/A'" in line
+            for line in warned
+        )
+
     def test_incomplete_pair_not_merged(self, temp_ctx: TempContext) -> None:
         """Test that rows without matching pairs are not merged."""
         with temp_ctx(MERGE_CONFIG):

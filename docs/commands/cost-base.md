@@ -174,7 +174,8 @@ is recorded.
 
 | Code                       | Meaning                                                      |
 | -------------------------- | ------------------------------------------------------------ |
-| `OVERSELL`                 | Replayed units went negative                                 |
+| `OVERSELL`                 | A sale of more units than the pool held                      |
+| `TRANSFER_EXCEEDS_HOLDING` | A transfer out of more units than the pool held              |
 | `NEGATIVE_FINAL_UNITS`     | A pool ends below zero                                       |
 | `CASH_NEGATIVE`            | Cash went negative in a non-margin account                   |
 | `DUPLICATE_SPLIT`          | Two split rows for the same ticker in the same account       |

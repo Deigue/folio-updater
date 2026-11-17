@@ -86,7 +86,7 @@ alone still exit zero.
 
 ### Unit balances
 
-When a sale overdraws a holding, the shortfall is measured at three levels at once, and the report says which:
+When a sale or a transfer out overdraws a holding, the shortfall is measured at three levels at once, and the report says which:
 
 - Short in **one account** but the account **type** still balances → *"The TFSA total is
   correct, so those units most likely moved from another account without being

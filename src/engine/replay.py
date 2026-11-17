@@ -455,7 +455,7 @@ class _Replay:
             pool = Pool.of(grain, row, acct_type)
             state = self.pools.state(pool, symbol, row.currency)
             before = replace(state)
-            self._apply_to_pool(row, pool, symbol, state)
+            self._apply_to_pool(row, pool, state)
             state.dividends_cad += dividend_cad or ZERO
             if state.usd:
                 state.dividends_usd += dividend_usd or ZERO
@@ -539,7 +539,6 @@ class _Replay:
         self,
         row: Txn,
         pool: Pool,
-        symbol: str,
         state: HoldingState,
     ) -> None:
         """Dispatch one row against one pool's holding."""
@@ -550,13 +549,13 @@ class _Replay:
         if row.action is Action.BUY:
             self._apply_buy(row, state)
         elif row.action is Action.SELL:
-            self._apply_sell(row, pool, symbol, state)
+            self._apply_sell(row, pool, state)
         elif row.action is Action.ROC:
-            self._apply_roc(row, pool, symbol, state)
+            self._apply_roc(row, pool, state)
         elif row.action is Action.SPLIT:
-            self._apply_split(row, pool, symbol, state)
+            self._apply_split(row, pool, state)
         elif row.action in TRANSFER_ACTIONS:
-            self._apply_transfer(row, pool.grain, state)
+            self._apply_transfer(row, pool, state)
         elif (
             row.action is Action.DIVIDEND
             and self._income_is_orphaned(row, state)
@@ -568,8 +567,8 @@ class _Replay:
                 DiagnosticCode.INCOME_WITHOUT_HOLDING,
                 row,
                 pool=pool,
-                detail=f"Dividend on {symbol} with no holding in {pool.label}",
-                symbol=symbol,
+                detail=f"Dividend on {state.symbol} with no holding in {pool.label}",
+                symbol=state.symbol,
             )
 
         # Recorded after the checks above, so a dividend is judged against
@@ -598,7 +597,6 @@ class _Replay:
         self,
         row: Txn,
         pool: Pool,
-        symbol: str,
         state: HoldingState,
     ) -> None:
         """Remove a proportional slice of the cost base and realize the gain.
@@ -610,22 +608,12 @@ class _Replay:
         """
         trade: TradeCash = self._trade(row)
         sold = abs(row.units or ZERO)
-        held = state.units
-
-        if held <= ZERO or sold > held:
-            self.diagnose(
-                DiagnosticCode.OVERSELL,
-                row,
-                pool=pool,
-                detail=f"Sold {sold} against {held} held in {pool.label}",
-                symbol=symbol,
-                value=held,
-            )
-            # Take whatever cost base is left; units are allowed to go negative
-            # so the arithmetic stays recoverable once the missing row appears.
-            fraction = ONE
-        else:
-            fraction = safe_div(sold, held)
+        fraction = self._fraction_taken(
+            DiagnosticCode.OVERSELL,
+            row,
+            pool,
+            state,
+        )
 
         removed_cad = state.acb_cad * fraction
         removed_usd = state.acb_usd * fraction
@@ -639,11 +627,50 @@ class _Replay:
 
         self._snap_dust(state)
 
+    def _fraction_taken(
+        self,
+        code: DiagnosticCode,
+        row: Txn,
+        pool: Pool,
+        state: HoldingState,
+    ) -> Decimal:
+        """Share of the holding a transaction's units take.
+
+        Taking more than is held takes the whole cost base. Units are allowed to
+        go negative so the arithmetic stays recoverable once the missing
+        transaction is recorded.
+        """
+        if self._overdrawn(code, row, pool, state):
+            return ONE
+        return safe_div(abs(row.units or ZERO), state.units)
+
+    def _overdrawn(
+        self,
+        code: DiagnosticCode,
+        row: Txn,
+        pool: Pool,
+        state: HoldingState,
+    ) -> bool:
+        """Diagnose a transaction taking more units than the holding has."""
+        taken = abs(row.units or ZERO)
+        held = state.units
+        if held > ZERO and taken <= held:
+            return False
+        verb = "Sold" if code is DiagnosticCode.OVERSELL else "Transferred out"
+        self.diagnose(
+            code,
+            row,
+            pool=pool,
+            detail=f"{verb} {taken} against {held} held in {pool.label}",
+            symbol=state.symbol,
+            value=held,
+        )
+        return True
+
     def _apply_roc(
         self,
         row: Txn,
         pool: Pool,
-        symbol: str,
         state: HoldingState,
     ) -> None:
         """Reduce the cost base by a return of capital. No cash moves."""
@@ -670,7 +697,7 @@ class _Replay:
                     f"{excess_cad} of return of capital exceeds cost base in "
                     f"{pool.label}"
                 ),
-                symbol=symbol,
+                symbol=state.symbol,
                 value=excess_cad,
             )
         if self._income_is_orphaned(row, state) and pool.grain is Grain.ACCOUNT:
@@ -679,14 +706,13 @@ class _Replay:
                 row,
                 pool=pool,
                 detail=f"Return of capital with no holding in {pool.label}",
-                symbol=symbol,
+                symbol=state.symbol,
             )
 
     def _apply_split(
         self,
         row: Txn,
         pool: Pool,
-        symbol: str,
         state: HoldingState,
     ) -> None:
         """Scale a holding's units by the split ratio. The ACB is untouched.
@@ -703,17 +729,17 @@ class _Replay:
             return
 
         ratio = units / price
-        if not self.pools.claim_split((pool, symbol, row.txn_date, str(ratio))):
+        if not self.pools.claim_split((pool, state.symbol, row.txn_date, str(ratio))):
             if pool.grain is Grain.ACCOUNT:
                 self.diagnose(
                     DiagnosticCode.DUPLICATE_SPLIT,
                     row,
                     pool=pool,
                     detail=(
-                        f"{symbol} already split {ratio} on {row.txn_date} "
+                        f"{state.symbol} already split {ratio} on {row.txn_date} "
                         f"in {pool.label}"
                     ),
-                    symbol=symbol,
+                    symbol=state.symbol,
                     as_of=row.txn_date,
                 )
             return
@@ -724,8 +750,8 @@ class _Replay:
                     DiagnosticCode.SPLIT_WITHOUT_HOLDING,
                     row,
                     pool=pool,
-                    detail=f"Split of {symbol} with no holding in {pool.label}",
-                    symbol=symbol,
+                    detail=f"Split of {state.symbol} with no holding in {pool.label}",
+                    symbol=state.symbol,
                     as_of=row.txn_date,
                 )
             return
@@ -735,7 +761,7 @@ class _Replay:
     def _apply_transfer(
         self,
         row: Txn,
-        grain: Grain,
+        pool: Pool,
         state: HoldingState,
     ) -> None:
         """Move units and cost base between pools without realizing a gain."""
@@ -743,21 +769,41 @@ class _Replay:
         if pair is None:
             # Already reported by `_row_checks`; units still have to move, but
             # with no counterpart there is nowhere for the cost base to go.
-            self._move_units_only(row, state)
+            self._move_units_only(row, pool, state)
             return
-        if grain not in pair.moves_at:
+        if pool.grain not in pair.moves_at:
+            # Both legs sit in this pool, so nothing moves here, but the pool
+            # must still hold what leaves one of its accounts.
+            if row.action is Action.TFR_OUT and row.is_in_kind_transfer:
+                self._overdrawn(
+                    DiagnosticCode.TRANSFER_EXCEEDS_HOLDING,
+                    row,
+                    pool,
+                    state,
+                )
             return
 
         if row.action is Action.TFR_OUT:
-            self._transfer_out(row, grain, state, pair.pair_id)
+            self._transfer_out(row, pool, state, pair.pair_id)
         else:
-            self._transfer_in(row, grain, state, pair.pair_id)
+            self._transfer_in(row, pool.grain, state, pair.pair_id)
 
-    def _move_units_only(self, row: Txn, state: HoldingState) -> None:
+    def _move_units_only(
+        self,
+        row: Txn,
+        pool: Pool,
+        state: HoldingState,
+    ) -> None:
         """Apply an unpaired leg: units move, the cost base cannot follow them."""
         if not row.is_in_kind_transfer:
             return
         if row.action is Action.TFR_OUT:
+            self._overdrawn(
+                DiagnosticCode.TRANSFER_EXCEEDS_HOLDING,
+                row,
+                pool,
+                state,
+            )
             state.units -= abs(row.units or ZERO)
         else:
             state.units += abs(row.units or ZERO)
@@ -766,18 +812,23 @@ class _Replay:
     def _transfer_out(
         self,
         row: Txn,
-        grain: Grain,
+        pool: Pool,
         state: HoldingState,
         pair_id: int,
     ) -> None:
         """Remove units and their share of the cost base, holding it for the in leg."""
+        grain = pool.grain
         if not row.is_in_kind_transfer:
             self.carried[(pair_id, grain)] = (ZERO, ZERO)
             return
 
         moved = abs(row.units or ZERO)
-        held = state.units
-        fraction = ONE if held <= ZERO or moved > held else safe_div(moved, held)
+        fraction = self._fraction_taken(
+            DiagnosticCode.TRANSFER_EXCEEDS_HOLDING,
+            row,
+            pool,
+            state,
+        )
         moved_cad = state.acb_cad * fraction
         moved_native = state.acb_usd * fraction
 

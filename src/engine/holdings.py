@@ -24,7 +24,11 @@ DisplayCurrency = Currency | Literal["native"]
 
 # Diagnostics that mean a holding's units are known to be wrong.
 UNITS_SUSPECT = frozenset(
-    {DiagnosticCode.OVERSELL, DiagnosticCode.NEGATIVE_FINAL_UNITS},
+    {
+        DiagnosticCode.OVERSELL,
+        DiagnosticCode.TRANSFER_EXCEEDS_HOLDING,
+        DiagnosticCode.NEGATIVE_FINAL_UNITS,
+    },
 )
 
 

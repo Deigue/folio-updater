@@ -119,11 +119,34 @@ class TransactionMapper:
             # Map the column if it matches keywords
             for internal, keywords in norm_keywords.items():
                 if normalized_column in keywords:
+                    TransactionMapper._refuse_second_claim(mapping, column, internal)
                     mapping[column] = internal
                     unmatched.discard(internal)
                     break
 
         return mapping, unmatched, ignored_columns
+
+    @staticmethod
+    def _refuse_second_claim(
+        mapping: dict[str, str],
+        column: str,
+        internal: str,
+    ) -> None:
+        """Stop the import when a second header maps to a column already taken.
+
+        Two source columns under one name leave every later step reading both
+        at once, so the file is refused here, naming both headers.
+
+        Raises:
+            ValueError: When an earlier header already maps to `internal`.
+        """
+        taken = next((src for src, dest in mapping.items() if dest == internal), None)
+        if taken is not None:
+            message = (
+                f"Headers '{taken}' and '{column}' both map to {internal}. "
+                f"Remap one of them in header_keywords or add one to header_ignore."
+            )
+            raise ValueError(message)
 
     @staticmethod
     def _should_ignore_column(

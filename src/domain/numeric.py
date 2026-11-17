@@ -14,6 +14,8 @@ CENT = Decimal("0.01")
 HALF_CENT = Decimal("0.005")
 # A ten-thousandth of a unit: below it, two unit counts are the same.
 UNIT_EPSILON = Decimal("0.0001")
+# The ten decimal places a stored NUMERIC(20,10) column keeps.
+STORED_DECIMALS = Decimal("0.0000000001")
 
 
 def dec(value: object) -> Decimal:

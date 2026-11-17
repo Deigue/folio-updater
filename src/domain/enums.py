@@ -181,6 +181,7 @@ class DiagnosticCode(StrEnum):
     """Diagnostics a replay can raise against a row, an account or a pool."""
 
     OVERSELL = "OVERSELL"
+    TRANSFER_EXCEEDS_HOLDING = "TRANSFER_EXCEEDS_HOLDING"
     NEGATIVE_FINAL_UNITS = "NEGATIVE_FINAL_UNITS"
     CASH_NEGATIVE = "CASH_NEGATIVE"
     DUPLICATE_SPLIT = "DUPLICATE_SPLIT"

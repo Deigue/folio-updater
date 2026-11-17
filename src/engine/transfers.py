@@ -10,8 +10,8 @@ Two shapes exist:
 - **Cross account, same symbol, same settlement date**: an in-kind transfer between
   two accounts you own, equal magnitude and opposing sign.
 
-Cash transfers pair the same way but move no units and no cost base; they matter only
-to the cash replay.
+Cash transfers pair the same way, within one currency across accounts, but move no
+units and no cost base; they matter only to the cash replay.
 """
 
 from __future__ import annotations
@@ -144,7 +144,8 @@ def _cash_score(out_leg: Txn, in_leg: Txn) -> int | None:
     if abs(abs(out_leg.amount or ZERO) - abs(in_leg.amount or ZERO)) > CASH_TOLERANCE:
         return None
     if out_leg.account != in_leg.account:
-        return _CROSS_ACCOUNT
+        # Equal figures in two currencies are not the same money.
+        return _CROSS_ACCOUNT if out_leg.currency == in_leg.currency else None
     # Same account, so this is the cash side of a journal.
     return _JOURNAL if _journal_fits(out_leg, in_leg) else None
 
