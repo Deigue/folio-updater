@@ -14,7 +14,7 @@ from app import audit, get_config
 from app.audit import AuditMark, format_transaction_summary
 from domain import NOTHING_TO_VOID, Column
 from domain.cells import has_value
-from domain.numeric import HALF_CENT, STORED_DECIMALS
+from domain.numeric import AMOUNT_MATCH_TOLERANCE, STORED_DECIMALS
 from ingest.validation import normalize_numeric
 from models import CancelEvent, MergeEvent, TransformEvent
 
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 CONTAINS_PREFIX = "contains:"
 # A cancellation and the row it voids carry amounts that sum to zero.
-_CANCEL_TOLERANCE = float(HALF_CENT)
+_CANCEL_TOLERANCE = float(AMOUNT_MATCH_TOLERANCE)
 
 
 @dataclass(frozen=True)

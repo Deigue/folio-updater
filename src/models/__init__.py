@@ -11,6 +11,7 @@ from models.import_results import (
     MergeEvent,
     SettlementMatch,
     StatementImportResult,
+    StatementsRead,
     TransformEvent,
 )
 from models.quote import Fundamentals, Quote, QuoteSplit
@@ -49,6 +50,7 @@ __all__ = [
     "QuoteSplit",
     "SettlementMatch",
     "StatementImportResult",
+    "StatementsRead",
     "TickerAlias",
     "TransformEvent",
     "Txn",

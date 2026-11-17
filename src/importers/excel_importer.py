@@ -13,7 +13,7 @@ from app import audit
 from app.audit import AuditMark, audit_txns, format_transaction_summary
 from db import DatabaseError, IntegrityError, current_backup, txns
 from domain import TXN_ESSENTIALS, Action, Column, SettlementOutcome
-from domain.numeric import CENT, UNIT_EPSILON
+from domain.numeric import AMOUNT_MATCH_TOLERANCE, UNIT_EPSILON
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS
 from ingest import TransactionTransformer, prepare_transactions
 from models import ImportResults, SettlementMatch, StatementImportResult
@@ -205,16 +205,17 @@ def _import_statement_rows(
         if stmt_df.empty:
             console_warning("Statement file is empty.")
             entry.done("nothing read: the statement is empty")
-            return StatementImportResult()
+            return StatementImportResult(statement)
 
         audit.stage("READ %d statement rows", len(stmt_df))
         stmt_df.columns = stmt_df.columns.str.lower().str.strip()
-        required_cols = ["date", "amount", "currency", "transaction", "description"]
-        missing_cols = [col for col in required_cols if col not in stmt_df.columns]
+        missing_cols = [
+            str(col) for col in Column.Statement if col not in stmt_df.columns
+        ]
         if missing_cols:
             console_warning(f"Statement is missing required columns: {missing_cols}")
             entry.failed(f"missing required columns {missing_cols}")
-            return StatementImportResult()
+            return StatementImportResult(statement)
 
         settlements_confirmed, settlement_matches = _confirm_settlement_dates(
             stmt_df,
@@ -223,7 +224,7 @@ def _import_statement_rows(
     except (OSError, ValueError, KeyError) as error:
         logger.exception("Error processing statement %s", statement)
         entry.failed(error)
-        return StatementImportResult()
+        return StatementImportResult(statement)
 
     # The dates are committed by now, so a transfer failure must not hide them.
     try:
@@ -239,6 +240,7 @@ def _import_statement_rows(
             f"then the transfers failed: {error}",
         )
         return StatementImportResult(
+            statement,
             settlements_confirmed=settlements_confirmed,
             settlement_matches=settlement_matches,
             transfer_error=str(error),
@@ -252,6 +254,7 @@ def _import_statement_rows(
             len(skipped),
         )
         return StatementImportResult(
+            statement,
             settlements_confirmed=settlements_confirmed,
             transfer_results=transfer_results,
             transfers_rejected=len(rejected),
@@ -386,10 +389,10 @@ def _pair_identical_trades(
     """
     groups: dict[tuple[int, ...], tuple[list[Txn], list[int]]] = {}
     for index, item in enumerate(weighed):
-        if not isinstance(item, _WeighedRow) or item.statement_row.account is None:
+        if not isinstance(item, _WeighedRow):
             continue
         shared = sorted([*item.calculated, *item.actual], key=lambda t: t.txn_id)
-        if len(shared) > 1 and len({_identity(txn) for txn in shared}) == 1:
+        if len(shared) > 1 and _identical(item.statement_row, shared):
             key = tuple(txn.txn_id for txn in shared)
             groups.setdefault(key, (shared, []))[1].append(index)
 
@@ -400,16 +403,16 @@ def _pair_identical_trades(
     return paired
 
 
-def _identity(txn: Txn) -> tuple[object, ...]:
-    """Return the fields a statement row is matched on, account included."""
+def _identical(statement_row: _StatementRow, matched: list[Txn]) -> bool:
+    """Whether a row's matches are identical trades in the statement's account.
+
+    Every match already agrees with the row on its action, dates, ticker,
+    currency and account, so only an amount or units inside the tolerance can
+    still tell them apart. Without an account they may be two accounts' trades.
+    """
     return (
-        txn.action,
-        txn.txn_date,
-        txn.ticker,
-        txn.currency,
-        txn.account,
-        txn.amount,
-        txn.units,
+        statement_row.account is not None
+        and len({(txn.amount, txn.units) for txn in matched}) == 1
     )
 
 
@@ -421,7 +424,7 @@ def _resolve_statement_match(
 
     Args:
         weighed: The statement row and the transactions it matched.
-        paired: The transaction an identical trade's row was paired with.
+        paired: The transaction an identical trade's row was paired with, if any.
 
     Returns:
         The outcome recorded for this statement row, and the update to apply
@@ -442,10 +445,9 @@ def _resolve_statement_match(
         candidates=len(matches),
     )
 
-    if paired is None and len(matches) == 1:
-        paired = matches[0]
-    if paired is not None and paired.settle_calculated:
-        matched = paired
+    settles = paired or (matches[0] if len(matches) == 1 else None)
+    if settles is not None and settles.settle_calculated:
+        matched = settles
         result.txn_id = matched.txn_id
         result.outcome = SettlementOutcome.CONFIRMED
         update = replace(
@@ -468,11 +470,13 @@ def _resolve_statement_match(
         text = f"{len(matches)} matches for {described}, left unconfirmed"
         return result, None, _PendingRow(AuditMark.UNRESOLVED, text)
 
-    if paired is None and len(weighed.actual) == 1:
-        paired = weighed.actual[0]
-    if paired is not None:
+    if settles is None and weighed.actual:
+        actual = weighed.actual
+        if len(actual) == 1 or _identical(statement_row, actual):
+            settles = actual[0]
+    if settles is not None:
         result.outcome = SettlementOutcome.ALREADY_CONFIRMED
-        result.txn_id = paired.txn_id
+        result.txn_id = settles.txn_id
         result.candidates = 1
         held = _PendingRow(
             AuditMark.UNCHANGED,
@@ -531,21 +535,21 @@ def _extract_statement_row_data(
     Returns:
         Fields to match on, or None when the row is not a settling trade.
     """
-    settlement_date = _normalize_date(row["date"])
+    settlement_date = _normalize_date(row[Column.Statement.DATE])
     if not settlement_date:  # pragma: no cover
         return None
 
-    action_str = str(row["transaction"]).strip().upper()
+    action_str = str(row[Column.Statement.TRANSACTION]).strip().upper()
     if action_str not in BUSINESS_DAY_SETTLE_ACTIONS:
         return None
 
-    description = str(row["description"])
+    description = str(row[Column.Statement.DESCRIPTION])
     ticker, units, txn_date = _parse_transaction_description(description)
 
     if not ticker or not txn_date:  # pragma: no cover
         return None
 
-    currency = row["currency"]
+    currency = row[Column.Statement.CURRENCY]
     ticker = _canonical_statement_ticker(ticker, action_str, currency)
 
     return _StatementRow(
@@ -556,7 +560,7 @@ def _extract_statement_row_data(
         txn_date=txn_date,
         currency=str(currency),
         account=account,
-        amount=abs(float(row["amount"])),
+        amount=abs(float(row[Column.Statement.AMOUNT])),
     )
 
 
@@ -642,7 +646,7 @@ def _parse_transaction_description(
     return ticker, units, txn_date
 
 
-_AMOUNT_TOLERANCE = float(CENT)
+_AMOUNT_TOLERANCE = float(AMOUNT_MATCH_TOLERANCE)
 _UNITS_TOLERANCE = float(UNIT_EPSILON)
 
 
@@ -718,22 +722,24 @@ def _build_transfer_transactions(
     skipped: list[str] = []
 
     for _, row in df.iterrows():
-        action = _transfer_action_for_code(str(row["transaction"]))
+        code = row[Column.Statement.TRANSACTION]
+        stated_date = row[Column.Statement.DATE]
+        action = _transfer_action_for_code(str(code))
         if action is None:
             continue
 
-        if _is_cash_transfer(str(row["description"])):
-            skipped.append(f"{row['transaction']}, {row['date']}, {row['amount']}")
+        if _is_cash_transfer(str(row[Column.Statement.DESCRIPTION])):
+            skipped.append(f"{code}, {stated_date}, {row[Column.Statement.AMOUNT]}")
             continue
 
-        settle_date = _normalize_date(row["date"])
+        settle_date = _normalize_date(stated_date)
         if not account or not settle_date:
             reason = "no account in filename" if not account else "unparseable date"
             console_warning(
                 f'Rejected transfer in "{statement_path.name}": {reason} '
-                f"({row['transaction']}, {row['date']})",
+                f"({code}, {stated_date})",
             )
-            rejected.append(f"{row['transaction']}, {row['date']} ({reason})")
+            rejected.append(f"{code}, {stated_date} ({reason})")
             continue
 
         # Build baseline transaction layout with essential columns.
@@ -742,8 +748,8 @@ def _build_transfer_transactions(
             {
                 Column.Txn.TXN_DATE: settle_date,
                 Column.Txn.ACTION: action,
-                Column.Txn.AMOUNT: row["amount"],
-                Column.Txn.CURRENCY: row["currency"],
+                Column.Txn.AMOUNT: row[Column.Statement.AMOUNT],
+                Column.Txn.CURRENCY: row[Column.Statement.CURRENCY],
                 Column.Txn.ACCOUNT: account,
             },
         )

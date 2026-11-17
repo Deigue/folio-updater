@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         ImportResults,
         MergeEvent,
         StatementImportResult,
+        StatementsRead,
     )
 
 # Cash moves between two of the user's own accounts land a few days apart at most.
@@ -560,43 +561,47 @@ def statement_months(settle_dates: Iterable[object], today: date) -> list[str]:
 
 def split_remaining(
     calculated: Sequence[Txn],
-    months_on_hand: Iterable[str],
+    months_read: Iterable[str],
     today: date,
 ) -> tuple[list[Txn], list[Txn]]:
-    """Split the calculated dates left after an update into stuck and pending.
+    """Split the calculated dates left after reading statements: stuck or pending.
 
-    A date is stuck when its month's statement is already on hand and still
-    could not confirm it: no later run will either. Anything else waits on a
-    statement that is not out yet.
+    A date is stuck when its month's statement was read and still could not
+    confirm it: no later read will either. It is pending when its month's
+    statement is not out yet. A past month whose statement was not read is
+    neither, since nothing waits on the broker.
 
     Args:
         calculated: Transactions whose settlement date is still calculated.
-        months_on_hand: Months with a statement file stored locally.
+        months_read: Months whose statement was read.
         today: The date the run happens on.
 
     Returns:
         The stuck transactions, then the pending ones.
     """
     current = today.strftime(_MONTH)
-    on_hand = set(months_on_hand)
+    read = set(months_read)
     stuck: list[Txn] = []
     pending: list[Txn] = []
     for txn in calculated:
         month = _month(txn.settle_date) or ""
-        (stuck if month in on_hand and month < current else pending).append(txn)
+        if month >= current:
+            pending.append(txn)
+        elif month in read:
+            stuck.append(txn)
     return stuck, pending
 
 
-def review_statement(filename: str, result: StatementImportResult) -> list[Concern]:
+def review_statement(result: StatementImportResult) -> list[Concern]:
     """Review one statement's import.
 
     Args:
-        filename: The statement imported.
         result: What importing it did.
 
     Returns:
         The concerns: unplaced rows, rejected transfers and failed transfers.
     """
+    filename = result.path.name
     concerns: list[Concern] = []
     unplaced = result.settlement_unplaced()
     if unplaced:
@@ -669,6 +674,24 @@ def review_statement(filename: str, result: StatementImportResult) -> list[Conce
             ),
         )
     return concerns
+
+
+def review_remaining(statements: StatementsRead) -> tuple[list[Concern], list[str]]:
+    """Review the calculated dates left after reading statements.
+
+    Returns:
+        The concern for the stuck dates, and the note for the pending ones.
+    """
+    stuck = review_stuck(statements.stuck)
+    pending = review_pending(statements.pending)
+    return ([stuck] if stuck else []), ([pending] if pending else [])
+
+
+def review_pending(pending: Sequence[Txn]) -> str | None:
+    """Note the calculated dates waiting on statements not out yet, or None."""
+    if not pending:
+        return None
+    return f"{len(pending)} settlement date(s) wait on statements not out yet"
 
 
 def review_stuck(stuck: Sequence[Txn]) -> Concern | None:

@@ -11,32 +11,20 @@ from typing import TYPE_CHECKING
 import typer
 
 from app import get_config
-from cli.commands.common import refuse_unsupported_file
+from cli.commands.common import read_statements, refuse_unsupported_file
 from datagen import is_demo_folio
 from db import DatabaseError, txns
-from exporters import ParquetExporter
-from importers import import_statements
-from services.broker_files import SUPPORTED_SUFFIXES, archive, waiting_files
-from term import (
-    console_error,
-    console_info,
-    console_rule,
-    console_success,
-    console_warning,
-)
-from term.progress import spinner
+from engine.update_review import review_remaining
+from services.broker_files import SUPPORTED_SUFFIXES, waiting_files
+from term import console_error, console_info, console_rule, console_warning
 from ui.transaction_table import page_transactions
-from ui.views.imports import (
-    show_import_audit,
-    show_import_summary,
-    show_settlement_detail,
-    show_statements_summary,
-)
-from ui.vocabulary import RULE_STATEMENT, SPINNER_STATEMENT, TransactionContext
+from ui.views.imports import show_statements_summary
+from ui.views.update import show_concerns
+from ui.vocabulary import RULE_STATEMENT, TransactionContext
 from ui.widgets import show_stats_panel
 
 if TYPE_CHECKING:
-    from models import StatementImportResult
+    from models import StatementsRead
 
 
 def settlement_info(
@@ -90,150 +78,25 @@ def _handle_statement_import(file: str | None, *, verbose: bool = False) -> None
             console_error(f'Statement file "{file}" does not exist.')
             raise typer.Exit(1)
         refuse_unsupported_file(statement_path)
-        results = [import_single_statement(statement_path, verbose=verbose)]
-        archive_statement(statement_path, results[0])
+        statements = read_statements([statement_path], verbose=verbose)
     else:
-        results = _import_statements_from_directory(verbose=verbose)
+        statements = _import_statements_from_directory(verbose=verbose)
 
-    # Updates parquets if any changes were made.
-    changed = any(
-        r.settlements_confirmed > 0 or r.transfers_created() > 0 for r in results
-    )
-    if changed:
-        with spinner(color=SPINNER_STATEMENT) as progress:
-            progress.add_task("Exporting to Parquet...", total=None)
-            parquet_exporter = ParquetExporter()
-            parquet_exporter.export_all()
+    concerns, notes = review_remaining(statements)
+    if concerns:
+        show_concerns(concerns)
+    for note in notes:
+        console_info(note)
 
 
-def import_single_statement(
-    statement_path: Path,
-    *,
-    verbose: bool = False,
-    interactive: bool = True,
-) -> StatementImportResult:
-    """Import a single statement file.
-
-    Args:
-        statement_path: Statement to import.
-        verbose: Whether to list every statement row and how it was resolved.
-        interactive: Whether the transfer audit offers to expand by keypress.
-
-    Returns:
-        What the statement changed.
-    """
-    with spinner(color=SPINNER_STATEMENT) as progress:
-        progress.add_task(f"Importing {statement_path.name}...", total=None)
-        result = import_statements(statement_path)
-
-    if result.settlements_confirmed > 0:
-        console_success(
-            f"Confirmed {result.settlements_confirmed} settlement dates from "
-            f'"{statement_path.name}"',
-        )
-    elif result.settlement_already_confirmed() and not result.settlement_unplaced():
-        console_info(
-            f"All {result.settlement_candidates()} row(s) in "
-            f'"{statement_path.name}" are already confirmed',
-        )
-    else:
-        console_warning(f'No settlement dates confirmed from "{statement_path.name}"')
-
-    _report_settlement_matching(statement_path.name, result, verbose=verbose)
-
-    if result.transfer_results and result.transfers_created() > 0:
-        show_import_summary(statement_path.name, result.transfer_results)
-        show_import_audit(
-            result.transfer_results,
-            verbose=True,
-            interactive=interactive,
-        )
-
-    if result.transfers_skipped > 0:
-        console_info(
-            f"Skipped {result.transfers_skipped} cash transfer(s) in "
-            f'"{statement_path.name}" already imported as contributions or '
-            "withdrawals",
-        )
-
-    if result.transfers_rejected > 0:
-        console_warning(
-            f"{result.transfers_rejected} transfer(s) in "
-            f'"{statement_path.name}" could not be created - see logs/audit.log '
-            "for details",
-        )
-
-    return result
-
-
-def archive_statement(statement_path: Path, result: StatementImportResult) -> None:
-    """Move a processed statement out of the statements directory.
-
-    Like an imported file, a statement is archived once it has been read,
-    whatever it changed. The archive is kept for reference and never read
-    again, so a statement whose transfers failed stays where it is: reading
-    it again retries them, and its confirmed dates read as already confirmed.
-
-    Args:
-        statement_path: The statement that was imported.
-        result: What importing it did.
-    """
-    if result.transfer_error is not None:
-        console_warning(
-            f'Transfers in "{statement_path.name}" failed ({result.transfer_error}); '
-            "the statement is kept out of the archive to be read again",
-        )
-        return
-    config = get_config()
-    folder = config.statements_processed_path
-    if archive(statement_path, folder) != statement_path:
-        console_info(
-            f"Moved {statement_path.name} to "
-            f"{config.statements_path.name}/{folder.name}/",
-        )
-
-
-def _report_settlement_matching(
-    filename: str,
-    result: StatementImportResult,
-    *,
-    verbose: bool,
-) -> None:
-    """Say what settlement matching could not place, in full when asked.
-
-    Rows that match nothing or match ambiguously used to reach only the
-    audit log, which is what let a mis-spelled ticker go unnoticed. The
-    count is always printed; `verbose` adds the row-by-row table.
-
-    Args:
-        filename: Statement the rows came from.
-        result: What the statement import produced.
-        verbose: Whether to list every candidate row, matched or not.
-    """
-    if verbose:
-        show_settlement_detail(filename, result.settlement_matches)
-        return
-
-    unplaced = result.settlement_unplaced()
-    if unplaced:
-        console_warning(
-            f"{len(unplaced)} of {result.settlement_candidates()} statement row(s) "
-            f'in "{filename}" matched no single transaction - rerun with '
-            "[bold italic]--verbose[/bold italic] for details",
-        )
-
-
-def _import_statements_from_directory(
-    *,
-    verbose: bool = False,
-) -> list[StatementImportResult]:
+def _import_statements_from_directory(*, verbose: bool = False) -> StatementsRead:
     """Import all statement files from the statements directory.
 
     Args:
         verbose: Whether to list every statement row and how it was resolved.
 
     Returns:
-        One result per statement file found.
+        What the statements found did.
     """
     config = get_config()
     statements_dir = config.statements_path
@@ -255,14 +118,9 @@ def _import_statements_from_directory(
         f'Found {len(statement_files)} statement file(s) in "{statements_dir}"',
     )
 
-    imported: list[tuple[str, StatementImportResult]] = []
-    for statement_file in statement_files:
-        result = import_single_statement(statement_file, verbose=verbose)
-        archive_statement(statement_file, result)
-        imported.append((statement_file.name, result))
-
-    show_statements_summary(imported)
-    results = [result for _, result in imported]
+    statements = read_statements(statement_files, verbose=verbose)
+    show_statements_summary(statements.read)
+    results = statements.read
 
     total_confirmed = sum(r.settlements_confirmed for r in results)
     total_transfers = sum(r.transfers_created() for r in results)
@@ -271,7 +129,7 @@ def _import_statements_from_directory(
         f"{total_transfers} transfer(s) "
         f"across {len(statement_files)} file(s).",
     )
-    return results
+    return statements
 
 
 def _display_settlement_statistics(*, import_flag: bool = False) -> None:

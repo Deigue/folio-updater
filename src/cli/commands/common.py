@@ -7,19 +7,34 @@ from typing import TYPE_CHECKING
 
 import typer
 
+from app import get_config
 from cli.selection import Selection, SelectionError, select_transactions
 from db import txns
-from domain import AccountType, Grain, parse_account_type
+from domain import AccountType, BrokerId, Grain, parse_account_type
+from domain.dates import today_in_toronto
 from engine.accounts import FOLIO, Pool
 from engine.ledger import LedgerUnavailableError, open_ledger
 from engine.pools import FolioValuation
 from engine.since_update import record_update
+from engine.update_review import split_remaining
 from exporters import ParquetExporter
 from exporters.output import SingleSheetError, UnsupportedExportError, write_export
-from services.broker_files import SUPPORTED_SUFFIXES, is_supported
-from term import console_error, console_success, console_warning
+from importers import import_statements
+from models import StatementsRead
+from services.broker_files import (
+    SUPPORTED_SUFFIXES,
+    archive,
+    is_supported,
+    statement_month_of,
+)
+from term import console_error, console_info, console_success, console_warning
 from term.progress import spinner
-from ui.vocabulary import SPINNER_PARQUET
+from ui.views.imports import (
+    show_import_audit,
+    show_import_summary,
+    show_settlement_detail,
+)
+from ui.vocabulary import SPINNER_PARQUET, SPINNER_STATEMENT
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -27,6 +42,7 @@ if TYPE_CHECKING:
 
     from engine.ledger import Ledger
     from exporters.sheet_spec import Sheet
+    from models import StatementImportResult
 
 logger = logging.getLogger(__name__)
 
@@ -265,3 +281,159 @@ def refuse_unsupported_file(file_path: Path) -> None:
             f"({', '.join(SUPPORTED_SUFFIXES)})",
         )
         raise typer.Exit(1)
+
+
+# -- STATEMENTS -----------------------------------------------------------------
+
+
+def read_statements(
+    paths: Sequence[Path],
+    *,
+    verbose: bool = False,
+    interactive: bool = True,
+) -> StatementsRead:
+    """Read and archive statements, then split the calculated dates they left.
+
+    Args:
+        paths: The statements to read, in order.
+        verbose: Whether to list every statement row and how it was resolved.
+        interactive: Whether the transfer audit offers to expand by keypress.
+
+    Returns:
+        What each statement did, and the stuck and pending Wealthsimple dates.
+    """
+    read: list[StatementImportResult] = []
+    for path in paths:
+        result = import_single_statement(path, verbose=verbose, interactive=interactive)
+        archive_statement(result)
+        read.append(result)
+
+    months = {m for result in read if (m := statement_month_of(result.path.name))}
+    stuck, pending = split_remaining(
+        txns.calculated_settlements(BrokerId.WS),
+        months,
+        today_in_toronto(),
+    )
+    statements = StatementsRead(read=read, stuck=stuck, pending=pending)
+    if statements.changed():
+        with spinner(color=SPINNER_STATEMENT) as progress:
+            progress.add_task("Exporting to Parquet...", total=None)
+            ParquetExporter().export_all()
+    return statements
+
+
+def import_single_statement(
+    statement_path: Path,
+    *,
+    verbose: bool = False,
+    interactive: bool = True,
+) -> StatementImportResult:
+    """Import a single statement file.
+
+    Args:
+        statement_path: Statement to import.
+        verbose: Whether to list every statement row and how it was resolved.
+        interactive: Whether the transfer audit offers to expand by keypress.
+
+    Returns:
+        What the statement changed.
+    """
+    with spinner(color=SPINNER_STATEMENT) as progress:
+        progress.add_task(f"Importing {statement_path.name}...", total=None)
+        result = import_statements(statement_path)
+
+    if result.settlements_confirmed > 0:
+        console_success(
+            f"Confirmed {result.settlements_confirmed} settlement dates from "
+            f'"{statement_path.name}"',
+        )
+    elif result.settlement_already_confirmed() and not result.settlement_unplaced():
+        console_info(
+            f"All {result.settlement_candidates()} row(s) in "
+            f'"{statement_path.name}" are already confirmed',
+        )
+    else:
+        console_warning(f'No settlement dates confirmed from "{statement_path.name}"')
+
+    _report_settlement_matching(statement_path.name, result, verbose=verbose)
+
+    if result.transfer_results and result.transfers_created() > 0:
+        show_import_summary(statement_path.name, result.transfer_results)
+        show_import_audit(
+            result.transfer_results,
+            verbose=True,
+            interactive=interactive,
+        )
+
+    if result.transfers_skipped > 0:
+        console_info(
+            f"Skipped {result.transfers_skipped} cash transfer(s) in "
+            f'"{statement_path.name}" already imported as contributions or '
+            "withdrawals",
+        )
+
+    if result.transfers_rejected > 0:
+        console_warning(
+            f"{result.transfers_rejected} transfer(s) in "
+            f'"{statement_path.name}" could not be created - see logs/audit.log '
+            "for details",
+        )
+
+    return result
+
+
+def archive_statement(result: StatementImportResult) -> None:
+    """Move a processed statement out of the statements directory.
+
+    Like an imported file, a statement is archived once it has been read,
+    whatever it changed. The archive is kept for reference and never read
+    again, so a statement whose transfers failed stays where it is: reading
+    it again retries them, and its confirmed dates read as already confirmed.
+
+    Args:
+        result: What importing the statement did.
+    """
+    statement_path = result.path
+    if result.transfer_error is not None:
+        console_warning(
+            f'Transfers in "{statement_path.name}" failed ({result.transfer_error}); '
+            "the statement is kept out of the archive to be read again",
+        )
+        return
+    config = get_config()
+    folder = config.statements_processed_path
+    if archive(statement_path, folder) != statement_path:
+        console_info(
+            f"Moved {statement_path.name} to "
+            f"{config.statements_path.name}/{folder.name}/",
+        )
+
+
+def _report_settlement_matching(
+    filename: str,
+    result: StatementImportResult,
+    *,
+    verbose: bool,
+) -> None:
+    """Say what settlement matching could not place, in full when asked.
+
+    Rows that match nothing or match ambiguously used to reach only the
+    audit log, which is what let a mis-spelled ticker go unnoticed. The
+    count is always printed; `verbose` adds the row-by-row table.
+
+    Args:
+        filename: Statement the rows came from.
+        result: What the statement import produced.
+        verbose: Whether to list every candidate row, matched or not.
+    """
+    if verbose:
+        show_settlement_detail(filename, result.settlement_matches)
+        return
+
+    unplaced = result.settlement_unplaced()
+    if unplaced:
+        console_warning(
+            f"{len(unplaced)} of {result.settlement_candidates()} statement row(s) "
+            f'in "{filename}" matched no single transaction - rerun with '
+            "[bold italic]--verbose[/bold italic] for details",
+        )

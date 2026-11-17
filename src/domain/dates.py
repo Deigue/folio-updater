@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+
+from domain.constants import TORONTO_TZ
+
+
+def today_in_toronto() -> date:
+    """Return today's date in Toronto, where the brokers' days and months run."""
+    return datetime.now(TORONTO_TZ).date()
 
 
 def iso_day(text: str) -> date | None:

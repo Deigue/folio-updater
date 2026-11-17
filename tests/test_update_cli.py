@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -13,7 +14,7 @@ from cli.commands.common import save_update_baseline
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
 from db import txns, update_baselines
-from domain import BrokerId, Grain
+from domain import TORONTO_TZ, BrokerId, Grain
 from services import BrokerError, BrokerFailure, PartFailure
 
 from .fixtures.data_factory import create_transaction_data
@@ -288,6 +289,45 @@ def test_a_second_update_reports_what_changed_since_the_first(
         assert folio.txn_count == txn_total()
 
 
+def test_a_statement_kept_back_is_read_again(
+    temp_ctx: TempContext,
+    brokers: FakeBrokers,
+) -> None:
+    """A waiting statement is read even when no calculated date needs its month.
+
+    A statement whose transfers failed stays in the statements folder after
+    its dates were confirmed, so the next update must read it to retry them.
+    """
+    with temp_ctx() as ctx:
+        config = ctx.config
+        seed_transaction(
+            account=WS_ACCOUNT,
+            date="2025-08-14",
+            settle_date="2025-08-15",
+        )
+        statement = config.statements_path / f"ws_statement_{WS_ACCOUNT}_202508.csv"
+        register_test_dataframe(
+            statement,
+            pd.DataFrame(
+                {
+                    "date": ["2025-08-20"],
+                    "amount": ["250.00"],
+                    "currency": ["CAD"],
+                    "transaction": ["TRFINRSP"],
+                    "description": ["RSP account transfer in"],
+                },
+            ),
+        )
+
+        result = run_cli(cli_app, ["update", "--resume"])
+
+        assert result.exit_code == 0
+        assert brokers.wealthsimple.statement_months == []
+        assert not statement.exists()
+        assert (config.statements_processed_path / statement.name).exists()
+        assert txns.count() == 2
+
+
 def test_statement_on_hand_is_imported_not_fetched(
     temp_ctx: TempContext,
     brokers: FakeBrokers,
@@ -295,7 +335,8 @@ def test_statement_on_hand_is_imported_not_fetched(
     """A month waiting in the statements folder is imported, not fetched.
 
     August's statement is on disk: it confirms one date, leaves another stuck,
-    and is archived once read. July's is fetched and is not out yet.
+    and is archived once read. July's is fetched and is not out yet, and this
+    month's waits on a statement still to come.
     """
     with temp_ctx() as ctx:
         config = ctx.config
@@ -306,6 +347,10 @@ def test_statement_on_hand_is_imported_not_fetched(
         )
         seed_transaction(account=WS_ACCOUNT, date="2025-08-14")  # no statement row
         seed_transaction(account=WS_ACCOUNT, date="2025-07-15")
+        seed_transaction(
+            account=WS_ACCOUNT,
+            date=datetime.now(TORONTO_TZ).date().isoformat(),
+        )
         statement = config.statements_path / f"ws_statement_{WS_ACCOUNT}_202508.csv"
         register_test_dataframe(
             statement,
@@ -334,3 +379,4 @@ def test_statement_on_hand_is_imported_not_fetched(
         assert_in_output("Settlement dates confirmed (1)", result)
         assert_in_output("settlement date(s) the statements could not confirm", result)
         assert_in_output("2025-07 statement not published yet", result)
+        assert_in_output("1 settlement date(s) wait on statements not out yet", result)

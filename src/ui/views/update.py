@@ -67,7 +67,7 @@ def show_update_report(
     console_rule("Update Report", style=RULE_UPDATE)
     _show_changes(report)
     _show_since(since)
-    _show_concerns(report.concerns)
+    show_concerns(report.concerns)
     _show_notes("Pending, a later update resolves these", report.pending)
     _show_notes("Expected, nothing to do", report.expected)
     _show_outcome(report)
@@ -150,7 +150,7 @@ def _show_since(since: Sequence[SinceUpdate] | None) -> None:
     )
 
 
-def _show_concerns(concerns: list[Concern]) -> None:
+def show_concerns(concerns: list[Concern]) -> None:
     """Print each concern: what it is, the rows involved and how to fix it."""
     if not concerns:
         return

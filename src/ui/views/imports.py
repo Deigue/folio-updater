@@ -175,25 +175,25 @@ def _file_status(outcome: FileImport) -> str:
 
 
 def show_statements_summary(
-    statements: Sequence[tuple[str, StatementImportResult]],
+    statements: Sequence[StatementImportResult],
 ) -> None:
     """Tabulate what every statement of a directory import changed.
 
     Args:
-        statements: Each statement's file name and what importing it did.
+        statements: What importing each statement did.
     """
     console_rule(style=RULE_STATEMENT)
     show_data_table(
         [
             {
-                "File": name,
+                "File": result.path.name,
                 "Confirmed": result.settlements_confirmed,
                 "Unplaced": len(result.settlement_unplaced()),
                 "Transfers": result.transfers_created(),
                 "Rejected": result.transfers_rejected,
                 "Status": _statement_status(result),
             }
-            for name, result in statements
+            for result in statements
         ],
         title="Statement Import Summary",
         max_rows=20,

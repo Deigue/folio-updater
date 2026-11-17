@@ -17,7 +17,7 @@ SUPPORTED_SUFFIXES = (".csv", ".xlsx")
 _STATEMENT_PREFIX = f"{BrokerId.WS}_statement"
 _DATE_RANGE = re.compile(r"_(\d{4})(\d{2})(\d{2})_(\d{4})(\d{2})(\d{2})")
 _STATEMENT_NAME = re.compile(
-    rf"^{_STATEMENT_PREFIX}_(?P<account>.+)_\d{{6}}$",
+    rf"^{_STATEMENT_PREFIX}_(?P<account>.+)_(?P<year>\d{{4}})(?P<month>\d{{2}})$",
     re.IGNORECASE,
 )
 
@@ -65,6 +65,12 @@ def statement_account_of(name: str) -> str | None:
     return match.group("account") if match else None
 
 
+def statement_month_of(name: str) -> str | None:
+    """Return the YYYY-MM month a statement's file name carries, or None."""
+    match = _STATEMENT_NAME.match(Path(name).stem)
+    return f"{match.group('year')}-{match.group('month')}" if match else None
+
+
 def is_supported(name: str) -> bool:
     """Report whether a file name has a suffix folio can read."""
     return Path(name).suffix.lower() in SUPPORTED_SUFFIXES
@@ -75,12 +81,6 @@ def waiting_files(folder: Path) -> list[Path]:
     return sorted(
         path for path in folder.iterdir() if path.is_file() and is_supported(path.name)
     )
-
-
-def statements_for_month(folder: Path, month: str) -> list[Path]:
-    """Return the statements waiting in a folder for a YYYY-MM month."""
-    pattern = f"{_STATEMENT_PREFIX}_*_{month.replace('-', '')}.*"
-    return sorted(path for path in folder.glob(pattern) if is_supported(path.name))
 
 
 def archive(path: Path, archive_folder: Path) -> Path:

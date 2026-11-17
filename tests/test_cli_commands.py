@@ -608,6 +608,46 @@ def test_settle_info_import_keeps_a_statement_whose_transfers_failed(
         assert txns.count_calculated() == 0
 
 
+def test_settle_info_import_reports_stuck_and_pending_dates(
+    temp_ctx: TempContext,
+) -> None:
+    """A date its read statement missed is stuck; one not yet stated is pending."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        bought = {
+            "action": "BUY",
+            "account": "WS-TFSA",
+            "currency": "CAD",
+            "ticker": f"{TSX_TICKER}.TO",
+            "amount": f"-{STATEMENT_PRICE}",
+            "price": STATEMENT_PRICE,
+            "units": "1",
+        }
+        stuck_id = seed_transaction(date=STATEMENT_TRADE_DATE, **bought)
+        seed_transaction(date=datetime.now(TORONTO_TZ).date().isoformat(), **bought)
+        register_test_dataframe(
+            ctx.config.statements_path / "ws_statement_WS-TFSA_202604.xlsx",
+            pd.DataFrame([statement_buy(price="99.99")]),
+        )
+
+        cli_result = run_cli(
+            cli_app,
+            ["settle-info", "--import"],
+            width=UNCONSTRAINED_WIDTH,
+        )
+
+        assert_cli_success(cli_result)
+        assert_in_output(
+            "1 settlement date(s) the statements could not confirm",
+            cli_result,
+        )
+        assert_in_output(f"folio edit {stuck_id} --set SettleDate=<date>", cli_result)
+        assert_in_output(
+            "1 settlement date(s) wait on statements not out yet",
+            cli_result,
+        )
+
+
 def test_settle_info_import_refuses_the_demo(temp_ctx: TempContext) -> None:
     """No statement belongs to the demo: the way forward is your own import."""
     with temp_ctx() as ctx:

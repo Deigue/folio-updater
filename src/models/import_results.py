@@ -186,6 +186,7 @@ class SettlementMatch:
 class StatementImportResult:
     """Result for a statement import operation."""
 
+    path: Path
     settlements_confirmed: int = 0
     transfer_results: ImportResults | None = None
     transfers_rejected: int = 0
@@ -214,6 +215,29 @@ class StatementImportResult:
         return [
             match for match in self.settlement_matches if match.outcome not in confirmed
         ]
+
+
+@dataclass(frozen=True)
+class StatementsRead:
+    """What reading a batch of statements did.
+
+    Attributes:
+        read: What importing each statement did, in reading order.
+        stuck: Calculated dates a statement read for their month still could
+            not confirm.
+        pending: Calculated dates whose month's statement is not out yet.
+    """
+
+    read: list[StatementImportResult]
+    stuck: list[Txn]
+    pending: list[Txn]
+
+    def changed(self) -> bool:
+        """Return whether any statement confirmed a date or created a transfer."""
+        return any(
+            result.settlements_confirmed > 0 or result.transfers_created() > 0
+            for result in self.read
+        )
 
 
 @dataclass(frozen=True)

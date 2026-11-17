@@ -27,7 +27,7 @@ from ws_api import (
 )
 
 from app import get_config
-from domain import TXN_ESSENTIALS, Action
+from domain import TXN_ESSENTIALS, Action, Column
 from models.wealthsimple import (
     ActivityFeedItem,
     BrokerageMonthlyStatementTransaction,
@@ -561,7 +561,7 @@ class WealthsimpleClient:
         """
         config = get_config()
         output_path: Path = config.statements_path / csv_name
-        headers = ["date", "amount", "currency", "transaction", "description"]
+        headers = list(Column.Statement)
         rows = [self._convert_statement_txn_to_csv_row(txn) for txn in statement_rows]
 
         with output_path.open("w", newline="", encoding="utf-8") as csvfile:
@@ -621,7 +621,7 @@ class WealthsimpleClient:
     ) -> list[str]:
         """Convert a BrokerageMonthlyStatementTransaction to a statement CSV row.
 
-        Expected format: ["date", "amount", "currency", "transaction", "description"]
+        Its values follow `Column.Statement`, in order.
 
         Args:
             statement_txn: The statement transaction to convert

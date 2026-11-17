@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -17,6 +18,7 @@ from engine.update_review import (
     odd_merges,
     review_checks,
     review_import,
+    review_pending,
     review_statement,
     review_stuck,
     review_transfer_pairs,
@@ -459,7 +461,11 @@ class TestStatements:
         assert statement_months(dates, TODAY) == ["2026-08", "2026-09"]
 
     def test_split_remaining(self) -> None:
-        """Dates in a month already on hand are stuck; the rest are pending."""
+        """Stuck when its statement is on hand, pending when none is out yet.
+
+        A past month whose statement was not read is neither: it is out, so
+        nothing is waiting on the broker.
+        """
         calculated = [
             _settling(1, "2026-08-04"),
             _settling(2, "2026-09-04"),
@@ -467,7 +473,14 @@ class TestStatements:
         ]
         stuck, pending = split_remaining(calculated, {"2026-08", "2026-10"}, TODAY)
         assert [txn.txn_id for txn in stuck] == [1]
-        assert [txn.txn_id for txn in pending] == [2, 3]
+        assert [txn.txn_id for txn in pending] == [3]
+
+    def test_pending_note(self) -> None:
+        """Dates waiting on an unpublished statement are counted in one note."""
+        assert review_pending([_settling(3, "2026-10-02")]) == (
+            "1 settlement date(s) wait on statements not out yet"
+        )
+        assert review_pending([]) is None
 
     def test_split_nothing(self) -> None:
         """No calculated dates leaves nothing stuck or pending."""
@@ -502,11 +515,12 @@ class TestStatements:
             match(SettlementOutcome.AMBIGUOUS, TSX_TICKER),
         ]
         result = StatementImportResult(
+            Path("ws_statement_X_202609.csv"),
             settlement_matches=matches,
             transfers_rejected=1,
             transfer_error="disk I/O error",
         )
-        concerns = review_statement("ws_statement_X_202609.csv", result)
+        concerns = review_statement(result)
         unplaced, rejected, failed = concerns
         assert unplaced.rows["Result"].tolist() == ["no match", "ambiguous (2)"]
         assert unplaced.commands[0] == f"folio query {VENTURE_TICKER} 2026-09-03"
@@ -517,7 +531,7 @@ class TestStatements:
 
     def test_clean_statement(self) -> None:
         """A statement that placed everything raises nothing."""
-        assert review_statement("s.csv", StatementImportResult()) == []
+        assert review_statement(StatementImportResult(Path("s.csv"))) == []
 
 
 class TestChecksAndPrices:

@@ -1195,6 +1195,27 @@ def test_import_statements_keeps_confirmations_when_transfers_fail(
         assert _settle_dates([txn_id]) == [(STATEMENT_SETTLE_DATE, False)]
 
 
+def test_import_statements_reads_one_row_against_confirmed_identical_trades(
+    temp_ctx: TempContext,
+) -> None:
+    """One row against identical trades already confirmed is placed, not missed."""
+    with temp_ctx() as ctx:
+        create_txns_table()
+        txn_ids = [
+            seed_transaction(**_IDENTICAL_BUY, settle_date=STATEMENT_SETTLE_DATE)
+            for _ in range(2)
+        ]
+        statement_file = ctx.config.project_root / "ws_statement_WS-TFSA_202604.xlsx"
+        register_test_dataframe(statement_file, pd.DataFrame([statement_buy()]))
+
+        result = import_statements(statement_file)
+
+        assert result.settlement_unplaced() == []
+        assert [(m.outcome, m.txn_id) for m in result.settlement_matches] == [
+            (SettlementOutcome.ALREADY_CONFIRMED, txn_ids[0]),
+        ]
+
+
 def test_import_statements_leaves_one_row_against_identical_trades_ambiguous(
     temp_ctx: TempContext,
 ) -> None:

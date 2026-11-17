@@ -8,11 +8,10 @@ show the dashboards.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app import get_config
-from cli.commands.common import export_to_parquet, require_ledger
+from cli.commands.common import export_to_parquet, read_statements, require_ledger
 from cli.commands.dash import show_types
 from cli.commands.download import download_from, download_monthly_statements
 from cli.commands.generate import write_folio
@@ -20,9 +19,9 @@ from cli.commands.import_data import (
     confirm_demo_replacement,
     import_directory,
 )
-from cli.commands.settle_info import archive_statement, import_single_statement
 from db import txns
-from domain import TORONTO_TZ, BrokerId, Grain, SettlementOutcome
+from domain import BrokerId, Grain, SettlementOutcome
+from domain.dates import today_in_toronto
 from engine.accounts import FOLIO, Pool
 from engine.checks import CheckReport, run_checks
 from engine.pools import FolioValuation
@@ -30,28 +29,25 @@ from engine.since_update import record_update
 from engine.update_review import (
     review_checks,
     review_import,
+    review_remaining,
     review_statement,
-    review_stuck,
     review_transfer_pairs,
     review_unpriced,
-    split_remaining,
     statement_months,
 )
-from exporters import ParquetExporter
 from models import Concern, HardFailure, UpdateReport, UpdateStage
 from services import BrokerError, BrokerFailure, BrokerRegistry
 from services.broker_files import (
     broker_of_file,
     date_range_of,
     delete_new_files,
-    statements_for_month,
+    statement_month_of,
     waiting_files,
 )
 from term import console_info, console_rule
-from term.progress import spinner
 from ui.views.checks import print_report
 from ui.views.update import show_update_report, show_workbook_link
-from ui.vocabulary import RULE_UPDATE, SPINNER_STATEMENT
+from ui.vocabulary import RULE_UPDATE
 
 if TYPE_CHECKING:
     from datetime import date
@@ -76,7 +72,7 @@ def run_update(*, resume: bool = False, offline: bool = False) -> UpdateReport:
         The report shown, failed when a stage stopped the run.
     """
     config = get_config()
-    today = datetime.now(TORONTO_TZ).date()
+    today = today_in_toronto()
     report = UpdateReport()
     first_new_id = txns.latest_id()
     overlap_days = {broker: txns.latest_date_for(broker) for broker in BrokerId}
@@ -312,9 +308,10 @@ def _statement_stage(
 ) -> None:
     """Confirm calculated settlement dates from every statement that can exist.
 
-    A month's statement still waiting in the statements folder is imported
-    rather than fetched. Every statement read is archived and never read again,
-    so a month that keeps calculated dates is downloaded afresh next run.
+    Every statement waiting in the statements folder is read, so one kept
+    back because its transfers failed is retried, and a month waiting there is
+    not fetched. Every statement read is archived and never read again, so a
+    month that keeps calculated dates is downloaded afresh next run.
 
     Args:
         config: The application configuration.
@@ -328,49 +325,29 @@ def _statement_stage(
     if not months:  # pragma: no cover
         console_info("No calculated settlement date waits on a published statement.")
 
-    changed = False
-    imported: set[str] = set()
+    paths = waiting_files(config.statements_path)
+    waiting = {statement_month_of(path.name) for path in paths}
     for month in months:
-        files = statements_for_month(config.statements_path, month)
-        if not files and offline:
+        if month in waiting:
+            continue
+        if offline:
             report.pending.append(
                 f"{month} statement not fetched offline; to fetch it: folio update",
             )
-        elif not files:
-            files = _download_statement(month, report)
-        if files:
-            imported.add(month)
-        for path in files:
-            result = import_single_statement(path, verbose=True, interactive=False)
-            archive_statement(path, result)
-            report.confirmed.extend(
-                match
-                for match in result.settlement_matches
-                if match.outcome is SettlementOutcome.CONFIRMED
-            )
-            report.concerns.extend(review_statement(path.name, result))
-            changed |= (
-                result.settlements_confirmed > 0 or result.transfers_created() > 0
-            )
+        else:
+            paths.extend(_download_statement(month, report))
 
-    if changed:
-        with spinner(color=SPINNER_STATEMENT) as progress:
-            progress.add_task("Exporting to Parquet...", total=None)
-            ParquetExporter().export_all()
-
-    remaining = txns.calculated_settlements(BrokerId.WS)
-    on_hand = {
-        month
-        for month in statement_months([txn.settle_date for txn in remaining], today)
-        if month in imported or statements_for_month(config.statements_path, month)
-    }
-    stuck, pending = split_remaining(remaining, on_hand, today)
-    if (concern := review_stuck(stuck)) is not None:
-        report.concerns.append(concern)
-    if pending:
-        report.pending.append(
-            f"{len(pending)} settlement date(s) wait on statements not out yet",
+    statements = read_statements(paths, verbose=True, interactive=False)
+    for result in statements.read:
+        report.confirmed.extend(
+            match
+            for match in result.settlement_matches
+            if match.outcome is SettlementOutcome.CONFIRMED
         )
+        report.concerns.extend(review_statement(result))
+    concerns, notes = review_remaining(statements)
+    report.concerns.extend(concerns)
+    report.pending.extend(notes)
 
 
 def _download_statement(month: str, report: UpdateReport) -> list[Path]:

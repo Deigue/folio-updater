@@ -277,6 +277,15 @@ class Column(StrEnum):
         SETTLE_CALCULATED = "SettleCalculated"
         DESCRIPTION = "Description"  # Optional: a folio may not carry the column
 
+    class Statement(StrEnum):
+        """A Wealthsimple monthly statement file's columns, in file order."""
+
+        DATE = "date"  # The settlement date
+        AMOUNT = "amount"
+        CURRENCY = "currency"
+        TRANSACTION = "transaction"  # The broker's action code, such as BUY
+        DESCRIPTION = "description"  # Names the ticker, units and transaction date
+
     class Ledger(StrEnum):
         """Derived columns of the ledger frame, beside the carried `Txn` ones."""
 

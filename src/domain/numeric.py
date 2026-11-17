@@ -12,6 +12,9 @@ ONE = Decimal(1)
 CENT = Decimal("0.01")
 # Half a cent: the most two figures rounded to the cent can differ by.
 HALF_CENT = Decimal("0.005")
+# Two amounts naming the same figure, such as a statement row and its
+# transaction or a cancellation and the row it voids, differ by less than this.
+AMOUNT_MATCH_TOLERANCE = CENT
 # A ten-thousandth of a unit: below it, two unit counts are the same.
 UNIT_EPSILON = Decimal("0.0001")
 # The ten decimal places a stored NUMERIC(20,10) column keeps.

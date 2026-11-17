@@ -13,7 +13,7 @@ from services.broker_files import (
     ibkr_file_name,
     ibkr_retry_file_name,
     statement_account_of,
-    statements_for_month,
+    statement_month_of,
     waiting_files,
     ws_activities_file_name,
     ws_statement_file_name,
@@ -79,23 +79,26 @@ def test_a_name_gives_back_its_date_range(
 
 
 @pytest.mark.parametrize(
-    ("name", "account"),
+    ("name", "account", "month"),
     [
-        (ws_statement_file_name("WS-TEST", "2026-01"), "WS-TEST"),
+        (ws_statement_file_name("WS-TEST", "2026-01"), "WS-TEST", "2026-01"),
         (
-            ws_statement_file_name("WS_WITH_UNDERSCORES", "2026-01"),
+            ws_statement_file_name("WS_WITH_UNDERSCORES", "2026-02"),
             "WS_WITH_UNDERSCORES",
+            "2026-02",
         ),
-        ("ws_statement_WS-TEST_202601.xlsx", "WS-TEST"),
-        ("WS_STATEMENT_WS-TEST_202601.csv", "WS-TEST"),
-        ("statement.xlsx", None),
+        ("ws_statement_WS-TEST_202601.xlsx", "WS-TEST", "2026-01"),
+        ("WS_STATEMENT_WS-TEST_202601.csv", "WS-TEST", "2026-01"),
+        ("statement.xlsx", None, None),
     ],
 )
-def test_a_statement_name_gives_back_its_account(
+def test_a_statement_name_gives_back_its_account_and_month(
     name: str,
     account: str | None,
+    month: str | None,
 ) -> None:
     assert statement_account_of(name) == account
+    assert statement_month_of(name) == month
 
 
 def test_waiting_files_lists_supported_files_in_name_order(tmp_path: Path) -> None:
@@ -107,20 +110,4 @@ def test_waiting_files_lists_supported_files_in_name_order(tmp_path: Path) -> No
         "a.csv",
         "b.xlsx",
         "c.CSV",
-    ]
-
-
-def test_statements_for_month_finds_only_that_month(tmp_path: Path) -> None:
-    for name in (
-        "ws_statement_WS-B_202601.xlsx",
-        "ws_statement_WS-A_202601.csv",
-        "ws_statement_WS-A_202602.csv",
-        "ws_statement_WS-C_202601.xls",
-        "other_202601.csv",
-    ):
-        (tmp_path / name).touch()
-
-    assert [path.name for path in statements_for_month(tmp_path, "2026-01")] == [
-        "ws_statement_WS-A_202601.csv",
-        "ws_statement_WS-B_202601.xlsx",
     ]
