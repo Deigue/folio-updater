@@ -18,7 +18,7 @@ from domain import Column, Currency, Grain
 from domain.dates import weekday_on_or_before
 from domain.numeric import ONE, ZERO
 from domain.symbols import cad_twin
-from engine.accounts import FOLIO, Pool
+from engine.accounts import FOLIO, Pool, account_type_of
 from engine.frames import CASH_MOVES, POOL_COLUMN, grain_column, replay_ordered
 from engine.fx_rates import load_fx_rates
 from services.historical_prices import HistoricalPriceService
@@ -83,6 +83,12 @@ class DatedPool:
         """The holdings with no price on the date, left out of every value."""
         return tuple(held for held in self.holdings if held.price is None)
 
+    @property
+    def currencies(self) -> frozenset[Currency]:
+        """The currencies it holds anything in, holdings or cash."""
+        held = {held.currency for held in self.holdings}
+        return frozenset(held | {kind for kind, amount in self.cash.items() if amount})
+
     def holdings_value(self, into: Currency) -> Decimal:
         """Sum the priced holdings' market value, converted at the date's rate."""
         return sum(
@@ -127,6 +133,18 @@ class DatedValuation:
     on: date
     rate_date: str
     pools: Mapping[Pool, DatedPool]
+
+    def type_groups(self) -> list[tuple[DatedPool, tuple[DatedPool, ...]]]:
+        """Each type-grain pool with the accounts in it, both in name order."""
+        accounts: dict[Pool, list[DatedPool]] = {}
+        for pool, dated in sorted(self.pools.items()):
+            if pool.grain is Grain.ACCOUNT:
+                kind = Pool(Grain.TYPE, str(account_type_of(pool)))
+                accounts.setdefault(kind, []).append(dated)
+        return [
+            (self.pools[kind], tuple(members))
+            for kind, members in sorted(accounts.items())
+        ]
 
     def in_transit(self, into: Currency) -> Decimal:
         """Sum what transfers had taken out of one account and not yet delivered.

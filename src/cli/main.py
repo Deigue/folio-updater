@@ -182,6 +182,37 @@ def dash_cmd(
 
 
 @app.command(
+    "value",
+    help="Show every account's market value at a month-end or on a past day",
+    rich_help_panel=_GROUP_DAILY,
+)
+def value_cmd(
+    asked: str = typer.Argument(
+        ...,
+        metavar="DATE",
+        help="YYYY-MM for the month's last day, or YYYY-MM-DD",
+    ),
+    currency: str | None = typer.Option(
+        None,
+        "-c",
+        "--currency",
+        help="CAD (default) or USD",
+    ),
+    *,
+    offline: bool = typer.Option(
+        False,
+        "-o",
+        "--offline",
+        help="Value from the stored prices, fetching none",
+    ),
+) -> None:
+    """Show every account's market value at a month-end or on a past day."""
+    from cli.commands.value import show_values
+
+    show_values(asked, currency=currency, offline=offline)
+
+
+@app.command(
     "ticker",
     help="Show one security in focus, or compare several over every range",
     rich_help_panel=_GROUP_DAILY,

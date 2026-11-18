@@ -146,6 +146,13 @@ ACCOUNT_TYPE_COLORS = {
     AccountType.CORPORATE: "tan",
 }
 
+# Each account type in four letters, for a narrow Type column.
+SHORT_ACCOUNT_TYPES = {
+    AccountType.NON_REGISTERED: "NREG",
+    AccountType.CORPORATE: "CORP",
+    AccountType.UNKNOWN: "UNKN",
+}
+
 # --- Number precision --------------------------------------------------------
 
 MONEY_PRECISION = 2
