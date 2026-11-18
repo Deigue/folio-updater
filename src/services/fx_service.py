@@ -6,7 +6,7 @@ Handles fetching FX rates from Bank of Canada API.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 
 import pandas as pd
@@ -155,7 +155,8 @@ class FxService:
         """Give the latest date the Bank of Canada could already have published.
 
         Rates land at 4:30 PM Toronto time, so before that the newest date worth
-        asking for is yesterday's.
+        asking for is yesterday's. The Bank publishes no weekend rates, so a
+        weekend gives the Friday.
 
         Returns:
             Date in YYYY-MM-DD format.
@@ -166,7 +167,7 @@ class FxService:
             < current.replace(hour=16, minute=30, second=0, microsecond=0).time()
         ):  # pragma: no cover
             current = current - timedelta(days=1)
-        return current.strftime("%Y-%m-%d")
+        return weekday_on_or_before(current.date()).isoformat()
 
     @classmethod
     def _default_start(cls) -> str:
@@ -201,10 +202,7 @@ class FxService:
         existing_min = fx_rates.earliest_date()
         existing_max = fx_rates.latest_date()
         today = cls.effective_today()  # latest available boc date
-        # The Bank publishes no weekend rates, so a weekend asks for the Friday.
-        target_end = weekday_on_or_before(
-            date.fromisoformat(min(end, today) if end else today),
-        ).isoformat()
+        target_end = min(end, today) if end else today
 
         if existing_min is None or existing_max is None or first_needed < existing_min:
             fetch_from = first_needed

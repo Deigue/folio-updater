@@ -13,7 +13,7 @@ from services.price_history import months_back
 from term import console_info, console_warning
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from domain import BrokerId
@@ -75,6 +75,22 @@ class DownloadResult:
     files: tuple[Path, ...] = ()
     failures: tuple[PartFailure, ...] = ()
     previews: tuple[PreviewTable, ...] = ()
+
+    @classmethod
+    def merged(cls, results: Iterable[DownloadResult]) -> DownloadResult:
+        """Join the files, failures and previews of several downloads, in order."""
+        files: list[Path] = []
+        failures: list[PartFailure] = []
+        previews: list[PreviewTable] = []
+        for result in results:
+            files += result.files
+            failures += result.failures
+            previews += result.previews
+        return cls(
+            files=tuple(files),
+            failures=tuple(failures),
+            previews=tuple(previews),
+        )
 
 
 @dataclass(frozen=True)
@@ -169,19 +185,23 @@ def resolve_window(
     """
     today = datetime.now(tz=TORONTO_TZ).date()
     return DateWindow(
-        start=start or overlap_day(broker) or _fallback_start(today),
+        start=start or restart_day(broker, today) or _fallback_start(today),
         end=end or today,
     )
 
 
-def overlap_day(broker: BrokerId) -> date | None:
-    """Return the broker's latest stored transaction date, or None when it has none."""
+def restart_day(broker: BrokerId, today: date) -> date | None:
+    """Return the day a download restarts on, or None when the broker has no rows.
+
+    That is the broker's overlap day. When it cannot be looked up, the fallback
+    first of a month stands in, so a failed lookup never reads as an empty folio.
+    """
     name = broker.display_name
     try:
         latest = txns.latest_date_for(broker)
     except (ValueError, OSError, DatabaseError) as e:
         console_warning(f"Warning: Could not determine latest transaction date: {e}")
-        return None
+        return _fallback_start(today)
     if not latest:
         return None
     console_info(f"from_date: Using latest {name} transaction date: {latest}")

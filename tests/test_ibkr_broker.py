@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import itertools
-from datetime import date, datetime, tzinfo
-from typing import TYPE_CHECKING, Self
+from datetime import date
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -28,23 +28,17 @@ def _ignore(_text: str) -> None:
 
 def _freeze_today(monkeypatch: pytest.MonkeyPatch, today: date) -> None:
     """Make the IBKR broker see `today` as the current day in Toronto."""
-
-    class FrozenDatetime(datetime):
-        @classmethod
-        def now(cls, tz: tzinfo | None = None) -> Self:
-            return cls(today.year, today.month, today.day, 12, tzinfo=tz)
-
-    monkeypatch.setattr(ibkr_broker, "datetime", FrozenDatetime)
+    monkeypatch.setattr(ibkr_broker, "today_in_toronto", lambda: today)
 
 
-def _requested_ranges(urls: list[str]) -> list[tuple[str, str]]:
+def _requested_windows(urls: list[str]) -> list[tuple[str, str]]:
     """List the from and to dates of every SendRequest, in the order sent."""
-    ranges = []
+    windows = []
     for url in urls:
         if "SendRequest" in url:
             query = parse_qs(urlparse(url).query)
-            ranges.append((query["fd"][0], query["td"][0]))
-    return ranges
+            windows.append((query["fd"][0], query["td"][0]))
+    return windows
 
 
 @pytest.mark.parametrize(
@@ -101,12 +95,25 @@ def test_an_activity_query_ending_before_it_starts_is_skipped(
     with temp_ctx(), IBKRMockContext(monkeypatch, get_default_mock_csv()) as mock:
         result = activity.download(date(2025, 8, 18), None, _ignore)
 
-    assert _requested_ranges(mock.sent_urls) == []
+    assert _requested_windows(mock.sent_urls) == []
     assert result.failures == ()
     mock.assert_no_csv_written()
 
 
-def test_a_range_longer_than_a_year_is_split_into_requests_of_365_days(
+def test_a_backward_window_is_skipped_for_every_query(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ibkr = IbkrBroker(IbkrSettings(queries={"Trades": "123456", "Cash": "654321"}))
+    with temp_ctx(), IBKRMockContext(monkeypatch, get_default_mock_csv()) as mock:
+        result = ibkr.download(date(2025, 5, 12), date(2025, 5, 2), _ignore)
+
+    assert _requested_windows(mock.sent_urls) == []
+    assert result.failures == ()
+    mock.assert_no_csv_written()
+
+
+def test_a_window_longer_than_a_year_is_split_into_requests_of_365_days(
     temp_ctx: TempContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -114,7 +121,7 @@ def test_a_range_longer_than_a_year_is_split_into_requests_of_365_days(
     with temp_ctx(), IBKRMockContext(monkeypatch, get_default_mock_csv()) as mock:
         result = ibkr.download(date(2023, 1, 1), date(2025, 3, 10), _ignore)
 
-    assert _requested_ranges(mock.sent_urls) == [
+    assert _requested_windows(mock.sent_urls) == [
         ("20230101", "20231231"),
         ("20240101", "20241230"),
         ("20241231", "20250310"),
@@ -146,7 +153,7 @@ def test_requests_are_spaced_to_stay_within_the_rate_limit(
         monkeypatch.setattr(ibkr, "_get", timed_get)
         ibkr.download(date(2023, 1, 1), date(2024, 6, 30), _ignore)
 
-    assert len(_requested_ranges(mock.sent_urls)) == 4
+    assert len(_requested_windows(mock.sent_urls)) == 4
     gaps = [later - earlier for earlier, later in itertools.pairwise(sent_at)]
     assert min(gaps) >= ibkr_broker.MIN_SECONDS_BETWEEN_REQUESTS
 
@@ -162,7 +169,7 @@ def test_with_no_ibkr_transactions_history_is_downloaded_a_year_at_a_time(
     with temp_ctx(), IBKRMockContext(monkeypatch, statements) as mock:
         result = ibkr.download(None, None, _ignore)
 
-    assert _requested_ranges(mock.sent_urls) == [
+    assert _requested_windows(mock.sent_urls) == [
         ("20240815", "20250814"),
         ("20230816", "20240814"),
         ("20220816", "20230815"),

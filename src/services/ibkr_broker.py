@@ -10,7 +10,7 @@ import csv
 import logging
 import time
 import xml.etree.ElementTree as ET
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
@@ -20,8 +20,8 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from app import get_config
-from domain import TORONTO_TZ, BrokerId
-from domain.dates import weekday_on_or_before
+from domain import BrokerId
+from domain.dates import today_in_toronto, weekday_on_or_before
 from services.broker import (
     PREVIEW_ROWS,
     BrokerError,
@@ -30,7 +30,7 @@ from services.broker import (
     DownloadResult,
     PartFailure,
     PreviewTable,
-    overlap_day,
+    restart_day,
 )
 from services.broker_files import ibkr_file_name, ibkr_retry_file_name
 from term import (
@@ -43,7 +43,7 @@ from term import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterator
     from pathlib import Path
 
     from config.brokers import IbkrSettings
@@ -170,13 +170,15 @@ class IbkrBroker:
             console_warning(f"Skipping {query_name}: No valid query ID configured")
         if not queries:
             return DownloadResult()
-        today = datetime.now(TORONTO_TZ).date()
+        today = today_in_toronto()
         end = end or today
-        start = start or overlap_day(self.id)
+        start = start or restart_day(self.id, today)
         with _session() as session:
             if start is None:
-                return _merged(self._download_history(session, queries, end, progress))
-            return _merged(
+                return DownloadResult.merged(
+                    self._download_history(session, queries, end, progress),
+                )
+            return DownloadResult.merged(
                 self._download_window(session, queries, window, progress)
                 for window in _windows(start, end)
             )
@@ -208,7 +210,7 @@ class IbkrBroker:
         progress: Progress,
     ) -> DownloadResult:
         """Download every query over one window of at most a year."""
-        return _merged(
+        return DownloadResult.merged(
             self._download_query(session, query_name, query_id, window, progress)
             for query_name, query_id in queries.items()
         )
@@ -448,7 +450,7 @@ def _flex_end(query_name: str, end: date) -> date:
 
     IBKR has no cash activity for a day that has not closed yet.
     """
-    today = datetime.now(TORONTO_TZ).date()
+    today = today_in_toronto()
     if "Activity" not in query_name or end < today:
         return end
     last_weekday = weekday_on_or_before(today - timedelta(days=1))
@@ -459,7 +461,7 @@ def _flex_end(query_name: str, end: date) -> date:
 def _windows(start: date, end: date) -> Iterator[DateWindow]:
     """Split the days from `start` to `end` into windows IBKR accepts, oldest first.
 
-    A backward range comes out as one window, for the query to skip.
+    A backward window (start after end) comes out alone, for the query to skip.
     """
     while True:
         window_end = min(start + timedelta(days=MAX_DAYS_PER_REQUEST - 1), end)
@@ -473,22 +475,6 @@ def _has_rows(content: str) -> bool:
     """Whether a statement holds any row besides its header rows."""
     rows = list(csv.reader(content.strip().splitlines()))
     return any(row != rows[0] for row in rows[1:])
-
-
-def _merged(results: Iterable[DownloadResult]) -> DownloadResult:
-    """Join the files, failures and previews of several downloads, in order."""
-    files: list[Path] = []
-    failures: list[PartFailure] = []
-    previews: list[PreviewTable] = []
-    for result in results:
-        files += result.files
-        failures += result.failures
-        previews += result.previews
-    return DownloadResult(
-        files=tuple(files),
-        failures=tuple(failures),
-        previews=tuple(previews),
-    )
 
 
 def _flex_date(day: date) -> str:

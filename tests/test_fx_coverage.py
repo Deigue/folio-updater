@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from datetime import datetime, timedelta, tzinfo
+from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import patch
 
 import pandas as pd
@@ -14,7 +14,7 @@ from datagen import ensure_data_exists
 from db import create_txns_table, drop_table, fx_rates, get_connection, get_row_count
 from domain import TORONTO_TZ, Column, Table
 from engine.ledger import open_ledger
-from services import FxService
+from services import FxService, fx_service
 
 from .helpers.cli import assert_cli_success, assert_in_output, run_cli
 from .helpers.seed import seed_fx, seed_transaction
@@ -144,24 +144,25 @@ def test_ensure_coverage_never_chases_a_future_end(
 
 
 @pytest.mark.parametrize(
-    "effective_today",
+    "now",
     [
-        pytest.param("2025-03-15", id="saturday"),
-        # Also a Monday morning, before the day's rates are published.
-        pytest.param("2025-03-16", id="sunday"),
+        pytest.param(datetime(2025, 3, 15, 12, tzinfo=TORONTO_TZ), id="saturday"),
+        pytest.param(datetime(2025, 3, 16, 12, tzinfo=TORONTO_TZ), id="sunday"),
+        pytest.param(datetime(2025, 3, 17, 9, tzinfo=TORONTO_TZ), id="monday_morning"),
     ],
 )
 def test_ensure_coverage_skips_the_fetch_over_a_weekend_once_friday_is_held(
     temp_ctx: TempContext,
     boc_fetch: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
-    effective_today: str,
+    now: datetime,
 ) -> None:
-    monkeypatch.setattr(
-        FxService,
-        "effective_today",
-        staticmethod(lambda: effective_today),
-    )
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> Self:
+            return cls.combine(now.date(), now.time(), tzinfo=tz)
+
+    monkeypatch.setattr(fx_service, "datetime", FrozenDatetime)
     with temp_ctx():
         _seed_rates(["2025-03-12", "2025-03-13", "2025-03-14"])
         assert FxService.ensure_coverage("2025-03-12") == 0
