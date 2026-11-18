@@ -45,6 +45,21 @@ class HistoricalPriceUpdate:
     throttled: frozenset[str] = frozenset()
     failed: frozenset[str] = frozenset()
 
+    @property
+    def missed(self) -> frozenset[str]:
+        """The symbols refused on a rate limit or failed, asked again next time."""
+        return self.throttled | self.failed
+
+    def merged(self, other: HistoricalPriceUpdate) -> HistoricalPriceUpdate:
+        """Add another top-up's counts and symbols to this one's."""
+        return HistoricalPriceUpdate(
+            fetched=self.fetched + other.fetched,
+            stored=self.stored + other.stored,
+            no_data=self.no_data | other.no_data,
+            throttled=self.throttled | other.throttled,
+            failed=self.failed | other.failed,
+        )
+
 
 class HistoricalPriceService:
     """Fetch, store and read historical prices."""
@@ -92,7 +107,7 @@ class HistoricalPriceService:
             },
             today=today,
         )
-        refused = fetch.throttled | fetch.failed
+        refused = fetch.missed
         prices = [
             HistoricalPrice(
                 symbol=spelled[provider_symbol],

@@ -417,9 +417,10 @@ def _check_stage(report: UpdateReport, *, offline: bool) -> None:
 def _top_up_prices(report: UpdateReport) -> None:
     """Fetch the historical prices the folio's securities lack, to value past dates."""
     update = top_up_historical_prices(require_ledger())
-    if missed := len(update.throttled) + len(update.failed):
+    if missed := len(update.missed):
         report.pending.append(
-            f"{missed} symbol(s) lack price history; fetched again by: folio update",
+            f"{missed} symbol(s) lack historical prices; fetched again by: "
+            "folio update",
         )
 
 

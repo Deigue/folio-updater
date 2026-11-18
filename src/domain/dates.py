@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, datetime, timedelta
 
 from domain.constants import TORONTO_TZ, WEEKDAYS
@@ -25,3 +26,8 @@ def iso_day(text: str) -> date | None:
         return date.fromisoformat(text)
     except ValueError:
         return None
+
+
+def month_end(year: int, month: int) -> date:
+    """Return the last calendar day of a month."""
+    return date(year, month, calendar.monthrange(year, month)[1])

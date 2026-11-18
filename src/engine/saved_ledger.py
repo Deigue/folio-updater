@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -61,7 +61,7 @@ _TXN_FIELDS = tuple(field.name for field in fields(Txn) if field.name != "txn_id
 _DERIVED_FIELDS = tuple(
     field.name
     for field in fields(LedgerRow)
-    if field.name not in {"row", "flags", *_GRAINS}
+    if field.name not in {"row", "cash_moves", "flags", *_GRAINS}
 )
 
 # Prefixed, since a diagnostic and its row both name an account, symbol and currency.
@@ -71,6 +71,7 @@ _ROW_COLUMNS = tuple(
         *_TXN_FIELDS,
         *_DERIVED_FIELDS,
         *(f"{grain}_{name}" for grain in _GRAINS for name in _MEASURE_FIELDS),
+        "cash_moves",
         "flags",
     )
 )
@@ -179,9 +180,27 @@ def _encode_row(computed: LedgerRow) -> dict[str, str | None]:
             for grain in _GRAINS
             for name in _MEASURE_FIELDS
         ),
+        _encode_cash_moves(computed.cash_moves),
         ",".join(str(code) for code in computed.flags),
     ]
     return dict(zip(_ROW_COLUMNS, map(_text, values), strict=True))
+
+
+def _encode_cash_moves(moves: Mapping[tuple[Grain, Currency], Decimal]) -> str:
+    """Write a row's cash moves as `grain:currency:amount` items joined by `;`."""
+    return ";".join(
+        f"{grain}:{currency}:{amount}" for (grain, currency), amount in moves.items()
+    )
+
+
+def _decode_cash_moves(text: str | None) -> dict[tuple[Grain, Currency], Decimal]:
+    """Read back what `_encode_cash_moves` wrote."""
+    moves: dict[tuple[Grain, Currency], Decimal] = {}
+    for item in (text or "").split(";"):
+        if item:
+            grain, currency, amount = item.split(":")
+            moves[Grain(grain), Currency(currency)] = Decimal(amount)
+    return moves
 
 
 def _read_measures(record: Mapping[Hashable, Any], grain: str) -> GrainMeasures:
@@ -207,6 +226,7 @@ def _decode_row(txn_id: int, record: Mapping[Hashable, Any]) -> LedgerRow:
         acct=_read_measures(record, "acct"),
         type=_read_measures(record, "type"),
         folio=_read_measures(record, "folio"),
+        cash_moves=_decode_cash_moves(record["row_cash_moves"]),
         flags=tuple(DiagnosticCode(code) for code in flags.split(",")) if flags else (),
     )
 

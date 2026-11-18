@@ -34,8 +34,6 @@ from domain.numeric import ZERO, safe_div
 from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from engine.types import GrainMeasures, LedgerRow, ReplayResult
 
 # Source columns carried straight through from Txns.
@@ -158,11 +156,8 @@ def _grain_cells(
     return cells
 
 
-def _row_record(
-    computed: LedgerRow,
-    cash_moves: Mapping[tuple[Grain, Currency], Decimal],
-) -> dict[str, object]:
-    """Flatten one `LedgerRow`, and what it did to cash, into the ledger's columns."""
+def _row_record(computed: LedgerRow) -> dict[str, object]:
+    """Flatten one `LedgerRow` into the ledger's columns."""
     row = computed.row
     record: dict[str, object] = {
         str(Column.Txn.TXN_ID): row.txn_id,
@@ -191,7 +186,7 @@ def _row_record(
         record.update(_grain_cells(computed, grain, computed.measures(grain)))
         for currency, suffix in CASH_MOVES.items():
             record[grain_column(grain, suffix)] = _number(
-                cash_moves.get((grain, currency)),
+                computed.cash_moves.get((grain, currency)),
             )
     return record
 
@@ -245,10 +240,7 @@ def ledger_frame(result: ReplayResult) -> pd.DataFrame:
 
     return index_by_txn_id(
         pd.DataFrame(
-            [
-                _row_record(computed, result.cash_moves.get(computed.row.txn_id, {}))
-                for computed in result.rows
-            ],
+            [_row_record(computed) for computed in result.rows],
             columns=columns,
         ),
     )

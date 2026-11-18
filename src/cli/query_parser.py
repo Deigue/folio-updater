@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 from dateparser.date import DateDataParser
 
 from domain import ACTION_ALIASES, TORONTO_TZ, Action, Column, Currency
+from domain.dates import month_end
 from services.price_history import months_back
 
 if TYPE_CHECKING:
@@ -568,7 +569,7 @@ def _try_parse_calendar_phrase(
 
         if period == "month" and num_words >= 2:  # noqa: PLR2004
             start_date = date(resolved_date.year, resolved_date.month, 1)
-            end_date = _last_day_of_month(resolved_date.year, resolved_date.month)
+            end_date = month_end(resolved_date.year, resolved_date.month)
             query.filters.append(
                 QueryFilter(Column.Txn.TXN_DATE, ">=", start_date.strftime("%Y-%m-%d")),
             )
@@ -578,15 +579,6 @@ def _try_parse_calendar_phrase(
             return num_words
 
     return None
-
-
-def _last_day_of_month(year: int, month: int) -> date:
-    """Return the last calendar day of the given year/month."""
-    if month == _DECEMBER_MONTH:
-        next_month_first = date(year + 1, 1, 1)
-    else:
-        next_month_first = date(year, month + 1, 1)
-    return next_month_first - timedelta(days=1)
 
 
 def _get_loose_date_data(
@@ -652,7 +644,7 @@ def _resolve_loose_date(
     if period == "month":
         if boundary == "start":
             return date(resolved_date.year, resolved_date.month, 1)
-        return _last_day_of_month(resolved_date.year, resolved_date.month)
+        return month_end(resolved_date.year, resolved_date.month)
     return resolved_date
 
 
@@ -811,7 +803,7 @@ def _get_last_month_range() -> tuple[str, str]:
     """Get date range for last month."""
     today = datetime.now(TORONTO_TZ).date()
     first_day_of_prev = months_back(today.replace(day=1), 1)
-    last_day_of_prev = _last_day_of_month(
+    last_day_of_prev = month_end(
         first_day_of_prev.year,
         first_day_of_prev.month,
     )
@@ -945,7 +937,7 @@ def _try_parse_date_filter(term: str, query: ParsedQuery) -> bool:
         if not 1 <= month <= _DECEMBER_MONTH:
             return False
         start_date = date(year, month, 1)
-        end_date = _last_day_of_month(year, month)
+        end_date = month_end(year, month)
         query.filters.append(
             QueryFilter(Column.Txn.TXN_DATE, ">=", start_date.strftime("%Y-%m-%d")),
         )

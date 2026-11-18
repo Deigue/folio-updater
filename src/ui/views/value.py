@@ -1,4 +1,4 @@
-"""Rendering market values on past valuation dates: one date, a range, one holding."""
+"""Rendering market values on past dates: one date, month-ends, one holding."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from rich.table import Table as RichTable
 
 from domain import AccountType, Currency
 from engine.accounts import account_type_of
-from engine.past_values import ranged_pools
+from engine.past_values import month_end_pools, unpriced_month_ends
 from exporters.sheet_spec import Fmt
 from term import console_print
 from ui.cells import WARN_GLYPH, money, price, style, units
@@ -37,6 +37,8 @@ _UNPRICED_MARK = "*"
 _NOTHING = "-"
 # Currency lines in the order a native table lists them.
 _LINES = (Currency.CAD, Currency.USD)
+_IN_TRANSIT = "In transit"
+_TOTAL = "Total"
 
 
 def show_value(
@@ -58,53 +60,22 @@ def show_value(
         by_type: The rows are account types, not accounts.
     """
     title = _title(valued, str(into), capped=capped)
-    table = _table()
-    _add_label_columns(table, by_type=by_type)
     if into == "native":
-        add_column(table, FormattedColumn("$", fmt=Fmt.CURRENCY, no_wrap=True))
-    for header in ("Holdings", "Cash", "Value"):
-        add_column(table, FormattedColumn(header, fmt=Fmt.MONEY, justify="right"))
-
-    blanks = [""] * (0 if by_type else 1)
-    for dated in rows.rows:
-        labels = _labels(dated, by_type=by_type)
-        if into == "native":
-            for currency in _held_lines(dated):
-                table.add_row(*labels, str(currency), *_line_figures(dated, currency))
-                labels = ["", *blanks]
-        else:
-            table.add_row(*labels, *_figures(dated, into))
-    if into != "native" and (transit := rows.in_transit(into)):
-        table.add_row("In transit", *blanks, "", "", money(transit))
-
-    table.add_section()
-    if into == "native":
-        label = "Total"
-        for currency in _held_lines(rows.total):
-            figures = _line_figures(rows.total, currency)
-            table.add_row(
-                label,
-                *blanks,
-                str(currency),
-                *figures,
-                style=GRAND_TOTAL_ROW_STYLE,
-            )
-            label = ""
+        table = _native_table(rows, by_type=by_type)
     else:
-        table.add_row(
-            "Total",
-            *blanks,
-            *_figures(rows.total, into),
-            style=GRAND_TOTAL_ROW_STYLE,
-        )
+        table = _converted_table(rows, into, by_type=by_type)
     _print_table(title, table)
-    for line in _disclosures([valued], rows.total.pool, into):
+    if into != "native" and rows.total.converts_into(into):
+        console_print(_conversion_line(valued, into))
+    for line in _twin_lines(rows.total.twins):
         console_print(line)
+    for held in valued.unpriced(rows.total.pool):
+        console_print(_unpriced_line(held.symbol, held.account, units(held.units)))
 
 
-def show_range(
+def show_months(
     valuations: Sequence[DatedValuation],
-    scope: Pool,
+    pool: Pool,
     into: Currency,
     *,
     by_type: bool,
@@ -114,36 +85,45 @@ def show_range(
 
     Args:
         valuations: Every pool at each month-end, in order.
-        scope: The pool to report, whose value is the Total column.
+        pool: The pool to report, whose value is the Total column.
         into: The currency every figure is converted into.
         by_type: The columns are account types, not accounts.
         capped: The last month had not closed, so the latest close stands in.
     """
     final = valuations[-1]
-    if scope not in final.pools:
-        console_print(f"Nothing was held by {final.on}.")
+    if pool not in final.pools:
+        console_print(f"{pool.label} held nothing by {final.on}.")
         return
-    listed = ranged_pools(valuations, scope, by_type=by_type)
-    columns = [*listed, scope]
-    title = f"Market value at each month-end · {into}"
+    listed = month_end_pools(valuations, pool, by_type=by_type)
     table = _table()
     add_column(table, FormattedColumn("Month", no_wrap=True))
-    for pool in listed:
-        header = _labels(final.pools[pool], by_type=by_type)[0]
+    for member in listed:
+        header = _labels(member, by_type=by_type)[0]
         add_column(table, FormattedColumn(header, fmt=Fmt.MONEY, justify="right"))
-    add_column(table, FormattedColumn("Total", fmt=Fmt.MONEY, justify="right"))
-
+    add_column(table, FormattedColumn(_TOTAL, fmt=Fmt.MONEY, justify="right"))
     for valued in valuations:
-        cells = [_value_cell(valued.pools.get(pool), into) for pool in columns]
+        cells = [
+            _value_cell(valued.pools.get(member), into) for member in (*listed, pool)
+        ]
         table.add_row(f"{valued.asked:%Y-%m}", *cells)
-    _print_table(title, table)
+    _print_table(f"Market value at each month-end · {into}", table)
+
     if capped:
         console_print(
             f"[dim]{final.asked:%Y-%m} is valued at the latest close, "
             f"{final.on}.[/dim]",
         )
-    for line in _disclosures(valuations, scope, into):
+    totals = [valued.pools[pool] for valued in valuations if pool in valued.pools]
+    if any(dated.converts_into(into) for dated in totals):
+        console_print(
+            f"[dim]Converted to {into} at each month-end's Bank of Canada rate.[/dim]",
+        )
+    twins = {symbol: twin for dated in totals for symbol, twin in dated.twins.items()}
+    for line in _twin_lines(twins):
         console_print(line)
+    for (symbol, account), months in unpriced_month_ends(valuations, pool).items():
+        at = ", ".join(f"{month:%Y-%m}" for month in months)
+        console_print(_unpriced_line(symbol, account, f"at {at}"))
 
 
 def show_holding(
@@ -170,7 +150,6 @@ def show_holding(
     if total is None:
         return
     shown = total.currency if into == "native" else into
-    title = _title(valued, str(shown), capped=capped, subject=f"of {symbol} ")
     table = _table()
     _add_label_columns(table, by_type=by_type)
     add_column(table, FormattedColumn("Units", fmt=Fmt.UNITS, justify="right"))
@@ -179,26 +158,89 @@ def show_holding(
         FormattedColumn(f"Price {total.currency}", fmt=Fmt.PRICE, justify="right"),
     )
     add_column(table, FormattedColumn("Value", fmt=Fmt.MONEY, justify="right"))
-
+    blanks = _blanks(by_type=by_type)
     for dated, held in rows.holdings(symbol):
         table.add_row(
-            *_labels(dated, by_type=by_type),
+            *_labels(dated.pool, by_type=by_type),
             units(held.units),
             price(held.price),
-            _money_or_nothing(dated.holding_value(held, shown)),
+            _money_or_nothing(dated.market_value_of(held, shown)),
+        )
+    if (moving := rows.holding_in_transit(symbol)) is not None:
+        table.add_row(
+            _IN_TRANSIT,
+            *blanks,
+            units(moving.units),
+            price(moving.price),
+            _money_or_nothing(rows.total.market_value_of(moving, shown)),
         )
     table.add_section()
     table.add_row(
-        "Total",
-        *([""] * (0 if by_type else 1)),
+        _TOTAL,
+        *blanks,
         units(total.units),
         price(total.price),
-        _money_or_nothing(rows.total.holding_value(total, shown)),
+        _money_or_nothing(rows.total.market_value_of(total, shown)),
         style=GRAND_TOTAL_ROW_STYLE,
     )
+    title = _title(valued, str(shown), capped=capped, subject=f"of {symbol} ")
     _print_table(title, table)
-    for line in _disclosures([valued], rows.total.pool, into, symbol=symbol):
+    if shown != total.currency:
+        console_print(_conversion_line(valued, shown))
+    for line in _twin_lines({symbol: total.twin} if total.twin else {}):
         console_print(line)
+    for held in valued.unpriced(rows.total.pool):
+        if held.symbol == symbol:
+            console_print(_unpriced_line(held.symbol, held.account, units(held.units)))
+
+
+def _converted_table(rows: PoolRows, into: Currency, *, by_type: bool) -> RichTable:
+    """Render each listed pool's holdings, cash and value in one currency."""
+    table = _table()
+    _add_label_columns(table, by_type=by_type)
+    _add_money_columns(table)
+    blanks = _blanks(by_type=by_type)
+    for dated in rows.rows:
+        table.add_row(*_labels(dated.pool, by_type=by_type), *_figures(dated, into))
+    if transit := rows.in_transit(into):
+        table.add_row(_IN_TRANSIT, *blanks, "", "", money(transit))
+    table.add_section()
+    table.add_row(
+        _TOTAL,
+        *blanks,
+        *_figures(rows.total, into),
+        style=GRAND_TOTAL_ROW_STYLE,
+    )
+    return table
+
+
+def _native_table(rows: PoolRows, *, by_type: bool) -> RichTable:
+    """Render each listed pool's currency lines, each left in its own currency."""
+    table = _table()
+    _add_label_columns(table, by_type=by_type)
+    add_column(table, FormattedColumn("$", fmt=Fmt.CURRENCY, no_wrap=True))
+    _add_money_columns(table)
+    blanks = _blanks(by_type=by_type)
+    for dated in rows.rows:
+        labels = _labels(dated.pool, by_type=by_type)
+        for currency in _held_lines(dated):
+            table.add_row(*labels, str(currency), *_line_figures(dated, currency))
+            labels = ["", *blanks]
+    for currency in _LINES:
+        if transit := rows.line_in_transit(currency):
+            table.add_row(_IN_TRANSIT, *blanks, str(currency), "", "", money(transit))
+    table.add_section()
+    label = _TOTAL
+    for currency in _held_lines(rows.total):
+        table.add_row(
+            label,
+            *blanks,
+            str(currency),
+            *_line_figures(rows.total, currency),
+            style=GRAND_TOTAL_ROW_STYLE,
+        )
+        label = ""
+    return table
 
 
 def _table() -> RichTable:
@@ -219,11 +261,20 @@ def _print_table(title: str, table: RichTable) -> None:
 
 def _add_label_columns(table: RichTable, *, by_type: bool) -> None:
     """Add the columns naming each row: an account and its type, or a type."""
-    if by_type:
-        add_column(table, FormattedColumn("Type", no_wrap=True))
-        return
-    add_column(table, FormattedColumn("Account", no_wrap=True))
+    if not by_type:
+        add_column(table, FormattedColumn("Account", no_wrap=True))
     add_column(table, FormattedColumn("Type", no_wrap=True))
+
+
+def _add_money_columns(table: RichTable) -> None:
+    """Add the holdings, cash and value columns."""
+    for header in ("Holdings", "Cash", "Value"):
+        add_column(table, FormattedColumn(header, fmt=Fmt.MONEY, justify="right"))
+
+
+def _blanks(*, by_type: bool) -> list[str]:
+    """Fill the label columns a total or in-transit row leaves after its name."""
+    return [] if by_type else [""]
 
 
 def _title(
@@ -242,14 +293,14 @@ def _title(
     return f"Market value {subject}at {valued.on}{note} · {shown}"
 
 
-def _labels(dated: DatedPool, *, by_type: bool) -> list[str]:
+def _labels(pool: Pool, *, by_type: bool) -> list[str]:
     """Name a row: an account and its type, or a type alone, in the type's colour."""
-    kind = account_type_of(dated.pool) or AccountType.UNKNOWN
-    tint = ACCOUNT_TYPE_COLORS.get(kind)
-    short = SHORT_ACCOUNT_TYPES.get(kind, str(kind))
+    account_type = account_type_of(pool) or AccountType.UNKNOWN
+    tint = ACCOUNT_TYPE_COLORS.get(account_type)
+    short = SHORT_ACCOUNT_TYPES.get(account_type, str(account_type))
     if by_type:
         return [style(short, tint)]
-    return [style(dated.pool.name, tint), style(short, tint)]
+    return [style(pool.name, tint), style(short, tint)]
 
 
 def _held_lines(dated: DatedPool) -> list[Currency]:
@@ -261,19 +312,19 @@ def _held_lines(dated: DatedPool) -> list[Currency]:
 def _figures(dated: DatedPool, into: Currency) -> tuple[str, str, str]:
     """Render a pool's holdings, cash and value, marking a value with gaps."""
     return (
-        money(dated.holdings_value(into)),
-        money(dated.cash_value(into)),
+        money(dated.holdings_market_value(into)),
+        money(dated.cash_in(into)),
         _value_cell(dated, into),
     )
 
 
 def _line_figures(dated: DatedPool, currency: Currency) -> tuple[str, str, str]:
     """Render one currency line's holdings, cash and value, left in that currency."""
-    gaps = any(held.currency is currency for held in dated.unpriced)
+    mark = _UNPRICED_MARK if dated.line_unpriced(currency) else ""
     return (
         money(dated.line_holdings(currency)),
         money(dated.line_cash(currency)),
-        f"{money(dated.line_value(currency))}{_UNPRICED_MARK if gaps else ''}",
+        f"{money(dated.line_market_value(currency))}{mark}",
     )
 
 
@@ -290,59 +341,27 @@ def _money_or_nothing(value: Decimal | None) -> str:
     return _NOTHING if value is None else money(value)
 
 
-def _disclosures(
-    valuations: Sequence[DatedValuation],
-    scope: Pool,
-    into: DisplayCurrency,
-    *,
-    symbol: str | None = None,
-) -> list[str]:
-    """Word what the figures were converted at and what they leave out."""
-    accounts = [
-        dated
-        for valued in valuations
-        if (rows := valued.rows(scope)) is not None
-        for dated in rows.rows
+def _conversion_line(valued: DatedValuation, into: Currency) -> str:
+    """Say which rate a single date's figures were converted at."""
+    rate = next(iter(valued.pools.values())).usdcad
+    return (
+        f"[dim]Converted to {into} at the {valued.rate_date} Bank of Canada rate, "
+        f"USDCAD {float(rate):,.4f}.[/dim]"
+    )
+
+
+def _twin_lines(twins: dict[str, str]) -> list[str]:
+    """Say which US dollar lines were priced from their Canadian dollar twin."""
+    return [
+        f"[dim]{symbol} priced from {twin} at each day's USDCAD rate.[/dim]"
+        for symbol, twin in sorted(twins.items())
     ]
-    lines: list[str] = []
-    currencies = {
-        currency
-        for dated in accounts
-        for currency in (
-            dated.currencies
-            if symbol is None
-            else {held.currency for held in dated.holdings if held.symbol == symbol}
-        )
-    }
-    if into != "native" and currencies - {into}:
-        if len(valuations) == 1:
-            rate = accounts[0].usdcad
-            lines.append(
-                f"[dim]Converted to {into} at the {valuations[0].rate_date} Bank of "
-                f"Canada rate, USDCAD {float(rate):,.4f}.[/dim]",
-            )
-        else:
-            lines.append(
-                f"[dim]Converted to {into} at each month-end's Bank of Canada "
-                "rate.[/dim]",
-            )
-    twins: dict[str, str] = {}
-    unpriced: set[tuple[str, str]] = set()
-    for dated in accounts:
-        for held in dated.holdings:
-            if symbol is not None and held.symbol != symbol:
-                continue
-            if held.twin is not None:
-                twins[held.symbol] = held.twin
-            elif held.price is None:
-                unpriced.add((held.symbol, dated.pool.name))
-    lines.extend(
-        f"[dim]{line} priced from {twin} at each day's USDCAD rate.[/dim]"
-        for line, twin in sorted(twins.items())
-    )
-    lines.extend(
+
+
+def _unpriced_line(symbol: str, account: str | None, detail: str) -> str:
+    """Name one unpriced holding, where it was and how much or when."""
+    where = account or _IN_TRANSIT.lower()
+    return (
         f"[yellow]{WARN_GLYPH}{_UNPRICED_MARK} Unpriced, left out of every value: "
-        f"{held} in {account}[/yellow]"
-        for held, account in sorted(unpriced)
+        f"{symbol} in {where} ({detail})[/yellow]"
     )
-    return lines

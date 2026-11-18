@@ -67,6 +67,7 @@ Run `folio <command> --help` for each command's options.
 - **`folio update`**: Catch up in one go: download, import, statements, check and generate, then report what changed
 - **[`folio dash`](docs/commands/dashboard.md)**: Dashboard with holdings, cash and flows, valued at their quotes
 - **[`folio ticker`](docs/commands/ticker.md)**: Show one security in focus, or compare several over every range
+- **[`folio value`](docs/commands/value.md)**: Market value of every account at a month-end or on a past day
 
 ### Transactions
 

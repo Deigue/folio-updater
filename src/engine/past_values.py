@@ -8,7 +8,7 @@ the figures are worked out again on every call.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -63,6 +63,21 @@ class DatedHolding:
 
 
 @dataclass(frozen=True)
+class UnpricedHolding:
+    """A holding with no price on a valuation date, left out of every value.
+
+    Attributes:
+        symbol: The security.
+        units: Its units held then.
+        account: The account holding them, or None for units in transit.
+    """
+
+    symbol: str
+    units: Decimal
+    account: str | None
+
+
+@dataclass(frozen=True)
 class DatedPool:
     """One pool on a valuation date: its open holdings and its cash.
 
@@ -94,15 +109,30 @@ class DatedPool:
     def currencies(self) -> frozenset[Currency]:
         """The currencies it holds anything in, holdings or at least a cent of cash."""
         held = {held.currency for held in self.holdings}
-        return frozenset(
-            held | {kind for kind, amount in self.cash.items() if q2(amount)},
-        )
+        cash = {currency for currency, amount in self.cash.items() if q2(amount)}
+        return frozenset(held | cash)
+
+    @property
+    def twins(self) -> dict[str, str]:
+        """Each holding priced from its Canadian dollar twin, mapped to that twin."""
+        return {
+            held.symbol: held.twin for held in self.holdings if held.twin is not None
+        }
+
+    def converts_into(self, into: Currency) -> bool:
+        """Say whether showing it in one currency converts anything it holds."""
+        return bool(self.currencies - {into})
 
     def held(self, symbol: str) -> DatedHolding | None:
         """Find one open holding by symbol, or None when the pool holds none."""
         return next((held for held in self.holdings if held.symbol == symbol), None)
 
-    def holding_value(self, held: DatedHolding, into: Currency) -> Decimal | None:
+    def units_of(self, symbol: str) -> Decimal:
+        """Read the units it holds of one security, zero when it holds none."""
+        held = self.held(symbol)
+        return ZERO if held is None else held.units
+
+    def market_value_of(self, held: DatedHolding, into: Currency) -> Decimal | None:
         """Convert one holding's market value at the date's rate, None when unpriced."""
         value = held.market_value
         return None if value is None else self._convert(value, held.currency, into)
@@ -123,11 +153,15 @@ class DatedPool:
         """Read the cash held in one currency."""
         return self.cash.get(currency, ZERO)
 
-    def line_value(self, currency: Currency) -> Decimal:
+    def line_market_value(self, currency: Currency) -> Decimal:
         """Add one currency line's priced holdings to its cash, unconverted."""
         return self.line_holdings(currency) + self.line_cash(currency)
 
-    def holdings_value(self, into: Currency) -> Decimal:
+    def line_unpriced(self, currency: Currency) -> bool:
+        """Say whether one currency line leaves out an unpriced holding."""
+        return any(held.currency is currency for held in self.unpriced)
+
+    def holdings_market_value(self, into: Currency) -> Decimal:
         """Sum the priced holdings' market value, converted at the date's rate."""
         return sum(
             (
@@ -138,16 +172,19 @@ class DatedPool:
             ZERO,
         )
 
-    def cash_value(self, into: Currency) -> Decimal:
+    def cash_in(self, into: Currency) -> Decimal:
         """Sum the cash in every currency, converted at the date's rate."""
         return sum(
-            (self._convert(amount, held, into) for held, amount in self.cash.items()),
+            (
+                self._convert(amount, currency, into)
+                for currency, amount in self.cash.items()
+            ),
             ZERO,
         )
 
     def market_value(self, into: Currency) -> Decimal:
         """Add the priced holdings to the cash, converted at the date's rate."""
-        return self.holdings_value(into) + self.cash_value(into)
+        return self.holdings_market_value(into) + self.cash_in(into)
 
     def _convert(self, amount: Decimal, frm: Currency, into: Currency) -> Decimal:
         """Convert between CAD and USD at the date's rate."""
@@ -172,30 +209,47 @@ class DatedValuation:
     rate_date: str
     pools: Mapping[Pool, DatedPool]
 
-    def rows(self, scope: Pool = FOLIO, *, by_type: bool = False) -> PoolRows | None:
+    def rows(self, pool: Pool = FOLIO, *, by_type: bool = False) -> PoolRows | None:
         """List the pools a report shows within one pool, and that pool as the total.
 
         Args:
-            scope: The pool to report: the folio, an account type or one account.
+            pool: The pool to report: the folio, an account type or one account.
             by_type: List type-grain pools instead of accounts.
 
         Returns:
             The rows that hold anything, in account type then name order, or
-            None when the scope held nothing by the date.
+            None when the pool held nothing by the date.
         """
-        total = self.pools.get(scope)
+        total = self.pools.get(pool)
         if total is None:
             return None
         grain = Grain.TYPE if by_type else Grain.ACCOUNT
         members = sorted(
             (
                 dated
-                for pool, dated in self.pools.items()
-                if pool.grain is grain and _within(pool, scope) and not dated.empty
+                for member, dated in self.pools.items()
+                if member.grain is grain and _within(member, pool) and not dated.empty
             ),
             key=lambda dated: _listing_order(dated.pool),
         )
         return PoolRows(tuple(members), total)
+
+    def unpriced(self, pool: Pool = FOLIO) -> list[UnpricedHolding]:
+        """List every unpriced holding inside one pool, by account and in transit."""
+        accounts = self.rows(pool)
+        if accounts is None:
+            return []
+        found = [
+            UnpricedHolding(held.symbol, held.units, dated.pool.name)
+            for dated in accounts.rows
+            for held in dated.unpriced
+        ]
+        found.extend(
+            UnpricedHolding(held.symbol, moving, None)
+            for held in accounts.total.unpriced
+            if (moving := accounts.units_in_transit(held.symbol))
+        )
+        return found
 
 
 @dataclass(frozen=True)
@@ -219,6 +273,22 @@ class PoolRows:
         listed = sum((dated.market_value(into) for dated in self.rows), ZERO)
         return self.total.market_value(into) - listed
 
+    def line_in_transit(self, currency: Currency) -> Decimal:
+        """Sum what is in transit on one currency line, left in that currency."""
+        listed = sum((dated.line_market_value(currency) for dated in self.rows), ZERO)
+        return self.total.line_market_value(currency) - listed
+
+    def units_in_transit(self, symbol: str) -> Decimal:
+        """Count the units of one security in transit between the listed pools."""
+        listed = sum((dated.units_of(symbol) for dated in self.rows), ZERO)
+        return self.total.units_of(symbol) - listed
+
+    def holding_in_transit(self, symbol: str) -> DatedHolding | None:
+        """Price the units of one security in transit as the total's are."""
+        total = self.total.held(symbol)
+        moving = self.units_in_transit(symbol)
+        return None if total is None or not moving else replace(total, units=moving)
+
     def holdings(self, symbol: str) -> list[tuple[DatedPool, DatedHolding]]:
         """Pair each listed pool holding one security with its holding of it."""
         return [
@@ -228,13 +298,13 @@ class PoolRows:
         ]
 
 
-def ranged_pools(
+def month_end_pools(
     valuations: Sequence[DatedValuation],
-    scope: Pool,
+    pool: Pool,
     *,
     by_type: bool = False,
 ) -> list[Pool]:
-    """List every pool a range shows: each holding anything at one of its dates.
+    """List every pool a run of month-ends shows: each holding anything at one.
 
     Returns:
         The accounts, or type-grain pools, in account type then name order.
@@ -242,23 +312,38 @@ def ranged_pools(
     seen = {
         dated.pool
         for valued in valuations
-        if (rows := valued.rows(scope, by_type=by_type)) is not None
+        if (rows := valued.rows(pool, by_type=by_type)) is not None
         for dated in rows.rows
     }
     return sorted(seen, key=_listing_order)
 
 
+def unpriced_month_ends(
+    valuations: Sequence[DatedValuation],
+    pool: Pool,
+) -> dict[tuple[str, str | None], list[date]]:
+    """Map each unpriced holding, by symbol and account, to the month-ends it was.
+
+    An account of None means units in transit.
+    """
+    found: dict[tuple[str, str | None], list[date]] = {}
+    for valued in valuations:
+        for held in valued.unpriced(pool):
+            found.setdefault((held.symbol, held.account), []).append(valued.asked)
+    return found
+
+
 def _listing_order(pool: Pool) -> tuple[str, str]:
-    """Order pools by account type, then by name."""
+    """Order accounts and type-grain pools by account type, then by name."""
     return str(account_type_of(pool)), pool.name
 
 
-def _within(pool: Pool, scope: Pool) -> bool:
+def _within(member: Pool, pool: Pool) -> bool:
     """Say whether a pool sits inside another: an account inside its type."""
-    if scope.grain is Grain.FOLIO or pool == scope:
+    if pool.grain is Grain.FOLIO or member == pool:
         return True
-    if scope.grain is Grain.TYPE and pool.grain is Grain.ACCOUNT:
-        return account_type_of(pool) is AccountType(scope.name)
+    if pool.grain is Grain.TYPE and member.grain is Grain.ACCOUNT:
+        return account_type_of(member) is AccountType(pool.name)
     return False
 
 
@@ -301,7 +386,7 @@ def _valuation(
     pools: dict[Pool, DatedPool] = {}
     for grain in Grain:
         named = upto.assign(**{_POOL: _pool_names(upto, grain)})
-        held = _units(named, grain)
+        held = _open_holdings(named, grain)
         for name, cash in _cash(named, grain).items():
             pool = Pool(grain, name) if grain is not Grain.FOLIO else FOLIO
             pools[pool] = DatedPool(
@@ -340,7 +425,7 @@ def _pool_names(rows: pd.DataFrame, grain: Grain) -> pd.Series:
     return rows[POOL_COLUMN[grain]].astype(str)
 
 
-def _units(
+def _open_holdings(
     rows: pd.DataFrame,
     grain: Grain,
 ) -> dict[str, list[tuple[str, Decimal]]]:

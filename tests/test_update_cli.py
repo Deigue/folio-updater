@@ -261,7 +261,7 @@ def test_a_throttled_price_history_waits_for_the_next_update(
         result = run_cli(cli_app, ["update", "--resume"])
 
     pending = result.plain_output.partition("Pending, a later update")[2]
-    assert "1 symbol(s) lack price history" in pending
+    assert "1 symbol(s) lack historical prices" in pending
 
 
 def test_an_update_of_an_empty_folio_saves_no_baseline(temp_ctx: TempContext) -> None:

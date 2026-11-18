@@ -175,7 +175,8 @@ class LedgerRow:
     """One ledger row: the source transaction plus every derived measure.
 
     Strictly one of these per `Txns` row, so the ledger is 1:1 with the
-    table it came from.
+    table it came from. `cash_moves` is what the row did to cash, per grain and
+    currency it moved at.
     """
 
     row: Txn
@@ -191,6 +192,7 @@ class LedgerRow:
     acct: GrainMeasures = field(default_factory=GrainMeasures)
     type: GrainMeasures = field(default_factory=GrainMeasures)
     folio: GrainMeasures = field(default_factory=GrainMeasures)
+    cash_moves: Mapping[tuple[Grain, Currency], Decimal] = field(default_factory=dict)
     flags: tuple[DiagnosticCode, ...] = ()
 
     def measures(self, grain: Grain) -> GrainMeasures:
@@ -385,8 +387,6 @@ class ReplayResult:
         totals: Row counts by shape, so aggregates need no further scan.
         deposit_shares: The net deposits each transfer leg moved, per pool it moved in.
         holdings: Every pool's holdings after the last transaction.
-        cash_moves: What each transaction did to cash, by TxnId, per grain and
-            currency it moved at.
     """
 
     rows: list[LedgerRow] = field(default_factory=list)
@@ -395,9 +395,6 @@ class ReplayResult:
     totals: ReplayTotals = field(default_factory=ReplayTotals)
     deposit_shares: list[DepositShare] = field(default_factory=list)
     holdings: PoolHoldings = field(default_factory=dict)
-    cash_moves: dict[int, dict[tuple[Grain, Currency], Decimal]] = field(
-        default_factory=dict,
-    )
 
     def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:
         """Group the distinct codes raised against each row.

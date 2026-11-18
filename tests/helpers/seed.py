@@ -9,6 +9,8 @@ market calendars. Rows are byte-identical to what `folio add` produces.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pandas as pd
 
 from app import get_config
@@ -16,11 +18,13 @@ from db import (
     create_fx_table,
     create_txns_table,
     get_connection,
+    historical_prices,
     insert_or_replace_many,
     queries,
 )
 from domain import ACTION_PROFILES, Action, Column, Currency, Sign, Table
 from engine.settlement import settlement_calculator
+from models import HistoricalPrice, HistoricalPriceCoverage
 
 # Inside the demo folio's range, so settlement calculations hit the market
 # calendars preloaded by the session fixture.
@@ -290,4 +294,35 @@ def seed_cash(
         units=None,
         fee=fee,
         settle_date=settle_date,
+    )
+
+
+# One flat USD/CAD rate across September 2025, where the valuation tests trade.
+SEPTEMBER_FX = {f"2025-09-{day:02d}": "1.4000" for day in range(1, 31)}
+
+
+def seed_closes(
+    symbol: str,
+    *closes: tuple[str, str],
+    through: str = "2025-09-30",
+) -> None:
+    """Store a symbol's closes, each `(day, price)`, covered from September 1st.
+
+    Args:
+        symbol: The security.
+        closes: Each trading day and its close.
+        through: The last day the store counts as fetched.
+    """
+    historical_prices.write(
+        [
+            HistoricalPrice(symbol=symbol, date=day, price=Decimal(price))
+            for day, price in closes
+        ],
+        [
+            HistoricalPriceCoverage(
+                symbol=symbol,
+                fetched_from="2025-09-01",
+                fetched_through=through,
+            ),
+        ],
     )

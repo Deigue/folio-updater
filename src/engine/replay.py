@@ -248,6 +248,7 @@ class _Replay:
         self.cfg = cfg
         self.pools = _Pools()
         self.result = ReplayResult()
+        self.cash_moves: dict[int, dict[tuple[Grain, Currency], Decimal]] = {}
         pairs, _unpaired = pair_transfers(rows)
         self.pairs = [self._located(pair) for pair in pairs]
         self.pair_of: dict[int, TransferPair] = {
@@ -320,6 +321,7 @@ class _Replay:
         self._diagnose_unknown_accounts()
         self._acb_walk()
         self._cash_walk()
+        self._attach_cash_moves()
         self._final_units_check()
         self._split_coverage_check()
         self._mixed_currency_check()
@@ -361,6 +363,15 @@ class _Replay:
                 value=value,
             ),
         )
+
+    def _attach_cash_moves(self) -> None:
+        """Give each ledger row what it did to cash, once the cash walk is done."""
+        self.result.rows = [
+            replace(computed, cash_moves=self.cash_moves[computed.row.txn_id])
+            if computed.row.txn_id in self.cash_moves
+            else computed
+            for computed in self.result.rows
+        ]
 
     def _attach_flags(self) -> None:
         """Tag each ledger row with every code raised against it.
@@ -974,7 +985,7 @@ class _Replay:
     def _book(self, computed: LedgerRow, effects: Iterable[CashEffect]) -> None:
         """Apply a row's cash effects to the pools at the grains each moves at."""
         row = computed.row
-        moves = self.result.cash_moves.setdefault(row.txn_id, {})
+        moves = self.cash_moves.setdefault(row.txn_id, {})
         for effect in effects:
             for grain in Grain:
                 # Opened even where a transfer stays put, so the pool still

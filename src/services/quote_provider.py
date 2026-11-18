@@ -73,6 +73,11 @@ class ProviderFetch[T]:
     throttled: frozenset[str] = frozenset()
     failed: frozenset[str] = frozenset()
 
+    @property
+    def missed(self) -> frozenset[str]:
+        """The provider symbols refused on a rate limit or failed."""
+        return self.throttled | self.failed
+
 
 @dataclass(frozen=True)
 class HistoryBars:

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- `folio value` shows what each account was worth at a month-end or on a past day,
+for one date, a run of month-ends, or one holding.
+
 ### Changed
 
 ### Deprecated

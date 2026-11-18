@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from domain import Column
 from domain.dates import today_in_toronto
+from domain.symbols import cad_twin
 from models import DateWindow
 from services.historical_prices import HistoricalPriceService, HistoricalPriceUpdate
 
@@ -38,9 +39,44 @@ def price_spans(ledger: Ledger, *, today: date) -> dict[str, DateWindow]:
 
 
 def top_up_historical_prices(ledger: Ledger) -> HistoricalPriceUpdate:
-    """Fetch the historical prices the folio's securities lack."""
+    """Fetch the historical prices the folio's securities lack.
+
+    A US dollar line the provider has no prices for, such as DLR.U.TO, is valued
+    from its Canadian dollar twin, so the twin is fetched then too, over the same
+    days: only for a line still without a price once the first fetch is done.
+    """
     today = today_in_toronto()
-    return HistoricalPriceService.ensure_coverage(
-        price_spans(ledger, today=today),
-        today=today,
-    )
+    spans = price_spans(ledger, today=today)
+    update = HistoricalPriceService.ensure_coverage(spans, today=today)
+    lines = {symbol: twin for symbol in spans if (twin := cad_twin(symbol))}
+    stored = HistoricalPriceService.stored(sorted(lines))
+    twins = {
+        twin: _widest(spans[symbol], spans.get(twin))
+        for symbol, twin in lines.items()
+        if not stored[symbol].dates
+    }
+    if not twins:
+        return update
+    return update.merged(HistoricalPriceService.ensure_coverage(twins, today=today))
+
+
+def _widest(span: DateWindow, other: DateWindow | None) -> DateWindow:
+    """Join two spans of days, from the earlier start to the later end."""
+    if other is None:
+        return span
+    return DateWindow(start=min(span.start, other.start), end=max(span.end, other.end))
+
+
+def latest_covered_day(ledger: Ledger, *, by: date) -> date:
+    """Find the latest day, up to `by`, the store prices every held security on.
+
+    A top-up that was skipped, throttled or failed leaves the store short of
+    yesterday, and the latest close then is the last day it does cover.
+    """
+    stored = HistoricalPriceService.stored(ledger.held_symbols)
+    through = [
+        date.fromisoformat(prices.coverage.fetched_through)
+        for prices in stored.values()
+        if prices.coverage is not None
+    ]
+    return min([by, *through])

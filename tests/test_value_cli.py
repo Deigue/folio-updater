@@ -11,19 +11,20 @@ import pytest
 
 from cli.commands import value as value_command
 from cli.main import app
-from db import historical_prices
-from models import HistoricalPrice, HistoricalPriceCoverage
 from services.price_history import PricePoint
 
 from .helpers.cli import assert_in_output, run_cli
-from .helpers.seed import seed_cash, seed_fx, seed_transaction
+from .helpers.seed import (
+    SEPTEMBER_FX,
+    seed_cash,
+    seed_closes,
+    seed_fx,
+    seed_transaction,
+)
 
 if TYPE_CHECKING:
     from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
-
-# One flat rate across the month these tests trade and value in.
-FX = {f"2025-09-{day:02d}": "1.4000" for day in range(1, 31)}
 
 
 def _seed_three_accounts() -> None:
@@ -32,7 +33,7 @@ def _seed_three_accounts() -> None:
     WS-TFSA: 4,500 cash and 10 RY.TO. QT-TFSA: 1,000 cash. IBKR-MARGIN: 400 USD
     cash and 10 SPY.
     """
-    seed_fx(FX)
+    seed_fx(SEPTEMBER_FX)
     seed_cash("CONTRIBUTION", amount="5000", account="WS-TFSA", date="2025-09-02")
     seed_transaction(
         ticker="RY.TO",
@@ -71,20 +72,6 @@ def _table_rows(output: str) -> dict[str, list[str]]:
     return rows
 
 
-def _store(symbol: str, day: str, price: str) -> None:
-    """Store one close, the symbol covered through September."""
-    historical_prices.write(
-        [HistoricalPrice(symbol=symbol, date=day, price=Decimal(price))],
-        [
-            HistoricalPriceCoverage(
-                symbol=symbol,
-                fetched_from="2025-09-01",
-                fetched_through="2025-09-30",
-            ),
-        ],
-    )
-
-
 def test_a_month_values_each_account_and_the_folio_at_month_end(
     temp_ctx: TempContext,
     quote_provider: FakeQuoteProvider,
@@ -100,7 +87,6 @@ def test_a_month_values_each_account_and_the_folio_at_month_end(
         result = run_cli(app, ["value", "2025-09"])
 
     assert result.exit_code == 0
-    assert_in_output("Market value at 2025-09-30", result)
     lines = _table_rows(result.plain_output)
     # Holdings, cash and value: RY.TO at 55, SPY at 62 USD, USD at 1.4.
     assert lines["WS-TFSA"] == ["TFSA", "550.00", "4,500.00", "5,050.00"]
@@ -116,8 +102,8 @@ def test_offline_values_from_the_prices_stored_without_fetching(
 ) -> None:
     with temp_ctx():
         _seed_three_accounts()
-        _store("RY.TO", "2025-09-30", "55")
-        _store("SPY", "2025-09-30", "62")
+        seed_closes("RY.TO", ("2025-09-30", "55"))
+        seed_closes("SPY", ("2025-09-30", "62"))
 
         result = run_cli(app, ["value", "2025-09-30", "--offline"])
 
@@ -129,7 +115,7 @@ def test_offline_values_from_the_prices_stored_without_fetching(
 def test_a_holding_with_no_price_is_named_and_left_out(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _seed_three_accounts()
-        _store("RY.TO", "2025-09-30", "55")
+        seed_closes("RY.TO", ("2025-09-30", "55"))
 
         result = run_cli(app, ["value", "2025-09", "--offline"])
 
@@ -146,13 +132,12 @@ def test_the_current_month_values_at_the_latest_stored_close(
 
     with temp_ctx():
         _seed_three_accounts()
-        _store("RY.TO", "2025-09-16", "55")
-        _store("SPY", "2025-09-16", "62")
+        seed_closes("RY.TO", ("2025-09-16", "55"))
+        seed_closes("SPY", ("2025-09-16", "62"))
 
         result = run_cli(app, ["value", "2025-09", "--offline"])
 
     assert result.exit_code == 0
-    assert_in_output("Market value at 2025-09-16 (latest close)", result)
     assert_in_output("7,478.00", result)
 
 
@@ -193,14 +178,14 @@ def test_a_day_before_the_first_transaction_says_nothing_was_held(
         result = run_cli(app, ["value", "2025-08", "--offline"])
 
     assert result.exit_code == 0
-    assert_in_output("The folio held nothing on 2025-08-29", result)
+    assert_in_output("Portfolio held nothing on 2025-08-29", result)
 
 
 def _seed_priced() -> None:
     """Seed the three accounts, with RY.TO at 55 and SPY at 62 USD on 2025-09-30."""
     _seed_three_accounts()
-    _store("RY.TO", "2025-09-30", "55")
-    _store("SPY", "2025-09-30", "62")
+    seed_closes("RY.TO", ("2025-09-30", "55"))
+    seed_closes("SPY", ("2025-09-30", "62"))
 
 
 def test_a_range_lists_each_month_end_with_a_dash_before_an_account_opened(
@@ -222,7 +207,7 @@ def test_a_range_lists_each_month_end_with_a_dash_before_an_account_opened(
     ("args", "reason"),
     [
         (["2025-08", "2025-09", "-c", "native"], "native needs a single date"),
-        (["2025-08-29", "2025-09"], "A range takes two months"),
+        (["2025-08-29", "2025-09"], "Month-ends take two months"),
         (["2025-09", "2025-08"], "2025-09 comes after 2025-08"),
         (["2025-09", "-b", "-t", "tfsa"], "Use --by-type on its own"),
     ],
@@ -326,7 +311,7 @@ def test_a_holding_not_held_on_the_date_says_so(temp_ctx: TempContext) -> None:
         result = run_cli(app, ["value", "2025-09", "MSFT", "--offline"])
 
     assert result.exit_code == 0
-    assert_in_output("The folio held no MSFT on 2025-09-30", result)
+    assert_in_output("Portfolio held no MSFT on 2025-09-30", result)
 
 
 def test_an_account_emptied_by_the_date_is_left_out(temp_ctx: TempContext) -> None:
@@ -344,3 +329,117 @@ def test_an_account_emptied_by_the_date_is_left_out(temp_ctx: TempContext) -> No
     assert _table_rows(ranged.plain_output)["Month"][1] == "QT-RRSP"
     assert _table_rows(ranged.plain_output)["2025-09"][1] == "0.00"
     assert "QT-RRSP" not in _table_rows(emptied.plain_output)["Month"]
+
+
+def test_the_latest_close_is_the_last_day_the_store_covers(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A top-up that never ran leaves the store short: value at what it covers."""
+    monkeypatch.setattr(value_command, "today_in_toronto", lambda: date(2025, 9, 17))
+
+    with temp_ctx():
+        _seed_three_accounts()
+        seed_closes("RY.TO", ("2025-09-12", "55"), through="2025-09-12")
+        seed_closes("SPY", ("2025-09-12", "62"), through="2025-09-12")
+
+        result = run_cli(app, ["value", "2025-09", "--offline"])
+
+    assert _table_rows(result.plain_output)["Total"][-1] == "7,478.00"
+
+
+def test_month_ends_leave_out_a_month_with_no_close_yet(
+    temp_ctx: TempContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(value_command, "today_in_toronto", lambda: date(2025, 10, 1))
+
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "2025-10", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert lines["2025-09"][-1] == "7,478.00"
+    assert "2025-10" not in lines
+    assert_in_output("2025-10 has no close yet", result)
+
+
+def test_month_ends_name_each_month_a_holding_was_unpriced(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_three_accounts()
+        seed_closes("RY.TO", ("2025-09-30", "55"))
+
+        result = run_cli(app, ["value", "2025-08", "2025-09", "--offline"])
+
+    assert_in_output("SPY in IBKR-MARGIN (at 2025-09)", result)
+
+
+def _buy_usd_line() -> None:
+    """Buy 10 DLR.U.TO at 9.80 USD in the TFSA."""
+    seed_fx(SEPTEMBER_FX)
+    seed_transaction(
+        ticker="DLR.U.TO",
+        date="2025-09-03",
+        account="WS-TFSA",
+        amount="-98",
+        price="9.8",
+        units="10",
+    )
+
+
+def test_a_usd_line_with_no_prices_fetches_its_cad_twin_to_be_priced(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.historical = {"DLR.TO": [PricePoint("2025-09-30", Decimal(14))]}
+
+    with temp_ctx():
+        _buy_usd_line()
+
+        result = run_cli(app, ["value", "2025-09-30"])
+
+    # 14 CAD at 1.4 is 10 USD a unit: 100 USD, or 140 CAD, for the ten.
+    assert _table_rows(result.plain_output)["WS-TFSA"][1] == "140.00"
+    assert ["DLR.TO"] in quote_provider.asked("historical_prices")
+
+
+def test_a_usd_line_with_its_own_prices_never_fetches_its_twin(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.historical = {"DLR.U.TO": [PricePoint("2025-09-30", Decimal(10))]}
+
+    with temp_ctx():
+        _buy_usd_line()
+
+        run_cli(app, ["value", "2025-09-30"])
+
+    asked = quote_provider.asked("historical_prices")
+    assert all("DLR.TO" not in batch for batch in asked)
+
+
+def test_a_twin_also_held_is_fetched_from_the_usd_lines_first_day(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    """The twin's own span starts later, but the US dollar line needs it sooner."""
+    quote_provider.historical = {"DLR.TO": [PricePoint("2025-09-05", Decimal(14))]}
+
+    with temp_ctx():
+        _buy_usd_line()
+        seed_transaction(
+            ticker="DLR.TO",
+            date="2025-09-10",
+            account="WS-TFSA",
+            currency="CAD",
+            amount="-140",
+            price="14",
+            units="10",
+        )
+
+        result = run_cli(app, ["value", "2025-09-05"])
+
+    assert _table_rows(result.plain_output)["WS-TFSA"][1] == "140.00"

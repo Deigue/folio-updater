@@ -192,7 +192,7 @@ def value_cmd(
         metavar="DATE",
         help="YYYY-MM for the month's last day, or YYYY-MM-DD",
     ),
-    second: str | None = typer.Argument(
+    end_or_symbol: str | None = typer.Argument(
         None,
         metavar="[END|SYMBOL]",
         help="An end month for every month-end through it, or one holding's symbol",
@@ -230,11 +230,11 @@ def value_cmd(
     ),
 ) -> None:
     """Show every account's market value at a month-end or on a past day."""
-    from cli.commands.value import show_values
+    from cli.commands.value import run_value
 
-    show_values(
+    run_value(
         asked,
-        second,
+        end_or_symbol,
         currency=currency,
         account_type=account_type,
         account=account,
