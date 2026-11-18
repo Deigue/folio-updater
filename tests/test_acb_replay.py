@@ -1241,6 +1241,110 @@ def test_superficial_loss_suspect_buy_precedes_sale() -> None:
     assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
 
 
+def test_superficial_loss_not_flagged_when_nothing_is_held_after_the_window() -> None:
+    """The only buy in the window is the one sold: nothing is left to deny the loss."""
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-05-06",
+                Action.BUY,
+                amount="-900",
+                units="60",
+                price="15",
+            ),
+            make_row(
+                2,
+                "2024-05-21",
+                Action.SELL,
+                amount="720",
+                units="-60",
+                price="12",
+            ),
+        ],
+    )
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT not in codes(result)
+
+
+def test_superficial_loss_not_flagged_when_the_rebuy_is_sold_inside_the_window() -> (
+    None
+):
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-02-01",
+                Action.BUY,
+                amount="-1200",
+                units="40",
+                price="30",
+            ),
+            make_row(
+                2,
+                "2024-04-08",
+                Action.SELL,
+                amount="1000",
+                units="-40",
+                price="25",
+            ),
+            make_row(
+                3,
+                "2024-04-15",
+                Action.BUY,
+                amount="-960",
+                units="40",
+                price="24",
+            ),
+            make_row(
+                4,
+                "2024-04-29",
+                Action.SELL,
+                amount="1040",
+                units="-40",
+                price="26",
+            ),
+        ],
+    )
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT not in codes(result)
+
+
+def test_superficial_loss_counts_units_still_held_in_another_account() -> None:
+    result = run(
+        [
+            make_row(
+                1,
+                "2024-06-03",
+                Action.BUY,
+                amount="-500",
+                units="25",
+                price="20",
+            ),
+            make_row(
+                2,
+                "2024-06-10",
+                Action.BUY,
+                amount="-475",
+                units="25",
+                price="19",
+                account="IBKR-TFSA",
+            ),
+            make_row(
+                3,
+                "2024-06-24",
+                Action.SELL,
+                amount="400",
+                units="-25",
+                price="16",
+            ),
+        ],
+        types={
+            "IBKR-PERSONAL": AccountType.NON_REGISTERED,
+            "IBKR-TFSA": AccountType.TFSA,
+        },
+    )
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
+
+
 @pytest.mark.parametrize(
     ("account", "account_type", "flagged"),
     [

@@ -22,7 +22,7 @@ Six core rules followed:
 from __future__ import annotations
 
 import logging
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
@@ -1218,17 +1218,25 @@ class _Replay:
         figures 1:1.
 
         The CRA superficial-loss window spans from 30 days before
-        the sale to 30 days after it (inclusive of the sale date). Restricted
+        the sale to 30 days after it (inclusive of the sale date), and the loss
+        is denied only if the symbol is still held when it ends. Restricted
         to taxable accounts, the only place the rule has any consequence, and
-        unknown ones, which might turn out taxable. The triggering buy may be
-        in any account.
+        unknown ones, which might turn out taxable. The triggering buy and the
+        units still held may be in any account. A window still open is judged
+        on the rows so far, which hold the folio as of today.
         """
         buys: dict[str, list[date]] = {}
+        # Folio-wide units after each row, per symbol, in walk (date) order.
+        held: dict[str, tuple[list[date], list[Decimal]]] = {}
         for computed in self.result.rows:
-            if computed.row.action is Action.BUY and computed.symbol:
-                buys.setdefault(computed.symbol, []).append(
-                    date.fromisoformat(computed.row.txn_date),
-                )
+            if not computed.symbol:
+                continue
+            on = date.fromisoformat(computed.row.txn_date)
+            if computed.row.action is Action.BUY:
+                buys.setdefault(computed.symbol, []).append(on)
+            dates, units = held.setdefault(computed.symbol, ([], []))
+            dates.append(on)
+            units.append(computed.folio.units)
         # Sort the dates per symbol so they can be binary-searched.
         for dates in buys.values():
             dates.sort()
@@ -1249,7 +1257,14 @@ class _Replay:
             # The first purchase not before the window; inside it iff not past
             # the window's end.
             index = bisect_left(repurchased, window_start)
-            if index < len(repurchased) and repurchased[index] <= window_end:
+            dates, units = held[computed.symbol]
+            # The last row on or before the window's end holds what is left then.
+            still_held = units[bisect_right(dates, window_end) - 1] > ZERO
+            if (
+                index < len(repurchased)
+                and repurchased[index] <= window_end
+                and still_held
+            ):
                 self.diagnose(
                     DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT,
                     row,
