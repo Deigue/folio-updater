@@ -192,13 +192,36 @@ def value_cmd(
         metavar="DATE",
         help="YYYY-MM for the month's last day, or YYYY-MM-DD",
     ),
+    second: str | None = typer.Argument(
+        None,
+        metavar="[END|SYMBOL]",
+        help="An end month for every month-end through it, or one holding's symbol",
+    ),
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Only one account type's accounts: tfsa, rrsp, nreg, ...",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Only one broker account",
+    ),
     currency: str | None = typer.Option(
         None,
         "-c",
         "--currency",
-        help="CAD (default) or USD",
+        help="CAD (default), USD, or native (a single date only)",
     ),
     *,
+    by_type: bool = typer.Option(
+        False,
+        "-b",
+        "--by-type",
+        help="One row (or column) per account type instead of per account",
+    ),
     offline: bool = typer.Option(
         False,
         "-o",
@@ -209,7 +232,15 @@ def value_cmd(
     """Show every account's market value at a month-end or on a past day."""
     from cli.commands.value import show_values
 
-    show_values(asked, currency=currency, offline=offline)
+    show_values(
+        asked,
+        second,
+        currency=currency,
+        account_type=account_type,
+        account=account,
+        by_type=by_type,
+        offline=offline,
+    )
 
 
 @app.command(

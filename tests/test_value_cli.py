@@ -194,3 +194,153 @@ def test_a_day_before_the_first_transaction_says_nothing_was_held(
 
     assert result.exit_code == 0
     assert_in_output("The folio held nothing on 2025-08-29", result)
+
+
+def _seed_priced() -> None:
+    """Seed the three accounts, with RY.TO at 55 and SPY at 62 USD on 2025-09-30."""
+    _seed_three_accounts()
+    _store("RY.TO", "2025-09-30", "55")
+    _store("SPY", "2025-09-30", "62")
+
+
+def test_a_range_lists_each_month_end_with_a_dash_before_an_account_opened(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-08", "2025-09", "--offline"])
+
+    assert result.exit_code == 0
+    lines = _table_rows(result.plain_output)
+    assert lines["Month"] == ["IBKR-MARGIN", "QT-TFSA", "WS-TFSA", "Total"]
+    assert lines["2025-08"] == ["-", "-", "-", "-"]
+    assert lines["2025-09"] == ["1,428.00", "1,000.00", "5,050.00", "7,478.00"]
+
+
+@pytest.mark.parametrize(
+    ("args", "reason"),
+    [
+        (["2025-08", "2025-09", "-c", "native"], "native needs a single date"),
+        (["2025-08-29", "2025-09"], "A range takes two months"),
+        (["2025-09", "2025-08"], "2025-09 comes after 2025-08"),
+        (["2025-09", "-b", "-t", "tfsa"], "Use --by-type on its own"),
+    ],
+    ids=["native-range", "range-from-a-day", "backward-range", "by-type-narrowed"],
+)
+def test_a_request_that_cannot_be_shown_is_refused(
+    temp_ctx: TempContext,
+    args: list[str],
+    reason: str,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", *args, "--offline"])
+
+    assert result.exit_code == 1
+    assert_in_output(reason, result)
+
+
+def test_a_type_lists_only_its_accounts_and_totals_its_pool(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "-t", "tfsa", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert set(lines) == {"Account", "QT-TFSA", "WS-TFSA", "Total"}
+    assert lines["Total"] == ["550.00", "5,500.00", "6,050.00"]
+
+
+def test_one_account_in_any_case_lists_and_totals_only_itself(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "-a", "ws-tfsa", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert set(lines) == {"Account", "WS-TFSA", "Total"}
+    assert lines["Total"] == ["550.00", "4,500.00", "5,050.00"]
+
+
+def test_an_account_with_nothing_by_the_date_says_so(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "-a", "QT-RRSP", "--offline"])
+
+    assert result.exit_code == 0
+    assert_in_output("QT-RRSP held nothing on 2025-09-30", result)
+
+
+def test_by_type_lists_each_account_types_pool(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "-b", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert lines["NREG"] == ["868.00", "560.00", "1,428.00"]
+    assert lines["TFSA"] == ["550.00", "5,500.00", "6,050.00"]
+    assert lines["Total"] == ["1,418.00", "6,060.00", "7,478.00"]
+
+
+def test_native_keeps_each_currency_line_apart_with_no_grand_total(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "-c", "native", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert lines["IBKR-MARGIN"] == ["NREG", "USD", "620.00", "400.00", "1,020.00"]
+    assert lines["Total"] == ["CAD", "550.00", "5,500.00", "6,050.00"]
+    assert lines["USD"] == ["620.00", "400.00", "1,020.00"]  # the total's USD line
+
+
+def test_one_holding_lists_its_units_and_value_per_account(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09-30", "spy", "--offline"])
+
+    lines = _table_rows(result.plain_output)
+    assert lines["IBKR-MARGIN"][0:2] == ["NREG", "10"]
+    assert lines["IBKR-MARGIN"][-1] == "868.00"
+    assert lines["Total"][0] == "10"
+    assert lines["Total"][-1] == "868.00"
+
+
+def test_a_holding_not_held_on_the_date_says_so(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_priced()
+
+        result = run_cli(app, ["value", "2025-09", "MSFT", "--offline"])
+
+    assert result.exit_code == 0
+    assert_in_output("The folio held no MSFT on 2025-09-30", result)
+
+
+def test_an_account_emptied_by_the_date_is_left_out(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_priced()
+        seed_cash("CONTRIBUTION", amount="200", account="QT-RRSP", date="2025-08-04")
+        seed_cash("WITHDRAWAL", amount="-200", account="QT-RRSP", date="2025-09-08")
+
+        single = run_cli(app, ["value", "2025-09", "--offline"])
+        ranged = run_cli(app, ["value", "2025-08", "2025-09", "--offline"])
+        emptied = run_cli(app, ["value", "2025-09", "2025-09", "--offline"])
+
+    assert "QT-RRSP" not in _table_rows(single.plain_output)
+    # It held cash at August's end, so the range keeps its column.
+    assert _table_rows(ranged.plain_output)["Month"][1] == "QT-RRSP"
+    assert _table_rows(ranged.plain_output)["2025-09"][1] == "0.00"
+    assert "QT-RRSP" not in _table_rows(emptied.plain_output)["Month"]

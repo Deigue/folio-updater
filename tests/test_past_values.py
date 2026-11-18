@@ -139,7 +139,9 @@ def test_cash_between_a_transfers_legs_stays_in_the_pool_holding_both_accounts(
     assert Pool(Grain.ACCOUNT, "QT-TFSA") not in cash  # nothing has reached it yet
     assert cash[Pool(Grain.TYPE, "TFSA")] == Decimal(2000)
     assert cash[FOLIO] == Decimal(2000)
-    assert valued.in_transit(CAD) == Decimal(300)
+    rows = valued.rows()
+    assert rows is not None
+    assert rows.in_transit(CAD) == Decimal(300)
 
 
 def test_units_between_a_transfers_legs_count_only_in_the_folio_and_its_type(
@@ -169,7 +171,9 @@ def test_units_between_a_transfers_legs_count_only_in_the_folio_and_its_type(
     held = {pool: dated.holdings_value(CAD) for pool, dated in valued.pools.items()}
     assert held[TFSA_POOL] == ZERO
     assert held[Pool(Grain.TYPE, "TFSA")] == Decimal(550)
-    assert valued.in_transit(CAD) == Decimal(550)
+    rows = valued.rows()
+    assert rows is not None
+    assert rows.in_transit(CAD) == Decimal(550)
 
 
 def test_a_holding_with_no_price_is_unpriced_and_left_out_of_the_value(
@@ -222,4 +226,4 @@ def test_a_day_before_the_first_transaction_values_no_pool(
         [valued] = value_pools(open_ledger(), [date(2025, 9, 12)])
 
     assert valued.pools == {}
-    assert valued.in_transit(CAD) == ZERO
+    assert valued.rows() is None
