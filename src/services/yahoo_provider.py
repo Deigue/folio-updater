@@ -8,6 +8,7 @@ without the package resolving at all.
 from __future__ import annotations
 
 import logging
+import math
 import socket
 import time
 import warnings
@@ -25,6 +26,7 @@ from models.cells import read_number, read_text
 from models.columns import Kind, column_of
 from services.price_history import PricePoint, months_back
 from services.quote_provider import (
+    HistoricalFetch,
     HistoryBars,
     IntradayBars,
     PriceFetch,
@@ -42,6 +44,9 @@ logger = logging.getLogger(__name__)
 # Fetches are network-bound, so cap the workers: a large folio must not open a
 # hundred connections.
 _MAX_FETCH_WORKERS = 8
+
+# Historical prices are kept to 4 places: finer is float noise.
+_PLACES = Decimal("0.0001")
 
 # The host every price, history and crumb request goes through.
 _PROVIDER_HOST = ("query1.finance.yahoo.com", 443)
@@ -145,19 +150,38 @@ def _run_concurrently[T](
 
 
 @dataclass(frozen=True)
-class _PriceAttempt:
-    """How pricing one provider symbol came out.
+class _Attempt[T]:
+    """How one provider symbol's request came out.
 
     Attributes:
         provider_symbol: The provider spelling asked for.
-        price: The price, when it priced.
+        found: What it came back with, when it found anything.
         outcome: "throttled" or "failed" when the request failed, and None when
-            it priced or the provider does not know the symbol.
+            it found something or the provider has nothing for the symbol.
     """
 
     provider_symbol: str
-    price: ProviderPrice | None = None
+    found: T | None = None
     outcome: Literal["throttled", "failed"] | None = None
+
+
+def _failed_attempt(provider_symbol: str, error: Exception) -> _Attempt[Any]:
+    """Record a request that failed, telling a rate limit from any other failure."""
+    logger.debug("Request for %s failed: %r", provider_symbol, error)
+    throttled = isinstance(error, load_yfinance().exceptions.YFRateLimitError)
+    return _Attempt(provider_symbol, outcome="throttled" if throttled else "failed")
+
+
+def _sorted_attempts[T](
+    attempts: Sequence[_Attempt[T]],
+) -> tuple[dict[str, T], frozenset[str], frozenset[str]]:
+    """Sort attempts into what was found, what was throttled and what failed."""
+    found = {a.provider_symbol: a.found for a in attempts if a.found is not None}
+    throttled = frozenset(
+        a.provider_symbol for a in attempts if a.outcome == "throttled"
+    )
+    failed = frozenset(a.provider_symbol for a in attempts if a.outcome == "failed")
+    return found, throttled, failed
 
 
 class YahooProvider:
@@ -227,27 +251,22 @@ class YahooProvider:
         tickers = yf.Tickers(" ".join(provider_symbols))
         now = datetime.now(UTC).isoformat()
 
-        def _price(provider_symbol: str) -> _PriceAttempt:
+        def _price(provider_symbol: str) -> _Attempt[ProviderPrice]:
             ticker = tickers.tickers.get(provider_symbol)
             if ticker is None:
-                return _PriceAttempt(provider_symbol)
+                return _Attempt(provider_symbol)
             fast = ticker.fast_info
             try:
                 price = fast.last_price
             except provider_errors.YFTickerMissingError:
                 # Also raised for an HTTP error body, which yfinance cannot tell
                 # apart from a symbol with no prices.
-                return _PriceAttempt(provider_symbol)
+                return _Attempt(provider_symbol)
             except Exception as error:  # noqa: BLE001 (any request can fail)
-                logger.debug("No price for %s: %r", provider_symbol, error)
-                throttled = isinstance(error, provider_errors.YFRateLimitError)
-                return _PriceAttempt(
-                    provider_symbol,
-                    outcome="throttled" if throttled else "failed",
-                )
+                return _failed_attempt(provider_symbol, error)
             if price is None:
-                return _PriceAttempt(provider_symbol)
-            return _PriceAttempt(
+                return _Attempt(provider_symbol)
+            return _Attempt(
                 provider_symbol,
                 ProviderPrice(
                     price=read_number(price, provider=True),
@@ -257,17 +276,9 @@ class YahooProvider:
                 ),
             )
 
-        prices: dict[str, ProviderPrice] = {}
-        throttled: set[str] = set()
-        failed: set[str] = set()
-        for attempt in _run_concurrently(_price, provider_symbols):
-            if attempt.price is not None:
-                prices[attempt.provider_symbol] = attempt.price
-            elif attempt.outcome == "throttled":
-                throttled.add(attempt.provider_symbol)
-            elif attempt.outcome == "failed":
-                failed.add(attempt.provider_symbol)
-        return PriceFetch(prices, frozenset(throttled), frozenset(failed))
+        return PriceFetch(
+            *_sorted_attempts(_run_concurrently(_price, provider_symbols)),
+        )
 
     def daily_closes(
         self,
@@ -409,6 +420,80 @@ class YahooProvider:
             for provider_symbol, found in bars.items()
             if found.minutes or found.fives
         }
+
+    def historical_prices(
+        self,
+        starts: Mapping[str, date],
+        *,
+        today: date,
+    ) -> HistoricalFetch:
+        """Fetch each symbol's true daily closes, one request per symbol.
+
+        Yahoo's Close is adjusted for every split since, even with dividend
+        adjustment off. Each symbol is asked through today, so all its splits
+        arrive in the same answer as its closes, and each close is multiplied
+        back by the splits dated after its day. Today's row is still trading,
+        so it is dropped.
+
+        Args:
+            starts: Each provider symbol mapped to the first day wanted.
+            today: The day the market may still be trading.
+
+        Returns:
+            The closes, and which symbols were throttled or failed.
+        """
+        yf = load_yfinance()
+        timeout = get_config().quotes_timeout_seconds
+
+        def _history(provider_symbol: str) -> _Attempt[list[PricePoint]]:
+            try:
+                frame = yf.Ticker(provider_symbol).history(
+                    start=starts[provider_symbol].isoformat(),
+                    interval="1d",
+                    auto_adjust=False,
+                    actions=True,
+                    timeout=timeout,
+                )
+            except yf.exceptions.YFTickerMissingError:
+                # No timezone (delisted) or no rows in the window: nothing to have.
+                return _Attempt(provider_symbol)
+            except Exception as error:  # noqa: BLE001 (any request can fail)
+                return _failed_attempt(provider_symbol, error)
+            return _Attempt(provider_symbol, _true_closes(frame, before=today) or None)
+
+        return HistoricalFetch(
+            *_sorted_attempts(_run_concurrently(_history, list(starts))),
+        )
+
+
+def _true_closes(
+    frame: Any,  # noqa: ANN401 (a pandas frame from the provider)
+    *,
+    before: date,
+) -> list[PricePoint]:
+    """Undo the split adjustment in a daily history, keeping days before `before`.
+
+    A split's own day already trades at the new price, so its ratio applies only
+    to the days before it.
+
+    Returns:
+        The closes to 4 places, oldest first. Yahoo serves single-precision
+        floats, so anything finer is noise.
+    """
+    if frame.empty:
+        return []
+    found: list[PricePoint] = []
+    factor = Decimal(1)
+    rows = zip(frame.index, frame["Close"], frame["Stock Splits"], strict=True)
+    for stamp, close, ratio in reversed(list(rows)):
+        day = stamp.date()
+        if day < before and not math.isnan(close):
+            found.append(
+                PricePoint(day.isoformat(), (dec(close) * factor).quantize(_PLACES)),
+            )
+        if ratio:
+            factor *= dec(ratio)
+    return found[::-1]
 
 
 def _download(provider_symbols: Sequence[str], **window: str) -> Any:  # noqa: ANN401 (pandas)

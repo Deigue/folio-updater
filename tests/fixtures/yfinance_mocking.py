@@ -43,14 +43,28 @@ class FakeTicker:
 
     def __init__(
         self,
-        fast: object,
+        fast: object = None,
         info: dict | None = None,
         splits: pd.Series | None = None,
+        daily: pd.DataFrame | Exception | None = None,
     ) -> None:
-        """Hold what the ticker's price, info and split reads return."""
+        """Hold what the ticker's price, info, split and daily history reads return."""
         self.fast_info = fast
         self.info = info if info is not None else {}
         self.splits = pd.Series(dtype=float) if splits is None else splits
+        self.daily = pd.DataFrame() if daily is None else daily
+        self.history_asked: list[dict[str, object]] = []
+
+    def history(self, **kwargs: object) -> pd.DataFrame:
+        """Answer a history request with `daily`, or raise it.
+
+        Raises:
+            Exception: `daily`, when it is one, as a failed request does.
+        """
+        self.history_asked.append(kwargs)
+        if isinstance(self.daily, Exception):
+            raise self.daily
+        return self.daily
 
 
 class _FakeTickers:

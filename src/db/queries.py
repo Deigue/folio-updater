@@ -298,9 +298,12 @@ def _insert_sql(
     columns: Sequence[str],
     *,
     replace: bool = False,
+    ignore: bool = False,
 ) -> str:
     """Render the one INSERT every write shares, one placeholder per column."""
-    verb = "INSERT OR REPLACE" if replace else "INSERT"
+    verb = (
+        "INSERT OR REPLACE" if replace else "INSERT OR IGNORE" if ignore else "INSERT"
+    )
     listed = ", ".join(f'"{column}"' for column in columns)
     marks = ", ".join("?" for _ in columns)
     return f'{verb} INTO "{table_name}" ({listed}) VALUES ({marks})'
@@ -333,6 +336,28 @@ def insert_or_replace_many(
     with connection:
         cursor = connection.executemany(query, params_list)
     return cursor.rowcount
+
+
+def insert_new_rows(
+    connection: sqlite3.Connection,
+    table_name: str,
+    rows: Sequence[Mapping[str, object]],
+) -> int:
+    """Insert rows all or none, leaving any whose key is already held as it is.
+
+    Every row must carry the same columns.
+
+    Returns:
+        Number of rows actually inserted.
+    """
+    if not rows:
+        return 0
+    keys = list(rows[0])
+    query = _insert_sql(table_name, keys, ignore=True)
+    with connection:
+        before = connection.total_changes
+        connection.executemany(query, [tuple(row.get(c) for c in keys) for row in rows])
+        return connection.total_changes - before
 
 
 def begin_write(connection: sqlite3.Connection) -> None:

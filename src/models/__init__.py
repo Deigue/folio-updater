@@ -4,6 +4,7 @@ This module exports the public API for all data models and result types.
 """
 
 from models.fx_rate import FxRate
+from models.historical_price import HistoricalPrice, HistoricalPriceCoverage
 from models.import_results import (
     CancelEvent,
     FileImport,
@@ -42,6 +43,8 @@ __all__ = [
     "Fundamentals",
     "FxRate",
     "HardFailure",
+    "HistoricalPrice",
+    "HistoricalPriceCoverage",
     "ImportResults",
     "MergeEvent",
     "NewTxn",

@@ -251,6 +251,8 @@ class Table(StrEnum):
     TICKER_ALIASES = "TickerAliases"
     QUOTES = "Quotes"
     QUOTE_HISTORY = "QuoteHistory"
+    HISTORICAL_PRICES = "HistoricalPrices"
+    HISTORICAL_PRICE_COVERAGE = "HistoricalPriceCoverage"
     REVISIONS = "Revisions"
     UPDATE_BASELINES = "UpdateBaselines"
 
@@ -368,6 +370,20 @@ class Column(StrEnum):
         DATE = "Date"
         CLOSE = "Close"
         FETCHED_AT = "FetchedAt"  # When this symbol's history was last fetched
+
+    class HistoricalPrice(StrEnum):
+        """A security's close on a past trading day, as it traded that day."""
+
+        SYMBOL = "Symbol"
+        DATE = "Date"
+        PRICE = "Price"
+
+    class HistoricalPriceCoverage(StrEnum):
+        """The days a symbol's historical prices have been fetched for."""
+
+        SYMBOL = "Symbol"
+        FETCHED_FROM = "FetchedFrom"
+        FETCHED_THROUGH = "FetchedThrough"
 
     class Revision(StrEnum):
         """A watched table's change token, moved by every write to that table."""

@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import pytest
-from yfinance.exceptions import YFPricesMissingError, YFRateLimitError
+from yfinance.exceptions import (
+    YFPricesMissingError,
+    YFRateLimitError,
+    YFTzMissingError,
+)
 
 from db import aliases
 from models import QuoteSplit, TickerAlias
@@ -430,3 +434,92 @@ def test_intraday_stamps_each_bar_in_utc(temp_ctx: TempContext) -> None:
     assert fetched["AAA"].fives[-1].when == "2026-09-30T19:55:00+00:00"
     with temp_ctx(), stand_in_provider({}, pd.DataFrame()):
         assert YahooProvider().intraday(["AAA"]) == {}
+
+
+# -- HISTORICAL PRICES ---------------------------------------------------------
+
+
+def _daily(rows: list[tuple[str, float, float]]) -> pd.DataFrame:
+    """Build a daily history as Yahoo serves it: (day, adjusted close, split ratio)."""
+    index = pd.DatetimeIndex([day for day, _, _ in rows], tz="America/New_York")
+    return pd.DataFrame(
+        {
+            "Close": [close for _, close, _ in rows],
+            "Stock Splits": [ratio for _, _, ratio in rows],
+        },
+        index,
+    )
+
+
+def test_historical_prices_undo_every_later_split(temp_ctx: TempContext) -> None:
+    """Each close is multiplied back by every split dated after its day."""
+    daily = _daily(
+        [
+            ("2024-01-02", 30.0, 0.0),
+            ("2024-01-03", 31.0, 10.0),  # a 10:1 split takes effect this day
+            ("2024-01-04", 32.0, 0.125),  # a 1:8 consolidation
+            ("2024-01-05", 33.0, 1.25),  # a fractional ratio, as for a spin-off
+            ("2024-01-08", 34.0, 0.0),
+        ],
+    )
+
+    with temp_ctx(), stand_in_provider({"AAA": FakeTicker(daily=daily)}):
+        fetch = YahooProvider().historical_prices(
+            {"AAA": date(2024, 1, 2)},
+            today=date(2024, 1, 9),
+        )
+
+    assert fetch.prices["AAA"] == [
+        PricePoint("2024-01-02", Decimal("46.8750")),  # 30 x 10 x 0.125 x 1.25
+        PricePoint("2024-01-03", Decimal("4.8438")),  # 31 x 0.125 x 1.25, to 4dp
+        PricePoint("2024-01-04", Decimal("40.0000")),  # 32 x 1.25
+        PricePoint("2024-01-05", Decimal("33.0000")),
+        PricePoint("2024-01-08", Decimal("34.0000")),
+    ]
+
+
+def test_historical_prices_drop_float_noise_and_todays_live_row(
+    temp_ctx: TempContext,
+) -> None:
+    daily = _daily(
+        [
+            ("2024-06-06", 120.88800048828125, 0.0),
+            ("2024-06-07", 121.5, 0.0),  # today: still trading, so not a close yet
+        ],
+    )
+    ticker = FakeTicker(daily=daily)
+
+    with temp_ctx(), stand_in_provider({"AAA": ticker}):
+        fetch = YahooProvider().historical_prices(
+            {"AAA": date(2024, 6, 3)},
+            today=date(2024, 6, 7),
+        )
+
+    assert fetch.prices["AAA"] == [PricePoint("2024-06-06", Decimal("120.8880"))]
+    # Asked through today, so a split dated today is still seen and undone.
+    assert ticker.history_asked[0]["start"] == "2024-06-03"
+    assert "end" not in ticker.history_asked[0]
+
+
+def test_historical_prices_sort_each_symbol_by_how_it_came_back(
+    temp_ctx: TempContext,
+) -> None:
+    tickers = {
+        "AAA": FakeTicker(daily=_daily([("2024-06-06", 10.0, 0.0)])),
+        "EMPTY": FakeTicker(daily=pd.DataFrame()),
+        "GONE": FakeTicker(daily=YFTzMissingError("GONE")),
+        "SLOW": FakeTicker(daily=YFRateLimitError()),
+        "DOWN": FakeTicker(daily=OSError("connection reset by peer")),
+    }
+    day = date(2024, 6, 3)
+
+    with temp_ctx(), stand_in_provider(tickers):
+        fetch = YahooProvider().historical_prices(
+            dict.fromkeys(tickers, day),
+            today=date(2024, 6, 7),
+        )
+
+    # No rows and no timezone (delisted) both mean the provider has nothing.
+    assert set(fetch.prices) == {"AAA"}
+    assert fetch.throttled == {"SLOW"}
+    assert fetch.failed == {"DOWN"}

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Protocol
 from models import Fundamentals
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from datetime import date
     from decimal import Decimal
 
@@ -76,6 +76,24 @@ class PriceFetch:
 
 
 @dataclass(frozen=True)
+class HistoricalFetch:
+    """What one batch of historical price requests came back with.
+
+    A provider symbol in none of these is one the provider has no prices for.
+
+    Attributes:
+        prices: Each provider symbol's true closes, oldest first: as each day
+            traded, never adjusted for a later split or for dividends.
+        throttled: Provider symbols that failed on a rate limit.
+        failed: Provider symbols that failed any other way.
+    """
+
+    prices: dict[str, list[PricePoint]] = field(default_factory=dict)
+    throttled: frozenset[str] = frozenset()
+    failed: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
 class HistoryBars:
     """One symbol's dated closes at each interval the stored ranges are built from."""
 
@@ -134,6 +152,15 @@ class QuoteProvider(Protocol):
         today: date,
     ) -> dict[str, HistoryBars]:
         """Fetch enough dated closes for every stored range, back from `today`."""
+        ...
+
+    def historical_prices(
+        self,
+        starts: Mapping[str, date],
+        *,
+        today: date,
+    ) -> HistoricalFetch:
+        """Fetch each symbol's true daily closes from its start until before `today`."""
         ...
 
     def intraday(self, provider_symbols: Sequence[str]) -> dict[str, IntradayBars]:

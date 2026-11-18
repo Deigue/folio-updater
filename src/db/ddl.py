@@ -5,7 +5,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import Column, Table
-from models import FxRate, Quote, QuoteHistory, TickerAlias, Txn, UpdateBaseline
+from models import (
+    FxRate,
+    HistoricalPrice,
+    HistoricalPriceCoverage,
+    Quote,
+    QuoteHistory,
+    TickerAlias,
+    Txn,
+    UpdateBaseline,
+)
 from models.columns import Kind, StoredColumn, stored_columns
 
 if TYPE_CHECKING:
@@ -19,6 +28,8 @@ TABLE_MODELS: dict[Table, type[DataclassInstance]] = {
     Table.TICKER_ALIASES: TickerAlias,
     Table.QUOTES: Quote,
     Table.QUOTE_HISTORY: QuoteHistory,
+    Table.HISTORICAL_PRICES: HistoricalPrice,
+    Table.HISTORICAL_PRICE_COVERAGE: HistoricalPriceCoverage,
     Table.UPDATE_BASELINES: UpdateBaseline,
 }
 

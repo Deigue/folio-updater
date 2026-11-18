@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from services.quote_provider import (
+    HistoricalFetch,
     HistoryBars,
     IntradayBars,
     PriceFetch,
@@ -16,7 +17,7 @@ from services.quote_provider import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from datetime import date
 
     from services.price_history import PricePoint
@@ -52,6 +53,7 @@ class FakeQuoteProvider:
         info: What `describe` answers.
         bars: What `history` answers.
         live: What `intraday` answers.
+        historical: Every true close `historical_prices` can answer with.
         up: Whether the provider can be reached.
         calls: Each request made, as (method, symbols asked for).
     """
@@ -64,6 +66,7 @@ class FakeQuoteProvider:
     info: dict[str, ProviderDescription] = field(default_factory=dict)
     bars: dict[str, HistoryBars] = field(default_factory=dict)
     live: dict[str, IntradayBars] = field(default_factory=dict)
+    historical: dict[str, list[PricePoint]] = field(default_factory=dict)
     up: bool = True
     calls: list[tuple[str, list[str]]] = field(default_factory=list)
 
@@ -127,3 +130,27 @@ class FakeQuoteProvider:
         asked = list(provider_symbols)
         self.calls.append(("intraday", asked))
         return {s: self.live[s] for s in asked if s in self.live}
+
+    def historical_prices(
+        self,
+        starts: Mapping[str, date],
+        *,
+        today: date,
+    ) -> HistoricalFetch:
+        """Answer from `historical`, from each start until before `today`."""
+        asked = list(starts)
+        self.calls.append(("historical_prices", asked))
+        found = {
+            s: [
+                point
+                for point in self.historical.get(s, [])
+                if starts[s].isoformat() <= point.when < today.isoformat()
+            ]
+            for s in asked
+            if s not in self.throttled and s not in self.failed
+        }
+        return HistoricalFetch(
+            prices={s: points for s, points in found.items() if points},
+            throttled=frozenset(s for s in asked if s in self.throttled),
+            failed=frozenset(s for s in asked if s in self.failed),
+        )

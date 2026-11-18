@@ -24,6 +24,7 @@ from db import (
     fx_rates,
     get_connection,
     get_tables,
+    historical_prices,
     queries,
     quote_history,
     quotes,
@@ -45,6 +46,8 @@ from domain import (
 )
 from models import (
     FxRate,
+    HistoricalPrice,
+    HistoricalPriceCoverage,
     NewTxn,
     Quote,
     QuoteHistory,
@@ -210,6 +213,94 @@ def test_fx_summary_keeps_the_earliest_rate_past_the_cutoff(
         fx_rates.write([JAN_5, JAN_9])
 
         assert fx_rates.summary("2024-01-01") == "1|1.5|2024-01-05"
+
+
+# -- HISTORICAL PRICES ----------------------------------------------------------
+
+
+def _price(symbol: str, day: str, price: str) -> HistoricalPrice:
+    """Build one day's historical price."""
+    return HistoricalPrice(symbol=symbol, date=day, price=Decimal(price))
+
+
+def _covered(symbol: str, start: str, end: str) -> HistoricalPriceCoverage:
+    """Build a symbol's coverage span."""
+    return HistoricalPriceCoverage(
+        symbol=symbol,
+        fetched_from=start,
+        fetched_through=end,
+    )
+
+
+def test_historical_prices_read_back_in_date_order_per_symbol(
+    temp_ctx: TempContext,
+) -> None:
+    mar_4, mar_5 = (
+        _price("SPY", "2024-03-04", "512.3"),
+        _price("SPY", "2024-03-05", "507.25"),
+    )
+
+    with temp_ctx():
+        written = historical_prices.write(
+            [mar_5, _price("RY.TO", "2024-03-04", "131.75"), mar_4],
+            [_covered("SPY", "2024-03-04", "2024-03-05")],
+        )
+
+        assert written == 3
+        assert historical_prices.read("SPY") == [mar_4, mar_5]
+
+
+def test_a_stored_historical_price_never_changes(temp_ctx: TempContext) -> None:
+    """A day already held keeps its price; the new coverage still lands."""
+    kept = _price("SPY", "2024-03-04", "512.3")
+
+    with temp_ctx():
+        historical_prices.write([kept], [_covered("SPY", "2024-03-04", "2024-03-04")])
+        written = historical_prices.write(
+            [_price("SPY", "2024-03-04", "9.99")],
+            [_covered("SPY", "2024-03-01", "2024-03-04")],
+        )
+
+        assert written == 0
+        assert historical_prices.read("SPY") == [kept]
+        assert historical_prices.coverage(["SPY"]) == {
+            "SPY": _covered("SPY", "2024-03-01", "2024-03-04"),
+        }
+
+
+def test_coverage_is_kept_for_a_symbol_with_no_prices(temp_ctx: TempContext) -> None:
+    """A span the provider had nothing for is still known to be asked."""
+    span = _covered("MSFT", "2024-01-02", "2024-03-01")
+
+    with temp_ctx():
+        historical_prices.write([], [span, _covered("SPY", "2024-01-02", "2024-03-01")])
+
+        assert historical_prices.read("MSFT") == []
+        assert historical_prices.coverage(["MSFT"]) == {"MSFT": span}
+
+
+def test_reading_historical_prices_creates_no_table(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        assert historical_prices.read("SPY") == []
+        assert historical_prices.coverage(["SPY"]) == {}
+
+        with get_connection() as conn:
+            tables = get_tables(conn)
+        assert Table.HISTORICAL_PRICES not in tables
+        assert Table.HISTORICAL_PRICE_COVERAGE not in tables
+
+
+def test_a_historical_price_write_takes_no_backup(temp_ctx: TempContext) -> None:
+    """Prices can always be fetched again."""
+    with temp_ctx(backup={"enabled": True}):
+        seed_transaction(ticker="AAA")
+        with backup_scope():
+            historical_prices.write(
+                [_price("SPY", "2024-03-04", "512.3")],
+                [_covered("SPY", "2024-03-04", "2024-03-04")],
+            )
+
+            assert current_backup() is None
 
 
 # -- REVISIONS AND TXNS ----------------------------------------------------------
