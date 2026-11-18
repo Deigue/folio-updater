@@ -12,6 +12,7 @@ import pytest
 import requests
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from types import TracebackType
 
 BUY_SELL_FIELD = "Buy/Sell"
@@ -32,7 +33,7 @@ class IBKRMockContext:
     def __init__(
         self,
         monkeypatch: pytest.MonkeyPatch,
-        mock_csv_data: str,
+        mock_csv_data: str | Sequence[str],
         send_request_response: str = "ref123",
         send_request_error: tuple[str, str] | None = None,
         not_ready_polls: int = 0,
@@ -42,7 +43,8 @@ class IBKRMockContext:
 
         Args:
             monkeypatch: pytest monkeypatch fixture
-            mock_csv_data: CSV data to return from GetStatement
+            mock_csv_data: CSV data to return from GetStatement, or one per
+                statement in turn, the last repeating
             send_request_response: Reference code to return from SendRequest
             send_request_error: The error code and message SendRequest fails with,
                 or None to accept every request
@@ -51,7 +53,10 @@ class IBKRMockContext:
             token: The flex token the keyring holds, or None for none stored
         """
         self.monkeypatch = monkeypatch
-        self.mock_csv_data = mock_csv_data
+        self.statements = (
+            [mock_csv_data] if isinstance(mock_csv_data, str) else list(mock_csv_data)
+        )
+        self.statements_sent = 0
         self.send_request_response = send_request_response
         self.send_request_error = send_request_error
         self.not_ready_polls = not_ready_polls
@@ -106,9 +111,12 @@ class IBKRMockContext:
             elif "GetStatement" in url:
                 self.statement_requests += 1
                 waiting = self.statement_requests <= self.not_ready_polls
-                MockResponse.text = (
-                    STATEMENT_NOT_READY if waiting else self.mock_csv_data
-                )
+                if waiting:
+                    MockResponse.text = STATEMENT_NOT_READY
+                else:
+                    last = len(self.statements) - 1
+                    MockResponse.text = self.statements[min(self.statements_sent, last)]
+                    self.statements_sent += 1
             return MockResponse()
 
         self.monkeypatch.setattr(requests.Session, "get", mock_get)
@@ -245,3 +253,8 @@ DEFAULT_TRANSACTION_ROWS = [
 def get_default_mock_csv() -> str:
     """Get default mock CSV data for testing."""
     return create_mock_csv_data(DEFAULT_TRANSACTION_ROWS)
+
+
+def get_empty_mock_csv() -> str:
+    """Get a statement holding only its header row, as for a period with no activity."""
+    return create_mock_csv_data(DEFAULT_TRANSACTION_ROWS).splitlines(keepends=True)[0]

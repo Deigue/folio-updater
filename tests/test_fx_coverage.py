@@ -143,6 +143,31 @@ def test_ensure_coverage_never_chases_a_future_end(
         boc_fetch.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "effective_today",
+    [
+        pytest.param("2025-03-15", id="saturday"),
+        # Also a Monday morning, before the day's rates are published.
+        pytest.param("2025-03-16", id="sunday"),
+    ],
+)
+def test_ensure_coverage_skips_the_fetch_over_a_weekend_once_friday_is_held(
+    temp_ctx: TempContext,
+    boc_fetch: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    effective_today: str,
+) -> None:
+    monkeypatch.setattr(
+        FxService,
+        "effective_today",
+        staticmethod(lambda: effective_today),
+    )
+    with temp_ctx():
+        _seed_rates(["2025-03-12", "2025-03-13", "2025-03-14"])
+        assert FxService.ensure_coverage("2025-03-12") == 0
+        boc_fetch.assert_not_called()
+
+
 def test_ensure_coverage_tops_up_the_forward_end(
     temp_ctx: TempContext,
     rate_dates: list[str],

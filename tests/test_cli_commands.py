@@ -32,6 +32,7 @@ from .fixtures.dataframe_cache import register_test_dataframe
 from .fixtures.ibkr_mocking import (
     IBKRMockContext,
     get_default_mock_csv,
+    get_empty_mock_csv,
 )
 from .fixtures.wealthsimple_mocking import (
     WealthsimpleMockContext,
@@ -780,9 +781,11 @@ def test_ibkr_download_scenarios(
     writes_csv: bool,
 ) -> None:
     mock_csv_data = get_default_mock_csv() if writes_csv else ""
+    # A folio with no IBKR transactions walks back until a year comes back empty.
+    statements = [mock_csv_data, mock_csv_data, get_empty_mock_csv()]
     with (
         temp_ctx(query_ids),
-        IBKRMockContext(monkeypatch, mock_csv_data) as ibkr_mock,
+        IBKRMockContext(monkeypatch, statements) as ibkr_mock,
     ):
         if setup is not None:
             setup(monkeypatch)
@@ -1078,14 +1081,19 @@ def test_ibkr_download_waits_for_a_statement_that_is_not_ready(
     mock_csv_data = get_default_mock_csv()
     with (
         temp_ctx({"brokers": {"ibkr": {"FlexReport": "abc123"}}}),
-        IBKRMockContext(monkeypatch, mock_csv_data, not_ready_polls=2) as ibkr_mock,
+        IBKRMockContext(
+            monkeypatch,
+            [mock_csv_data, get_empty_mock_csv()],
+            not_ready_polls=2,
+        ) as ibkr_mock,
     ):
         cli_result = run_cli(cli_app, ["download"])
 
         assert_cli_success(cli_result)
         assert_in_output("FlexReport: 3 lines received", cli_result)
         ibkr_mock.assert_csv_written(mock_csv_data)
-        assert ibkr_mock.statement_requests == 3
+        # Two not ready, the statement, then the empty year that ends the walk.
+        assert ibkr_mock.statement_requests == 4
 
 
 def test_version_command(tmp_path: Path, temp_ctx: TempContext) -> None:

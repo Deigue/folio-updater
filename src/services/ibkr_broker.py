@@ -21,14 +21,16 @@ from urllib3.util.retry import Retry
 
 from app import get_config
 from domain import TORONTO_TZ, BrokerId
+from domain.dates import weekday_on_or_before
 from services.broker import (
     PREVIEW_ROWS,
     BrokerError,
     BrokerFailure,
+    DateWindow,
     DownloadResult,
     PartFailure,
     PreviewTable,
-    resolve_window,
+    overlap_day,
 )
 from services.broker_files import ibkr_file_name, ibkr_retry_file_name
 from term import (
@@ -41,6 +43,7 @@ from term import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
 
     from config.brokers import IbkrSettings
@@ -61,6 +64,10 @@ INITIAL_WAIT_SECONDS = 5
 POLL_INTERVAL_SECONDS = 30
 MAX_POLL_ATTEMPTS = 10
 FLEX_VERSION = "3"
+# IBKR refuses a statement over more days than this.
+MAX_DAYS_PER_REQUEST = 365
+# IBKR accepts about 10 requests a minute per token.
+MIN_SECONDS_BETWEEN_REQUESTS = 6
 
 # Query IDs the default config.yaml ships with, standing for "not set up yet".
 _PLACEHOLDER_QUERY_IDS = frozenset({"111111", "999999"})
@@ -88,6 +95,7 @@ class IbkrBroker:
     def __init__(self, settings: IbkrSettings) -> None:
         """Download the queries `settings` names."""
         self._settings = settings
+        self._last_request = float("-inf")
 
     # -- CREDENTIALS -------------------------------------------------------------
 
@@ -142,8 +150,11 @@ class IbkrBroker:
     ) -> DownloadResult:
         """Download every configured query into the imports inbox.
 
-        A query that fails is reported and the rest carry on. A query whose ID is
-        still a placeholder is skipped.
+        A missing start restarts on the overlap day; with no IBKR transactions
+        stored, history is downloaded a year at a time instead. Days beyond
+        IBKR's per-request limit are asked for in several requests. A query that
+        fails is reported and the rest carry on. A query whose ID is still a
+        placeholder is skipped.
 
         Raises:
             BrokerError: When no query is configured at all.
@@ -159,47 +170,98 @@ class IbkrBroker:
             console_warning(f"Skipping {query_name}: No valid query ID configured")
         if not queries:
             return DownloadResult()
-        window = resolve_window(self.id, start, end)
-        files: list[Path] = []
-        failures: list[PartFailure] = []
-        previews: list[PreviewTable] = []
+        today = datetime.now(TORONTO_TZ).date()
+        end = end or today
+        start = start or overlap_day(self.id)
         with _session() as session:
-            for query_name, query_id in queries.items():
-                progress(f"Downloading {query_name}...")
-                try:
-                    reference_code = self._send_request(
-                        session,
-                        query_name,
-                        query_id,
-                        window.start,
-                        _flex_end(query_name, window.end),
-                    )
-                    msg = (
-                        f"Waiting {INITIAL_WAIT_SECONDS} seconds to allow "
-                        "statement to process..."
-                    )
-                    progress(msg)
-                    time.sleep(INITIAL_WAIT_SECONDS)
-                    content = self._poll(session, reference_code, progress)
-                    name = ibkr_file_name(
-                        query_name,
-                        _flex_date(window.start),
-                        _flex_date(window.end),
-                    )
-                    path, lines = self._save(content, name)
-                except BrokerError as e:
-                    logger.error("%s: %s", query_name, e)  # noqa: TRY400
-                    console_error(f"{query_name}: {e}")
-                    failures.append(PartFailure(query_name, e))
-                    continue
-                files.append(path)
-                previews.append(_preview(query_name, content))
-                console_success(f"{query_name}: {lines} lines received")
-        return DownloadResult(
-            files=tuple(files),
-            failures=tuple(failures),
-            previews=tuple(previews),
+            if start is None:
+                return _merged(self._download_history(session, queries, end, progress))
+            return _merged(
+                self._download_window(session, queries, window, progress)
+                for window in _windows(start, end)
+            )
+
+    def _download_history(
+        self,
+        session: requests.Session,
+        queries: dict[str, str],
+        end: date,
+        progress: Progress,
+    ) -> Iterator[DownloadResult]:
+        """Download a year at a time back from `end`, until a year brings nothing."""
+        console_info(
+            "No IBKR transactions stored: downloading history a year at a time",
         )
+        while True:
+            window = DateWindow(end - timedelta(days=MAX_DAYS_PER_REQUEST - 1), end)
+            result = self._download_window(session, queries, window, progress)
+            yield result
+            if not result.files:
+                return
+            end = window.start - timedelta(days=1)
+
+    def _download_window(
+        self,
+        session: requests.Session,
+        queries: dict[str, str],
+        window: DateWindow,
+        progress: Progress,
+    ) -> DownloadResult:
+        """Download every query over one window of at most a year."""
+        return _merged(
+            self._download_query(session, query_name, query_id, window, progress)
+            for query_name, query_id in queries.items()
+        )
+
+    def _download_query(
+        self,
+        session: requests.Session,
+        query_name: str,
+        query_id: str,
+        window: DateWindow,
+        progress: Progress,
+    ) -> DownloadResult:
+        """Download one query over one window, saving it unless it holds no rows.
+
+        A query that fails is reported in the result, so the rest carry on.
+        """
+        to_date = _flex_end(query_name, window.end)
+        if to_date < window.start:
+            console_warning(
+                f"Skipping {query_name}: {window.start} to {to_date} holds no days",
+            )
+            return DownloadResult()
+        progress(f"Downloading {query_name}...")
+        try:
+            reference_code = self._send_request(
+                session,
+                query_name,
+                query_id,
+                window.start,
+                to_date,
+            )
+            msg = (
+                f"Waiting {INITIAL_WAIT_SECONDS} seconds to allow "
+                "statement to process..."
+            )
+            progress(msg)
+            time.sleep(INITIAL_WAIT_SECONDS)
+            content = self._poll(session, reference_code, progress)
+            if not _has_rows(content):
+                console_info(f"{query_name}: No rows from {window.start} to {to_date}")
+                return DownloadResult()
+            name = ibkr_file_name(
+                query_name,
+                _flex_date(window.start),
+                _flex_date(window.end),
+            )
+            path, lines = self._save(content, name)
+        except BrokerError as e:
+            logger.error("%s: %s", query_name, e)  # noqa: TRY400
+            console_error(f"{query_name}: {e}")
+            return DownloadResult(failures=(PartFailure(query_name, e),))
+        console_success(f"{query_name}: {lines} lines received")
+        return DownloadResult(files=(path,), previews=(_preview(query_name, content),))
 
     def retry(self, reference_code: str, progress: Progress) -> DownloadResult:
         """Download the statement of an earlier request again, by its reference code.
@@ -226,7 +288,14 @@ class IbkrBroker:
         start: date,
         end: date,
     ) -> str:
-        """Ask IBKR to generate a flex query statement, returning its reference code."""
+        """Ask IBKR to generate a flex query statement, returning its reference code.
+
+        Requests are spaced to stay within IBKR's rate limit.
+        """
+        wait = self._last_request + MIN_SECONDS_BETWEEN_REQUESTS - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        self._last_request = time.monotonic()
         params = {
             "t": self._token(),
             "q": query_id,
@@ -382,11 +451,44 @@ def _flex_end(query_name: str, end: date) -> date:
     today = datetime.now(TORONTO_TZ).date()
     if "Activity" not in query_name or end < today:
         return end
-    last_weekday = today - timedelta(days=1)
-    while last_weekday.weekday() > 4:  # noqa: PLR2004
-        last_weekday -= timedelta(days=1)
+    last_weekday = weekday_on_or_before(today - timedelta(days=1))
     logger.info("ADJUSTED: to_date %s -> %s for %s", end, last_weekday, query_name)
     return last_weekday
+
+
+def _windows(start: date, end: date) -> Iterator[DateWindow]:
+    """Split the days from `start` to `end` into windows IBKR accepts, oldest first.
+
+    A backward range comes out as one window, for the query to skip.
+    """
+    while True:
+        window_end = min(start + timedelta(days=MAX_DAYS_PER_REQUEST - 1), end)
+        yield DateWindow(start, window_end)
+        if window_end >= end:
+            return
+        start = window_end + timedelta(days=1)
+
+
+def _has_rows(content: str) -> bool:
+    """Whether a statement holds any row besides its header rows."""
+    rows = list(csv.reader(content.strip().splitlines()))
+    return any(row != rows[0] for row in rows[1:])
+
+
+def _merged(results: Iterable[DownloadResult]) -> DownloadResult:
+    """Join the files, failures and previews of several downloads, in order."""
+    files: list[Path] = []
+    failures: list[PartFailure] = []
+    previews: list[PreviewTable] = []
+    for result in results:
+        files += result.files
+        failures += result.failures
+        previews += result.previews
+    return DownloadResult(
+        files=tuple(files),
+        failures=tuple(failures),
+        previews=tuple(previews),
+    )
 
 
 def _flex_date(day: date) -> str:

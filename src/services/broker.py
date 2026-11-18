@@ -168,22 +168,28 @@ def resolve_window(
     this month, or of last month on the first.
     """
     today = datetime.now(tz=TORONTO_TZ).date()
-    return DateWindow(start=start or _restart_day(broker, today), end=end or today)
+    return DateWindow(
+        start=start or overlap_day(broker) or _fallback_start(today),
+        end=end or today,
+    )
 
 
-def _restart_day(broker: BrokerId, today: date) -> date:
-    """Return the broker's overlap day, or the fallback first of a month."""
+def overlap_day(broker: BrokerId) -> date | None:
+    """Return the broker's latest stored transaction date, or None when it has none."""
     name = broker.display_name
     try:
-        overlap_day = txns.latest_date_for(broker)
-        if overlap_day:
-            console_info(
-                f"from_date: Using latest {name} transaction date: {overlap_day}",
-            )
-            return date.fromisoformat(overlap_day)
+        latest = txns.latest_date_for(broker)
     except (ValueError, OSError, DatabaseError) as e:
         console_warning(f"Warning: Could not determine latest transaction date: {e}")
+        return None
+    if not latest:
+        return None
+    console_info(f"from_date: Using latest {name} transaction date: {latest}")
+    return date.fromisoformat(latest)
 
+
+def _fallback_start(today: date) -> date:
+    """Return the first of this month, or of last month on the first."""
     fallback = today.replace(day=1)
     if fallback == today:  # pragma: no cover
         fallback = months_back(fallback, 1)

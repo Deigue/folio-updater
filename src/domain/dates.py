@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
-from domain.constants import TORONTO_TZ
+from domain.constants import TORONTO_TZ, WEEKDAYS
 
 
 def today_in_toronto() -> date:
     """Return today's date in Toronto, where the brokers' days and months run."""
     return datetime.now(TORONTO_TZ).date()
+
+
+def weekday_on_or_before(day: date) -> date:
+    """Return `day` itself on a weekday, or the Friday before a weekend day."""
+    while day.weekday() >= WEEKDAYS:
+        day -= timedelta(days=1)
+    return day
 
 
 def iso_day(text: str) -> date | None:
