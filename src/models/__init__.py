@@ -8,7 +8,6 @@ from models.fx_rate import FxRate
 from models.historical_price import (
     HistoricalPrice,
     HistoricalPriceCoverage,
-    HistoricalPriceSummary,
 )
 from models.import_results import (
     CancelEvent,
@@ -51,7 +50,6 @@ __all__ = [
     "HardFailure",
     "HistoricalPrice",
     "HistoricalPriceCoverage",
-    "HistoricalPriceSummary",
     "ImportResults",
     "MergeEvent",
     "NewTxn",

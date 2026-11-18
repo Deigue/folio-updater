@@ -679,12 +679,6 @@ def quotes_cmd(
         "--clear",
         help="Drop cached quotes and their price history",
     ),
-    history: bool = typer.Option(
-        False,
-        "--history",
-        help="Top up the stored historical prices and show what each symbol holds",
-        hidden=True,
-    ),
 ) -> None:
     """Inspect or refresh the market quote cache."""
     from cli.commands.quotes import manage_quotes
@@ -693,7 +687,6 @@ def quotes_cmd(
         [*(symbols or []), *([ticker] if ticker else [])],
         refresh=refresh,
         clear=clear,
-        history=history,
     )
 
 

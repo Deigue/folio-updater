@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -13,15 +14,16 @@ import pytest
 from cli.commands.common import save_update_baseline
 from cli.main import app as cli_app
 from datagen import ensure_data_exists
-from db import txns, update_baselines
+from db import historical_prices, txns, update_baselines
 from domain import TORONTO_TZ, BrokerId, Grain
 from services import BrokerError, BrokerFailure, PartFailure
+from services.price_history import PricePoint
 
 from .fixtures.data_factory import create_transaction_data
 from .fixtures.dataframe_cache import register_test_dataframe
 from .helpers.cli import assert_in_output, assert_not_in_output, run_cli
 from .helpers.folio import txn_total
-from .helpers.seed import TSX_TICKER, seed_cash, seed_transaction
+from .helpers.seed import TICKER, TSX_TICKER, TXN_DATE, seed_cash, seed_transaction
 
 if TYPE_CHECKING:
     from unittest.mock import MagicMock
@@ -226,6 +228,40 @@ def test_clean_run_goes_through_every_stage(
         assert_in_output("Update finished with", result)
         folio = next(b for b in update_baselines.read() if b.grain is Grain.FOLIO)
         assert folio.txn_count == txn_total()
+
+
+def test_update_stores_the_historical_prices_each_security_lacks(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.historical = {TICKER: [PricePoint(TXN_DATE, Decimal("151.5"))]}
+
+    with temp_ctx():
+        seed_transaction()
+
+        result = run_cli(cli_app, ["update", "--resume"])
+
+        stored = historical_prices.read(TICKER)
+
+    assert result.exit_code == 0
+    assert [(price.date, price.price) for price in stored] == [
+        (TXN_DATE, Decimal("151.5")),
+    ]
+
+
+def test_a_throttled_price_history_waits_for_the_next_update(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.throttled = {TICKER}
+
+    with temp_ctx():
+        seed_transaction()
+
+        result = run_cli(cli_app, ["update", "--resume"])
+
+    pending = result.plain_output.partition("Pending, a later update")[2]
+    assert "1 symbol(s) lack price history" in pending
 
 
 def test_an_update_of_an_empty_folio_saves_no_baseline(temp_ctx: TempContext) -> None:

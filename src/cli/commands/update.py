@@ -24,6 +24,7 @@ from domain import BrokerId, Grain, SettlementOutcome
 from domain.dates import today_in_toronto
 from engine.accounts import FOLIO, Pool
 from engine.checks import CheckReport, run_checks
+from engine.historical_prices import top_up_historical_prices
 from engine.pools import FolioValuation
 from engine.since_update import record_update
 from engine.update_review import (
@@ -96,6 +97,8 @@ def run_update(*, resume: bool = False, offline: bool = False) -> UpdateReport:
     if not report.failed:
         _review_transfers(report)
         _check_stage(report, offline=offline)
+        if not offline:
+            _top_up_prices(report)
         _generate_stage(report, offline=offline)
         since = _dashboard_stage(offline=offline)
         if report.workbook is not None:
@@ -409,6 +412,15 @@ def _check_stage(report: UpdateReport, *, offline: bool) -> None:
     report.concerns.extend(concerns)
     if warned:
         report.expected.append(f"{warned} check(s) only warned: folio check")
+
+
+def _top_up_prices(report: UpdateReport) -> None:
+    """Fetch the historical prices the folio's securities lack, to value past dates."""
+    update = top_up_historical_prices(require_ledger())
+    if missed := len(update.throttled) + len(update.failed):
+        report.pending.append(
+            f"{missed} symbol(s) lack price history; fetched again by: folio update",
+        )
 
 
 def _generate_stage(report: UpdateReport, *, offline: bool) -> None:

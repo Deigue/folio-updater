@@ -9,14 +9,12 @@ from db.connection import get_connection
 from db.queries import (
     build_in_clause,
     get_distinct_set,
-    get_historical_price_extents,
     get_records,
     insert_new_rows,
     insert_or_replace_many,
 )
 from domain import Column, Table
-from models import HistoricalPrice, HistoricalPriceCoverage, HistoricalPriceSummary
-from models.cells import required_number
+from models import HistoricalPrice, HistoricalPriceCoverage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -78,29 +76,6 @@ def priced(symbols: Sequence[str]) -> set[str]:
     return found & set(symbols)
 
 
-def summaries(symbols: Sequence[str] | None = None) -> list[HistoricalPriceSummary]:
-    """Sum up each covered symbol's prices, sorted; every symbol when none are named."""
-    spans = coverage(symbols)
-    with get_connection() as conn:
-        extents = {row[0]: row for row in get_historical_price_extents(conn)}
-    found: list[HistoricalPriceSummary] = []
-    for symbol, span in sorted(spans.items()):
-        extent = extents.get(symbol)
-        if extent is None:
-            found.append(HistoricalPriceSummary(span, 0, None, None))
-            continue
-        _, days, first_day, first_price, last_day, last_price = extent
-        found.append(
-            HistoricalPriceSummary(
-                coverage=span,
-                days=days,
-                first=_price(symbol, first_day, first_price),
-                last=_price(symbol, last_day, last_price),
-            ),
-        )
-    return found
-
-
 def write(
     prices: Sequence[HistoricalPrice],
     spans: Sequence[HistoricalPriceCoverage],
@@ -132,12 +107,3 @@ def drop() -> None:
     with get_connection() as conn:
         drop_table(conn, Table.HISTORICAL_PRICES)
         drop_table(conn, Table.HISTORICAL_PRICE_COVERAGE)
-
-
-def _price(symbol: str, day: str, value: object) -> HistoricalPrice:
-    """Build a price from a stored day and price cell."""
-    return HistoricalPrice(
-        symbol=symbol,
-        date=day,
-        price=required_number(value, Column.HistoricalPrice.PRICE),
-    )

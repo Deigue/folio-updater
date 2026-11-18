@@ -48,7 +48,6 @@ from models import (
     FxRate,
     HistoricalPrice,
     HistoricalPriceCoverage,
-    HistoricalPriceSummary,
     NewTxn,
     Quote,
     QuoteHistory,
@@ -278,42 +277,6 @@ def test_coverage_is_kept_for_a_symbol_with_no_prices(temp_ctx: TempContext) -> 
 
         assert historical_prices.read("MSFT") == []
         assert historical_prices.coverage(["MSFT"]) == {"MSFT": span}
-
-
-def test_historical_price_summaries_count_and_bound_each_symbol(
-    temp_ctx: TempContext,
-) -> None:
-    first, last = (
-        _price("SPY", "2024-03-04", "512.3"),
-        _price("SPY", "2024-03-06", "509.75"),
-    )
-    spy, msft = (
-        _covered("SPY", "2024-03-01", "2024-03-06"),
-        _covered("MSFT", "2024-03-01", "2024-03-06"),
-    )
-
-    with temp_ctx():
-        historical_prices.write(
-            [
-                last,
-                _price("SPY", "2024-03-05", "507.25"),
-                first,
-                _price("RY.TO", "2024-03-04", "131.75"),
-            ],
-            [spy, msft],
-        )
-
-        found = historical_prices.summaries()
-        narrowed = historical_prices.summaries(["SPY"])
-        priced = historical_prices.priced(["MSFT", "SPY"])
-
-    # RY.TO has prices but no coverage, so it is not summed up.
-    assert found == [
-        HistoricalPriceSummary(msft, 0, None, None),
-        HistoricalPriceSummary(spy, 3, first, last),
-    ]
-    assert narrowed == [HistoricalPriceSummary(spy, 3, first, last)]
-    assert priced == {"SPY"}
 
 
 def test_reading_historical_prices_creates_no_table(temp_ctx: TempContext) -> None:

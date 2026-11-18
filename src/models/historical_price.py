@@ -124,20 +124,3 @@ class HistoricalPriceCoverage:
             str(Column.HistoricalPriceCoverage.FETCHED_FROM): self.fetched_from,
             str(Column.HistoricalPriceCoverage.FETCHED_THROUGH): self.fetched_through,
         }
-
-
-@dataclass(frozen=True)
-class HistoricalPriceSummary:
-    """What the store holds for one symbol.
-
-    Attributes:
-        coverage: The days fetched for it.
-        days: How many trading days have a price.
-        first: Its earliest price, or None when the provider had none.
-        last: Its latest price, or None when the provider had none.
-    """
-
-    coverage: HistoricalPriceCoverage
-    days: int
-    first: HistoricalPrice | None
-    last: HistoricalPrice | None
