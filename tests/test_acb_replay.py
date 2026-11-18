@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,7 @@ from domain import (
     FeeConvention,
     Grain,
 )
+from domain.dates import today_in_toronto
 from engine.accounts import FOLIO, Pool
 from engine.frames import (
     POOL_COLUMN,
@@ -1306,6 +1308,43 @@ def test_superficial_loss_not_flagged_when_the_rebuy_is_sold_inside_the_window()
         ],
     )
     assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT not in codes(result)
+
+
+def test_superficial_loss_in_a_window_still_open_is_judged_on_todays_holding() -> None:
+    today = today_in_toronto()
+
+    def days_ago(days: int) -> str:
+        return (today - timedelta(days=days)).isoformat()
+
+    result = run(
+        [
+            make_row(
+                1,
+                days_ago(20),
+                Action.BUY,
+                amount="-800",
+                units="50",
+                price="16",
+            ),
+            make_row(
+                2,
+                days_ago(15),
+                Action.BUY,
+                amount="-750",
+                units="50",
+                price="15",
+            ),
+            make_row(
+                3,
+                days_ago(10),
+                Action.SELL,
+                amount="650",
+                units="-50",
+                price="13",
+            ),
+        ],
+    )
+    assert DiagnosticCode.SUPERFICIAL_LOSS_SUSPECT in codes(result)
 
 
 def test_superficial_loss_counts_units_still_held_in_another_account() -> None:
