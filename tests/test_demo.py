@@ -17,6 +17,7 @@ from cli.main import app as cli_app
 from datagen import DemoFolio, DemoScenarioError, ensure_data_exists
 from datagen.demo import (
     CORPORATE,
+    END,
     MARGIN,
     PERSONAL,
     START,
@@ -25,17 +26,21 @@ from datagen.demo import (
     price_on,
 )
 from datagen.history import _window_events
+from datagen.history_data import CLOSES
 from db import (
     aliases,
     get_connection,
     get_distinct_set,
     get_rows,
+    historical_prices,
+    txns,
 )
 from domain import AccountType, Action, CheckStatus, Column, Currency, Table
 from engine.checks import run_checks
 from engine.ledger import open_ledger
 from exporters import ParquetExporter
 from services import FxService
+from services.historical_prices import HistoricalPriceService
 
 from .fixtures.data_factory import create_transaction_data
 from .helpers.cli import (
@@ -246,6 +251,32 @@ def test_the_demo_replays_clean(temp_ctx: TempContext) -> None:
     ] == []
 
 
+def test_the_demo_stores_the_prices_it_traded_at(temp_ctx: TempContext) -> None:
+    """Each trade's price is the day's historical price, splits not undone again."""
+    with temp_ctx():
+        ensure_data_exists()
+        trades = {
+            (txn.ticker, txn.txn_date): txn.price
+            for txn in txns.read()
+            if txn.ticker in CLOSES and txn.action in {Action.BUY, Action.SELL}
+        }
+        stored = {
+            (ticker, day): HistoricalPriceService.price_on(
+                ticker,
+                date.fromisoformat(day),
+            )
+            for ticker, day in trades
+        }
+        covered = historical_prices.coverage(["SPY"])["SPY"]
+
+    assert trades
+    assert stored == trades
+    assert (covered.fetched_from, covered.fetched_through) == (
+        START.isoformat(),
+        END.isoformat(),
+    )
+
+
 def test_data_creation_skipped_when_db_already_populated(
     temp_ctx: TempContext,
 ) -> None:
@@ -310,12 +341,15 @@ def test_importing_your_own_transactions_can_replace_the_demo(
         renames = aliases.read()
         backed_up = any(ctx.config.backup_path.rglob("folio_*.db"))
         accounts = _stored_accounts()
+        covered = historical_prices.coverage()
 
     assert_cli_success(result)
     assert _PROMPT in result.stdout
     assert accounts == {"TEST-ACCOUNT"}
     assert txn_ids == [1, 2]
     assert renames == []
+    # The demo's made-up prices leave with it.
+    assert covered == {}
     assert backed_up
     clear = audit_trail.index("CLEAR DEMO folio (folio import)")
     assert audit_trail[clear + 1].startswith(

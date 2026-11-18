@@ -8,11 +8,10 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from services.quote_provider import (
-    HistoricalFetch,
     HistoryBars,
     IntradayBars,
-    PriceFetch,
     ProviderDescription,
+    ProviderFetch,
     ProviderPrice,
 )
 
@@ -86,11 +85,11 @@ class FakeQuoteProvider:
         """Spell every symbol as itself."""
         return symbol
 
-    def prices(self, provider_symbols: Sequence[str]) -> PriceFetch:
+    def prices(self, provider_symbols: Sequence[str]) -> ProviderFetch[ProviderPrice]:
         """Price what it knows, and refuse the throttled and failed symbols."""
         asked = list(provider_symbols)
         self.calls.append(("prices", asked))
-        return PriceFetch(
+        return ProviderFetch(
             prices={s: self.prices_known[s] for s in asked if s in self.prices_known},
             throttled=frozenset(s for s in asked if s in self.throttled),
             failed=frozenset(s for s in asked if s in self.failed),
@@ -136,7 +135,7 @@ class FakeQuoteProvider:
         starts: Mapping[str, date],
         *,
         today: date,
-    ) -> HistoricalFetch:
+    ) -> ProviderFetch[list[PricePoint]]:
         """Answer from `historical`, from each start until before `today`."""
         asked = list(starts)
         self.calls.append(("historical_prices", asked))
@@ -149,7 +148,7 @@ class FakeQuoteProvider:
             for s in asked
             if s not in self.throttled and s not in self.failed
         }
-        return HistoricalFetch(
+        return ProviderFetch(
             prices={s: points for s, points in found.items() if points},
             throttled=frozenset(s for s in asked if s in self.throttled),
             failed=frozenset(s for s in asked if s in self.failed),

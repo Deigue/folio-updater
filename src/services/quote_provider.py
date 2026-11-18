@@ -58,37 +58,18 @@ class ProviderDescription:
 
 
 @dataclass(frozen=True)
-class PriceFetch:
-    """What one batch of price requests came back with.
+class ProviderFetch[T]:
+    """What one batch of per-symbol requests came back with.
 
-    A provider symbol in none of these is one the provider does not know.
-
-    Attributes:
-        prices: Each priced provider symbol mapped to its price.
-        throttled: Provider symbols that failed on a rate limit, which their
-            daily closes may still price.
-        failed: Provider symbols that failed any other way.
-    """
-
-    prices: dict[str, ProviderPrice] = field(default_factory=dict)
-    throttled: frozenset[str] = frozenset()
-    failed: frozenset[str] = frozenset()
-
-
-@dataclass(frozen=True)
-class HistoricalFetch:
-    """What one batch of historical price requests came back with.
-
-    A provider symbol in none of these is one the provider has no prices for.
+    A provider symbol in none of these is one the provider has nothing for.
 
     Attributes:
-        prices: Each provider symbol's true closes, oldest first: as each day
-            traded, never adjusted for a later split or for dividends.
+        prices: What each provider symbol came back with.
         throttled: Provider symbols that failed on a rate limit.
         failed: Provider symbols that failed any other way.
     """
 
-    prices: dict[str, list[PricePoint]] = field(default_factory=dict)
+    prices: dict[str, T] = field(default_factory=dict)
     throttled: frozenset[str] = frozenset()
     failed: frozenset[str] = frozenset()
 
@@ -127,7 +108,7 @@ class QuoteProvider(Protocol):
         """Spell a folio symbol the way the provider does."""
         ...
 
-    def prices(self, provider_symbols: Sequence[str]) -> PriceFetch:
+    def prices(self, provider_symbols: Sequence[str]) -> ProviderFetch[ProviderPrice]:
         """Price a batch, sorting each symbol into priced, throttled or failed."""
         ...
 
@@ -159,8 +140,8 @@ class QuoteProvider(Protocol):
         starts: Mapping[str, date],
         *,
         today: date,
-    ) -> HistoricalFetch:
-        """Fetch each symbol's true daily closes from its start until before `today`."""
+    ) -> ProviderFetch[list[PricePoint]]:
+        """Fetch each symbol's true closes from its start until before `today`."""
         ...
 
     def intraday(self, provider_symbols: Sequence[str]) -> dict[str, IntradayBars]:

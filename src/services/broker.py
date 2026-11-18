@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from db import DatabaseError, txns
 from domain import TORONTO_TZ
+from models import DateWindow
 from services.price_history import months_back
 from term import console_info, console_warning
 
@@ -91,14 +92,6 @@ class DownloadResult:
             failures=tuple(failures),
             previews=tuple(previews),
         )
-
-
-@dataclass(frozen=True)
-class DateWindow:
-    """The first and last day a download asks a broker for, both inclusive."""
-
-    start: date
-    end: date
 
 
 class Broker(Protocol):

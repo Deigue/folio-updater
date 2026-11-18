@@ -3,8 +3,13 @@
 This module exports the public API for all data models and result types.
 """
 
+from models.date_window import DateWindow
 from models.fx_rate import FxRate
-from models.historical_price import HistoricalPrice, HistoricalPriceCoverage
+from models.historical_price import (
+    HistoricalPrice,
+    HistoricalPriceCoverage,
+    HistoricalPriceSummary,
+)
 from models.import_results import (
     CancelEvent,
     FileImport,
@@ -39,12 +44,14 @@ from models.update_report import Concern, HardFailure, UpdateReport, UpdateStage
 __all__ = [
     "CancelEvent",
     "Concern",
+    "DateWindow",
     "FileImport",
     "Fundamentals",
     "FxRate",
     "HardFailure",
     "HistoricalPrice",
     "HistoricalPriceCoverage",
+    "HistoricalPriceSummary",
     "ImportResults",
     "MergeEvent",
     "NewTxn",

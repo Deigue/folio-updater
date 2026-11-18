@@ -17,7 +17,7 @@ from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
 
-    from models import Quote
+    from models import HistoricalPrice, HistoricalPriceSummary, Quote
 
 _SYMBOL = FormattedColumn("Symbol", no_wrap=True)
 _HELD = FormattedColumn("Held", no_wrap=True)
@@ -75,6 +75,42 @@ def quotes_table(
             _status(quote),
         )
     return fit_table(table, ("Name", "Prev", "Provider"))
+
+
+def historical_prices_table(summaries: Sequence[HistoricalPriceSummary]) -> RichTable:
+    """Render what the historical price store holds for each symbol, in order given."""
+    table = RichTable(
+        title="Historical Prices",
+        show_header=True,
+        header_style=TABLE_HEADER,
+        border_style=TABLE_BORDER,
+    )
+    for column in (
+        _SYMBOL,
+        FormattedColumn("From", no_wrap=True),
+        FormattedColumn("Through", no_wrap=True),
+        FormattedColumn("Days", justify="right"),
+        FormattedColumn("First", justify="right", no_wrap=True),
+        FormattedColumn("Last", justify="right", no_wrap=True),
+    ):
+        add_column(table, column)
+    for summary in summaries:
+        table.add_row(
+            summary.coverage.symbol,
+            summary.coverage.fetched_from,
+            summary.coverage.fetched_through,
+            str(summary.days),
+            _dated_price(summary.first),
+            _dated_price(summary.last),
+        )
+    return fit_table(table, ("First",))
+
+
+def _dated_price(found: HistoricalPrice | None) -> str:
+    """Render a stored price with its day, or a dash when there is none."""
+    if found is None:
+        return EM_DASH
+    return f"{price(found.price)} [dim]{found.date}[/dim]"
 
 
 def _held(owned: bool) -> str:  # noqa: FBT001 - one flag, read as a cell

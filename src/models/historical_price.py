@@ -39,14 +39,7 @@ class HistoricalPrice:
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:
-        """Read a price out of its row.
-
-        Args:
-            row: The row, keyed by column name.
-
-        Returns:
-            The price.
-        """
+        """Read a price out of its row, keyed by column name."""
         return cls(
             symbol=required_text(
                 row.get(Column.HistoricalPrice.SYMBOL),
@@ -108,14 +101,7 @@ class HistoricalPriceCoverage:
 
     @classmethod
     def from_row(cls, row: Mapping[str, object]) -> Self:
-        """Read a coverage span out of its row.
-
-        Args:
-            row: The row, keyed by column name.
-
-        Returns:
-            The span.
-        """
+        """Read a coverage span out of its row, keyed by column name."""
         return cls(
             symbol=required_text(
                 row.get(Column.HistoricalPriceCoverage.SYMBOL),
@@ -138,3 +124,20 @@ class HistoricalPriceCoverage:
             str(Column.HistoricalPriceCoverage.FETCHED_FROM): self.fetched_from,
             str(Column.HistoricalPriceCoverage.FETCHED_THROUGH): self.fetched_through,
         }
+
+
+@dataclass(frozen=True)
+class HistoricalPriceSummary:
+    """What the store holds for one symbol.
+
+    Attributes:
+        coverage: The days fetched for it.
+        days: How many trading days have a price.
+        first: Its earliest price, or None when the provider had none.
+        last: Its latest price, or None when the provider had none.
+    """
+
+    coverage: HistoricalPriceCoverage
+    days: int
+    first: HistoricalPrice | None
+    last: HistoricalPrice | None

@@ -34,6 +34,7 @@ from db import (
     backup_folio,
     backup_scope,
     create_txns_table,
+    historical_prices,
     txns,
 )
 from domain import (
@@ -52,7 +53,7 @@ from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
 from exporters import ParquetExporter
 from importers import insert_transactions
 from ingest import find_duplicates
-from models import TickerAlias
+from models import HistoricalPrice, HistoricalPriceCoverage, TickerAlias
 from services import FxService
 from term import console_warning
 
@@ -1274,6 +1275,7 @@ class DemoFolio:
                     for old, new, effective in RENAMES
                 ],
             )
+            DemoFolio._store_historical_prices()
 
         config = get_config()
         if write_missing_setting(config.config_path, "contribution_room", CRA_ROOM):
@@ -1287,11 +1289,41 @@ class DemoFolio:
         ParquetExporter().export_all()
 
     @staticmethod
+    def _store_historical_prices() -> None:
+        """Store every session's price the demo trades at, covering its whole window.
+
+        They are made up between real month-ends, so they leave with the demo.
+        """
+        symbols = [symbol for symbol in CLOSES if symbol != USDCAD]
+        prices = [
+            HistoricalPrice(
+                symbol=symbol,
+                date=day.isoformat(),
+                price=price_on(symbol, day),
+            )
+            for symbol in symbols
+            for day in sorted(_sessions(currency_of(symbol)))
+            if START <= day <= END
+        ]
+        historical_prices.write(
+            prices,
+            [
+                HistoricalPriceCoverage(
+                    symbol=symbol,
+                    fetched_from=START.isoformat(),
+                    fetched_through=END.isoformat(),
+                )
+                for symbol in symbols
+            ],
+        )
+
+    @staticmethod
     def clear() -> None:
         """Remove the demo, so real transactions start an empty folio from TxnId 1.
 
         The folio is backed up first. FX rates and cached quotes stay, being
         real data, and so does any contribution room the demo wrote to config.
+        The historical prices go: the demo made them up.
         """
         with audit.entry("CLEAR DEMO folio") as entry:
             removed = txns.count()
@@ -1306,9 +1338,10 @@ class DemoFolio:
 
     @staticmethod
     def _remove() -> None:
-        """Drop the folio's transactions and ticker aliases, and their exports."""
+        """Drop the folio's transactions, ticker aliases and historical prices."""
         txns.drop()
         aliases.drop()
+        historical_prices.drop()
         config = get_config()
         config.txn_parquet.unlink(missing_ok=True)
         config.tickers_parquet.unlink(missing_ok=True)

@@ -22,11 +22,11 @@ from urllib3.util.retry import Retry
 from app import get_config
 from domain import BrokerId
 from domain.dates import today_in_toronto, weekday_on_or_before
+from models import DateWindow
 from services.broker import (
     PREVIEW_ROWS,
     BrokerError,
     BrokerFailure,
-    DateWindow,
     DownloadResult,
     PartFailure,
     PreviewTable,

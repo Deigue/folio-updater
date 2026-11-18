@@ -255,6 +255,25 @@ def get_fx_summary(connection: sqlite3.Connection, cutoff: str | None) -> str:
     return "|".join("" if value is None else str(value) for value in result)
 
 
+def get_historical_price_extents(
+    connection: sqlite3.Connection,
+) -> list[tuple[str, int, str, object, str, object]]:
+    """Return (symbol, count, first day, first price, last day, last price) rows."""
+    if not table_exists(connection, Table.HISTORICAL_PRICES):
+        return []
+    table = Table.HISTORICAL_PRICES
+    symbol, day = Column.HistoricalPrice.SYMBOL, Column.HistoricalPrice.DATE
+    price = Column.HistoricalPrice.PRICE
+    query = (
+        f'WITH ext AS (SELECT "{symbol}" AS s, COUNT(*) AS n, MIN("{day}") AS f, '
+        f'MAX("{day}") AS l FROM "{table}" GROUP BY "{symbol}") '
+        f'SELECT ext.s, ext.n, ext.f, a."{price}", ext.l, b."{price}" FROM ext '
+        f'JOIN "{table}" a ON a."{symbol}" = ext.s AND a."{day}" = ext.f '
+        f'JOIN "{table}" b ON b."{symbol}" = ext.s AND b."{day}" = ext.l'
+    )
+    return connection.execute(query).fetchall()
+
+
 def update_rows(
     connection: sqlite3.Connection,
     table_name: str,
@@ -296,14 +315,9 @@ def update_rows(
 def _insert_sql(
     table_name: str,
     columns: Sequence[str],
-    *,
-    replace: bool = False,
-    ignore: bool = False,
+    verb: str = "INSERT",
 ) -> str:
     """Render the one INSERT every write shares, one placeholder per column."""
-    verb = (
-        "INSERT OR REPLACE" if replace else "INSERT OR IGNORE" if ignore else "INSERT"
-    )
     listed = ", ".join(f'"{column}"' for column in columns)
     marks = ", ".join("?" for _ in columns)
     return f'{verb} INTO "{table_name}" ({listed}) VALUES ({marks})'
@@ -331,7 +345,7 @@ def insert_or_replace_many(
         return 0
 
     keys = list(rows[0])
-    query = _insert_sql(table_name, keys, replace=True)
+    query = _insert_sql(table_name, keys, "INSERT OR REPLACE")
     params_list = [tuple(row.get(col) for col in keys) for row in rows]
     with connection:
         cursor = connection.executemany(query, params_list)
@@ -343,17 +357,14 @@ def insert_new_rows(
     table_name: str,
     rows: Sequence[Mapping[str, object]],
 ) -> int:
-    """Insert rows all or none, leaving any whose key is already held as it is.
+    """Insert rows all or none, keeping any key already held; returns how many went in.
 
     Every row must carry the same columns.
-
-    Returns:
-        Number of rows actually inserted.
     """
     if not rows:
         return 0
     keys = list(rows[0])
-    query = _insert_sql(table_name, keys, ignore=True)
+    query = _insert_sql(table_name, keys, "INSERT OR IGNORE")
     with connection:
         before = connection.total_changes
         connection.executemany(query, [tuple(row.get(c) for c in keys) for row in rows])

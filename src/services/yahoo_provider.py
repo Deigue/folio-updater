@@ -26,11 +26,10 @@ from models.cells import read_number, read_text
 from models.columns import Kind, column_of
 from services.price_history import PricePoint, months_back
 from services.quote_provider import (
-    HistoricalFetch,
     HistoryBars,
     IntradayBars,
-    PriceFetch,
     ProviderDescription,
+    ProviderFetch,
     ProviderPrice,
 )
 from term import announce
@@ -237,7 +236,7 @@ class YahooProvider:
         }
         return overrides.get(symbol.strip().upper()) or yahoo_spelling(symbol)
 
-    def prices(self, provider_symbols: Sequence[str]) -> PriceFetch:
+    def prices(self, provider_symbols: Sequence[str]) -> ProviderFetch[ProviderPrice]:
         """Fetch the price and previous close for a batch of symbols.
 
         Args:
@@ -276,7 +275,7 @@ class YahooProvider:
                 ),
             )
 
-        return PriceFetch(
+        return ProviderFetch(
             *_sorted_attempts(_run_concurrently(_price, provider_symbols)),
         )
 
@@ -426,21 +425,14 @@ class YahooProvider:
         starts: Mapping[str, date],
         *,
         today: date,
-    ) -> HistoricalFetch:
-        """Fetch each symbol's true daily closes, one request per symbol.
+    ) -> ProviderFetch[list[PricePoint]]:
+        """Fetch each symbol's true closes, one request per symbol.
 
         Yahoo's Close is adjusted for every split since, even with dividend
         adjustment off. Each symbol is asked through today, so all its splits
         arrive in the same answer as its closes, and each close is multiplied
         back by the splits dated after its day. Today's row is still trading,
         so it is dropped.
-
-        Args:
-            starts: Each provider symbol mapped to the first day wanted.
-            today: The day the market may still be trading.
-
-        Returns:
-            The closes, and which symbols were throttled or failed.
         """
         yf = load_yfinance()
         timeout = get_config().quotes_timeout_seconds
@@ -461,7 +453,7 @@ class YahooProvider:
                 return _failed_attempt(provider_symbol, error)
             return _Attempt(provider_symbol, _true_closes(frame, before=today) or None)
 
-        return HistoricalFetch(
+        return ProviderFetch(
             *_sorted_attempts(_run_concurrently(_history, list(starts))),
         )
 
@@ -471,14 +463,11 @@ def _true_closes(
     *,
     before: date,
 ) -> list[PricePoint]:
-    """Undo the split adjustment in a daily history, keeping days before `before`.
+    """Undo the split adjustment in Yahoo's history, keeping days before `before`.
 
     A split's own day already trades at the new price, so its ratio applies only
-    to the days before it.
-
-    Returns:
-        The closes to 4 places, oldest first. Yahoo serves single-precision
-        floats, so anything finer is noise.
+    to the days before it. Closes keep 4 places: Yahoo serves single-precision
+    floats, so anything finer is noise.
     """
     if frame.empty:
         return []

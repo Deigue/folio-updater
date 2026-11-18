@@ -483,7 +483,7 @@ def test_historical_prices_drop_float_noise_and_todays_live_row(
 ) -> None:
     daily = _daily(
         [
-            ("2024-06-06", 120.88800048828125, 0.0),
+            ("2024-06-06", 47.31799983978271, 0.0),
             ("2024-06-07", 121.5, 0.0),  # today: still trading, so not a close yet
         ],
     )
@@ -495,7 +495,7 @@ def test_historical_prices_drop_float_noise_and_todays_live_row(
             today=date(2024, 6, 7),
         )
 
-    assert fetch.prices["AAA"] == [PricePoint("2024-06-06", Decimal("120.8880"))]
+    assert fetch.prices["AAA"] == [PricePoint("2024-06-06", Decimal("47.3180"))]
     # Asked through today, so a split dated today is still seen and undone.
     assert ticker.history_asked[0]["start"] == "2024-06-03"
     assert "end" not in ticker.history_asked[0]

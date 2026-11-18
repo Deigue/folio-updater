@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -10,7 +11,8 @@ from openpyxl import load_workbook
 
 from cli.commands.common import save_update_baseline
 from cli.main import app
-from db import update_baselines
+from db import historical_prices, update_baselines
+from services.price_history import PricePoint
 from services.quote_service import QuoteService, RefreshResult
 
 from .helpers.cli import (
@@ -31,6 +33,7 @@ from .helpers.seed import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from .fixtures.fake_quote_provider import FakeQuoteProvider
     from .helpers.context import TempContext
 
 
@@ -141,6 +144,11 @@ _REFUSED_REQUESTS = [
         ["quotes", "--refresh", "--clear"],
         ["Pick one"],
         id="two-quote-actions-at-once",
+    ),
+    pytest.param(
+        ["quotes", "--history", "--clear"],
+        ["Pick one"],
+        id="history-with-another-quote-action",
     ),
 ]
 
@@ -586,6 +594,50 @@ def test_quotes_refresh_discloses_the_throttling_fallback(
         assert_cli_success(result)
         assert_in_output("throttling", result)
         assert_in_output("daily closes", result)
+
+
+def test_quotes_history_stores_each_traded_symbols_prices(
+    temp_ctx: TempContext,
+    quote_provider: FakeQuoteProvider,
+) -> None:
+    quote_provider.historical = {
+        "TESTTKR": [
+            PricePoint("2025-08-15", Decimal("101.25")),
+            PricePoint("2025-08-18", Decimal("102.5")),
+        ],
+    }
+
+    with temp_ctx():
+        seed_two_account_types()
+
+        result = run_cli(app, ["quotes", "--history"])
+
+        stored = historical_prices.read("TESTTKR")
+        covered = historical_prices.coverage()
+
+    assert_cli_success(result)
+    assert [(price.date, price.price) for price in stored] == [
+        ("2025-08-15", Decimal("101.25")),
+        ("2025-08-18", Decimal("102.5")),
+    ]
+    # Both are still held, and the provider had nothing for OTHER.
+    assert {symbol: span.fetched_from for symbol, span in covered.items()} == {
+        "OTHER": "2025-08-15",
+        "TESTTKR": "2025-08-15",
+    }
+
+
+def test_quotes_history_with_no_securities_says_nothing_is_stored(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        seed_fx(TWO_TYPES_FX)
+        seed_cash("CONTRIBUTION", amount="1000")
+
+        result = run_cli(app, ["quotes", "--history"])
+
+        assert_cli_success(result)
+        assert_in_output("No historical prices stored yet", result)
 
 
 def test_quotes_can_be_narrowed_to_one_ticker(temp_ctx: TempContext) -> None:
