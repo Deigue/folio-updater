@@ -18,7 +18,7 @@ from services.symbols import (
     normalize_canadian_ticker,
 )
 
-from .helpers.cli import assert_cli_success, run_cli
+from .helpers.cli import assert_cli_success, assert_in_output, run_cli
 from .helpers.seed import seed_transaction
 
 if TYPE_CHECKING:
@@ -194,22 +194,62 @@ def test_each_alias_change_is_one_entry_naming_its_backup(
     ]
 
 
-def test_an_alias_the_table_refuses_closes_failed(
+@pytest.mark.parametrize(
+    ("args", "refused", "message"),
+    [
+        pytest.param(
+            ["--add", "OLDCO", "NEWCO", "2025-06-16"],
+            "write",
+            "Error adding alias: CHECK constraint failed",
+            id="add",
+        ),
+        pytest.param(
+            ["--delete", "OLDCO"],
+            "delete",
+            "Error deleting alias: CHECK constraint failed",
+            id="delete",
+        ),
+    ],
+)
+def test_an_alias_write_the_table_refuses_fails_the_command(
     temp_ctx: TempContext,
     audit_trail: list[str],
+    args: list[str],
+    refused: str,
+    message: str,
 ) -> None:
-    with (
-        temp_ctx(),
-        patch.object(
+    with temp_ctx():
+        aliases.write([_rename("OLDCO", "MIDCO", "2025-01-06")])
+        audit_trail.clear()
+        with patch.object(
             aliases,
-            "write",
+            refused,
             side_effect=sqlite3.IntegrityError("CHECK constraint failed"),
-        ),
-    ):
-        result = run_cli(
-            cli_app,
-            ["symbol", "--add", "OLDCO", "NEWCO", "2025-06-16"],
-        )
+        ):
+            result = run_cli(cli_app, ["symbol", *args])
 
-    assert isinstance(result.exception, sqlite3.IntegrityError)
+    assert result.exit_code == 1
+    assert_in_output(message, result)
     assert audit_trail[1:] == ["FAILED: CHECK constraint failed", *FOOTER]
+
+
+@pytest.mark.parametrize(
+    "effective",
+    [
+        pytest.param("2025-13-40", id="no_such_day"),
+        pytest.param("20250616", id="not_dashed"),
+    ],
+)
+def test_an_alias_with_an_invalid_date_is_refused(
+    temp_ctx: TempContext,
+    audit_trail: list[str],
+    effective: str,
+) -> None:
+    with temp_ctx():
+        result = run_cli(cli_app, ["symbol", "--add", "OLDCO", "NEWCO", effective])
+        stored = aliases.read()
+
+    assert result.exit_code == 1
+    assert_in_output(f"Invalid date '{effective}': use a real YYYY-MM-DD day", result)
+    assert stored == []
+    assert audit_trail == []

@@ -150,7 +150,11 @@ def _cancelled_for_the_demo() -> typer.Exit:
 
 
 def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
-    """Import a single file and export to Parquet."""
+    """Import a single file and export to Parquet.
+
+    Raises:
+        typer.Exit: When the import is cancelled or the file failed.
+    """
     if not confirm_demo_replacement():
         raise _cancelled_for_the_demo()
     outcome = import_file(file_path, verbose=verbose)
@@ -159,6 +163,8 @@ def _import_file_and_export(file_path: Path, *, verbose: bool = False) -> None:
         save_update_baseline()
     else:
         console_warning(f"No transactions imported from {file_path.name}")
+    if outcome.error is not None:
+        raise typer.Exit(1)
 
 
 def import_directory(
@@ -197,7 +203,13 @@ def import_directory(
 
 
 def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> None:
-    """Import all files from directory and export to Parquet."""
+    """Import all files from directory and export to Parquet.
+
+    What did import is kept and exported even when another file failed.
+
+    Raises:
+        typer.Exit: When the import is cancelled, finds no files, or a file failed.
+    """
     if waiting_files(dir_path) and not confirm_demo_replacement():
         raise _cancelled_for_the_demo()
     outcomes = import_directory(dir_path, verbose=verbose)
@@ -212,3 +224,5 @@ def _import_directory_and_export(dir_path: Path, *, verbose: bool = False) -> No
         save_update_baseline()
     else:
         console_warning("No transactions imported")
+    if any(outcome.error is not None for outcome in outcomes):
+        raise typer.Exit(1)

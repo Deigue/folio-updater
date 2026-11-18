@@ -24,7 +24,8 @@ from db import (
     txns,
     update_baselines,
 )
-from domain import TORONTO_TZ, Column, Grain, Table
+from domain import TORONTO_TZ, BrokerId, Column, Grain, Table
+from services import BrokerError, BrokerFailure, PartFailure
 from term.console import active_console
 
 from .fixtures.data_factory import create_transaction_data
@@ -200,6 +201,40 @@ def test_import_command_directory(temp_ctx: TempContext) -> None:
         assert (processed_folder / file2.name).exists()
         assert not file1.exists()
         assert not file2.exists()
+
+
+@pytest.mark.real_parquet_export
+def test_a_failed_file_fails_the_import_after_exporting_the_rest(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx() as ctx:
+        config = ctx.config
+        create_transaction_data(config.imports_path / "transactions.xlsx")
+        broken = config.imports_path / "broken.csv"
+        broken.touch()
+
+        cli_result = run_cli(cli_app, ["import"])
+
+        kept_for_a_retry = broken.exists()
+
+    assert cli_result.exit_code == 1
+    assert_in_output("Error importing broken.csv", cli_result)
+    assert_in_output(
+        f"Exported {EXPECTED_TRANSACTION_COUNT} transactions to Parquet",
+        cli_result,
+    )
+    assert kept_for_a_retry
+
+
+def test_a_single_failed_file_fails_the_import(temp_ctx: TempContext) -> None:
+    with temp_ctx() as ctx:
+        broken = ctx.config.project_root / "broken.csv"
+        broken.touch()
+
+        cli_result = run_cli(cli_app, ["import", "--file", str(broken)])
+
+    assert cli_result.exit_code == 1
+    assert_in_output("Error importing broken.csv", cli_result)
 
 
 def test_importing_several_files_backs_the_folio_up_once(
@@ -691,7 +726,16 @@ def _seed_ibkr_trade(_monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _prompt_for_a_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("keyring.get_password", lambda *_args, **_kwargs: None)
+    """Start with no token stored, then keep the one the prompt gives."""
+    stored: dict[str, str] = {}
+    monkeypatch.setattr(
+        "keyring.get_password",
+        lambda *_args, **_kwargs: stored.get("token"),
+    )
+    monkeypatch.setattr(
+        "keyring.set_password",
+        lambda _service, _username, token: stored.update(token=token),
+    )
     monkeypatch.setattr("typer.prompt", lambda *_args, **_kwargs: "token-from-prompt")
 
 
@@ -725,7 +769,7 @@ FLEX_REPORT = {"brokers": {"ibkr": {"FlexReport": "abc123"}}}
             FLEX_REPORT,
             _prompt_for_a_missing_token,
             "Flex token stored securely",
-            False,
+            True,
             id="set_token",
         ),
         pytest.param(
@@ -1071,6 +1115,46 @@ def test_a_reference_code_retries_through_the_registry(
         assert brokers.ibkr.retries == ["4242"]
         assert brokers.ibkr.downloads == []
         assert (ctx.config.imports_path / "ibkr_ref_4242.csv").exists()
+
+
+def test_a_failed_query_fails_the_download_after_keeping_the_rest(
+    temp_ctx: TempContext,
+    brokers: FakeBrokers,
+) -> None:
+    busy = BrokerError(BrokerId.IBKR, BrokerFailure.BUSY, "IBKR is busy")
+    with temp_ctx() as ctx:
+        brokers.ibkr.files = ("ibkr_trades.csv",)
+        brokers.ibkr.failures = (PartFailure("CashActivity", busy),)
+        cli_result = run_cli(cli_app, ["download", "-f", "2025-04-01"])
+
+        kept = (ctx.config.imports_path / "ibkr_trades.csv").exists()
+
+    assert cli_result.exit_code == 1
+    assert_in_output("Download incomplete, failed: CashActivity", cli_result)
+    assert_in_output("folio import", cli_result)
+    assert kept
+
+
+@pytest.mark.parametrize(
+    "broker",
+    [pytest.param("wealthsimple", id="no_from"), pytest.param("ibkr", id="ibkr")],
+)
+def test_a_statement_download_without_a_wealthsimple_month_is_refused(
+    temp_ctx: TempContext,
+    brokers: FakeBrokers,
+    broker: str,
+) -> None:
+    args = ["download", "-b", broker, "--statement"]
+    if broker == "ibkr":
+        args += ["-f", "2025-04-01"]
+    with temp_ctx():
+        cli_result = run_cli(cli_app, args)
+
+    assert cli_result.exit_code == 1
+    assert_in_output("use it with -b wealthsimple and --from", cli_result)
+    assert brokers.ibkr.downloads == []
+    assert brokers.wealthsimple.downloads == []
+    assert brokers.wealthsimple.statement_months == []
 
 
 def test_ibkr_download_waits_for_a_statement_that_is_not_ready(

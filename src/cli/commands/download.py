@@ -52,7 +52,7 @@ def download_statements(
         reference_code: Retry one earlier IBKR request by its reference code.
 
     Raises:
-        typer.Exit: On an unusable request.
+        typer.Exit: On an unusable request, or when any part of it failed.
     """
     chosen = next((b for b in BrokerId if b.cli_name == broker), None)
     if chosen is None:
@@ -62,21 +62,32 @@ def download_statements(
         )
         raise typer.Exit(1)
 
+    # The Wealthsimple month a statement download asks for, YYYY-MM.
+    month = from_date[:7] if chosen is BrokerId.WS and from_date else None
+    if statement and month is None:
+        console_error(
+            "--statement downloads a Wealthsimple month: "
+            "use it with -b wealthsimple and --from",
+        )
+        raise typer.Exit(1)
+
     brokers = BrokerRegistry.load()
     if credentials:
         brokers.get(chosen).reset_credentials()
         return
 
     try:
-        if chosen is BrokerId.WS and statement and from_date:
-            _download_and_list_statements(brokers.wealthsimple, from_date[:7])
+        if statement and month:
+            _download_and_list_statements(brokers.wealthsimple, month)
         elif chosen is BrokerId.IBKR and reference_code:
             _retry(brokers.ibkr, reference_code)
         else:
             start, end = _parse_date(from_date), _parse_date(to_date)
-            if download_from(brokers.get(chosen), start, end).files:
+            result = download_from(brokers.get(chosen), start, end)
+            if result.files:
                 console_info("To import these files, run:")
                 console_info("  folio import")
+            _fail_on_failed_parts(result)
     except BrokerError as e:
         console_error(f"{reference_code or e.broker.display_name}: {e}")
         raise typer.Exit(1) from None
@@ -136,6 +147,19 @@ def _retry(broker: RetryingBroker, reference_code: str) -> None:
         describe("Downloading by reference code...")
         result = broker.retry(reference_code, describe)
     show_download(result)
+
+
+def _fail_on_failed_parts(result: DownloadResult) -> None:
+    """Exit with an error when any part of a download failed, naming each.
+
+    Raises:
+        typer.Exit: When a part failed.
+    """
+    if not result.failures:
+        return
+    failed = ", ".join(failure.part for failure in result.failures)
+    console_error(f"Download incomplete, failed: {failed}")
+    raise typer.Exit(1)
 
 
 def _describer(progress: Progress) -> Callable[[str], None]:

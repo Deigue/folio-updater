@@ -12,8 +12,9 @@ import typer
 
 from app import audit
 from app.audit import AuditMark
-from db import aliases, current_backup
+from db import DatabaseError, aliases, current_backup
 from domain import Column
+from domain.dates import iso_day
 from models import TickerAlias
 from term import console_error, console_info, console_success, console_warning
 from ui.widgets import show_data_table
@@ -55,7 +56,16 @@ def _log_alias_write(
 
 
 def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
-    """Add or update a ticker alias in the database."""
+    """Add or update a ticker alias in the database.
+
+    Raises:
+        typer.Exit: When the date is not a real day, or the alias was not written.
+    """
+    parsed = iso_day(effective_date)
+    # Also refuses the other spellings fromisoformat reads, such as 20250616.
+    if parsed is None or parsed.isoformat() != effective_date:
+        console_error(f"Invalid date '{effective_date}': use a real YYYY-MM-DD day")
+        raise typer.Exit(1)
     console_info(
         f"Adding alias: {old_ticker} -> {new_ticker} (effective {effective_date})",
     )
@@ -77,9 +87,10 @@ def add_alias(old_ticker: str, new_ticker: str, effective_date: str) -> None:
             aliases.write([alias])
             entry.done(_log_alias_write(previous, alias, current_backup()))
             console_success("Successfully added alias.")
-        except OSError as e:
+        except (OSError, DatabaseError) as e:
             console_error(f"Error adding alias: {e}")
             entry.failed(e)
+            raise typer.Exit(1) from e
 
 
 def list_aliases() -> None:
@@ -104,7 +115,11 @@ def list_aliases() -> None:
 
 
 def delete_alias(old_ticker: str) -> None:
-    """Remove a ticker alias from the database."""
+    """Remove a ticker alias from the database.
+
+    Raises:
+        typer.Exit: When the alias was not removed.
+    """
     console_info(f"Deleting alias for {old_ticker}")
     msg = f"Alias for '{old_ticker}' not found."
     with audit.entry("REMOVE ALIAS %s", old_ticker.upper()) as entry:
@@ -120,9 +135,10 @@ def delete_alias(old_ticker: str) -> None:
             audit.row(AuditMark.REMOVED, _describe_alias(previous))
             entry.done("1 alias removed")
             console_success(f"Successfully deleted alias for '{old_ticker}'.")
-        except OSError as e:
+        except (OSError, DatabaseError) as e:
             console_error(f"Error deleting alias: {e}")
             entry.failed(e)
+            raise typer.Exit(1) from e
 
 
 def manage_symbols(
