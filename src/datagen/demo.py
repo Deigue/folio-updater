@@ -47,6 +47,7 @@ from domain import (
     Currency,
 )
 from domain.numeric import CENT, dec
+from domain.symbols import cad_twin
 from engine.flows import room_year
 from engine.replay import SUPERFICIAL_LOSS_DAYS
 from engine.settlement import BUSINESS_DAY_SETTLE_ACTIONS, settlement_calculator
@@ -96,11 +97,6 @@ SYMBOLS: tuple[str, ...] = (
 )
 # The USD/CAD rate, under a name no security uses.
 USDCAD = "USDCAD"
-# Toronto-listed US dollar lines, and the Canadian dollar line each mirrors.
-# Yahoo quotes DLR-U.TO live but serves almost no history for it; since both
-# lines hold the same US dollars, the price history falls back to the CAD line's
-# closes converted at the month's rate whenever Yahoo's history is short.
-USD_LINES: dict[str, str] = {"DLR.U.TO": "DLR.TO"}
 # Real renames: the old symbol, the new one, and the first day under the new
 # name. Yahoo files the whole history under the new symbol, so the price history
 # holds it there.
@@ -239,7 +235,7 @@ def dividends(symbol: str) -> list[tuple[date, Decimal]]:
 
 def currency_of(symbol: str) -> Currency:
     """Name the currency a symbol trades in."""
-    if symbol.endswith(".TO") and symbol not in USD_LINES:
+    if symbol.endswith(".TO") and cad_twin(symbol) is None:
         return Currency.CAD
     return Currency.USD
 

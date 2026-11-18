@@ -272,11 +272,14 @@ def test_a_days_price_is_the_latest_close_on_or_before_it(
             ("2024-06-07", "534.01"),
         )
 
-        on_friday = HistoricalPriceService.price_on("SPY", date(2024, 6, 7))
-        on_sunday = HistoricalPriceService.price_on("SPY", date(2024, 6, 9))
-        before_any = HistoricalPriceService.price_on("SPY", date(2024, 6, 4))
-        past_coverage = HistoricalPriceService.price_on("SPY", date(2024, 6, 10))
-        never_fetched = HistoricalPriceService.price_on("MSFT", date(2024, 6, 7))
+        stored = HistoricalPriceService.stored(["SPY", "MSFT"])
+
+    spy = stored["SPY"]
+    on_friday = spy.on(date(2024, 6, 7))
+    on_sunday = spy.on(date(2024, 6, 9))
+    before_any = spy.on(date(2024, 6, 4))
+    past_coverage = spy.on(date(2024, 6, 10))
+    never_fetched = stored["MSFT"].on(date(2024, 6, 7))
 
     assert on_friday == Decimal("534.01")
     assert on_sunday == Decimal("534.01")  # a weekend takes Friday's close

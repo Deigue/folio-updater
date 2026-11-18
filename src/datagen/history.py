@@ -19,12 +19,12 @@ from datagen.demo import (
     FIRST_DAY,
     START,
     SYMBOLS,
-    USD_LINES,
     USDCAD,
     DemoScenarioError,
     month_index,
 )
 from datagen.history_data import FIRST_MONTH
+from domain.symbols import cad_twin
 from services.yahoo_provider import load_yfinance, yahoo_spelling
 
 _DATA = Path(__file__).with_name("history_data.py")
@@ -112,7 +112,7 @@ def refresh_price_history() -> None:  # pragma: no cover
     dividend_events: dict[str, list[str]] = {}
     split_events: dict[str, list[str]] = {}
 
-    derived: list[str] = []
+    derived: dict[str, str] = {}
     for symbol in (*SYMBOLS, USDCAD):
         provider_symbol = "CAD=X" if symbol == USDCAD else yahoo_spelling(symbol)
         ticker = yf.Ticker(provider_symbol)
@@ -123,8 +123,8 @@ def refresh_price_history() -> None:  # pragma: no cover
             auto_adjust=False,
         )
         if len(history) != months:
-            if symbol in USD_LINES:
-                derived.append(symbol)
+            if (twin := cad_twin(symbol)) is not None:
+                derived[symbol] = twin
                 continue
             msg = (
                 f"{provider_symbol}: expected {months} monthly closes, "
@@ -140,11 +140,11 @@ def refresh_price_history() -> None:  # pragma: no cover
         if found := _window_events(ticker.splits, 4, until=date.max):
             split_events[symbol] = found
 
-    for symbol in derived:
+    for symbol, twin in derived.items():
         closes[symbol] = [
             _number(float(price) / float(rate), 4)
             for price, rate in zip(
-                closes[USD_LINES[symbol]],
+                closes[twin],
                 closes[USDCAD],
                 strict=True,
             )
@@ -164,7 +164,7 @@ def refresh_price_history() -> None:  # pragma: no cover
     )
     print(  # noqa: T201
         f"Price history written: {len(closes)} series, splits {split_events}, "
-        f"derived from their CAD line: {derived or 'none'}",
+        f"derived from their CAD line: {sorted(derived) or 'none'}",
     )
 
 

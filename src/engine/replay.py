@@ -974,6 +974,7 @@ class _Replay:
     def _book(self, computed: LedgerRow, effects: Iterable[CashEffect]) -> None:
         """Apply a row's cash effects to the pools at the grains each moves at."""
         row = computed.row
+        moves = self.result.cash_moves.setdefault(row.txn_id, {})
         for effect in effects:
             for grain in Grain:
                 # Opened even where a transfer stays put, so the pool still
@@ -984,6 +985,8 @@ class _Replay:
                 )
                 if grain not in effect.grains:
                     continue
+                key = (grain, effect.currency)
+                moves[key] = moves.get(key, ZERO) + effect.cash
                 state.cash += effect.cash
                 state.contributions += effect.contributions
                 state.withdrawals += effect.withdrawals

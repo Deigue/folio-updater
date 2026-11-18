@@ -33,23 +33,6 @@ def read(symbol: str) -> list[HistoricalPrice]:
     return [HistoricalPrice.from_row(row) for row in rows]
 
 
-def latest_on_or_before(symbol: str, day: str) -> HistoricalPrice | None:
-    """Return a symbol's last price dated on or before `day`, or None."""
-    with get_connection() as conn:
-        rows = get_records(
-            conn,
-            Table.HISTORICAL_PRICES,
-            where=(
-                f'"{Column.HistoricalPrice.SYMBOL}" = ? '
-                f'AND "{Column.HistoricalPrice.DATE}" <= ?'
-            ),
-            params=[symbol, day],
-            order_by=f'"{Column.HistoricalPrice.DATE}" DESC',
-            limit=1,
-        )
-    return HistoricalPrice.from_row(rows[0]) if rows else None
-
-
 def coverage(
     symbols: Sequence[str] | None = None,
 ) -> dict[str, HistoricalPriceCoverage]:

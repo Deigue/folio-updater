@@ -260,11 +260,9 @@ def test_the_demo_stores_the_prices_it_traded_at(temp_ctx: TempContext) -> None:
             for txn in txns.read()
             if txn.ticker in CLOSES and txn.action in {Action.BUY, Action.SELL}
         }
+        prices = HistoricalPriceService.stored(sorted({ticker for ticker, _ in trades}))
         stored = {
-            (ticker, day): HistoricalPriceService.price_on(
-                ticker,
-                date.fromisoformat(day),
-            )
+            (ticker, day): prices[ticker].on(date.fromisoformat(day))
             for ticker, day in trades
         }
         covered = historical_prices.coverage(["SPY"])["SPY"]

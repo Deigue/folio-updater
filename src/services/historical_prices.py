@@ -8,6 +8,7 @@ sessions finished since. Stored prices never change.
 from __future__ import annotations
 
 import logging
+from bisect import bisect_right
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
@@ -18,7 +19,7 @@ from models import HistoricalPrice, HistoricalPriceCoverage
 from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
     from decimal import Decimal
 
     from models import DateWindow
@@ -127,19 +128,47 @@ class HistoricalPriceService:
         )
 
     @staticmethod
-    def price_on(symbol: str, day: date) -> Decimal | None:
-        """Price a symbol on a day: the latest close on or before it.
+    def stored(symbols: Sequence[str]) -> dict[str, StoredPrices]:
+        """Read each symbol's stored prices once, to price it on any number of days."""
+        spans = historical_prices.coverage(list(symbols))
+        found: dict[str, StoredPrices] = {}
+        for symbol in symbols:
+            prices = historical_prices.read(symbol) if symbol in spans else []
+            found[symbol] = StoredPrices(
+                coverage=spans.get(symbol),
+                dates=tuple(price.date for price in prices),
+                prices=tuple(price.price for price in prices),
+            )
+        return found
+
+
+@dataclass(frozen=True)
+class StoredPrices:
+    """One symbol's stored prices and the days fetched, looked up by bisection.
+
+    Attributes:
+        coverage: The days fetched, or None when the symbol never was.
+        dates: Each stored trading day, ascending.
+        prices: The close on each of those days, positionally aligned.
+    """
+
+    coverage: HistoricalPriceCoverage | None
+    dates: tuple[str, ...]
+    prices: tuple[Decimal, ...]
+
+    def on(self, day: date) -> Decimal | None:
+        """Price the symbol on a day: the latest close on or before it.
 
         Returns:
             None when the day is outside the symbol's coverage, or no close in
             it reaches back that far.
         """
-        span = historical_prices.coverage([symbol]).get(symbol)
         when = day.isoformat()
+        span = self.coverage
         if span is None or not span.fetched_from <= when <= span.fetched_through:
             return None
-        found = historical_prices.latest_on_or_before(symbol, when)
-        return None if found is None else found.price
+        index = bisect_right(self.dates, when) - 1
+        return self.prices[index] if index >= 0 else None
 
 
 def _first_missing(

@@ -13,6 +13,9 @@ Conventions for the per-grain columns:
 - **`Delta` means change in cost base.** The ACB context is implied by the family.
 - **`Realized` is the running realized gain, `Gain` what this row earned.** A sale
   always has one, even at zero. A BUY's is blank here and added at valuation.
+- **`CashMove` is what this row did to the pool's cash, per currency line**: the
+  CAD line unsuffixed, the USD line `_USD`, each in its own currency. Blank where
+  the row moved none, as a transfer staying inside a pool does at that grain.
 
 There are deliberately no per-type columns (`TfsaACB`, `NregACB`): a transaction
 belongs to one type, so those would leave a single populated cell per row and
@@ -26,11 +29,13 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
-from domain import Action, Column, Grain
+from domain import Action, Column, Currency, Grain
 from domain.numeric import ZERO, safe_div
 from engine.replay import intraday_rank
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from engine.types import GrainMeasures, LedgerRow, ReplayResult
 
 # Source columns carried straight through from Txns.
@@ -96,6 +101,13 @@ GRAIN_MEASURES: list[tuple[str, str]] = [
 ]
 
 
+# Currency line -> the suffix of the column holding what a row did to its cash.
+CASH_MOVES: dict[Currency, str] = {
+    Currency.CAD: "CashMove",
+    Currency.USD: "CashMove_USD",
+}
+
+
 def grain_column(grain: Grain, measure: str) -> str:
     """Name the column holding one measure at one pool grain.
 
@@ -146,8 +158,11 @@ def _grain_cells(
     return cells
 
 
-def _row_record(computed: LedgerRow) -> dict[str, object]:
-    """Flatten one `LedgerRow` into the ledger's columns."""
+def _row_record(
+    computed: LedgerRow,
+    cash_moves: Mapping[tuple[Grain, Currency], Decimal],
+) -> dict[str, object]:
+    """Flatten one `LedgerRow`, and what it did to cash, into the ledger's columns."""
     row = computed.row
     record: dict[str, object] = {
         str(Column.Txn.TXN_ID): row.txn_id,
@@ -174,6 +189,10 @@ def _row_record(computed: LedgerRow) -> dict[str, object]:
     }
     for grain in Grain:
         record.update(_grain_cells(computed, grain, computed.measures(grain)))
+        for currency, suffix in CASH_MOVES.items():
+            record[grain_column(grain, suffix)] = _number(
+                cash_moves.get((grain, currency)),
+            )
     return record
 
 
@@ -187,6 +206,7 @@ def ledger_columns() -> list[str]:
     columns = [*SOURCE_COLUMNS, *CONTEXT_COLUMNS, *SHARED_COLUMNS]
     for grain in Grain:
         columns.extend(grain_column(grain, suffix) for suffix, _ in GRAIN_MEASURES)
+        columns.extend(grain_column(grain, suffix) for suffix in CASH_MOVES.values())
     return columns
 
 
@@ -225,7 +245,10 @@ def ledger_frame(result: ReplayResult) -> pd.DataFrame:
 
     return index_by_txn_id(
         pd.DataFrame(
-            [_row_record(computed) for computed in result.rows],
+            [
+                _row_record(computed, result.cash_moves.get(computed.row.txn_id, {}))
+                for computed in result.rows
+            ],
             columns=columns,
         ),
     )
