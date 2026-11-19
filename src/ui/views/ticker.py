@@ -13,7 +13,8 @@ from rich.text import Text
 from domain import TORONTO_TZ, PriceRange
 from engine.accounts import account_type_of
 from engine.ticker import range_extremes
-from exporters.sheet_spec import Fmt
+from exporters.catalog import FUNDAMENTAL_SECTIONS, FUNDAMENTALS_BY_KEY
+from exporters.sheet_spec import Fmt, render
 from term import console_print
 from term.size import terminal_size
 from ui.cells import (
@@ -25,7 +26,6 @@ from ui.cells import (
     clock_time,
     currency_tint,
     day_move,
-    display_round,
     graded,
     income,
     lifetime_return,
@@ -50,7 +50,6 @@ from ui.vocabulary import (
     GAIN,
     GRAND_TOTAL_ROW_STYLE,
     LOSS,
-    MAGNITUDES,
     REFERENCE_STYLE,
     RETURN_STRONG_AT,
     TABLE_BORDER,
@@ -64,9 +63,6 @@ if TYPE_CHECKING:
     from engine.performance import RangeMove
     from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
     from models import Quote
-
-# A fund reports a fund's figures; anything else reports a company's.
-_FUND_TYPES = frozenset({"ETF", "MUTUALFUND"})
 
 _RANGE_BAR_WIDTH = 6
 
@@ -212,42 +208,9 @@ def _header(quote: Quote, aliases: Sequence[str]) -> Panel:
 
 def _fundamentals(quote: Quote) -> RichTable | None:
     """Print every fundamental the provider reported, grouped, blanks left out."""
-    facts = quote.fundamentals
-    fund = facts.quote_type in _FUND_TYPES
-    sections: list[tuple[str, list[tuple[str, str | None]]]] = [
-        (
-            "Fund" if fund else "Valuation",
-            [
-                ("Market cap", _magnitude(quote.market_cap)),
-                ("Assets", _magnitude(facts.total_assets)),
-                ("Expense ratio", _percent_or_none(facts.expense_ratio)),
-                ("Category", facts.category),
-                ("Family", facts.fund_family),
-                ("P/E", _ratio(facts.trailing_pe)),
-                ("Forward P/E", _ratio(facts.forward_pe)),
-                ("EPS", _price_or_none(facts.eps)),
-                ("Beta", _ratio(facts.beta)),
-                ("Earnings", long_date(facts.earnings_date)),
-            ],
-        ),
-        (
-            "Dividends",
-            [
-                ("Dividend", _price_or_none(facts.dividend_rate)),
-                ("Yield", _percent_or_none(facts.dividend_yield)),
-                ("Last dividend", _price_or_none(facts.last_dividend)),
-                ("Ex-dividend", long_date(facts.ex_dividend_date)),
-            ],
-        ),
-        (
-            "Trading",
-            [
-                ("52-week", _range(quote)),
-                ("50-day avg", _price_or_none(facts.avg_50)),
-                ("200-day avg", _price_or_none(facts.avg_200)),
-                ("Volume", _volume(facts.volume, facts.avg_volume)),
-            ],
-        ),
+    sections = [
+        (heading, [row for key in keys if (row := _fact_row(quote, key))])
+        for heading, keys in FUNDAMENTAL_SECTIONS
     ]
 
     table = RichTable(
@@ -295,39 +258,47 @@ def _range(quote: Quote) -> str | None:
     return f"{price(facts.low_52)} {bar} {price(facts.high_52)}"
 
 
+def _fact_row(quote: Quote, key: str) -> tuple[str, str | None] | None:
+    """Label and render one fundamental, or None for a figure another row shows.
+
+    The 52-week range is drawn once, as a bar between its low and high, and the
+    volume carries its average beside it.
+    """
+    match key:
+        case "low_52":
+            return ("52-week", _range(quote))
+        case "volume":
+            facts = quote.fundamentals
+            return ("Volume", _volume(facts.volume, facts.avg_volume))
+        case "high_52" | "avg_volume":
+            return None
+    column = FUNDAMENTALS_BY_KEY[key]
+    value = column.read(quote) if column.read else None
+    return (column.full_label, _fact(column.fmt, value))
+
+
+def _fact(fmt: Fmt, value: object) -> str | None:
+    """Render one fundamental the way the terminal reads its format."""
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        if fmt is Fmt.PRICE:
+            return price(value)
+        if fmt is Fmt.PERCENT:
+            return percent(value)
+        return render(fmt, value)
+    if fmt is Fmt.DATE:
+        return long_date(str(value))
+    return str(value)
+
+
 def _volume(volume: Decimal | None, average: Decimal | None) -> str | None:
     """Give the last session's volume beside the average."""
     if volume is None:
         return None
     if average is None:
-        return _magnitude(volume)
-    return f"{_magnitude(volume)} [dim]({_magnitude(average)})[/dim]"
-
-
-def _magnitude(value: Decimal | None) -> str | None:
-    """Abbreviate a large figure: 3.81T, 35.2B, 27.0M."""
-    if value is None:
-        return None
-    number = float(value)
-    for size, suffix in MAGNITUDES:
-        if abs(number) >= size:
-            return f"{number / size:,.2f}{suffix}"
-    return f"{display_round(number, 0):,.0f}"
-
-
-def _ratio(value: Decimal | None) -> str | None:
-    """Render a plain ratio such as a P/E or a beta."""
-    return None if value is None else f"{display_round(float(value), 2):,.2f}"
-
-
-def _price_or_none(value: Decimal | None) -> str | None:
-    """Render a price, or nothing at all when there is none."""
-    return None if value is None else price(value)
-
-
-def _percent_or_none(value: Decimal | None) -> str | None:
-    """Render a ratio as a percentage, or nothing at all when there is none."""
-    return None if value is None else percent(value)
+        return render(Fmt.COUNT, volume)
+    return f"{render(Fmt.COUNT, volume)} [dim]({render(Fmt.COUNT, average)})[/dim]"
 
 
 # -- PERFORMANCE --------------------------------------------------------------

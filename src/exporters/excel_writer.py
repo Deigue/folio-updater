@@ -211,7 +211,7 @@ def _write_lists(
         cursor += 1
         for line in sheet_list.lines:
             label = worksheet.cell(row=cursor, column=1, value=_value(line.label))
-            label.font = style.LABEL_FONT
+            label.font = style.SECTION_FONT if line.value is None else style.LABEL_FONT
             _link(label, line.label, links)
             cell = worksheet.cell(row=cursor, column=2, value=_value(line.value))
             cell.number_format = _number_format(line.fmt, line.value)

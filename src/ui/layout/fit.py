@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from rich.measure import Measurement
 from rich.padding import Padding
 
-from exporters.sheet_spec import Fmt
+from exporters.sheet_spec import MAGNITUDES, Fmt
 from term.console import active_console
 from ui.layout.columns import fmt_of, is_coarse, key_of
 from ui.vocabulary import (
@@ -23,7 +23,6 @@ from ui.vocabulary import (
     ACCOUNT_WIDTH,
     DECIMAL_RUN,
     INTEGER_RUN,
-    MAGNITUDES,
     MONEY_DECIMAL_RUN,
     MONEY_PRECISION,
     PERCENT_RUN,

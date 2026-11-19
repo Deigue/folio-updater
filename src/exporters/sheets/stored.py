@@ -5,8 +5,18 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import INTERNAL_COLUMNS, Column
+from exporters.catalog import FUNDAMENTALS
 from exporters.excel_style import STORED_TAB
-from exporters.sheet_spec import TXN_FORMATS, Col, Fmt, Row, Sheet, SheetTable, row_of
+from exporters.sheet_spec import (
+    TXN_FORMATS,
+    Col,
+    Fmt,
+    Row,
+    Sheet,
+    SheetTable,
+    read_cells,
+    row_of,
+)
 from models import txns_frame
 
 if TYPE_CHECKING:
@@ -93,10 +103,6 @@ def fx_sheet(rates: Sequence[FxRate], name: str) -> Sheet:
 
 
 _QUOTE = "Quote"
-_VALUATION = "Valuation"
-_DIVIDENDS = "Dividends"
-_TRADING = "Trading"
-_FUND = "Fund"
 _REFERENCE = "Reference"
 
 # Arranged for a screen's width: what compares across tickers comes first, and
@@ -109,26 +115,7 @@ TICKER_COLUMNS: tuple[Col, ...] = (
     Col("Last", Fmt.PRICE, group=_QUOTE),
     Col("Day%", Fmt.PERCENT_SIGNED, group=_QUOTE),
     Col("vs 52w high", Fmt.PERCENT_SIGNED, group=_QUOTE),
-    Col("Market cap", Fmt.LARGE, group=_VALUATION),
-    Col("P/E", Fmt.RATIO, group=_VALUATION),
-    Col("Fwd P/E", Fmt.RATIO, group=_VALUATION),
-    Col("EPS", Fmt.PRICE, group=_VALUATION),
-    Col("Beta", Fmt.RATIO, group=_VALUATION),
-    Col("Earnings", Fmt.DATE, group=_VALUATION),
-    Col("Yield", Fmt.PERCENT, group=_DIVIDENDS),
-    Col("Dividend", Fmt.PRICE, group=_DIVIDENDS),
-    Col("Last paid", Fmt.PRICE, group=_DIVIDENDS),
-    Col("Ex-dividend", Fmt.DATE, group=_DIVIDENDS),
-    Col("52w low", Fmt.PRICE, group=_TRADING),
-    Col("52w high", Fmt.PRICE, group=_TRADING),
-    Col("50d avg", Fmt.PRICE, group=_TRADING),
-    Col("200d avg", Fmt.PRICE, group=_TRADING),
-    Col("Volume", Fmt.COUNT, group=_TRADING),
-    Col("Avg volume", Fmt.COUNT, group=_TRADING),
-    Col("Expense", Fmt.PERCENT, group=_FUND),
-    Col("Assets", Fmt.LARGE, group=_FUND),
-    Col("Category", width=18, group=_FUND),
-    Col("Family", width=22, group=_FUND),
+    *FUNDAMENTALS,
     Col("Type", group=_REFERENCE),
     Col("Sector", width=16, group=_REFERENCE),
     Col("Exchange", group=_REFERENCE),
@@ -177,7 +164,7 @@ def _ticker_cells(
     cells: dict[str, object] = {"Symbol": symbol, str(Column.Ticker.TICKER): ticker}
     if quote is None:
         return cells
-    facts = quote.fundamentals
+    cells.update(read_cells(FUNDAMENTALS, quote))
     cells.update(
         {
             "Name": quote.name,
@@ -185,27 +172,7 @@ def _ticker_cells(
             "Last": quote.price,
             "Day%": quote.day_change_pct,
             "vs 52w high": quote.from_high_52,
-            "Market cap": quote.market_cap,
-            "P/E": facts.trailing_pe,
-            "Fwd P/E": facts.forward_pe,
-            "EPS": facts.eps,
-            "Beta": facts.beta,
-            "Earnings": facts.earnings_date,
-            "Yield": facts.dividend_yield,
-            "Dividend": facts.dividend_rate,
-            "Last paid": facts.last_dividend,
-            "Ex-dividend": facts.ex_dividend_date,
-            "52w low": facts.low_52,
-            "52w high": facts.high_52,
-            "50d avg": facts.avg_50,
-            "200d avg": facts.avg_200,
-            "Volume": facts.volume,
-            "Avg volume": facts.avg_volume,
-            "Expense": facts.expense_ratio,
-            "Assets": facts.total_assets,
-            "Category": facts.category,
-            "Family": facts.fund_family,
-            "Type": facts.quote_type,
+            "Type": quote.fundamentals.quote_type,
             "Sector": quote.sector,
             "Exchange": quote.exchange,
             "Price as of": _date_of(quote.fetched_at),

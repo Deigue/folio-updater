@@ -221,14 +221,6 @@ MONEY_DECIMAL_RUN = re.compile(r"-?[\d,]*\d\.\d+(?!\d*%)")
 # already gone. Anything touching a `%` or a `.` is left alone.
 INTEGER_RUN = re.compile(r"(?<![\d.,])-?\d[\d,]*(?![\d.,%])")
 
-# Thresholds the magnitude rung abbreviates at, largest first.
-MAGNITUDES: tuple[tuple[float, str], ...] = (
-    (1_000_000_000_000, "T"),
-    (1_000_000_000, "B"),
-    (1_000_000, "M"),
-    (1_000, "K"),
-)
-
 # Account shortening
 ACCOUNT_WIDTH = 9
 ACCOUNT_MIN_WORD = 2

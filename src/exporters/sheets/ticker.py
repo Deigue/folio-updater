@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from domain import TORONTO_TZ, Currency, PriceRange
+from exporters.catalog import FUNDAMENTAL_SECTIONS, FUNDAMENTALS, FUNDAMENTALS_BY_KEY
 from exporters.excel_style import OVERVIEW_TAB
 from exporters.sheet_spec import (
     Col,
@@ -19,6 +20,7 @@ from exporters.sheet_spec import (
     Sheet,
     SheetList,
     SheetTable,
+    read_cells,
     row_of,
 )
 
@@ -192,34 +194,19 @@ def _quote_list(quote: Quote, aliases: Sequence[str]) -> SheetList:
 
 
 def _fundamentals_list(quote: Quote) -> SheetList:
-    """List every fundamental the provider reported, blanks left out."""
-    facts = quote.fundamentals
-    lines = (
-        Line("Market cap", quote.market_cap, Fmt.MONEY),
-        Line("Assets", facts.total_assets, Fmt.MONEY),
-        Line("Expense ratio", facts.expense_ratio, Fmt.PERCENT),
-        Line("Category", facts.category),
-        Line("Family", facts.fund_family),
-        Line("P/E", facts.trailing_pe, Fmt.RATE),
-        Line("Forward P/E", facts.forward_pe, Fmt.RATE),
-        Line("EPS", facts.eps, Fmt.PRICE),
-        Line("Beta", facts.beta, Fmt.RATE),
-        Line("Earnings", facts.earnings_date, Fmt.DATE),
-        Line("Dividend", facts.dividend_rate, Fmt.PRICE),
-        Line("Yield", facts.dividend_yield, Fmt.PERCENT),
-        Line("Last dividend", facts.last_dividend, Fmt.PRICE),
-        Line("Ex-dividend", facts.ex_dividend_date, Fmt.DATE),
-        Line("52-week low", facts.low_52, Fmt.PRICE),
-        Line("52-week high", facts.high_52, Fmt.PRICE),
-        Line("50-day avg", facts.avg_50, Fmt.PRICE),
-        Line("200-day avg", facts.avg_200, Fmt.PRICE),
-        Line("Volume", facts.volume, Fmt.COUNT),
-        Line("Avg volume", facts.avg_volume, Fmt.COUNT),
-    )
-    return SheetList(
-        title="Fundamentals",
-        lines=tuple(line for line in lines if line.value is not None),
-    )
+    """List every fundamental the provider reported, by section, blanks left out."""
+    values = read_cells(FUNDAMENTALS, quote)
+    lines: list[Line] = []
+    for heading, keys in FUNDAMENTAL_SECTIONS:
+        columns = [FUNDAMENTALS_BY_KEY[key] for key in keys]
+        present = [
+            Line(column.full_label, values[column.header], column.fmt)
+            for column in columns
+            if values[column.header] is not None
+        ]
+        if present:
+            lines.extend((Line(heading), *present))
+    return SheetList(title="Fundamentals", lines=tuple(lines))
 
 
 def _move_cells(

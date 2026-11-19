@@ -114,6 +114,8 @@ GROUP_ALIGNMENT = Alignment(horizontal="center")
 
 TITLE_FONT = Font(bold=True, size=12, color=INK)
 LABEL_FONT = Font(bold=True, color=INK)
+# A list's section heading, set apart from the labels below it.
+SECTION_FONT = Font(bold=True, italic=True, color=MUTED)
 NOTE_FONT = Font(italic=True, color=MUTED)
 MUTED_FONT = Font(color=MUTED)
 CLOSED_FONT = Font(italic=True, color=MUTED)

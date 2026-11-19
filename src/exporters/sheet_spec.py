@@ -11,7 +11,7 @@ from domain import Column
 from domain.cells import is_blank
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 
 class Fmt(StrEnum):
@@ -49,8 +49,8 @@ class Role(StrEnum):
 
 
 @dataclass(frozen=True)
-class Col:
-    """One column of a table.
+class Col[R]:
+    """One column of a table, for rows read from an `R`.
 
     Attributes:
         header: The heading, which is also the key rows are built from.
@@ -63,6 +63,12 @@ class Col:
         quiet: Leave a zero blank. For a column where a zero says nothing, such
             as the price on a cash row or a dividend never paid, where a column
             of `0.00` is noise a reader has to look past.
+        key: A short lowercase name to pick the column by, for a column listed
+            in a catalog.
+        label: The figure's name spelled out, for a list with room for it,
+            where the header is abbreviated to fit a column.
+        read: Reads the column's value from one `R`, for a column whose rows
+            are built from it rather than from a heading-keyed mapping.
     """
 
     header: str
@@ -71,6 +77,14 @@ class Col:
     width: int | None = None
     bar: bool = False
     quiet: bool = False
+    key: str = ""
+    label: str = ""
+    read: Callable[[R], object] | None = None
+
+    @property
+    def full_label(self) -> str:
+        """The figure's name spelled out, or its header when that is already whole."""
+        return self.label or self.header
 
 
 @dataclass(frozen=True)
@@ -232,13 +246,19 @@ DECIMALS: dict[Fmt, int] = {
     Fmt.COUNT: 2,
 }
 
-# How a compact figure is abbreviated: each `(at least, divided by, suffix)`,
-# largest first. The last one is what everything smaller falls to. Excel's own
-# number formats in `excel_style` say the same thing, for the workbook.
-COMPACT_STEPS: dict[Fmt, tuple[tuple[int, int, str], ...]] = {
-    Fmt.LARGE: ((10**12, 10**12, "T"), (10**9, 10**9, "B"), (0, 10**6, "M")),
-    Fmt.COUNT: ((10**6, 10**6, "M"), (10**3, 10**3, "K"), (0, 1, "")),
-}
+# How a large figure is abbreviated wherever it is: each `(size, suffix)`,
+# largest first. A figure takes the largest size it reaches.
+MAGNITUDES: tuple[tuple[int, str], ...] = (
+    (10**12, "T"),
+    (10**9, "B"),
+    (10**6, "M"),
+    (10**3, "K"),
+)
+
+# The smallest size each compact format abbreviates by: anything below it still
+# reads in it, so a market cap never drops to thousands. Excel's own number
+# formats in `excel_style` say the same thing, for the workbook.
+COMPACT_FLOORS: dict[Fmt, int] = {Fmt.LARGE: 10**6, Fmt.COUNT: 1}
 
 # The formats whose values are numbers rather than text.
 NUMERIC: frozenset[Fmt] = frozenset(DECIMALS)
@@ -276,6 +296,15 @@ def row_of(
         The row, with a blank for every column the mapping omitted.
     """
     return Row(tuple(values.get(column.header) for column in columns), role)
+
+
+def read_cells[R](columns: Sequence[Col[R]], source: R) -> dict[str, object]:
+    """Read each column's value from one source, keyed by heading for `row_of`."""
+    return {
+        column.header: column.read(source)
+        for column in columns
+        if column.read is not None
+    }
 
 
 def blank_row(columns: Sequence[Col]) -> Row:
@@ -321,8 +350,8 @@ def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
 
 def _number(fmt: Fmt, number: float, decimals: int) -> str:
     """Render a number at its format's precision, in its format's shape."""
-    if fmt in COMPACT_STEPS:
-        return _compact(number, COMPACT_STEPS[fmt], decimals)
+    if fmt in COMPACT_FLOORS:
+        return _compact(number, COMPACT_FLOORS[fmt], decimals)
     if fmt in PERCENTS:
         return f"{number * 100:,.{decimals}f}%"
     grouping = "" if fmt in UNGROUPED else ","
@@ -332,15 +361,14 @@ def _number(fmt: Fmt, number: float, decimals: int) -> str:
     return text
 
 
-def _compact(
-    number: float,
-    steps: tuple[tuple[int, int, str], ...],
-    decimals: int,
-) -> str:
-    """Abbreviate a figure by the largest step it reaches: 3.81T, 27.01M."""
-    *larger, (_, divisor, suffix) = steps
-    for at_least, size, unit in larger:
-        if abs(number) >= at_least:
-            divisor, suffix = size, unit
-            break
-    return f"{number / divisor:,.{decimals}f}{suffix}"
+def _compact(number: float, floor: int, decimals: int) -> str:
+    """Abbreviate a figure by the largest magnitude it reaches: 3.81T, 27.01M.
+
+    A figure below every magnitude, and below the floor, reads whole.
+    """
+    size, suffix = next(
+        (size, suffix)
+        for size, suffix in (*MAGNITUDES, (1, ""))
+        if abs(number) >= size or size <= floor
+    )
+    return f"{number / size:,.{decimals}f}{suffix}"
