@@ -7,10 +7,14 @@ from typing import TYPE_CHECKING
 
 from rich.table import Column
 
-from exporters.sheet_spec import Fmt
+from domain import Fmt
 
 if TYPE_CHECKING:
+    from typing import Any
+
     from rich.table import Table
+
+    from exporters.sheet_spec import Col
 
 
 @dataclass
@@ -53,3 +57,14 @@ def key_of(column: Column) -> str:
 def is_coarse(column: Column) -> bool:
     """Tell whether a column is a percentage that can spare its second decimal."""
     return isinstance(column, FormattedColumn) and column.coarse
+
+
+def formatted(column: Col, **rich: Any) -> FormattedColumn:
+    """Describe a catalog column for a terminal table.
+
+    A figure is right-aligned and kept on one line; `rich` passes anything else
+    a table wants of it, such as `no_wrap` on a text column.
+    """
+    if column.fmt is not Fmt.TEXT:
+        rich = {"justify": "right", "no_wrap": True, **rich}
+    return FormattedColumn(column.header, fmt=column.fmt, coarse=column.coarse, **rich)

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table as RichTable
 
-from exporters.sheet_spec import Fmt
+from domain import Fmt
 from services.quote_service import QuoteService
 from ui.cells import EM_DASH, price, signed
 from ui.format import short_age

@@ -2,15 +2,166 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from exporters.sheet_spec import Col, Fmt
+from domain import Fmt, Measure
+from exporters.sheet_spec import Col, read_cells
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
+    from engine.holdings import Holding
     from models import Quote
+
+_REFERENCE = Measure.REFERENCE
+
+
+# Every column a holding's row can show, in the dashboard's order. A table picks
+# its own columns from these by key; the keys are the names `--sort` takes.
+HOLDING_COLUMNS: tuple[Col[Holding], ...] = (
+    Col("Symbol", key="symbol", read=lambda h: h.symbol),
+    Col("Name", width=18, key="name", read=lambda h: h.name),
+    Col("Sector", width=16, key="sector", read=lambda h: h.sector),
+    Col(
+        "$",
+        width=6,
+        key="currency",
+        read=lambda h: str(h.currency),
+    ),
+    Col("Units", Fmt.UNITS, key="units", read=lambda h: h.units, measure=_REFERENCE),
+    Col("Avg", Fmt.PRICE, key="avg", read=lambda h: h.avg_cost, measure=_REFERENCE),
+    Col("Last", Fmt.PRICE, key="last", read=lambda h: h.price),
+    Col("Change", Fmt.PRICE_SIGNED, key="change", read=lambda h: h.change),
+    Col(
+        "Change%",
+        Fmt.PERCENT_SIGNED,
+        key="change%",
+        read=lambda h: h.change_pct,
+        measure=Measure.DAY_MOVE,
+    ),
+    Col("PnL", Fmt.MONEY_SIGNED, key="pnl", read=lambda h: h.day_pnl),
+    Col(
+        "PnL%",
+        Fmt.PERCENT_SIGNED,
+        key="pnl%",
+        read=lambda h: h.day_pnl_pct,
+        measure=Measure.DAY_MOVE,
+    ),
+    Col("Unreal", Fmt.MONEY_SIGNED, key="unreal", read=lambda h: h.unrealized),
+    Col(
+        "Unreal%",
+        Fmt.PERCENT_SIGNED,
+        key="unreal%",
+        read=lambda h: h.unrealized_pct,
+        coarse=True,
+        measure=Measure.RETURN,
+    ),
+    Col(
+        "Realized",
+        Fmt.MONEY_SIGNED,
+        quiet=True,
+        key="realized",
+        read=lambda h: h.realized,
+    ),
+    Col(
+        "Divs",
+        Fmt.MONEY,
+        quiet=True,
+        key="divs",
+        read=lambda h: h.dividends,
+        measure=Measure.INCOME,
+    ),
+    Col(
+        "Total",
+        Fmt.MONEY_SIGNED,
+        key="total",
+        read=lambda h: h.total_pnl,
+    ),
+    Col(
+        "Total%",
+        Fmt.PERCENT_SIGNED,
+        key="total%",
+        read=lambda h: h.total_pnl_pct,
+        coarse=True,
+        measure=Measure.RETURN,
+    ),
+    Col("Book", Fmt.MONEY, key="book", read=lambda h: h.book_value, measure=_REFERENCE),
+    Col("Market", Fmt.MONEY, key="market", read=lambda h: h.market_value),
+    Col(
+        "Wt%",
+        Fmt.PERCENT,
+        key="wt%",
+        read=lambda h: h.weight_in_pool,
+        coarse=True,
+        measure=Measure.WEIGHT,
+    ),
+    Col(
+        "Folio%",
+        Fmt.PERCENT,
+        key="folio%",
+        read=lambda h: h.weight_in_folio,
+        coarse=True,
+        measure=Measure.WEIGHT,
+    ),
+)
+
+HOLDINGS_BY_KEY: Mapping[str, Col[Holding]] = MappingProxyType(
+    {column.key: column for column in HOLDING_COLUMNS},
+)
+
+
+# The columns a closed holding still fills: what it is, and what it banked.
+# Units, cost and market value fall to zero once sold out, and printing those
+# zeros would have the holding read as still held.
+CLOSED_KEEPS = frozenset(
+    {"symbol", "name", "sector", "currency", "realized", "divs", "total"},
+)
+
+
+def shows(column: Col[Holding], holding: Holding) -> bool:
+    """Whether a holding's row fills a column: an open one fills every column."""
+    return not holding.closed or column.key in CLOSED_KEEPS
+
+
+def holding_cells(
+    columns: Sequence[Col[Holding]],
+    holding: Holding,
+) -> dict[str, object]:
+    """Read a holding's row, keyed by heading, blank where a closed one has nothing."""
+    return read_cells([column for column in columns if shows(column, holding)], holding)
+
+
+def holding_columns(*keys: str) -> tuple[Col[Holding], ...]:
+    """Pick holding columns by key, in the order given."""
+    return tuple(HOLDINGS_BY_KEY[key] for key in keys)
+
+
+def pool_columns(share: str) -> tuple[Col[Holding], ...]:
+    """Pick the columns a table of one security's pools shows, after each pool's name.
+
+    `share` heads the weight in the pool: the holding's share of its account, or
+    of its account type.
+    """
+    return tuple(
+        replace(column, header=share) if column.key == "wt%" else column
+        for column in holding_columns(
+            "units",
+            "avg",
+            "book",
+            "market",
+            "unreal",
+            "unreal%",
+            "realized",
+            "divs",
+            "total",
+            "total%",
+            "wt%",
+            "folio%",
+        )
+    )
+
 
 VALUATION = "Valuation"
 DIVIDENDS = "Dividends"

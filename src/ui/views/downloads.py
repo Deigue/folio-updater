@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from domain import Fmt
 from domain.dates import iso_day
-from exporters.sheet_spec import Fmt
 from term import console_success, console_warning
 from ui.format import is_number
 from ui.layout.columns import FormattedColumn

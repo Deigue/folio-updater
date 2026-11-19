@@ -7,34 +7,20 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from domain import Column
+from domain import (
+    COMPACT_RANGES,
+    DECIMALS,
+    MAGNITUDES,
+    PERCENTS,
+    UNGROUPED,
+    Column,
+    Fmt,
+    Measure,
+)
 from domain.cells import is_blank
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
-
-
-class Fmt(StrEnum):
-    """How one column's values should read."""
-
-    TEXT = "text"
-    ID = "id"
-    DATE = "date"
-    MONEY = "money"
-    MONEY_SIGNED = "money_signed"
-    PRICE = "price"
-    PRICE_SIGNED = "price_signed"
-    UNITS = "units"
-    PERCENT = "percent"
-    PERCENT_SIGNED = "percent_signed"
-    RATE = "rate"
-    RATIO = "ratio"  # a plain ratio at two places, such as a P/E or a beta
-    LARGE = "large"  # an amount too large to read whole: 3.81T, 35.16B, 512.40M
-    COUNT = "count"  # a count read by magnitude: 27.01M, 168.06K
-    # Text a terminal table shortens in its own way when it runs out of room.
-    ACCOUNT = "account"
-    ACTION = "action"
-    CURRENCY = "currency"
 
 
 class Role(StrEnum):
@@ -46,6 +32,10 @@ class Role(StrEnum):
     BLANK = "blank"  # a spacer, and the end of the filtered range
     SUBTOTAL = "subtotal"
     TOTAL = "total"
+
+
+def _unread(_source: object) -> None:
+    """Read nothing, for a column whose rows are built from a mapping instead."""
 
 
 @dataclass(frozen=True)
@@ -68,7 +58,11 @@ class Col[R]:
         label: The figure's name spelled out, for a list with room for it,
             where the header is abbreviated to fit a column.
         read: Reads the column's value from one `R`, for a column whose rows
-            are built from it rather than from a heading-keyed mapping.
+            are built from it rather than from a heading-keyed mapping, which
+            leaves it reading nothing.
+        coarse: A percentage that can spare its second decimal on a narrow
+            terminal.
+        measure: What kind of figure it holds, for shading it in a terminal.
     """
 
     header: str
@@ -79,7 +73,9 @@ class Col[R]:
     quiet: bool = False
     key: str = ""
     label: str = ""
-    read: Callable[[R], object] | None = None
+    read: Callable[[R], object] = _unread
+    coarse: bool = False
+    measure: Measure | None = None
 
     @property
     def full_label(self) -> str:
@@ -228,54 +224,6 @@ TXN_FORMATS: dict[str, Fmt] = {
     str(Column.Txn.SETTLE_CALCULATED): Fmt.ID,
 }
 
-# Decimals a reader should see, per format. A workbook displays a value at this
-# precision while the cell keeps every digit; a CSV, having nowhere to hide the
-# rest, rounds to it.
-DECIMALS: dict[Fmt, int] = {
-    Fmt.ID: 0,
-    Fmt.MONEY: 2,
-    Fmt.MONEY_SIGNED: 2,
-    Fmt.PRICE: 4,
-    Fmt.PRICE_SIGNED: 4,
-    Fmt.UNITS: 6,
-    Fmt.PERCENT: 2,
-    Fmt.PERCENT_SIGNED: 2,
-    Fmt.RATE: 4,
-    Fmt.RATIO: 2,
-    Fmt.LARGE: 2,
-    Fmt.COUNT: 2,
-}
-
-# How a large figure is abbreviated wherever it is: each `(size, suffix)`,
-# largest first. A figure takes the largest size it reaches.
-MAGNITUDES: tuple[tuple[int, str], ...] = (
-    (10**12, "T"),
-    (10**9, "B"),
-    (10**6, "M"),
-    (10**3, "K"),
-)
-
-# The smallest size each compact format abbreviates by: anything below it still
-# reads in it, so a market cap never drops to thousands. Excel's own number
-# formats in `excel_style` say the same thing, for the workbook.
-COMPACT_FLOORS: dict[Fmt, int] = {Fmt.LARGE: 10**6, Fmt.COUNT: 1}
-
-# The formats whose values are numbers rather than text.
-NUMERIC: frozenset[Fmt] = frozenset(DECIMALS)
-
-# The formats whose digits are never grouped: an identifier or a year, which a
-# reader types back in (`folio query`, `folio edit`) and which the workbook
-# writes as plain digits too.
-UNGROUPED: frozenset[Fmt] = frozenset({Fmt.ID})
-
-# The formats rendered as a percentage of a ratio.
-PERCENTS: frozenset[Fmt] = frozenset({Fmt.PERCENT, Fmt.PERCENT_SIGNED})
-
-# The formats whose sign carries meaning, and is worth colouring.
-SIGNED: frozenset[Fmt] = frozenset(
-    {Fmt.MONEY_SIGNED, Fmt.PRICE_SIGNED, Fmt.PERCENT_SIGNED},
-)
-
 
 def row_of(
     columns: Sequence[Col],
@@ -300,11 +248,7 @@ def row_of(
 
 def read_cells[R](columns: Sequence[Col[R]], source: R) -> dict[str, object]:
     """Read each column's value from one source, keyed by heading for `row_of`."""
-    return {
-        column.header: column.read(source)
-        for column in columns
-        if column.read is not None
-    }
+    return {column.header: column.read(source) for column in columns}
 
 
 def blank_row(columns: Sequence[Col]) -> Row:
@@ -350,8 +294,8 @@ def render(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
 
 def _number(fmt: Fmt, number: float, decimals: int) -> str:
     """Render a number at its format's precision, in its format's shape."""
-    if fmt in COMPACT_FLOORS:
-        return _compact(number, COMPACT_FLOORS[fmt], decimals)
+    if fmt in COMPACT_RANGES:
+        return _compact(number, COMPACT_RANGES[fmt], decimals)
     if fmt in PERCENTS:
         return f"{number * 100:,.{decimals}f}%"
     grouping = "" if fmt in UNGROUPED else ","
@@ -361,14 +305,12 @@ def _number(fmt: Fmt, number: float, decimals: int) -> str:
     return text
 
 
-def _compact(number: float, floor: int, decimals: int) -> str:
-    """Abbreviate a figure by the largest magnitude it reaches: 3.81T, 27.01M.
-
-    A figure below every magnitude, and below the floor, reads whole.
-    """
+def _compact(number: float, sizes: tuple[int, int], decimals: int) -> str:
+    """Abbreviate a figure by the largest size in range it reaches: 3.81T, 27.01M."""
+    floor, ceiling = sizes
     size, suffix = next(
         (size, suffix)
         for size, suffix in (*MAGNITUDES, (1, ""))
-        if abs(number) >= size or size <= floor
+        if size <= ceiling and (abs(number) >= size or size <= floor)
     )
     return f"{number / size:,.{decimals}f}{suffix}"

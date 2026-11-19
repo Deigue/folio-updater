@@ -16,9 +16,9 @@ from domain import (
     TXN_ESSENTIALS,
     Action,
     Column,
+    Fmt,
     SettlementOutcome,
 )
-from exporters.sheet_spec import Fmt
 from term.console import (
     StatusMark,
     active_console,

@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from rich.table import Table
 
-from exporters.sheet_spec import TXN_FORMATS, Fmt
+from domain import Fmt
+from exporters.sheet_spec import TXN_FORMATS
 from term.console import console_panel, console_print
 from ui.format import safe_str
 from ui.layout.columns import FormattedColumn, add_column

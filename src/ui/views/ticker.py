@@ -10,11 +10,15 @@ from rich.panel import Panel
 from rich.table import Table as RichTable
 from rich.text import Text
 
-from domain import TORONTO_TZ, PriceRange
+from domain import TORONTO_TZ, Fmt, PriceRange
 from engine.accounts import account_type_of
 from engine.ticker import range_extremes
-from exporters.catalog import FUNDAMENTAL_SECTIONS, FUNDAMENTALS_BY_KEY
-from exporters.sheet_spec import Fmt, render
+from exporters.catalog import (
+    FUNDAMENTAL_SECTIONS,
+    FUNDAMENTALS_BY_KEY,
+    pool_columns,
+)
+from exporters.sheet_spec import Col, render
 from term import console_print
 from term.size import terminal_size
 from ui.cells import (
@@ -26,21 +30,20 @@ from ui.cells import (
     clock_time,
     currency_tint,
     day_move,
+    figure_cell,
     graded,
-    income,
-    lifetime_return,
+    holding_cell,
     long_date,
     money,
     percent,
     price,
     signed,
     style,
-    units,
     weight,
 )
 from ui.layout.bars import position_bar
 from ui.layout.charts import ChartStyle, area_chart
-from ui.layout.columns import FormattedColumn, add_column
+from ui.layout.columns import FormattedColumn, add_column, formatted
 from ui.layout.fit import fit
 from ui.layout.tiles import COLUMN_GAP, Tile, TilingLayout
 from ui.vocabulary import (
@@ -59,7 +62,6 @@ from ui.vocabulary import (
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from engine.holdings import Holding
     from engine.performance import RangeMove
     from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
     from models import Quote
@@ -89,28 +91,8 @@ _POOL_DROP_ORDER = ("Weight", "Book", "Unreal%", "Total%", "Divs", "Realized")
 
 def _figure(header: str, fmt: Fmt, *, coarse: bool = False) -> FormattedColumn:
     """Describe a right-aligned column of figures."""
-    return FormattedColumn(
-        header,
-        fmt=fmt,
-        coarse=coarse,
-        justify="right",
-        no_wrap=True,
-    )
+    return formatted(Col(header, fmt, coarse=coarse))
 
-
-# A holding's figures in each pool, after its name and before its weights.
-_POOL_FIGURES = (
-    _figure("Units", Fmt.UNITS),
-    _figure("Avg", Fmt.PRICE),
-    _figure("Book", Fmt.MONEY),
-    _figure("Market", Fmt.MONEY),
-    _figure("Unreal", Fmt.MONEY_SIGNED),
-    _figure("Unreal%", Fmt.PERCENT_SIGNED, coarse=True),
-    _figure("Realized", Fmt.MONEY_SIGNED),
-    _figure("Divs", Fmt.MONEY),
-    _figure("Total", Fmt.MONEY_SIGNED),
-    _figure("Total%", Fmt.PERCENT_SIGNED, coarse=True),
-)
 
 # Matrix columns, conceded in this order on a narrow terminal.
 _MATRIX_DROP_ORDER = ("Wt%", "2d", "2h", "5y", "Market")
@@ -273,23 +255,8 @@ def _fact_row(quote: Quote, key: str) -> tuple[str, str | None] | None:
         case "high_52" | "avg_volume":
             return None
     column = FUNDAMENTALS_BY_KEY[key]
-    value = column.read(quote) if column.read else None
-    return (column.full_label, _fact(column.fmt, value))
-
-
-def _fact(fmt: Fmt, value: object) -> str | None:
-    """Render one fundamental the way the terminal reads its format."""
-    if value is None:
-        return None
-    if isinstance(value, Decimal):
-        if fmt is Fmt.PRICE:
-            return price(value)
-        if fmt is Fmt.PERCENT:
-            return percent(value)
-        return render(fmt, value)
-    if fmt is Fmt.DATE:
-        return long_date(str(value))
-    return str(value)
+    value = column.read(quote)
+    return (column.full_label, None if value is None else figure_cell(column, value))
 
 
 def _volume(volume: Decimal | None, average: Decimal | None) -> str | None:
@@ -418,26 +385,25 @@ def _pool_table(holdings: SymbolHoldings, *, by_account: bool) -> RichTable:
         border_style=TABLE_BORDER,
         header_style=TABLE_HEADER,
     )
-    columns = (
-        FormattedColumn("Pool", no_wrap=True),
-        *_POOL_FIGURES,
-        _figure(share, Fmt.PERCENT, coarse=True),
-        _figure("Folio%", Fmt.PERCENT, coarse=True),
-    )
-    for column in columns:
-        add_column(table, column)
+    figures = pool_columns(share)
+    add_column(table, FormattedColumn("Pool", no_wrap=True))
+    for column in figures:
+        add_column(table, formatted(column))
 
     for line in holdings.lines:
-        cells = _closed_cells(line) if line.holding.closed else _open_cells(line)
-        table.add_row(*cells, style="dim" if line.holding.closed else None)
+        holding = line.holding
+        label = f"{line.pool.label} (closed)" if holding.closed else _pool_cell(line)
+        cells = [holding_cell(column, holding) for column in figures]
+        table.add_row(label, *cells, style="dim" if holding.closed else None)
 
     if holdings.pooled_differs:
+        # One security across every pool is no share of any one of them.
+        pooled = [
+            "" if column.key == "wt%" else holding_cell(column, holdings.total)
+            for column in figures
+        ]
         table.add_section()
-        table.add_row(
-            "POOLED",
-            *_figures(holdings.total, share=None),
-            style=GRAND_TOTAL_ROW_STYLE,
-        )
+        table.add_row("POOLED", *pooled, style=GRAND_TOTAL_ROW_STYLE)
     return table
 
 
@@ -449,53 +415,6 @@ def _pool_cell(line: PoolLine) -> str:
         label = f"{label} [dim]CRA[/dim]"
     tint = ACCOUNT_TYPE_COLORS.get(account_type) if account_type else None
     return style(label, tint)
-
-
-def _open_cells(line: PoolLine) -> list[str]:
-    """Render an open holding in one pool."""
-    return [
-        _pool_cell(line),
-        *_figures(line.holding, share=line.holding.weight_in_pool),
-    ]
-
-
-def _figures(holding: Holding, *, share: Decimal | None) -> list[str]:
-    """Render a holding's figures, everything after the pool's name."""
-    return [
-        units(holding.units),
-        price(holding.avg_cost),
-        money(holding.book_value),
-        money(holding.market_value),
-        signed(money(holding.unrealized), holding.unrealized),
-        lifetime_return(holding.unrealized_pct),
-        signed(money(holding.realized, blank_zero=True), holding.realized),
-        income(holding.dividends),
-        signed(money(holding.total_pnl), holding.total_pnl),
-        lifetime_return(holding.total_pnl_pct),
-        weight(share) if share is not None else "",
-        weight(holding.weight_in_folio),
-    ]
-
-
-def _closed_cells(line: PoolLine) -> list[str]:
-    """Render a pool that sold out: only what it realized and earned remains."""
-    holding = line.holding
-    total = holding.closed_total
-    return [
-        f"{line.pool.label} (closed)",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        signed(money(holding.realized, blank_zero=True), holding.realized),
-        income(holding.dividends),
-        signed(money(total, blank_zero=True), total),
-        "",
-        "",
-        "",
-    ]
 
 
 def _conversion_notes(holdings: SymbolHoldings, quote: Quote) -> list[str]:

@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING
 
 from rich.markup import escape
 
-from domain import Column, SettlementOutcome
-from exporters.sheet_spec import Fmt
+from domain import Column, Fmt, SettlementOutcome
 from models import UpdateStage
 from term import StatusMark, console_print, console_rule, get_symbol
 from term.console import console_panel

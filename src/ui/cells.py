@@ -9,8 +9,10 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from domain import TORONTO_TZ
+from domain import COMPACT_RANGES, SIGNED, TORONTO_TZ, Fmt, Measure
 from domain.numeric import q2
+from exporters.catalog import shows
+from exporters.sheet_spec import render
 from term import supports_unicode
 from ui.vocabulary import (
     CURRENCY_COLORS,
@@ -24,6 +26,7 @@ from ui.vocabulary import (
     LOSS_STRONG,
     MONEY_PRECISION,
     PRICE_PRECISION,
+    REFERENCE_STYLE,
     RETURN_STRONG_AT,
     UNIT_PRECISION,
     WEIGHT_ALERT,
@@ -33,9 +36,12 @@ from ui.vocabulary import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from decimal import Decimal
 
     from domain import Currency
+    from engine.holdings import Holding
+    from exporters.sheet_spec import Col
 
 UNICODE = supports_unicode()
 WARN_GLYPH = "⚠" if UNICODE else "!"
@@ -201,3 +207,64 @@ def clock_time(iso: str) -> str:
     moment = datetime.fromisoformat(iso).astimezone(TORONTO_TZ)
     afternoon, hour = divmod(moment.hour, _HALF_DAY)
     return f"{hour or _HALF_DAY}:{moment.minute:02d} {'PM' if afternoon else 'AM'}"
+
+
+# The formats a terminal reads exactly as their text, with no sign or grading.
+_AS_TEXT = frozenset({Fmt.TEXT, Fmt.DATE, Fmt.RATIO, *COMPACT_RANGES})
+
+
+def figure_cell(column: Col, value: object, *, closed: bool = False) -> str:
+    """Render one catalog column's value the way its format and measure read.
+
+    `closed` marks a closed holding's row, where a zero is what it never earned
+    and is left blank.
+    """
+    if column.fmt in _AS_TEXT:
+        return _as_text(column.fmt, value)
+    number: Decimal | None = value  # ty: ignore[invalid-assignment]
+    graded = _GRADED.get(column.measure) if column.measure else None
+    if graded:
+        return graded(number)
+    if column.measure is Measure.INCOME and number is not None:
+        return income(number)
+    text = _figure_text(column.fmt, number, blank_zero=column.quiet or closed)
+    if column.fmt in SIGNED:
+        text = signed(text, number)
+    return style(text, REFERENCE_STYLE) if column.measure is Measure.REFERENCE else text
+
+
+def _as_text(fmt: Fmt, value: object) -> str:
+    """Render a text, a date, a ratio or a compact figure, blank when missing."""
+    if value is None:
+        return ""
+    if fmt is Fmt.TEXT:
+        return str(value)
+    if fmt is Fmt.DATE:
+        return long_date(str(value)) or ""
+    return render(fmt, value)
+
+
+def _figure_text(fmt: Fmt, number: Decimal | None, *, blank_zero: bool) -> str:
+    """Render a number at its format's own precision, unstyled."""
+    if fmt is Fmt.UNITS:
+        return units(number)
+    if fmt in {Fmt.PRICE, Fmt.PRICE_SIGNED}:
+        return price(number)
+    if fmt in {Fmt.PERCENT, Fmt.PERCENT_SIGNED}:
+        return percent(number)
+    return money(number, blank_zero=blank_zero)
+
+
+# The measures graded by their own size, each by its own scale.
+_GRADED: dict[Measure, Callable[[Decimal | None], str]] = {
+    Measure.DAY_MOVE: day_move,
+    Measure.RETURN: lifetime_return,
+    Measure.WEIGHT: weight,
+}
+
+
+def holding_cell(column: Col, holding: Holding) -> str:
+    """Render one catalog column for a holding, blank where a closed one has nothing."""
+    if not shows(column, holding):
+        return ""
+    return figure_cell(column, column.read(holding), closed=holding.closed)

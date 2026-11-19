@@ -15,9 +15,8 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from rich.table import Table as RichTable
 
-from domain import Action, Column, DiagnosticCode, Grain
+from domain import Action, Column, DiagnosticCode, Fmt, Grain
 from engine.frames import grain_column
-from exporters.sheet_spec import Fmt
 from term import console_print, console_warning
 from ui.cells import FALL, RISE, WARN_GLYPH, graded, lifetime_return
 from ui.layout.columns import FormattedColumn, add_column

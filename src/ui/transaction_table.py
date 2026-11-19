@@ -9,9 +9,9 @@ from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
-from domain import Column
+from domain import Column, Fmt
 from domain.numeric import dec, q2
-from exporters.sheet_spec import TXN_FORMATS, Fmt
+from exporters.sheet_spec import TXN_FORMATS
 from term.console import console_print
 from term.size import terminal_size
 from ui.cells import currency_tint, money, price, style, units

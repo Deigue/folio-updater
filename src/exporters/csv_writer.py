@@ -5,7 +5,8 @@ from __future__ import annotations
 import csv
 from typing import TYPE_CHECKING
 
-from exporters.sheet_spec import Fmt, render
+from domain import Fmt
+from exporters.sheet_spec import render
 
 if TYPE_CHECKING:
     from pathlib import Path

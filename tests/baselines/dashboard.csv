@@ -22,7 +22,6 @@ CAD,acct,MOCK-CORPORATE,holding KO,book_value_totals,5748.10260
 CAD,acct,MOCK-CORPORATE,holding KO,change,-0.1242
 CAD,acct,MOCK-CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,acct,MOCK-CORPORATE,holding KO,closed,False
-CAD,acct,MOCK-CORPORATE,holding KO,closed_total,669.70760
 CAD,acct,MOCK-CORPORATE,holding KO,currency,CAD
 CAD,acct,MOCK-CORPORATE,holding KO,day_pnl,-7.4520
 CAD,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -128,7 +127,6 @@ CAD,acct,MOCK-MARGIN,holding KO,book_value_totals,9345.943707692307692307692307
 CAD,acct,MOCK-MARGIN,holding KO,change,-0.1242
 CAD,acct,MOCK-MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,acct,MOCK-MARGIN,holding KO,closed,False
-CAD,acct,MOCK-MARGIN,holding KO,closed_total,937.25450
 CAD,acct,MOCK-MARGIN,holding KO,currency,CAD
 CAD,acct,MOCK-MARGIN,holding KO,day_pnl,-13.0410
 CAD,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -234,7 +232,6 @@ CAD,acct,MOCK-PERSONAL,holding AAPL,book_value_totals,19850.19805
 CAD,acct,MOCK-PERSONAL,holding AAPL,change,0.7452
 CAD,acct,MOCK-PERSONAL,holding AAPL,change_pct,0.001624157844080846968238691049
 CAD,acct,MOCK-PERSONAL,holding AAPL,closed,False
-CAD,acct,MOCK-PERSONAL,holding AAPL,closed_total,111.24850
 CAD,acct,MOCK-PERSONAL,holding AAPL,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl,43.2216
 CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
@@ -272,7 +269,6 @@ CAD,acct,MOCK-PERSONAL,holding COST,book_value_totals,11768.91290
 CAD,acct,MOCK-PERSONAL,holding COST,change,-1.5456
 CAD,acct,MOCK-PERSONAL,holding COST,change_pct,-0.001228797753055537269874706515
 CAD,acct,MOCK-PERSONAL,holding COST,closed,False
-CAD,acct,MOCK-PERSONAL,holding COST,closed_total,71.12085
 CAD,acct,MOCK-PERSONAL,holding COST,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding COST,day_pnl,-13.9104
 CAD,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
@@ -310,7 +306,6 @@ CAD,acct,MOCK-PERSONAL,holding DLR.TO,book_value_totals,0.00
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,change,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,change_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,closed,True
-CAD,acct,MOCK-PERSONAL,holding DLR.TO,closed_total,0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_pct,
@@ -331,7 +326,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.TO,realized_totals,0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,sector,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,security_type,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,symbol,DLR.TO
-CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl,
+CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl,0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_cad,0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_totals,
@@ -348,7 +343,6 @@ CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,book_value_totals,0.00
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,change,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,change_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
-CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed_total,-984.36420
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
@@ -369,7 +363,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,realized_totals,-984.36420
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,sector,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,security_type,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,symbol,DLR.U.TO
-CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,
+CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,-984.36420
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.36420
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
@@ -386,7 +380,6 @@ CAD,acct,MOCK-PERSONAL,holding INTC,book_value_totals,0.000
 CAD,acct,MOCK-PERSONAL,holding INTC,change,
 CAD,acct,MOCK-PERSONAL,holding INTC,change_pct,
 CAD,acct,MOCK-PERSONAL,holding INTC,closed,True
-CAD,acct,MOCK-PERSONAL,holding INTC,closed_total,-233.890
 CAD,acct,MOCK-PERSONAL,holding INTC,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
@@ -407,7 +400,7 @@ CAD,acct,MOCK-PERSONAL,holding INTC,realized_totals,-233.890
 CAD,acct,MOCK-PERSONAL,holding INTC,sector,
 CAD,acct,MOCK-PERSONAL,holding INTC,security_type,
 CAD,acct,MOCK-PERSONAL,holding INTC,symbol,INTC
-CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl,
+CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl,-233.890
 CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.890
 CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
@@ -424,7 +417,6 @@ CAD,acct,MOCK-PERSONAL,holding JNJ,book_value_totals,18023.85340
 CAD,acct,MOCK-PERSONAL,holding JNJ,change,-0.0552
 CAD,acct,MOCK-PERSONAL,holding JNJ,change_pct,-0.0001510688118437948485535161266
 CAD,acct,MOCK-PERSONAL,holding JNJ,closed,False
-CAD,acct,MOCK-PERSONAL,holding JNJ,closed_total,649.22270
 CAD,acct,MOCK-PERSONAL,holding JNJ,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-3.9744
 CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
@@ -462,7 +454,6 @@ CAD,acct,MOCK-PERSONAL,holding KO,book_value_totals,12340.4236923076923076923076
 CAD,acct,MOCK-PERSONAL,holding KO,change,-0.1242
 CAD,acct,MOCK-PERSONAL,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,acct,MOCK-PERSONAL,holding KO,closed,False
-CAD,acct,MOCK-PERSONAL,holding KO,closed_total,557.96730
 CAD,acct,MOCK-PERSONAL,holding KO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding KO,day_pnl,-16.0218
 CAD,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
@@ -500,7 +491,6 @@ CAD,acct,MOCK-PERSONAL,holding META,book_value_totals,0.0000
 CAD,acct,MOCK-PERSONAL,holding META,change,
 CAD,acct,MOCK-PERSONAL,holding META,change_pct,
 CAD,acct,MOCK-PERSONAL,holding META,closed,True
-CAD,acct,MOCK-PERSONAL,holding META,closed_total,1403.92300
 CAD,acct,MOCK-PERSONAL,holding META,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding META,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
@@ -521,7 +511,7 @@ CAD,acct,MOCK-PERSONAL,holding META,realized_totals,1368.4080
 CAD,acct,MOCK-PERSONAL,holding META,sector,
 CAD,acct,MOCK-PERSONAL,holding META,security_type,
 CAD,acct,MOCK-PERSONAL,holding META,symbol,META
-CAD,acct,MOCK-PERSONAL,holding META,total_pnl,
+CAD,acct,MOCK-PERSONAL,holding META,total_pnl,1403.92300
 CAD,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 CAD,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 CAD,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
@@ -538,7 +528,6 @@ CAD,acct,MOCK-PERSONAL,holding MSFT,book_value_totals,13561.32380
 CAD,acct,MOCK-PERSONAL,holding MSFT,change,0.2622
 CAD,acct,MOCK-PERSONAL,holding MSFT,change_pct,0.0003705798599598213414990930546
 CAD,acct,MOCK-PERSONAL,holding MSFT,closed,False
-CAD,acct,MOCK-PERSONAL,holding MSFT,closed_total,160.21685
 CAD,acct,MOCK-PERSONAL,holding MSFT,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl,6.0306
 CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
@@ -576,7 +565,6 @@ CAD,acct,MOCK-PERSONAL,holding NFLX,book_value_totals,9148.18100
 CAD,acct,MOCK-PERSONAL,holding NFLX,change,-0.5244
 CAD,acct,MOCK-PERSONAL,holding NFLX,change_pct,-0.005431675242995997712978845054
 CAD,acct,MOCK-PERSONAL,holding NFLX,closed,False
-CAD,acct,MOCK-PERSONAL,holding NFLX,closed_total,0
 CAD,acct,MOCK-PERSONAL,holding NFLX,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-40.3788
 CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
@@ -614,7 +602,6 @@ CAD,acct,MOCK-PERSONAL,holding NVDA,book_value_totals,15459.95938461538461538461
 CAD,acct,MOCK-PERSONAL,holding NVDA,change,0.3450
 CAD,acct,MOCK-PERSONAL,holding NVDA,change_pct,0.001095866391969491079647569368
 CAD,acct,MOCK-PERSONAL,holding NVDA,closed,False
-CAD,acct,MOCK-PERSONAL,holding NVDA,closed_total,2625.896984615384615384615384
 CAD,acct,MOCK-PERSONAL,holding NVDA,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl,27.2550
 CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
@@ -652,7 +639,6 @@ CAD,acct,MOCK-PERSONAL,holding O,book_value_totals,18327.61705
 CAD,acct,MOCK-PERSONAL,holding O,change,-0.3174
 CAD,acct,MOCK-PERSONAL,holding O,change_pct,-0.004217861727489455345681276362
 CAD,acct,MOCK-PERSONAL,holding O,closed,False
-CAD,acct,MOCK-PERSONAL,holding O,closed_total,1095.85495
 CAD,acct,MOCK-PERSONAL,holding O,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding O,day_pnl,-71.4150
 CAD,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
@@ -690,7 +676,6 @@ CAD,acct,MOCK-PERSONAL,holding XYZ,book_value_totals,15791.60445
 CAD,acct,MOCK-PERSONAL,holding XYZ,change,-0.3864
 CAD,acct,MOCK-PERSONAL,holding XYZ,change_pct,-0.003793523912748950006774149844
 CAD,acct,MOCK-PERSONAL,holding XYZ,closed,False
-CAD,acct,MOCK-PERSONAL,holding XYZ,closed_total,0
 CAD,acct,MOCK-PERSONAL,holding XYZ,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-63.3696
 CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
@@ -798,7 +783,6 @@ CAD,acct,MOCK-RRSP,holding NFLX,book_value_totals,1329.25065
 CAD,acct,MOCK-RRSP,holding NFLX,change,-0.5244
 CAD,acct,MOCK-RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 CAD,acct,MOCK-RRSP,holding NFLX,closed,False
-CAD,acct,MOCK-RRSP,holding NFLX,closed_total,0
 CAD,acct,MOCK-RRSP,holding NFLX,currency,CAD
 CAD,acct,MOCK-RRSP,holding NFLX,day_pnl,-5.2440
 CAD,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -836,7 +820,6 @@ CAD,acct,MOCK-RRSP,holding QQQ,book_value_totals,18353.27505
 CAD,acct,MOCK-RRSP,holding QQQ,change,1.0626
 CAD,acct,MOCK-RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 CAD,acct,MOCK-RRSP,holding QQQ,closed,False
-CAD,acct,MOCK-RRSP,holding QQQ,closed_total,124.99090
 CAD,acct,MOCK-RRSP,holding QQQ,currency,CAD
 CAD,acct,MOCK-RRSP,holding QQQ,day_pnl,26.5650
 CAD,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -874,7 +857,6 @@ CAD,acct,MOCK-RRSP,holding SCHD,book_value_totals,26289.97225
 CAD,acct,MOCK-RRSP,holding SCHD,change,-0.1104
 CAD,acct,MOCK-RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 CAD,acct,MOCK-RRSP,holding SCHD,closed,False
-CAD,acct,MOCK-RRSP,holding SCHD,closed_total,952.95790
 CAD,acct,MOCK-RRSP,holding SCHD,currency,CAD
 CAD,acct,MOCK-RRSP,holding SCHD,day_pnl,-73.0848
 CAD,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -912,7 +894,6 @@ CAD,acct,MOCK-RRSP,holding SPY,book_value_totals,19158.97890
 CAD,acct,MOCK-RRSP,holding SPY,change,-0.2070
 CAD,acct,MOCK-RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 CAD,acct,MOCK-RRSP,holding SPY,closed,False
-CAD,acct,MOCK-RRSP,holding SPY,closed_total,220.87580
 CAD,acct,MOCK-RRSP,holding SPY,currency,CAD
 CAD,acct,MOCK-RRSP,holding SPY,day_pnl,-4.5540
 CAD,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -1027,7 +1008,6 @@ CAD,acct,MOCK-TFSA,holding CNR.TO,book_value_totals,1583.45
 CAD,acct,MOCK-TFSA,holding CNR.TO,change,-0.12
 CAD,acct,MOCK-TFSA,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 CAD,acct,MOCK-TFSA,holding CNR.TO,closed,False
-CAD,acct,MOCK-TFSA,holding CNR.TO,closed_total,36.33
 CAD,acct,MOCK-TFSA,holding CNR.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl,-1.20
 CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -1065,7 +1045,6 @@ CAD,acct,MOCK-TFSA,holding ENB.TO,book_value_totals,1655.55
 CAD,acct,MOCK-TFSA,holding ENB.TO,change,-0.14
 CAD,acct,MOCK-TFSA,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 CAD,acct,MOCK-TFSA,holding ENB.TO,closed,False
-CAD,acct,MOCK-TFSA,holding ENB.TO,closed_total,115.59
 CAD,acct,MOCK-TFSA,holding ENB.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl,-4.20
 CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
@@ -1103,7 +1082,6 @@ CAD,acct,MOCK-TFSA,holding O,book_value_totals,244.26
 CAD,acct,MOCK-TFSA,holding O,change,-0.3174
 CAD,acct,MOCK-TFSA,holding O,change_pct,-0.004217861727489455345681276362
 CAD,acct,MOCK-TFSA,holding O,closed,False
-CAD,acct,MOCK-TFSA,holding O,closed_total,13.26780
 CAD,acct,MOCK-TFSA,holding O,currency,CAD
 CAD,acct,MOCK-TFSA,holding O,day_pnl,-0.9522
 CAD,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
@@ -1141,7 +1119,6 @@ CAD,acct,MOCK-TFSA,holding REI.UN.TO,book_value_totals,5792.48
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,change,0.00
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,change_pct,0
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,closed,False
-CAD,acct,MOCK-TFSA,holding REI.UN.TO,closed_total,596.14
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl,0.00
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -1179,7 +1156,6 @@ CAD,acct,MOCK-TFSA,holding RY.TO,book_value_totals,1692.65
 CAD,acct,MOCK-TFSA,holding RY.TO,change,-0.12
 CAD,acct,MOCK-TFSA,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 CAD,acct,MOCK-TFSA,holding RY.TO,closed,False
-CAD,acct,MOCK-TFSA,holding RY.TO,closed_total,65.8
 CAD,acct,MOCK-TFSA,holding RY.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl,-1.20
 CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -1217,7 +1193,6 @@ CAD,acct,MOCK-TFSA,holding TD.TO,book_value_totals,1704.35
 CAD,acct,MOCK-TFSA,holding TD.TO,change,-0.01
 CAD,acct,MOCK-TFSA,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 CAD,acct,MOCK-TFSA,holding TD.TO,closed,False
-CAD,acct,MOCK-TFSA,holding TD.TO,closed_total,86.6
 CAD,acct,MOCK-TFSA,holding TD.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl,-0.20
 CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
@@ -1255,7 +1230,6 @@ CAD,acct,MOCK-TFSA,holding VFV.TO,book_value_totals,760.12
 CAD,acct,MOCK-TFSA,holding VFV.TO,change,0.13
 CAD,acct,MOCK-TFSA,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 CAD,acct,MOCK-TFSA,holding VFV.TO,closed,False
-CAD,acct,MOCK-TFSA,holding VFV.TO,closed_total,243.45
 CAD,acct,MOCK-TFSA,holding VFV.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl,0.52
 CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
@@ -1293,7 +1267,6 @@ CAD,acct,MOCK-TFSA,holding XEQT.TO,book_value_totals,3750.35
 CAD,acct,MOCK-TFSA,holding XEQT.TO,change,0.00
 CAD,acct,MOCK-TFSA,holding XEQT.TO,change_pct,0
 CAD,acct,MOCK-TFSA,holding XEQT.TO,closed,False
-CAD,acct,MOCK-TFSA,holding XEQT.TO,closed_total,48.60
 CAD,acct,MOCK-TFSA,holding XEQT.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl,0.00
 CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_pct,0E+2
@@ -1407,7 +1380,6 @@ CAD,acct,MOCK2-TFSA,holding CNR.TO,book_value_totals,0.00
 CAD,acct,MOCK2-TFSA,holding CNR.TO,change,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,change_pct,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,closed,True
-CAD,acct,MOCK2-TFSA,holding CNR.TO,closed_total,35.09
 CAD,acct,MOCK2-TFSA,holding CNR.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_pct,
@@ -1428,7 +1400,7 @@ CAD,acct,MOCK2-TFSA,holding CNR.TO,realized_totals,0
 CAD,acct,MOCK2-TFSA,holding CNR.TO,sector,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,security_type,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,symbol,CNR.TO
-CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl,
+CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl,35.09
 CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_cad,35.09
 CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_totals,
@@ -1445,7 +1417,6 @@ CAD,acct,MOCK2-TFSA,holding ENB.TO,book_value_totals,0.00
 CAD,acct,MOCK2-TFSA,holding ENB.TO,change,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,change_pct,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,closed,True
-CAD,acct,MOCK2-TFSA,holding ENB.TO,closed_total,112.32
 CAD,acct,MOCK2-TFSA,holding ENB.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_pct,
@@ -1466,7 +1437,7 @@ CAD,acct,MOCK2-TFSA,holding ENB.TO,realized_totals,0
 CAD,acct,MOCK2-TFSA,holding ENB.TO,sector,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,security_type,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,symbol,ENB.TO
-CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl,
+CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl,112.32
 CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_cad,112.32
 CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_totals,
@@ -1483,7 +1454,6 @@ CAD,acct,MOCK2-TFSA,holding O,book_value_totals,0.00
 CAD,acct,MOCK2-TFSA,holding O,change,
 CAD,acct,MOCK2-TFSA,holding O,change_pct,
 CAD,acct,MOCK2-TFSA,holding O,closed,True
-CAD,acct,MOCK2-TFSA,holding O,closed_total,6.63390
 CAD,acct,MOCK2-TFSA,holding O,currency,CAD
 CAD,acct,MOCK2-TFSA,holding O,day_pnl,
 CAD,acct,MOCK2-TFSA,holding O,day_pnl_pct,
@@ -1504,7 +1474,7 @@ CAD,acct,MOCK2-TFSA,holding O,realized_totals,0
 CAD,acct,MOCK2-TFSA,holding O,sector,
 CAD,acct,MOCK2-TFSA,holding O,security_type,
 CAD,acct,MOCK2-TFSA,holding O,symbol,O
-CAD,acct,MOCK2-TFSA,holding O,total_pnl,
+CAD,acct,MOCK2-TFSA,holding O,total_pnl,6.63390
 CAD,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 CAD,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding O,total_pnl_totals,
@@ -1521,7 +1491,6 @@ CAD,acct,MOCK2-TFSA,holding RY.TO,book_value_totals,0.00
 CAD,acct,MOCK2-TFSA,holding RY.TO,change,
 CAD,acct,MOCK2-TFSA,holding RY.TO,change_pct,
 CAD,acct,MOCK2-TFSA,holding RY.TO,closed,True
-CAD,acct,MOCK2-TFSA,holding RY.TO,closed_total,59.2
 CAD,acct,MOCK2-TFSA,holding RY.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl_pct,
@@ -1542,7 +1511,7 @@ CAD,acct,MOCK2-TFSA,holding RY.TO,realized_totals,0
 CAD,acct,MOCK2-TFSA,holding RY.TO,sector,
 CAD,acct,MOCK2-TFSA,holding RY.TO,security_type,
 CAD,acct,MOCK2-TFSA,holding RY.TO,symbol,RY.TO
-CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl,
+CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl,59.2
 CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_cad,59.2
 CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding RY.TO,total_pnl_totals,
@@ -1559,7 +1528,6 @@ CAD,acct,MOCK2-TFSA,holding TD.TO,book_value_totals,0.00
 CAD,acct,MOCK2-TFSA,holding TD.TO,change,
 CAD,acct,MOCK2-TFSA,holding TD.TO,change_pct,
 CAD,acct,MOCK2-TFSA,holding TD.TO,closed,True
-CAD,acct,MOCK2-TFSA,holding TD.TO,closed_total,83.4
 CAD,acct,MOCK2-TFSA,holding TD.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl_pct,
@@ -1580,7 +1548,7 @@ CAD,acct,MOCK2-TFSA,holding TD.TO,realized_totals,0
 CAD,acct,MOCK2-TFSA,holding TD.TO,sector,
 CAD,acct,MOCK2-TFSA,holding TD.TO,security_type,
 CAD,acct,MOCK2-TFSA,holding TD.TO,symbol,TD.TO
-CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl,
+CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl,83.4
 CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_cad,83.4
 CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_pct,
 CAD,acct,MOCK2-TFSA,holding TD.TO,total_pnl_totals,
@@ -1667,7 +1635,6 @@ CAD,folio,,holding AAPL,book_value_totals,19850.19805
 CAD,folio,,holding AAPL,change,0.7452
 CAD,folio,,holding AAPL,change_pct,0.001624157844080846968238691049
 CAD,folio,,holding AAPL,closed,False
-CAD,folio,,holding AAPL,closed_total,111.24850
 CAD,folio,,holding AAPL,currency,CAD
 CAD,folio,,holding AAPL,day_pnl,43.2216
 CAD,folio,,holding AAPL,day_pnl_pct,0.0001529824246053571201791242489
@@ -1705,7 +1672,6 @@ CAD,folio,,holding CNR.TO,book_value_totals,1583.45
 CAD,folio,,holding CNR.TO,change,-0.12
 CAD,folio,,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 CAD,folio,,holding CNR.TO,closed,False
-CAD,folio,,holding CNR.TO,closed_total,71.42
 CAD,folio,,holding CNR.TO,currency,CAD
 CAD,folio,,holding CNR.TO,day_pnl,-1.20
 CAD,folio,,holding CNR.TO,day_pnl_pct,-0.000004247388100542981847385314256
@@ -1743,7 +1709,6 @@ CAD,folio,,holding COST,book_value_totals,11768.91290
 CAD,folio,,holding COST,change,-1.5456
 CAD,folio,,holding COST,change_pct,-0.001228797753055537269874706515
 CAD,folio,,holding COST,closed,False
-CAD,folio,,holding COST,closed_total,71.12085
 CAD,folio,,holding COST,currency,CAD
 CAD,folio,,holding COST,day_pnl,-13.9104
 CAD,folio,,holding COST,day_pnl_pct,-0.00004923572286149424557489056286
@@ -1781,7 +1746,6 @@ CAD,folio,,holding DLR.TO,book_value_totals,0.00
 CAD,folio,,holding DLR.TO,change,
 CAD,folio,,holding DLR.TO,change_pct,
 CAD,folio,,holding DLR.TO,closed,True
-CAD,folio,,holding DLR.TO,closed_total,0
 CAD,folio,,holding DLR.TO,currency,CAD
 CAD,folio,,holding DLR.TO,day_pnl,
 CAD,folio,,holding DLR.TO,day_pnl_pct,
@@ -1802,7 +1766,7 @@ CAD,folio,,holding DLR.TO,realized_totals,0
 CAD,folio,,holding DLR.TO,sector,
 CAD,folio,,holding DLR.TO,security_type,
 CAD,folio,,holding DLR.TO,symbol,DLR.TO
-CAD,folio,,holding DLR.TO,total_pnl,
+CAD,folio,,holding DLR.TO,total_pnl,0
 CAD,folio,,holding DLR.TO,total_pnl_cad,0
 CAD,folio,,holding DLR.TO,total_pnl_pct,
 CAD,folio,,holding DLR.TO,total_pnl_totals,
@@ -1819,7 +1783,6 @@ CAD,folio,,holding DLR.U.TO,book_value_totals,0.00
 CAD,folio,,holding DLR.U.TO,change,
 CAD,folio,,holding DLR.U.TO,change_pct,
 CAD,folio,,holding DLR.U.TO,closed,True
-CAD,folio,,holding DLR.U.TO,closed_total,-984.36420
 CAD,folio,,holding DLR.U.TO,currency,CAD
 CAD,folio,,holding DLR.U.TO,day_pnl,
 CAD,folio,,holding DLR.U.TO,day_pnl_pct,
@@ -1840,7 +1803,7 @@ CAD,folio,,holding DLR.U.TO,realized_totals,-984.36420
 CAD,folio,,holding DLR.U.TO,sector,
 CAD,folio,,holding DLR.U.TO,security_type,
 CAD,folio,,holding DLR.U.TO,symbol,DLR.U.TO
-CAD,folio,,holding DLR.U.TO,total_pnl,
+CAD,folio,,holding DLR.U.TO,total_pnl,-984.36420
 CAD,folio,,holding DLR.U.TO,total_pnl_cad,-984.36420
 CAD,folio,,holding DLR.U.TO,total_pnl_pct,
 CAD,folio,,holding DLR.U.TO,total_pnl_totals,
@@ -1857,7 +1820,6 @@ CAD,folio,,holding ENB.TO,book_value_totals,1655.55
 CAD,folio,,holding ENB.TO,change,-0.14
 CAD,folio,,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 CAD,folio,,holding ENB.TO,closed,False
-CAD,folio,,holding ENB.TO,closed_total,227.91
 CAD,folio,,holding ENB.TO,currency,CAD
 CAD,folio,,holding ENB.TO,day_pnl,-4.20
 CAD,folio,,holding ENB.TO,day_pnl_pct,-0.00001486585835190043646584859990
@@ -1895,7 +1857,6 @@ CAD,folio,,holding INTC,book_value_totals,0.000
 CAD,folio,,holding INTC,change,
 CAD,folio,,holding INTC,change_pct,
 CAD,folio,,holding INTC,closed,True
-CAD,folio,,holding INTC,closed_total,-233.890
 CAD,folio,,holding INTC,currency,CAD
 CAD,folio,,holding INTC,day_pnl,
 CAD,folio,,holding INTC,day_pnl_pct,
@@ -1916,7 +1877,7 @@ CAD,folio,,holding INTC,realized_totals,-233.890
 CAD,folio,,holding INTC,sector,
 CAD,folio,,holding INTC,security_type,
 CAD,folio,,holding INTC,symbol,INTC
-CAD,folio,,holding INTC,total_pnl,
+CAD,folio,,holding INTC,total_pnl,-233.890
 CAD,folio,,holding INTC,total_pnl_cad,-233.890
 CAD,folio,,holding INTC,total_pnl_pct,
 CAD,folio,,holding INTC,total_pnl_totals,
@@ -1933,7 +1894,6 @@ CAD,folio,,holding JNJ,book_value_totals,18023.85340
 CAD,folio,,holding JNJ,change,-0.0552
 CAD,folio,,holding JNJ,change_pct,-0.0001510688118437948485535161266
 CAD,folio,,holding JNJ,closed,False
-CAD,folio,,holding JNJ,closed_total,649.22270
 CAD,folio,,holding JNJ,currency,CAD
 CAD,folio,,holding JNJ,day_pnl,-3.9744
 CAD,folio,,holding JNJ,day_pnl_pct,-0.00001406734938899835587854016082
@@ -1971,7 +1931,6 @@ CAD,folio,,holding KO,book_value_totals,27470.86547195767195767195767
 CAD,folio,,holding KO,change,-0.1242
 CAD,folio,,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,folio,,holding KO,closed,False
-CAD,folio,,holding KO,closed_total,2201.324871957671957671957672
 CAD,folio,,holding KO,currency,CAD
 CAD,folio,,holding KO,day_pnl,-36.5148
 CAD,folio,,holding KO,day_pnl_pct,-0.0001292437725114223946340877275
@@ -2009,7 +1968,6 @@ CAD,folio,,holding META,book_value_totals,0.0000
 CAD,folio,,holding META,change,
 CAD,folio,,holding META,change_pct,
 CAD,folio,,holding META,closed,True
-CAD,folio,,holding META,closed_total,1403.92300
 CAD,folio,,holding META,currency,CAD
 CAD,folio,,holding META,day_pnl,
 CAD,folio,,holding META,day_pnl_pct,
@@ -2030,7 +1988,7 @@ CAD,folio,,holding META,realized_totals,1368.4080
 CAD,folio,,holding META,sector,
 CAD,folio,,holding META,security_type,
 CAD,folio,,holding META,symbol,META
-CAD,folio,,holding META,total_pnl,
+CAD,folio,,holding META,total_pnl,1403.92300
 CAD,folio,,holding META,total_pnl_cad,1403.92300
 CAD,folio,,holding META,total_pnl_pct,
 CAD,folio,,holding META,total_pnl_totals,
@@ -2047,7 +2005,6 @@ CAD,folio,,holding MSFT,book_value_totals,13561.32380
 CAD,folio,,holding MSFT,change,0.2622
 CAD,folio,,holding MSFT,change_pct,0.0003705798599598213414990930546
 CAD,folio,,holding MSFT,closed,False
-CAD,folio,,holding MSFT,closed_total,160.21685
 CAD,folio,,holding MSFT,currency,CAD
 CAD,folio,,holding MSFT,day_pnl,6.0306
 CAD,folio,,holding MSFT,day_pnl_pct,0.00002134524889927875527403489680
@@ -2085,7 +2042,6 @@ CAD,folio,,holding NFLX,book_value_totals,10477.43165
 CAD,folio,,holding NFLX,change,-0.5244
 CAD,folio,,holding NFLX,change_pct,-0.005431675242995997712978845054
 CAD,folio,,holding NFLX,closed,False
-CAD,folio,,holding NFLX,closed_total,0
 CAD,folio,,holding NFLX,currency,CAD
 CAD,folio,,holding NFLX,day_pnl,-45.6228
 CAD,folio,,holding NFLX,day_pnl_pct,-0.0001614814481945436268557422627
@@ -2123,7 +2079,6 @@ CAD,folio,,holding NVDA,book_value_totals,15459.95938461538461538461538
 CAD,folio,,holding NVDA,change,0.3450
 CAD,folio,,holding NVDA,change_pct,0.001095866391969491079647569368
 CAD,folio,,holding NVDA,closed,False
-CAD,folio,,holding NVDA,closed_total,2625.896984615384615384615384
 CAD,folio,,holding NVDA,currency,CAD
 CAD,folio,,holding NVDA,day_pnl,27.2550
 CAD,folio,,holding NVDA,day_pnl_pct,0.00009646880223358247520873895005
@@ -2161,7 +2116,6 @@ CAD,folio,,holding O,book_value_totals,18571.87705
 CAD,folio,,holding O,change,-0.3174
 CAD,folio,,holding O,change_pct,-0.004217861727489455345681276362
 CAD,folio,,holding O,closed,False
-CAD,folio,,holding O,closed_total,1115.75665
 CAD,folio,,holding O,currency,CAD
 CAD,folio,,holding O,day_pnl,-72.3672
 CAD,folio,,holding O,day_pnl_pct,-0.0002561429867913450632884187615
@@ -2199,7 +2153,6 @@ CAD,folio,,holding QQQ,book_value_totals,18353.27505
 CAD,folio,,holding QQQ,change,1.0626
 CAD,folio,,holding QQQ,change_pct,0.001041948579161028416779431664
 CAD,folio,,holding QQQ,closed,False
-CAD,folio,,holding QQQ,closed_total,124.99090
 CAD,folio,,holding QQQ,currency,CAD
 CAD,folio,,holding QQQ,day_pnl,26.5650
 CAD,folio,,holding QQQ,day_pnl_pct,0.00009402655407577026064649239435
@@ -2237,7 +2190,6 @@ CAD,folio,,holding REI.UN.TO,book_value_totals,5792.48
 CAD,folio,,holding REI.UN.TO,change,0.00
 CAD,folio,,holding REI.UN.TO,change_pct,0
 CAD,folio,,holding REI.UN.TO,closed,False
-CAD,folio,,holding REI.UN.TO,closed_total,596.14
 CAD,folio,,holding REI.UN.TO,currency,CAD
 CAD,folio,,holding REI.UN.TO,day_pnl,0.00
 CAD,folio,,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -2275,7 +2227,6 @@ CAD,folio,,holding RY.TO,book_value_totals,1692.65
 CAD,folio,,holding RY.TO,change,-0.12
 CAD,folio,,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 CAD,folio,,holding RY.TO,closed,False
-CAD,folio,,holding RY.TO,closed_total,125.0
 CAD,folio,,holding RY.TO,currency,CAD
 CAD,folio,,holding RY.TO,day_pnl,-1.20
 CAD,folio,,holding RY.TO,day_pnl_pct,-0.000004247388100542981847385314256
@@ -2313,7 +2264,6 @@ CAD,folio,,holding SCHD,book_value_totals,26289.97225
 CAD,folio,,holding SCHD,change,-0.1104
 CAD,folio,,holding SCHD,change_pct,-0.002453235203925176326280282122
 CAD,folio,,holding SCHD,closed,False
-CAD,folio,,holding SCHD,closed_total,952.95790
 CAD,folio,,holding SCHD,currency,CAD
 CAD,folio,,holding SCHD,day_pnl,-73.0848
 CAD,folio,,holding SCHD,day_pnl_pct,-0.0002586829248754697664331551795
@@ -2351,7 +2301,6 @@ CAD,folio,,holding SPY,book_value_totals,19158.97890
 CAD,folio,,holding SPY,change,-0.2070
 CAD,folio,,holding SPY,change_pct,-0.0001966490993471249901675450326
 CAD,folio,,holding SPY,closed,False
-CAD,folio,,holding SPY,closed_total,220.87580
 CAD,folio,,holding SPY,currency,CAD
 CAD,folio,,holding SPY,day_pnl,-4.5540
 CAD,folio,,holding SPY,day_pnl_pct,-0.00001611883784156061611082726760
@@ -2389,7 +2338,6 @@ CAD,folio,,holding TD.TO,book_value_totals,1704.35
 CAD,folio,,holding TD.TO,change,-0.01
 CAD,folio,,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 CAD,folio,,holding TD.TO,closed,False
-CAD,folio,,holding TD.TO,closed_total,170.0
 CAD,folio,,holding TD.TO,currency,CAD
 CAD,folio,,holding TD.TO,day_pnl,-0.20
 CAD,folio,,holding TD.TO,day_pnl_pct,-7.078980167571636412308857094E-7
@@ -2427,7 +2375,6 @@ CAD,folio,,holding VFV.TO,book_value_totals,760.12
 CAD,folio,,holding VFV.TO,change,0.13
 CAD,folio,,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 CAD,folio,,holding VFV.TO,closed,False
-CAD,folio,,holding VFV.TO,closed_total,243.45
 CAD,folio,,holding VFV.TO,currency,CAD
 CAD,folio,,holding VFV.TO,day_pnl,0.52
 CAD,folio,,holding VFV.TO,day_pnl_pct,0.000001840534843568625467200302844
@@ -2465,7 +2412,6 @@ CAD,folio,,holding XEQT.TO,book_value_totals,3750.35
 CAD,folio,,holding XEQT.TO,change,0.00
 CAD,folio,,holding XEQT.TO,change_pct,0
 CAD,folio,,holding XEQT.TO,closed,False
-CAD,folio,,holding XEQT.TO,closed_total,48.60
 CAD,folio,,holding XEQT.TO,currency,CAD
 CAD,folio,,holding XEQT.TO,day_pnl,0.00
 CAD,folio,,holding XEQT.TO,day_pnl_pct,0E+2
@@ -2503,7 +2449,6 @@ CAD,folio,,holding XYZ,book_value_totals,15791.60445
 CAD,folio,,holding XYZ,change,-0.3864
 CAD,folio,,holding XYZ,change_pct,-0.003793523912748950006774149844
 CAD,folio,,holding XYZ,closed,False
-CAD,folio,,holding XYZ,closed_total,0
 CAD,folio,,holding XYZ,currency,CAD
 CAD,folio,,holding XYZ,day_pnl,-63.3696
 CAD,folio,,holding XYZ,day_pnl_pct,-0.0002242960708134737853967236753
@@ -2603,7 +2548,6 @@ CAD,type,CORPORATE,holding KO,book_value_totals,5748.10260
 CAD,type,CORPORATE,holding KO,change,-0.1242
 CAD,type,CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,type,CORPORATE,holding KO,closed,False
-CAD,type,CORPORATE,holding KO,closed_total,669.70760
 CAD,type,CORPORATE,holding KO,currency,CAD
 CAD,type,CORPORATE,holding KO,day_pnl,-7.4520
 CAD,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -2709,7 +2653,6 @@ CAD,type,NON_REGISTERED,holding AAPL,book_value_totals,19850.19805
 CAD,type,NON_REGISTERED,holding AAPL,change,0.7452
 CAD,type,NON_REGISTERED,holding AAPL,change_pct,0.001624157844080846968238691049
 CAD,type,NON_REGISTERED,holding AAPL,closed,False
-CAD,type,NON_REGISTERED,holding AAPL,closed_total,111.24850
 CAD,type,NON_REGISTERED,holding AAPL,currency,CAD
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl,43.2216
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
@@ -2747,7 +2690,6 @@ CAD,type,NON_REGISTERED,holding COST,book_value_totals,11768.91290
 CAD,type,NON_REGISTERED,holding COST,change,-1.5456
 CAD,type,NON_REGISTERED,holding COST,change_pct,-0.001228797753055537269874706515
 CAD,type,NON_REGISTERED,holding COST,closed,False
-CAD,type,NON_REGISTERED,holding COST,closed_total,71.12085
 CAD,type,NON_REGISTERED,holding COST,currency,CAD
 CAD,type,NON_REGISTERED,holding COST,day_pnl,-13.9104
 CAD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
@@ -2785,7 +2727,6 @@ CAD,type,NON_REGISTERED,holding DLR.TO,book_value_totals,0.00
 CAD,type,NON_REGISTERED,holding DLR.TO,change,
 CAD,type,NON_REGISTERED,holding DLR.TO,change_pct,
 CAD,type,NON_REGISTERED,holding DLR.TO,closed,True
-CAD,type,NON_REGISTERED,holding DLR.TO,closed_total,0
 CAD,type,NON_REGISTERED,holding DLR.TO,currency,CAD
 CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl,
 CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl_pct,
@@ -2806,7 +2747,7 @@ CAD,type,NON_REGISTERED,holding DLR.TO,realized_totals,0
 CAD,type,NON_REGISTERED,holding DLR.TO,sector,
 CAD,type,NON_REGISTERED,holding DLR.TO,security_type,
 CAD,type,NON_REGISTERED,holding DLR.TO,symbol,DLR.TO
-CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl,
+CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl,0
 CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_cad,0
 CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding DLR.TO,total_pnl_totals,
@@ -2823,7 +2764,6 @@ CAD,type,NON_REGISTERED,holding DLR.U.TO,book_value_totals,0.00
 CAD,type,NON_REGISTERED,holding DLR.U.TO,change,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,change_pct,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,closed,True
-CAD,type,NON_REGISTERED,holding DLR.U.TO,closed_total,-984.36420
 CAD,type,NON_REGISTERED,holding DLR.U.TO,currency,CAD
 CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
@@ -2844,7 +2784,7 @@ CAD,type,NON_REGISTERED,holding DLR.U.TO,realized_totals,-984.36420
 CAD,type,NON_REGISTERED,holding DLR.U.TO,sector,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,security_type,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,symbol,DLR.U.TO
-CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,
+CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,-984.36420
 CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.36420
 CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
@@ -2861,7 +2801,6 @@ CAD,type,NON_REGISTERED,holding INTC,book_value_totals,0.000
 CAD,type,NON_REGISTERED,holding INTC,change,
 CAD,type,NON_REGISTERED,holding INTC,change_pct,
 CAD,type,NON_REGISTERED,holding INTC,closed,True
-CAD,type,NON_REGISTERED,holding INTC,closed_total,-233.890
 CAD,type,NON_REGISTERED,holding INTC,currency,CAD
 CAD,type,NON_REGISTERED,holding INTC,day_pnl,
 CAD,type,NON_REGISTERED,holding INTC,day_pnl_pct,
@@ -2882,7 +2821,7 @@ CAD,type,NON_REGISTERED,holding INTC,realized_totals,-233.890
 CAD,type,NON_REGISTERED,holding INTC,sector,
 CAD,type,NON_REGISTERED,holding INTC,security_type,
 CAD,type,NON_REGISTERED,holding INTC,symbol,INTC
-CAD,type,NON_REGISTERED,holding INTC,total_pnl,
+CAD,type,NON_REGISTERED,holding INTC,total_pnl,-233.890
 CAD,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.890
 CAD,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding INTC,total_pnl_totals,
@@ -2899,7 +2838,6 @@ CAD,type,NON_REGISTERED,holding JNJ,book_value_totals,18023.85340
 CAD,type,NON_REGISTERED,holding JNJ,change,-0.0552
 CAD,type,NON_REGISTERED,holding JNJ,change_pct,-0.0001510688118437948485535161266
 CAD,type,NON_REGISTERED,holding JNJ,closed,False
-CAD,type,NON_REGISTERED,holding JNJ,closed_total,649.22270
 CAD,type,NON_REGISTERED,holding JNJ,currency,CAD
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl,-3.9744
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
@@ -2937,7 +2875,6 @@ CAD,type,NON_REGISTERED,holding KO,book_value_totals,21591.811369696969696969696
 CAD,type,NON_REGISTERED,holding KO,change,-0.1242
 CAD,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 CAD,type,NON_REGISTERED,holding KO,closed,False
-CAD,type,NON_REGISTERED,holding KO,closed_total,1400.665769696969696969696970
 CAD,type,NON_REGISTERED,holding KO,currency,CAD
 CAD,type,NON_REGISTERED,holding KO,day_pnl,-29.0628
 CAD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
@@ -2975,7 +2912,6 @@ CAD,type,NON_REGISTERED,holding META,book_value_totals,0.0000
 CAD,type,NON_REGISTERED,holding META,change,
 CAD,type,NON_REGISTERED,holding META,change_pct,
 CAD,type,NON_REGISTERED,holding META,closed,True
-CAD,type,NON_REGISTERED,holding META,closed_total,1403.92300
 CAD,type,NON_REGISTERED,holding META,currency,CAD
 CAD,type,NON_REGISTERED,holding META,day_pnl,
 CAD,type,NON_REGISTERED,holding META,day_pnl_pct,
@@ -2996,7 +2932,7 @@ CAD,type,NON_REGISTERED,holding META,realized_totals,1368.4080
 CAD,type,NON_REGISTERED,holding META,sector,
 CAD,type,NON_REGISTERED,holding META,security_type,
 CAD,type,NON_REGISTERED,holding META,symbol,META
-CAD,type,NON_REGISTERED,holding META,total_pnl,
+CAD,type,NON_REGISTERED,holding META,total_pnl,1403.92300
 CAD,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 CAD,type,NON_REGISTERED,holding META,total_pnl_pct,
 CAD,type,NON_REGISTERED,holding META,total_pnl_totals,
@@ -3013,7 +2949,6 @@ CAD,type,NON_REGISTERED,holding MSFT,book_value_totals,13561.32380
 CAD,type,NON_REGISTERED,holding MSFT,change,0.2622
 CAD,type,NON_REGISTERED,holding MSFT,change_pct,0.0003705798599598213414990930546
 CAD,type,NON_REGISTERED,holding MSFT,closed,False
-CAD,type,NON_REGISTERED,holding MSFT,closed_total,160.21685
 CAD,type,NON_REGISTERED,holding MSFT,currency,CAD
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl,6.0306
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
@@ -3051,7 +2986,6 @@ CAD,type,NON_REGISTERED,holding NFLX,book_value_totals,9148.18100
 CAD,type,NON_REGISTERED,holding NFLX,change,-0.5244
 CAD,type,NON_REGISTERED,holding NFLX,change_pct,-0.005431675242995997712978845054
 CAD,type,NON_REGISTERED,holding NFLX,closed,False
-CAD,type,NON_REGISTERED,holding NFLX,closed_total,0
 CAD,type,NON_REGISTERED,holding NFLX,currency,CAD
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl,-40.3788
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
@@ -3089,7 +3023,6 @@ CAD,type,NON_REGISTERED,holding NVDA,book_value_totals,15459.9593846153846153846
 CAD,type,NON_REGISTERED,holding NVDA,change,0.3450
 CAD,type,NON_REGISTERED,holding NVDA,change_pct,0.001095866391969491079647569368
 CAD,type,NON_REGISTERED,holding NVDA,closed,False
-CAD,type,NON_REGISTERED,holding NVDA,closed_total,2625.896984615384615384615384
 CAD,type,NON_REGISTERED,holding NVDA,currency,CAD
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl,27.2550
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
@@ -3127,7 +3060,6 @@ CAD,type,NON_REGISTERED,holding O,book_value_totals,18327.61705
 CAD,type,NON_REGISTERED,holding O,change,-0.3174
 CAD,type,NON_REGISTERED,holding O,change_pct,-0.004217861727489455345681276362
 CAD,type,NON_REGISTERED,holding O,closed,False
-CAD,type,NON_REGISTERED,holding O,closed_total,1095.85495
 CAD,type,NON_REGISTERED,holding O,currency,CAD
 CAD,type,NON_REGISTERED,holding O,day_pnl,-71.4150
 CAD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
@@ -3165,7 +3097,6 @@ CAD,type,NON_REGISTERED,holding XYZ,book_value_totals,15791.60445
 CAD,type,NON_REGISTERED,holding XYZ,change,-0.3864
 CAD,type,NON_REGISTERED,holding XYZ,change_pct,-0.003793523912748950006774149844
 CAD,type,NON_REGISTERED,holding XYZ,closed,False
-CAD,type,NON_REGISTERED,holding XYZ,closed_total,0
 CAD,type,NON_REGISTERED,holding XYZ,currency,CAD
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl,-63.3696
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
@@ -3273,7 +3204,6 @@ CAD,type,RRSP,holding NFLX,book_value_totals,1329.25065
 CAD,type,RRSP,holding NFLX,change,-0.5244
 CAD,type,RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 CAD,type,RRSP,holding NFLX,closed,False
-CAD,type,RRSP,holding NFLX,closed_total,0
 CAD,type,RRSP,holding NFLX,currency,CAD
 CAD,type,RRSP,holding NFLX,day_pnl,-5.2440
 CAD,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -3311,7 +3241,6 @@ CAD,type,RRSP,holding QQQ,book_value_totals,18353.27505
 CAD,type,RRSP,holding QQQ,change,1.0626
 CAD,type,RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 CAD,type,RRSP,holding QQQ,closed,False
-CAD,type,RRSP,holding QQQ,closed_total,124.99090
 CAD,type,RRSP,holding QQQ,currency,CAD
 CAD,type,RRSP,holding QQQ,day_pnl,26.5650
 CAD,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -3349,7 +3278,6 @@ CAD,type,RRSP,holding SCHD,book_value_totals,26289.97225
 CAD,type,RRSP,holding SCHD,change,-0.1104
 CAD,type,RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 CAD,type,RRSP,holding SCHD,closed,False
-CAD,type,RRSP,holding SCHD,closed_total,952.95790
 CAD,type,RRSP,holding SCHD,currency,CAD
 CAD,type,RRSP,holding SCHD,day_pnl,-73.0848
 CAD,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -3387,7 +3315,6 @@ CAD,type,RRSP,holding SPY,book_value_totals,19158.97890
 CAD,type,RRSP,holding SPY,change,-0.2070
 CAD,type,RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 CAD,type,RRSP,holding SPY,closed,False
-CAD,type,RRSP,holding SPY,closed_total,220.87580
 CAD,type,RRSP,holding SPY,currency,CAD
 CAD,type,RRSP,holding SPY,day_pnl,-4.5540
 CAD,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -3500,7 +3427,6 @@ CAD,type,TFSA,holding CNR.TO,book_value_totals,1583.45
 CAD,type,TFSA,holding CNR.TO,change,-0.12
 CAD,type,TFSA,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 CAD,type,TFSA,holding CNR.TO,closed,False
-CAD,type,TFSA,holding CNR.TO,closed_total,71.42
 CAD,type,TFSA,holding CNR.TO,currency,CAD
 CAD,type,TFSA,holding CNR.TO,day_pnl,-1.20
 CAD,type,TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -3538,7 +3464,6 @@ CAD,type,TFSA,holding ENB.TO,book_value_totals,1655.55
 CAD,type,TFSA,holding ENB.TO,change,-0.14
 CAD,type,TFSA,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 CAD,type,TFSA,holding ENB.TO,closed,False
-CAD,type,TFSA,holding ENB.TO,closed_total,227.91
 CAD,type,TFSA,holding ENB.TO,currency,CAD
 CAD,type,TFSA,holding ENB.TO,day_pnl,-4.20
 CAD,type,TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
@@ -3576,7 +3501,6 @@ CAD,type,TFSA,holding O,book_value_totals,244.26
 CAD,type,TFSA,holding O,change,-0.3174
 CAD,type,TFSA,holding O,change_pct,-0.004217861727489455345681276362
 CAD,type,TFSA,holding O,closed,False
-CAD,type,TFSA,holding O,closed_total,19.90170
 CAD,type,TFSA,holding O,currency,CAD
 CAD,type,TFSA,holding O,day_pnl,-0.9522
 CAD,type,TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
@@ -3614,7 +3538,6 @@ CAD,type,TFSA,holding REI.UN.TO,book_value_totals,5792.48
 CAD,type,TFSA,holding REI.UN.TO,change,0.00
 CAD,type,TFSA,holding REI.UN.TO,change_pct,0
 CAD,type,TFSA,holding REI.UN.TO,closed,False
-CAD,type,TFSA,holding REI.UN.TO,closed_total,596.14
 CAD,type,TFSA,holding REI.UN.TO,currency,CAD
 CAD,type,TFSA,holding REI.UN.TO,day_pnl,0.00
 CAD,type,TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -3652,7 +3575,6 @@ CAD,type,TFSA,holding RY.TO,book_value_totals,1692.65
 CAD,type,TFSA,holding RY.TO,change,-0.12
 CAD,type,TFSA,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 CAD,type,TFSA,holding RY.TO,closed,False
-CAD,type,TFSA,holding RY.TO,closed_total,125.0
 CAD,type,TFSA,holding RY.TO,currency,CAD
 CAD,type,TFSA,holding RY.TO,day_pnl,-1.20
 CAD,type,TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -3690,7 +3612,6 @@ CAD,type,TFSA,holding TD.TO,book_value_totals,1704.35
 CAD,type,TFSA,holding TD.TO,change,-0.01
 CAD,type,TFSA,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 CAD,type,TFSA,holding TD.TO,closed,False
-CAD,type,TFSA,holding TD.TO,closed_total,170.0
 CAD,type,TFSA,holding TD.TO,currency,CAD
 CAD,type,TFSA,holding TD.TO,day_pnl,-0.20
 CAD,type,TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
@@ -3728,7 +3649,6 @@ CAD,type,TFSA,holding VFV.TO,book_value_totals,760.12
 CAD,type,TFSA,holding VFV.TO,change,0.13
 CAD,type,TFSA,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 CAD,type,TFSA,holding VFV.TO,closed,False
-CAD,type,TFSA,holding VFV.TO,closed_total,243.45
 CAD,type,TFSA,holding VFV.TO,currency,CAD
 CAD,type,TFSA,holding VFV.TO,day_pnl,0.52
 CAD,type,TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
@@ -3766,7 +3686,6 @@ CAD,type,TFSA,holding XEQT.TO,book_value_totals,3750.35
 CAD,type,TFSA,holding XEQT.TO,change,0.00
 CAD,type,TFSA,holding XEQT.TO,change_pct,0
 CAD,type,TFSA,holding XEQT.TO,closed,False
-CAD,type,TFSA,holding XEQT.TO,closed_total,48.60
 CAD,type,TFSA,holding XEQT.TO,currency,CAD
 CAD,type,TFSA,holding XEQT.TO,day_pnl,0.00
 CAD,type,TFSA,holding XEQT.TO,day_pnl_pct,0E+2
@@ -3868,7 +3787,6 @@ USD,acct,MOCK-CORPORATE,holding KO,book_value_totals,4194.72
 USD,acct,MOCK-CORPORATE,holding KO,change,-0.09
 USD,acct,MOCK-CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 USD,acct,MOCK-CORPORATE,holding KO,closed,False
-USD,acct,MOCK-CORPORATE,holding KO,closed_total,535.92
 USD,acct,MOCK-CORPORATE,holding KO,currency,USD
 USD,acct,MOCK-CORPORATE,holding KO,day_pnl,-5.40
 USD,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -3974,7 +3892,6 @@ USD,acct,MOCK-MARGIN,holding KO,book_value_totals,6875.149230769230769230769230
 USD,acct,MOCK-MARGIN,holding KO,change,-0.09
 USD,acct,MOCK-MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
 USD,acct,MOCK-MARGIN,holding KO,closed,False
-USD,acct,MOCK-MARGIN,holding KO,closed_total,670.85
 USD,acct,MOCK-MARGIN,holding KO,currency,USD
 USD,acct,MOCK-MARGIN,holding KO,day_pnl,-9.45
 USD,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -4078,7 +3995,6 @@ USD,acct,MOCK-PERSONAL,holding AAPL,book_value_totals,14593.71
 USD,acct,MOCK-PERSONAL,holding AAPL,change,0.54
 USD,acct,MOCK-PERSONAL,holding AAPL,change_pct,0.001624157844080846968238691049
 USD,acct,MOCK-PERSONAL,holding AAPL,closed,False
-USD,acct,MOCK-PERSONAL,holding AAPL,closed_total,81.38
 USD,acct,MOCK-PERSONAL,holding AAPL,currency,USD
 USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl,31.32
 USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
@@ -4116,7 +4032,6 @@ USD,acct,MOCK-PERSONAL,holding COST,book_value_totals,8649.95
 USD,acct,MOCK-PERSONAL,holding COST,change,-1.12
 USD,acct,MOCK-PERSONAL,holding COST,change_pct,-0.001228797753055537269874706515
 USD,acct,MOCK-PERSONAL,holding COST,closed,False
-USD,acct,MOCK-PERSONAL,holding COST,closed_total,52.01
 USD,acct,MOCK-PERSONAL,holding COST,currency,USD
 USD,acct,MOCK-PERSONAL,holding COST,day_pnl,-10.08
 USD,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
@@ -4154,7 +4069,6 @@ USD,acct,MOCK-PERSONAL,holding DLR.U.TO,book_value_totals,0E-24
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,change,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,change_pct,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
-USD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,USD
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
@@ -4175,7 +4089,7 @@ USD,acct,MOCK-PERSONAL,holding DLR.U.TO,realized_totals,-1039.664486780856522870
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,sector,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,security_type,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,symbol,DLR.U.TO
-USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,
+USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.36420
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
@@ -4192,7 +4106,6 @@ USD,acct,MOCK-PERSONAL,holding INTC,book_value_totals,0.0
 USD,acct,MOCK-PERSONAL,holding INTC,change,
 USD,acct,MOCK-PERSONAL,holding INTC,change_pct,
 USD,acct,MOCK-PERSONAL,holding INTC,closed,True
-USD,acct,MOCK-PERSONAL,holding INTC,closed_total,-156.0
 USD,acct,MOCK-PERSONAL,holding INTC,currency,USD
 USD,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 USD,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
@@ -4213,7 +4126,7 @@ USD,acct,MOCK-PERSONAL,holding INTC,realized_totals,-156.0
 USD,acct,MOCK-PERSONAL,holding INTC,sector,
 USD,acct,MOCK-PERSONAL,holding INTC,security_type,
 USD,acct,MOCK-PERSONAL,holding INTC,symbol,INTC
-USD,acct,MOCK-PERSONAL,holding INTC,total_pnl,
+USD,acct,MOCK-PERSONAL,holding INTC,total_pnl,-156.0
 USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.890
 USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
@@ -4230,7 +4143,6 @@ USD,acct,MOCK-PERSONAL,holding JNJ,book_value_totals,13207.29
 USD,acct,MOCK-PERSONAL,holding JNJ,change,-0.04
 USD,acct,MOCK-PERSONAL,holding JNJ,change_pct,-0.0001510688118437948485535161266
 USD,acct,MOCK-PERSONAL,holding JNJ,closed,False
-USD,acct,MOCK-PERSONAL,holding JNJ,closed_total,476.38
 USD,acct,MOCK-PERSONAL,holding JNJ,currency,USD
 USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-2.88
 USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
@@ -4268,7 +4180,6 @@ USD,acct,MOCK-PERSONAL,holding KO,book_value_totals,9078.78076923076923076923077
 USD,acct,MOCK-PERSONAL,holding KO,change,-0.09
 USD,acct,MOCK-PERSONAL,holding KO,change_pct,-0.001044447023325983520946965301
 USD,acct,MOCK-PERSONAL,holding KO,closed,False
-USD,acct,MOCK-PERSONAL,holding KO,closed_total,408.49
 USD,acct,MOCK-PERSONAL,holding KO,currency,USD
 USD,acct,MOCK-PERSONAL,holding KO,day_pnl,-11.61
 USD,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
@@ -4306,7 +4217,6 @@ USD,acct,MOCK-PERSONAL,holding META,book_value_totals,0.0
 USD,acct,MOCK-PERSONAL,holding META,change,
 USD,acct,MOCK-PERSONAL,holding META,change_pct,
 USD,acct,MOCK-PERSONAL,holding META,closed,True
-USD,acct,MOCK-PERSONAL,holding META,closed_total,1060.80
 USD,acct,MOCK-PERSONAL,holding META,currency,USD
 USD,acct,MOCK-PERSONAL,holding META,day_pnl,
 USD,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
@@ -4327,7 +4237,7 @@ USD,acct,MOCK-PERSONAL,holding META,realized_totals,1034.8
 USD,acct,MOCK-PERSONAL,holding META,sector,
 USD,acct,MOCK-PERSONAL,holding META,security_type,
 USD,acct,MOCK-PERSONAL,holding META,symbol,META
-USD,acct,MOCK-PERSONAL,holding META,total_pnl,
+USD,acct,MOCK-PERSONAL,holding META,total_pnl,1060.80
 USD,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 USD,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 USD,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
@@ -4344,7 +4254,6 @@ USD,acct,MOCK-PERSONAL,holding MSFT,book_value_totals,9936.34
 USD,acct,MOCK-PERSONAL,holding MSFT,change,0.19
 USD,acct,MOCK-PERSONAL,holding MSFT,change_pct,0.0003705798599598213414990930546
 USD,acct,MOCK-PERSONAL,holding MSFT,closed,False
-USD,acct,MOCK-PERSONAL,holding MSFT,closed_total,117.62
 USD,acct,MOCK-PERSONAL,holding MSFT,currency,USD
 USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl,4.37
 USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
@@ -4382,7 +4291,6 @@ USD,acct,MOCK-PERSONAL,holding NFLX,book_value_totals,6739.10
 USD,acct,MOCK-PERSONAL,holding NFLX,change,-0.38
 USD,acct,MOCK-PERSONAL,holding NFLX,change_pct,-0.005431675242995997712978845054
 USD,acct,MOCK-PERSONAL,holding NFLX,closed,False
-USD,acct,MOCK-PERSONAL,holding NFLX,closed_total,0
 USD,acct,MOCK-PERSONAL,holding NFLX,currency,USD
 USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-29.26
 USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
@@ -4420,7 +4328,6 @@ USD,acct,MOCK-PERSONAL,holding NVDA,book_value_totals,11354.71604395604395604395
 USD,acct,MOCK-PERSONAL,holding NVDA,change,0.25
 USD,acct,MOCK-PERSONAL,holding NVDA,change_pct,0.001095866391969491079647569368
 USD,acct,MOCK-PERSONAL,holding NVDA,closed,False
-USD,acct,MOCK-PERSONAL,holding NVDA,closed_total,1952.516043956043956043956044
 USD,acct,MOCK-PERSONAL,holding NVDA,currency,USD
 USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl,19.75
 USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
@@ -4458,7 +4365,6 @@ USD,acct,MOCK-PERSONAL,holding O,book_value_totals,13440.66
 USD,acct,MOCK-PERSONAL,holding O,change,-0.23
 USD,acct,MOCK-PERSONAL,holding O,change_pct,-0.004217861727489455345681276362
 USD,acct,MOCK-PERSONAL,holding O,closed,False
-USD,acct,MOCK-PERSONAL,holding O,closed_total,802.73
 USD,acct,MOCK-PERSONAL,holding O,currency,USD
 USD,acct,MOCK-PERSONAL,holding O,day_pnl,-51.75
 USD,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
@@ -4496,7 +4402,6 @@ USD,acct,MOCK-PERSONAL,holding XYZ,book_value_totals,11497.46
 USD,acct,MOCK-PERSONAL,holding XYZ,change,-0.28
 USD,acct,MOCK-PERSONAL,holding XYZ,change_pct,-0.003793523912748950006774149844
 USD,acct,MOCK-PERSONAL,holding XYZ,closed,False
-USD,acct,MOCK-PERSONAL,holding XYZ,closed_total,0
 USD,acct,MOCK-PERSONAL,holding XYZ,currency,USD
 USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-45.92
 USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
@@ -4604,7 +4509,6 @@ USD,acct,MOCK-RRSP,holding NFLX,book_value_totals,973.81
 USD,acct,MOCK-RRSP,holding NFLX,change,-0.38
 USD,acct,MOCK-RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 USD,acct,MOCK-RRSP,holding NFLX,closed,False
-USD,acct,MOCK-RRSP,holding NFLX,closed_total,0
 USD,acct,MOCK-RRSP,holding NFLX,currency,USD
 USD,acct,MOCK-RRSP,holding NFLX,day_pnl,-3.80
 USD,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -4642,7 +4546,6 @@ USD,acct,MOCK-RRSP,holding QQQ,book_value_totals,13425.39
 USD,acct,MOCK-RRSP,holding QQQ,change,0.77
 USD,acct,MOCK-RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 USD,acct,MOCK-RRSP,holding QQQ,closed,False
-USD,acct,MOCK-RRSP,holding QQQ,closed_total,91.65
 USD,acct,MOCK-RRSP,holding QQQ,currency,USD
 USD,acct,MOCK-RRSP,holding QQQ,day_pnl,19.25
 USD,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -4680,7 +4583,6 @@ USD,acct,MOCK-RRSP,holding SCHD,book_value_totals,19226.52
 USD,acct,MOCK-RRSP,holding SCHD,change,-0.08
 USD,acct,MOCK-RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 USD,acct,MOCK-RRSP,holding SCHD,closed,False
-USD,acct,MOCK-RRSP,holding SCHD,closed_total,700.58
 USD,acct,MOCK-RRSP,holding SCHD,currency,USD
 USD,acct,MOCK-RRSP,holding SCHD,day_pnl,-52.96
 USD,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -4718,7 +4620,6 @@ USD,acct,MOCK-RRSP,holding SPY,book_value_totals,14022.64
 USD,acct,MOCK-RRSP,holding SPY,change,-0.15
 USD,acct,MOCK-RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 USD,acct,MOCK-RRSP,holding SPY,closed,False
-USD,acct,MOCK-RRSP,holding SPY,closed_total,161.57
 USD,acct,MOCK-RRSP,holding SPY,currency,USD
 USD,acct,MOCK-RRSP,holding SPY,day_pnl,-3.30
 USD,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -4831,7 +4732,6 @@ USD,acct,MOCK-TFSA,holding O,book_value_totals,177
 USD,acct,MOCK-TFSA,holding O,change,-0.23
 USD,acct,MOCK-TFSA,holding O,change_pct,-0.004217861727489455345681276362
 USD,acct,MOCK-TFSA,holding O,closed,False
-USD,acct,MOCK-TFSA,holding O,closed_total,9.72
 USD,acct,MOCK-TFSA,holding O,currency,USD
 USD,acct,MOCK-TFSA,holding O,day_pnl,-0.69
 USD,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.004217861727489455345681276362
@@ -4941,7 +4841,6 @@ USD,acct,MOCK2-TFSA,holding O,book_value_totals,0
 USD,acct,MOCK2-TFSA,holding O,change,
 USD,acct,MOCK2-TFSA,holding O,change_pct,
 USD,acct,MOCK2-TFSA,holding O,closed,True
-USD,acct,MOCK2-TFSA,holding O,closed_total,4.86
 USD,acct,MOCK2-TFSA,holding O,currency,USD
 USD,acct,MOCK2-TFSA,holding O,day_pnl,
 USD,acct,MOCK2-TFSA,holding O,day_pnl_pct,
@@ -4962,7 +4861,7 @@ USD,acct,MOCK2-TFSA,holding O,realized_totals,0
 USD,acct,MOCK2-TFSA,holding O,sector,
 USD,acct,MOCK2-TFSA,holding O,security_type,
 USD,acct,MOCK2-TFSA,holding O,symbol,O
-USD,acct,MOCK2-TFSA,holding O,total_pnl,
+USD,acct,MOCK2-TFSA,holding O,total_pnl,4.86
 USD,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 USD,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 USD,acct,MOCK2-TFSA,holding O,total_pnl_totals,
@@ -5047,7 +4946,6 @@ USD,folio,,holding AAPL,book_value_totals,14593.71
 USD,folio,,holding AAPL,change,0.54
 USD,folio,,holding AAPL,change_pct,0.001624157844080846968238691049
 USD,folio,,holding AAPL,closed,False
-USD,folio,,holding AAPL,closed_total,81.38
 USD,folio,,holding AAPL,currency,USD
 USD,folio,,holding AAPL,day_pnl,31.32
 USD,folio,,holding AAPL,day_pnl_pct,0.0001655672024693407285274087200
@@ -5085,7 +4983,6 @@ USD,folio,,holding COST,book_value_totals,8649.95
 USD,folio,,holding COST,change,-1.12
 USD,folio,,holding COST,change_pct,-0.001228797753055537269874706515
 USD,folio,,holding COST,closed,False
-USD,folio,,holding COST,closed_total,52.01
 USD,folio,,holding COST,currency,USD
 USD,folio,,holding COST,day_pnl,-10.08
 USD,folio,,holding COST,day_pnl_pct,-0.00005328599619702919998583269149
@@ -5123,7 +5020,6 @@ USD,folio,,holding DLR.U.TO,book_value_totals,0E-24
 USD,folio,,holding DLR.U.TO,change,
 USD,folio,,holding DLR.U.TO,change_pct,
 USD,folio,,holding DLR.U.TO,closed,True
-USD,folio,,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 USD,folio,,holding DLR.U.TO,currency,USD
 USD,folio,,holding DLR.U.TO,day_pnl,
 USD,folio,,holding DLR.U.TO,day_pnl_pct,
@@ -5144,7 +5040,7 @@ USD,folio,,holding DLR.U.TO,realized_totals,-1039.664486780856522870817214
 USD,folio,,holding DLR.U.TO,sector,
 USD,folio,,holding DLR.U.TO,security_type,
 USD,folio,,holding DLR.U.TO,symbol,DLR.U.TO
-USD,folio,,holding DLR.U.TO,total_pnl,
+USD,folio,,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 USD,folio,,holding DLR.U.TO,total_pnl_cad,-984.36420
 USD,folio,,holding DLR.U.TO,total_pnl_pct,
 USD,folio,,holding DLR.U.TO,total_pnl_totals,
@@ -5161,7 +5057,6 @@ USD,folio,,holding INTC,book_value_totals,0.0
 USD,folio,,holding INTC,change,
 USD,folio,,holding INTC,change_pct,
 USD,folio,,holding INTC,closed,True
-USD,folio,,holding INTC,closed_total,-156.0
 USD,folio,,holding INTC,currency,USD
 USD,folio,,holding INTC,day_pnl,
 USD,folio,,holding INTC,day_pnl_pct,
@@ -5182,7 +5077,7 @@ USD,folio,,holding INTC,realized_totals,-156.0
 USD,folio,,holding INTC,sector,
 USD,folio,,holding INTC,security_type,
 USD,folio,,holding INTC,symbol,INTC
-USD,folio,,holding INTC,total_pnl,
+USD,folio,,holding INTC,total_pnl,-156.0
 USD,folio,,holding INTC,total_pnl_cad,-233.890
 USD,folio,,holding INTC,total_pnl_pct,
 USD,folio,,holding INTC,total_pnl_totals,
@@ -5199,7 +5094,6 @@ USD,folio,,holding JNJ,book_value_totals,13207.29
 USD,folio,,holding JNJ,change,-0.04
 USD,folio,,holding JNJ,change_pct,-0.0001510688118437948485535161266
 USD,folio,,holding JNJ,closed,False
-USD,folio,,holding JNJ,closed_total,476.38
 USD,folio,,holding JNJ,currency,USD
 USD,folio,,holding JNJ,day_pnl,-2.88
 USD,folio,,holding JNJ,day_pnl_pct,-0.00001522457034200834285309505471
@@ -5237,7 +5131,6 @@ USD,folio,,holding KO,book_value_totals,20154.66291005291005291005291
 USD,folio,,holding KO,change,-0.09
 USD,folio,,holding KO,change_pct,-0.001044447023325983520946965301
 USD,folio,,holding KO,closed,False
-USD,folio,,holding KO,closed_total,1621.272910052910052910052909
 USD,folio,,holding KO,currency,USD
 USD,folio,,holding KO,day_pnl,-26.46
 USD,folio,,holding KO,day_pnl_pct,-0.0001398757400172016499628108152
@@ -5275,7 +5168,6 @@ USD,folio,,holding META,book_value_totals,0.0
 USD,folio,,holding META,change,
 USD,folio,,holding META,change_pct,
 USD,folio,,holding META,closed,True
-USD,folio,,holding META,closed_total,1060.80
 USD,folio,,holding META,currency,USD
 USD,folio,,holding META,day_pnl,
 USD,folio,,holding META,day_pnl_pct,
@@ -5296,7 +5188,7 @@ USD,folio,,holding META,realized_totals,1034.8
 USD,folio,,holding META,sector,
 USD,folio,,holding META,security_type,
 USD,folio,,holding META,symbol,META
-USD,folio,,holding META,total_pnl,
+USD,folio,,holding META,total_pnl,1060.80
 USD,folio,,holding META,total_pnl_cad,1403.92300
 USD,folio,,holding META,total_pnl_pct,
 USD,folio,,holding META,total_pnl_totals,
@@ -5313,7 +5205,6 @@ USD,folio,,holding MSFT,book_value_totals,9936.34
 USD,folio,,holding MSFT,change,0.19
 USD,folio,,holding MSFT,change_pct,0.0003705798599598213414990930546
 USD,folio,,holding MSFT,closed,False
-USD,folio,,holding MSFT,closed_total,117.62
 USD,folio,,holding MSFT,currency,USD
 USD,folio,,holding MSFT,day_pnl,4.37
 USD,folio,,holding MSFT,day_pnl_pct,0.00002310117097033904800973103788
@@ -5351,7 +5242,6 @@ USD,folio,,holding NFLX,book_value_totals,7712.91
 USD,folio,,holding NFLX,change,-0.38
 USD,folio,,holding NFLX,change_pct,-0.005431675242995997712978845054
 USD,folio,,holding NFLX,closed,False
-USD,folio,,holding NFLX,closed_total,0
 USD,folio,,holding NFLX,currency,USD
 USD,folio,,holding NFLX,day_pnl,-33.06
 USD,folio,,holding NFLX,day_pnl_pct,-0.0001747653803843041023344869822
@@ -5389,7 +5279,6 @@ USD,folio,,holding NVDA,book_value_totals,11354.71604395604395604395604
 USD,folio,,holding NVDA,change,0.25
 USD,folio,,holding NVDA,change_pct,0.001095866391969491079647569368
 USD,folio,,holding NVDA,closed,False
-USD,folio,,holding NVDA,closed_total,1952.516043956043956043956044
 USD,folio,,holding NVDA,currency,USD
 USD,folio,,holding NVDA,day_pnl,19.75
 USD,folio,,holding NVDA,day_pnl_pct,0.0001044046056439808233849400453
@@ -5427,7 +5316,6 @@ USD,folio,,holding O,book_value_totals,13617.66
 USD,folio,,holding O,change,-0.23
 USD,folio,,holding O,change_pct,-0.004217861727489455345681276362
 USD,folio,,holding O,closed,False
-USD,folio,,holding O,closed_total,817.31
 USD,folio,,holding O,currency,USD
 USD,folio,,holding O,day_pnl,-52.44
 USD,folio,,holding O,day_pnl_pct,-0.0002772140516440685761167724545
@@ -5465,7 +5353,6 @@ USD,folio,,holding QQQ,book_value_totals,13425.39
 USD,folio,,holding QQQ,change,0.77
 USD,folio,,holding QQQ,change_pct,0.001041948579161028416779431664
 USD,folio,,holding QQQ,closed,False
-USD,folio,,holding QQQ,closed_total,91.65
 USD,folio,,holding QQQ,currency,USD
 USD,folio,,holding QQQ,day_pnl,19.25
 USD,folio,,holding QQQ,day_pnl_pct,0.0001017614510707154860840554872
@@ -5503,7 +5390,6 @@ USD,folio,,holding SCHD,book_value_totals,19226.52
 USD,folio,,holding SCHD,change,-0.08
 USD,folio,,holding SCHD,change_pct,-0.002453235203925176326280282122
 USD,folio,,holding SCHD,closed,False
-USD,folio,,holding SCHD,closed_total,700.58
 USD,folio,,holding SCHD,currency,USD
 USD,folio,,holding SCHD,day_pnl,-52.96
 USD,folio,,holding SCHD,day_pnl_pct,-0.0002799629324002645269096923950
@@ -5541,7 +5427,6 @@ USD,folio,,holding SPY,book_value_totals,14022.64
 USD,folio,,holding SPY,change,-0.15
 USD,folio,,holding SPY,change_pct,-0.0001966490993471249901675450326
 USD,folio,,holding SPY,closed,False
-USD,folio,,holding SPY,closed_total,161.57
 USD,folio,,holding SPY,currency,USD
 USD,folio,,holding SPY,day_pnl,-3.30
 USD,folio,,holding SPY,day_pnl_pct,-0.00001744482018355122618583808352
@@ -5579,7 +5464,6 @@ USD,folio,,holding XYZ,book_value_totals,11497.46
 USD,folio,,holding XYZ,change,-0.28
 USD,folio,,holding XYZ,change_pct,-0.003793523912748950006774149844
 USD,folio,,holding XYZ,closed,False
-USD,folio,,holding XYZ,closed_total,0
 USD,folio,,holding XYZ,currency,USD
 USD,folio,,holding XYZ,day_pnl,-45.92
 USD,folio,,holding XYZ,day_pnl_pct,-0.0002427473160086885777132378168
@@ -5679,7 +5563,6 @@ USD,type,CORPORATE,holding KO,book_value_totals,4194.72
 USD,type,CORPORATE,holding KO,change,-0.09
 USD,type,CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 USD,type,CORPORATE,holding KO,closed,False
-USD,type,CORPORATE,holding KO,closed_total,535.92
 USD,type,CORPORATE,holding KO,currency,USD
 USD,type,CORPORATE,holding KO,day_pnl,-5.40
 USD,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -5783,7 +5666,6 @@ USD,type,NON_REGISTERED,holding AAPL,book_value_totals,14593.71
 USD,type,NON_REGISTERED,holding AAPL,change,0.54
 USD,type,NON_REGISTERED,holding AAPL,change_pct,0.001624157844080846968238691049
 USD,type,NON_REGISTERED,holding AAPL,closed,False
-USD,type,NON_REGISTERED,holding AAPL,closed_total,81.38
 USD,type,NON_REGISTERED,holding AAPL,currency,USD
 USD,type,NON_REGISTERED,holding AAPL,day_pnl,31.32
 USD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
@@ -5821,7 +5703,6 @@ USD,type,NON_REGISTERED,holding COST,book_value_totals,8649.95
 USD,type,NON_REGISTERED,holding COST,change,-1.12
 USD,type,NON_REGISTERED,holding COST,change_pct,-0.001228797753055537269874706515
 USD,type,NON_REGISTERED,holding COST,closed,False
-USD,type,NON_REGISTERED,holding COST,closed_total,52.01
 USD,type,NON_REGISTERED,holding COST,currency,USD
 USD,type,NON_REGISTERED,holding COST,day_pnl,-10.08
 USD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
@@ -5859,7 +5740,6 @@ USD,type,NON_REGISTERED,holding DLR.U.TO,book_value_totals,0E-24
 USD,type,NON_REGISTERED,holding DLR.U.TO,change,
 USD,type,NON_REGISTERED,holding DLR.U.TO,change_pct,
 USD,type,NON_REGISTERED,holding DLR.U.TO,closed,True
-USD,type,NON_REGISTERED,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 USD,type,NON_REGISTERED,holding DLR.U.TO,currency,USD
 USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
@@ -5880,7 +5760,7 @@ USD,type,NON_REGISTERED,holding DLR.U.TO,realized_totals,-1039.66448678085652287
 USD,type,NON_REGISTERED,holding DLR.U.TO,sector,
 USD,type,NON_REGISTERED,holding DLR.U.TO,security_type,
 USD,type,NON_REGISTERED,holding DLR.U.TO,symbol,DLR.U.TO
-USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,
+USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.36420
 USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 USD,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
@@ -5897,7 +5777,6 @@ USD,type,NON_REGISTERED,holding INTC,book_value_totals,0.0
 USD,type,NON_REGISTERED,holding INTC,change,
 USD,type,NON_REGISTERED,holding INTC,change_pct,
 USD,type,NON_REGISTERED,holding INTC,closed,True
-USD,type,NON_REGISTERED,holding INTC,closed_total,-156.0
 USD,type,NON_REGISTERED,holding INTC,currency,USD
 USD,type,NON_REGISTERED,holding INTC,day_pnl,
 USD,type,NON_REGISTERED,holding INTC,day_pnl_pct,
@@ -5918,7 +5797,7 @@ USD,type,NON_REGISTERED,holding INTC,realized_totals,-156.0
 USD,type,NON_REGISTERED,holding INTC,sector,
 USD,type,NON_REGISTERED,holding INTC,security_type,
 USD,type,NON_REGISTERED,holding INTC,symbol,INTC
-USD,type,NON_REGISTERED,holding INTC,total_pnl,
+USD,type,NON_REGISTERED,holding INTC,total_pnl,-156.0
 USD,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.890
 USD,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 USD,type,NON_REGISTERED,holding INTC,total_pnl_totals,
@@ -5935,7 +5814,6 @@ USD,type,NON_REGISTERED,holding JNJ,book_value_totals,13207.29
 USD,type,NON_REGISTERED,holding JNJ,change,-0.04
 USD,type,NON_REGISTERED,holding JNJ,change_pct,-0.0001510688118437948485535161266
 USD,type,NON_REGISTERED,holding JNJ,closed,False
-USD,type,NON_REGISTERED,holding JNJ,closed_total,476.38
 USD,type,NON_REGISTERED,holding JNJ,currency,USD
 USD,type,NON_REGISTERED,holding JNJ,day_pnl,-2.88
 USD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
@@ -5973,7 +5851,6 @@ USD,type,NON_REGISTERED,holding KO,book_value_totals,15880.699696969696969696969
 USD,type,NON_REGISTERED,holding KO,change,-0.09
 USD,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 USD,type,NON_REGISTERED,holding KO,closed,False
-USD,type,NON_REGISTERED,holding KO,closed_total,1006.109696969696969696969697
 USD,type,NON_REGISTERED,holding KO,currency,USD
 USD,type,NON_REGISTERED,holding KO,day_pnl,-21.06
 USD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
@@ -6011,7 +5888,6 @@ USD,type,NON_REGISTERED,holding META,book_value_totals,0.0
 USD,type,NON_REGISTERED,holding META,change,
 USD,type,NON_REGISTERED,holding META,change_pct,
 USD,type,NON_REGISTERED,holding META,closed,True
-USD,type,NON_REGISTERED,holding META,closed_total,1060.80
 USD,type,NON_REGISTERED,holding META,currency,USD
 USD,type,NON_REGISTERED,holding META,day_pnl,
 USD,type,NON_REGISTERED,holding META,day_pnl_pct,
@@ -6032,7 +5908,7 @@ USD,type,NON_REGISTERED,holding META,realized_totals,1034.8
 USD,type,NON_REGISTERED,holding META,sector,
 USD,type,NON_REGISTERED,holding META,security_type,
 USD,type,NON_REGISTERED,holding META,symbol,META
-USD,type,NON_REGISTERED,holding META,total_pnl,
+USD,type,NON_REGISTERED,holding META,total_pnl,1060.80
 USD,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 USD,type,NON_REGISTERED,holding META,total_pnl_pct,
 USD,type,NON_REGISTERED,holding META,total_pnl_totals,
@@ -6049,7 +5925,6 @@ USD,type,NON_REGISTERED,holding MSFT,book_value_totals,9936.34
 USD,type,NON_REGISTERED,holding MSFT,change,0.19
 USD,type,NON_REGISTERED,holding MSFT,change_pct,0.0003705798599598213414990930546
 USD,type,NON_REGISTERED,holding MSFT,closed,False
-USD,type,NON_REGISTERED,holding MSFT,closed_total,117.62
 USD,type,NON_REGISTERED,holding MSFT,currency,USD
 USD,type,NON_REGISTERED,holding MSFT,day_pnl,4.37
 USD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
@@ -6087,7 +5962,6 @@ USD,type,NON_REGISTERED,holding NFLX,book_value_totals,6739.10
 USD,type,NON_REGISTERED,holding NFLX,change,-0.38
 USD,type,NON_REGISTERED,holding NFLX,change_pct,-0.005431675242995997712978845054
 USD,type,NON_REGISTERED,holding NFLX,closed,False
-USD,type,NON_REGISTERED,holding NFLX,closed_total,0
 USD,type,NON_REGISTERED,holding NFLX,currency,USD
 USD,type,NON_REGISTERED,holding NFLX,day_pnl,-29.26
 USD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
@@ -6125,7 +5999,6 @@ USD,type,NON_REGISTERED,holding NVDA,book_value_totals,11354.7160439560439560439
 USD,type,NON_REGISTERED,holding NVDA,change,0.25
 USD,type,NON_REGISTERED,holding NVDA,change_pct,0.001095866391969491079647569368
 USD,type,NON_REGISTERED,holding NVDA,closed,False
-USD,type,NON_REGISTERED,holding NVDA,closed_total,1952.516043956043956043956044
 USD,type,NON_REGISTERED,holding NVDA,currency,USD
 USD,type,NON_REGISTERED,holding NVDA,day_pnl,19.75
 USD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
@@ -6163,7 +6036,6 @@ USD,type,NON_REGISTERED,holding O,book_value_totals,13440.66
 USD,type,NON_REGISTERED,holding O,change,-0.23
 USD,type,NON_REGISTERED,holding O,change_pct,-0.004217861727489455345681276362
 USD,type,NON_REGISTERED,holding O,closed,False
-USD,type,NON_REGISTERED,holding O,closed_total,802.73
 USD,type,NON_REGISTERED,holding O,currency,USD
 USD,type,NON_REGISTERED,holding O,day_pnl,-51.75
 USD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
@@ -6201,7 +6073,6 @@ USD,type,NON_REGISTERED,holding XYZ,book_value_totals,11497.46
 USD,type,NON_REGISTERED,holding XYZ,change,-0.28
 USD,type,NON_REGISTERED,holding XYZ,change_pct,-0.003793523912748950006774149844
 USD,type,NON_REGISTERED,holding XYZ,closed,False
-USD,type,NON_REGISTERED,holding XYZ,closed_total,0
 USD,type,NON_REGISTERED,holding XYZ,currency,USD
 USD,type,NON_REGISTERED,holding XYZ,day_pnl,-45.92
 USD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
@@ -6309,7 +6180,6 @@ USD,type,RRSP,holding NFLX,book_value_totals,973.81
 USD,type,RRSP,holding NFLX,change,-0.38
 USD,type,RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 USD,type,RRSP,holding NFLX,closed,False
-USD,type,RRSP,holding NFLX,closed_total,0
 USD,type,RRSP,holding NFLX,currency,USD
 USD,type,RRSP,holding NFLX,day_pnl,-3.80
 USD,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -6347,7 +6217,6 @@ USD,type,RRSP,holding QQQ,book_value_totals,13425.39
 USD,type,RRSP,holding QQQ,change,0.77
 USD,type,RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 USD,type,RRSP,holding QQQ,closed,False
-USD,type,RRSP,holding QQQ,closed_total,91.65
 USD,type,RRSP,holding QQQ,currency,USD
 USD,type,RRSP,holding QQQ,day_pnl,19.25
 USD,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -6385,7 +6254,6 @@ USD,type,RRSP,holding SCHD,book_value_totals,19226.52
 USD,type,RRSP,holding SCHD,change,-0.08
 USD,type,RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 USD,type,RRSP,holding SCHD,closed,False
-USD,type,RRSP,holding SCHD,closed_total,700.58
 USD,type,RRSP,holding SCHD,currency,USD
 USD,type,RRSP,holding SCHD,day_pnl,-52.96
 USD,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -6423,7 +6291,6 @@ USD,type,RRSP,holding SPY,book_value_totals,14022.64
 USD,type,RRSP,holding SPY,change,-0.15
 USD,type,RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 USD,type,RRSP,holding SPY,closed,False
-USD,type,RRSP,holding SPY,closed_total,161.57
 USD,type,RRSP,holding SPY,currency,USD
 USD,type,RRSP,holding SPY,day_pnl,-3.30
 USD,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -6534,7 +6401,6 @@ USD,type,TFSA,holding O,book_value_totals,177
 USD,type,TFSA,holding O,change,-0.23
 USD,type,TFSA,holding O,change_pct,-0.004217861727489455345681276362
 USD,type,TFSA,holding O,closed,False
-USD,type,TFSA,holding O,closed_total,14.58
 USD,type,TFSA,holding O,currency,USD
 USD,type,TFSA,holding O,day_pnl,-0.69
 USD,type,TFSA,holding O,day_pnl_pct,-0.004217861727489455345681276362
@@ -6636,7 +6502,6 @@ native,acct,MOCK-CORPORATE,holding KO,book_value_totals,5748.10260
 native,acct,MOCK-CORPORATE,holding KO,change,-0.09
 native,acct,MOCK-CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 native,acct,MOCK-CORPORATE,holding KO,closed,False
-native,acct,MOCK-CORPORATE,holding KO,closed_total,535.92
 native,acct,MOCK-CORPORATE,holding KO,currency,USD
 native,acct,MOCK-CORPORATE,holding KO,day_pnl,-5.40
 native,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -6742,7 +6607,6 @@ native,acct,MOCK-MARGIN,holding KO,book_value_totals,9345.9437076923076923076923
 native,acct,MOCK-MARGIN,holding KO,change,-0.09
 native,acct,MOCK-MARGIN,holding KO,change_pct,-0.001044447023325983520946965301
 native,acct,MOCK-MARGIN,holding KO,closed,False
-native,acct,MOCK-MARGIN,holding KO,closed_total,670.85
 native,acct,MOCK-MARGIN,holding KO,currency,USD
 native,acct,MOCK-MARGIN,holding KO,day_pnl,-9.45
 native,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -6848,7 +6712,6 @@ native,acct,MOCK-PERSONAL,holding AAPL,book_value_totals,19850.19805
 native,acct,MOCK-PERSONAL,holding AAPL,change,0.54
 native,acct,MOCK-PERSONAL,holding AAPL,change_pct,0.001624157844080846968238691049
 native,acct,MOCK-PERSONAL,holding AAPL,closed,False
-native,acct,MOCK-PERSONAL,holding AAPL,closed_total,81.38
 native,acct,MOCK-PERSONAL,holding AAPL,currency,USD
 native,acct,MOCK-PERSONAL,holding AAPL,day_pnl,31.32
 native,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
@@ -6886,7 +6749,6 @@ native,acct,MOCK-PERSONAL,holding COST,book_value_totals,11768.91290
 native,acct,MOCK-PERSONAL,holding COST,change,-1.12
 native,acct,MOCK-PERSONAL,holding COST,change_pct,-0.001228797753055537269874706515
 native,acct,MOCK-PERSONAL,holding COST,closed,False
-native,acct,MOCK-PERSONAL,holding COST,closed_total,52.01
 native,acct,MOCK-PERSONAL,holding COST,currency,USD
 native,acct,MOCK-PERSONAL,holding COST,day_pnl,-10.08
 native,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
@@ -6924,7 +6786,6 @@ native,acct,MOCK-PERSONAL,holding DLR.TO,book_value_totals,0.00
 native,acct,MOCK-PERSONAL,holding DLR.TO,change,
 native,acct,MOCK-PERSONAL,holding DLR.TO,change_pct,
 native,acct,MOCK-PERSONAL,holding DLR.TO,closed,True
-native,acct,MOCK-PERSONAL,holding DLR.TO,closed_total,0
 native,acct,MOCK-PERSONAL,holding DLR.TO,currency,CAD
 native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl,
 native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_pct,
@@ -6945,7 +6806,7 @@ native,acct,MOCK-PERSONAL,holding DLR.TO,realized_totals,0
 native,acct,MOCK-PERSONAL,holding DLR.TO,sector,
 native,acct,MOCK-PERSONAL,holding DLR.TO,security_type,
 native,acct,MOCK-PERSONAL,holding DLR.TO,symbol,DLR.TO
-native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl,
+native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl,0
 native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_cad,0
 native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding DLR.TO,total_pnl_totals,
@@ -6962,7 +6823,6 @@ native,acct,MOCK-PERSONAL,holding DLR.U.TO,book_value_totals,0.00
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,change,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,change_pct,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
-native,acct,MOCK-PERSONAL,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,USD
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
@@ -6983,7 +6843,7 @@ native,acct,MOCK-PERSONAL,holding DLR.U.TO,realized_totals,-984.36420
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,sector,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,security_type,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,symbol,DLR.U.TO
-native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,
+native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_cad,-984.36420
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,total_pnl_totals,
@@ -7000,7 +6860,6 @@ native,acct,MOCK-PERSONAL,holding INTC,book_value_totals,0.000
 native,acct,MOCK-PERSONAL,holding INTC,change,
 native,acct,MOCK-PERSONAL,holding INTC,change_pct,
 native,acct,MOCK-PERSONAL,holding INTC,closed,True
-native,acct,MOCK-PERSONAL,holding INTC,closed_total,-156.0
 native,acct,MOCK-PERSONAL,holding INTC,currency,USD
 native,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 native,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
@@ -7021,7 +6880,7 @@ native,acct,MOCK-PERSONAL,holding INTC,realized_totals,-233.890
 native,acct,MOCK-PERSONAL,holding INTC,sector,
 native,acct,MOCK-PERSONAL,holding INTC,security_type,
 native,acct,MOCK-PERSONAL,holding INTC,symbol,INTC
-native,acct,MOCK-PERSONAL,holding INTC,total_pnl,
+native,acct,MOCK-PERSONAL,holding INTC,total_pnl,-156.0
 native,acct,MOCK-PERSONAL,holding INTC,total_pnl_cad,-233.890
 native,acct,MOCK-PERSONAL,holding INTC,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding INTC,total_pnl_totals,
@@ -7038,7 +6897,6 @@ native,acct,MOCK-PERSONAL,holding JNJ,book_value_totals,18023.85340
 native,acct,MOCK-PERSONAL,holding JNJ,change,-0.04
 native,acct,MOCK-PERSONAL,holding JNJ,change_pct,-0.0001510688118437948485535161266
 native,acct,MOCK-PERSONAL,holding JNJ,closed,False
-native,acct,MOCK-PERSONAL,holding JNJ,closed_total,476.38
 native,acct,MOCK-PERSONAL,holding JNJ,currency,USD
 native,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-2.88
 native,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
@@ -7076,7 +6934,6 @@ native,acct,MOCK-PERSONAL,holding KO,book_value_totals,12340.4236923076923076923
 native,acct,MOCK-PERSONAL,holding KO,change,-0.09
 native,acct,MOCK-PERSONAL,holding KO,change_pct,-0.001044447023325983520946965301
 native,acct,MOCK-PERSONAL,holding KO,closed,False
-native,acct,MOCK-PERSONAL,holding KO,closed_total,408.49
 native,acct,MOCK-PERSONAL,holding KO,currency,USD
 native,acct,MOCK-PERSONAL,holding KO,day_pnl,-11.61
 native,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
@@ -7114,7 +6971,6 @@ native,acct,MOCK-PERSONAL,holding META,book_value_totals,0.0000
 native,acct,MOCK-PERSONAL,holding META,change,
 native,acct,MOCK-PERSONAL,holding META,change_pct,
 native,acct,MOCK-PERSONAL,holding META,closed,True
-native,acct,MOCK-PERSONAL,holding META,closed_total,1060.80
 native,acct,MOCK-PERSONAL,holding META,currency,USD
 native,acct,MOCK-PERSONAL,holding META,day_pnl,
 native,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
@@ -7135,7 +6991,7 @@ native,acct,MOCK-PERSONAL,holding META,realized_totals,1368.4080
 native,acct,MOCK-PERSONAL,holding META,sector,
 native,acct,MOCK-PERSONAL,holding META,security_type,
 native,acct,MOCK-PERSONAL,holding META,symbol,META
-native,acct,MOCK-PERSONAL,holding META,total_pnl,
+native,acct,MOCK-PERSONAL,holding META,total_pnl,1060.80
 native,acct,MOCK-PERSONAL,holding META,total_pnl_cad,1403.92300
 native,acct,MOCK-PERSONAL,holding META,total_pnl_pct,
 native,acct,MOCK-PERSONAL,holding META,total_pnl_totals,
@@ -7152,7 +7008,6 @@ native,acct,MOCK-PERSONAL,holding MSFT,book_value_totals,13561.32380
 native,acct,MOCK-PERSONAL,holding MSFT,change,0.19
 native,acct,MOCK-PERSONAL,holding MSFT,change_pct,0.0003705798599598213414990930546
 native,acct,MOCK-PERSONAL,holding MSFT,closed,False
-native,acct,MOCK-PERSONAL,holding MSFT,closed_total,117.62
 native,acct,MOCK-PERSONAL,holding MSFT,currency,USD
 native,acct,MOCK-PERSONAL,holding MSFT,day_pnl,4.37
 native,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
@@ -7190,7 +7045,6 @@ native,acct,MOCK-PERSONAL,holding NFLX,book_value_totals,9148.18100
 native,acct,MOCK-PERSONAL,holding NFLX,change,-0.38
 native,acct,MOCK-PERSONAL,holding NFLX,change_pct,-0.005431675242995997712978845054
 native,acct,MOCK-PERSONAL,holding NFLX,closed,False
-native,acct,MOCK-PERSONAL,holding NFLX,closed_total,0
 native,acct,MOCK-PERSONAL,holding NFLX,currency,USD
 native,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-29.26
 native,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
@@ -7228,7 +7082,6 @@ native,acct,MOCK-PERSONAL,holding NVDA,book_value_totals,15459.95938461538461538
 native,acct,MOCK-PERSONAL,holding NVDA,change,0.25
 native,acct,MOCK-PERSONAL,holding NVDA,change_pct,0.001095866391969491079647569368
 native,acct,MOCK-PERSONAL,holding NVDA,closed,False
-native,acct,MOCK-PERSONAL,holding NVDA,closed_total,1952.516043956043956043956044
 native,acct,MOCK-PERSONAL,holding NVDA,currency,USD
 native,acct,MOCK-PERSONAL,holding NVDA,day_pnl,19.75
 native,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
@@ -7266,7 +7119,6 @@ native,acct,MOCK-PERSONAL,holding O,book_value_totals,18327.61705
 native,acct,MOCK-PERSONAL,holding O,change,-0.23
 native,acct,MOCK-PERSONAL,holding O,change_pct,-0.004217861727489455345681276362
 native,acct,MOCK-PERSONAL,holding O,closed,False
-native,acct,MOCK-PERSONAL,holding O,closed_total,802.73
 native,acct,MOCK-PERSONAL,holding O,currency,USD
 native,acct,MOCK-PERSONAL,holding O,day_pnl,-51.75
 native,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
@@ -7304,7 +7156,6 @@ native,acct,MOCK-PERSONAL,holding XYZ,book_value_totals,15791.60445
 native,acct,MOCK-PERSONAL,holding XYZ,change,-0.28
 native,acct,MOCK-PERSONAL,holding XYZ,change_pct,-0.003793523912748950006774149844
 native,acct,MOCK-PERSONAL,holding XYZ,closed,False
-native,acct,MOCK-PERSONAL,holding XYZ,closed_total,0
 native,acct,MOCK-PERSONAL,holding XYZ,currency,USD
 native,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-45.92
 native,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
@@ -7433,7 +7284,6 @@ native,acct,MOCK-RRSP,holding NFLX,book_value_totals,1329.25065
 native,acct,MOCK-RRSP,holding NFLX,change,-0.38
 native,acct,MOCK-RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 native,acct,MOCK-RRSP,holding NFLX,closed,False
-native,acct,MOCK-RRSP,holding NFLX,closed_total,0
 native,acct,MOCK-RRSP,holding NFLX,currency,USD
 native,acct,MOCK-RRSP,holding NFLX,day_pnl,-3.80
 native,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -7471,7 +7321,6 @@ native,acct,MOCK-RRSP,holding QQQ,book_value_totals,18353.27505
 native,acct,MOCK-RRSP,holding QQQ,change,0.77
 native,acct,MOCK-RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 native,acct,MOCK-RRSP,holding QQQ,closed,False
-native,acct,MOCK-RRSP,holding QQQ,closed_total,91.65
 native,acct,MOCK-RRSP,holding QQQ,currency,USD
 native,acct,MOCK-RRSP,holding QQQ,day_pnl,19.25
 native,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -7509,7 +7358,6 @@ native,acct,MOCK-RRSP,holding SCHD,book_value_totals,26289.97225
 native,acct,MOCK-RRSP,holding SCHD,change,-0.08
 native,acct,MOCK-RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 native,acct,MOCK-RRSP,holding SCHD,closed,False
-native,acct,MOCK-RRSP,holding SCHD,closed_total,700.58
 native,acct,MOCK-RRSP,holding SCHD,currency,USD
 native,acct,MOCK-RRSP,holding SCHD,day_pnl,-52.96
 native,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -7547,7 +7395,6 @@ native,acct,MOCK-RRSP,holding SPY,book_value_totals,19158.97890
 native,acct,MOCK-RRSP,holding SPY,change,-0.15
 native,acct,MOCK-RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 native,acct,MOCK-RRSP,holding SPY,closed,False
-native,acct,MOCK-RRSP,holding SPY,closed_total,161.57
 native,acct,MOCK-RRSP,holding SPY,currency,USD
 native,acct,MOCK-RRSP,holding SPY,day_pnl,-3.30
 native,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -7662,7 +7509,6 @@ native,acct,MOCK-TFSA,holding CNR.TO,book_value_totals,1583.45
 native,acct,MOCK-TFSA,holding CNR.TO,change,-0.12
 native,acct,MOCK-TFSA,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 native,acct,MOCK-TFSA,holding CNR.TO,closed,False
-native,acct,MOCK-TFSA,holding CNR.TO,closed_total,36.33
 native,acct,MOCK-TFSA,holding CNR.TO,currency,CAD
 native,acct,MOCK-TFSA,holding CNR.TO,day_pnl,-1.20
 native,acct,MOCK-TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -7700,7 +7546,6 @@ native,acct,MOCK-TFSA,holding ENB.TO,book_value_totals,1655.55
 native,acct,MOCK-TFSA,holding ENB.TO,change,-0.14
 native,acct,MOCK-TFSA,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 native,acct,MOCK-TFSA,holding ENB.TO,closed,False
-native,acct,MOCK-TFSA,holding ENB.TO,closed_total,115.59
 native,acct,MOCK-TFSA,holding ENB.TO,currency,CAD
 native,acct,MOCK-TFSA,holding ENB.TO,day_pnl,-4.20
 native,acct,MOCK-TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
@@ -7738,7 +7583,6 @@ native,acct,MOCK-TFSA,holding O,book_value_totals,244.26
 native,acct,MOCK-TFSA,holding O,change,-0.23
 native,acct,MOCK-TFSA,holding O,change_pct,-0.004217861727489455345681276362
 native,acct,MOCK-TFSA,holding O,closed,False
-native,acct,MOCK-TFSA,holding O,closed_total,9.72
 native,acct,MOCK-TFSA,holding O,currency,USD
 native,acct,MOCK-TFSA,holding O,day_pnl,-0.69
 native,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
@@ -7776,7 +7620,6 @@ native,acct,MOCK-TFSA,holding REI.UN.TO,book_value_totals,5792.48
 native,acct,MOCK-TFSA,holding REI.UN.TO,change,0.00
 native,acct,MOCK-TFSA,holding REI.UN.TO,change_pct,0
 native,acct,MOCK-TFSA,holding REI.UN.TO,closed,False
-native,acct,MOCK-TFSA,holding REI.UN.TO,closed_total,596.14
 native,acct,MOCK-TFSA,holding REI.UN.TO,currency,CAD
 native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl,0.00
 native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -7814,7 +7657,6 @@ native,acct,MOCK-TFSA,holding RY.TO,book_value_totals,1692.65
 native,acct,MOCK-TFSA,holding RY.TO,change,-0.12
 native,acct,MOCK-TFSA,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 native,acct,MOCK-TFSA,holding RY.TO,closed,False
-native,acct,MOCK-TFSA,holding RY.TO,closed_total,65.8
 native,acct,MOCK-TFSA,holding RY.TO,currency,CAD
 native,acct,MOCK-TFSA,holding RY.TO,day_pnl,-1.20
 native,acct,MOCK-TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -7852,7 +7694,6 @@ native,acct,MOCK-TFSA,holding TD.TO,book_value_totals,1704.35
 native,acct,MOCK-TFSA,holding TD.TO,change,-0.01
 native,acct,MOCK-TFSA,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 native,acct,MOCK-TFSA,holding TD.TO,closed,False
-native,acct,MOCK-TFSA,holding TD.TO,closed_total,86.6
 native,acct,MOCK-TFSA,holding TD.TO,currency,CAD
 native,acct,MOCK-TFSA,holding TD.TO,day_pnl,-0.20
 native,acct,MOCK-TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
@@ -7890,7 +7731,6 @@ native,acct,MOCK-TFSA,holding VFV.TO,book_value_totals,760.12
 native,acct,MOCK-TFSA,holding VFV.TO,change,0.13
 native,acct,MOCK-TFSA,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 native,acct,MOCK-TFSA,holding VFV.TO,closed,False
-native,acct,MOCK-TFSA,holding VFV.TO,closed_total,243.45
 native,acct,MOCK-TFSA,holding VFV.TO,currency,CAD
 native,acct,MOCK-TFSA,holding VFV.TO,day_pnl,0.52
 native,acct,MOCK-TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
@@ -7928,7 +7768,6 @@ native,acct,MOCK-TFSA,holding XEQT.TO,book_value_totals,3750.35
 native,acct,MOCK-TFSA,holding XEQT.TO,change,0.00
 native,acct,MOCK-TFSA,holding XEQT.TO,change_pct,0
 native,acct,MOCK-TFSA,holding XEQT.TO,closed,False
-native,acct,MOCK-TFSA,holding XEQT.TO,closed_total,48.60
 native,acct,MOCK-TFSA,holding XEQT.TO,currency,CAD
 native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl,0.00
 native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_pct,0E+2
@@ -8063,7 +7902,6 @@ native,acct,MOCK2-TFSA,holding CNR.TO,book_value_totals,0.00
 native,acct,MOCK2-TFSA,holding CNR.TO,change,
 native,acct,MOCK2-TFSA,holding CNR.TO,change_pct,
 native,acct,MOCK2-TFSA,holding CNR.TO,closed,True
-native,acct,MOCK2-TFSA,holding CNR.TO,closed_total,35.09
 native,acct,MOCK2-TFSA,holding CNR.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_pct,
@@ -8084,7 +7922,7 @@ native,acct,MOCK2-TFSA,holding CNR.TO,realized_totals,0
 native,acct,MOCK2-TFSA,holding CNR.TO,sector,
 native,acct,MOCK2-TFSA,holding CNR.TO,security_type,
 native,acct,MOCK2-TFSA,holding CNR.TO,symbol,CNR.TO
-native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl,
+native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl,35.09
 native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_cad,35.09
 native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding CNR.TO,total_pnl_totals,
@@ -8101,7 +7939,6 @@ native,acct,MOCK2-TFSA,holding ENB.TO,book_value_totals,0.00
 native,acct,MOCK2-TFSA,holding ENB.TO,change,
 native,acct,MOCK2-TFSA,holding ENB.TO,change_pct,
 native,acct,MOCK2-TFSA,holding ENB.TO,closed,True
-native,acct,MOCK2-TFSA,holding ENB.TO,closed_total,112.32
 native,acct,MOCK2-TFSA,holding ENB.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_pct,
@@ -8122,7 +7959,7 @@ native,acct,MOCK2-TFSA,holding ENB.TO,realized_totals,0
 native,acct,MOCK2-TFSA,holding ENB.TO,sector,
 native,acct,MOCK2-TFSA,holding ENB.TO,security_type,
 native,acct,MOCK2-TFSA,holding ENB.TO,symbol,ENB.TO
-native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl,
+native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl,112.32
 native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_cad,112.32
 native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding ENB.TO,total_pnl_totals,
@@ -8139,7 +7976,6 @@ native,acct,MOCK2-TFSA,holding O,book_value_totals,0.00
 native,acct,MOCK2-TFSA,holding O,change,
 native,acct,MOCK2-TFSA,holding O,change_pct,
 native,acct,MOCK2-TFSA,holding O,closed,True
-native,acct,MOCK2-TFSA,holding O,closed_total,4.86
 native,acct,MOCK2-TFSA,holding O,currency,USD
 native,acct,MOCK2-TFSA,holding O,day_pnl,
 native,acct,MOCK2-TFSA,holding O,day_pnl_pct,
@@ -8160,7 +7996,7 @@ native,acct,MOCK2-TFSA,holding O,realized_totals,0
 native,acct,MOCK2-TFSA,holding O,sector,
 native,acct,MOCK2-TFSA,holding O,security_type,
 native,acct,MOCK2-TFSA,holding O,symbol,O
-native,acct,MOCK2-TFSA,holding O,total_pnl,
+native,acct,MOCK2-TFSA,holding O,total_pnl,4.86
 native,acct,MOCK2-TFSA,holding O,total_pnl_cad,6.63390
 native,acct,MOCK2-TFSA,holding O,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding O,total_pnl_totals,
@@ -8177,7 +8013,6 @@ native,acct,MOCK2-TFSA,holding RY.TO,book_value_totals,0.00
 native,acct,MOCK2-TFSA,holding RY.TO,change,
 native,acct,MOCK2-TFSA,holding RY.TO,change_pct,
 native,acct,MOCK2-TFSA,holding RY.TO,closed,True
-native,acct,MOCK2-TFSA,holding RY.TO,closed_total,59.2
 native,acct,MOCK2-TFSA,holding RY.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding RY.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding RY.TO,day_pnl_pct,
@@ -8198,7 +8033,7 @@ native,acct,MOCK2-TFSA,holding RY.TO,realized_totals,0
 native,acct,MOCK2-TFSA,holding RY.TO,sector,
 native,acct,MOCK2-TFSA,holding RY.TO,security_type,
 native,acct,MOCK2-TFSA,holding RY.TO,symbol,RY.TO
-native,acct,MOCK2-TFSA,holding RY.TO,total_pnl,
+native,acct,MOCK2-TFSA,holding RY.TO,total_pnl,59.2
 native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_cad,59.2
 native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding RY.TO,total_pnl_totals,
@@ -8215,7 +8050,6 @@ native,acct,MOCK2-TFSA,holding TD.TO,book_value_totals,0.00
 native,acct,MOCK2-TFSA,holding TD.TO,change,
 native,acct,MOCK2-TFSA,holding TD.TO,change_pct,
 native,acct,MOCK2-TFSA,holding TD.TO,closed,True
-native,acct,MOCK2-TFSA,holding TD.TO,closed_total,83.4
 native,acct,MOCK2-TFSA,holding TD.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding TD.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding TD.TO,day_pnl_pct,
@@ -8236,7 +8070,7 @@ native,acct,MOCK2-TFSA,holding TD.TO,realized_totals,0
 native,acct,MOCK2-TFSA,holding TD.TO,sector,
 native,acct,MOCK2-TFSA,holding TD.TO,security_type,
 native,acct,MOCK2-TFSA,holding TD.TO,symbol,TD.TO
-native,acct,MOCK2-TFSA,holding TD.TO,total_pnl,
+native,acct,MOCK2-TFSA,holding TD.TO,total_pnl,83.4
 native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_cad,83.4
 native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_pct,
 native,acct,MOCK2-TFSA,holding TD.TO,total_pnl_totals,
@@ -8344,7 +8178,6 @@ native,folio,,holding AAPL,book_value_totals,19850.19805
 native,folio,,holding AAPL,change,0.54
 native,folio,,holding AAPL,change_pct,0.001624157844080846968238691049
 native,folio,,holding AAPL,closed,False
-native,folio,,holding AAPL,closed_total,81.38
 native,folio,,holding AAPL,currency,USD
 native,folio,,holding AAPL,day_pnl,31.32
 native,folio,,holding AAPL,day_pnl_pct,0.0001529824246053571201791242489
@@ -8382,7 +8215,6 @@ native,folio,,holding CNR.TO,book_value_totals,1583.45
 native,folio,,holding CNR.TO,change,-0.12
 native,folio,,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 native,folio,,holding CNR.TO,closed,False
-native,folio,,holding CNR.TO,closed_total,71.42
 native,folio,,holding CNR.TO,currency,CAD
 native,folio,,holding CNR.TO,day_pnl,-1.20
 native,folio,,holding CNR.TO,day_pnl_pct,-0.000004247388100542981847385314256
@@ -8420,7 +8252,6 @@ native,folio,,holding COST,book_value_totals,11768.91290
 native,folio,,holding COST,change,-1.12
 native,folio,,holding COST,change_pct,-0.001228797753055537269874706515
 native,folio,,holding COST,closed,False
-native,folio,,holding COST,closed_total,52.01
 native,folio,,holding COST,currency,USD
 native,folio,,holding COST,day_pnl,-10.08
 native,folio,,holding COST,day_pnl_pct,-0.00004923572286149424557489056286
@@ -8458,7 +8289,6 @@ native,folio,,holding DLR.TO,book_value_totals,0.00
 native,folio,,holding DLR.TO,change,
 native,folio,,holding DLR.TO,change_pct,
 native,folio,,holding DLR.TO,closed,True
-native,folio,,holding DLR.TO,closed_total,0
 native,folio,,holding DLR.TO,currency,CAD
 native,folio,,holding DLR.TO,day_pnl,
 native,folio,,holding DLR.TO,day_pnl_pct,
@@ -8479,7 +8309,7 @@ native,folio,,holding DLR.TO,realized_totals,0
 native,folio,,holding DLR.TO,sector,
 native,folio,,holding DLR.TO,security_type,
 native,folio,,holding DLR.TO,symbol,DLR.TO
-native,folio,,holding DLR.TO,total_pnl,
+native,folio,,holding DLR.TO,total_pnl,0
 native,folio,,holding DLR.TO,total_pnl_cad,0
 native,folio,,holding DLR.TO,total_pnl_pct,
 native,folio,,holding DLR.TO,total_pnl_totals,
@@ -8496,7 +8326,6 @@ native,folio,,holding DLR.U.TO,book_value_totals,0.00
 native,folio,,holding DLR.U.TO,change,
 native,folio,,holding DLR.U.TO,change_pct,
 native,folio,,holding DLR.U.TO,closed,True
-native,folio,,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 native,folio,,holding DLR.U.TO,currency,USD
 native,folio,,holding DLR.U.TO,day_pnl,
 native,folio,,holding DLR.U.TO,day_pnl_pct,
@@ -8517,7 +8346,7 @@ native,folio,,holding DLR.U.TO,realized_totals,-984.36420
 native,folio,,holding DLR.U.TO,sector,
 native,folio,,holding DLR.U.TO,security_type,
 native,folio,,holding DLR.U.TO,symbol,DLR.U.TO
-native,folio,,holding DLR.U.TO,total_pnl,
+native,folio,,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 native,folio,,holding DLR.U.TO,total_pnl_cad,-984.36420
 native,folio,,holding DLR.U.TO,total_pnl_pct,
 native,folio,,holding DLR.U.TO,total_pnl_totals,
@@ -8534,7 +8363,6 @@ native,folio,,holding ENB.TO,book_value_totals,1655.55
 native,folio,,holding ENB.TO,change,-0.14
 native,folio,,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 native,folio,,holding ENB.TO,closed,False
-native,folio,,holding ENB.TO,closed_total,227.91
 native,folio,,holding ENB.TO,currency,CAD
 native,folio,,holding ENB.TO,day_pnl,-4.20
 native,folio,,holding ENB.TO,day_pnl_pct,-0.00001486585835190043646584859990
@@ -8572,7 +8400,6 @@ native,folio,,holding INTC,book_value_totals,0.000
 native,folio,,holding INTC,change,
 native,folio,,holding INTC,change_pct,
 native,folio,,holding INTC,closed,True
-native,folio,,holding INTC,closed_total,-156.0
 native,folio,,holding INTC,currency,USD
 native,folio,,holding INTC,day_pnl,
 native,folio,,holding INTC,day_pnl_pct,
@@ -8593,7 +8420,7 @@ native,folio,,holding INTC,realized_totals,-233.890
 native,folio,,holding INTC,sector,
 native,folio,,holding INTC,security_type,
 native,folio,,holding INTC,symbol,INTC
-native,folio,,holding INTC,total_pnl,
+native,folio,,holding INTC,total_pnl,-156.0
 native,folio,,holding INTC,total_pnl_cad,-233.890
 native,folio,,holding INTC,total_pnl_pct,
 native,folio,,holding INTC,total_pnl_totals,
@@ -8610,7 +8437,6 @@ native,folio,,holding JNJ,book_value_totals,18023.85340
 native,folio,,holding JNJ,change,-0.04
 native,folio,,holding JNJ,change_pct,-0.0001510688118437948485535161266
 native,folio,,holding JNJ,closed,False
-native,folio,,holding JNJ,closed_total,476.38
 native,folio,,holding JNJ,currency,USD
 native,folio,,holding JNJ,day_pnl,-2.88
 native,folio,,holding JNJ,day_pnl_pct,-0.00001406734938899835587854016082
@@ -8648,7 +8474,6 @@ native,folio,,holding KO,book_value_totals,27470.86547195767195767195767
 native,folio,,holding KO,change,-0.09
 native,folio,,holding KO,change_pct,-0.001044447023325983520946965301
 native,folio,,holding KO,closed,False
-native,folio,,holding KO,closed_total,1621.272910052910052910052909
 native,folio,,holding KO,currency,USD
 native,folio,,holding KO,day_pnl,-26.46
 native,folio,,holding KO,day_pnl_pct,-0.0001292437725114223946340877275
@@ -8686,7 +8511,6 @@ native,folio,,holding META,book_value_totals,0.0000
 native,folio,,holding META,change,
 native,folio,,holding META,change_pct,
 native,folio,,holding META,closed,True
-native,folio,,holding META,closed_total,1060.80
 native,folio,,holding META,currency,USD
 native,folio,,holding META,day_pnl,
 native,folio,,holding META,day_pnl_pct,
@@ -8707,7 +8531,7 @@ native,folio,,holding META,realized_totals,1368.4080
 native,folio,,holding META,sector,
 native,folio,,holding META,security_type,
 native,folio,,holding META,symbol,META
-native,folio,,holding META,total_pnl,
+native,folio,,holding META,total_pnl,1060.80
 native,folio,,holding META,total_pnl_cad,1403.92300
 native,folio,,holding META,total_pnl_pct,
 native,folio,,holding META,total_pnl_totals,
@@ -8724,7 +8548,6 @@ native,folio,,holding MSFT,book_value_totals,13561.32380
 native,folio,,holding MSFT,change,0.19
 native,folio,,holding MSFT,change_pct,0.0003705798599598213414990930546
 native,folio,,holding MSFT,closed,False
-native,folio,,holding MSFT,closed_total,117.62
 native,folio,,holding MSFT,currency,USD
 native,folio,,holding MSFT,day_pnl,4.37
 native,folio,,holding MSFT,day_pnl_pct,0.00002134524889927875527403489680
@@ -8762,7 +8585,6 @@ native,folio,,holding NFLX,book_value_totals,10477.43165
 native,folio,,holding NFLX,change,-0.38
 native,folio,,holding NFLX,change_pct,-0.005431675242995997712978845054
 native,folio,,holding NFLX,closed,False
-native,folio,,holding NFLX,closed_total,0
 native,folio,,holding NFLX,currency,USD
 native,folio,,holding NFLX,day_pnl,-33.06
 native,folio,,holding NFLX,day_pnl_pct,-0.0001614814481945436268557422627
@@ -8800,7 +8622,6 @@ native,folio,,holding NVDA,book_value_totals,15459.95938461538461538461538
 native,folio,,holding NVDA,change,0.25
 native,folio,,holding NVDA,change_pct,0.001095866391969491079647569368
 native,folio,,holding NVDA,closed,False
-native,folio,,holding NVDA,closed_total,1952.516043956043956043956044
 native,folio,,holding NVDA,currency,USD
 native,folio,,holding NVDA,day_pnl,19.75
 native,folio,,holding NVDA,day_pnl_pct,0.00009646880223358247520873895005
@@ -8838,7 +8659,6 @@ native,folio,,holding O,book_value_totals,18571.87705
 native,folio,,holding O,change,-0.23
 native,folio,,holding O,change_pct,-0.004217861727489455345681276362
 native,folio,,holding O,closed,False
-native,folio,,holding O,closed_total,817.31
 native,folio,,holding O,currency,USD
 native,folio,,holding O,day_pnl,-52.44
 native,folio,,holding O,day_pnl_pct,-0.0002561429867913450632884187615
@@ -8876,7 +8696,6 @@ native,folio,,holding QQQ,book_value_totals,18353.27505
 native,folio,,holding QQQ,change,0.77
 native,folio,,holding QQQ,change_pct,0.001041948579161028416779431664
 native,folio,,holding QQQ,closed,False
-native,folio,,holding QQQ,closed_total,91.65
 native,folio,,holding QQQ,currency,USD
 native,folio,,holding QQQ,day_pnl,19.25
 native,folio,,holding QQQ,day_pnl_pct,0.00009402655407577026064649239435
@@ -8914,7 +8733,6 @@ native,folio,,holding REI.UN.TO,book_value_totals,5792.48
 native,folio,,holding REI.UN.TO,change,0.00
 native,folio,,holding REI.UN.TO,change_pct,0
 native,folio,,holding REI.UN.TO,closed,False
-native,folio,,holding REI.UN.TO,closed_total,596.14
 native,folio,,holding REI.UN.TO,currency,CAD
 native,folio,,holding REI.UN.TO,day_pnl,0.00
 native,folio,,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -8952,7 +8770,6 @@ native,folio,,holding RY.TO,book_value_totals,1692.65
 native,folio,,holding RY.TO,change,-0.12
 native,folio,,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 native,folio,,holding RY.TO,closed,False
-native,folio,,holding RY.TO,closed_total,125.0
 native,folio,,holding RY.TO,currency,CAD
 native,folio,,holding RY.TO,day_pnl,-1.20
 native,folio,,holding RY.TO,day_pnl_pct,-0.000004247388100542981847385314256
@@ -8990,7 +8807,6 @@ native,folio,,holding SCHD,book_value_totals,26289.97225
 native,folio,,holding SCHD,change,-0.08
 native,folio,,holding SCHD,change_pct,-0.002453235203925176326280282122
 native,folio,,holding SCHD,closed,False
-native,folio,,holding SCHD,closed_total,700.58
 native,folio,,holding SCHD,currency,USD
 native,folio,,holding SCHD,day_pnl,-52.96
 native,folio,,holding SCHD,day_pnl_pct,-0.0002586829248754697664331551795
@@ -9028,7 +8844,6 @@ native,folio,,holding SPY,book_value_totals,19158.97890
 native,folio,,holding SPY,change,-0.15
 native,folio,,holding SPY,change_pct,-0.0001966490993471249901675450326
 native,folio,,holding SPY,closed,False
-native,folio,,holding SPY,closed_total,161.57
 native,folio,,holding SPY,currency,USD
 native,folio,,holding SPY,day_pnl,-3.30
 native,folio,,holding SPY,day_pnl_pct,-0.00001611883784156061611082726760
@@ -9066,7 +8881,6 @@ native,folio,,holding TD.TO,book_value_totals,1704.35
 native,folio,,holding TD.TO,change,-0.01
 native,folio,,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 native,folio,,holding TD.TO,closed,False
-native,folio,,holding TD.TO,closed_total,170.0
 native,folio,,holding TD.TO,currency,CAD
 native,folio,,holding TD.TO,day_pnl,-0.20
 native,folio,,holding TD.TO,day_pnl_pct,-7.078980167571636412308857094E-7
@@ -9104,7 +8918,6 @@ native,folio,,holding VFV.TO,book_value_totals,760.12
 native,folio,,holding VFV.TO,change,0.13
 native,folio,,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 native,folio,,holding VFV.TO,closed,False
-native,folio,,holding VFV.TO,closed_total,243.45
 native,folio,,holding VFV.TO,currency,CAD
 native,folio,,holding VFV.TO,day_pnl,0.52
 native,folio,,holding VFV.TO,day_pnl_pct,0.000001840534843568625467200302844
@@ -9142,7 +8955,6 @@ native,folio,,holding XEQT.TO,book_value_totals,3750.35
 native,folio,,holding XEQT.TO,change,0.00
 native,folio,,holding XEQT.TO,change_pct,0
 native,folio,,holding XEQT.TO,closed,False
-native,folio,,holding XEQT.TO,closed_total,48.60
 native,folio,,holding XEQT.TO,currency,CAD
 native,folio,,holding XEQT.TO,day_pnl,0.00
 native,folio,,holding XEQT.TO,day_pnl_pct,0E+2
@@ -9180,7 +8992,6 @@ native,folio,,holding XYZ,book_value_totals,15791.60445
 native,folio,,holding XYZ,change,-0.28
 native,folio,,holding XYZ,change_pct,-0.003793523912748950006774149844
 native,folio,,holding XYZ,closed,False
-native,folio,,holding XYZ,closed_total,0
 native,folio,,holding XYZ,currency,USD
 native,folio,,holding XYZ,day_pnl,-45.92
 native,folio,,holding XYZ,day_pnl_pct,-0.0002242960708134737853967236753
@@ -9300,7 +9111,6 @@ native,type,CORPORATE,holding KO,book_value_totals,5748.10260
 native,type,CORPORATE,holding KO,change,-0.09
 native,type,CORPORATE,holding KO,change_pct,-0.001044447023325983520946965301
 native,type,CORPORATE,holding KO,closed,False
-native,type,CORPORATE,holding KO,closed_total,535.92
 native,type,CORPORATE,holding KO,currency,USD
 native,type,CORPORATE,holding KO,day_pnl,-5.40
 native,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
@@ -9406,7 +9216,6 @@ native,type,NON_REGISTERED,holding AAPL,book_value_totals,19850.19805
 native,type,NON_REGISTERED,holding AAPL,change,0.54
 native,type,NON_REGISTERED,holding AAPL,change_pct,0.001624157844080846968238691049
 native,type,NON_REGISTERED,holding AAPL,closed,False
-native,type,NON_REGISTERED,holding AAPL,closed_total,81.38
 native,type,NON_REGISTERED,holding AAPL,currency,USD
 native,type,NON_REGISTERED,holding AAPL,day_pnl,31.32
 native,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
@@ -9444,7 +9253,6 @@ native,type,NON_REGISTERED,holding COST,book_value_totals,11768.91290
 native,type,NON_REGISTERED,holding COST,change,-1.12
 native,type,NON_REGISTERED,holding COST,change_pct,-0.001228797753055537269874706515
 native,type,NON_REGISTERED,holding COST,closed,False
-native,type,NON_REGISTERED,holding COST,closed_total,52.01
 native,type,NON_REGISTERED,holding COST,currency,USD
 native,type,NON_REGISTERED,holding COST,day_pnl,-10.08
 native,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
@@ -9482,7 +9290,6 @@ native,type,NON_REGISTERED,holding DLR.TO,book_value_totals,0.00
 native,type,NON_REGISTERED,holding DLR.TO,change,
 native,type,NON_REGISTERED,holding DLR.TO,change_pct,
 native,type,NON_REGISTERED,holding DLR.TO,closed,True
-native,type,NON_REGISTERED,holding DLR.TO,closed_total,0
 native,type,NON_REGISTERED,holding DLR.TO,currency,CAD
 native,type,NON_REGISTERED,holding DLR.TO,day_pnl,
 native,type,NON_REGISTERED,holding DLR.TO,day_pnl_pct,
@@ -9503,7 +9310,7 @@ native,type,NON_REGISTERED,holding DLR.TO,realized_totals,0
 native,type,NON_REGISTERED,holding DLR.TO,sector,
 native,type,NON_REGISTERED,holding DLR.TO,security_type,
 native,type,NON_REGISTERED,holding DLR.TO,symbol,DLR.TO
-native,type,NON_REGISTERED,holding DLR.TO,total_pnl,
+native,type,NON_REGISTERED,holding DLR.TO,total_pnl,0
 native,type,NON_REGISTERED,holding DLR.TO,total_pnl_cad,0
 native,type,NON_REGISTERED,holding DLR.TO,total_pnl_pct,
 native,type,NON_REGISTERED,holding DLR.TO,total_pnl_totals,
@@ -9520,7 +9327,6 @@ native,type,NON_REGISTERED,holding DLR.U.TO,book_value_totals,0.00
 native,type,NON_REGISTERED,holding DLR.U.TO,change,
 native,type,NON_REGISTERED,holding DLR.U.TO,change_pct,
 native,type,NON_REGISTERED,holding DLR.U.TO,closed,True
-native,type,NON_REGISTERED,holding DLR.U.TO,closed_total,-1039.664486780856522870817214
 native,type,NON_REGISTERED,holding DLR.U.TO,currency,USD
 native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
@@ -9541,7 +9347,7 @@ native,type,NON_REGISTERED,holding DLR.U.TO,realized_totals,-984.36420
 native,type,NON_REGISTERED,holding DLR.U.TO,sector,
 native,type,NON_REGISTERED,holding DLR.U.TO,security_type,
 native,type,NON_REGISTERED,holding DLR.U.TO,symbol,DLR.U.TO
-native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,
+native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl,-1039.664486780856522870817214
 native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_cad,-984.36420
 native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_pct,
 native,type,NON_REGISTERED,holding DLR.U.TO,total_pnl_totals,
@@ -9558,7 +9364,6 @@ native,type,NON_REGISTERED,holding INTC,book_value_totals,0.000
 native,type,NON_REGISTERED,holding INTC,change,
 native,type,NON_REGISTERED,holding INTC,change_pct,
 native,type,NON_REGISTERED,holding INTC,closed,True
-native,type,NON_REGISTERED,holding INTC,closed_total,-156.0
 native,type,NON_REGISTERED,holding INTC,currency,USD
 native,type,NON_REGISTERED,holding INTC,day_pnl,
 native,type,NON_REGISTERED,holding INTC,day_pnl_pct,
@@ -9579,7 +9384,7 @@ native,type,NON_REGISTERED,holding INTC,realized_totals,-233.890
 native,type,NON_REGISTERED,holding INTC,sector,
 native,type,NON_REGISTERED,holding INTC,security_type,
 native,type,NON_REGISTERED,holding INTC,symbol,INTC
-native,type,NON_REGISTERED,holding INTC,total_pnl,
+native,type,NON_REGISTERED,holding INTC,total_pnl,-156.0
 native,type,NON_REGISTERED,holding INTC,total_pnl_cad,-233.890
 native,type,NON_REGISTERED,holding INTC,total_pnl_pct,
 native,type,NON_REGISTERED,holding INTC,total_pnl_totals,
@@ -9596,7 +9401,6 @@ native,type,NON_REGISTERED,holding JNJ,book_value_totals,18023.85340
 native,type,NON_REGISTERED,holding JNJ,change,-0.04
 native,type,NON_REGISTERED,holding JNJ,change_pct,-0.0001510688118437948485535161266
 native,type,NON_REGISTERED,holding JNJ,closed,False
-native,type,NON_REGISTERED,holding JNJ,closed_total,476.38
 native,type,NON_REGISTERED,holding JNJ,currency,USD
 native,type,NON_REGISTERED,holding JNJ,day_pnl,-2.88
 native,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
@@ -9634,7 +9438,6 @@ native,type,NON_REGISTERED,holding KO,book_value_totals,21591.811369696969696969
 native,type,NON_REGISTERED,holding KO,change,-0.09
 native,type,NON_REGISTERED,holding KO,change_pct,-0.001044447023325983520946965301
 native,type,NON_REGISTERED,holding KO,closed,False
-native,type,NON_REGISTERED,holding KO,closed_total,1006.109696969696969696969697
 native,type,NON_REGISTERED,holding KO,currency,USD
 native,type,NON_REGISTERED,holding KO,day_pnl,-21.06
 native,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
@@ -9672,7 +9475,6 @@ native,type,NON_REGISTERED,holding META,book_value_totals,0.0000
 native,type,NON_REGISTERED,holding META,change,
 native,type,NON_REGISTERED,holding META,change_pct,
 native,type,NON_REGISTERED,holding META,closed,True
-native,type,NON_REGISTERED,holding META,closed_total,1060.80
 native,type,NON_REGISTERED,holding META,currency,USD
 native,type,NON_REGISTERED,holding META,day_pnl,
 native,type,NON_REGISTERED,holding META,day_pnl_pct,
@@ -9693,7 +9495,7 @@ native,type,NON_REGISTERED,holding META,realized_totals,1368.4080
 native,type,NON_REGISTERED,holding META,sector,
 native,type,NON_REGISTERED,holding META,security_type,
 native,type,NON_REGISTERED,holding META,symbol,META
-native,type,NON_REGISTERED,holding META,total_pnl,
+native,type,NON_REGISTERED,holding META,total_pnl,1060.80
 native,type,NON_REGISTERED,holding META,total_pnl_cad,1403.92300
 native,type,NON_REGISTERED,holding META,total_pnl_pct,
 native,type,NON_REGISTERED,holding META,total_pnl_totals,
@@ -9710,7 +9512,6 @@ native,type,NON_REGISTERED,holding MSFT,book_value_totals,13561.32380
 native,type,NON_REGISTERED,holding MSFT,change,0.19
 native,type,NON_REGISTERED,holding MSFT,change_pct,0.0003705798599598213414990930546
 native,type,NON_REGISTERED,holding MSFT,closed,False
-native,type,NON_REGISTERED,holding MSFT,closed_total,117.62
 native,type,NON_REGISTERED,holding MSFT,currency,USD
 native,type,NON_REGISTERED,holding MSFT,day_pnl,4.37
 native,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
@@ -9748,7 +9549,6 @@ native,type,NON_REGISTERED,holding NFLX,book_value_totals,9148.18100
 native,type,NON_REGISTERED,holding NFLX,change,-0.38
 native,type,NON_REGISTERED,holding NFLX,change_pct,-0.005431675242995997712978845054
 native,type,NON_REGISTERED,holding NFLX,closed,False
-native,type,NON_REGISTERED,holding NFLX,closed_total,0
 native,type,NON_REGISTERED,holding NFLX,currency,USD
 native,type,NON_REGISTERED,holding NFLX,day_pnl,-29.26
 native,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
@@ -9786,7 +9586,6 @@ native,type,NON_REGISTERED,holding NVDA,book_value_totals,15459.9593846153846153
 native,type,NON_REGISTERED,holding NVDA,change,0.25
 native,type,NON_REGISTERED,holding NVDA,change_pct,0.001095866391969491079647569368
 native,type,NON_REGISTERED,holding NVDA,closed,False
-native,type,NON_REGISTERED,holding NVDA,closed_total,1952.516043956043956043956044
 native,type,NON_REGISTERED,holding NVDA,currency,USD
 native,type,NON_REGISTERED,holding NVDA,day_pnl,19.75
 native,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
@@ -9824,7 +9623,6 @@ native,type,NON_REGISTERED,holding O,book_value_totals,18327.61705
 native,type,NON_REGISTERED,holding O,change,-0.23
 native,type,NON_REGISTERED,holding O,change_pct,-0.004217861727489455345681276362
 native,type,NON_REGISTERED,holding O,closed,False
-native,type,NON_REGISTERED,holding O,closed_total,802.73
 native,type,NON_REGISTERED,holding O,currency,USD
 native,type,NON_REGISTERED,holding O,day_pnl,-51.75
 native,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
@@ -9862,7 +9660,6 @@ native,type,NON_REGISTERED,holding XYZ,book_value_totals,15791.60445
 native,type,NON_REGISTERED,holding XYZ,change,-0.28
 native,type,NON_REGISTERED,holding XYZ,change_pct,-0.003793523912748950006774149844
 native,type,NON_REGISTERED,holding XYZ,closed,False
-native,type,NON_REGISTERED,holding XYZ,closed_total,0
 native,type,NON_REGISTERED,holding XYZ,currency,USD
 native,type,NON_REGISTERED,holding XYZ,day_pnl,-45.92
 native,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
@@ -9991,7 +9788,6 @@ native,type,RRSP,holding NFLX,book_value_totals,1329.25065
 native,type,RRSP,holding NFLX,change,-0.38
 native,type,RRSP,holding NFLX,change_pct,-0.005431675242995997712978845054
 native,type,RRSP,holding NFLX,closed,False
-native,type,RRSP,holding NFLX,closed_total,0
 native,type,RRSP,holding NFLX,currency,USD
 native,type,RRSP,holding NFLX,day_pnl,-3.80
 native,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
@@ -10029,7 +9825,6 @@ native,type,RRSP,holding QQQ,book_value_totals,18353.27505
 native,type,RRSP,holding QQQ,change,0.77
 native,type,RRSP,holding QQQ,change_pct,0.001041948579161028416779431664
 native,type,RRSP,holding QQQ,closed,False
-native,type,RRSP,holding QQQ,closed_total,91.65
 native,type,RRSP,holding QQQ,currency,USD
 native,type,RRSP,holding QQQ,day_pnl,19.25
 native,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
@@ -10067,7 +9862,6 @@ native,type,RRSP,holding SCHD,book_value_totals,26289.97225
 native,type,RRSP,holding SCHD,change,-0.08
 native,type,RRSP,holding SCHD,change_pct,-0.002453235203925176326280282122
 native,type,RRSP,holding SCHD,closed,False
-native,type,RRSP,holding SCHD,closed_total,700.58
 native,type,RRSP,holding SCHD,currency,USD
 native,type,RRSP,holding SCHD,day_pnl,-52.96
 native,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
@@ -10105,7 +9899,6 @@ native,type,RRSP,holding SPY,book_value_totals,19158.97890
 native,type,RRSP,holding SPY,change,-0.15
 native,type,RRSP,holding SPY,change_pct,-0.0001966490993471249901675450326
 native,type,RRSP,holding SPY,closed,False
-native,type,RRSP,holding SPY,closed_total,161.57
 native,type,RRSP,holding SPY,currency,USD
 native,type,RRSP,holding SPY,day_pnl,-3.30
 native,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
@@ -10218,7 +10011,6 @@ native,type,TFSA,holding CNR.TO,book_value_totals,1583.45
 native,type,TFSA,holding CNR.TO,change,-0.12
 native,type,TFSA,holding CNR.TO,change_pct,-0.0007078810759792354884379424257
 native,type,TFSA,holding CNR.TO,closed,False
-native,type,TFSA,holding CNR.TO,closed_total,71.42
 native,type,TFSA,holding CNR.TO,currency,CAD
 native,type,TFSA,holding CNR.TO,day_pnl,-1.20
 native,type,TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -10256,7 +10048,6 @@ native,type,TFSA,holding ENB.TO,book_value_totals,1655.55
 native,type,TFSA,holding ENB.TO,change,-0.14
 native,type,TFSA,holding ENB.TO,change_pct,-0.002111932418162618796198521647
 native,type,TFSA,holding ENB.TO,closed,False
-native,type,TFSA,holding ENB.TO,closed_total,227.91
 native,type,TFSA,holding ENB.TO,currency,CAD
 native,type,TFSA,holding ENB.TO,day_pnl,-4.20
 native,type,TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
@@ -10294,7 +10085,6 @@ native,type,TFSA,holding O,book_value_totals,244.26
 native,type,TFSA,holding O,change,-0.23
 native,type,TFSA,holding O,change_pct,-0.004217861727489455345681276362
 native,type,TFSA,holding O,closed,False
-native,type,TFSA,holding O,closed_total,14.58
 native,type,TFSA,holding O,currency,USD
 native,type,TFSA,holding O,day_pnl,-0.69
 native,type,TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
@@ -10332,7 +10122,6 @@ native,type,TFSA,holding REI.UN.TO,book_value_totals,5792.48
 native,type,TFSA,holding REI.UN.TO,change,0.00
 native,type,TFSA,holding REI.UN.TO,change_pct,0
 native,type,TFSA,holding REI.UN.TO,closed,False
-native,type,TFSA,holding REI.UN.TO,closed_total,596.14
 native,type,TFSA,holding REI.UN.TO,currency,CAD
 native,type,TFSA,holding REI.UN.TO,day_pnl,0.00
 native,type,TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
@@ -10370,7 +10159,6 @@ native,type,TFSA,holding RY.TO,book_value_totals,1692.65
 native,type,TFSA,holding RY.TO,change,-0.12
 native,type,TFSA,holding RY.TO,change_pct,-0.0004284796115118188959508676712
 native,type,TFSA,holding RY.TO,closed,False
-native,type,TFSA,holding RY.TO,closed_total,125.0
 native,type,TFSA,holding RY.TO,currency,CAD
 native,type,TFSA,holding RY.TO,day_pnl,-1.20
 native,type,TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
@@ -10408,7 +10196,6 @@ native,type,TFSA,holding TD.TO,book_value_totals,1704.35
 native,type,TFSA,holding TD.TO,change,-0.01
 native,type,TFSA,holding TD.TO,change_pct,-0.00005975857535556352336560296403
 native,type,TFSA,holding TD.TO,closed,False
-native,type,TFSA,holding TD.TO,closed_total,170.0
 native,type,TFSA,holding TD.TO,currency,CAD
 native,type,TFSA,holding TD.TO,day_pnl,-0.20
 native,type,TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
@@ -10446,7 +10233,6 @@ native,type,TFSA,holding VFV.TO,book_value_totals,760.12
 native,type,TFSA,holding VFV.TO,change,0.13
 native,type,TFSA,holding VFV.TO,change_pct,0.0006736100316078553292916731437
 native,type,TFSA,holding VFV.TO,closed,False
-native,type,TFSA,holding VFV.TO,closed_total,243.45
 native,type,TFSA,holding VFV.TO,currency,CAD
 native,type,TFSA,holding VFV.TO,day_pnl,0.52
 native,type,TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
@@ -10484,7 +10270,6 @@ native,type,TFSA,holding XEQT.TO,book_value_totals,3750.35
 native,type,TFSA,holding XEQT.TO,change,0.00
 native,type,TFSA,holding XEQT.TO,change_pct,0
 native,type,TFSA,holding XEQT.TO,closed,False
-native,type,TFSA,holding XEQT.TO,closed_total,48.60
 native,type,TFSA,holding XEQT.TO,currency,CAD
 native,type,TFSA,holding XEQT.TO,day_pnl,0.00
 native,type,TFSA,holding XEQT.TO,day_pnl_pct,0E+2

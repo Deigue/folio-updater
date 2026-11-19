@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Column, Grain
+from domain import Column, Fmt, Grain
 from engine.frames import (
     CONTEXT_COLUMNS,
     GRAIN_MEASURES,
@@ -14,7 +14,7 @@ from engine.frames import (
     grain_column,
 )
 from exporters.excel_style import COST_BASE_TAB
-from exporters.sheet_spec import TXN_FORMATS, Col, Fmt, Row, Sheet, SheetTable
+from exporters.sheet_spec import TXN_FORMATS, Col, Row, Sheet, SheetTable
 from exporters.sheets.acb import (
     MEASURE_FORMATS,
     USD,

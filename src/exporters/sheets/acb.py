@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import Column, Grain
+from domain import Column, Fmt, Grain
 from engine.acb_report import AcbReport
 from engine.frames import grain_column
 from exporters.excel_style import COST_BASE_TAB
-from exporters.sheet_spec import Col, Fmt, Sheet, SheetTable, row_of
+from exporters.sheet_spec import Col, Sheet, SheetTable, row_of
 from exporters.sheets.summary import GRAIN_NAMES
 
 if TYPE_CHECKING:

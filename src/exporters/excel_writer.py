@@ -16,18 +16,10 @@ from openpyxl.formatting.rule import DataBarRule
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.hyperlink import Hyperlink
 
+from domain import NUMERIC, SIGNED, Fmt
 from domain.cells import is_blank
 from exporters import excel_style as style
-from exporters.sheet_spec import (
-    DATA_ROLES,
-    NUMERIC,
-    SIGNED,
-    Fmt,
-    Link,
-    Role,
-    as_number,
-    render,
-)
+from exporters.sheet_spec import DATA_ROLES, Link, Role, as_number, render
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Iterable, Mapping, Sequence

@@ -60,7 +60,8 @@ class Holding:
         dividends: Cumulative dividends received from it in this pool.
         total_pnl: Total gain, `unrealized + realized + dividends`: everything
             this holding has earned. None when it could not be priced, since a
-            third of the sum would then be unknown.
+            third of the sum would then be unknown. A closed holding has nothing
+            unrealized, so its total is what it banked.
         total_pnl_pct: `total_pnl / book_value`.
         total_pnl_cad: `total_pnl` in CAD
         market_value_cad: `market_value` in CAD
@@ -110,11 +111,6 @@ class Holding:
     total_pnl_cad: Decimal | None = None
     market_value_cad: Decimal | None = None
     closed: bool = False
-
-    @property
-    def closed_total(self) -> Decimal:
-        """What a closed holding earned over its whole life."""
-        return self.realized + self.dividends
 
     @property
     def units_suspect(self) -> bool:
@@ -517,7 +513,7 @@ def _by_currency(
         members = seen.get(currency, [])
         closed_members = closed_seen.get(currency, [])
         priced = any(member.priced for member in members)
-        closed_pnl = sum((m.closed_total for m in closed_members), ZERO)
+        closed_pnl = sum((m.total_pnl or ZERO for m in closed_members), ZERO)
         groups.append(
             CurrencyTotals(
                 currency=currency,
@@ -658,6 +654,8 @@ def _holding(holding_state: HoldingState, ctx: _Context) -> Holding | None:
             book_value_totals=book_totals,
             realized_totals=realized_totals,
             dividends_totals=dividends_totals,
+            # Nothing is left unrealized, so its total gain is what it banked.
+            total_pnl=realized + dividends,
             total_pnl_cad=_cad_earned(holding_state, ctx),
             flags=holding_state.flags,
             closed=True,

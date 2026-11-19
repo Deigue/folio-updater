@@ -326,9 +326,8 @@ def test_a_closed_holding_still_counts_toward_totals(temp_ctx: TempContext) -> N
         assert holdings.total_dividends == Decimal(40)
         assert holdings.total_pnl == Decimal(240)
 
-        # A closed holding is never priced, so total_pnl is None
-        assert closed.total_pnl is None
-        assert closed.closed_total == Decimal(240)
+        # Never priced, yet nothing is left unrealized: its total is what it banked
+        assert closed.total_pnl == Decimal(240)
 
         assert len(holdings.by_currency) == 1
         group = holdings.by_currency[0]

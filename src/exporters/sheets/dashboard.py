@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from engine.accounts import account_type_of
@@ -12,17 +13,9 @@ from engine.pools import (
     UnitsSuspect,
     Unpriced,
 )
+from exporters.catalog import HOLDINGS_BY_KEY, holding_cells, holding_columns
 from exporters.excel_style import ACCOUNT_TYPE_TABS, FOLIO_TAB
-from exporters.sheet_spec import (
-    Col,
-    Fmt,
-    Role,
-    Row,
-    Sheet,
-    SheetTable,
-    blank_row,
-    row_of,
-)
+from exporters.sheet_spec import Col, Role, Row, Sheet, SheetTable, blank_row, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -39,30 +32,34 @@ CLOSED = "Closed"
 _WEIGHT = "Wt%"
 POOL = "Pool"
 
+_STATUS = "Status"
+_FLAGS = "Flags"
+
+# Every holding column, with the open or closed status beside the currency and
+# the flags at the far right. The weight carries a bar sized by itself.
 COLUMNS: tuple[Col, ...] = (
-    Col("Symbol"),
-    Col("Name", width=18),
-    Col("Sector", width=16),
-    Col("$", width=6),
-    Col("Status", width=8),
-    Col("Units", Fmt.UNITS),
-    Col("Avg", Fmt.PRICE),
-    Col("Last", Fmt.PRICE),
-    Col("Change", Fmt.PRICE_SIGNED),
-    Col("Change%", Fmt.PERCENT_SIGNED),
-    Col("PnL", Fmt.MONEY_SIGNED),
-    Col("PnL%", Fmt.PERCENT_SIGNED),
-    Col("Unreal", Fmt.MONEY_SIGNED),
-    Col("Unreal%", Fmt.PERCENT_SIGNED),
-    Col("Realized", Fmt.MONEY_SIGNED),
-    Col("Divs", Fmt.MONEY, quiet=True),
-    Col("Total", Fmt.MONEY_SIGNED),
-    Col("Total%", Fmt.PERCENT_SIGNED),
-    Col("Book", Fmt.MONEY),
-    Col("Market", Fmt.MONEY),
-    Col(_WEIGHT, Fmt.PERCENT, width=10, bar=True),
-    Col("Folio%", Fmt.PERCENT),
-    Col("Flags", width=14),
+    *holding_columns("symbol", "name", "sector", "currency"),
+    Col(_STATUS, width=8),
+    *holding_columns(
+        "units",
+        "avg",
+        "last",
+        "change",
+        "change%",
+        "pnl",
+        "pnl%",
+        "unreal",
+        "unreal%",
+        "realized",
+        "divs",
+        "total",
+        "total%",
+        "book",
+        "market",
+    ),
+    replace(HOLDINGS_BY_KEY["wt%"], width=10, bar=True),
+    *holding_columns("folio%"),
+    Col(_FLAGS, width=14),
 )
 
 
@@ -207,49 +204,21 @@ def _holding_cells(
 def _open_cells(holding: Holding) -> dict[str, object]:
     """Read one open holding into its cells."""
     return {
-        "Symbol": holding.symbol,
-        "Name": holding.name,
-        "Sector": holding.sector,
-        "$": str(holding.currency),
-        "Status": OPEN,
-        "Units": holding.units,
-        "Avg": holding.avg_cost,
-        "Last": holding.price,
-        "Change": holding.change,
-        "Change%": holding.change_pct,
-        "PnL": holding.day_pnl,
-        "PnL%": holding.day_pnl_pct,
-        "Unreal": holding.unrealized,
-        "Unreal%": holding.unrealized_pct,
-        "Realized": holding.realized,
-        "Divs": holding.dividends,
-        "Total": holding.total_pnl,
-        "Total%": holding.total_pnl_pct,
-        "Book": holding.book_value,
-        "Market": holding.market_value,
-        _WEIGHT: holding.weight_in_pool,
-        "Folio%": holding.weight_in_folio,
-        "Flags": _flags(holding),
+        **holding_cells(COLUMNS, holding),
+        _STATUS: OPEN,
+        _FLAGS: _flags(holding),
     }
 
 
 def _closed_cells(holding: Holding) -> dict[str, object]:
-    """Read one closed holding, blanking every column that no longer applies.
+    """Read one closed holding, blank wherever a sold-out holding has nothing.
 
-    Units, cost and market value are all zero on a closed holding, and printing
-    those zeros would have it read as something still held. What it banked is
-    real, so realized gains and dividends stay.
+    What it banked is real, so realized gains, dividends and their total stay.
     """
     return {
-        "Symbol": holding.symbol,
-        "Name": holding.name,
-        "Sector": holding.sector,
-        "$": str(holding.currency),
-        "Status": CLOSED,
-        "Realized": holding.realized,
-        "Divs": holding.dividends,
-        "Total": holding.closed_total,
-        "Flags": _flags(holding),
+        **holding_cells(COLUMNS, holding),
+        _STATUS: CLOSED,
+        _FLAGS: _flags(holding),
     }
 
 

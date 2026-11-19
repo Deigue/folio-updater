@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import INTERNAL_COLUMNS, Column
+from domain import INTERNAL_COLUMNS, Column, Fmt
 from exporters.catalog import FUNDAMENTALS
 from exporters.excel_style import STORED_TAB
 from exporters.sheet_spec import (
     TXN_FORMATS,
     Col,
-    Fmt,
     Row,
     Sheet,
     SheetTable,

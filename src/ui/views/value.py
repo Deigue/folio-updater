@@ -7,10 +7,9 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.table import Table as RichTable
 
-from domain import AccountType, Currency
+from domain import AccountType, Currency, Fmt
 from engine.accounts import account_type_of
 from engine.past_values import month_end_pools, unpriced_month_ends
-from exporters.sheet_spec import Fmt
 from term import console_print
 from ui.cells import WARN_GLYPH, money, price, style, units
 from ui.layout.columns import FormattedColumn, add_column

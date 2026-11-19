@@ -8,18 +8,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain import AccountType, Currency, Grain
+from domain import AccountType, Currency, Fmt, Grain
 from exporters.excel_style import OVERVIEW_TAB
-from exporters.sheet_spec import (
-    Col,
-    Fmt,
-    Line,
-    Link,
-    Sheet,
-    SheetList,
-    SheetTable,
-    row_of,
-)
+from exporters.sheet_spec import Col, Line, Link, Sheet, SheetList, SheetTable, row_of
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

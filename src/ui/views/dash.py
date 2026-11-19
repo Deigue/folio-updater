@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from rich import box
@@ -20,7 +19,7 @@ from engine.pools import (
     UnitsSuspect,
     Unpriced,
 )
-from exporters.sheet_spec import Fmt
+from exporters.catalog import HOLDINGS_BY_KEY
 from term import console_print
 from ui.cells import (
     DELTA_GLYPH,
@@ -28,19 +27,17 @@ from ui.cells import (
     WARN_GLYPH,
     currency_tint,
     day_move,
+    holding_cell,
     income,
     lifetime_return,
     long_date,
     money,
     percent,
-    price,
     signed,
     style,
-    units,
-    weight,
 )
 from ui.layout.bars import hbar, meter
-from ui.layout.columns import FormattedColumn, add_column
+from ui.layout.columns import FormattedColumn, add_column, formatted
 from ui.layout.fit import fit
 from ui.layout.tiles import Tile, TilingLayout
 from ui.vocabulary import (
@@ -48,7 +45,6 @@ from ui.vocabulary import (
     FLOW_COLORS,
     GRAND_TOTAL_ROW_STYLE,
     LOSS,
-    REFERENCE_STYLE,
     ROOM_BAR,
     ROOM_BAR_ASCII,
     ROOM_FULL,
@@ -65,7 +61,7 @@ from ui.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
     from decimal import Decimal
 
     from rich.console import RenderableType
@@ -75,52 +71,6 @@ if TYPE_CHECKING:
     from engine.pools import Disclosure, Return, ValuedPool
     from engine.since_update import SinceUpdate
     from ui.layout.fit import FitResult
-
-
-@dataclass(frozen=True)
-class _HoldingColumn:
-    """How one dashboard column is rendered.
-
-    Attributes:
-        column: The table column it fills.
-        cell: Reads the rendered string for one holding.
-        wide_only: Shown only when `--wide` asked for it.
-        muted: Reference data rather than performance, so drawn quieter.
-    """
-
-    column: FormattedColumn
-    cell: Callable[[Holding], str]
-    wide_only: bool = False
-    muted: bool = False
-
-    @property
-    def header(self) -> str:
-        """The heading it was given, before any shortening."""
-        return self.column.key
-
-    def render(self, holding: Holding) -> str:
-        """Render this column's cell for one holding row."""
-        text = self.cell(holding)
-        return style(text, REFERENCE_STYLE) if self.muted else text
-
-
-def _figure(
-    header: str,
-    cell: Callable[[Holding], str],
-    fmt: Fmt,
-    *,
-    coarse: bool = False,
-    muted: bool = False,
-) -> _HoldingColumn:
-    """Describe a right-aligned column of one figure per holding."""
-    column = FormattedColumn(
-        header,
-        fmt=fmt,
-        coarse=coarse,
-        justify="right",
-        no_wrap=True,
-    )
-    return _HoldingColumn(column, cell, muted=muted)
 
 
 def _weight_bar(holding: Holding) -> str:
@@ -134,66 +84,61 @@ def _weight_bar(holding: Holding) -> str:
 
 def _symbol_cell(holding: Holding) -> str:
     """Render the symbol, badged when its units are known to be wrong."""
+    if holding.closed:
+        return f"{holding.symbol} [dim](closed)[/dim]"
     if holding.units_suspect:
         return f"[red]{holding.symbol} {WARN_GLYPH}[/red]"
     return holding.symbol
 
 
-# Every column the dashboard can show, in display order. `--wide` adds the ones
-# marked `wide_only`; everything else is always offered, then conceded by
-# `fit_table` if the terminal is too narrow to hold it.
-_HOLDING_COLUMNS: tuple[_HoldingColumn, ...] = (
-    _HoldingColumn(FormattedColumn("Symbol", no_wrap=True), _symbol_cell),
-    _HoldingColumn(FormattedColumn("Name"), lambda h: h.name or "", wide_only=True),
-    _figure("Units", lambda h: units(h.units), Fmt.UNITS, muted=True),
-    _figure("Avg", lambda h: price(h.avg_cost), Fmt.PRICE, muted=True),
-    _figure("Last", lambda h: price(h.price), Fmt.PRICE),
-    _figure("Change", lambda h: signed(price(h.change), h.change), Fmt.PRICE_SIGNED),
-    # A day's move keeps both decimals: its second one is often all of it.
-    _figure("Change%", lambda h: day_move(h.change_pct), Fmt.PERCENT_SIGNED),
-    _figure("PnL", lambda h: signed(money(h.day_pnl), h.day_pnl), Fmt.MONEY_SIGNED),
-    _figure("PnL%", lambda h: day_move(h.day_pnl_pct), Fmt.PERCENT_SIGNED),
-    _figure(
-        "Unreal",
-        lambda h: signed(money(h.unrealized), h.unrealized),
-        Fmt.MONEY_SIGNED,
-    ),
-    _figure(
-        "Unreal%",
-        lambda h: lifetime_return(h.unrealized_pct),
-        Fmt.PERCENT_SIGNED,
-        coarse=True,
-    ),
-    # Realized and Divs blank their zeros
-    _figure(
-        "Realized",
-        lambda h: signed(money(h.realized, blank_zero=True), h.realized),
-        Fmt.MONEY_SIGNED,
-    ),
-    _figure("Divs", lambda h: income(h.dividends), Fmt.MONEY),
-    _figure(
-        "Total",
-        lambda h: signed(money(h.total_pnl), h.total_pnl),
-        Fmt.MONEY_SIGNED,
-    ),
-    _figure(
-        "Total%",
-        lambda h: lifetime_return(h.total_pnl_pct),
-        Fmt.PERCENT_SIGNED,
-        coarse=True,
-    ),
-    _figure("Book", lambda h: money(h.book_value), Fmt.MONEY, muted=True),
-    _figure("Market", lambda h: money(h.market_value), Fmt.MONEY),
-    _figure("Wt%", lambda h: weight(h.weight_in_pool), Fmt.PERCENT, coarse=True),
-    # The bar has a column of its own so every `Wt%` figure, totals included,
-    # stays right-aligned. Totals rows leave it blank.
-    _HoldingColumn(
-        FormattedColumn("Weight", no_wrap=True),
-        _weight_bar,
-        wide_only=True,
-    ),
-    _figure("Folio%", lambda h: weight(h.weight_in_folio), Fmt.PERCENT, coarse=True),
+# The weight bar has a column of its own so every `Wt%` figure, totals included,
+# stays right-aligned. Totals rows leave it blank.
+_WEIGHT_BAR = "weight"
+
+# Every column the dashboard can show, in display order, by catalog key. `--wide`
+# adds the ones in `_WIDE_ONLY`; everything else is always offered, then
+# conceded by `fit_table` if the terminal is too narrow to hold it.
+_LAYOUT = (
+    "symbol",
+    "name",
+    "units",
+    "avg",
+    "last",
+    "change",
+    "change%",
+    "pnl",
+    "pnl%",
+    "unreal",
+    "unreal%",
+    "realized",
+    "divs",
+    "total",
+    "total%",
+    "book",
+    "market",
+    "wt%",
+    _WEIGHT_BAR,
+    "folio%",
 )
+_WIDE_ONLY = frozenset({"name", _WEIGHT_BAR})
+
+
+def _column(key: str) -> FormattedColumn:
+    """Describe one of the dashboard's columns."""
+    if key == _WEIGHT_BAR:
+        return FormattedColumn("Weight", no_wrap=True)
+    column = HOLDINGS_BY_KEY[key]
+    return formatted(column, no_wrap=True) if key == "symbol" else formatted(column)
+
+
+def _cell(key: str, holding: Holding) -> str:
+    """Render one cell of a holding's row, blank where a closed one has nothing."""
+    if key == _WEIGHT_BAR:
+        return _weight_bar(holding)
+    if key == "symbol":
+        return _symbol_cell(holding)
+    return holding_cell(HOLDINGS_BY_KEY[key], holding)
+
 
 # Column drop order as terminals get too narrow.
 _DASH_DROP_ORDER = (
@@ -210,17 +155,17 @@ _DASH_DROP_ORDER = (
 )
 
 
-def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[_HoldingColumn, ...]:
-    """Choose which columns this table offers before any conceding."""
+def _columns(holdings: HoldingSet, *, wide: bool) -> tuple[str, ...]:
+    """Choose which columns this table offers before any conceding, by key."""
     # `Folio%` is only worth a column when the table is part of the folio rather
     # than all of it, since it is otherwise the same number as `Wt%`. A narrowed
     # grain is the usual way that happens, and `-c USD` is the other: it hides
     # the CAD holdings, so even the folio-wide table is then a part.
     partial = holdings.grain is not Grain.FOLIO or holdings.excluded > 0
     return tuple(
-        spec
-        for spec in _HOLDING_COLUMNS
-        if (wide or not spec.wide_only) and (partial or spec.header != "Folio%")
+        key
+        for key in _LAYOUT
+        if (wide or key not in _WIDE_ONLY) and (partial or key != "folio%")
     )
 
 
@@ -252,32 +197,32 @@ def holdings_table(
         caller can say what is missing.
     """
     holdings = valued.holdings
-    specs = _columns(holdings, wide=wide)
+    keys = _columns(holdings, wide=wide)
     table = RichTable(
         title=title,
         show_header=True,
         header_style=TABLE_HEADER,
         border_style=TABLE_BORDER,
     )
-    for spec in specs:
-        add_column(table, spec.column)
+    for key in keys:
+        add_column(table, _column(key))
 
     for group in holdings.by_currency:
         for holding in group.members:
-            table.add_row(*[spec.render(holding) for spec in specs])
+            table.add_row(*[_cell(key, holding) for key in keys])
 
         if group.closed_members:
             if show_closed:
                 for holding in group.closed_members:
-                    table.add_row(*_closed_cells(holding, specs))
+                    table.add_row(*[_cell(key, holding) for key in keys])
             else:
-                table.add_row(*_closed_summary_cells(group.closed_totals, specs))
+                table.add_row(*_closed_summary_cells(group.closed_totals, keys))
 
         # A rule above each total says "this row is a different kind of thing"
         # in one line rather than a blank one, keeping the table short.
         table.add_section()
         table.add_row(
-            *_subtotal_cells(group, specs, valued.subtotal_return(group)),
+            *_subtotal_cells(group, keys, valued.subtotal_return(group)),
             style=SUBTOTAL_ROW_STYLE,
         )
         table.add_section()
@@ -285,46 +230,31 @@ def holdings_table(
     # For multiple currencies, show an additional grand-total row.
     if holdings.mixed_currency:
         table.add_row(
-            *_grand_total_cells(valued, specs),
+            *_grand_total_cells(valued, keys),
             style=GRAND_TOTAL_ROW_STYLE,
         )
 
     return fit(table, _DASH_DROP_ORDER)
 
 
-def _closed_cells(holding: Holding, specs: Sequence[_HoldingColumn]) -> list[str]:
-    """Render one closed holding, blanking every column that no longer applies."""
-    total = holding.closed_total
-    cells = {
-        "Symbol": f"{holding.symbol} [dim](closed)[/dim]",
-        "Realized": signed(
-            money(holding.realized, blank_zero=True),
-            holding.realized,
-        ),
-        "Divs": income(holding.dividends),
-        "Total": signed(money(total, blank_zero=True), total),
-    }
-    return [cells.get(spec.header, "") for spec in specs]
-
-
 def _closed_summary_cells(
     totals: ClosedTotals,
-    specs: Sequence[_HoldingColumn],
+    keys: Sequence[str],
 ) -> list[str]:
     """Aggregate every closed holding in one currency group into one row."""
     total = totals.total
     cells = {
-        "Symbol": f"[bold dim]Closed ({totals.count})[/bold dim]",
-        "Realized": signed(money(totals.realized, blank_zero=True), totals.realized),
-        "Divs": income(totals.dividends),
-        "Total": signed(money(total, blank_zero=True), total),
+        "symbol": f"[bold dim]Closed ({totals.count})[/bold dim]",
+        "realized": signed(money(totals.realized, blank_zero=True), totals.realized),
+        "divs": income(totals.dividends),
+        "total": signed(money(total, blank_zero=True), total),
     }
-    return [cells.get(spec.header, "") for spec in specs]
+    return [cells.get(key, "") for key in keys]
 
 
 def _subtotal_cells(
     group: CurrencyTotals,
-    specs: Sequence[_HoldingColumn],
+    keys: Sequence[str],
     total: Return,
 ) -> list[str]:
     """Subtotal one currency group, in that group's own currency.
@@ -333,68 +263,68 @@ def _subtotal_cells(
 
     Args:
         group: The currency group's totals.
-        specs: The columns this table is rendering.
+        keys: The columns this table is rendering, by key.
         total: What the `Total%` cell says, from `ValuedPool.subtotal_return`.
 
     Returns:
-        One cell per column in `specs`.
+        One cell per column in `keys`.
     """
     cells = {
-        "Symbol": f"[bold]{group.count} held[/bold]",
+        "symbol": f"[bold]{group.count} held[/bold]",
         # A totals row has no unit count, and the column is never conceded, so
         # it is free space in exactly the place the currency belongs.
-        "Units": currency_tint(group.currency, str(group.currency)),
-        "Book": money(group.book),
-        "Market": money(group.market),
-        "PnL": signed(money(group.day_pnl), group.day_pnl),
-        "PnL%": day_move(group.day_pnl_pct),
-        "Unreal": signed(money(group.unrealized), group.unrealized),
-        "Unreal%": lifetime_return(group.unrealized_pct, group.unrealized),
-        "Realized": signed(
+        "units": currency_tint(group.currency, str(group.currency)),
+        "book": money(group.book),
+        "market": money(group.market),
+        "pnl": signed(money(group.day_pnl), group.day_pnl),
+        "pnl%": day_move(group.day_pnl_pct),
+        "unreal": signed(money(group.unrealized), group.unrealized),
+        "unreal%": lifetime_return(group.unrealized_pct, group.unrealized),
+        "realized": signed(
             money(group.realized, blank_zero=True),
             group.realized,
         ),
-        "Divs": income(group.dividends),
-        "Total": signed(money(group.total_pnl), group.total_pnl),
-        "Total%": lifetime_return(total.ratio, total.gain),
-        "Wt%": percent(group.weight_in_pool),
-        "Folio%": percent(group.weight_in_folio),
+        "divs": income(group.dividends),
+        "total": signed(money(group.total_pnl), group.total_pnl),
+        "total%": lifetime_return(total.ratio, total.gain),
+        "wt%": percent(group.weight_in_pool),
+        "folio%": percent(group.weight_in_folio),
     }
-    return [cells.get(spec.header, "") for spec in specs]
+    return [cells.get(key, "") for key in keys]
 
 
 def _grand_total_cells(
     valued: ValuedPool,
-    specs: Sequence[_HoldingColumn],
+    keys: Sequence[str],
 ) -> list[str]:
     """Total across every currency, converted into the totals currency."""
     holdings = valued.holdings
     totals = holdings.totals_currency
     total = valued.total_return
     cells = {
-        "Symbol": "[bold]Total[/bold]",
-        "Units": currency_tint(totals, f"({totals})"),
-        "Wt%": percent(holdings.total_weight_in_pool),
+        "symbol": "[bold]Total[/bold]",
+        "units": currency_tint(totals, f"({totals})"),
+        "wt%": percent(holdings.total_weight_in_pool),
         # How much of everything owned this whole grain accounts for
-        "Folio%": percent(holdings.total_weight_in_folio),
-        "Book": money(holdings.total_book),
-        "Market": money(holdings.total_market),
-        "PnL": signed(money(holdings.total_day_pnl), holdings.total_day_pnl),
-        "Unreal": signed(money(holdings.total_unrealized), holdings.total_unrealized),
-        "Realized": signed(
+        "folio%": percent(holdings.total_weight_in_folio),
+        "book": money(holdings.total_book),
+        "market": money(holdings.total_market),
+        "pnl": signed(money(holdings.total_day_pnl), holdings.total_day_pnl),
+        "unreal": signed(money(holdings.total_unrealized), holdings.total_unrealized),
+        "realized": signed(
             money(holdings.total_realized, blank_zero=True),
             holdings.total_realized,
         ),
-        "Divs": income(holdings.total_dividends),
-        "Total": signed(money(holdings.total_pnl), holdings.total_pnl),
-        "PnL%": day_move(holdings.total_day_pnl_pct, holdings.total_day_pnl),
-        "Unreal%": lifetime_return(
+        "divs": income(holdings.total_dividends),
+        "total": signed(money(holdings.total_pnl), holdings.total_pnl),
+        "pnl%": day_move(holdings.total_day_pnl_pct, holdings.total_day_pnl),
+        "unreal%": lifetime_return(
             holdings.total_unrealized_pct,
             holdings.total_unrealized,
         ),
-        "Total%": lifetime_return(total.ratio, total.gain),
+        "total%": lifetime_return(total.ratio, total.gain),
     }
-    return [cells.get(spec.header, "") for spec in specs]
+    return [cells.get(key, "") for key in keys]
 
 
 def flows_panel(valued: ValuedPool) -> Panel:

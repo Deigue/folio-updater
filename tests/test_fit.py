@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table
 
-from exporters.sheet_spec import Fmt
+from domain import Fmt
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit, fit_table, overflow
 

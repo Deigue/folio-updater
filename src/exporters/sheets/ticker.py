@@ -9,12 +9,17 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from domain import TORONTO_TZ, Currency, PriceRange
-from exporters.catalog import FUNDAMENTAL_SECTIONS, FUNDAMENTALS, FUNDAMENTALS_BY_KEY
+from domain import TORONTO_TZ, Currency, Fmt, PriceRange
+from exporters.catalog import (
+    FUNDAMENTAL_SECTIONS,
+    FUNDAMENTALS,
+    FUNDAMENTALS_BY_KEY,
+    holding_cells,
+    pool_columns,
+)
 from exporters.excel_style import OVERVIEW_TAB
 from exporters.sheet_spec import (
     Col,
-    Fmt,
     Line,
     Role,
     Sheet,
@@ -23,6 +28,7 @@ from exporters.sheet_spec import (
     read_cells,
     row_of,
 )
+from exporters.sheets.dashboard import POOL
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -254,31 +260,17 @@ def _holdings_table(
         The table, the pooled figures last.
     """
     share = "Acct%" if by_account else "Type%"
-    columns: tuple[Col, ...] = (
-        Col("Pool", width=20),
-        Col("Units", Fmt.UNITS, quiet=True),
-        Col("Avg", Fmt.PRICE, quiet=True),
-        Col("Book", Fmt.MONEY, quiet=True),
-        Col("Market", Fmt.MONEY),
-        Col("Unreal", Fmt.MONEY_SIGNED),
-        Col("Unreal%", Fmt.PERCENT_SIGNED),
-        Col("Realized", Fmt.MONEY_SIGNED, quiet=True),
-        Col("Divs", Fmt.MONEY, quiet=True),
-        Col("Total", Fmt.MONEY_SIGNED),
-        Col("Total%", Fmt.PERCENT_SIGNED),
-        Col(share, Fmt.PERCENT),
-        Col("Folio%", Fmt.PERCENT),
-    )
+    columns: tuple[Col, ...] = (Col(POOL, width=20), *pool_columns(share))
     rows = [
         row_of(
             columns,
-            _holding_cells(_pool_name(line), line.holding, share),
+            _holding_cells(_pool_name(line), line.holding, columns),
             Role.CLOSED if line.holding.closed else Role.DATA,
         )
         for line in holdings.lines
     ]
     if holdings.pooled_differs:
-        pooled = _holding_cells(_POOLED, holdings.total, share)
+        pooled = _holding_cells(_POOLED, holdings.total, columns)
         pooled[share] = None
         rows.append(row_of(columns, pooled, Role.TOTAL))
     notes: list[str] = []
@@ -297,27 +289,11 @@ def _pool_name(line: PoolLine) -> str:
     return f"{line.pool.label} {_CRA}" if line.taxed else line.pool.label
 
 
-def _holding_cells(pool: str, holding: Holding, share: str) -> dict[str, object]:
+def _holding_cells(
+    pool: str,
+    holding: Holding,
+    columns: Sequence[Col[Holding]],
+) -> dict[str, object]:
     """Read one pool's holding. A closed one keeps only what it earned."""
-    if holding.closed:
-        return {
-            "Pool": f"{pool} (closed)",
-            "Realized": holding.realized,
-            "Divs": holding.dividends,
-            "Total": holding.closed_total,
-        }
-    return {
-        "Pool": pool,
-        "Units": holding.units,
-        "Avg": holding.avg_cost,
-        "Book": holding.book_value,
-        "Market": holding.market_value,
-        "Unreal": holding.unrealized,
-        "Unreal%": holding.unrealized_pct,
-        "Realized": holding.realized,
-        "Divs": holding.dividends,
-        "Total": holding.total_pnl,
-        "Total%": holding.total_pnl_pct,
-        share: holding.weight_in_pool,
-        "Folio%": holding.weight_in_folio,
-    }
+    label = f"{pool} (closed)" if holding.closed else pool
+    return {POOL: label, **holding_cells(columns, holding)}

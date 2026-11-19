@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from rich.measure import Measurement
 from rich.padding import Padding
 
-from exporters.sheet_spec import MAGNITUDES, Fmt
+from domain import MAGNITUDES, Fmt
 from term.console import active_console
 from ui.layout.columns import fmt_of, is_coarse, key_of
 from ui.vocabulary import (
