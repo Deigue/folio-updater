@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 - `folio value` shows what each account was worth at a month-end or on a past day,
 for one date, a run of month-ends, or one holding.
+- `folio flows` breaks down pool(s) cashflows based on intervals like week, month or
+year, specified by `-p`. Use help to learn more.
 
 ### Changed
 

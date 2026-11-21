@@ -50,7 +50,7 @@ from engine.types import (
     HoldingState,
     LedgerRow,
     ReplayResult,
-    RowFlow,
+    TxnFlow,
 )
 
 if TYPE_CHECKING:
@@ -1003,10 +1003,10 @@ class _Replay:
                 state.book(effect)
 
     def _record_flows(self, computed: LedgerRow, effects: Iterable[CashEffect]) -> None:
-        """Keep what a row added to its pools' flows, dated, for reports by period.
+        """Keep what a transaction added to its pools' flows, dated, for period reports.
 
         Realized gain lands in the holding's own currency, as `_roll_up_realized_gain`
-        books it, so it can name a currency the row's effects do not.
+        books it, so it can name a currency the transaction's effects do not.
         """
         # Cash is a balance, not a flow, so it stays behind.
         booked = {
@@ -1023,8 +1023,8 @@ class _Replay:
                 realized.setdefault(currency, {})[grain] = gain
         row = computed.row
         for currency in dict.fromkeys([*booked, *realized]):
-            self.result.row_flows.append(
-                RowFlow(
+            self.result.txn_flows.append(
+                TxnFlow(
                     row.txn_id,
                     row.settle_date,
                     row.account,

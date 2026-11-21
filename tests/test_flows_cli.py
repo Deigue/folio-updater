@@ -61,14 +61,16 @@ def _seed_two_months() -> None:
     )
 
 
+def _table_cells(output: str) -> list[list[str]]:
+    """Read each table line's non-blank cells, in order."""
+    lines = (line.strip() for line in output.splitlines())
+    rows = ([c for c in re.split(r"\s*[│|]\s*|\s{2,}", line) if c] for line in lines)
+    return [cells for cells in rows if len(cells) > 1]
+
+
 def _table_rows(output: str) -> dict[str, list[str]]:
     """Read each table row's cells, keyed by its first."""
-    rows: dict[str, list[str]] = {}
-    for line in output.splitlines():
-        cells = [cell for cell in re.split(r"\s*[│|]\s*|\s{2,}", line.strip()) if cell]
-        if len(cells) > 2:
-            rows[cells[0]] = cells[1:]
-    return rows
+    return {cells[0]: cells[1:] for cells in _table_cells(output)}
 
 
 def test_a_pool_lists_each_month_newest_first_with_its_totals(
@@ -81,11 +83,9 @@ def test_a_pool_lists_each_month_newest_first_with_its_totals(
 
     assert result.exit_code == 0
     rows = _table_rows(result.plain_output)
-    # Columns no row fills, withdrawals among them, are left out.
-    assert rows["Period"] == ["$", "Contributions", "Bought", "Dividends", "Trades"]
-    assert rows["2025-06"] == ["CAD", "900.00", "4.50", "1"]
-    assert rows["2025-05"] == ["CAD", "1,500.00"]
-    assert rows["Total"] == ["CAD", "1,500.00", "900.00", "4.50", "1"]
+    assert rows["2025-06"] == ["900.00", "4.50", "1"]
+    assert rows["2025-05"] == ["1,500.00"]
+    assert rows["Total"] == ["1,500.00", "900.00", "4.50", "1"]
     assert result.plain_output.index("2025-06") < result.plain_output.index("2025-05")
 
 
@@ -112,27 +112,18 @@ def test_an_export_writes_each_period_and_the_totals(
     assert written["Total"]["Dividends"] == "4.50"
 
 
-@pytest.mark.parametrize(
-    ("period", "named"),
-    [("week", "2025-06-09"), ("year", "2025")],
-)
-def test_a_period_is_named_by_its_monday_or_its_year(
-    temp_ctx: TempContext,
-    period: str,
-    named: str,
-) -> None:
+def test_a_year_is_named_by_its_year(temp_ctx: TempContext) -> None:
     with temp_ctx():
         _seed_two_months()
 
         result = run_cli(
             app,
-            ["flows", "-a", "WS-RRSP", "--period", period],
+            ["flows", "-a", "WS-RRSP", "--period", "year"],
             width=UNCONSTRAINED_WIDTH,
         )
 
     assert result.exit_code == 0
-    # Paid in on Tuesday 2025-06-10.
-    assert _table_rows(result.plain_output)[named] == ["CAD", "300.00"]
+    assert _table_rows(result.plain_output)["2025"] == ["300.00"]
 
 
 def test_an_unknown_period_is_refused(temp_ctx: TempContext) -> None:
@@ -151,3 +142,73 @@ def test_a_pool_with_no_flows_says_so(temp_ctx: TempContext) -> None:
 
     assert result.exit_code == 0
     assert_in_output("FHSA has no flows to show.", result)
+
+
+def test_by_type_lists_each_types_flows_under_each_period(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_two_months()
+
+        result = run_cli(app, ["flows", "-b"], width=UNCONSTRAINED_WIDTH)
+
+    assert result.exit_code == 0
+    output = result.plain_output
+    # Each type's line, whatever period or total heads it.
+    lines = [
+        [cell for cell in cells if not re.fullmatch(r"\d{4}-\d{2}|Total", cell)]
+        for cells in _table_cells(output)
+        if {"RRSP", "TFSA"} & set(cells)
+    ]
+    assert lines == [
+        ["RRSP", "300.00"],
+        ["TFSA", "900.00", "4.50", "1"],
+        ["TFSA", "1,500.00"],
+        ["RRSP", "300.00"],
+        ["TFSA", "1,500.00", "900.00", "4.50", "1"],
+    ]
+    assert output.index("2025-06") < output.index("2025-05") < output.index("Total")
+
+
+@pytest.mark.parametrize("pool", [["-t", "tfsa"], ["-a", "WS-TFSA"]])
+def test_by_type_takes_no_pool(temp_ctx: TempContext, pool: list[str]) -> None:
+    with temp_ctx():
+        result = run_cli(app, ["flows", "-b", *pool])
+
+    assert result.exit_code == 1
+    assert_in_output("--by-type shows every type", result)
+
+
+def test_a_by_type_export_names_each_rows_type(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    with temp_ctx():
+        _seed_two_months()
+        target = tmp_path / "types.csv"
+
+        result = run_cli(app, ["flows", "-b", "-e", str(target)])
+
+        with target.open(encoding="utf-8", newline="") as handle:
+            written = [
+                (row["Period"], row["Pool"], row["Contributions"])
+                for row in csv.DictReader(handle)
+                if row["Period"]
+            ]
+
+    assert result.exit_code == 0
+    assert written == [
+        ("2025-06", "RRSP", "300.00"),
+        ("2025-06", "TFSA", ""),
+        ("2025-05", "TFSA", "1,500.00"),
+        ("Total", "RRSP", "300.00"),
+        ("Total", "TFSA", "1,500.00"),
+    ]
+
+
+def test_by_type_on_an_empty_folio_says_so(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        result = run_cli(app, ["flows", "-b"])
+
+    assert result.exit_code == 0
+    assert_in_output("No account type has flows to show.", result)

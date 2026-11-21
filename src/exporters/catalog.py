@@ -6,14 +6,15 @@ from dataclasses import replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from domain import Fmt, Measure
+from domain import Currency, Fmt, Measure
 from domain.numeric import ZERO
+from engine.flows import FlowLine
 from exporters.sheet_spec import Col, read_cells
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from engine.flows import FlowLine
+    from engine.flows import Flows
     from engine.holdings import Holding
     from models import Quote
 
@@ -405,4 +406,53 @@ FLOW_FIGURES: tuple[Col[FlowLine], ...] = (
         key="trades",
         read=lambda line: line.flows.trades.get(line.currency, 0),
     ),
+)
+
+FLOWS_BY_KEY: Mapping[str, Col[FlowLine]] = MappingProxyType(
+    {column.key: column for column in FLOW_FIGURES},
+)
+
+
+def flow_columns(*keys: str) -> tuple[Col[FlowLine], ...]:
+    """Pick flow columns by key, in the order given."""
+    return tuple(FLOWS_BY_KEY[key] for key in keys)
+
+
+# The currencies a flows table gives each figure a column of, CAD first.
+FLOW_CURRENCIES = (Currency.CAD, Currency.USD)
+
+
+def _in_currency(column: Col[FlowLine], currency: Currency) -> Col[Flows]:
+    """One flow column for one currency, its heading naming the currency."""
+    return Col(
+        f"{column.header}\n{currency}",
+        column.fmt,
+        quiet=column.quiet,
+        key=f"{column.key}_{str(currency).lower()}",
+        label=column.header,
+        read=lambda flows: column.read(FlowLine(flows, currency)),
+    )
+
+
+def _across_currencies(column: Col[FlowLine]) -> Col[Flows]:
+    """Count trades once, over every currency, since a count has none."""
+    return Col(
+        column.header,
+        column.fmt,
+        quiet=column.quiet,
+        key=column.key,
+        read=lambda flows: sum(flows.trades.values()),
+    )
+
+
+# Every flow figure for a table of one row per pool: a money figure once per
+# currency, never blended, and a count once. A table drops what no row fills.
+FLOWS_BY_CURRENCY: tuple[Col[Flows], ...] = tuple(
+    column
+    for figure in FLOW_FIGURES
+    for column in (
+        (_across_currencies(figure),)
+        if figure.fmt is Fmt.TALLY
+        else tuple(_in_currency(figure, currency) for currency in FLOW_CURRENCIES)
+    )
 )

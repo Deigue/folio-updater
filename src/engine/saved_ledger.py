@@ -16,7 +16,7 @@ more. Every figure is stored as text, so no Decimal loses a digit.
 from __future__ import annotations
 
 import json
-from dataclasses import fields
+from dataclasses import Field, fields
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +25,7 @@ import pandas as pd
 from domain import AccountType, Action, Currency, DiagnosticCode, Grain, Impact
 from engine.accounts import Pool
 from engine.types import (
+    FLOW_FIELDS,
     CashEffect,
     CashState,
     DepositShare,
@@ -33,7 +34,7 @@ from engine.types import (
     HoldingState,
     LedgerRow,
     ReplayTotals,
-    RowFlow,
+    TxnFlow,
 )
 from models import Txn
 
@@ -44,10 +45,7 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 18
-
-# The `CashState` fields that count rows rather than money.
-_CASH_COUNTS: dict[str, Callable[[str], Any]] = {"trades": int}
+SCHEMA_VERSION = 19
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -341,8 +339,9 @@ def decode_cash_and_totals(
             Pool(Grain(entry["grain"]), entry["pool"]),
             Currency(entry["currency"]),
         ): CashState(
-            **{
-                field.name: _CASH_COUNTS.get(field.name, Decimal)(entry[field.name])
+            # Each figure is read back as its own field's type.
+            **{  # ty: ignore[invalid-argument-type]
+                field.name: _typed(field, entry[field.name])
                 for field in fields(CashState)
             },
         )
@@ -422,8 +421,8 @@ def decode_deposit_shares(entries: Sequence[Sequence[Any]]) -> tuple[DepositShar
     )
 
 
-def encode_row_flows(flows: Sequence[RowFlow]) -> list[list[Any]]:
-    """Flatten each row's flows into JSON-ready lists, money as text."""
+def encode_txn_flows(flows: Sequence[TxnFlow]) -> list[list[Any]]:
+    """Flatten each transaction's flows into JSON-ready lists, figures as text."""
     return [
         [
             flow.txn_id,
@@ -431,52 +430,37 @@ def encode_row_flows(flows: Sequence[RowFlow]) -> list[list[Any]]:
             flow.account,
             str(flow.acct_type),
             str(flow.effect.currency),
-            str(flow.effect.contributions),
-            str(flow.effect.withdrawals),
-            str(flow.effect.dividends),
-            str(flow.effect.fees),
-            str(flow.effect.bought),
-            str(flow.effect.sold),
-            flow.effect.trades,
+            *(str(getattr(flow.effect, name)) for name in FLOW_FIELDS),
             {str(grain): str(gain) for grain, gain in flow.realized.items()},
         ]
         for flow in flows
     ]
 
 
-def decode_row_flows(entries: Sequence[Sequence[Any]]) -> tuple[RowFlow, ...]:
-    """Restore the row flows from `encode_row_flows`."""
+def decode_txn_flows(entries: Sequence[Sequence[Any]]) -> tuple[TxnFlow, ...]:
+    """Restore the transaction flows from `encode_txn_flows`."""
+    effect_fields = {field.name: field for field in fields(CashEffect)}
     return tuple(
-        RowFlow(
+        TxnFlow(
             txn_id,
             settle_date,
             account,
             AccountType(acct_type),
             CashEffect(
                 Currency(currency),
-                contributions=Decimal(contributions),
-                withdrawals=Decimal(withdrawals),
-                dividends=Decimal(dividends),
-                fees=Decimal(fees),
-                bought=Decimal(bought),
-                sold=Decimal(sold),
-                trades=trades,
+                **{  # ty: ignore[invalid-argument-type]
+                    name: _typed(effect_fields[name], text)
+                    for name, text in zip(FLOW_FIELDS, figures, strict=True)
+                },
             ),
             {Grain(grain): Decimal(gain) for grain, gain in realized.items()},
         )
-        for (
-            txn_id,
-            settle_date,
-            account,
-            acct_type,
-            currency,
-            contributions,
-            withdrawals,
-            dividends,
-            fees,
-            bought,
-            sold,
-            trades,
-            realized,
-        ) in entries
+        for txn_id, settle_date, account, acct_type, currency, *figures, realized in (
+            entries
+        )
     )
+
+
+def _typed(field: Field[Any], text: str) -> Decimal | int:
+    """Read a saved figure back as the type its field defaults to: a count or money."""
+    return int(text) if isinstance(field.default, int) else Decimal(text)

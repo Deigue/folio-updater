@@ -19,12 +19,12 @@ from engine.saved_ledger import (
     decode_deposit_shares,
     decode_diagnostics,
     decode_holdings,
-    decode_row_flows,
+    decode_txn_flows,
     encode_cash_and_totals,
     encode_deposit_shares,
     encode_diagnostics,
     encode_holdings,
-    encode_row_flows,
+    encode_txn_flows,
 )
 
 from .helpers.replay import make_row, run
@@ -77,7 +77,7 @@ def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
         json.loads(json.dumps(encode_deposit_shares(ledger.deposit_shares))),
     )
     holdings = decode_holdings(json.loads(json.dumps(encode_holdings(ledger.holdings))))
-    flows = decode_row_flows(json.loads(json.dumps(encode_row_flows(ledger.row_flows))))
+    flows = decode_txn_flows(json.loads(json.dumps(encode_txn_flows(ledger.txn_flows))))
     diagnosis = Diagnosis(diagnostics=tuple(diagnostics), rows=rows)
     restored = Ledger(
         frame=ledger.frame,
@@ -85,7 +85,7 @@ def round_trip(result: ReplayResult) -> tuple[Ledger, Ledger]:
         totals=totals,
         load_diagnosis=lambda: diagnosis,
         deposit_shares=shares,
-        row_flows=flows,
+        txn_flows=flows,
         holdings=holdings,
     )
     return ledger, restored
@@ -105,12 +105,12 @@ def test_cash_round_trips_exactly() -> None:
     assert restored.cash == original.cash
 
 
-def test_row_flows_round_trip_exactly() -> None:
+def test_txn_flows_round_trip_exactly() -> None:
     """A buy's cost and count, and a sale's proceeds and realized gain per grain."""
     original, restored = round_trip(run(oversold_rows()))
-    assert any(flow.realized for flow in original.row_flows)
-    assert any(flow.effect.trades for flow in original.row_flows)
-    assert restored.row_flows == original.row_flows
+    assert any(flow.realized for flow in original.txn_flows)
+    assert any(flow.effect.trades for flow in original.txn_flows)
+    assert restored.txn_flows == original.txn_flows
 
 
 def test_holdings_round_trip_exactly() -> None:

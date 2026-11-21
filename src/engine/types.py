@@ -103,6 +103,18 @@ class HoldingState:
 # Every pool's holdings after the replay, each pool's sorted by symbol.
 PoolHoldings = Mapping[Pool, tuple[HoldingState, ...]]
 
+# What a cash effect adds to its pools' flows beyond cash, named alike on
+# `CashEffect` and `CashState`.
+FLOW_FIELDS = (
+    "contributions",
+    "withdrawals",
+    "dividends",
+    "fees",
+    "bought",
+    "sold",
+    "trades",
+)
+
 
 @dataclass
 class CashState:
@@ -126,8 +138,8 @@ class CashState:
     `realized_gain` is denominated in this state's own currency, matching every
     other field here. The CAD-converted figure lives on the ledger.
 
-    `bought` and `sold` are what trades cost and brought in, commission included,
-    and `trades` counts them.
+    `bought` is what buys cost, commission included, `sold` what sales brought in
+    after commission, and `trades` counts them.
     """
 
     cash: Decimal = ZERO
@@ -145,13 +157,8 @@ class CashState:
     def book(self, effect: CashEffect) -> None:
         """Add one cash effect's figures."""
         self.cash += effect.cash
-        self.contributions += effect.contributions
-        self.withdrawals += effect.withdrawals
-        self.dividends += effect.dividends
-        self.fees += effect.fees
-        self.bought += effect.bought
-        self.sold += effect.sold
-        self.trades += effect.trades
+        for name in FLOW_FIELDS:
+            setattr(self, name, getattr(self, name) + getattr(effect, name))
 
 
 @dataclass(frozen=True)
@@ -300,19 +307,11 @@ class CashEffect:
     @property
     def is_flow(self) -> bool:
         """Whether it carries a figure the flows report, beyond moving cash."""
-        return bool(
-            self.contributions
-            or self.withdrawals
-            or self.dividends
-            or self.fees
-            or self.bought
-            or self.sold
-            or self.trades,
-        )
+        return any(getattr(self, name) for name in FLOW_FIELDS)
 
 
 @dataclass(frozen=True)
-class RowFlow:
+class TxnFlow:
     """What one transaction added to its pools' flows, in one currency.
 
     Transfers are absent: the deposit shares already say what each leg moved.
@@ -450,7 +449,7 @@ class ReplayResult:
         cash: Running cash and income totals per pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
         deposit_shares: The net deposits each transfer leg moved, per pool it moved in.
-        row_flows: What each other row added to its pools' flows.
+        txn_flows: What each other transaction added to its pools' flows.
         holdings: Every pool's holdings after the last transaction.
     """
 
@@ -459,7 +458,7 @@ class ReplayResult:
     cash: dict[CashKey, CashState] = field(default_factory=dict)
     totals: ReplayTotals = field(default_factory=ReplayTotals)
     deposit_shares: list[DepositShare] = field(default_factory=list)
-    row_flows: list[RowFlow] = field(default_factory=list)
+    txn_flows: list[TxnFlow] = field(default_factory=list)
     holdings: PoolHoldings = field(default_factory=dict)
 
     def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:

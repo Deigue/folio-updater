@@ -266,7 +266,7 @@ def _value_pools(valuation: FolioValuation | None) -> _ValuedPools | None:
         folio=valuation.value(FOLIO),
         types=_active_first(
             valuation.value_all(
-                [Pool(Grain.TYPE, name) for name in valuation.account_types()],
+                [Pool(Grain.TYPE, name) for name in valuation.ledger.account_types],
             ),
         ),
         accounts=_active_first(

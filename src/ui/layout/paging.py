@@ -112,6 +112,7 @@ def page_frame(
     reserved: int = 0,
     page_footer: Sequence[str] = (),
     final_footer: Sequence[str] = (),
+    breaks: Sequence[int] = (),
 ) -> None:
     """Drive the n/p/q pager over a row range, delegating pages to `render`.
 
@@ -127,6 +128,8 @@ def page_frame(
         final_footer: Lines printed once the rows are all shown or the pager
             exits: pages draw on a screen discarded on quit, so this copy is the
             one left behind.
+        breaks: The row each page starts at, for rows that must stay together
+            (see `group_breaks`). Overrides `page_size` when given.
     """
     if total_rows == 0:
         console_print(f"[yellow]No transactions to display for {title}[/yellow]")
@@ -151,12 +154,13 @@ def page_frame(
             reserved=reserved + (1 if badge else 0) + len(page_footer),
         )
 
-    if total_rows <= page_size:
+    starts = list(breaks) or list(range(0, total_rows, page_size))
+    if len(starts) == 1:
         render(0, total_rows)
         _print_lines(final_footer)
         return
 
-    total_pages = (total_rows + page_size - 1) // page_size
+    bounds = list(zip(starts, [*starts[1:], total_rows], strict=True))
     current_page = 0
 
     # Alternate screen: each page redraws in a scratch buffer the terminal
@@ -165,9 +169,8 @@ def page_frame(
         while True:
             current_page, should_exit = _render_one_page(
                 current_page,
-                total_pages,
+                bounds,
                 total_rows,
-                page_size,
                 title,
                 badge,
                 render,
@@ -184,6 +187,27 @@ def _print_lines(lines: Sequence[str]) -> None:
     """Print each line as it is."""
     for line in lines:
         console_print(line)
+
+
+def group_breaks(heights: Sequence[int], room: int) -> list[int]:
+    """Start a page wherever the next group would not fit, never splitting one.
+
+    Args:
+        heights: The lines each group takes, in order.
+        room: The lines a page has.
+
+    Returns:
+        The index of the group each page starts at. A group taller than a page
+        gets a page to itself.
+    """
+    starts: list[int] = []
+    used = room
+    for index, height in enumerate(heights):
+        if used + height > room:
+            starts.append(index)
+            used = 0
+        used += height
+    return starts
 
 
 def page_title(title: str, start: int, end: int, total: int) -> str | None:
@@ -206,9 +230,8 @@ def page_title(title: str, start: int, end: int, total: int) -> str | None:
 
 def _render_one_page(  # noqa: PLR0917
     current_page: int,
-    total_pages: int,
+    bounds: Sequence[tuple[int, int]],
     total_rows: int,
-    page_size: int,
     title: str,
     badge: str | None,
     render: Callable[[int, int], None],
@@ -219,8 +242,8 @@ def _render_one_page(  # noqa: PLR0917
     Returns:
         The page to draw next, and whether the pager should exit.
     """
-    start_idx = current_page * page_size
-    end_idx = min(start_idx + page_size, total_rows)
+    start_idx, end_idx = bounds[current_page]
+    total_pages = len(bounds)
 
     active_console().clear()
     active_console().rule(

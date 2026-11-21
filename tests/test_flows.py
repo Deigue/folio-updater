@@ -19,12 +19,14 @@ from engine.flows import (
     contributions_by_type_year,
     flow_totals,
     flows_by_period,
+    pools_by_period,
     room_history,
     room_year,
     withdrawals_by_type_year,
 )
-from engine.ledger import open_ledger
+from engine.ledger import Ledger, open_ledger
 
+from .helpers.replay import make_row, run
 from .helpers.seed import seed_cash, seed_fx, seed_transaction
 
 if TYPE_CHECKING:
@@ -1448,7 +1450,7 @@ def test_flow_totals_agree_with_the_running_totals(
 
         # The replay restates a sender's transfers as the complement of the deposits it
         # keeps, which can differ from the summed shares far below a cent.
-        for name in _COMPARED:
+        for name in (*_COMPARED, "net_deposits"):
             assert _to_cents(getattr(totals, name)) == _to_cents(
                 getattr(running, name),
             ), name
@@ -1485,7 +1487,9 @@ def test_trades_count_in_the_year_they_settled_with_what_they_cost_and_raised(
         assert later.flows.fees == {Currency.CAD: Decimal(8)}
 
 
-def test_a_week_runs_monday_to_sunday(temp_ctx: TempContext) -> None:
+def test_a_week_runs_monday_to_sunday_and_is_named_by_its_monday(
+    temp_ctx: TempContext,
+) -> None:
     with temp_ctx():
         seed_fx(PERIOD_FX)
         # 2025-03-09 is a Sunday, 2025-03-10 the Monday after.
@@ -1506,3 +1510,89 @@ def test_a_week_runs_monday_to_sunday(temp_ctx: TempContext) -> None:
             (date(2025, 3, 10), Decimal(100)),
             (date(2025, 3, 3), Decimal(200)),
         ]
+        assert Period.WEEK.label(weeks[0].start) == "2025-03-10"
+
+
+def test_each_period_lists_the_pools_that_saw_a_flow_in_the_order_asked(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        seed_fx(PERIOD_FX)
+        for day, amount, account in (
+            ("2025-03-04", "400", "WS-TFSA"),
+            ("2025-03-11", "900", "WS-RRSP"),
+            ("2025-04-02", "250", "WS-RRSP"),
+        ):
+            seed_cash(
+                "CONTRIBUTION",
+                amount=amount,
+                account=account,
+                date=day,
+                settle_date=day,
+            )
+        tfsa, rrsp = Pool(Grain.TYPE, "TFSA"), Pool(Grain.TYPE, "RRSP")
+
+        groups = pools_by_period(open_ledger(), [tfsa, rrsp], Period.MONTH)
+
+        assert [
+            (group.start, [(flows.pool, flows.contributions) for flows in group.pools])
+            for group in groups
+        ] == [
+            (date(2025, 4, 1), [(rrsp, {Currency.CAD: Decimal(250)})]),
+            (
+                date(2025, 3, 1),
+                [
+                    (tfsa, {Currency.CAD: Decimal(400)}),
+                    (rrsp, {Currency.CAD: Decimal(900)}),
+                ],
+            ),
+        ]
+
+
+def test_only_buys_and_sells_count_as_trades() -> None:
+    """A reinvested dividend is a buy; a conversion, split or ROC is not."""
+    result = run(
+        [
+            make_row(1, "2024-02-01", Action.CONTRIBUTION, amount="5000", ticker=None),
+            make_row(
+                2,
+                "2024-02-02",
+                Action.BUY,
+                amount="-1000",
+                units="10",
+                price="100",
+            ),
+            make_row(3, "2024-02-05", Action.DIVIDEND, amount="20"),
+            make_row(
+                4,
+                "2024-02-05",
+                Action.BUY,
+                amount="-20",
+                units="0.2",
+                price="100",
+            ),
+            make_row(5, "2024-02-06", Action.ROC, amount="5"),
+            make_row(6, "2024-02-07", Action.SPLIT, units="2", price="1"),
+            make_row(
+                7,
+                "2024-02-08",
+                Action.FXT,
+                amount="-135",
+                units="100",
+                price="1.35",
+                ticker=None,
+            ),
+            make_row(
+                8,
+                "2024-02-09",
+                Action.SELL,
+                amount="510",
+                units="-5",
+                price="102",
+            ),
+        ],
+    )
+
+    totals = flow_totals(Ledger.from_replay(result), FOLIO)
+
+    assert totals.trades == {Currency.CAD: 3}

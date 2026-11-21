@@ -430,10 +430,6 @@ class FolioValuation:
         pools = {pool for pool, _ in self.ledger.cash} | set(self.ledger.holdings)
         return [self.pool_totals(pool, saved_at) for pool in sorted(pools | {FOLIO})]
 
-    def account_types(self) -> list[str]:
-        """Every account type with a holding, in a stable order."""
-        return self._pool_names(Column.Ledger.ACCT_TYPE)
-
     def accounts(self) -> list[str]:
         """Every account with a holding, in a stable order."""
         return self._pool_names(Column.Txn.ACCOUNT)

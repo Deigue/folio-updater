@@ -15,6 +15,7 @@ from exporters.catalog import shows
 from exporters.sheet_spec import render
 from term import supports_unicode
 from ui.vocabulary import (
+    ACCOUNT_TYPE_COLORS,
     CURRENCY_COLORS,
     DAY_MOVE_STRONG_AT,
     FLAT,
@@ -28,6 +29,7 @@ from ui.vocabulary import (
     PRICE_PRECISION,
     REFERENCE_STYLE,
     RETURN_STRONG_AT,
+    SHORT_ACCOUNT_TYPES,
     UNIT_PRECISION,
     WEIGHT_ALERT,
     WEIGHT_ALERT_AT,
@@ -39,7 +41,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from decimal import Decimal
 
-    from domain import Currency
+    from domain import AccountType, Currency
     from engine.holdings import Holding
     from exporters.sheet_spec import Col
 
@@ -175,6 +177,12 @@ def income(value: Decimal) -> str:
 def currency_tint(currency: Currency, text: str) -> str:
     """Tint a currency label with that currency's colour."""
     return style(text, CURRENCY_COLORS.get(currency, "dim"))
+
+
+def account_type_cell(account_type: AccountType) -> str:
+    """Name an account type in four letters at most, in the type's colour."""
+    short = SHORT_ACCOUNT_TYPES.get(account_type, str(account_type))
+    return style(short, ACCOUNT_TYPE_COLORS.get(account_type))
 
 
 def weight(value: Decimal | None) -> str:

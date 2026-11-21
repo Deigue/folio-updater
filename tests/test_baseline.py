@@ -241,7 +241,7 @@ def _every_pool(valuation: FolioValuation) -> list[ValuedPool]:
     return [
         *valuation.value_all([FOLIO]),
         *valuation.value_all(
-            [Pool(Grain.TYPE, name) for name in valuation.account_types()],
+            [Pool(Grain.TYPE, name) for name in valuation.ledger.account_types],
         ),
         *valuation.value_all(
             [Pool(Grain.ACCOUNT, name) for name in valuation.accounts()],

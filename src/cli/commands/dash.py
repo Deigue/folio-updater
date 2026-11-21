@@ -111,7 +111,7 @@ def show_types(
         typer.Exit: If the export path names a format that cannot be written.
     """
     valued_pools = valuation.value_all(
-        [Pool(Grain.TYPE, name) for name in valuation.account_types()],
+        [Pool(Grain.TYPE, name) for name in valuation.ledger.account_types],
         sort=sort,
         reverse=reverse,
     )

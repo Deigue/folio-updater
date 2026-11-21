@@ -203,6 +203,20 @@ SHORT_HEADERS = {
     "Withdrawn": "Out",
     "Transferred": "Txfs",
 }
+# A flow heading with its currency underneath shortens alike, keeping the currency.
+SHORT_HEADERS.update(
+    {
+        f"{name}\n{currency}": f"{SHORT_HEADERS[name]}\n{currency}"
+        for name in (
+            "Contributions",
+            "Withdrawn",
+            "Transferred",
+            "Dividends",
+            "Realized",
+        )
+        for currency in (Currency.CAD, Currency.USD)
+    },
+)
 
 # A percentage with decimals, found inside a cell.
 PERCENT_RUN = re.compile(r"-?[\d,]*\d\.\d+%")

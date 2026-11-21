@@ -211,11 +211,24 @@ def flows_cmd(
         "--export",
         help="Write the rows to a .csv or .xlsx file",
     ),
+    *,
+    by_type: bool = typer.Option(
+        False,
+        "-b",
+        "--by-type",
+        help="Show every account type, grouped under each period",
+    ),
 ) -> None:
     """Show a pool's flows by week, month or year."""
     from cli.commands.flows import run_flows
 
-    run_flows(period, account_type=account_type, account=account, export=export)
+    run_flows(
+        period,
+        account_type=account_type,
+        account=account,
+        export=export,
+        by_type=by_type,
+    )
 
 
 @app.command(

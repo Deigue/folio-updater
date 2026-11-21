@@ -451,7 +451,7 @@ def _dashboard_stage(*, offline: bool) -> list[SinceUpdate] | None:
     if ledger.frame.empty:
         return None
     valuation = FolioValuation.build(ledger, currency="native", offline=offline)
-    types = [Pool(Grain.TYPE, name) for name in valuation.account_types()]
+    types = [Pool(Grain.TYPE, name) for name in valuation.ledger.account_types]
     since = record_update(valuation, [*types, FOLIO]) or []
     folio = next((change for change in since if change.pool == FOLIO), None)
     show_types(valuation, offline=offline, since=folio)

@@ -11,13 +11,12 @@ from domain import AccountType, Currency, Fmt
 from engine.accounts import account_type_of
 from engine.past_values import month_end_pools, unpriced_month_ends
 from term import console_print
-from ui.cells import WARN_GLYPH, money, price, style, units
+from ui.cells import WARN_GLYPH, account_type_cell, money, price, style, units
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     GRAND_TOTAL_ROW_STYLE,
-    SHORT_ACCOUNT_TYPES,
     TABLE_BORDER,
     TABLE_HEADER,
 )
@@ -295,11 +294,10 @@ def _title(
 def _labels(pool: Pool, *, by_type: bool) -> list[str]:
     """Name a row: an account and its type, or a type alone, in the type's colour."""
     account_type = account_type_of(pool) or AccountType.UNKNOWN
-    tint = ACCOUNT_TYPE_COLORS.get(account_type)
-    short = SHORT_ACCOUNT_TYPES.get(account_type, str(account_type))
+    short = account_type_cell(account_type)
     if by_type:
-        return [style(short, tint)]
-    return [style(pool.name, tint), style(short, tint)]
+        return [short]
+    return [style(pool.name, ACCOUNT_TYPE_COLORS.get(account_type)), short]
 
 
 def _held_lines(dated: DatedPool) -> list[Currency]:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from domain import (
     ROOM_BEARING_TYPES,
@@ -22,10 +22,10 @@ from domain import (
     Period,
 )
 from domain.numeric import ZERO, dec, q2
-from engine.types import CashState
+from engine.types import FLOW_FIELDS, CashState
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Mapping, Sequence
     from decimal import Decimal
 
     import pandas as pd
@@ -132,15 +132,7 @@ class Flows:
     def lines(self) -> tuple[FlowLine, ...]:
         """One line per currency the pool's flows moved, CAD first. Cash is no flow."""
         moved = (
-            self.contributions,
-            self.withdrawals,
-            self.transfers,
-            self.bought,
-            self.sold,
-            self.dividends,
-            self.fees,
-            self.realized,
-            self.trades,
+            getattr(self, name) for name in (*FLOW_FIELDS, "transfers", "realized")
         )
         currencies = sorted(set().union(*moved), key=str)
         return tuple(FlowLine(self, currency) for currency in currencies)
@@ -289,7 +281,7 @@ class PeriodFlows:
 
 
 def flows_by_period(ledger: Ledger, pool: Pool, period: Period) -> list[PeriodFlows]:
-    """Break one pool's flows down by the period each row settled in.
+    """Break one pool's flows down by the period each transaction settled in.
 
     Read off the same replay as `build_flows`, transfers at the deposit share each
     leg moved, so the periods add up to the pool's running totals.
@@ -306,6 +298,44 @@ def flows_by_period(ledger: Ledger, pool: Pool, period: Period) -> list[PeriodFl
     return [
         PeriodFlows(start, _read_flows(pool, states))
         for start, states in sorted(by_start.items(), reverse=True)
+    ]
+
+
+@dataclass(frozen=True)
+class PeriodPools:
+    """Several pools' flows within one period.
+
+    Attributes:
+        start: The period's first day.
+        pools: Each pool that saw a flow in it, in the order asked for.
+    """
+
+    start: date
+    pools: tuple[Flows, ...]
+
+
+def pools_by_period(
+    ledger: Ledger,
+    pools: Sequence[Pool],
+    period: Period,
+) -> list[PeriodPools]:
+    """Break several pools' flows down by period, side by side within each.
+
+    Args:
+        ledger: The ledger.
+        pools: The pools to read, in the order each period lists them.
+        period: How long each period is.
+
+    Returns:
+        One entry per period in which any of them saw a flow, newest first.
+    """
+    by_start: dict[date, list[Flows]] = {}
+    for pool in pools:
+        for entry in flows_by_period(ledger, pool, period):
+            by_start.setdefault(entry.start, []).append(entry.flows)
+    return [
+        PeriodPools(start, tuple(members))
+        for start, members in sorted(by_start.items(), reverse=True)
     ]
 
 
@@ -328,14 +358,14 @@ def _states_by[K](
     pool: Pool,
     key: Callable[[date], K],
 ) -> dict[K, dict[Currency, CashState]]:
-    """Fold one pool's row flows and deposit shares into states, grouped by date key."""
+    """Fold one pool's transaction flows and deposit shares into states, by date key."""
     grouped: dict[K, dict[Currency, CashState]] = {}
 
     def state_of(settle_date: str, currency: Currency) -> CashState:
         bucket = grouped.setdefault(key(date.fromisoformat(settle_date)), {})
         return bucket.setdefault(currency, CashState())
 
-    for flow in ledger.row_flows:
+    for flow in ledger.txn_flows:
         if flow.pool(pool.grain) != pool:
             continue
         state = state_of(flow.settle_date, flow.effect.currency)
@@ -368,7 +398,7 @@ def _read_flows(
         realized=_measure(states, "realized_gain"),
         bought=_measure(states, "bought"),
         sold=_measure(states, "sold"),
-        trades=_measure(states, "trades"),
+        trades=_count(states),
         room=room,
     )
 
@@ -482,10 +512,17 @@ def _by_type_year(
     return totals
 
 
+def _count(states: Mapping[Currency, CashState]) -> dict[Currency, int]:
+    """Count each currency's trades, dropping the currencies with none."""
+    return {
+        currency: state.trades for currency, state in states.items() if state.trades
+    }
+
+
 def _measure(
     states: Mapping[Currency, CashState],
     name: str,
-) -> dict[Currency, Any]:
+) -> dict[Currency, Decimal]:
     """Pull one `CashState` field out for every currency, dropping the zeros."""
     return {
         currency: value

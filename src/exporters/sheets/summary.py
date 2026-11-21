@@ -9,8 +9,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from domain import AccountType, Currency, Fmt, Grain
+from engine.flows import FlowLine
+from exporters.catalog import flow_columns
 from exporters.excel_style import OVERVIEW_TAB
-from exporters.sheet_spec import Col, Line, Link, Sheet, SheetList, SheetTable, row_of
+from exporters.sheet_spec import (
+    Col,
+    Line,
+    Link,
+    Sheet,
+    SheetList,
+    SheetTable,
+    read_cells,
+    row_of,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -43,18 +54,18 @@ POOL_COLUMNS: tuple[Col, ...] = (
     Col("Folio%", Fmt.PERCENT, bar=True),
 )
 
+# The money moved in, out and earned, as every flows table reads it.
+_MOVED = flow_columns("contributions", "withdrawn", "transferred")
+_EARNED = flow_columns("dividends", "fees", "realized")
+
 FLOW_COLUMNS: tuple[Col, ...] = (
     Col("Pool", width=18),
     Col("Grain", width=10),
     Col("$", width=6),
     Col("Cash", Fmt.MONEY_SIGNED),
-    Col("Contributions", Fmt.MONEY, quiet=True),
-    Col("Withdrawn", Fmt.MONEY, quiet=True),
-    Col("Transferred", Fmt.MONEY_SIGNED),
+    *_MOVED,
     Col("Net Deposits", Fmt.MONEY),
-    Col("Dividends", Fmt.MONEY, quiet=True),
-    Col("Fees", Fmt.MONEY, quiet=True),
-    Col("Realized", Fmt.MONEY_SIGNED),
+    *_EARNED,
     Col("Room Year", Fmt.ID),
     Col("Room Used", Fmt.MONEY),
     Col("Room Limit", Fmt.MONEY),
@@ -272,13 +283,8 @@ def _flow_cells(valued: ValuedPool) -> list[dict[str, object]]:
             "Grain": GRAIN_NAMES[valued.grain],
             "$": str(currency),
             "Cash": flows.cash.get(currency),
-            "Contributions": flows.contributions.get(currency),
-            "Withdrawn": flows.withdrawals.get(currency),
-            "Transferred": flows.transfers.get(currency),
             "Net Deposits": flows.net_deposits.get(currency),
-            "Dividends": flows.dividends.get(currency),
-            "Fees": flows.fees.get(currency),
-            "Realized": flows.realized.get(currency),
+            **read_cells((*_MOVED, *_EARNED), FlowLine(flows, currency)),
         }
         # Contribution room is a CAD limit, so it belongs on the CAD line.
         room = flows.room
