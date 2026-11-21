@@ -9,13 +9,16 @@ from typing import TYPE_CHECKING
 import pandas as pd
 import pytest
 
-from domain import AccountType, Action, Column, Currency, DiagnosticCode, Grain
+from domain import AccountType, Action, Column, Currency, DiagnosticCode, Grain, Period
+from domain.numeric import q2
 from engine.accounts import FOLIO, Pool
 from engine.flows import (
     Flows,
     Room,
     build_flows,
     contributions_by_type_year,
+    flow_totals,
+    flows_by_period,
     room_history,
     room_year,
     withdrawals_by_type_year,
@@ -1303,3 +1306,203 @@ def test_a_transfer_names_what_it_moved_only_when_not_the_deposits_it_carried() 
     assert flows.moved_by_transfers(Currency.CAD) == Decimal(-5000)
     assert flows.moved_by_transfers(Currency.USD) is None
     assert _funded(CAD="10000").moved_by_transfers(Currency.CAD) is None
+
+
+# -- FLOWS BY PERIOD -------------------------------------------------------------
+
+PERIOD_FX = {
+    f"2025-{month:02d}-{day:02d}": "1.30" for month in (3, 4) for day in range(1, 31)
+}
+
+
+def test_contributions_are_grouped_by_the_month_they_settled_in(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        seed_fx(PERIOD_FX)
+        for day, amount in (
+            ("2025-03-04", "400"),
+            ("2025-03-25", "600"),
+            ("2025-04-02", "250"),
+        ):
+            seed_cash(
+                "CONTRIBUTION",
+                amount=amount,
+                account="WS-TFSA",
+                date=day,
+                settle_date=day,
+            )
+
+        periods = flows_by_period(open_ledger(), Pool(Grain.TYPE, "TFSA"), Period.MONTH)
+
+        assert [(entry.start, entry.flows.contributions) for entry in periods] == [
+            (date(2025, 4, 1), {Currency.CAD: Decimal(250)}),
+            (date(2025, 3, 1), {Currency.CAD: Decimal(1000)}),
+        ]
+
+
+def _seed_a_year_of_activity() -> None:
+    """Fund, trade, earn and sweep across two TFSA accounts, a sale settling next year.
+
+    2,000 buys 20 units at 100 (commission 5), which sell for 2,400 (commission 5) on
+    the last day of 2025 and settle in 2026. Half the account's pool then moves to the
+    other account.
+    """
+    seed_fx(
+        dict.fromkeys(
+            (
+                "2025-11-03",
+                "2025-11-10",
+                "2025-12-01",
+                "2025-12-31",
+                "2026-01-02",
+                "2026-01-05",
+                "2026-01-12",
+            ),
+            "1.30",
+        ),
+    )
+    seed_cash(
+        "CONTRIBUTION",
+        amount="2100",
+        account="QT-TFSA",
+        date="2025-11-03",
+        settle_date="2025-11-03",
+    )
+    seed_transaction(
+        account="QT-TFSA",
+        ticker="SPY",
+        currency="CAD",
+        amount="-2000",
+        price="100",
+        units="20",
+        fee="-5",
+        date="2025-11-10",
+        settle_date="2025-11-10",
+    )
+    seed_cash(
+        "DIVIDEND",
+        amount="12",
+        account="QT-TFSA",
+        date="2025-12-01",
+        settle_date="2025-12-01",
+    )
+    seed_transaction(
+        action="SELL",
+        account="QT-TFSA",
+        ticker="SPY",
+        currency="CAD",
+        amount="2400",
+        price="120",
+        units="20",
+        fee="-5",
+        date="2025-12-31",
+        settle_date="2026-01-02",
+    )
+    seed_cash(
+        "FCH",
+        amount="-3",
+        account="QT-TFSA",
+        date="2026-01-05",
+        settle_date="2026-01-05",
+    )
+    _seed_legs(
+        "2026-01-12",
+        ("TFR_OUT", "-1000", "QT-TFSA"),
+        ("TFR_IN", "1000", "WS-TFSA"),
+    )
+
+
+_COMPARED = (
+    "contributions",
+    "withdrawals",
+    "transfers",
+    "dividends",
+    "fees",
+    "realized",
+    "bought",
+    "sold",
+    "trades",
+)
+
+
+@pytest.mark.parametrize(
+    "pool",
+    [
+        Pool(Grain.ACCOUNT, "QT-TFSA"),
+        Pool(Grain.ACCOUNT, "WS-TFSA"),
+        Pool(Grain.TYPE, "TFSA"),
+        FOLIO,
+    ],
+)
+def test_flow_totals_agree_with_the_running_totals(
+    temp_ctx: TempContext,
+    pool: Pool,
+) -> None:
+    with temp_ctx():
+        _seed_a_year_of_activity()
+        ledger = open_ledger()
+
+        totals = flow_totals(ledger, pool)
+        running = build_flows(ledger, pool, contributions={})
+
+        # The replay restates a sender's transfers as the complement of the deposits it
+        # keeps, which can differ from the summed shares far below a cent.
+        for name in _COMPARED:
+            assert _to_cents(getattr(totals, name)) == _to_cents(
+                getattr(running, name),
+            ), name
+
+
+def _to_cents(
+    amounts: dict[Currency, Decimal] | dict[Currency, int],
+) -> dict[Currency, Decimal]:
+    """Round each currency's figure to the cent."""
+    return {currency: q2(Decimal(amount)) for currency, amount in amounts.items()}
+
+
+def test_trades_count_in_the_year_they_settled_with_what_they_cost_and_raised(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_a_year_of_activity()
+
+        years = flows_by_period(
+            open_ledger(),
+            Pool(Grain.ACCOUNT, "QT-TFSA"),
+            Period.YEAR,
+        )
+
+        [later, earlier] = years
+        assert earlier.start == date(2025, 1, 1)
+        assert earlier.flows.bought == {Currency.CAD: Decimal(2005)}
+        assert earlier.flows.trades == {Currency.CAD: 1}
+        assert earlier.flows.realized == {}
+        assert later.start == date(2026, 1, 1)
+        assert later.flows.sold == {Currency.CAD: Decimal(2395)}
+        assert later.flows.trades == {Currency.CAD: 1}
+        assert later.flows.realized == {Currency.CAD: Decimal(390)}
+        assert later.flows.fees == {Currency.CAD: Decimal(8)}
+
+
+def test_a_week_runs_monday_to_sunday(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        seed_fx(PERIOD_FX)
+        # 2025-03-09 is a Sunday, 2025-03-10 the Monday after.
+        for day in ("2025-03-03", "2025-03-09", "2025-03-10"):
+            seed_cash(
+                "CONTRIBUTION",
+                amount="100",
+                account="WS-TFSA",
+                date=day,
+                settle_date=day,
+            )
+
+        weeks = flows_by_period(open_ledger(), FOLIO, Period.WEEK)
+
+        assert [
+            (week.start, week.flows.contributions[Currency.CAD]) for week in weeks
+        ] == [
+            (date(2025, 3, 10), Decimal(100)),
+            (date(2025, 3, 3), Decimal(200)),
+        ]

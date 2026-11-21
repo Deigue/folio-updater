@@ -45,10 +45,12 @@ from engine.saved_ledger import (
     decode_deposit_shares,
     decode_diagnostics,
     decode_holdings,
+    decode_row_flows,
     encode_cash_and_totals,
     encode_deposit_shares,
     encode_diagnostics,
     encode_holdings,
+    encode_row_flows,
 )
 from services import FxService
 from services.symbols import load_symbol_resolver
@@ -67,6 +69,7 @@ if TYPE_CHECKING:
         PoolHoldings,
         ReplayResult,
         ReplayTotals,
+        RowFlow,
     )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +113,7 @@ class Ledger:
             invocation replayed it.
         deposit_shares: The net deposits each transfer leg moved, per pool it
             moved in.
+        row_flows: What each other row added to its pools' flows, dated.
     """
 
     frame: pd.DataFrame
@@ -119,6 +123,7 @@ class Ledger:
     load_diagnosis: Callable[[], Diagnosis] = field(repr=False)
     computed_at: datetime | None = None
     deposit_shares: tuple[DepositShare, ...] = ()
+    row_flows: tuple[RowFlow, ...] = ()
 
     @classmethod
     def from_replay(cls, result: ReplayResult) -> Ledger:
@@ -149,6 +154,7 @@ class Ledger:
             totals=result.totals,
             load_diagnosis=lambda: diagnosis,
             deposit_shares=tuple(result.deposit_shares),
+            row_flows=tuple(result.row_flows),
             holdings=result.holdings,
         )
 
@@ -349,6 +355,7 @@ def _restore(
         load_diagnosis=load_diagnosis,
         computed_at=datetime.fromisoformat(meta["computed_at"]),
         deposit_shares=decode_deposit_shares(meta["deposit_shares"]),
+        row_flows=decode_row_flows(meta["row_flows"]),
         holdings=decode_holdings(meta["holdings"]),
     )
 
@@ -361,6 +368,7 @@ def _write(parquet: Path, ledger: Ledger, inputs: dict[str, object]) -> None:
         "computed_at": datetime.now(TORONTO_TZ).isoformat(),
         **encode_cash_and_totals(ledger.cash, ledger.totals),
         "deposit_shares": encode_deposit_shares(ledger.deposit_shares),
+        "row_flows": encode_row_flows(ledger.row_flows),
         "holdings": encode_holdings(ledger.holdings),
     }
     diagnostics = encode_diagnostics(ledger.diagnostics, ledger.diagnosed_rows)

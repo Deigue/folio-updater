@@ -2,7 +2,8 @@
 
 The ledger frame holds every transaction's figures, but a replay also raises
 diagnostics, keeps the running cash per pool, counts rows by shape, records each
-transfer leg's deposit share and ends with each pool's holdings. These are saved
+transfer leg's deposit share and every other row's flows, and ends with each pool's
+holdings. These are saved
 beside the frame, so a reused ledger reports exactly what a fresh replay would
 without replaying.
 
@@ -24,6 +25,7 @@ import pandas as pd
 from domain import AccountType, Action, Currency, DiagnosticCode, Grain, Impact
 from engine.accounts import Pool
 from engine.types import (
+    CashEffect,
     CashState,
     DepositShare,
     Diagnostic,
@@ -31,6 +33,7 @@ from engine.types import (
     HoldingState,
     LedgerRow,
     ReplayTotals,
+    RowFlow,
 )
 from models import Txn
 
@@ -41,7 +44,10 @@ if TYPE_CHECKING:
 
 # Bump when what is saved, or the coded *meaning* of a saved field, changes: a
 # ledger saved in another format is never reused.
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
+
+# The `CashState` fields that count rows rather than money.
+_CASH_COUNTS: dict[str, Callable[[str], Any]] = {"trades": int}
 
 # The `GrainMeasures` fields, in declaration order, resolved once.
 _MEASURE_FIELDS: tuple[str, ...] = tuple(field.name for field in fields(GrainMeasures))
@@ -335,7 +341,10 @@ def decode_cash_and_totals(
             Pool(Grain(entry["grain"]), entry["pool"]),
             Currency(entry["currency"]),
         ): CashState(
-            **{field.name: Decimal(entry[field.name]) for field in fields(CashState)},
+            **{
+                field.name: _CASH_COUNTS.get(field.name, Decimal)(entry[field.name])
+                for field in fields(CashState)
+            },
         )
         for entry in payload["cash"]
     }
@@ -410,4 +419,64 @@ def decode_deposit_shares(entries: Sequence[Sequence[Any]]) -> tuple[DepositShar
             Decimal(amount),
         )
         for txn_id, settle_date, grain, pool, currency, amount in entries
+    )
+
+
+def encode_row_flows(flows: Sequence[RowFlow]) -> list[list[Any]]:
+    """Flatten each row's flows into JSON-ready lists, money as text."""
+    return [
+        [
+            flow.txn_id,
+            flow.settle_date,
+            flow.account,
+            str(flow.acct_type),
+            str(flow.effect.currency),
+            str(flow.effect.contributions),
+            str(flow.effect.withdrawals),
+            str(flow.effect.dividends),
+            str(flow.effect.fees),
+            str(flow.effect.bought),
+            str(flow.effect.sold),
+            flow.effect.trades,
+            {str(grain): str(gain) for grain, gain in flow.realized.items()},
+        ]
+        for flow in flows
+    ]
+
+
+def decode_row_flows(entries: Sequence[Sequence[Any]]) -> tuple[RowFlow, ...]:
+    """Restore the row flows from `encode_row_flows`."""
+    return tuple(
+        RowFlow(
+            txn_id,
+            settle_date,
+            account,
+            AccountType(acct_type),
+            CashEffect(
+                Currency(currency),
+                contributions=Decimal(contributions),
+                withdrawals=Decimal(withdrawals),
+                dividends=Decimal(dividends),
+                fees=Decimal(fees),
+                bought=Decimal(bought),
+                sold=Decimal(sold),
+                trades=trades,
+            ),
+            {Grain(grain): Decimal(gain) for grain, gain in realized.items()},
+        )
+        for (
+            txn_id,
+            settle_date,
+            account,
+            acct_type,
+            currency,
+            contributions,
+            withdrawals,
+            dividends,
+            fees,
+            bought,
+            sold,
+            trades,
+            realized,
+        ) in entries
     )

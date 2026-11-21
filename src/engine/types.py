@@ -125,6 +125,9 @@ class CashState:
 
     `realized_gain` is denominated in this state's own currency, matching every
     other field here. The CAD-converted figure lives on the ledger.
+
+    `bought` and `sold` are what trades cost and brought in, commission included,
+    and `trades` counts them.
     """
 
     cash: Decimal = ZERO
@@ -135,6 +138,20 @@ class CashState:
     dividends: Decimal = ZERO
     fees: Decimal = ZERO
     realized_gain: Decimal = ZERO
+    bought: Decimal = ZERO
+    sold: Decimal = ZERO
+    trades: int = 0
+
+    def book(self, effect: CashEffect) -> None:
+        """Add one cash effect's figures."""
+        self.cash += effect.cash
+        self.contributions += effect.contributions
+        self.withdrawals += effect.withdrawals
+        self.dividends += effect.dividends
+        self.fees += effect.fees
+        self.bought += effect.bought
+        self.sold += effect.sold
+        self.trades += effect.trades
 
 
 @dataclass(frozen=True)
@@ -263,6 +280,9 @@ class CashEffect:
         withdrawals: Added to withdrawals.
         dividends: Added to dividends.
         fees: Added to fees.
+        bought: What a buy cost, commission included.
+        sold: What a sale brought in, after commission.
+        trades: 1 for a buy or a sell.
         grains: The grains it moves at. A transfer staying put in a pool skips that one.
     """
 
@@ -272,7 +292,51 @@ class CashEffect:
     withdrawals: Decimal = ZERO
     dividends: Decimal = ZERO
     fees: Decimal = ZERO
+    bought: Decimal = ZERO
+    sold: Decimal = ZERO
+    trades: int = 0
     grains: Container[Grain] = Grain
+
+    @property
+    def is_flow(self) -> bool:
+        """Whether it carries a figure the flows report, beyond moving cash."""
+        return bool(
+            self.contributions
+            or self.withdrawals
+            or self.dividends
+            or self.fees
+            or self.bought
+            or self.sold
+            or self.trades,
+        )
+
+
+@dataclass(frozen=True)
+class RowFlow:
+    """What one transaction added to its pools' flows, in one currency.
+
+    Transfers are absent: the deposit shares already say what each leg moved.
+
+    Attributes:
+        txn_id: The transaction.
+        settle_date: Its settlement date, which picks the period it counts in.
+        account: The account it sits in.
+        acct_type: That account's type.
+        effect: The figures it booked, in the effect's currency.
+        realized: The realized gain it earned in that currency, per grain, since
+            each grain pools the cost base differently.
+    """
+
+    txn_id: int
+    settle_date: str
+    account: str
+    acct_type: AccountType
+    effect: CashEffect
+    realized: Mapping[Grain, Decimal] = field(default_factory=dict)
+
+    def pool(self, grain: Grain) -> Pool:
+        """Return the pool it counts in at one grain."""
+        return Pool.at(grain, self.account, self.acct_type)
 
 
 @dataclass(frozen=True)
@@ -386,6 +450,7 @@ class ReplayResult:
         cash: Running cash and income totals per pool and currency.
         totals: Row counts by shape, so aggregates need no further scan.
         deposit_shares: The net deposits each transfer leg moved, per pool it moved in.
+        row_flows: What each other row added to its pools' flows.
         holdings: Every pool's holdings after the last transaction.
     """
 
@@ -394,6 +459,7 @@ class ReplayResult:
     cash: dict[CashKey, CashState] = field(default_factory=dict)
     totals: ReplayTotals = field(default_factory=ReplayTotals)
     deposit_shares: list[DepositShare] = field(default_factory=list)
+    row_flows: list[RowFlow] = field(default_factory=list)
     holdings: PoolHoldings = field(default_factory=dict)
 
     def codes_by_txn(self) -> dict[int, tuple[DiagnosticCode, ...]]:

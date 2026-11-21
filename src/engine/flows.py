@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from domain import (
     ROOM_BEARING_TYPES,
@@ -19,18 +19,19 @@ from domain import (
     Column,
     Currency,
     Grain,
+    Period,
 )
 from domain.numeric import ZERO, dec, q2
+from engine.types import CashState
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Callable, Mapping
     from decimal import Decimal
 
     import pandas as pd
 
     from engine.accounts import Pool
     from engine.ledger import Ledger
-    from engine.types import CashState
 
 # An RRSP contribution made up to 60 days after a year ends counts toward that
 # year's room, which is how CRA's deduction limit statement reports it.
@@ -100,6 +101,9 @@ class Flows:
         dividends: Cumulative dividends, signed, so reversals stay visible.
         fees: Cumulative commissions and charges.
         realized: Cumulative realized gains.
+        bought: What buys cost, commission included.
+        sold: What sales brought in, after commission.
+        trades: How many buys and sells.
         room: Contribution room for the current year, when the pool has a type
             that carries one.
     """
@@ -114,6 +118,9 @@ class Flows:
     dividends: dict[Currency, Decimal] = field(default_factory=dict)
     fees: dict[Currency, Decimal] = field(default_factory=dict)
     realized: dict[Currency, Decimal] = field(default_factory=dict)
+    bought: dict[Currency, Decimal] = field(default_factory=dict)
+    sold: dict[Currency, Decimal] = field(default_factory=dict)
+    trades: dict[Currency, int] = field(default_factory=dict)
     room: Room | None = None
 
     @property
@@ -230,7 +237,94 @@ def build_flows(  # noqa: PLR0913
         for (cash_pool, currency), state in ledger.cash.items()
         if cash_pool == pool
     }
+    return _read_flows(
+        pool,
+        states,
+        account_type=account_type,
+        room=_room(account_type, room or {}, year, contributions),
+    )
 
+
+@dataclass(frozen=True)
+class PeriodFlows:
+    """One pool's flows within one period.
+
+    Attributes:
+        start: The period's first day.
+        flows: What settled in it. Cash is left out: a balance is not a flow.
+    """
+
+    start: date
+    flows: Flows
+
+
+def flows_by_period(ledger: Ledger, pool: Pool, period: Period) -> list[PeriodFlows]:
+    """Break one pool's flows down by the period each row settled in.
+
+    Read off the same replay as `build_flows`, transfers at the deposit share each
+    leg moved, so the periods add up to the pool's running totals.
+
+    Args:
+        ledger: The ledger.
+        pool: The pool to read.
+        period: How long each period is.
+
+    Returns:
+        One entry per period that saw a flow, newest first.
+    """
+    by_start = _states_by(ledger, pool, period.start)
+    return [
+        PeriodFlows(start, _read_flows(pool, states))
+        for start, states in sorted(by_start.items(), reverse=True)
+    ]
+
+
+def flow_totals(ledger: Ledger, pool: Pool) -> Flows:
+    """Add up one pool's flows over its whole history, as `flows_by_period` reads them.
+
+    Args:
+        ledger: The ledger.
+        pool: The pool to read.
+
+    Returns:
+        The pool's flows, cash left out.
+    """
+    states = _states_by(ledger, pool, lambda _day: None).get(None, {})
+    return _read_flows(pool, states)
+
+
+def _states_by[K](
+    ledger: Ledger,
+    pool: Pool,
+    key: Callable[[date], K],
+) -> dict[K, dict[Currency, CashState]]:
+    """Fold one pool's row flows and deposit shares into states, grouped by date key."""
+    grouped: dict[K, dict[Currency, CashState]] = {}
+
+    def state_of(settle_date: str, currency: Currency) -> CashState:
+        bucket = grouped.setdefault(key(date.fromisoformat(settle_date)), {})
+        return bucket.setdefault(currency, CashState())
+
+    for flow in ledger.row_flows:
+        if flow.pool(pool.grain) != pool:
+            continue
+        state = state_of(flow.settle_date, flow.effect.currency)
+        state.book(flow.effect)
+        state.realized_gain += flow.realized.get(pool.grain, ZERO)
+    for share in ledger.deposit_shares:
+        if share.pool == pool:
+            state_of(share.settle_date, share.currency).transfers += share.amount
+    return grouped
+
+
+def _read_flows(
+    pool: Pool,
+    states: Mapping[Currency, CashState],
+    *,
+    account_type: AccountType | None = None,
+    room: Room | None = None,
+) -> Flows:
+    """Read a pool's flows out of its states, one per currency."""
     return Flows(
         pool=pool,
         account_type=account_type,
@@ -242,7 +336,10 @@ def build_flows(  # noqa: PLR0913
         dividends=_measure(states, "dividends"),
         fees=_measure(states, "fees"),
         realized=_measure(states, "realized_gain"),
-        room=_room(account_type, room or {}, year, contributions),
+        bought=_measure(states, "bought"),
+        sold=_measure(states, "sold"),
+        trades=_measure(states, "trades"),
+        room=room,
     )
 
 
@@ -358,7 +455,7 @@ def _by_type_year(
 def _measure(
     states: Mapping[Currency, CashState],
     name: str,
-) -> dict[Currency, Decimal]:
+) -> dict[Currency, Any]:
     """Pull one `CashState` field out for every currency, dropping the zeros."""
     return {
         currency: value

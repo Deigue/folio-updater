@@ -6,6 +6,7 @@ every other layer depend on it.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from enum import StrEnum
 
 
@@ -167,6 +168,22 @@ class Grain(StrEnum):
     ACCOUNT = "acct"
     TYPE = "type"
     FOLIO = "folio"
+
+
+class Period(StrEnum):
+    """A calendar bucket flows are grouped by."""
+
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+
+    def start(self, day: date) -> date:
+        """Return the first day of the period `day` is in: a week starts on Monday."""
+        if self is Period.WEEK:
+            return day - timedelta(days=day.weekday())
+        if self is Period.MONTH:
+            return day.replace(day=1)
+        return day.replace(month=1, day=1)
 
 
 class Impact(StrEnum):

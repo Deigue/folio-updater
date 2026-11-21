@@ -4,6 +4,7 @@ CAD,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
 CAD,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-CORPORATE,disclosure Converted,what,valued
 CAD,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
+CAD,acct,MOCK-CORPORATE,flows,bought USD,6991.2
 CAD,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 CAD,acct,MOCK-CORPORATE,flows,cash USD,4839.2
 CAD,acct,MOCK-CORPORATE,flows,contributions CAD,12000
@@ -16,6 +17,8 @@ CAD,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000
 CAD,acct,MOCK-CORPORATE,flows,pool,MOCK-CORPORATE
 CAD,acct,MOCK-CORPORATE,flows,realized USD,358.92
 CAD,acct,MOCK-CORPORATE,flows,room,
+CAD,acct,MOCK-CORPORATE,flows,sold USD,3155.4
+CAD,acct,MOCK-CORPORATE,flows,trades USD,3
 CAD,acct,MOCK-CORPORATE,holding KO,avg_cost,95.80171
 CAD,acct,MOCK-CORPORATE,holding KO,book_value,5748.10260
 CAD,acct,MOCK-CORPORATE,holding KO,book_value_totals,5748.10260
@@ -105,6 +108,7 @@ CAD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 CAD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-MARGIN,disclosure Converted,what,valued
 CAD,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
+CAD,acct,MOCK-MARGIN,flows,bought USD,8013.0
 CAD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 CAD,acct,MOCK-MARGIN,flows,cash USD,4076.45
 CAD,acct,MOCK-MARGIN,flows,contributions CAD,10000
@@ -119,6 +123,8 @@ CAD,acct,MOCK-MARGIN,flows,net_deposits USD,2000
 CAD,acct,MOCK-MARGIN,flows,pool,MOCK-MARGIN
 CAD,acct,MOCK-MARGIN,flows,realized USD,335.60
 CAD,acct,MOCK-MARGIN,flows,room,
+CAD,acct,MOCK-MARGIN,flows,sold USD,2856.2
+CAD,acct,MOCK-MARGIN,flows,trades USD,4
 CAD,acct,MOCK-MARGIN,flows,transfers CAD,1818.79613187137233093329647
 CAD,acct,MOCK-MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
 CAD,acct,MOCK-MARGIN,holding KO,avg_cost,89.00898769230769230769230769
@@ -210,6 +216,8 @@ CAD,acct,MOCK-PERSONAL,disclosure Converted,rate,1.38
 CAD,acct,MOCK-PERSONAL,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-PERSONAL,disclosure Converted,what,valued
 CAD,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
+CAD,acct,MOCK-PERSONAL,flows,bought CAD,132250.06
+CAD,acct,MOCK-PERSONAL,flows,bought USD,110691.97
 CAD,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 CAD,acct,MOCK-PERSONAL,flows,cash USD,572.19
 CAD,acct,MOCK-PERSONAL,flows,contributions CAD,152000
@@ -223,6 +231,9 @@ CAD,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
 CAD,acct,MOCK-PERSONAL,flows,pool,MOCK-PERSONAL
 CAD,acct,MOCK-PERSONAL,flows,realized USD,1747.991557175187433173138830
 CAD,acct,MOCK-PERSONAL,flows,room,
+CAD,acct,MOCK-PERSONAL,flows,sold USD,109255.89
+CAD,acct,MOCK-PERSONAL,flows,trades CAD,12
+CAD,acct,MOCK-PERSONAL,flows,trades USD,100
 CAD,acct,MOCK-PERSONAL,flows,transfers CAD,-1818.7961318713723309332965
 CAD,acct,MOCK-PERSONAL,flows,transfers_value CAD,-1875.40670769230769230769231
 CAD,acct,MOCK-PERSONAL,flows,withdrawals CAD,14000
@@ -757,6 +768,7 @@ CAD,acct,MOCK-RRSP,disclosure Converted,rate,1.38
 CAD,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-RRSP,disclosure Converted,what,valued
 CAD,acct,MOCK-RRSP,flows,account_type,RRSP
+CAD,acct,MOCK-RRSP,flows,bought USD,47648.36
 CAD,acct,MOCK-RRSP,flows,cash CAD,400.70
 CAD,acct,MOCK-RRSP,flows,cash USD,477.44
 CAD,acct,MOCK-RRSP,flows,contributions CAD,66000
@@ -777,6 +789,7 @@ CAD,acct,MOCK-RRSP,flows,room.used,12000.0
 CAD,acct,MOCK-RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 CAD,acct,MOCK-RRSP,flows,room.withdrawn,0
 CAD,acct,MOCK-RRSP,flows,room.year,2026
+CAD,acct,MOCK-RRSP,flows,trades USD,36
 CAD,acct,MOCK-RRSP,holding NFLX,avg_cost,132.925065
 CAD,acct,MOCK-RRSP,holding NFLX,book_value,1329.25065
 CAD,acct,MOCK-RRSP,holding NFLX,book_value_totals,1329.25065
@@ -977,6 +990,7 @@ CAD,acct,MOCK-TFSA,disclosure Converted,rate,1.38
 CAD,acct,MOCK-TFSA,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK-TFSA,disclosure Converted,what,valued
 CAD,acct,MOCK-TFSA,flows,account_type,TFSA
+CAD,acct,MOCK-TFSA,flows,bought CAD,12022.53
 CAD,acct,MOCK-TFSA,flows,cash CAD,3649.32
 CAD,acct,MOCK-TFSA,flows,cash USD,34.77
 CAD,acct,MOCK-TFSA,flows,contributions CAD,14000
@@ -998,6 +1012,8 @@ CAD,acct,MOCK-TFSA,flows,room.used,7000.0
 CAD,acct,MOCK-TFSA,flows,room.used_ratio,1
 CAD,acct,MOCK-TFSA,flows,room.withdrawn,0
 CAD,acct,MOCK-TFSA,flows,room.year,2026
+CAD,acct,MOCK-TFSA,flows,sold CAD,1856
+CAD,acct,MOCK-TFSA,flows,trades CAD,53
 CAD,acct,MOCK-TFSA,flows,transfers CAD,7000.00000000000000000000000
 CAD,acct,MOCK-TFSA,flows,transfers_value CAD,7236.79
 CAD,acct,MOCK-TFSA,flows,transfers_value USD,25.05
@@ -1350,6 +1366,8 @@ CAD,acct,MOCK2-TFSA,disclosure Converted,rate,1.38
 CAD,acct,MOCK2-TFSA,disclosure Converted,rate_date,2026-09-30
 CAD,acct,MOCK2-TFSA,disclosure Converted,what,valued
 CAD,acct,MOCK2-TFSA,flows,account_type,TFSA
+CAD,acct,MOCK2-TFSA,flows,bought CAD,6636.00
+CAD,acct,MOCK2-TFSA,flows,bought USD,177
 CAD,acct,MOCK2-TFSA,flows,cash CAD,8.88
 CAD,acct,MOCK2-TFSA,flows,cash USD,0.81
 CAD,acct,MOCK2-TFSA,flows,contributions CAD,7000
@@ -1371,6 +1389,8 @@ CAD,acct,MOCK2-TFSA,flows,room.used,7000.0
 CAD,acct,MOCK2-TFSA,flows,room.used_ratio,1
 CAD,acct,MOCK2-TFSA,flows,room.withdrawn,0
 CAD,acct,MOCK2-TFSA,flows,room.year,2026
+CAD,acct,MOCK2-TFSA,flows,trades CAD,4
+CAD,acct,MOCK2-TFSA,flows,trades USD,1
 CAD,acct,MOCK2-TFSA,flows,transfers CAD,-7000
 CAD,acct,MOCK2-TFSA,flows,transfers_value CAD,-7236.79
 CAD,acct,MOCK2-TFSA,flows,transfers_value USD,-25.05
@@ -1611,6 +1631,8 @@ CAD,folio,,disclosure Converted,rate,1.38
 CAD,folio,,disclosure Converted,rate_date,2026-09-30
 CAD,folio,,disclosure Converted,what,valued
 CAD,folio,,flows,account_type,
+CAD,folio,,flows,bought CAD,150908.59
+CAD,folio,,flows,bought USD,173521.53
 CAD,folio,,flows,cash CAD,10712.10
 CAD,folio,,flows,cash USD,10000.86
 CAD,folio,,flows,contributions CAD,261000
@@ -1628,6 +1650,10 @@ CAD,folio,,flows,pool,
 CAD,folio,,flows,realized CAD,233.19
 CAD,folio,,flows,realized USD,2448.524467228097486083191739
 CAD,folio,,flows,room,
+CAD,folio,,flows,sold CAD,1856
+CAD,folio,,flows,sold USD,115267.49
+CAD,folio,,flows,trades CAD,69
+CAD,folio,,flows,trades USD,144
 CAD,folio,,flows,withdrawals CAD,15500
 CAD,folio,,holding AAPL,avg_cost,342.2447939655172413793103448
 CAD,folio,,holding AAPL,book_value,19850.19805
@@ -2530,6 +2556,7 @@ CAD,type,CORPORATE,disclosure Converted,rate,1.38
 CAD,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
 CAD,type,CORPORATE,disclosure Converted,what,valued
 CAD,type,CORPORATE,flows,account_type,CORPORATE
+CAD,type,CORPORATE,flows,bought USD,6991.2
 CAD,type,CORPORATE,flows,cash CAD,325.25
 CAD,type,CORPORATE,flows,cash USD,4839.2
 CAD,type,CORPORATE,flows,contributions CAD,12000
@@ -2542,6 +2569,8 @@ CAD,type,CORPORATE,flows,net_deposits CAD,12000
 CAD,type,CORPORATE,flows,pool,CORPORATE
 CAD,type,CORPORATE,flows,realized USD,358.92
 CAD,type,CORPORATE,flows,room,
+CAD,type,CORPORATE,flows,sold USD,3155.4
+CAD,type,CORPORATE,flows,trades USD,3
 CAD,type,CORPORATE,holding KO,avg_cost,95.80171
 CAD,type,CORPORATE,holding KO,book_value,5748.10260
 CAD,type,CORPORATE,holding KO,book_value_totals,5748.10260
@@ -2631,6 +2660,8 @@ CAD,type,NON_REGISTERED,disclosure Converted,rate,1.38
 CAD,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
 CAD,type,NON_REGISTERED,disclosure Converted,what,valued
 CAD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
+CAD,type,NON_REGISTERED,flows,bought CAD,132250.06
+CAD,type,NON_REGISTERED,flows,bought USD,118704.97
 CAD,type,NON_REGISTERED,flows,cash CAD,6327.95
 CAD,type,NON_REGISTERED,flows,cash USD,4648.64
 CAD,type,NON_REGISTERED,flows,contributions CAD,162000
@@ -2646,6 +2677,9 @@ CAD,type,NON_REGISTERED,flows,net_deposits USD,2000
 CAD,type,NON_REGISTERED,flows,pool,NON_REGISTERED
 CAD,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 CAD,type,NON_REGISTERED,flows,room,
+CAD,type,NON_REGISTERED,flows,sold USD,112112.09
+CAD,type,NON_REGISTERED,flows,trades CAD,12
+CAD,type,NON_REGISTERED,flows,trades USD,104
 CAD,type,NON_REGISTERED,flows,withdrawals CAD,14000
 CAD,type,NON_REGISTERED,holding AAPL,avg_cost,342.2447939655172413793103448
 CAD,type,NON_REGISTERED,holding AAPL,book_value,19850.19805
@@ -3178,6 +3212,7 @@ CAD,type,RRSP,disclosure Converted,rate,1.38
 CAD,type,RRSP,disclosure Converted,rate_date,2026-09-30
 CAD,type,RRSP,disclosure Converted,what,valued
 CAD,type,RRSP,flows,account_type,RRSP
+CAD,type,RRSP,flows,bought USD,47648.36
 CAD,type,RRSP,flows,cash CAD,400.70
 CAD,type,RRSP,flows,cash USD,477.44
 CAD,type,RRSP,flows,contributions CAD,66000
@@ -3198,6 +3233,7 @@ CAD,type,RRSP,flows,room.used,12000.0
 CAD,type,RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 CAD,type,RRSP,flows,room.withdrawn,0
 CAD,type,RRSP,flows,room.year,2026
+CAD,type,RRSP,flows,trades USD,36
 CAD,type,RRSP,holding NFLX,avg_cost,132.925065
 CAD,type,RRSP,holding NFLX,book_value,1329.25065
 CAD,type,RRSP,holding NFLX,book_value_totals,1329.25065
@@ -3398,6 +3434,8 @@ CAD,type,TFSA,disclosure Converted,rate,1.38
 CAD,type,TFSA,disclosure Converted,rate_date,2026-09-30
 CAD,type,TFSA,disclosure Converted,what,valued
 CAD,type,TFSA,flows,account_type,TFSA
+CAD,type,TFSA,flows,bought CAD,18658.53
+CAD,type,TFSA,flows,bought USD,177
 CAD,type,TFSA,flows,cash CAD,3658.20
 CAD,type,TFSA,flows,cash USD,35.58
 CAD,type,TFSA,flows,contributions CAD,21000
@@ -3420,6 +3458,9 @@ CAD,type,TFSA,flows,room.used,7000.0
 CAD,type,TFSA,flows,room.used_ratio,1
 CAD,type,TFSA,flows,room.withdrawn,0
 CAD,type,TFSA,flows,room.year,2026
+CAD,type,TFSA,flows,sold CAD,1856
+CAD,type,TFSA,flows,trades CAD,57
+CAD,type,TFSA,flows,trades USD,1
 CAD,type,TFSA,flows,withdrawals CAD,1500
 CAD,type,TFSA,holding CNR.TO,avg_cost,158.345
 CAD,type,TFSA,holding CNR.TO,book_value,1583.45
@@ -3769,6 +3810,7 @@ USD,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
 USD,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
 USD,acct,MOCK-CORPORATE,disclosure Converted,what,total_return
 USD,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
+USD,acct,MOCK-CORPORATE,flows,bought USD,6991.2
 USD,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 USD,acct,MOCK-CORPORATE,flows,cash USD,4839.2
 USD,acct,MOCK-CORPORATE,flows,contributions CAD,12000
@@ -3781,6 +3823,8 @@ USD,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000
 USD,acct,MOCK-CORPORATE,flows,pool,MOCK-CORPORATE
 USD,acct,MOCK-CORPORATE,flows,realized USD,358.92
 USD,acct,MOCK-CORPORATE,flows,room,
+USD,acct,MOCK-CORPORATE,flows,sold USD,3155.4
+USD,acct,MOCK-CORPORATE,flows,trades USD,3
 USD,acct,MOCK-CORPORATE,holding KO,avg_cost,69.912
 USD,acct,MOCK-CORPORATE,holding KO,book_value,4194.72
 USD,acct,MOCK-CORPORATE,holding KO,book_value_totals,4194.72
@@ -3870,6 +3914,7 @@ USD,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 USD,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 USD,acct,MOCK-MARGIN,disclosure Converted,what,total_return
 USD,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
+USD,acct,MOCK-MARGIN,flows,bought USD,8013.0
 USD,acct,MOCK-MARGIN,flows,cash CAD,315.16
 USD,acct,MOCK-MARGIN,flows,cash USD,4076.45
 USD,acct,MOCK-MARGIN,flows,contributions CAD,10000
@@ -3884,6 +3929,8 @@ USD,acct,MOCK-MARGIN,flows,net_deposits USD,2000
 USD,acct,MOCK-MARGIN,flows,pool,MOCK-MARGIN
 USD,acct,MOCK-MARGIN,flows,realized USD,335.60
 USD,acct,MOCK-MARGIN,flows,room,
+USD,acct,MOCK-MARGIN,flows,sold USD,2856.2
+USD,acct,MOCK-MARGIN,flows,trades USD,4
 USD,acct,MOCK-MARGIN,flows,transfers CAD,1818.79613187137233093329647
 USD,acct,MOCK-MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
 USD,acct,MOCK-MARGIN,holding KO,avg_cost,65.47761172161172161172161171
@@ -3973,6 +4020,8 @@ USD,acct,MOCK-MARGIN,totals USD,weight_in_pool,1
 USD,acct,MOCK-PERSONAL,disclosure TotalReturnHidden,excluded,1
 USD,acct,MOCK-PERSONAL,disclosure TotalReturnHidden,shown,USD
 USD,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
+USD,acct,MOCK-PERSONAL,flows,bought CAD,132250.06
+USD,acct,MOCK-PERSONAL,flows,bought USD,110691.97
 USD,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 USD,acct,MOCK-PERSONAL,flows,cash USD,572.19
 USD,acct,MOCK-PERSONAL,flows,contributions CAD,152000
@@ -3986,6 +4035,9 @@ USD,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
 USD,acct,MOCK-PERSONAL,flows,pool,MOCK-PERSONAL
 USD,acct,MOCK-PERSONAL,flows,realized USD,1747.991557175187433173138830
 USD,acct,MOCK-PERSONAL,flows,room,
+USD,acct,MOCK-PERSONAL,flows,sold USD,109255.89
+USD,acct,MOCK-PERSONAL,flows,trades CAD,12
+USD,acct,MOCK-PERSONAL,flows,trades USD,100
 USD,acct,MOCK-PERSONAL,flows,transfers CAD,-1818.7961318713723309332965
 USD,acct,MOCK-PERSONAL,flows,transfers_value CAD,-1875.40670769230769230769231
 USD,acct,MOCK-PERSONAL,flows,withdrawals CAD,14000
@@ -4483,6 +4535,7 @@ USD,acct,MOCK-RRSP,disclosure Converted,rate,1.38
 USD,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
 USD,acct,MOCK-RRSP,disclosure Converted,what,total_return
 USD,acct,MOCK-RRSP,flows,account_type,RRSP
+USD,acct,MOCK-RRSP,flows,bought USD,47648.36
 USD,acct,MOCK-RRSP,flows,cash CAD,400.70
 USD,acct,MOCK-RRSP,flows,cash USD,477.44
 USD,acct,MOCK-RRSP,flows,contributions CAD,66000
@@ -4503,6 +4556,7 @@ USD,acct,MOCK-RRSP,flows,room.used,12000.0
 USD,acct,MOCK-RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 USD,acct,MOCK-RRSP,flows,room.withdrawn,0
 USD,acct,MOCK-RRSP,flows,room.year,2026
+USD,acct,MOCK-RRSP,flows,trades USD,36
 USD,acct,MOCK-RRSP,holding NFLX,avg_cost,97.381
 USD,acct,MOCK-RRSP,holding NFLX,book_value,973.81
 USD,acct,MOCK-RRSP,holding NFLX,book_value_totals,973.81
@@ -4701,6 +4755,7 @@ USD,acct,MOCK-RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
 USD,acct,MOCK-TFSA,disclosure TotalReturnHidden,excluded,7
 USD,acct,MOCK-TFSA,disclosure TotalReturnHidden,shown,USD
 USD,acct,MOCK-TFSA,flows,account_type,TFSA
+USD,acct,MOCK-TFSA,flows,bought CAD,12022.53
 USD,acct,MOCK-TFSA,flows,cash CAD,3649.32
 USD,acct,MOCK-TFSA,flows,cash USD,34.77
 USD,acct,MOCK-TFSA,flows,contributions CAD,14000
@@ -4722,6 +4777,8 @@ USD,acct,MOCK-TFSA,flows,room.used,7000.0
 USD,acct,MOCK-TFSA,flows,room.used_ratio,1
 USD,acct,MOCK-TFSA,flows,room.withdrawn,0
 USD,acct,MOCK-TFSA,flows,room.year,2026
+USD,acct,MOCK-TFSA,flows,sold CAD,1856
+USD,acct,MOCK-TFSA,flows,trades CAD,53
 USD,acct,MOCK-TFSA,flows,transfers CAD,7000.00000000000000000000000
 USD,acct,MOCK-TFSA,flows,transfers_value CAD,7236.79
 USD,acct,MOCK-TFSA,flows,transfers_value USD,25.05
@@ -4811,6 +4868,8 @@ USD,acct,MOCK-TFSA,totals USD,unrealized_pct,-0.07966101694915254237288135593
 USD,acct,MOCK-TFSA,totals USD,weight_in_folio,0.0007962949485132275149555099199
 USD,acct,MOCK-TFSA,totals USD,weight_in_pool,1
 USD,acct,MOCK2-TFSA,flows,account_type,TFSA
+USD,acct,MOCK2-TFSA,flows,bought CAD,6636.00
+USD,acct,MOCK2-TFSA,flows,bought USD,177
 USD,acct,MOCK2-TFSA,flows,cash CAD,8.88
 USD,acct,MOCK2-TFSA,flows,cash USD,0.81
 USD,acct,MOCK2-TFSA,flows,contributions CAD,7000
@@ -4832,6 +4891,8 @@ USD,acct,MOCK2-TFSA,flows,room.used,7000.0
 USD,acct,MOCK2-TFSA,flows,room.used_ratio,1
 USD,acct,MOCK2-TFSA,flows,room.withdrawn,0
 USD,acct,MOCK2-TFSA,flows,room.year,2026
+USD,acct,MOCK2-TFSA,flows,trades CAD,4
+USD,acct,MOCK2-TFSA,flows,trades USD,1
 USD,acct,MOCK2-TFSA,flows,transfers CAD,-7000
 USD,acct,MOCK2-TFSA,flows,transfers_value CAD,-7236.79
 USD,acct,MOCK2-TFSA,flows,transfers_value USD,-25.05
@@ -4922,6 +4983,8 @@ USD,acct,MOCK2-TFSA,totals USD,weight_in_pool,
 USD,folio,,disclosure TotalReturnHidden,excluded,8
 USD,folio,,disclosure TotalReturnHidden,shown,USD
 USD,folio,,flows,account_type,
+USD,folio,,flows,bought CAD,150908.59
+USD,folio,,flows,bought USD,173521.53
 USD,folio,,flows,cash CAD,10712.10
 USD,folio,,flows,cash USD,10000.86
 USD,folio,,flows,contributions CAD,261000
@@ -4939,6 +5002,10 @@ USD,folio,,flows,pool,
 USD,folio,,flows,realized CAD,233.19
 USD,folio,,flows,realized USD,2448.524467228097486083191739
 USD,folio,,flows,room,
+USD,folio,,flows,sold CAD,1856
+USD,folio,,flows,sold USD,115267.49
+USD,folio,,flows,trades CAD,69
+USD,folio,,flows,trades USD,144
 USD,folio,,flows,withdrawals CAD,15500
 USD,folio,,holding AAPL,avg_cost,251.6156896551724137931034483
 USD,folio,,holding AAPL,book_value,14593.71
@@ -5545,6 +5612,7 @@ USD,type,CORPORATE,disclosure Converted,rate,1.38
 USD,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
 USD,type,CORPORATE,disclosure Converted,what,total_return
 USD,type,CORPORATE,flows,account_type,CORPORATE
+USD,type,CORPORATE,flows,bought USD,6991.2
 USD,type,CORPORATE,flows,cash CAD,325.25
 USD,type,CORPORATE,flows,cash USD,4839.2
 USD,type,CORPORATE,flows,contributions CAD,12000
@@ -5557,6 +5625,8 @@ USD,type,CORPORATE,flows,net_deposits CAD,12000
 USD,type,CORPORATE,flows,pool,CORPORATE
 USD,type,CORPORATE,flows,realized USD,358.92
 USD,type,CORPORATE,flows,room,
+USD,type,CORPORATE,flows,sold USD,3155.4
+USD,type,CORPORATE,flows,trades USD,3
 USD,type,CORPORATE,holding KO,avg_cost,69.912
 USD,type,CORPORATE,holding KO,book_value,4194.72
 USD,type,CORPORATE,holding KO,book_value_totals,4194.72
@@ -5644,6 +5714,8 @@ USD,type,CORPORATE,totals USD,weight_in_pool,1
 USD,type,NON_REGISTERED,disclosure TotalReturnHidden,excluded,1
 USD,type,NON_REGISTERED,disclosure TotalReturnHidden,shown,USD
 USD,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
+USD,type,NON_REGISTERED,flows,bought CAD,132250.06
+USD,type,NON_REGISTERED,flows,bought USD,118704.97
 USD,type,NON_REGISTERED,flows,cash CAD,6327.95
 USD,type,NON_REGISTERED,flows,cash USD,4648.64
 USD,type,NON_REGISTERED,flows,contributions CAD,162000
@@ -5659,6 +5731,9 @@ USD,type,NON_REGISTERED,flows,net_deposits USD,2000
 USD,type,NON_REGISTERED,flows,pool,NON_REGISTERED
 USD,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 USD,type,NON_REGISTERED,flows,room,
+USD,type,NON_REGISTERED,flows,sold USD,112112.09
+USD,type,NON_REGISTERED,flows,trades CAD,12
+USD,type,NON_REGISTERED,flows,trades USD,104
 USD,type,NON_REGISTERED,flows,withdrawals CAD,14000
 USD,type,NON_REGISTERED,holding AAPL,avg_cost,251.6156896551724137931034483
 USD,type,NON_REGISTERED,holding AAPL,book_value,14593.71
@@ -6154,6 +6229,7 @@ USD,type,RRSP,disclosure Converted,rate,1.38
 USD,type,RRSP,disclosure Converted,rate_date,2026-09-30
 USD,type,RRSP,disclosure Converted,what,total_return
 USD,type,RRSP,flows,account_type,RRSP
+USD,type,RRSP,flows,bought USD,47648.36
 USD,type,RRSP,flows,cash CAD,400.70
 USD,type,RRSP,flows,cash USD,477.44
 USD,type,RRSP,flows,contributions CAD,66000
@@ -6174,6 +6250,7 @@ USD,type,RRSP,flows,room.used,12000.0
 USD,type,RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 USD,type,RRSP,flows,room.withdrawn,0
 USD,type,RRSP,flows,room.year,2026
+USD,type,RRSP,flows,trades USD,36
 USD,type,RRSP,holding NFLX,avg_cost,97.381
 USD,type,RRSP,holding NFLX,book_value,973.81
 USD,type,RRSP,holding NFLX,book_value_totals,973.81
@@ -6372,6 +6449,8 @@ USD,type,RRSP,totals USD,weight_in_pool,1.000000000000000000000000000
 USD,type,TFSA,disclosure TotalReturnHidden,excluded,7
 USD,type,TFSA,disclosure TotalReturnHidden,shown,USD
 USD,type,TFSA,flows,account_type,TFSA
+USD,type,TFSA,flows,bought CAD,18658.53
+USD,type,TFSA,flows,bought USD,177
 USD,type,TFSA,flows,cash CAD,3658.20
 USD,type,TFSA,flows,cash USD,35.58
 USD,type,TFSA,flows,contributions CAD,21000
@@ -6394,6 +6473,9 @@ USD,type,TFSA,flows,room.used,7000.0
 USD,type,TFSA,flows,room.used_ratio,1
 USD,type,TFSA,flows,room.withdrawn,0
 USD,type,TFSA,flows,room.year,2026
+USD,type,TFSA,flows,sold CAD,1856
+USD,type,TFSA,flows,trades CAD,57
+USD,type,TFSA,flows,trades USD,1
 USD,type,TFSA,flows,withdrawals CAD,1500
 USD,type,TFSA,holding O,avg_cost,59
 USD,type,TFSA,holding O,book_value,177
@@ -6484,6 +6566,7 @@ native,acct,MOCK-CORPORATE,disclosure Converted,rate,1.38
 native,acct,MOCK-CORPORATE,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-CORPORATE,disclosure Converted,what,total_return
 native,acct,MOCK-CORPORATE,flows,account_type,CORPORATE
+native,acct,MOCK-CORPORATE,flows,bought USD,6991.2
 native,acct,MOCK-CORPORATE,flows,cash CAD,325.25
 native,acct,MOCK-CORPORATE,flows,cash USD,4839.2
 native,acct,MOCK-CORPORATE,flows,contributions CAD,12000
@@ -6496,6 +6579,8 @@ native,acct,MOCK-CORPORATE,flows,net_deposits CAD,12000
 native,acct,MOCK-CORPORATE,flows,pool,MOCK-CORPORATE
 native,acct,MOCK-CORPORATE,flows,realized USD,358.92
 native,acct,MOCK-CORPORATE,flows,room,
+native,acct,MOCK-CORPORATE,flows,sold USD,3155.4
+native,acct,MOCK-CORPORATE,flows,trades USD,3
 native,acct,MOCK-CORPORATE,holding KO,avg_cost,69.912
 native,acct,MOCK-CORPORATE,holding KO,book_value,4194.72
 native,acct,MOCK-CORPORATE,holding KO,book_value_totals,5748.10260
@@ -6585,6 +6670,7 @@ native,acct,MOCK-MARGIN,disclosure Converted,rate,1.38
 native,acct,MOCK-MARGIN,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-MARGIN,disclosure Converted,what,total_return
 native,acct,MOCK-MARGIN,flows,account_type,NON_REGISTERED
+native,acct,MOCK-MARGIN,flows,bought USD,8013.0
 native,acct,MOCK-MARGIN,flows,cash CAD,315.16
 native,acct,MOCK-MARGIN,flows,cash USD,4076.45
 native,acct,MOCK-MARGIN,flows,contributions CAD,10000
@@ -6599,6 +6685,8 @@ native,acct,MOCK-MARGIN,flows,net_deposits USD,2000
 native,acct,MOCK-MARGIN,flows,pool,MOCK-MARGIN
 native,acct,MOCK-MARGIN,flows,realized USD,335.60
 native,acct,MOCK-MARGIN,flows,room,
+native,acct,MOCK-MARGIN,flows,sold USD,2856.2
+native,acct,MOCK-MARGIN,flows,trades USD,4
 native,acct,MOCK-MARGIN,flows,transfers CAD,1818.79613187137233093329647
 native,acct,MOCK-MARGIN,flows,transfers_value CAD,1875.406707692307692307692307
 native,acct,MOCK-MARGIN,holding KO,avg_cost,65.47761172161172161172161171
@@ -6690,6 +6778,8 @@ native,acct,MOCK-PERSONAL,disclosure Converted,rate,1.38
 native,acct,MOCK-PERSONAL,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-PERSONAL,disclosure Converted,what,total
 native,acct,MOCK-PERSONAL,flows,account_type,NON_REGISTERED
+native,acct,MOCK-PERSONAL,flows,bought CAD,132250.06
+native,acct,MOCK-PERSONAL,flows,bought USD,110691.97
 native,acct,MOCK-PERSONAL,flows,cash CAD,6012.79
 native,acct,MOCK-PERSONAL,flows,cash USD,572.19
 native,acct,MOCK-PERSONAL,flows,contributions CAD,152000
@@ -6703,6 +6793,9 @@ native,acct,MOCK-PERSONAL,flows,net_deposits CAD,136181.2038681286276690667035
 native,acct,MOCK-PERSONAL,flows,pool,MOCK-PERSONAL
 native,acct,MOCK-PERSONAL,flows,realized USD,1747.991557175187433173138830
 native,acct,MOCK-PERSONAL,flows,room,
+native,acct,MOCK-PERSONAL,flows,sold USD,109255.89
+native,acct,MOCK-PERSONAL,flows,trades CAD,12
+native,acct,MOCK-PERSONAL,flows,trades USD,100
 native,acct,MOCK-PERSONAL,flows,transfers CAD,-1818.7961318713723309332965
 native,acct,MOCK-PERSONAL,flows,transfers_value CAD,-1875.40670769230769230769231
 native,acct,MOCK-PERSONAL,flows,withdrawals CAD,14000
@@ -7258,6 +7351,7 @@ native,acct,MOCK-RRSP,disclosure Converted,rate,1.38
 native,acct,MOCK-RRSP,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-RRSP,disclosure Converted,what,total_return
 native,acct,MOCK-RRSP,flows,account_type,RRSP
+native,acct,MOCK-RRSP,flows,bought USD,47648.36
 native,acct,MOCK-RRSP,flows,cash CAD,400.70
 native,acct,MOCK-RRSP,flows,cash USD,477.44
 native,acct,MOCK-RRSP,flows,contributions CAD,66000
@@ -7278,6 +7372,7 @@ native,acct,MOCK-RRSP,flows,room.used,12000.0
 native,acct,MOCK-RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 native,acct,MOCK-RRSP,flows,room.withdrawn,0
 native,acct,MOCK-RRSP,flows,room.year,2026
+native,acct,MOCK-RRSP,flows,trades USD,36
 native,acct,MOCK-RRSP,holding NFLX,avg_cost,97.381
 native,acct,MOCK-RRSP,holding NFLX,book_value,973.81
 native,acct,MOCK-RRSP,holding NFLX,book_value_totals,1329.25065
@@ -7478,6 +7573,7 @@ native,acct,MOCK-TFSA,disclosure Converted,rate,1.38
 native,acct,MOCK-TFSA,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK-TFSA,disclosure Converted,what,total
 native,acct,MOCK-TFSA,flows,account_type,TFSA
+native,acct,MOCK-TFSA,flows,bought CAD,12022.53
 native,acct,MOCK-TFSA,flows,cash CAD,3649.32
 native,acct,MOCK-TFSA,flows,cash USD,34.77
 native,acct,MOCK-TFSA,flows,contributions CAD,14000
@@ -7499,6 +7595,8 @@ native,acct,MOCK-TFSA,flows,room.used,7000.0
 native,acct,MOCK-TFSA,flows,room.used_ratio,1
 native,acct,MOCK-TFSA,flows,room.withdrawn,0
 native,acct,MOCK-TFSA,flows,room.year,2026
+native,acct,MOCK-TFSA,flows,sold CAD,1856
+native,acct,MOCK-TFSA,flows,trades CAD,53
 native,acct,MOCK-TFSA,flows,transfers CAD,7000.00000000000000000000000
 native,acct,MOCK-TFSA,flows,transfers_value CAD,7236.79
 native,acct,MOCK-TFSA,flows,transfers_value USD,25.05
@@ -7872,6 +7970,8 @@ native,acct,MOCK2-TFSA,disclosure Converted,rate,1.38
 native,acct,MOCK2-TFSA,disclosure Converted,rate_date,2026-09-30
 native,acct,MOCK2-TFSA,disclosure Converted,what,total
 native,acct,MOCK2-TFSA,flows,account_type,TFSA
+native,acct,MOCK2-TFSA,flows,bought CAD,6636.00
+native,acct,MOCK2-TFSA,flows,bought USD,177
 native,acct,MOCK2-TFSA,flows,cash CAD,8.88
 native,acct,MOCK2-TFSA,flows,cash USD,0.81
 native,acct,MOCK2-TFSA,flows,contributions CAD,7000
@@ -7893,6 +7993,8 @@ native,acct,MOCK2-TFSA,flows,room.used,7000.0
 native,acct,MOCK2-TFSA,flows,room.used_ratio,1
 native,acct,MOCK2-TFSA,flows,room.withdrawn,0
 native,acct,MOCK2-TFSA,flows,room.year,2026
+native,acct,MOCK2-TFSA,flows,trades CAD,4
+native,acct,MOCK2-TFSA,flows,trades USD,1
 native,acct,MOCK2-TFSA,flows,transfers CAD,-7000
 native,acct,MOCK2-TFSA,flows,transfers_value CAD,-7236.79
 native,acct,MOCK2-TFSA,flows,transfers_value USD,-25.05
@@ -8154,6 +8256,8 @@ native,folio,,disclosure Converted,rate,1.38
 native,folio,,disclosure Converted,rate_date,2026-09-30
 native,folio,,disclosure Converted,what,total
 native,folio,,flows,account_type,
+native,folio,,flows,bought CAD,150908.59
+native,folio,,flows,bought USD,173521.53
 native,folio,,flows,cash CAD,10712.10
 native,folio,,flows,cash USD,10000.86
 native,folio,,flows,contributions CAD,261000
@@ -8171,6 +8275,10 @@ native,folio,,flows,pool,
 native,folio,,flows,realized CAD,233.19
 native,folio,,flows,realized USD,2448.524467228097486083191739
 native,folio,,flows,room,
+native,folio,,flows,sold CAD,1856
+native,folio,,flows,sold USD,115267.49
+native,folio,,flows,trades CAD,69
+native,folio,,flows,trades USD,144
 native,folio,,flows,withdrawals CAD,15500
 native,folio,,holding AAPL,avg_cost,251.6156896551724137931034483
 native,folio,,holding AAPL,book_value,14593.71
@@ -9093,6 +9201,7 @@ native,type,CORPORATE,disclosure Converted,rate,1.38
 native,type,CORPORATE,disclosure Converted,rate_date,2026-09-30
 native,type,CORPORATE,disclosure Converted,what,total_return
 native,type,CORPORATE,flows,account_type,CORPORATE
+native,type,CORPORATE,flows,bought USD,6991.2
 native,type,CORPORATE,flows,cash CAD,325.25
 native,type,CORPORATE,flows,cash USD,4839.2
 native,type,CORPORATE,flows,contributions CAD,12000
@@ -9105,6 +9214,8 @@ native,type,CORPORATE,flows,net_deposits CAD,12000
 native,type,CORPORATE,flows,pool,CORPORATE
 native,type,CORPORATE,flows,realized USD,358.92
 native,type,CORPORATE,flows,room,
+native,type,CORPORATE,flows,sold USD,3155.4
+native,type,CORPORATE,flows,trades USD,3
 native,type,CORPORATE,holding KO,avg_cost,69.912
 native,type,CORPORATE,holding KO,book_value,4194.72
 native,type,CORPORATE,holding KO,book_value_totals,5748.10260
@@ -9194,6 +9305,8 @@ native,type,NON_REGISTERED,disclosure Converted,rate,1.38
 native,type,NON_REGISTERED,disclosure Converted,rate_date,2026-09-30
 native,type,NON_REGISTERED,disclosure Converted,what,total
 native,type,NON_REGISTERED,flows,account_type,NON_REGISTERED
+native,type,NON_REGISTERED,flows,bought CAD,132250.06
+native,type,NON_REGISTERED,flows,bought USD,118704.97
 native,type,NON_REGISTERED,flows,cash CAD,6327.95
 native,type,NON_REGISTERED,flows,cash USD,4648.64
 native,type,NON_REGISTERED,flows,contributions CAD,162000
@@ -9209,6 +9322,9 @@ native,type,NON_REGISTERED,flows,net_deposits USD,2000
 native,type,NON_REGISTERED,flows,pool,NON_REGISTERED
 native,type,NON_REGISTERED,flows,realized USD,2010.361254144884402870108527
 native,type,NON_REGISTERED,flows,room,
+native,type,NON_REGISTERED,flows,sold USD,112112.09
+native,type,NON_REGISTERED,flows,trades CAD,12
+native,type,NON_REGISTERED,flows,trades USD,104
 native,type,NON_REGISTERED,flows,withdrawals CAD,14000
 native,type,NON_REGISTERED,holding AAPL,avg_cost,251.6156896551724137931034483
 native,type,NON_REGISTERED,holding AAPL,book_value,14593.71
@@ -9762,6 +9878,7 @@ native,type,RRSP,disclosure Converted,rate,1.38
 native,type,RRSP,disclosure Converted,rate_date,2026-09-30
 native,type,RRSP,disclosure Converted,what,total_return
 native,type,RRSP,flows,account_type,RRSP
+native,type,RRSP,flows,bought USD,47648.36
 native,type,RRSP,flows,cash CAD,400.70
 native,type,RRSP,flows,cash USD,477.44
 native,type,RRSP,flows,contributions CAD,66000
@@ -9782,6 +9899,7 @@ native,type,RRSP,flows,room.used,12000.0
 native,type,RRSP,flows,room.used_ratio,0.3549245785270629991126885537
 native,type,RRSP,flows,room.withdrawn,0
 native,type,RRSP,flows,room.year,2026
+native,type,RRSP,flows,trades USD,36
 native,type,RRSP,holding NFLX,avg_cost,97.381
 native,type,RRSP,holding NFLX,book_value,973.81
 native,type,RRSP,holding NFLX,book_value_totals,1329.25065
@@ -9982,6 +10100,8 @@ native,type,TFSA,disclosure Converted,rate,1.38
 native,type,TFSA,disclosure Converted,rate_date,2026-09-30
 native,type,TFSA,disclosure Converted,what,total
 native,type,TFSA,flows,account_type,TFSA
+native,type,TFSA,flows,bought CAD,18658.53
+native,type,TFSA,flows,bought USD,177
 native,type,TFSA,flows,cash CAD,3658.20
 native,type,TFSA,flows,cash USD,35.58
 native,type,TFSA,flows,contributions CAD,21000
@@ -10004,6 +10124,9 @@ native,type,TFSA,flows,room.used,7000.0
 native,type,TFSA,flows,room.used_ratio,1
 native,type,TFSA,flows,room.withdrawn,0
 native,type,TFSA,flows,room.year,2026
+native,type,TFSA,flows,sold CAD,1856
+native,type,TFSA,flows,trades CAD,57
+native,type,TFSA,flows,trades USD,1
 native,type,TFSA,flows,withdrawals CAD,1500
 native,type,TFSA,holding CNR.TO,avg_cost,158.345
 native,type,TFSA,holding CNR.TO,book_value,1583.45

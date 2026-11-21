@@ -50,6 +50,7 @@ from engine.types import (
     HoldingState,
     LedgerRow,
     ReplayResult,
+    RowFlow,
 )
 
 if TYPE_CHECKING:
@@ -962,6 +963,7 @@ class _Replay:
             effects = self._cash_effects(row)
             net_deposits.apply(computed, effects)
             self._book(computed, effects)
+            self._record_flows(computed, effects)
             pending.append(row)
         if pending:
             self._check_negative_cash(pending, current_date)
@@ -998,11 +1000,39 @@ class _Replay:
                     continue
                 key = (grain, effect.currency)
                 moves[key] = moves.get(key, ZERO) + effect.cash
-                state.cash += effect.cash
-                state.contributions += effect.contributions
-                state.withdrawals += effect.withdrawals
-                state.dividends += effect.dividends
-                state.fees += effect.fees
+                state.book(effect)
+
+    def _record_flows(self, computed: LedgerRow, effects: Iterable[CashEffect]) -> None:
+        """Keep what a row added to its pools' flows, dated, for reports by period.
+
+        Realized gain lands in the holding's own currency, as `_roll_up_realized_gain`
+        books it, so it can name a currency the row's effects do not.
+        """
+        # Cash is a balance, not a flow, so it stays behind.
+        booked = {
+            effect.currency: replace(effect, cash=ZERO)
+            for effect in effects
+            if effect.is_flow
+        }
+        realized: dict[Currency, dict[Grain, Decimal]] = {}
+        for grain in Grain:
+            measures = computed.measures(grain)
+            currency = Currency.USD if measures.usd else Currency.CAD
+            gain = measures.gain_usd if measures.usd else measures.gain_cad
+            if gain != ZERO:
+                realized.setdefault(currency, {})[grain] = gain
+        row = computed.row
+        for currency in dict.fromkeys([*booked, *realized]):
+            self.result.row_flows.append(
+                RowFlow(
+                    row.txn_id,
+                    row.settle_date,
+                    row.account,
+                    computed.acct_type,
+                    booked.get(currency, CashEffect(currency)),
+                    realized.get(currency, {}),
+                ),
+            )
 
     def _cash_effects(self, row: Txn) -> tuple[CashEffect, ...]:
         """Work out what one row does to cash.
@@ -1016,8 +1046,15 @@ class _Replay:
         effect: CashEffect | None = None
         if row.action in _TRADE_ACTIONS:
             trade: TradeCash = self._trade(row)
-            cash = -trade.cost if row.action is Action.BUY else trade.proceeds
-            effect = CashEffect(currency, cash=cash, fees=trade.commission)
+            buying = row.action is Action.BUY
+            effect = CashEffect(
+                currency,
+                cash=-trade.cost if buying else trade.proceeds,
+                fees=trade.commission,
+                bought=trade.cost if buying else ZERO,
+                sold=ZERO if buying else trade.proceeds,
+                trades=1,
+            )
         elif row.action is Action.DIVIDEND:
             effect = CashEffect(currency, cash=amount, dividends=amount)
         elif row.action is Action.FCH:

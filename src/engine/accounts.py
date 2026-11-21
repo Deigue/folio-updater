@@ -45,8 +45,13 @@ class Pool(NamedTuple):
     @classmethod
     def of(cls, grain: Grain, row: Txn, acct_type: AccountType) -> Pool:
         """Return the pool a transaction belongs to at one grain."""
+        return cls.at(grain, row.account, acct_type)
+
+    @classmethod
+    def at(cls, grain: Grain, account: str, acct_type: AccountType) -> Pool:
+        """Return the pool an account belongs to at one grain."""
         if grain is Grain.ACCOUNT:
-            return cls(grain, row.account)
+            return cls(grain, account)
         if grain is Grain.TYPE:
             return cls(grain, str(acct_type))
         return FOLIO
