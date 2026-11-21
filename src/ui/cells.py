@@ -210,7 +210,7 @@ def clock_time(iso: str) -> str:
 
 
 # The formats a terminal reads exactly as their text, with no sign or grading.
-_AS_TEXT = frozenset({Fmt.TEXT, Fmt.DATE, Fmt.RATIO, *COMPACT_RANGES})
+_AS_TEXT = frozenset({Fmt.TEXT, Fmt.DATE, Fmt.RATIO, Fmt.TALLY, *COMPACT_RANGES})
 
 
 def figure_cell(column: Col, value: object, *, closed: bool = False) -> str:
@@ -220,7 +220,7 @@ def figure_cell(column: Col, value: object, *, closed: bool = False) -> str:
     and is left blank.
     """
     if column.fmt in _AS_TEXT:
-        return _as_text(column.fmt, value)
+        return _as_text(column.fmt, value, quiet=column.quiet)
     number: Decimal | None = value  # ty: ignore[invalid-assignment]
     graded = _GRADED.get(column.measure) if column.measure else None
     if graded:
@@ -233,15 +233,15 @@ def figure_cell(column: Col, value: object, *, closed: bool = False) -> str:
     return style(text, REFERENCE_STYLE) if column.measure is Measure.REFERENCE else text
 
 
-def _as_text(fmt: Fmt, value: object) -> str:
-    """Render a text, a date, a ratio or a compact figure, blank when missing."""
+def _as_text(fmt: Fmt, value: object, *, quiet: bool = False) -> str:
+    """Render text, a date, a ratio, a tally or a compact figure, blank when missing."""
     if value is None:
         return ""
     if fmt is Fmt.TEXT:
         return str(value)
     if fmt is Fmt.DATE:
         return long_date(str(value)) or ""
-    return render(fmt, value)
+    return render(fmt, value, quiet=quiet)
 
 
 def _figure_text(fmt: Fmt, number: Decimal | None, *, blank_zero: bool) -> str:

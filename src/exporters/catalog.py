@@ -7,11 +7,13 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from domain import Fmt, Measure
+from domain.numeric import ZERO
 from exporters.sheet_spec import Col, read_cells
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from engine.flows import FlowLine
     from engine.holdings import Holding
     from models import Quote
 
@@ -334,4 +336,73 @@ FUNDAMENTAL_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (DIVIDENDS, ("yield", "dividend", "last_dividend", "ex_dividend")),
     (TRADING, ("low_52", "high_52", "avg_50", "avg_200", "volume", "avg_volume")),
+)
+
+
+# Every flow a pool's line can show, in a flows table's order. A missing figure
+# reads as zero, which each column leaves blank.
+FLOW_FIGURES: tuple[Col[FlowLine], ...] = (
+    Col(
+        "Contributions",
+        Fmt.MONEY,
+        quiet=True,
+        key="contributions",
+        read=lambda line: line.flows.contributions.get(line.currency, ZERO),
+    ),
+    Col(
+        "Withdrawn",
+        Fmt.MONEY,
+        quiet=True,
+        key="withdrawn",
+        read=lambda line: line.flows.withdrawals.get(line.currency, ZERO),
+    ),
+    Col(
+        "Transferred",
+        Fmt.MONEY_SIGNED,
+        quiet=True,
+        key="transferred",
+        read=lambda line: line.flows.transfers.get(line.currency, ZERO),
+    ),
+    Col(
+        "Bought",
+        Fmt.MONEY,
+        quiet=True,
+        key="bought",
+        read=lambda line: line.flows.bought.get(line.currency, ZERO),
+    ),
+    Col(
+        "Sold",
+        Fmt.MONEY,
+        quiet=True,
+        key="sold",
+        read=lambda line: line.flows.sold.get(line.currency, ZERO),
+    ),
+    Col(
+        "Dividends",
+        Fmt.MONEY,
+        quiet=True,
+        key="dividends",
+        read=lambda line: line.flows.dividends.get(line.currency, ZERO),
+    ),
+    Col(
+        "Fees",
+        Fmt.MONEY,
+        quiet=True,
+        key="fees",
+        read=lambda line: line.flows.fees.get(line.currency, ZERO),
+    ),
+    Col(
+        "Realized",
+        Fmt.MONEY_SIGNED,
+        quiet=True,
+        key="realized",
+        read=lambda line: line.flows.realized.get(line.currency, ZERO),
+    ),
+    Col(
+        "Trades",
+        Fmt.TALLY,
+        quiet=True,
+        key="trades",
+        read=lambda line: line.flows.trades.get(line.currency, 0),
+    ),
 )

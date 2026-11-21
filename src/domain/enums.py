@@ -185,6 +185,14 @@ class Period(StrEnum):
             return day.replace(day=1)
         return day.replace(month=1, day=1)
 
+    def label(self, start: date) -> str:
+        """Name the period starting on `start`: its Monday, its month or its year."""
+        if self is Period.WEEK:
+            return start.isoformat()
+        if self is Period.MONTH:
+            return f"{start:%Y-%m}"
+        return str(start.year)
+
 
 class Impact(StrEnum):
     """What a transaction does to the cost base."""

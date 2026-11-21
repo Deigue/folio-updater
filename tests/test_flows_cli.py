@@ -1,0 +1,153 @@
+"""Tests for `folio flows`: each pool's flows by week, month or year."""
+
+from __future__ import annotations
+
+import csv
+import re
+from typing import TYPE_CHECKING
+
+import pytest
+
+from cli.main import app
+
+from .helpers.cli import UNCONSTRAINED_WIDTH, assert_in_output, run_cli
+from .helpers.seed import seed_cash, seed_fx, seed_transaction
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from .helpers.context import TempContext
+
+_FX = dict.fromkeys(
+    ("2025-05-06", "2025-05-20", "2025-06-03", "2025-06-10", "2025-06-17"),
+    "1.30",
+)
+
+
+def _seed_two_months() -> None:
+    """Fund a TFSA across two months, trading in the second, and fund an RRSP."""
+    seed_fx(_FX)
+    for day, amount in (("2025-05-06", "800"), ("2025-05-20", "700")):
+        seed_cash(
+            "CONTRIBUTION",
+            amount=amount,
+            account="WS-TFSA",
+            date=day,
+            settle_date=day,
+        )
+    seed_transaction(
+        account="WS-TFSA",
+        ticker="SPY",
+        currency="CAD",
+        amount="-900",
+        price="90",
+        units="10",
+        date="2025-06-03",
+        settle_date="2025-06-03",
+    )
+    seed_cash(
+        "DIVIDEND",
+        amount="4.5",
+        account="WS-TFSA",
+        date="2025-06-17",
+        settle_date="2025-06-17",
+    )
+    seed_cash(
+        "CONTRIBUTION",
+        amount="300",
+        account="WS-RRSP",
+        date="2025-06-10",
+        settle_date="2025-06-10",
+    )
+
+
+def _table_rows(output: str) -> dict[str, list[str]]:
+    """Read each table row's cells, keyed by its first."""
+    rows: dict[str, list[str]] = {}
+    for line in output.splitlines():
+        cells = [cell for cell in re.split(r"\s*[│|]\s*|\s{2,}", line.strip()) if cell]
+        if len(cells) > 2:
+            rows[cells[0]] = cells[1:]
+    return rows
+
+
+def test_a_pool_lists_each_month_newest_first_with_its_totals(
+    temp_ctx: TempContext,
+) -> None:
+    with temp_ctx():
+        _seed_two_months()
+
+        result = run_cli(app, ["flows", "-t", "tfsa"], width=UNCONSTRAINED_WIDTH)
+
+    assert result.exit_code == 0
+    rows = _table_rows(result.plain_output)
+    # Columns no row fills, withdrawals among them, are left out.
+    assert rows["Period"] == ["$", "Contributions", "Bought", "Dividends", "Trades"]
+    assert rows["2025-06"] == ["CAD", "900.00", "4.50", "1"]
+    assert rows["2025-05"] == ["CAD", "1,500.00"]
+    assert rows["Total"] == ["CAD", "1,500.00", "900.00", "4.50", "1"]
+    assert result.plain_output.index("2025-06") < result.plain_output.index("2025-05")
+
+
+def test_an_export_writes_each_period_and_the_totals(
+    temp_ctx: TempContext,
+    tmp_path: Path,
+) -> None:
+    with temp_ctx():
+        _seed_two_months()
+        target = tmp_path / "flows.csv"
+
+        result = run_cli(app, ["flows", "-t", "tfsa", "-e", str(target)])
+
+        # The temporary folio, export included, is cleared once its context ends.
+        with target.open(encoding="utf-8", newline="") as handle:
+            written = {
+                row["Period"]: row for row in csv.DictReader(handle) if row["Period"]
+            }
+
+    assert result.exit_code == 0
+    assert written["2025-06"]["Bought"] == "900.00"
+    assert written["2025-06"]["Trades"] == "1"
+    assert written["2025-05"]["Contributions"] == "1,500.00"
+    assert written["Total"]["Dividends"] == "4.50"
+
+
+@pytest.mark.parametrize(
+    ("period", "named"),
+    [("week", "2025-06-09"), ("year", "2025")],
+)
+def test_a_period_is_named_by_its_monday_or_its_year(
+    temp_ctx: TempContext,
+    period: str,
+    named: str,
+) -> None:
+    with temp_ctx():
+        _seed_two_months()
+
+        result = run_cli(
+            app,
+            ["flows", "-a", "WS-RRSP", "--period", period],
+            width=UNCONSTRAINED_WIDTH,
+        )
+
+    assert result.exit_code == 0
+    # Paid in on Tuesday 2025-06-10.
+    assert _table_rows(result.plain_output)[named] == ["CAD", "300.00"]
+
+
+def test_an_unknown_period_is_refused(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        result = run_cli(app, ["flows", "-p", "quarter"])
+
+    assert result.exit_code == 1
+    assert_in_output("Unknown period 'quarter'", result)
+
+
+def test_a_pool_with_no_flows_says_so(temp_ctx: TempContext) -> None:
+    with temp_ctx():
+        _seed_two_months()
+
+        result = run_cli(app, ["flows", "-t", "fhsa"])
+
+    assert result.exit_code == 0
+    assert_in_output("FHSA has no flows to show.", result)

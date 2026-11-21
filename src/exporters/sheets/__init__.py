@@ -8,6 +8,7 @@ from exporters.sheets.acb import (
 )
 from exporters.sheets.dashboard import pool_sheet, pooled_dashboard_sheet
 from exporters.sheets.ledger import LEDGER_SHEET, ledger_sheet
+from exporters.sheets.period_flows import period_flows_sheet
 from exporters.sheets.stored import fx_sheet, traded_tickers_sheet, transactions_sheet
 from exporters.sheets.summary import (
     FLOWS_SHEET,
@@ -30,6 +31,7 @@ __all__ = [
     "fx_sheet",
     "ledger_sheet",
     "performance_sheet",
+    "period_flows_sheet",
     "pool_sheet",
     "pooled_dashboard_sheet",
     "summary_sheet",

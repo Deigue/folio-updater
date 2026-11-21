@@ -129,6 +129,23 @@ class Flows:
         return self.pool.grain
 
     @property
+    def lines(self) -> tuple[FlowLine, ...]:
+        """One line per currency the pool's flows moved, CAD first. Cash is no flow."""
+        moved = (
+            self.contributions,
+            self.withdrawals,
+            self.transfers,
+            self.bought,
+            self.sold,
+            self.dividends,
+            self.fees,
+            self.realized,
+            self.trades,
+        )
+        currencies = sorted(set().union(*moved), key=str)
+        return tuple(FlowLine(self, currency) for currency in currencies)
+
+    @property
     def net_deposits(self) -> dict[Currency, Decimal]:
         """How much of the holder's own money this pool still contains.
 
@@ -205,6 +222,19 @@ class Flows:
         if deposited is None or q2(deposited) == ZERO:
             return None
         return deposited
+
+
+@dataclass(frozen=True)
+class FlowLine:
+    """One currency's flows in one pool: the row a flows table shows.
+
+    Attributes:
+        flows: The pool's flows.
+        currency: The currency this line reads.
+    """
+
+    flows: Flows
+    currency: Currency
 
 
 def build_flows(  # noqa: PLR0913

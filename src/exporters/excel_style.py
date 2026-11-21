@@ -40,6 +40,7 @@ NUMBER_FORMATS: dict[Fmt, str] = {
         '[>=1000000000000]#,##0.00,,,,"T";[>=1000000000]#,##0.00,,,"B";#,##0.00,,"M"'
     ),
     Fmt.COUNT: '[>=1000000]#,##0.00,,"M";[>=1000]#,##0.00,"K";#,##0.00',
+    Fmt.TALLY: "#,##0",
 }
 
 # A whole unit count wants no decimal separator trailing it, which

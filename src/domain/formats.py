@@ -20,6 +20,7 @@ class Fmt(StrEnum):
     RATIO = "ratio"  # a plain ratio at two places, such as a P/E or a beta
     LARGE = "large"  # an amount too large to read whole: 3.81T, 35.16B, 512.40M
     COUNT = "count"  # a count read by magnitude: 27.01M, 168.06K
+    TALLY = "tally"  # a whole count read in full, such as a number of trades
     # Text a terminal table shortens in its own way when it runs out of room.
     ACCOUNT = "account"
     ACTION = "action"
@@ -52,6 +53,7 @@ DECIMALS: dict[Fmt, int] = {
     Fmt.RATIO: 2,
     Fmt.LARGE: 2,
     Fmt.COUNT: 2,
+    Fmt.TALLY: 0,
 }
 
 # How a large figure is abbreviated wherever it is: each `(size, suffix)`,

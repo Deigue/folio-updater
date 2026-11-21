@@ -182,6 +182,43 @@ def dash_cmd(
 
 
 @app.command(
+    "flows",
+    help="Show a pool's flows by week, month or year",
+    rich_help_panel=_GROUP_ANALYSIS,
+)
+def flows_cmd(
+    period: str = typer.Option(
+        "month",
+        "-p",
+        "--period",
+        help="week, month (default) or year",
+    ),
+    account_type: str | None = typer.Option(
+        None,
+        "-t",
+        "--type",
+        help="Pool by account type: all (default), tfsa, rrsp, nreg, ...",
+    ),
+    account: str | None = typer.Option(
+        None,
+        "-a",
+        "--account",
+        help="Show a single broker account instead of a pooled type",
+    ),
+    export: str | None = typer.Option(
+        None,
+        "-e",
+        "--export",
+        help="Write the rows to a .csv or .xlsx file",
+    ),
+) -> None:
+    """Show a pool's flows by week, month or year."""
+    from cli.commands.flows import run_flows
+
+    run_flows(period, account_type=account_type, account=account, export=export)
+
+
+@app.command(
     "value",
     help="Show every account's market value at a month-end or on a past day",
     rich_help_panel=_GROUP_DAILY,

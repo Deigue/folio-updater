@@ -122,6 +122,8 @@ FLOW_COLORS = {
     "Contributions": TRANSACTION_COLORS[Action.CONTRIBUTION],
     "Withdrawn": TRANSACTION_COLORS[Action.WITHDRAWAL],
     "Net Deposits": "bold bright_white",
+    "Bought": TRANSACTION_COLORS[Action.BUY],
+    "Sold": TRANSACTION_COLORS[Action.SELL],
     "Dividends": INCOME,
     "Fees": "indian_red",
 }
@@ -197,6 +199,9 @@ SHORT_HEADERS = {
     "Unreal%": "Unrl%",
     "Market": "Mkt",
     "Dividends": "Divs",
+    "Contributions": "Added",
+    "Withdrawn": "Out",
+    "Transferred": "Txfs",
 }
 
 # A percentage with decimals, found inside a cell.
