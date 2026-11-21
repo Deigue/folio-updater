@@ -86,13 +86,37 @@ AGE_DAYS_PER_YEAR = 365
 # Sign colours
 GAIN = "green"
 LOSS = "red"
-GAIN_STRONG = "bold bright_green"
-LOSS_STRONG = "bold bright_red"
+
+# Graded shades, from a move just past flat to one at its measure's strong
+# threshold. Muted to vivid in even perceptual steps, every one at least 4.5:1
+# against dark and grey terminal backgrounds. Pure red falls short of that, so
+# the strongest loss leans orange.
+GAIN_SHADES = (
+    "#86a68c",
+    "#84b385",
+    "#82c07e",
+    "#7ecc75",
+    "#7ad96a",
+    "#75e65c",
+    "#6ef24a",
+    "#66ff2e",
+)
+LOSS_SHADES = (
+    "#b99591",
+    "#c58f86",
+    "#cf887a",
+    "#da816e",
+    "#e47960",
+    "#ed7052",
+    "#f76743",
+    "#ff5f34",
+)
 FLAT = "dim"
 
 # Ratios (not percentages) at which a figure turns strong or flat.
 DAY_MOVE_STRONG_AT = Decimal("0.03")  # Change% and PnL%
 RETURN_STRONG_AT = Decimal("0.25")  # Unreal% and Total%
+DAY_SHARE_STRONG_AT = Decimal("0.25")  # PnL%: a quarter of the day's movement
 FLAT_BELOW = Decimal("0.001")
 
 # Concentration: a holding's weight in its pool or folio.

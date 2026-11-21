@@ -28,6 +28,7 @@ CAD,acct,MOCK-CORPORATE,holding KO,closed,False
 CAD,acct,MOCK-CORPORATE,holding KO,currency,CAD
 CAD,acct,MOCK-CORPORATE,holding KO,day_pnl,-7.4520
 CAD,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+CAD,acct,MOCK-CORPORATE,holding KO,day_pnl_share,-1
 CAD,acct,MOCK-CORPORATE,holding KO,day_pnl_totals,-7.4520
 CAD,acct,MOCK-CORPORATE,holding KO,dividends,241.9860
 CAD,acct,MOCK-CORPORATE,holding KO,dividends_totals,241.9860
@@ -94,6 +95,7 @@ CAD,acct,MOCK-CORPORATE,totals CAD,count,1
 CAD,acct,MOCK-CORPORATE,totals CAD,currency,CAD
 CAD,acct,MOCK-CORPORATE,totals CAD,day_pnl,-7.4520
 CAD,acct,MOCK-CORPORATE,totals CAD,day_pnl_pct,-0.001044447023325983520946965301
+CAD,acct,MOCK-CORPORATE,totals CAD,day_pnl_share,-1
 CAD,acct,MOCK-CORPORATE,totals CAD,dividends,241.9860
 CAD,acct,MOCK-CORPORATE,totals CAD,market,7127.4240
 CAD,acct,MOCK-CORPORATE,totals CAD,realized,427.72160
@@ -136,6 +138,7 @@ CAD,acct,MOCK-MARGIN,holding KO,closed,False
 CAD,acct,MOCK-MARGIN,holding KO,currency,CAD
 CAD,acct,MOCK-MARGIN,holding KO,day_pnl,-13.0410
 CAD,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+CAD,acct,MOCK-MARGIN,holding KO,day_pnl_share,-1
 CAD,acct,MOCK-MARGIN,holding KO,day_pnl_totals,-13.0410
 CAD,acct,MOCK-MARGIN,holding KO,dividends,458.56350
 CAD,acct,MOCK-MARGIN,holding KO,dividends_totals,458.56350
@@ -202,6 +205,7 @@ CAD,acct,MOCK-MARGIN,totals CAD,count,1
 CAD,acct,MOCK-MARGIN,totals CAD,currency,CAD
 CAD,acct,MOCK-MARGIN,totals CAD,day_pnl,-13.0410
 CAD,acct,MOCK-MARGIN,totals CAD,day_pnl_pct,-0.001044447023325983520946965301
+CAD,acct,MOCK-MARGIN,totals CAD,day_pnl_share,-1
 CAD,acct,MOCK-MARGIN,totals CAD,dividends,458.56350
 CAD,acct,MOCK-MARGIN,totals CAD,market,12472.9920
 CAD,acct,MOCK-MARGIN,totals CAD,realized,478.69100
@@ -246,6 +250,7 @@ CAD,acct,MOCK-PERSONAL,holding AAPL,closed,False
 CAD,acct,MOCK-PERSONAL,holding AAPL,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl,43.2216
 CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_share,0.1513482168744563641635256596
 CAD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_totals,43.2216
 CAD,acct,MOCK-PERSONAL,holding AAPL,dividends,111.24850
 CAD,acct,MOCK-PERSONAL,holding AAPL,dividends_totals,111.24850
@@ -283,6 +288,7 @@ CAD,acct,MOCK-PERSONAL,holding COST,closed,False
 CAD,acct,MOCK-PERSONAL,holding COST,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding COST,day_pnl,-13.9104
 CAD,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+CAD,acct,MOCK-PERSONAL,holding COST,day_pnl_share,-0.04870977094810089881124963758
 CAD,acct,MOCK-PERSONAL,holding COST,day_pnl_totals,-13.9104
 CAD,acct,MOCK-PERSONAL,holding COST,dividends,71.12085
 CAD,acct,MOCK-PERSONAL,holding COST,dividends_totals,71.12085
@@ -320,6 +326,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.TO,closed,True
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_pct,
+CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_share,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,dividends,0
 CAD,acct,MOCK-PERSONAL,holding DLR.TO,dividends_totals,0
@@ -357,6 +364,7 @@ CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
+CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_share,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends,0
 CAD,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends_totals,0
@@ -394,6 +402,7 @@ CAD,acct,MOCK-PERSONAL,holding INTC,closed,True
 CAD,acct,MOCK-PERSONAL,holding INTC,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
+CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl_share,
 CAD,acct,MOCK-PERSONAL,holding INTC,day_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding INTC,dividends,0
 CAD,acct,MOCK-PERSONAL,holding INTC,dividends_totals,0
@@ -431,6 +440,7 @@ CAD,acct,MOCK-PERSONAL,holding JNJ,closed,False
 CAD,acct,MOCK-PERSONAL,holding JNJ,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-3.9744
 CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_share,-0.01391707741374311394607132502
 CAD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_totals,-3.9744
 CAD,acct,MOCK-PERSONAL,holding JNJ,dividends,649.22270
 CAD,acct,MOCK-PERSONAL,holding JNJ,dividends_totals,649.22270
@@ -468,6 +478,7 @@ CAD,acct,MOCK-PERSONAL,holding KO,closed,False
 CAD,acct,MOCK-PERSONAL,holding KO,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding KO,day_pnl,-16.0218
 CAD,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
+CAD,acct,MOCK-PERSONAL,holding KO,day_pnl_share,-0.05610321832415192809510002899
 CAD,acct,MOCK-PERSONAL,holding KO,day_pnl_totals,-16.0218
 CAD,acct,MOCK-PERSONAL,holding KO,dividends,557.96730
 CAD,acct,MOCK-PERSONAL,holding KO,dividends_totals,557.96730
@@ -505,6 +516,7 @@ CAD,acct,MOCK-PERSONAL,holding META,closed,True
 CAD,acct,MOCK-PERSONAL,holding META,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding META,day_pnl,
 CAD,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
+CAD,acct,MOCK-PERSONAL,holding META,day_pnl_share,
 CAD,acct,MOCK-PERSONAL,holding META,day_pnl_totals,
 CAD,acct,MOCK-PERSONAL,holding META,dividends,35.51500
 CAD,acct,MOCK-PERSONAL,holding META,dividends_totals,35.51500
@@ -542,6 +554,7 @@ CAD,acct,MOCK-PERSONAL,holding MSFT,closed,False
 CAD,acct,MOCK-PERSONAL,holding MSFT,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl,6.0306
 CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_share,0.02111723204793659998067072581
 CAD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_totals,6.0306
 CAD,acct,MOCK-PERSONAL,holding MSFT,dividends,160.21685
 CAD,acct,MOCK-PERSONAL,holding MSFT,dividends_totals,160.21685
@@ -579,6 +592,7 @@ CAD,acct,MOCK-PERSONAL,holding NFLX,closed,False
 CAD,acct,MOCK-PERSONAL,holding NFLX,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-40.3788
 CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_share,-0.1413936406687928868270996424
 CAD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_totals,-40.3788
 CAD,acct,MOCK-PERSONAL,holding NFLX,dividends,0
 CAD,acct,MOCK-PERSONAL,holding NFLX,dividends_totals,0
@@ -616,6 +630,7 @@ CAD,acct,MOCK-PERSONAL,holding NVDA,closed,False
 CAD,acct,MOCK-PERSONAL,holding NVDA,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl,27.2550
 CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_share,0.09543829129216197931767662124
 CAD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_totals,27.2550
 CAD,acct,MOCK-PERSONAL,holding NVDA,dividends,59.41110
 CAD,acct,MOCK-PERSONAL,holding NVDA,dividends_totals,59.41110
@@ -653,6 +668,7 @@ CAD,acct,MOCK-PERSONAL,holding O,closed,False
 CAD,acct,MOCK-PERSONAL,holding O,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding O,day_pnl,-71.4150
 CAD,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+CAD,acct,MOCK-PERSONAL,holding O,day_pnl_share,-0.2500724847781965787184691215
 CAD,acct,MOCK-PERSONAL,holding O,day_pnl_totals,-71.4150
 CAD,acct,MOCK-PERSONAL,holding O,dividends,1095.85495
 CAD,acct,MOCK-PERSONAL,holding O,dividends_totals,1095.85495
@@ -690,6 +706,7 @@ CAD,acct,MOCK-PERSONAL,holding XYZ,closed,False
 CAD,acct,MOCK-PERSONAL,holding XYZ,currency,CAD
 CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-63.3696
 CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_share,-0.2219000676524596501401372378
 CAD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_totals,-63.3696
 CAD,acct,MOCK-PERSONAL,holding XYZ,dividends,0
 CAD,acct,MOCK-PERSONAL,holding XYZ,dividends_totals,0
@@ -754,6 +771,7 @@ CAD,acct,MOCK-PERSONAL,totals CAD,count,9
 CAD,acct,MOCK-PERSONAL,totals CAD,currency,CAD
 CAD,acct,MOCK-PERSONAL,totals CAD,day_pnl,-132.5628
 CAD,acct,MOCK-PERSONAL,totals CAD,day_pnl_pct,-0.0008193262044163439457371667041
+CAD,acct,MOCK-PERSONAL,totals CAD,day_pnl_share,-0.4641925195708901130762539867
 CAD,acct,MOCK-PERSONAL,totals CAD,dividends,2740.55725
 CAD,acct,MOCK-PERSONAL,totals CAD,market,161662.3356
 CAD,acct,MOCK-PERSONAL,totals CAD,realized,2716.639684615384615384615384
@@ -799,6 +817,7 @@ CAD,acct,MOCK-RRSP,holding NFLX,closed,False
 CAD,acct,MOCK-RRSP,holding NFLX,currency,CAD
 CAD,acct,MOCK-RRSP,holding NFLX,day_pnl,-5.2440
 CAD,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+CAD,acct,MOCK-RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 CAD,acct,MOCK-RRSP,holding NFLX,day_pnl_totals,-5.2440
 CAD,acct,MOCK-RRSP,holding NFLX,dividends,0
 CAD,acct,MOCK-RRSP,holding NFLX,dividends_totals,0
@@ -836,6 +855,7 @@ CAD,acct,MOCK-RRSP,holding QQQ,closed,False
 CAD,acct,MOCK-RRSP,holding QQQ,currency,CAD
 CAD,acct,MOCK-RRSP,holding QQQ,day_pnl,26.5650
 CAD,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+CAD,acct,MOCK-RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 CAD,acct,MOCK-RRSP,holding QQQ,day_pnl_totals,26.5650
 CAD,acct,MOCK-RRSP,holding QQQ,dividends,124.99090
 CAD,acct,MOCK-RRSP,holding QQQ,dividends_totals,124.99090
@@ -873,6 +893,7 @@ CAD,acct,MOCK-RRSP,holding SCHD,closed,False
 CAD,acct,MOCK-RRSP,holding SCHD,currency,CAD
 CAD,acct,MOCK-RRSP,holding SCHD,day_pnl,-73.0848
 CAD,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+CAD,acct,MOCK-RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 CAD,acct,MOCK-RRSP,holding SCHD,day_pnl_totals,-73.0848
 CAD,acct,MOCK-RRSP,holding SCHD,dividends,952.95790
 CAD,acct,MOCK-RRSP,holding SCHD,dividends_totals,952.95790
@@ -910,6 +931,7 @@ CAD,acct,MOCK-RRSP,holding SPY,closed,False
 CAD,acct,MOCK-RRSP,holding SPY,currency,CAD
 CAD,acct,MOCK-RRSP,holding SPY,day_pnl,-4.5540
 CAD,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+CAD,acct,MOCK-RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 CAD,acct,MOCK-RRSP,holding SPY,day_pnl_totals,-4.5540
 CAD,acct,MOCK-RRSP,holding SPY,dividends,220.87580
 CAD,acct,MOCK-RRSP,holding SPY,dividends_totals,220.87580
@@ -976,6 +998,7 @@ CAD,acct,MOCK-RRSP,totals CAD,count,4
 CAD,acct,MOCK-RRSP,totals CAD,currency,CAD
 CAD,acct,MOCK-RRSP,totals CAD,day_pnl,-56.3178
 CAD,acct,MOCK-RRSP,totals CAD,day_pnl_pct,-0.0007092016172785912868125340828
+CAD,acct,MOCK-RRSP,totals CAD,day_pnl_share,-0.5145631067961165048543689321
 CAD,acct,MOCK-RRSP,totals CAD,dividends,1298.82460
 CAD,acct,MOCK-RRSP,totals CAD,market,79353.8226
 CAD,acct,MOCK-RRSP,totals CAD,realized,0
@@ -1027,6 +1050,7 @@ CAD,acct,MOCK-TFSA,holding CNR.TO,closed,False
 CAD,acct,MOCK-TFSA,holding CNR.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl,-1.20
 CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
+CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl_share,-0.1450641909044752302894030609
 CAD,acct,MOCK-TFSA,holding CNR.TO,day_pnl_totals,-1.20
 CAD,acct,MOCK-TFSA,holding CNR.TO,dividends,36.33
 CAD,acct,MOCK-TFSA,holding CNR.TO,dividends_totals,36.33
@@ -1064,6 +1088,7 @@ CAD,acct,MOCK-TFSA,holding ENB.TO,closed,False
 CAD,acct,MOCK-TFSA,holding ENB.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl,-4.20
 CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
+CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl_share,-0.5077246681656633060129107130
 CAD,acct,MOCK-TFSA,holding ENB.TO,day_pnl_totals,-4.20
 CAD,acct,MOCK-TFSA,holding ENB.TO,dividends,115.59
 CAD,acct,MOCK-TFSA,holding ENB.TO,dividends_totals,115.59
@@ -1101,6 +1126,7 @@ CAD,acct,MOCK-TFSA,holding O,closed,False
 CAD,acct,MOCK-TFSA,holding O,currency,CAD
 CAD,acct,MOCK-TFSA,holding O,day_pnl,-0.9522
 CAD,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
+CAD,acct,MOCK-TFSA,holding O,day_pnl_share,-0.1151084354827010952346413288
 CAD,acct,MOCK-TFSA,holding O,day_pnl_totals,-0.9522
 CAD,acct,MOCK-TFSA,holding O,dividends,13.26780
 CAD,acct,MOCK-TFSA,holding O,dividends_totals,13.26780
@@ -1138,6 +1164,7 @@ CAD,acct,MOCK-TFSA,holding REI.UN.TO,closed,False
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl,0.00
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
+CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_share,0E+2
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_totals,0.00
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,dividends,596.14
 CAD,acct,MOCK-TFSA,holding REI.UN.TO,dividends_totals,596.14
@@ -1175,6 +1202,7 @@ CAD,acct,MOCK-TFSA,holding RY.TO,closed,False
 CAD,acct,MOCK-TFSA,holding RY.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl,-1.20
 CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
+CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl_share,-0.1450641909044752302894030609
 CAD,acct,MOCK-TFSA,holding RY.TO,day_pnl_totals,-1.20
 CAD,acct,MOCK-TFSA,holding RY.TO,dividends,65.8
 CAD,acct,MOCK-TFSA,holding RY.TO,dividends_totals,65.8
@@ -1212,6 +1240,7 @@ CAD,acct,MOCK-TFSA,holding TD.TO,closed,False
 CAD,acct,MOCK-TFSA,holding TD.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl,-0.20
 CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
+CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl_share,-0.02417736515074587171490051014
 CAD,acct,MOCK-TFSA,holding TD.TO,day_pnl_totals,-0.20
 CAD,acct,MOCK-TFSA,holding TD.TO,dividends,86.6
 CAD,acct,MOCK-TFSA,holding TD.TO,dividends_totals,86.6
@@ -1249,6 +1278,7 @@ CAD,acct,MOCK-TFSA,holding VFV.TO,closed,False
 CAD,acct,MOCK-TFSA,holding VFV.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl,0.52
 CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
+CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl_share,0.06286114939193926645874132637
 CAD,acct,MOCK-TFSA,holding VFV.TO,day_pnl_totals,0.52
 CAD,acct,MOCK-TFSA,holding VFV.TO,dividends,10.26
 CAD,acct,MOCK-TFSA,holding VFV.TO,dividends_totals,10.26
@@ -1286,6 +1316,7 @@ CAD,acct,MOCK-TFSA,holding XEQT.TO,closed,False
 CAD,acct,MOCK-TFSA,holding XEQT.TO,currency,CAD
 CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl,0.00
 CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_pct,0E+2
+CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_share,0E+2
 CAD,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_totals,0.00
 CAD,acct,MOCK-TFSA,holding XEQT.TO,dividends,48.60
 CAD,acct,MOCK-TFSA,holding XEQT.TO,dividends_totals,48.60
@@ -1352,6 +1383,7 @@ CAD,acct,MOCK-TFSA,totals CAD,count,8
 CAD,acct,MOCK-TFSA,totals CAD,currency,CAD
 CAD,acct,MOCK-TFSA,totals CAD,day_pnl,-7.2322
 CAD,acct,MOCK-TFSA,totals CAD,day_pnl_pct,-0.0003332715194432056935947492239
+CAD,acct,MOCK-TFSA,totals CAD,day_pnl_share,-0.8742777012161214670825173473
 CAD,acct,MOCK-TFSA,totals CAD,dividends,972.58780
 CAD,acct,MOCK-TFSA,totals CAD,market,21693.392
 CAD,acct,MOCK-TFSA,totals CAD,realized,233.19
@@ -1403,6 +1435,7 @@ CAD,acct,MOCK2-TFSA,holding CNR.TO,closed,True
 CAD,acct,MOCK2-TFSA,holding CNR.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_share,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding CNR.TO,dividends,35.09
 CAD,acct,MOCK2-TFSA,holding CNR.TO,dividends_totals,35.09
@@ -1440,6 +1473,7 @@ CAD,acct,MOCK2-TFSA,holding ENB.TO,closed,True
 CAD,acct,MOCK2-TFSA,holding ENB.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_share,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding ENB.TO,dividends,112.32
 CAD,acct,MOCK2-TFSA,holding ENB.TO,dividends_totals,112.32
@@ -1477,6 +1511,7 @@ CAD,acct,MOCK2-TFSA,holding O,closed,True
 CAD,acct,MOCK2-TFSA,holding O,currency,CAD
 CAD,acct,MOCK2-TFSA,holding O,day_pnl,
 CAD,acct,MOCK2-TFSA,holding O,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,holding O,day_pnl_share,
 CAD,acct,MOCK2-TFSA,holding O,day_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding O,dividends,6.63390
 CAD,acct,MOCK2-TFSA,holding O,dividends_totals,6.63390
@@ -1514,6 +1549,7 @@ CAD,acct,MOCK2-TFSA,holding RY.TO,closed,True
 CAD,acct,MOCK2-TFSA,holding RY.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl_share,
 CAD,acct,MOCK2-TFSA,holding RY.TO,day_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding RY.TO,dividends,59.2
 CAD,acct,MOCK2-TFSA,holding RY.TO,dividends_totals,59.2
@@ -1551,6 +1587,7 @@ CAD,acct,MOCK2-TFSA,holding TD.TO,closed,True
 CAD,acct,MOCK2-TFSA,holding TD.TO,currency,CAD
 CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl,
 CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl_share,
 CAD,acct,MOCK2-TFSA,holding TD.TO,day_pnl_totals,
 CAD,acct,MOCK2-TFSA,holding TD.TO,dividends,83.4
 CAD,acct,MOCK2-TFSA,holding TD.TO,dividends_totals,83.4
@@ -1616,6 +1653,7 @@ CAD,acct,MOCK2-TFSA,totals CAD,count,0
 CAD,acct,MOCK2-TFSA,totals CAD,currency,CAD
 CAD,acct,MOCK2-TFSA,totals CAD,day_pnl,
 CAD,acct,MOCK2-TFSA,totals CAD,day_pnl_pct,
+CAD,acct,MOCK2-TFSA,totals CAD,day_pnl_share,
 CAD,acct,MOCK2-TFSA,totals CAD,dividends,296.64390
 CAD,acct,MOCK2-TFSA,totals CAD,market,
 CAD,acct,MOCK2-TFSA,totals CAD,members,
@@ -1664,6 +1702,7 @@ CAD,folio,,holding AAPL,closed,False
 CAD,folio,,holding AAPL,currency,CAD
 CAD,folio,,holding AAPL,day_pnl,43.2216
 CAD,folio,,holding AAPL,day_pnl_pct,0.0001529824246053571201791242489
+CAD,folio,,holding AAPL,day_pnl_share,0.1019882007653787180543580290
 CAD,folio,,holding AAPL,day_pnl_totals,43.2216
 CAD,folio,,holding AAPL,dividends,111.24850
 CAD,folio,,holding AAPL,dividends_totals,111.24850
@@ -1701,6 +1740,7 @@ CAD,folio,,holding CNR.TO,closed,False
 CAD,folio,,holding CNR.TO,currency,CAD
 CAD,folio,,holding CNR.TO,day_pnl,-1.20
 CAD,folio,,holding CNR.TO,day_pnl_pct,-0.000004247388100542981847385314256
+CAD,folio,,holding CNR.TO,day_pnl_share,-0.002831589781925112945037426538
 CAD,folio,,holding CNR.TO,day_pnl_totals,-1.20
 CAD,folio,,holding CNR.TO,dividends,71.42
 CAD,folio,,holding CNR.TO,dividends_totals,71.42
@@ -1738,6 +1778,7 @@ CAD,folio,,holding COST,closed,False
 CAD,folio,,holding COST,currency,CAD
 CAD,folio,,holding COST,day_pnl,-13.9104
 CAD,folio,,holding COST,day_pnl_pct,-0.00004923572286149424557489056286
+CAD,folio,,holding COST,day_pnl_share,-0.03282378875207590925887384843
 CAD,folio,,holding COST,day_pnl_totals,-13.9104
 CAD,folio,,holding COST,dividends,71.12085
 CAD,folio,,holding COST,dividends_totals,71.12085
@@ -1775,6 +1816,7 @@ CAD,folio,,holding DLR.TO,closed,True
 CAD,folio,,holding DLR.TO,currency,CAD
 CAD,folio,,holding DLR.TO,day_pnl,
 CAD,folio,,holding DLR.TO,day_pnl_pct,
+CAD,folio,,holding DLR.TO,day_pnl_share,
 CAD,folio,,holding DLR.TO,day_pnl_totals,
 CAD,folio,,holding DLR.TO,dividends,0
 CAD,folio,,holding DLR.TO,dividends_totals,0
@@ -1812,6 +1854,7 @@ CAD,folio,,holding DLR.U.TO,closed,True
 CAD,folio,,holding DLR.U.TO,currency,CAD
 CAD,folio,,holding DLR.U.TO,day_pnl,
 CAD,folio,,holding DLR.U.TO,day_pnl_pct,
+CAD,folio,,holding DLR.U.TO,day_pnl_share,
 CAD,folio,,holding DLR.U.TO,day_pnl_totals,
 CAD,folio,,holding DLR.U.TO,dividends,0
 CAD,folio,,holding DLR.U.TO,dividends_totals,0
@@ -1849,6 +1892,7 @@ CAD,folio,,holding ENB.TO,closed,False
 CAD,folio,,holding ENB.TO,currency,CAD
 CAD,folio,,holding ENB.TO,day_pnl,-4.20
 CAD,folio,,holding ENB.TO,day_pnl_pct,-0.00001486585835190043646584859990
+CAD,folio,,holding ENB.TO,day_pnl_share,-0.009910564236737895307630992883
 CAD,folio,,holding ENB.TO,day_pnl_totals,-4.20
 CAD,folio,,holding ENB.TO,dividends,227.91
 CAD,folio,,holding ENB.TO,dividends_totals,227.91
@@ -1886,6 +1930,7 @@ CAD,folio,,holding INTC,closed,True
 CAD,folio,,holding INTC,currency,CAD
 CAD,folio,,holding INTC,day_pnl,
 CAD,folio,,holding INTC,day_pnl_pct,
+CAD,folio,,holding INTC,day_pnl_share,
 CAD,folio,,holding INTC,day_pnl_totals,
 CAD,folio,,holding INTC,dividends,0
 CAD,folio,,holding INTC,dividends_totals,0
@@ -1923,6 +1968,7 @@ CAD,folio,,holding JNJ,closed,False
 CAD,folio,,holding JNJ,currency,CAD
 CAD,folio,,holding JNJ,day_pnl,-3.9744
 CAD,folio,,holding JNJ,day_pnl_pct,-0.00001406734938899835587854016082
+CAD,folio,,holding JNJ,day_pnl_share,-0.009378225357735974073963956694
 CAD,folio,,holding JNJ,day_pnl_totals,-3.9744
 CAD,folio,,holding JNJ,dividends,649.22270
 CAD,folio,,holding JNJ,dividends_totals,649.22270
@@ -1960,6 +2006,7 @@ CAD,folio,,holding KO,closed,False
 CAD,folio,,holding KO,currency,CAD
 CAD,folio,,holding KO,day_pnl,-36.5148
 CAD,folio,,holding KO,day_pnl_pct,-0.0001292437725114223946340877275
+CAD,folio,,holding KO,day_pnl_share,-0.08616244547419926180454385212
 CAD,folio,,holding KO,day_pnl_totals,-36.5148
 CAD,folio,,holding KO,dividends,1258.51680
 CAD,folio,,holding KO,dividends_totals,1258.51680
@@ -1997,6 +2044,7 @@ CAD,folio,,holding META,closed,True
 CAD,folio,,holding META,currency,CAD
 CAD,folio,,holding META,day_pnl,
 CAD,folio,,holding META,day_pnl_pct,
+CAD,folio,,holding META,day_pnl_share,
 CAD,folio,,holding META,day_pnl_totals,
 CAD,folio,,holding META,dividends,35.51500
 CAD,folio,,holding META,dividends_totals,35.51500
@@ -2034,6 +2082,7 @@ CAD,folio,,holding MSFT,closed,False
 CAD,folio,,holding MSFT,currency,CAD
 CAD,folio,,holding MSFT,day_pnl,6.0306
 CAD,folio,,holding MSFT,day_pnl_pct,0.00002134524889927875527403489680
+CAD,folio,,holding MSFT,day_pnl_share,0.01423015444906465510528558707
 CAD,folio,,holding MSFT,day_pnl_totals,6.0306
 CAD,folio,,holding MSFT,dividends,160.21685
 CAD,folio,,holding MSFT,dividends_totals,160.21685
@@ -2071,6 +2120,7 @@ CAD,folio,,holding NFLX,closed,False
 CAD,folio,,holding NFLX,currency,CAD
 CAD,folio,,holding NFLX,day_pnl,-45.6228
 CAD,folio,,holding NFLX,day_pnl_pct,-0.0001614814481945436268557422627
+CAD,folio,,holding NFLX,day_pnl_share,-0.1076542119190108690573779195
 CAD,folio,,holding NFLX,day_pnl_totals,-45.6228
 CAD,folio,,holding NFLX,dividends,0
 CAD,folio,,holding NFLX,dividends_totals,0
@@ -2108,6 +2158,7 @@ CAD,folio,,holding NVDA,closed,False
 CAD,folio,,holding NVDA,currency,CAD
 CAD,folio,,holding NVDA,day_pnl,27.2550
 CAD,folio,,holding NVDA,day_pnl_pct,0.00009646880223358247520873895005
+CAD,folio,,holding NVDA,day_pnl_share,0.06431248292197412776416255024
 CAD,folio,,holding NVDA,day_pnl_totals,27.2550
 CAD,folio,,holding NVDA,dividends,59.41110
 CAD,folio,,holding NVDA,dividends_totals,59.41110
@@ -2145,6 +2196,7 @@ CAD,folio,,holding O,closed,False
 CAD,folio,,holding O,currency,CAD
 CAD,folio,,holding O,day_pnl,-72.3672
 CAD,folio,,holding O,day_pnl_pct,-0.0002561429867913450632884187615
+CAD,folio,,holding O,day_pnl_share,-0.1707618533887758612634270448
 CAD,folio,,holding O,day_pnl_totals,-72.3672
 CAD,folio,,holding O,dividends,1115.75665
 CAD,folio,,holding O,dividends_totals,1115.75665
@@ -2182,6 +2234,7 @@ CAD,folio,,holding QQQ,closed,False
 CAD,folio,,holding QQQ,currency,CAD
 CAD,folio,,holding QQQ,day_pnl,26.5650
 CAD,folio,,holding QQQ,day_pnl_pct,0.00009402655407577026064649239435
+CAD,folio,,holding QQQ,day_pnl_share,0.06268431879736718782076602998
 CAD,folio,,holding QQQ,day_pnl_totals,26.5650
 CAD,folio,,holding QQQ,dividends,124.99090
 CAD,folio,,holding QQQ,dividends_totals,124.99090
@@ -2219,6 +2272,7 @@ CAD,folio,,holding REI.UN.TO,closed,False
 CAD,folio,,holding REI.UN.TO,currency,CAD
 CAD,folio,,holding REI.UN.TO,day_pnl,0.00
 CAD,folio,,holding REI.UN.TO,day_pnl_pct,0E+2
+CAD,folio,,holding REI.UN.TO,day_pnl_share,0E+2
 CAD,folio,,holding REI.UN.TO,day_pnl_totals,0.00
 CAD,folio,,holding REI.UN.TO,dividends,596.14
 CAD,folio,,holding REI.UN.TO,dividends_totals,596.14
@@ -2256,6 +2310,7 @@ CAD,folio,,holding RY.TO,closed,False
 CAD,folio,,holding RY.TO,currency,CAD
 CAD,folio,,holding RY.TO,day_pnl,-1.20
 CAD,folio,,holding RY.TO,day_pnl_pct,-0.000004247388100542981847385314256
+CAD,folio,,holding RY.TO,day_pnl_share,-0.002831589781925112945037426538
 CAD,folio,,holding RY.TO,day_pnl_totals,-1.20
 CAD,folio,,holding RY.TO,dividends,125.0
 CAD,folio,,holding RY.TO,dividends_totals,125.0
@@ -2293,6 +2348,7 @@ CAD,folio,,holding SCHD,closed,False
 CAD,folio,,holding SCHD,currency,CAD
 CAD,folio,,holding SCHD,day_pnl,-73.0848
 CAD,folio,,holding SCHD,day_pnl_pct,-0.0002586829248754697664331551795
+CAD,folio,,holding SCHD,day_pnl_share,-0.1724551440783670788045594259
 CAD,folio,,holding SCHD,day_pnl_totals,-73.0848
 CAD,folio,,holding SCHD,dividends,952.95790
 CAD,folio,,holding SCHD,dividends_totals,952.95790
@@ -2330,6 +2386,7 @@ CAD,folio,,holding SPY,closed,False
 CAD,folio,,holding SPY,currency,CAD
 CAD,folio,,holding SPY,day_pnl,-4.5540
 CAD,folio,,holding SPY,day_pnl_pct,-0.00001611883784156061611082726760
+CAD,folio,,holding SPY,day_pnl_share,-0.01074588322240580362641703371
 CAD,folio,,holding SPY,day_pnl_totals,-4.5540
 CAD,folio,,holding SPY,dividends,220.87580
 CAD,folio,,holding SPY,dividends_totals,220.87580
@@ -2367,6 +2424,7 @@ CAD,folio,,holding TD.TO,closed,False
 CAD,folio,,holding TD.TO,currency,CAD
 CAD,folio,,holding TD.TO,day_pnl,-0.20
 CAD,folio,,holding TD.TO,day_pnl_pct,-7.078980167571636412308857094E-7
+CAD,folio,,holding TD.TO,day_pnl_share,-0.0004719316303208521575062377563
 CAD,folio,,holding TD.TO,day_pnl_totals,-0.20
 CAD,folio,,holding TD.TO,dividends,170.0
 CAD,folio,,holding TD.TO,dividends_totals,170.0
@@ -2404,6 +2462,7 @@ CAD,folio,,holding VFV.TO,closed,False
 CAD,folio,,holding VFV.TO,currency,CAD
 CAD,folio,,holding VFV.TO,day_pnl,0.52
 CAD,folio,,holding VFV.TO,day_pnl_pct,0.000001840534843568625467200302844
+CAD,folio,,holding VFV.TO,day_pnl_share,0.001227022238834215609516218166
 CAD,folio,,holding VFV.TO,day_pnl_totals,0.52
 CAD,folio,,holding VFV.TO,dividends,10.26
 CAD,folio,,holding VFV.TO,dividends_totals,10.26
@@ -2441,6 +2500,7 @@ CAD,folio,,holding XEQT.TO,closed,False
 CAD,folio,,holding XEQT.TO,currency,CAD
 CAD,folio,,holding XEQT.TO,day_pnl,0.00
 CAD,folio,,holding XEQT.TO,day_pnl_pct,0E+2
+CAD,folio,,holding XEQT.TO,day_pnl_share,0E+2
 CAD,folio,,holding XEQT.TO,day_pnl_totals,0.00
 CAD,folio,,holding XEQT.TO,dividends,48.60
 CAD,folio,,holding XEQT.TO,dividends_totals,48.60
@@ -2478,6 +2538,7 @@ CAD,folio,,holding XYZ,closed,False
 CAD,folio,,holding XYZ,currency,CAD
 CAD,folio,,holding XYZ,day_pnl,-63.3696
 CAD,folio,,holding XYZ,day_pnl_pct,-0.0002242960708134737853967236753
+CAD,folio,,holding XYZ,day_pnl_share,-0.1495305932039013644015364206
 CAD,folio,,holding XYZ,day_pnl_totals,-63.3696
 CAD,folio,,holding XYZ,dividends,0
 CAD,folio,,holding XYZ,dividends_totals,0
@@ -2542,6 +2603,7 @@ CAD,folio,,totals CAD,count,19
 CAD,folio,,totals CAD,currency,CAD
 CAD,folio,,totals CAD,day_pnl,-216.6058
 CAD,folio,,totals CAD,day_pnl_pct,-0.0007666740811904941811986449191
+CAD,folio,,totals CAD,day_pnl_share,-0.5111156416547621912918231709
 CAD,folio,,totals CAD,dividends,6009.16305
 CAD,folio,,totals CAD,market,282309.9662
 CAD,folio,,totals CAD,realized,3892.637756573056573056573056
@@ -2580,6 +2642,7 @@ CAD,type,CORPORATE,holding KO,closed,False
 CAD,type,CORPORATE,holding KO,currency,CAD
 CAD,type,CORPORATE,holding KO,day_pnl,-7.4520
 CAD,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+CAD,type,CORPORATE,holding KO,day_pnl_share,-1
 CAD,type,CORPORATE,holding KO,day_pnl_totals,-7.4520
 CAD,type,CORPORATE,holding KO,dividends,241.9860
 CAD,type,CORPORATE,holding KO,dividends_totals,241.9860
@@ -2646,6 +2709,7 @@ CAD,type,CORPORATE,totals CAD,count,1
 CAD,type,CORPORATE,totals CAD,currency,CAD
 CAD,type,CORPORATE,totals CAD,day_pnl,-7.4520
 CAD,type,CORPORATE,totals CAD,day_pnl_pct,-0.001044447023325983520946965301
+CAD,type,CORPORATE,totals CAD,day_pnl_share,-1
 CAD,type,CORPORATE,totals CAD,dividends,241.9860
 CAD,type,CORPORATE,totals CAD,market,7127.4240
 CAD,type,CORPORATE,totals CAD,realized,427.72160
@@ -2690,6 +2754,7 @@ CAD,type,NON_REGISTERED,holding AAPL,closed,False
 CAD,type,NON_REGISTERED,holding AAPL,currency,CAD
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl,43.2216
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
+CAD,type,NON_REGISTERED,holding AAPL,day_pnl_share,0.1447386662969638153334257590
 CAD,type,NON_REGISTERED,holding AAPL,day_pnl_totals,43.2216
 CAD,type,NON_REGISTERED,holding AAPL,dividends,111.24850
 CAD,type,NON_REGISTERED,holding AAPL,dividends_totals,111.24850
@@ -2727,6 +2792,7 @@ CAD,type,NON_REGISTERED,holding COST,closed,False
 CAD,type,NON_REGISTERED,holding COST,currency,CAD
 CAD,type,NON_REGISTERED,holding COST,day_pnl,-13.9104
 CAD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
+CAD,type,NON_REGISTERED,holding COST,day_pnl_share,-0.04658255926798835436018300291
 CAD,type,NON_REGISTERED,holding COST,day_pnl_totals,-13.9104
 CAD,type,NON_REGISTERED,holding COST,dividends,71.12085
 CAD,type,NON_REGISTERED,holding COST,dividends_totals,71.12085
@@ -2764,6 +2830,7 @@ CAD,type,NON_REGISTERED,holding DLR.TO,closed,True
 CAD,type,NON_REGISTERED,holding DLR.TO,currency,CAD
 CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl,
 CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl_pct,
+CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl_share,
 CAD,type,NON_REGISTERED,holding DLR.TO,day_pnl_totals,
 CAD,type,NON_REGISTERED,holding DLR.TO,dividends,0
 CAD,type,NON_REGISTERED,holding DLR.TO,dividends_totals,0
@@ -2801,6 +2868,7 @@ CAD,type,NON_REGISTERED,holding DLR.U.TO,closed,True
 CAD,type,NON_REGISTERED,holding DLR.U.TO,currency,CAD
 CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
+CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_share,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_totals,
 CAD,type,NON_REGISTERED,holding DLR.U.TO,dividends,0
 CAD,type,NON_REGISTERED,holding DLR.U.TO,dividends_totals,0
@@ -2838,6 +2906,7 @@ CAD,type,NON_REGISTERED,holding INTC,closed,True
 CAD,type,NON_REGISTERED,holding INTC,currency,CAD
 CAD,type,NON_REGISTERED,holding INTC,day_pnl,
 CAD,type,NON_REGISTERED,holding INTC,day_pnl_pct,
+CAD,type,NON_REGISTERED,holding INTC,day_pnl_share,
 CAD,type,NON_REGISTERED,holding INTC,day_pnl_totals,
 CAD,type,NON_REGISTERED,holding INTC,dividends,0
 CAD,type,NON_REGISTERED,holding INTC,dividends_totals,0
@@ -2875,6 +2944,7 @@ CAD,type,NON_REGISTERED,holding JNJ,closed,False
 CAD,type,NON_REGISTERED,holding JNJ,currency,CAD
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl,-3.9744
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
+CAD,type,NON_REGISTERED,holding JNJ,day_pnl_share,-0.01330930264799667267433800083
 CAD,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-3.9744
 CAD,type,NON_REGISTERED,holding JNJ,dividends,649.22270
 CAD,type,NON_REGISTERED,holding JNJ,dividends_totals,649.22270
@@ -2912,6 +2982,7 @@ CAD,type,NON_REGISTERED,holding KO,closed,False
 CAD,type,NON_REGISTERED,holding KO,currency,CAD
 CAD,type,NON_REGISTERED,holding KO,day_pnl,-29.0628
 CAD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+CAD,type,NON_REGISTERED,holding KO,day_pnl_share,-0.09732427561347566893109663108
 CAD,type,NON_REGISTERED,holding KO,day_pnl_totals,-29.0628
 CAD,type,NON_REGISTERED,holding KO,dividends,1016.53080
 CAD,type,NON_REGISTERED,holding KO,dividends_totals,1016.53080
@@ -2949,6 +3020,7 @@ CAD,type,NON_REGISTERED,holding META,closed,True
 CAD,type,NON_REGISTERED,holding META,currency,CAD
 CAD,type,NON_REGISTERED,holding META,day_pnl,
 CAD,type,NON_REGISTERED,holding META,day_pnl_pct,
+CAD,type,NON_REGISTERED,holding META,day_pnl_share,
 CAD,type,NON_REGISTERED,holding META,day_pnl_totals,
 CAD,type,NON_REGISTERED,holding META,dividends,35.51500
 CAD,type,NON_REGISTERED,holding META,dividends_totals,35.51500
@@ -2986,6 +3058,7 @@ CAD,type,NON_REGISTERED,holding MSFT,closed,False
 CAD,type,NON_REGISTERED,holding MSFT,currency,CAD
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl,6.0306
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
+CAD,type,NON_REGISTERED,holding MSFT,day_pnl_share,0.02019501825407828457876981376
 CAD,type,NON_REGISTERED,holding MSFT,day_pnl_totals,6.0306
 CAD,type,NON_REGISTERED,holding MSFT,dividends,160.21685
 CAD,type,NON_REGISTERED,holding MSFT,dividends_totals,160.21685
@@ -3023,6 +3096,7 @@ CAD,type,NON_REGISTERED,holding NFLX,closed,False
 CAD,type,NON_REGISTERED,holding NFLX,currency,CAD
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl,-40.3788
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
+CAD,type,NON_REGISTERED,holding NFLX,day_pnl_share,-0.1352188178751328619621978835
 CAD,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-40.3788
 CAD,type,NON_REGISTERED,holding NFLX,dividends,0
 CAD,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -3060,6 +3134,7 @@ CAD,type,NON_REGISTERED,holding NVDA,closed,False
 CAD,type,NON_REGISTERED,holding NVDA,currency,CAD
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl,27.2550
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
+CAD,type,NON_REGISTERED,holding NVDA,day_pnl_share,0.09127039142289384906881094320
 CAD,type,NON_REGISTERED,holding NVDA,day_pnl_totals,27.2550
 CAD,type,NON_REGISTERED,holding NVDA,dividends,59.41110
 CAD,type,NON_REGISTERED,holding NVDA,dividends_totals,59.41110
@@ -3097,6 +3172,7 @@ CAD,type,NON_REGISTERED,holding O,closed,False
 CAD,type,NON_REGISTERED,holding O,currency,CAD
 CAD,type,NON_REGISTERED,holding O,day_pnl,-71.4150
 CAD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
+CAD,type,NON_REGISTERED,holding O,day_pnl_share,-0.2391515319561902121170109524
 CAD,type,NON_REGISTERED,holding O,day_pnl_totals,-71.4150
 CAD,type,NON_REGISTERED,holding O,dividends,1095.85495
 CAD,type,NON_REGISTERED,holding O,dividends_totals,1095.85495
@@ -3134,6 +3210,7 @@ CAD,type,NON_REGISTERED,holding XYZ,closed,False
 CAD,type,NON_REGISTERED,holding XYZ,currency,CAD
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl,-63.3696
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
+CAD,type,NON_REGISTERED,holding XYZ,day_pnl_share,-0.2122094366652802809741670133
 CAD,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-63.3696
 CAD,type,NON_REGISTERED,holding XYZ,dividends,0
 CAD,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -3198,6 +3275,7 @@ CAD,type,NON_REGISTERED,totals CAD,count,9
 CAD,type,NON_REGISTERED,totals CAD,currency,CAD
 CAD,type,NON_REGISTERED,totals CAD,day_pnl,-145.6038
 CAD,type,NON_REGISTERED,totals CAD,day_pnl_pct,-0.0008354545665458843192755624670
+CAD,type,NON_REGISTERED,totals CAD,day_pnl_share,-0.4875918480521281020379869680
 CAD,type,NON_REGISTERED,totals CAD,dividends,3199.12075
 CAD,type,NON_REGISTERED,totals CAD,market,174135.3276
 CAD,type,NON_REGISTERED,totals CAD,realized,3100.774654312354312354312354
@@ -3243,6 +3321,7 @@ CAD,type,RRSP,holding NFLX,closed,False
 CAD,type,RRSP,holding NFLX,currency,CAD
 CAD,type,RRSP,holding NFLX,day_pnl,-5.2440
 CAD,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+CAD,type,RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 CAD,type,RRSP,holding NFLX,day_pnl_totals,-5.2440
 CAD,type,RRSP,holding NFLX,dividends,0
 CAD,type,RRSP,holding NFLX,dividends_totals,0
@@ -3280,6 +3359,7 @@ CAD,type,RRSP,holding QQQ,closed,False
 CAD,type,RRSP,holding QQQ,currency,CAD
 CAD,type,RRSP,holding QQQ,day_pnl,26.5650
 CAD,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+CAD,type,RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 CAD,type,RRSP,holding QQQ,day_pnl_totals,26.5650
 CAD,type,RRSP,holding QQQ,dividends,124.99090
 CAD,type,RRSP,holding QQQ,dividends_totals,124.99090
@@ -3317,6 +3397,7 @@ CAD,type,RRSP,holding SCHD,closed,False
 CAD,type,RRSP,holding SCHD,currency,CAD
 CAD,type,RRSP,holding SCHD,day_pnl,-73.0848
 CAD,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+CAD,type,RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 CAD,type,RRSP,holding SCHD,day_pnl_totals,-73.0848
 CAD,type,RRSP,holding SCHD,dividends,952.95790
 CAD,type,RRSP,holding SCHD,dividends_totals,952.95790
@@ -3354,6 +3435,7 @@ CAD,type,RRSP,holding SPY,closed,False
 CAD,type,RRSP,holding SPY,currency,CAD
 CAD,type,RRSP,holding SPY,day_pnl,-4.5540
 CAD,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+CAD,type,RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 CAD,type,RRSP,holding SPY,day_pnl_totals,-4.5540
 CAD,type,RRSP,holding SPY,dividends,220.87580
 CAD,type,RRSP,holding SPY,dividends_totals,220.87580
@@ -3420,6 +3502,7 @@ CAD,type,RRSP,totals CAD,count,4
 CAD,type,RRSP,totals CAD,currency,CAD
 CAD,type,RRSP,totals CAD,day_pnl,-56.3178
 CAD,type,RRSP,totals CAD,day_pnl_pct,-0.0007092016172785912868125340828
+CAD,type,RRSP,totals CAD,day_pnl_share,-0.5145631067961165048543689321
 CAD,type,RRSP,totals CAD,dividends,1298.82460
 CAD,type,RRSP,totals CAD,market,79353.8226
 CAD,type,RRSP,totals CAD,realized,0
@@ -3471,6 +3554,7 @@ CAD,type,TFSA,holding CNR.TO,closed,False
 CAD,type,TFSA,holding CNR.TO,currency,CAD
 CAD,type,TFSA,holding CNR.TO,day_pnl,-1.20
 CAD,type,TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
+CAD,type,TFSA,holding CNR.TO,day_pnl_share,-0.1450641909044752302894030609
 CAD,type,TFSA,holding CNR.TO,day_pnl_totals,-1.20
 CAD,type,TFSA,holding CNR.TO,dividends,71.42
 CAD,type,TFSA,holding CNR.TO,dividends_totals,71.42
@@ -3508,6 +3592,7 @@ CAD,type,TFSA,holding ENB.TO,closed,False
 CAD,type,TFSA,holding ENB.TO,currency,CAD
 CAD,type,TFSA,holding ENB.TO,day_pnl,-4.20
 CAD,type,TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
+CAD,type,TFSA,holding ENB.TO,day_pnl_share,-0.5077246681656633060129107130
 CAD,type,TFSA,holding ENB.TO,day_pnl_totals,-4.20
 CAD,type,TFSA,holding ENB.TO,dividends,227.91
 CAD,type,TFSA,holding ENB.TO,dividends_totals,227.91
@@ -3545,6 +3630,7 @@ CAD,type,TFSA,holding O,closed,False
 CAD,type,TFSA,holding O,currency,CAD
 CAD,type,TFSA,holding O,day_pnl,-0.9522
 CAD,type,TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
+CAD,type,TFSA,holding O,day_pnl_share,-0.1151084354827010952346413288
 CAD,type,TFSA,holding O,day_pnl_totals,-0.9522
 CAD,type,TFSA,holding O,dividends,19.90170
 CAD,type,TFSA,holding O,dividends_totals,19.90170
@@ -3582,6 +3668,7 @@ CAD,type,TFSA,holding REI.UN.TO,closed,False
 CAD,type,TFSA,holding REI.UN.TO,currency,CAD
 CAD,type,TFSA,holding REI.UN.TO,day_pnl,0.00
 CAD,type,TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
+CAD,type,TFSA,holding REI.UN.TO,day_pnl_share,0E+2
 CAD,type,TFSA,holding REI.UN.TO,day_pnl_totals,0.00
 CAD,type,TFSA,holding REI.UN.TO,dividends,596.14
 CAD,type,TFSA,holding REI.UN.TO,dividends_totals,596.14
@@ -3619,6 +3706,7 @@ CAD,type,TFSA,holding RY.TO,closed,False
 CAD,type,TFSA,holding RY.TO,currency,CAD
 CAD,type,TFSA,holding RY.TO,day_pnl,-1.20
 CAD,type,TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
+CAD,type,TFSA,holding RY.TO,day_pnl_share,-0.1450641909044752302894030609
 CAD,type,TFSA,holding RY.TO,day_pnl_totals,-1.20
 CAD,type,TFSA,holding RY.TO,dividends,125.0
 CAD,type,TFSA,holding RY.TO,dividends_totals,125.0
@@ -3656,6 +3744,7 @@ CAD,type,TFSA,holding TD.TO,closed,False
 CAD,type,TFSA,holding TD.TO,currency,CAD
 CAD,type,TFSA,holding TD.TO,day_pnl,-0.20
 CAD,type,TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
+CAD,type,TFSA,holding TD.TO,day_pnl_share,-0.02417736515074587171490051014
 CAD,type,TFSA,holding TD.TO,day_pnl_totals,-0.20
 CAD,type,TFSA,holding TD.TO,dividends,170.0
 CAD,type,TFSA,holding TD.TO,dividends_totals,170.0
@@ -3693,6 +3782,7 @@ CAD,type,TFSA,holding VFV.TO,closed,False
 CAD,type,TFSA,holding VFV.TO,currency,CAD
 CAD,type,TFSA,holding VFV.TO,day_pnl,0.52
 CAD,type,TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
+CAD,type,TFSA,holding VFV.TO,day_pnl_share,0.06286114939193926645874132637
 CAD,type,TFSA,holding VFV.TO,day_pnl_totals,0.52
 CAD,type,TFSA,holding VFV.TO,dividends,10.26
 CAD,type,TFSA,holding VFV.TO,dividends_totals,10.26
@@ -3730,6 +3820,7 @@ CAD,type,TFSA,holding XEQT.TO,closed,False
 CAD,type,TFSA,holding XEQT.TO,currency,CAD
 CAD,type,TFSA,holding XEQT.TO,day_pnl,0.00
 CAD,type,TFSA,holding XEQT.TO,day_pnl_pct,0E+2
+CAD,type,TFSA,holding XEQT.TO,day_pnl_share,0E+2
 CAD,type,TFSA,holding XEQT.TO,day_pnl_totals,0.00
 CAD,type,TFSA,holding XEQT.TO,dividends,48.60
 CAD,type,TFSA,holding XEQT.TO,dividends_totals,48.60
@@ -3796,6 +3887,7 @@ CAD,type,TFSA,totals CAD,count,8
 CAD,type,TFSA,totals CAD,currency,CAD
 CAD,type,TFSA,totals CAD,day_pnl,-7.2322
 CAD,type,TFSA,totals CAD,day_pnl_pct,-0.0003332715194432056935947492239
+CAD,type,TFSA,totals CAD,day_pnl_share,-0.8742777012161214670825173473
 CAD,type,TFSA,totals CAD,dividends,1269.23170
 CAD,type,TFSA,totals CAD,market,21693.392
 CAD,type,TFSA,totals CAD,realized,233.19
@@ -3834,6 +3926,7 @@ USD,acct,MOCK-CORPORATE,holding KO,closed,False
 USD,acct,MOCK-CORPORATE,holding KO,currency,USD
 USD,acct,MOCK-CORPORATE,holding KO,day_pnl,-5.40
 USD,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+USD,acct,MOCK-CORPORATE,holding KO,day_pnl_share,-1
 USD,acct,MOCK-CORPORATE,holding KO,day_pnl_totals,-5.40
 USD,acct,MOCK-CORPORATE,holding KO,dividends,177.0
 USD,acct,MOCK-CORPORATE,holding KO,dividends_totals,177.0
@@ -3900,6 +3993,7 @@ USD,acct,MOCK-CORPORATE,totals USD,count,1
 USD,acct,MOCK-CORPORATE,totals USD,currency,USD
 USD,acct,MOCK-CORPORATE,totals USD,day_pnl,-5.40
 USD,acct,MOCK-CORPORATE,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+USD,acct,MOCK-CORPORATE,totals USD,day_pnl_share,-1
 USD,acct,MOCK-CORPORATE,totals USD,dividends,177.0
 USD,acct,MOCK-CORPORATE,totals USD,market,5164.80
 USD,acct,MOCK-CORPORATE,totals USD,realized,358.92
@@ -3942,6 +4036,7 @@ USD,acct,MOCK-MARGIN,holding KO,closed,False
 USD,acct,MOCK-MARGIN,holding KO,currency,USD
 USD,acct,MOCK-MARGIN,holding KO,day_pnl,-9.45
 USD,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+USD,acct,MOCK-MARGIN,holding KO,day_pnl_share,-1
 USD,acct,MOCK-MARGIN,holding KO,day_pnl_totals,-9.45
 USD,acct,MOCK-MARGIN,holding KO,dividends,335.25
 USD,acct,MOCK-MARGIN,holding KO,dividends_totals,335.25
@@ -4008,6 +4103,7 @@ USD,acct,MOCK-MARGIN,totals USD,count,1
 USD,acct,MOCK-MARGIN,totals USD,currency,USD
 USD,acct,MOCK-MARGIN,totals USD,day_pnl,-9.45
 USD,acct,MOCK-MARGIN,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+USD,acct,MOCK-MARGIN,totals USD,day_pnl_share,-1
 USD,acct,MOCK-MARGIN,totals USD,dividends,335.25
 USD,acct,MOCK-MARGIN,totals USD,market,9038.40
 USD,acct,MOCK-MARGIN,totals USD,realized,335.60
@@ -4050,6 +4146,7 @@ USD,acct,MOCK-PERSONAL,holding AAPL,closed,False
 USD,acct,MOCK-PERSONAL,holding AAPL,currency,USD
 USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl,31.32
 USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_share,0.1513482168744563641635256596
 USD,acct,MOCK-PERSONAL,holding AAPL,day_pnl_totals,31.32
 USD,acct,MOCK-PERSONAL,holding AAPL,dividends,81.38
 USD,acct,MOCK-PERSONAL,holding AAPL,dividends_totals,81.38
@@ -4087,6 +4184,7 @@ USD,acct,MOCK-PERSONAL,holding COST,closed,False
 USD,acct,MOCK-PERSONAL,holding COST,currency,USD
 USD,acct,MOCK-PERSONAL,holding COST,day_pnl,-10.08
 USD,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+USD,acct,MOCK-PERSONAL,holding COST,day_pnl_share,-0.04870977094810089881124963758
 USD,acct,MOCK-PERSONAL,holding COST,day_pnl_totals,-10.08
 USD,acct,MOCK-PERSONAL,holding COST,dividends,52.01
 USD,acct,MOCK-PERSONAL,holding COST,dividends_totals,52.01
@@ -4124,6 +4222,7 @@ USD,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,USD
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
+USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_share,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends,0
 USD,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends_totals,0
@@ -4161,6 +4260,7 @@ USD,acct,MOCK-PERSONAL,holding INTC,closed,True
 USD,acct,MOCK-PERSONAL,holding INTC,currency,USD
 USD,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 USD,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
+USD,acct,MOCK-PERSONAL,holding INTC,day_pnl_share,
 USD,acct,MOCK-PERSONAL,holding INTC,day_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding INTC,dividends,0
 USD,acct,MOCK-PERSONAL,holding INTC,dividends_totals,0
@@ -4198,6 +4298,7 @@ USD,acct,MOCK-PERSONAL,holding JNJ,closed,False
 USD,acct,MOCK-PERSONAL,holding JNJ,currency,USD
 USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-2.88
 USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_share,-0.01391707741374311394607132502
 USD,acct,MOCK-PERSONAL,holding JNJ,day_pnl_totals,-2.88
 USD,acct,MOCK-PERSONAL,holding JNJ,dividends,476.38
 USD,acct,MOCK-PERSONAL,holding JNJ,dividends_totals,476.38
@@ -4235,6 +4336,7 @@ USD,acct,MOCK-PERSONAL,holding KO,closed,False
 USD,acct,MOCK-PERSONAL,holding KO,currency,USD
 USD,acct,MOCK-PERSONAL,holding KO,day_pnl,-11.61
 USD,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
+USD,acct,MOCK-PERSONAL,holding KO,day_pnl_share,-0.05610321832415192809510002899
 USD,acct,MOCK-PERSONAL,holding KO,day_pnl_totals,-11.61
 USD,acct,MOCK-PERSONAL,holding KO,dividends,408.49
 USD,acct,MOCK-PERSONAL,holding KO,dividends_totals,408.49
@@ -4272,6 +4374,7 @@ USD,acct,MOCK-PERSONAL,holding META,closed,True
 USD,acct,MOCK-PERSONAL,holding META,currency,USD
 USD,acct,MOCK-PERSONAL,holding META,day_pnl,
 USD,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
+USD,acct,MOCK-PERSONAL,holding META,day_pnl_share,
 USD,acct,MOCK-PERSONAL,holding META,day_pnl_totals,
 USD,acct,MOCK-PERSONAL,holding META,dividends,26.00
 USD,acct,MOCK-PERSONAL,holding META,dividends_totals,26.00
@@ -4309,6 +4412,7 @@ USD,acct,MOCK-PERSONAL,holding MSFT,closed,False
 USD,acct,MOCK-PERSONAL,holding MSFT,currency,USD
 USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl,4.37
 USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_share,0.02111723204793659998067072581
 USD,acct,MOCK-PERSONAL,holding MSFT,day_pnl_totals,4.37
 USD,acct,MOCK-PERSONAL,holding MSFT,dividends,117.62
 USD,acct,MOCK-PERSONAL,holding MSFT,dividends_totals,117.62
@@ -4346,6 +4450,7 @@ USD,acct,MOCK-PERSONAL,holding NFLX,closed,False
 USD,acct,MOCK-PERSONAL,holding NFLX,currency,USD
 USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-29.26
 USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_share,-0.1413936406687928868270996424
 USD,acct,MOCK-PERSONAL,holding NFLX,day_pnl_totals,-29.26
 USD,acct,MOCK-PERSONAL,holding NFLX,dividends,0
 USD,acct,MOCK-PERSONAL,holding NFLX,dividends_totals,0
@@ -4383,6 +4488,7 @@ USD,acct,MOCK-PERSONAL,holding NVDA,closed,False
 USD,acct,MOCK-PERSONAL,holding NVDA,currency,USD
 USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl,19.75
 USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_share,0.09543829129216197931767662124
 USD,acct,MOCK-PERSONAL,holding NVDA,day_pnl_totals,19.75
 USD,acct,MOCK-PERSONAL,holding NVDA,dividends,43.66
 USD,acct,MOCK-PERSONAL,holding NVDA,dividends_totals,43.66
@@ -4420,6 +4526,7 @@ USD,acct,MOCK-PERSONAL,holding O,closed,False
 USD,acct,MOCK-PERSONAL,holding O,currency,USD
 USD,acct,MOCK-PERSONAL,holding O,day_pnl,-51.75
 USD,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+USD,acct,MOCK-PERSONAL,holding O,day_pnl_share,-0.2500724847781965787184691215
 USD,acct,MOCK-PERSONAL,holding O,day_pnl_totals,-51.75
 USD,acct,MOCK-PERSONAL,holding O,dividends,802.73
 USD,acct,MOCK-PERSONAL,holding O,dividends_totals,802.73
@@ -4457,6 +4564,7 @@ USD,acct,MOCK-PERSONAL,holding XYZ,closed,False
 USD,acct,MOCK-PERSONAL,holding XYZ,currency,USD
 USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-45.92
 USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_share,-0.2219000676524596501401372378
 USD,acct,MOCK-PERSONAL,holding XYZ,day_pnl_totals,-45.92
 USD,acct,MOCK-PERSONAL,holding XYZ,dividends,0
 USD,acct,MOCK-PERSONAL,holding XYZ,dividends_totals,0
@@ -4521,6 +4629,7 @@ USD,acct,MOCK-PERSONAL,totals USD,count,9
 USD,acct,MOCK-PERSONAL,totals USD,currency,USD
 USD,acct,MOCK-PERSONAL,totals USD,day_pnl,-96.06
 USD,acct,MOCK-PERSONAL,totals USD,day_pnl_pct,-0.0008193262044163439457371667041
+USD,acct,MOCK-PERSONAL,totals USD,day_pnl_share,-0.4641925195708901130762539867
 USD,acct,MOCK-PERSONAL,totals USD,dividends,2008.27
 USD,acct,MOCK-PERSONAL,totals USD,market,117146.62
 USD,acct,MOCK-PERSONAL,totals USD,realized,1747.991557175187433173138830
@@ -4566,6 +4675,7 @@ USD,acct,MOCK-RRSP,holding NFLX,closed,False
 USD,acct,MOCK-RRSP,holding NFLX,currency,USD
 USD,acct,MOCK-RRSP,holding NFLX,day_pnl,-3.80
 USD,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+USD,acct,MOCK-RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 USD,acct,MOCK-RRSP,holding NFLX,day_pnl_totals,-3.80
 USD,acct,MOCK-RRSP,holding NFLX,dividends,0
 USD,acct,MOCK-RRSP,holding NFLX,dividends_totals,0
@@ -4603,6 +4713,7 @@ USD,acct,MOCK-RRSP,holding QQQ,closed,False
 USD,acct,MOCK-RRSP,holding QQQ,currency,USD
 USD,acct,MOCK-RRSP,holding QQQ,day_pnl,19.25
 USD,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+USD,acct,MOCK-RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 USD,acct,MOCK-RRSP,holding QQQ,day_pnl_totals,19.25
 USD,acct,MOCK-RRSP,holding QQQ,dividends,91.65
 USD,acct,MOCK-RRSP,holding QQQ,dividends_totals,91.65
@@ -4640,6 +4751,7 @@ USD,acct,MOCK-RRSP,holding SCHD,closed,False
 USD,acct,MOCK-RRSP,holding SCHD,currency,USD
 USD,acct,MOCK-RRSP,holding SCHD,day_pnl,-52.96
 USD,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+USD,acct,MOCK-RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 USD,acct,MOCK-RRSP,holding SCHD,day_pnl_totals,-52.96
 USD,acct,MOCK-RRSP,holding SCHD,dividends,700.58
 USD,acct,MOCK-RRSP,holding SCHD,dividends_totals,700.58
@@ -4677,6 +4789,7 @@ USD,acct,MOCK-RRSP,holding SPY,closed,False
 USD,acct,MOCK-RRSP,holding SPY,currency,USD
 USD,acct,MOCK-RRSP,holding SPY,day_pnl,-3.30
 USD,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+USD,acct,MOCK-RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 USD,acct,MOCK-RRSP,holding SPY,day_pnl_totals,-3.30
 USD,acct,MOCK-RRSP,holding SPY,dividends,161.57
 USD,acct,MOCK-RRSP,holding SPY,dividends_totals,161.57
@@ -4743,6 +4856,7 @@ USD,acct,MOCK-RRSP,totals USD,count,4
 USD,acct,MOCK-RRSP,totals USD,currency,USD
 USD,acct,MOCK-RRSP,totals USD,day_pnl,-40.81
 USD,acct,MOCK-RRSP,totals USD,day_pnl_pct,-0.0007092016172785912868125340828
+USD,acct,MOCK-RRSP,totals USD,day_pnl_share,-0.5145631067961165048543689321
 USD,acct,MOCK-RRSP,totals USD,dividends,953.80
 USD,acct,MOCK-RRSP,totals USD,market,57502.77
 USD,acct,MOCK-RRSP,totals USD,realized,0
@@ -4792,6 +4906,7 @@ USD,acct,MOCK-TFSA,holding O,closed,False
 USD,acct,MOCK-TFSA,holding O,currency,USD
 USD,acct,MOCK-TFSA,holding O,day_pnl,-0.69
 USD,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.004217861727489455345681276362
+USD,acct,MOCK-TFSA,holding O,day_pnl_share,-1
 USD,acct,MOCK-TFSA,holding O,day_pnl_totals,-0.69
 USD,acct,MOCK-TFSA,holding O,dividends,9.72
 USD,acct,MOCK-TFSA,holding O,dividends_totals,9.72
@@ -4858,6 +4973,7 @@ USD,acct,MOCK-TFSA,totals USD,count,1
 USD,acct,MOCK-TFSA,totals USD,currency,USD
 USD,acct,MOCK-TFSA,totals USD,day_pnl,-0.69
 USD,acct,MOCK-TFSA,totals USD,day_pnl_pct,-0.004217861727489455345681276362
+USD,acct,MOCK-TFSA,totals USD,day_pnl_share,-1
 USD,acct,MOCK-TFSA,totals USD,dividends,9.72
 USD,acct,MOCK-TFSA,totals USD,market,162.9
 USD,acct,MOCK-TFSA,totals USD,realized,0
@@ -4905,6 +5021,7 @@ USD,acct,MOCK2-TFSA,holding O,closed,True
 USD,acct,MOCK2-TFSA,holding O,currency,USD
 USD,acct,MOCK2-TFSA,holding O,day_pnl,
 USD,acct,MOCK2-TFSA,holding O,day_pnl_pct,
+USD,acct,MOCK2-TFSA,holding O,day_pnl_share,
 USD,acct,MOCK2-TFSA,holding O,day_pnl_totals,
 USD,acct,MOCK2-TFSA,holding O,dividends,4.86
 USD,acct,MOCK2-TFSA,holding O,dividends_totals,4.86
@@ -4970,6 +5087,7 @@ USD,acct,MOCK2-TFSA,totals USD,count,0
 USD,acct,MOCK2-TFSA,totals USD,currency,USD
 USD,acct,MOCK2-TFSA,totals USD,day_pnl,
 USD,acct,MOCK2-TFSA,totals USD,day_pnl_pct,
+USD,acct,MOCK2-TFSA,totals USD,day_pnl_share,
 USD,acct,MOCK2-TFSA,totals USD,dividends,4.86
 USD,acct,MOCK2-TFSA,totals USD,market,
 USD,acct,MOCK2-TFSA,totals USD,members,
@@ -5016,6 +5134,7 @@ USD,folio,,holding AAPL,closed,False
 USD,folio,,holding AAPL,currency,USD
 USD,folio,,holding AAPL,day_pnl,31.32
 USD,folio,,holding AAPL,day_pnl_pct,0.0001655672024693407285274087200
+USD,folio,,holding AAPL,day_pnl_share,0.1037807747108916796447861095
 USD,folio,,holding AAPL,day_pnl_totals,31.32
 USD,folio,,holding AAPL,dividends,81.38
 USD,folio,,holding AAPL,dividends_totals,81.38
@@ -5053,6 +5172,7 @@ USD,folio,,holding COST,closed,False
 USD,folio,,holding COST,currency,USD
 USD,folio,,holding COST,day_pnl,-10.08
 USD,folio,,holding COST,day_pnl_pct,-0.00005328599619702919998583269149
+USD,folio,,holding COST,day_pnl_share,-0.03340070910235594287418403526
 USD,folio,,holding COST,day_pnl_totals,-10.08
 USD,folio,,holding COST,dividends,52.01
 USD,folio,,holding COST,dividends_totals,52.01
@@ -5090,6 +5210,7 @@ USD,folio,,holding DLR.U.TO,closed,True
 USD,folio,,holding DLR.U.TO,currency,USD
 USD,folio,,holding DLR.U.TO,day_pnl,
 USD,folio,,holding DLR.U.TO,day_pnl_pct,
+USD,folio,,holding DLR.U.TO,day_pnl_share,
 USD,folio,,holding DLR.U.TO,day_pnl_totals,
 USD,folio,,holding DLR.U.TO,dividends,0
 USD,folio,,holding DLR.U.TO,dividends_totals,0
@@ -5127,6 +5248,7 @@ USD,folio,,holding INTC,closed,True
 USD,folio,,holding INTC,currency,USD
 USD,folio,,holding INTC,day_pnl,
 USD,folio,,holding INTC,day_pnl_pct,
+USD,folio,,holding INTC,day_pnl_share,
 USD,folio,,holding INTC,day_pnl_totals,
 USD,folio,,holding INTC,dividends,0
 USD,folio,,holding INTC,dividends_totals,0
@@ -5164,6 +5286,7 @@ USD,folio,,holding JNJ,closed,False
 USD,folio,,holding JNJ,currency,USD
 USD,folio,,holding JNJ,day_pnl,-2.88
 USD,folio,,holding JNJ,day_pnl_pct,-0.00001522457034200834285309505471
+USD,folio,,holding JNJ,day_pnl_share,-0.009543059743530269392624010073
 USD,folio,,holding JNJ,day_pnl_totals,-2.88
 USD,folio,,holding JNJ,dividends,476.38
 USD,folio,,holding JNJ,dividends_totals,476.38
@@ -5201,6 +5324,7 @@ USD,folio,,holding KO,closed,False
 USD,folio,,holding KO,currency,USD
 USD,folio,,holding KO,day_pnl,-26.46
 USD,folio,,holding KO,day_pnl_pct,-0.0001398757400172016499628108152
+USD,folio,,holding KO,day_pnl_share,-0.08767686139368435004473309255
 USD,folio,,holding KO,day_pnl_totals,-26.46
 USD,folio,,holding KO,dividends,920.74
 USD,folio,,holding KO,dividends_totals,920.74
@@ -5238,6 +5362,7 @@ USD,folio,,holding META,closed,True
 USD,folio,,holding META,currency,USD
 USD,folio,,holding META,day_pnl,
 USD,folio,,holding META,day_pnl_pct,
+USD,folio,,holding META,day_pnl_share,
 USD,folio,,holding META,day_pnl_totals,
 USD,folio,,holding META,dividends,26.00
 USD,folio,,holding META,dividends_totals,26.00
@@ -5275,6 +5400,7 @@ USD,folio,,holding MSFT,closed,False
 USD,folio,,holding MSFT,currency,USD
 USD,folio,,holding MSFT,day_pnl,4.37
 USD,folio,,holding MSFT,day_pnl_pct,0.00002310117097033904800973103788
+USD,folio,,holding MSFT,day_pnl_share,0.01448026773584280459922462640
 USD,folio,,holding MSFT,day_pnl_totals,4.37
 USD,folio,,holding MSFT,dividends,117.62
 USD,folio,,holding MSFT,dividends_totals,117.62
@@ -5312,6 +5438,7 @@ USD,folio,,holding NFLX,closed,False
 USD,folio,,holding NFLX,currency,USD
 USD,folio,,holding NFLX,day_pnl,-33.06
 USD,folio,,holding NFLX,day_pnl_pct,-0.0001747653803843041023344869822
+USD,folio,,holding NFLX,day_pnl_share,-0.1095463733059412174028297823
 USD,folio,,holding NFLX,day_pnl_totals,-33.06
 USD,folio,,holding NFLX,dividends,0
 USD,folio,,holding NFLX,dividends_totals,0
@@ -5349,6 +5476,7 @@ USD,folio,,holding NVDA,closed,False
 USD,folio,,holding NVDA,currency,USD
 USD,folio,,holding NVDA,day_pnl,19.75
 USD,folio,,holding NVDA,day_pnl_pct,0.0001044046056439808233849400453
+USD,folio,,holding NVDA,day_pnl_share,0.06544285761622320156400145797
 USD,folio,,holding NVDA,day_pnl_totals,19.75
 USD,folio,,holding NVDA,dividends,43.66
 USD,folio,,holding NVDA,dividends_totals,43.66
@@ -5386,6 +5514,7 @@ USD,folio,,holding O,closed,False
 USD,folio,,holding O,currency,USD
 USD,folio,,holding O,day_pnl,-52.44
 USD,folio,,holding O,day_pnl_pct,-0.0002772140516440685761167724545
+USD,folio,,holding O,day_pnl_share,-0.1737632128301136551906955168
 USD,folio,,holding O,day_pnl_totals,-52.44
 USD,folio,,holding O,dividends,817.31
 USD,folio,,holding O,dividends_totals,817.31
@@ -5423,6 +5552,7 @@ USD,folio,,holding QQQ,closed,False
 USD,folio,,holding QQQ,currency,USD
 USD,folio,,holding QQQ,day_pnl,19.25
 USD,folio,,holding QQQ,day_pnl_pct,0.0001017614510707154860840554872
+USD,folio,,holding QQQ,day_pnl_share,0.06378607641074919646111534511
 USD,folio,,holding QQQ,day_pnl_totals,19.25
 USD,folio,,holding QQQ,dividends,91.65
 USD,folio,,holding QQQ,dividends_totals,91.65
@@ -5460,6 +5590,7 @@ USD,folio,,holding SCHD,closed,False
 USD,folio,,holding SCHD,currency,USD
 USD,folio,,holding SCHD,day_pnl,-52.96
 USD,folio,,holding SCHD,day_pnl_pct,-0.0002799629324002645269096923950
+USD,folio,,holding SCHD,day_pnl_share,-0.1754862652838066204976970741
 USD,folio,,holding SCHD,day_pnl_totals,-52.96
 USD,folio,,holding SCHD,dividends,700.58
 USD,folio,,holding SCHD,dividends_totals,700.58
@@ -5497,6 +5628,7 @@ USD,folio,,holding SPY,closed,False
 USD,folio,,holding SPY,currency,USD
 USD,folio,,holding SPY,day_pnl,-3.30
 USD,folio,,holding SPY,day_pnl_pct,-0.00001744482018355122618583808352
+USD,folio,,holding SPY,day_pnl_share,-0.01093475595612843367904834488
 USD,folio,,holding SPY,day_pnl_totals,-3.30
 USD,folio,,holding SPY,dividends,161.57
 USD,folio,,holding SPY,dividends_totals,161.57
@@ -5534,6 +5666,7 @@ USD,folio,,holding XYZ,closed,False
 USD,folio,,holding XYZ,currency,USD
 USD,folio,,holding XYZ,day_pnl,-45.92
 USD,folio,,holding XYZ,day_pnl_pct,-0.0002427473160086885777132378168
+USD,folio,,holding XYZ,day_pnl_share,-0.1521587859107326286490606051
 USD,folio,,holding XYZ,day_pnl_totals,-45.92
 USD,folio,,holding XYZ,dividends,0
 USD,folio,,holding XYZ,dividends_totals,0
@@ -5598,6 +5731,7 @@ USD,folio,,totals USD,count,12
 USD,folio,,totals USD,currency,USD
 USD,folio,,totals USD,day_pnl,-152.41
 USD,folio,,totals USD,day_pnl_pct,-0.0008056863770227401160556310030
+USD,folio,,totals USD,day_pnl_share,-0.5050200470525862354617449221
 USD,folio,,totals USD,dividends,3488.90
 USD,folio,,totals USD,market,189015.49
 USD,folio,,totals USD,realized,2448.524467228097486083191739
@@ -5636,6 +5770,7 @@ USD,type,CORPORATE,holding KO,closed,False
 USD,type,CORPORATE,holding KO,currency,USD
 USD,type,CORPORATE,holding KO,day_pnl,-5.40
 USD,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+USD,type,CORPORATE,holding KO,day_pnl_share,-1
 USD,type,CORPORATE,holding KO,day_pnl_totals,-5.40
 USD,type,CORPORATE,holding KO,dividends,177.0
 USD,type,CORPORATE,holding KO,dividends_totals,177.0
@@ -5702,6 +5837,7 @@ USD,type,CORPORATE,totals USD,count,1
 USD,type,CORPORATE,totals USD,currency,USD
 USD,type,CORPORATE,totals USD,day_pnl,-5.40
 USD,type,CORPORATE,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+USD,type,CORPORATE,totals USD,day_pnl_share,-1
 USD,type,CORPORATE,totals USD,dividends,177.0
 USD,type,CORPORATE,totals USD,market,5164.80
 USD,type,CORPORATE,totals USD,realized,358.92
@@ -5744,6 +5880,7 @@ USD,type,NON_REGISTERED,holding AAPL,closed,False
 USD,type,NON_REGISTERED,holding AAPL,currency,USD
 USD,type,NON_REGISTERED,holding AAPL,day_pnl,31.32
 USD,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
+USD,type,NON_REGISTERED,holding AAPL,day_pnl_share,0.1447386662969638153334257590
 USD,type,NON_REGISTERED,holding AAPL,day_pnl_totals,31.32
 USD,type,NON_REGISTERED,holding AAPL,dividends,81.38
 USD,type,NON_REGISTERED,holding AAPL,dividends_totals,81.38
@@ -5781,6 +5918,7 @@ USD,type,NON_REGISTERED,holding COST,closed,False
 USD,type,NON_REGISTERED,holding COST,currency,USD
 USD,type,NON_REGISTERED,holding COST,day_pnl,-10.08
 USD,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
+USD,type,NON_REGISTERED,holding COST,day_pnl_share,-0.04658255926798835436018300291
 USD,type,NON_REGISTERED,holding COST,day_pnl_totals,-10.08
 USD,type,NON_REGISTERED,holding COST,dividends,52.01
 USD,type,NON_REGISTERED,holding COST,dividends_totals,52.01
@@ -5818,6 +5956,7 @@ USD,type,NON_REGISTERED,holding DLR.U.TO,closed,True
 USD,type,NON_REGISTERED,holding DLR.U.TO,currency,USD
 USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
+USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_share,
 USD,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_totals,
 USD,type,NON_REGISTERED,holding DLR.U.TO,dividends,0
 USD,type,NON_REGISTERED,holding DLR.U.TO,dividends_totals,0
@@ -5855,6 +5994,7 @@ USD,type,NON_REGISTERED,holding INTC,closed,True
 USD,type,NON_REGISTERED,holding INTC,currency,USD
 USD,type,NON_REGISTERED,holding INTC,day_pnl,
 USD,type,NON_REGISTERED,holding INTC,day_pnl_pct,
+USD,type,NON_REGISTERED,holding INTC,day_pnl_share,
 USD,type,NON_REGISTERED,holding INTC,day_pnl_totals,
 USD,type,NON_REGISTERED,holding INTC,dividends,0
 USD,type,NON_REGISTERED,holding INTC,dividends_totals,0
@@ -5892,6 +6032,7 @@ USD,type,NON_REGISTERED,holding JNJ,closed,False
 USD,type,NON_REGISTERED,holding JNJ,currency,USD
 USD,type,NON_REGISTERED,holding JNJ,day_pnl,-2.88
 USD,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
+USD,type,NON_REGISTERED,holding JNJ,day_pnl_share,-0.01330930264799667267433800083
 USD,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-2.88
 USD,type,NON_REGISTERED,holding JNJ,dividends,476.38
 USD,type,NON_REGISTERED,holding JNJ,dividends_totals,476.38
@@ -5929,6 +6070,7 @@ USD,type,NON_REGISTERED,holding KO,closed,False
 USD,type,NON_REGISTERED,holding KO,currency,USD
 USD,type,NON_REGISTERED,holding KO,day_pnl,-21.06
 USD,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+USD,type,NON_REGISTERED,holding KO,day_pnl_share,-0.09732427561347566893109663108
 USD,type,NON_REGISTERED,holding KO,day_pnl_totals,-21.06
 USD,type,NON_REGISTERED,holding KO,dividends,743.74
 USD,type,NON_REGISTERED,holding KO,dividends_totals,743.74
@@ -5966,6 +6108,7 @@ USD,type,NON_REGISTERED,holding META,closed,True
 USD,type,NON_REGISTERED,holding META,currency,USD
 USD,type,NON_REGISTERED,holding META,day_pnl,
 USD,type,NON_REGISTERED,holding META,day_pnl_pct,
+USD,type,NON_REGISTERED,holding META,day_pnl_share,
 USD,type,NON_REGISTERED,holding META,day_pnl_totals,
 USD,type,NON_REGISTERED,holding META,dividends,26.00
 USD,type,NON_REGISTERED,holding META,dividends_totals,26.00
@@ -6003,6 +6146,7 @@ USD,type,NON_REGISTERED,holding MSFT,closed,False
 USD,type,NON_REGISTERED,holding MSFT,currency,USD
 USD,type,NON_REGISTERED,holding MSFT,day_pnl,4.37
 USD,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
+USD,type,NON_REGISTERED,holding MSFT,day_pnl_share,0.02019501825407828457876981376
 USD,type,NON_REGISTERED,holding MSFT,day_pnl_totals,4.37
 USD,type,NON_REGISTERED,holding MSFT,dividends,117.62
 USD,type,NON_REGISTERED,holding MSFT,dividends_totals,117.62
@@ -6040,6 +6184,7 @@ USD,type,NON_REGISTERED,holding NFLX,closed,False
 USD,type,NON_REGISTERED,holding NFLX,currency,USD
 USD,type,NON_REGISTERED,holding NFLX,day_pnl,-29.26
 USD,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
+USD,type,NON_REGISTERED,holding NFLX,day_pnl_share,-0.1352188178751328619621978835
 USD,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-29.26
 USD,type,NON_REGISTERED,holding NFLX,dividends,0
 USD,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -6077,6 +6222,7 @@ USD,type,NON_REGISTERED,holding NVDA,closed,False
 USD,type,NON_REGISTERED,holding NVDA,currency,USD
 USD,type,NON_REGISTERED,holding NVDA,day_pnl,19.75
 USD,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
+USD,type,NON_REGISTERED,holding NVDA,day_pnl_share,0.09127039142289384906881094320
 USD,type,NON_REGISTERED,holding NVDA,day_pnl_totals,19.75
 USD,type,NON_REGISTERED,holding NVDA,dividends,43.66
 USD,type,NON_REGISTERED,holding NVDA,dividends_totals,43.66
@@ -6114,6 +6260,7 @@ USD,type,NON_REGISTERED,holding O,closed,False
 USD,type,NON_REGISTERED,holding O,currency,USD
 USD,type,NON_REGISTERED,holding O,day_pnl,-51.75
 USD,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
+USD,type,NON_REGISTERED,holding O,day_pnl_share,-0.2391515319561902121170109524
 USD,type,NON_REGISTERED,holding O,day_pnl_totals,-51.75
 USD,type,NON_REGISTERED,holding O,dividends,802.73
 USD,type,NON_REGISTERED,holding O,dividends_totals,802.73
@@ -6151,6 +6298,7 @@ USD,type,NON_REGISTERED,holding XYZ,closed,False
 USD,type,NON_REGISTERED,holding XYZ,currency,USD
 USD,type,NON_REGISTERED,holding XYZ,day_pnl,-45.92
 USD,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
+USD,type,NON_REGISTERED,holding XYZ,day_pnl_share,-0.2122094366652802809741670133
 USD,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-45.92
 USD,type,NON_REGISTERED,holding XYZ,dividends,0
 USD,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -6215,6 +6363,7 @@ USD,type,NON_REGISTERED,totals USD,count,9
 USD,type,NON_REGISTERED,totals USD,currency,USD
 USD,type,NON_REGISTERED,totals USD,day_pnl,-105.51
 USD,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008354545665458843192755624670
+USD,type,NON_REGISTERED,totals USD,day_pnl_share,-0.4875918480521281020379869680
 USD,type,NON_REGISTERED,totals USD,dividends,2343.52
 USD,type,NON_REGISTERED,totals USD,market,126185.02
 USD,type,NON_REGISTERED,totals USD,realized,2010.361254144884402870108527
@@ -6260,6 +6409,7 @@ USD,type,RRSP,holding NFLX,closed,False
 USD,type,RRSP,holding NFLX,currency,USD
 USD,type,RRSP,holding NFLX,day_pnl,-3.80
 USD,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+USD,type,RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 USD,type,RRSP,holding NFLX,day_pnl_totals,-3.80
 USD,type,RRSP,holding NFLX,dividends,0
 USD,type,RRSP,holding NFLX,dividends_totals,0
@@ -6297,6 +6447,7 @@ USD,type,RRSP,holding QQQ,closed,False
 USD,type,RRSP,holding QQQ,currency,USD
 USD,type,RRSP,holding QQQ,day_pnl,19.25
 USD,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+USD,type,RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 USD,type,RRSP,holding QQQ,day_pnl_totals,19.25
 USD,type,RRSP,holding QQQ,dividends,91.65
 USD,type,RRSP,holding QQQ,dividends_totals,91.65
@@ -6334,6 +6485,7 @@ USD,type,RRSP,holding SCHD,closed,False
 USD,type,RRSP,holding SCHD,currency,USD
 USD,type,RRSP,holding SCHD,day_pnl,-52.96
 USD,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+USD,type,RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 USD,type,RRSP,holding SCHD,day_pnl_totals,-52.96
 USD,type,RRSP,holding SCHD,dividends,700.58
 USD,type,RRSP,holding SCHD,dividends_totals,700.58
@@ -6371,6 +6523,7 @@ USD,type,RRSP,holding SPY,closed,False
 USD,type,RRSP,holding SPY,currency,USD
 USD,type,RRSP,holding SPY,day_pnl,-3.30
 USD,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+USD,type,RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 USD,type,RRSP,holding SPY,day_pnl_totals,-3.30
 USD,type,RRSP,holding SPY,dividends,161.57
 USD,type,RRSP,holding SPY,dividends_totals,161.57
@@ -6437,6 +6590,7 @@ USD,type,RRSP,totals USD,count,4
 USD,type,RRSP,totals USD,currency,USD
 USD,type,RRSP,totals USD,day_pnl,-40.81
 USD,type,RRSP,totals USD,day_pnl_pct,-0.0007092016172785912868125340828
+USD,type,RRSP,totals USD,day_pnl_share,-0.5145631067961165048543689321
 USD,type,RRSP,totals USD,dividends,953.80
 USD,type,RRSP,totals USD,market,57502.77
 USD,type,RRSP,totals USD,realized,0
@@ -6486,6 +6640,7 @@ USD,type,TFSA,holding O,closed,False
 USD,type,TFSA,holding O,currency,USD
 USD,type,TFSA,holding O,day_pnl,-0.69
 USD,type,TFSA,holding O,day_pnl_pct,-0.004217861727489455345681276362
+USD,type,TFSA,holding O,day_pnl_share,-1
 USD,type,TFSA,holding O,day_pnl_totals,-0.69
 USD,type,TFSA,holding O,dividends,14.58
 USD,type,TFSA,holding O,dividends_totals,14.58
@@ -6552,6 +6707,7 @@ USD,type,TFSA,totals USD,count,1
 USD,type,TFSA,totals USD,currency,USD
 USD,type,TFSA,totals USD,day_pnl,-0.69
 USD,type,TFSA,totals USD,day_pnl_pct,-0.004217861727489455345681276362
+USD,type,TFSA,totals USD,day_pnl_share,-1
 USD,type,TFSA,totals USD,dividends,14.58
 USD,type,TFSA,totals USD,market,162.9
 USD,type,TFSA,totals USD,realized,0
@@ -6590,6 +6746,7 @@ native,acct,MOCK-CORPORATE,holding KO,closed,False
 native,acct,MOCK-CORPORATE,holding KO,currency,USD
 native,acct,MOCK-CORPORATE,holding KO,day_pnl,-5.40
 native,acct,MOCK-CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+native,acct,MOCK-CORPORATE,holding KO,day_pnl_share,-1
 native,acct,MOCK-CORPORATE,holding KO,day_pnl_totals,-7.4520
 native,acct,MOCK-CORPORATE,holding KO,dividends,177.0
 native,acct,MOCK-CORPORATE,holding KO,dividends_totals,241.9860
@@ -6656,6 +6813,7 @@ native,acct,MOCK-CORPORATE,totals USD,count,1
 native,acct,MOCK-CORPORATE,totals USD,currency,USD
 native,acct,MOCK-CORPORATE,totals USD,day_pnl,-5.40
 native,acct,MOCK-CORPORATE,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+native,acct,MOCK-CORPORATE,totals USD,day_pnl_share,-1
 native,acct,MOCK-CORPORATE,totals USD,dividends,177.0
 native,acct,MOCK-CORPORATE,totals USD,market,5164.80
 native,acct,MOCK-CORPORATE,totals USD,realized,358.92
@@ -6698,6 +6856,7 @@ native,acct,MOCK-MARGIN,holding KO,closed,False
 native,acct,MOCK-MARGIN,holding KO,currency,USD
 native,acct,MOCK-MARGIN,holding KO,day_pnl,-9.45
 native,acct,MOCK-MARGIN,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+native,acct,MOCK-MARGIN,holding KO,day_pnl_share,-1
 native,acct,MOCK-MARGIN,holding KO,day_pnl_totals,-13.0410
 native,acct,MOCK-MARGIN,holding KO,dividends,335.25
 native,acct,MOCK-MARGIN,holding KO,dividends_totals,458.56350
@@ -6764,6 +6923,7 @@ native,acct,MOCK-MARGIN,totals USD,count,1
 native,acct,MOCK-MARGIN,totals USD,currency,USD
 native,acct,MOCK-MARGIN,totals USD,day_pnl,-9.45
 native,acct,MOCK-MARGIN,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+native,acct,MOCK-MARGIN,totals USD,day_pnl_share,-1
 native,acct,MOCK-MARGIN,totals USD,dividends,335.25
 native,acct,MOCK-MARGIN,totals USD,market,9038.40
 native,acct,MOCK-MARGIN,totals USD,realized,335.60
@@ -6808,6 +6968,7 @@ native,acct,MOCK-PERSONAL,holding AAPL,closed,False
 native,acct,MOCK-PERSONAL,holding AAPL,currency,USD
 native,acct,MOCK-PERSONAL,holding AAPL,day_pnl,31.32
 native,acct,MOCK-PERSONAL,holding AAPL,day_pnl_pct,0.0002671382128078273202216121296
+native,acct,MOCK-PERSONAL,holding AAPL,day_pnl_share,0.1513482168744563641635256596
 native,acct,MOCK-PERSONAL,holding AAPL,day_pnl_totals,43.2216
 native,acct,MOCK-PERSONAL,holding AAPL,dividends,81.38
 native,acct,MOCK-PERSONAL,holding AAPL,dividends_totals,111.24850
@@ -6845,6 +7006,7 @@ native,acct,MOCK-PERSONAL,holding COST,closed,False
 native,acct,MOCK-PERSONAL,holding COST,currency,USD
 native,acct,MOCK-PERSONAL,holding COST,day_pnl,-10.08
 native,acct,MOCK-PERSONAL,holding COST,day_pnl_pct,-0.00008597551676573752834718551299
+native,acct,MOCK-PERSONAL,holding COST,day_pnl_share,-0.04870977094810089881124963758
 native,acct,MOCK-PERSONAL,holding COST,day_pnl_totals,-13.9104
 native,acct,MOCK-PERSONAL,holding COST,dividends,52.01
 native,acct,MOCK-PERSONAL,holding COST,dividends_totals,71.12085
@@ -6882,6 +7044,7 @@ native,acct,MOCK-PERSONAL,holding DLR.TO,closed,True
 native,acct,MOCK-PERSONAL,holding DLR.TO,currency,CAD
 native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl,
 native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_pct,
+native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_share,
 native,acct,MOCK-PERSONAL,holding DLR.TO,day_pnl_totals,
 native,acct,MOCK-PERSONAL,holding DLR.TO,dividends,0
 native,acct,MOCK-PERSONAL,holding DLR.TO,dividends_totals,0
@@ -6919,6 +7082,7 @@ native,acct,MOCK-PERSONAL,holding DLR.U.TO,closed,True
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,currency,USD
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_pct,
+native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_share,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,day_pnl_totals,
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends,0
 native,acct,MOCK-PERSONAL,holding DLR.U.TO,dividends_totals,0
@@ -6956,6 +7120,7 @@ native,acct,MOCK-PERSONAL,holding INTC,closed,True
 native,acct,MOCK-PERSONAL,holding INTC,currency,USD
 native,acct,MOCK-PERSONAL,holding INTC,day_pnl,
 native,acct,MOCK-PERSONAL,holding INTC,day_pnl_pct,
+native,acct,MOCK-PERSONAL,holding INTC,day_pnl_share,
 native,acct,MOCK-PERSONAL,holding INTC,day_pnl_totals,
 native,acct,MOCK-PERSONAL,holding INTC,dividends,0
 native,acct,MOCK-PERSONAL,holding INTC,dividends_totals,0
@@ -6993,6 +7158,7 @@ native,acct,MOCK-PERSONAL,holding JNJ,closed,False
 native,acct,MOCK-PERSONAL,holding JNJ,currency,USD
 native,acct,MOCK-PERSONAL,holding JNJ,day_pnl,-2.88
 native,acct,MOCK-PERSONAL,holding JNJ,day_pnl_pct,-0.00002456443336163929381348157514
+native,acct,MOCK-PERSONAL,holding JNJ,day_pnl_share,-0.01391707741374311394607132502
 native,acct,MOCK-PERSONAL,holding JNJ,day_pnl_totals,-3.9744
 native,acct,MOCK-PERSONAL,holding JNJ,dividends,476.38
 native,acct,MOCK-PERSONAL,holding JNJ,dividends_totals,649.22270
@@ -7030,6 +7196,7 @@ native,acct,MOCK-PERSONAL,holding KO,closed,False
 native,acct,MOCK-PERSONAL,holding KO,currency,USD
 native,acct,MOCK-PERSONAL,holding KO,day_pnl,-11.61
 native,acct,MOCK-PERSONAL,holding KO,day_pnl_pct,-0.00009902537198910840318559759978
+native,acct,MOCK-PERSONAL,holding KO,day_pnl_share,-0.05610321832415192809510002899
 native,acct,MOCK-PERSONAL,holding KO,day_pnl_totals,-16.0218
 native,acct,MOCK-PERSONAL,holding KO,dividends,408.49
 native,acct,MOCK-PERSONAL,holding KO,dividends_totals,557.96730
@@ -7067,6 +7234,7 @@ native,acct,MOCK-PERSONAL,holding META,closed,True
 native,acct,MOCK-PERSONAL,holding META,currency,USD
 native,acct,MOCK-PERSONAL,holding META,day_pnl,
 native,acct,MOCK-PERSONAL,holding META,day_pnl_pct,
+native,acct,MOCK-PERSONAL,holding META,day_pnl_share,
 native,acct,MOCK-PERSONAL,holding META,day_pnl_totals,
 native,acct,MOCK-PERSONAL,holding META,dividends,26.00
 native,acct,MOCK-PERSONAL,holding META,dividends_totals,35.51500
@@ -7104,6 +7272,7 @@ native,acct,MOCK-PERSONAL,holding MSFT,closed,False
 native,acct,MOCK-PERSONAL,holding MSFT,currency,USD
 native,acct,MOCK-PERSONAL,holding MSFT,day_pnl,4.37
 native,acct,MOCK-PERSONAL,holding MSFT,day_pnl_pct,0.00003727311589943184512670641783
+native,acct,MOCK-PERSONAL,holding MSFT,day_pnl_share,0.02111723204793659998067072581
 native,acct,MOCK-PERSONAL,holding MSFT,day_pnl_totals,6.0306
 native,acct,MOCK-PERSONAL,holding MSFT,dividends,117.62
 native,acct,MOCK-PERSONAL,holding MSFT,dividends_totals,160.21685
@@ -7141,6 +7310,7 @@ native,acct,MOCK-PERSONAL,holding NFLX,closed,False
 native,acct,MOCK-PERSONAL,holding NFLX,currency,USD
 native,acct,MOCK-PERSONAL,holding NFLX,day_pnl,-29.26
 native,acct,MOCK-PERSONAL,holding NFLX,day_pnl_pct,-0.0002495678195005436586744690585
+native,acct,MOCK-PERSONAL,holding NFLX,day_pnl_share,-0.1413936406687928868270996424
 native,acct,MOCK-PERSONAL,holding NFLX,day_pnl_totals,-40.3788
 native,acct,MOCK-PERSONAL,holding NFLX,dividends,0
 native,acct,MOCK-PERSONAL,holding NFLX,dividends_totals,0
@@ -7178,6 +7348,7 @@ native,acct,MOCK-PERSONAL,holding NVDA,closed,False
 native,acct,MOCK-PERSONAL,holding NVDA,currency,USD
 native,acct,MOCK-PERSONAL,holding NVDA,day_pnl,19.75
 native,acct,MOCK-PERSONAL,holding NVDA,day_pnl_pct,0.0001684540135042972405612017740
+native,acct,MOCK-PERSONAL,holding NVDA,day_pnl_share,0.09543829129216197931767662124
 native,acct,MOCK-PERSONAL,holding NVDA,day_pnl_totals,27.2550
 native,acct,MOCK-PERSONAL,holding NVDA,dividends,43.66
 native,acct,MOCK-PERSONAL,holding NVDA,dividends_totals,59.41110
@@ -7215,6 +7386,7 @@ native,acct,MOCK-PERSONAL,holding O,closed,False
 native,acct,MOCK-PERSONAL,holding O,currency,USD
 native,acct,MOCK-PERSONAL,holding O,day_pnl,-51.75
 native,acct,MOCK-PERSONAL,holding O,day_pnl_pct,-0.0004413921619669560607109970533
+native,acct,MOCK-PERSONAL,holding O,day_pnl_share,-0.2500724847781965787184691215
 native,acct,MOCK-PERSONAL,holding O,day_pnl_totals,-71.4150
 native,acct,MOCK-PERSONAL,holding O,dividends,802.73
 native,acct,MOCK-PERSONAL,holding O,dividends_totals,1095.85495
@@ -7252,6 +7424,7 @@ native,acct,MOCK-PERSONAL,holding XYZ,closed,False
 native,acct,MOCK-PERSONAL,holding XYZ,currency,USD
 native,acct,MOCK-PERSONAL,holding XYZ,day_pnl,-45.92
 native,acct,MOCK-PERSONAL,holding XYZ,day_pnl_pct,-0.0003916662430439154069149562258
+native,acct,MOCK-PERSONAL,holding XYZ,day_pnl_share,-0.2219000676524596501401372378
 native,acct,MOCK-PERSONAL,holding XYZ,day_pnl_totals,-63.3696
 native,acct,MOCK-PERSONAL,holding XYZ,dividends,0
 native,acct,MOCK-PERSONAL,holding XYZ,dividends_totals,0
@@ -7318,6 +7491,7 @@ native,acct,MOCK-PERSONAL,totals CAD,count,0
 native,acct,MOCK-PERSONAL,totals CAD,currency,CAD
 native,acct,MOCK-PERSONAL,totals CAD,day_pnl,
 native,acct,MOCK-PERSONAL,totals CAD,day_pnl_pct,
+native,acct,MOCK-PERSONAL,totals CAD,day_pnl_share,
 native,acct,MOCK-PERSONAL,totals CAD,dividends,0
 native,acct,MOCK-PERSONAL,totals CAD,market,
 native,acct,MOCK-PERSONAL,totals CAD,members,
@@ -7337,6 +7511,7 @@ native,acct,MOCK-PERSONAL,totals USD,count,9
 native,acct,MOCK-PERSONAL,totals USD,currency,USD
 native,acct,MOCK-PERSONAL,totals USD,day_pnl,-96.06
 native,acct,MOCK-PERSONAL,totals USD,day_pnl_pct,-0.0008193262044163439457371667041
+native,acct,MOCK-PERSONAL,totals USD,day_pnl_share,-0.4641925195708901130762539867
 native,acct,MOCK-PERSONAL,totals USD,dividends,2008.27
 native,acct,MOCK-PERSONAL,totals USD,market,117146.62
 native,acct,MOCK-PERSONAL,totals USD,realized,1747.991557175187433173138830
@@ -7382,6 +7557,7 @@ native,acct,MOCK-RRSP,holding NFLX,closed,False
 native,acct,MOCK-RRSP,holding NFLX,currency,USD
 native,acct,MOCK-RRSP,holding NFLX,day_pnl,-3.80
 native,acct,MOCK-RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+native,acct,MOCK-RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 native,acct,MOCK-RRSP,holding NFLX,day_pnl_totals,-5.2440
 native,acct,MOCK-RRSP,holding NFLX,dividends,0
 native,acct,MOCK-RRSP,holding NFLX,dividends_totals,0
@@ -7419,6 +7595,7 @@ native,acct,MOCK-RRSP,holding QQQ,closed,False
 native,acct,MOCK-RRSP,holding QQQ,currency,USD
 native,acct,MOCK-RRSP,holding QQQ,day_pnl,19.25
 native,acct,MOCK-RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+native,acct,MOCK-RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 native,acct,MOCK-RRSP,holding QQQ,day_pnl_totals,26.5650
 native,acct,MOCK-RRSP,holding QQQ,dividends,91.65
 native,acct,MOCK-RRSP,holding QQQ,dividends_totals,124.99090
@@ -7456,6 +7633,7 @@ native,acct,MOCK-RRSP,holding SCHD,closed,False
 native,acct,MOCK-RRSP,holding SCHD,currency,USD
 native,acct,MOCK-RRSP,holding SCHD,day_pnl,-52.96
 native,acct,MOCK-RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+native,acct,MOCK-RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 native,acct,MOCK-RRSP,holding SCHD,day_pnl_totals,-73.0848
 native,acct,MOCK-RRSP,holding SCHD,dividends,700.58
 native,acct,MOCK-RRSP,holding SCHD,dividends_totals,952.95790
@@ -7493,6 +7671,7 @@ native,acct,MOCK-RRSP,holding SPY,closed,False
 native,acct,MOCK-RRSP,holding SPY,currency,USD
 native,acct,MOCK-RRSP,holding SPY,day_pnl,-3.30
 native,acct,MOCK-RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+native,acct,MOCK-RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 native,acct,MOCK-RRSP,holding SPY,day_pnl_totals,-4.5540
 native,acct,MOCK-RRSP,holding SPY,dividends,161.57
 native,acct,MOCK-RRSP,holding SPY,dividends_totals,220.87580
@@ -7559,6 +7738,7 @@ native,acct,MOCK-RRSP,totals USD,count,4
 native,acct,MOCK-RRSP,totals USD,currency,USD
 native,acct,MOCK-RRSP,totals USD,day_pnl,-40.81
 native,acct,MOCK-RRSP,totals USD,day_pnl_pct,-0.0007092016172785912868125340828
+native,acct,MOCK-RRSP,totals USD,day_pnl_share,-0.5145631067961165048543689321
 native,acct,MOCK-RRSP,totals USD,dividends,953.80
 native,acct,MOCK-RRSP,totals USD,market,57502.77
 native,acct,MOCK-RRSP,totals USD,realized,0
@@ -7610,6 +7790,7 @@ native,acct,MOCK-TFSA,holding CNR.TO,closed,False
 native,acct,MOCK-TFSA,holding CNR.TO,currency,CAD
 native,acct,MOCK-TFSA,holding CNR.TO,day_pnl,-1.20
 native,acct,MOCK-TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
+native,acct,MOCK-TFSA,holding CNR.TO,day_pnl_share,-0.1450641909044752302894030609
 native,acct,MOCK-TFSA,holding CNR.TO,day_pnl_totals,-1.20
 native,acct,MOCK-TFSA,holding CNR.TO,dividends,36.33
 native,acct,MOCK-TFSA,holding CNR.TO,dividends_totals,36.33
@@ -7647,6 +7828,7 @@ native,acct,MOCK-TFSA,holding ENB.TO,closed,False
 native,acct,MOCK-TFSA,holding ENB.TO,currency,CAD
 native,acct,MOCK-TFSA,holding ENB.TO,day_pnl,-4.20
 native,acct,MOCK-TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
+native,acct,MOCK-TFSA,holding ENB.TO,day_pnl_share,-0.5077246681656633060129107130
 native,acct,MOCK-TFSA,holding ENB.TO,day_pnl_totals,-4.20
 native,acct,MOCK-TFSA,holding ENB.TO,dividends,115.59
 native,acct,MOCK-TFSA,holding ENB.TO,dividends_totals,115.59
@@ -7684,6 +7866,7 @@ native,acct,MOCK-TFSA,holding O,closed,False
 native,acct,MOCK-TFSA,holding O,currency,USD
 native,acct,MOCK-TFSA,holding O,day_pnl,-0.69
 native,acct,MOCK-TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
+native,acct,MOCK-TFSA,holding O,day_pnl_share,-0.1151084354827010952346413288
 native,acct,MOCK-TFSA,holding O,day_pnl_totals,-0.9522
 native,acct,MOCK-TFSA,holding O,dividends,9.72
 native,acct,MOCK-TFSA,holding O,dividends_totals,13.26780
@@ -7721,6 +7904,7 @@ native,acct,MOCK-TFSA,holding REI.UN.TO,closed,False
 native,acct,MOCK-TFSA,holding REI.UN.TO,currency,CAD
 native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl,0.00
 native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
+native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_share,0E+2
 native,acct,MOCK-TFSA,holding REI.UN.TO,day_pnl_totals,0.00
 native,acct,MOCK-TFSA,holding REI.UN.TO,dividends,596.14
 native,acct,MOCK-TFSA,holding REI.UN.TO,dividends_totals,596.14
@@ -7758,6 +7942,7 @@ native,acct,MOCK-TFSA,holding RY.TO,closed,False
 native,acct,MOCK-TFSA,holding RY.TO,currency,CAD
 native,acct,MOCK-TFSA,holding RY.TO,day_pnl,-1.20
 native,acct,MOCK-TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
+native,acct,MOCK-TFSA,holding RY.TO,day_pnl_share,-0.1450641909044752302894030609
 native,acct,MOCK-TFSA,holding RY.TO,day_pnl_totals,-1.20
 native,acct,MOCK-TFSA,holding RY.TO,dividends,65.8
 native,acct,MOCK-TFSA,holding RY.TO,dividends_totals,65.8
@@ -7795,6 +7980,7 @@ native,acct,MOCK-TFSA,holding TD.TO,closed,False
 native,acct,MOCK-TFSA,holding TD.TO,currency,CAD
 native,acct,MOCK-TFSA,holding TD.TO,day_pnl,-0.20
 native,acct,MOCK-TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
+native,acct,MOCK-TFSA,holding TD.TO,day_pnl_share,-0.02417736515074587171490051014
 native,acct,MOCK-TFSA,holding TD.TO,day_pnl_totals,-0.20
 native,acct,MOCK-TFSA,holding TD.TO,dividends,86.6
 native,acct,MOCK-TFSA,holding TD.TO,dividends_totals,86.6
@@ -7832,6 +8018,7 @@ native,acct,MOCK-TFSA,holding VFV.TO,closed,False
 native,acct,MOCK-TFSA,holding VFV.TO,currency,CAD
 native,acct,MOCK-TFSA,holding VFV.TO,day_pnl,0.52
 native,acct,MOCK-TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
+native,acct,MOCK-TFSA,holding VFV.TO,day_pnl_share,0.06286114939193926645874132637
 native,acct,MOCK-TFSA,holding VFV.TO,day_pnl_totals,0.52
 native,acct,MOCK-TFSA,holding VFV.TO,dividends,10.26
 native,acct,MOCK-TFSA,holding VFV.TO,dividends_totals,10.26
@@ -7869,6 +8056,7 @@ native,acct,MOCK-TFSA,holding XEQT.TO,closed,False
 native,acct,MOCK-TFSA,holding XEQT.TO,currency,CAD
 native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl,0.00
 native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_pct,0E+2
+native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_share,0E+2
 native,acct,MOCK-TFSA,holding XEQT.TO,day_pnl_totals,0.00
 native,acct,MOCK-TFSA,holding XEQT.TO,dividends,48.60
 native,acct,MOCK-TFSA,holding XEQT.TO,dividends_totals,48.60
@@ -7937,6 +8125,7 @@ native,acct,MOCK-TFSA,totals CAD,count,7
 native,acct,MOCK-TFSA,totals CAD,currency,CAD
 native,acct,MOCK-TFSA,totals CAD,day_pnl,-6.28
 native,acct,MOCK-TFSA,totals CAD,day_pnl_pct,-0.0002893925972875932296915219610
+native,acct,MOCK-TFSA,totals CAD,day_pnl_share,-0.7591692657334203718478760185
 native,acct,MOCK-TFSA,totals CAD,dividends,959.32
 native,acct,MOCK-TFSA,totals CAD,market,21468.59
 native,acct,MOCK-TFSA,totals CAD,realized,233.19
@@ -7956,6 +8145,7 @@ native,acct,MOCK-TFSA,totals USD,count,1
 native,acct,MOCK-TFSA,totals USD,currency,USD
 native,acct,MOCK-TFSA,totals USD,day_pnl,-0.69
 native,acct,MOCK-TFSA,totals USD,day_pnl_pct,-0.00004387892215561246390322726293
+native,acct,MOCK-TFSA,totals USD,day_pnl_share,-0.1151084354827010952346413288
 native,acct,MOCK-TFSA,totals USD,dividends,9.72
 native,acct,MOCK-TFSA,totals USD,market,162.9
 native,acct,MOCK-TFSA,totals USD,realized,0
@@ -8007,6 +8197,7 @@ native,acct,MOCK2-TFSA,holding CNR.TO,closed,True
 native,acct,MOCK2-TFSA,holding CNR.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_pct,
+native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_share,
 native,acct,MOCK2-TFSA,holding CNR.TO,day_pnl_totals,
 native,acct,MOCK2-TFSA,holding CNR.TO,dividends,35.09
 native,acct,MOCK2-TFSA,holding CNR.TO,dividends_totals,35.09
@@ -8044,6 +8235,7 @@ native,acct,MOCK2-TFSA,holding ENB.TO,closed,True
 native,acct,MOCK2-TFSA,holding ENB.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_pct,
+native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_share,
 native,acct,MOCK2-TFSA,holding ENB.TO,day_pnl_totals,
 native,acct,MOCK2-TFSA,holding ENB.TO,dividends,112.32
 native,acct,MOCK2-TFSA,holding ENB.TO,dividends_totals,112.32
@@ -8081,6 +8273,7 @@ native,acct,MOCK2-TFSA,holding O,closed,True
 native,acct,MOCK2-TFSA,holding O,currency,USD
 native,acct,MOCK2-TFSA,holding O,day_pnl,
 native,acct,MOCK2-TFSA,holding O,day_pnl_pct,
+native,acct,MOCK2-TFSA,holding O,day_pnl_share,
 native,acct,MOCK2-TFSA,holding O,day_pnl_totals,
 native,acct,MOCK2-TFSA,holding O,dividends,4.86
 native,acct,MOCK2-TFSA,holding O,dividends_totals,6.63390
@@ -8118,6 +8311,7 @@ native,acct,MOCK2-TFSA,holding RY.TO,closed,True
 native,acct,MOCK2-TFSA,holding RY.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding RY.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding RY.TO,day_pnl_pct,
+native,acct,MOCK2-TFSA,holding RY.TO,day_pnl_share,
 native,acct,MOCK2-TFSA,holding RY.TO,day_pnl_totals,
 native,acct,MOCK2-TFSA,holding RY.TO,dividends,59.2
 native,acct,MOCK2-TFSA,holding RY.TO,dividends_totals,59.2
@@ -8155,6 +8349,7 @@ native,acct,MOCK2-TFSA,holding TD.TO,closed,True
 native,acct,MOCK2-TFSA,holding TD.TO,currency,CAD
 native,acct,MOCK2-TFSA,holding TD.TO,day_pnl,
 native,acct,MOCK2-TFSA,holding TD.TO,day_pnl_pct,
+native,acct,MOCK2-TFSA,holding TD.TO,day_pnl_share,
 native,acct,MOCK2-TFSA,holding TD.TO,day_pnl_totals,
 native,acct,MOCK2-TFSA,holding TD.TO,dividends,83.4
 native,acct,MOCK2-TFSA,holding TD.TO,dividends_totals,83.4
@@ -8222,6 +8417,7 @@ native,acct,MOCK2-TFSA,totals CAD,count,0
 native,acct,MOCK2-TFSA,totals CAD,currency,CAD
 native,acct,MOCK2-TFSA,totals CAD,day_pnl,
 native,acct,MOCK2-TFSA,totals CAD,day_pnl_pct,
+native,acct,MOCK2-TFSA,totals CAD,day_pnl_share,
 native,acct,MOCK2-TFSA,totals CAD,dividends,290.01
 native,acct,MOCK2-TFSA,totals CAD,market,
 native,acct,MOCK2-TFSA,totals CAD,members,
@@ -8241,6 +8437,7 @@ native,acct,MOCK2-TFSA,totals USD,count,0
 native,acct,MOCK2-TFSA,totals USD,currency,USD
 native,acct,MOCK2-TFSA,totals USD,day_pnl,
 native,acct,MOCK2-TFSA,totals USD,day_pnl_pct,
+native,acct,MOCK2-TFSA,totals USD,day_pnl_share,
 native,acct,MOCK2-TFSA,totals USD,dividends,4.86
 native,acct,MOCK2-TFSA,totals USD,market,
 native,acct,MOCK2-TFSA,totals USD,members,
@@ -8289,6 +8486,7 @@ native,folio,,holding AAPL,closed,False
 native,folio,,holding AAPL,currency,USD
 native,folio,,holding AAPL,day_pnl,31.32
 native,folio,,holding AAPL,day_pnl_pct,0.0001529824246053571201791242489
+native,folio,,holding AAPL,day_pnl_share,0.1019882007653787180543580290
 native,folio,,holding AAPL,day_pnl_totals,43.2216
 native,folio,,holding AAPL,dividends,81.38
 native,folio,,holding AAPL,dividends_totals,111.24850
@@ -8326,6 +8524,7 @@ native,folio,,holding CNR.TO,closed,False
 native,folio,,holding CNR.TO,currency,CAD
 native,folio,,holding CNR.TO,day_pnl,-1.20
 native,folio,,holding CNR.TO,day_pnl_pct,-0.000004247388100542981847385314256
+native,folio,,holding CNR.TO,day_pnl_share,-0.002831589781925112945037426538
 native,folio,,holding CNR.TO,day_pnl_totals,-1.20
 native,folio,,holding CNR.TO,dividends,71.42
 native,folio,,holding CNR.TO,dividends_totals,71.42
@@ -8363,6 +8562,7 @@ native,folio,,holding COST,closed,False
 native,folio,,holding COST,currency,USD
 native,folio,,holding COST,day_pnl,-10.08
 native,folio,,holding COST,day_pnl_pct,-0.00004923572286149424557489056286
+native,folio,,holding COST,day_pnl_share,-0.03282378875207590925887384843
 native,folio,,holding COST,day_pnl_totals,-13.9104
 native,folio,,holding COST,dividends,52.01
 native,folio,,holding COST,dividends_totals,71.12085
@@ -8400,6 +8600,7 @@ native,folio,,holding DLR.TO,closed,True
 native,folio,,holding DLR.TO,currency,CAD
 native,folio,,holding DLR.TO,day_pnl,
 native,folio,,holding DLR.TO,day_pnl_pct,
+native,folio,,holding DLR.TO,day_pnl_share,
 native,folio,,holding DLR.TO,day_pnl_totals,
 native,folio,,holding DLR.TO,dividends,0
 native,folio,,holding DLR.TO,dividends_totals,0
@@ -8437,6 +8638,7 @@ native,folio,,holding DLR.U.TO,closed,True
 native,folio,,holding DLR.U.TO,currency,USD
 native,folio,,holding DLR.U.TO,day_pnl,
 native,folio,,holding DLR.U.TO,day_pnl_pct,
+native,folio,,holding DLR.U.TO,day_pnl_share,
 native,folio,,holding DLR.U.TO,day_pnl_totals,
 native,folio,,holding DLR.U.TO,dividends,0
 native,folio,,holding DLR.U.TO,dividends_totals,0
@@ -8474,6 +8676,7 @@ native,folio,,holding ENB.TO,closed,False
 native,folio,,holding ENB.TO,currency,CAD
 native,folio,,holding ENB.TO,day_pnl,-4.20
 native,folio,,holding ENB.TO,day_pnl_pct,-0.00001486585835190043646584859990
+native,folio,,holding ENB.TO,day_pnl_share,-0.009910564236737895307630992883
 native,folio,,holding ENB.TO,day_pnl_totals,-4.20
 native,folio,,holding ENB.TO,dividends,227.91
 native,folio,,holding ENB.TO,dividends_totals,227.91
@@ -8511,6 +8714,7 @@ native,folio,,holding INTC,closed,True
 native,folio,,holding INTC,currency,USD
 native,folio,,holding INTC,day_pnl,
 native,folio,,holding INTC,day_pnl_pct,
+native,folio,,holding INTC,day_pnl_share,
 native,folio,,holding INTC,day_pnl_totals,
 native,folio,,holding INTC,dividends,0
 native,folio,,holding INTC,dividends_totals,0
@@ -8548,6 +8752,7 @@ native,folio,,holding JNJ,closed,False
 native,folio,,holding JNJ,currency,USD
 native,folio,,holding JNJ,day_pnl,-2.88
 native,folio,,holding JNJ,day_pnl_pct,-0.00001406734938899835587854016082
+native,folio,,holding JNJ,day_pnl_share,-0.009378225357735974073963956694
 native,folio,,holding JNJ,day_pnl_totals,-3.9744
 native,folio,,holding JNJ,dividends,476.38
 native,folio,,holding JNJ,dividends_totals,649.22270
@@ -8585,6 +8790,7 @@ native,folio,,holding KO,closed,False
 native,folio,,holding KO,currency,USD
 native,folio,,holding KO,day_pnl,-26.46
 native,folio,,holding KO,day_pnl_pct,-0.0001292437725114223946340877275
+native,folio,,holding KO,day_pnl_share,-0.08616244547419926180454385212
 native,folio,,holding KO,day_pnl_totals,-36.5148
 native,folio,,holding KO,dividends,920.74
 native,folio,,holding KO,dividends_totals,1258.51680
@@ -8622,6 +8828,7 @@ native,folio,,holding META,closed,True
 native,folio,,holding META,currency,USD
 native,folio,,holding META,day_pnl,
 native,folio,,holding META,day_pnl_pct,
+native,folio,,holding META,day_pnl_share,
 native,folio,,holding META,day_pnl_totals,
 native,folio,,holding META,dividends,26.00
 native,folio,,holding META,dividends_totals,35.51500
@@ -8659,6 +8866,7 @@ native,folio,,holding MSFT,closed,False
 native,folio,,holding MSFT,currency,USD
 native,folio,,holding MSFT,day_pnl,4.37
 native,folio,,holding MSFT,day_pnl_pct,0.00002134524889927875527403489680
+native,folio,,holding MSFT,day_pnl_share,0.01423015444906465510528558707
 native,folio,,holding MSFT,day_pnl_totals,6.0306
 native,folio,,holding MSFT,dividends,117.62
 native,folio,,holding MSFT,dividends_totals,160.21685
@@ -8696,6 +8904,7 @@ native,folio,,holding NFLX,closed,False
 native,folio,,holding NFLX,currency,USD
 native,folio,,holding NFLX,day_pnl,-33.06
 native,folio,,holding NFLX,day_pnl_pct,-0.0001614814481945436268557422627
+native,folio,,holding NFLX,day_pnl_share,-0.1076542119190108690573779195
 native,folio,,holding NFLX,day_pnl_totals,-45.6228
 native,folio,,holding NFLX,dividends,0
 native,folio,,holding NFLX,dividends_totals,0
@@ -8733,6 +8942,7 @@ native,folio,,holding NVDA,closed,False
 native,folio,,holding NVDA,currency,USD
 native,folio,,holding NVDA,day_pnl,19.75
 native,folio,,holding NVDA,day_pnl_pct,0.00009646880223358247520873895005
+native,folio,,holding NVDA,day_pnl_share,0.06431248292197412776416255024
 native,folio,,holding NVDA,day_pnl_totals,27.2550
 native,folio,,holding NVDA,dividends,43.66
 native,folio,,holding NVDA,dividends_totals,59.41110
@@ -8770,6 +8980,7 @@ native,folio,,holding O,closed,False
 native,folio,,holding O,currency,USD
 native,folio,,holding O,day_pnl,-52.44
 native,folio,,holding O,day_pnl_pct,-0.0002561429867913450632884187615
+native,folio,,holding O,day_pnl_share,-0.1707618533887758612634270448
 native,folio,,holding O,day_pnl_totals,-72.3672
 native,folio,,holding O,dividends,817.31
 native,folio,,holding O,dividends_totals,1115.75665
@@ -8807,6 +9018,7 @@ native,folio,,holding QQQ,closed,False
 native,folio,,holding QQQ,currency,USD
 native,folio,,holding QQQ,day_pnl,19.25
 native,folio,,holding QQQ,day_pnl_pct,0.00009402655407577026064649239435
+native,folio,,holding QQQ,day_pnl_share,0.06268431879736718782076602998
 native,folio,,holding QQQ,day_pnl_totals,26.5650
 native,folio,,holding QQQ,dividends,91.65
 native,folio,,holding QQQ,dividends_totals,124.99090
@@ -8844,6 +9056,7 @@ native,folio,,holding REI.UN.TO,closed,False
 native,folio,,holding REI.UN.TO,currency,CAD
 native,folio,,holding REI.UN.TO,day_pnl,0.00
 native,folio,,holding REI.UN.TO,day_pnl_pct,0E+2
+native,folio,,holding REI.UN.TO,day_pnl_share,0E+2
 native,folio,,holding REI.UN.TO,day_pnl_totals,0.00
 native,folio,,holding REI.UN.TO,dividends,596.14
 native,folio,,holding REI.UN.TO,dividends_totals,596.14
@@ -8881,6 +9094,7 @@ native,folio,,holding RY.TO,closed,False
 native,folio,,holding RY.TO,currency,CAD
 native,folio,,holding RY.TO,day_pnl,-1.20
 native,folio,,holding RY.TO,day_pnl_pct,-0.000004247388100542981847385314256
+native,folio,,holding RY.TO,day_pnl_share,-0.002831589781925112945037426538
 native,folio,,holding RY.TO,day_pnl_totals,-1.20
 native,folio,,holding RY.TO,dividends,125.0
 native,folio,,holding RY.TO,dividends_totals,125.0
@@ -8918,6 +9132,7 @@ native,folio,,holding SCHD,closed,False
 native,folio,,holding SCHD,currency,USD
 native,folio,,holding SCHD,day_pnl,-52.96
 native,folio,,holding SCHD,day_pnl_pct,-0.0002586829248754697664331551795
+native,folio,,holding SCHD,day_pnl_share,-0.1724551440783670788045594259
 native,folio,,holding SCHD,day_pnl_totals,-73.0848
 native,folio,,holding SCHD,dividends,700.58
 native,folio,,holding SCHD,dividends_totals,952.95790
@@ -8955,6 +9170,7 @@ native,folio,,holding SPY,closed,False
 native,folio,,holding SPY,currency,USD
 native,folio,,holding SPY,day_pnl,-3.30
 native,folio,,holding SPY,day_pnl_pct,-0.00001611883784156061611082726760
+native,folio,,holding SPY,day_pnl_share,-0.01074588322240580362641703371
 native,folio,,holding SPY,day_pnl_totals,-4.5540
 native,folio,,holding SPY,dividends,161.57
 native,folio,,holding SPY,dividends_totals,220.87580
@@ -8992,6 +9208,7 @@ native,folio,,holding TD.TO,closed,False
 native,folio,,holding TD.TO,currency,CAD
 native,folio,,holding TD.TO,day_pnl,-0.20
 native,folio,,holding TD.TO,day_pnl_pct,-7.078980167571636412308857094E-7
+native,folio,,holding TD.TO,day_pnl_share,-0.0004719316303208521575062377563
 native,folio,,holding TD.TO,day_pnl_totals,-0.20
 native,folio,,holding TD.TO,dividends,170.0
 native,folio,,holding TD.TO,dividends_totals,170.0
@@ -9029,6 +9246,7 @@ native,folio,,holding VFV.TO,closed,False
 native,folio,,holding VFV.TO,currency,CAD
 native,folio,,holding VFV.TO,day_pnl,0.52
 native,folio,,holding VFV.TO,day_pnl_pct,0.000001840534843568625467200302844
+native,folio,,holding VFV.TO,day_pnl_share,0.001227022238834215609516218166
 native,folio,,holding VFV.TO,day_pnl_totals,0.52
 native,folio,,holding VFV.TO,dividends,10.26
 native,folio,,holding VFV.TO,dividends_totals,10.26
@@ -9066,6 +9284,7 @@ native,folio,,holding XEQT.TO,closed,False
 native,folio,,holding XEQT.TO,currency,CAD
 native,folio,,holding XEQT.TO,day_pnl,0.00
 native,folio,,holding XEQT.TO,day_pnl_pct,0E+2
+native,folio,,holding XEQT.TO,day_pnl_share,0E+2
 native,folio,,holding XEQT.TO,day_pnl_totals,0.00
 native,folio,,holding XEQT.TO,dividends,48.60
 native,folio,,holding XEQT.TO,dividends_totals,48.60
@@ -9103,6 +9322,7 @@ native,folio,,holding XYZ,closed,False
 native,folio,,holding XYZ,currency,USD
 native,folio,,holding XYZ,day_pnl,-45.92
 native,folio,,holding XYZ,day_pnl_pct,-0.0002242960708134737853967236753
+native,folio,,holding XYZ,day_pnl_share,-0.1495305932039013644015364206
 native,folio,,holding XYZ,day_pnl_totals,-63.3696
 native,folio,,holding XYZ,dividends,0
 native,folio,,holding XYZ,dividends_totals,0
@@ -9169,6 +9389,7 @@ native,folio,,totals CAD,count,7
 native,folio,,totals CAD,currency,CAD
 native,folio,,totals CAD,day_pnl,-6.28
 native,folio,,totals CAD,day_pnl_pct,-0.00002222799772617493833464981128
+native,folio,,totals CAD,day_pnl_share,-0.01481865319207475774569586555
 native,folio,,totals CAD,dividends,1249.33
 native,folio,,totals CAD,market,21468.59
 native,folio,,totals CAD,realized,233.19
@@ -9187,6 +9408,7 @@ native,folio,,totals USD,count,12
 native,folio,,totals USD,currency,USD
 native,folio,,totals USD,day_pnl,-152.41
 native,folio,,totals USD,day_pnl_pct,-0.0007444460834643192428639951077
+native,folio,,totals USD,day_pnl_share,-0.4962969884626874335461273054
 native,folio,,totals USD,dividends,3488.90
 native,folio,,totals USD,market,189015.49
 native,folio,,totals USD,realized,2448.524467228097486083191739
@@ -9225,6 +9447,7 @@ native,type,CORPORATE,holding KO,closed,False
 native,type,CORPORATE,holding KO,currency,USD
 native,type,CORPORATE,holding KO,day_pnl,-5.40
 native,type,CORPORATE,holding KO,day_pnl_pct,-0.001044447023325983520946965301
+native,type,CORPORATE,holding KO,day_pnl_share,-1
 native,type,CORPORATE,holding KO,day_pnl_totals,-7.4520
 native,type,CORPORATE,holding KO,dividends,177.0
 native,type,CORPORATE,holding KO,dividends_totals,241.9860
@@ -9291,6 +9514,7 @@ native,type,CORPORATE,totals USD,count,1
 native,type,CORPORATE,totals USD,currency,USD
 native,type,CORPORATE,totals USD,day_pnl,-5.40
 native,type,CORPORATE,totals USD,day_pnl_pct,-0.001044447023325983520946965301
+native,type,CORPORATE,totals USD,day_pnl_share,-1
 native,type,CORPORATE,totals USD,dividends,177.0
 native,type,CORPORATE,totals USD,market,5164.80
 native,type,CORPORATE,totals USD,realized,358.92
@@ -9335,6 +9559,7 @@ native,type,NON_REGISTERED,holding AAPL,closed,False
 native,type,NON_REGISTERED,holding AAPL,currency,USD
 native,type,NON_REGISTERED,holding AAPL,day_pnl,31.32
 native,type,NON_REGISTERED,holding AAPL,day_pnl_pct,0.0002479995926852155897991717986
+native,type,NON_REGISTERED,holding AAPL,day_pnl_share,0.1447386662969638153334257590
 native,type,NON_REGISTERED,holding AAPL,day_pnl_totals,43.2216
 native,type,NON_REGISTERED,holding AAPL,dividends,81.38
 native,type,NON_REGISTERED,holding AAPL,dividends_totals,111.24850
@@ -9372,6 +9597,7 @@ native,type,NON_REGISTERED,holding COST,closed,False
 native,type,NON_REGISTERED,holding COST,currency,USD
 native,type,NON_REGISTERED,holding COST,day_pnl,-10.08
 native,type,NON_REGISTERED,holding COST,day_pnl_pct,-0.00007981596086420731625720471677
+native,type,NON_REGISTERED,holding COST,day_pnl_share,-0.04658255926798835436018300291
 native,type,NON_REGISTERED,holding COST,day_pnl_totals,-13.9104
 native,type,NON_REGISTERED,holding COST,dividends,52.01
 native,type,NON_REGISTERED,holding COST,dividends_totals,71.12085
@@ -9409,6 +9635,7 @@ native,type,NON_REGISTERED,holding DLR.TO,closed,True
 native,type,NON_REGISTERED,holding DLR.TO,currency,CAD
 native,type,NON_REGISTERED,holding DLR.TO,day_pnl,
 native,type,NON_REGISTERED,holding DLR.TO,day_pnl_pct,
+native,type,NON_REGISTERED,holding DLR.TO,day_pnl_share,
 native,type,NON_REGISTERED,holding DLR.TO,day_pnl_totals,
 native,type,NON_REGISTERED,holding DLR.TO,dividends,0
 native,type,NON_REGISTERED,holding DLR.TO,dividends_totals,0
@@ -9446,6 +9673,7 @@ native,type,NON_REGISTERED,holding DLR.U.TO,closed,True
 native,type,NON_REGISTERED,holding DLR.U.TO,currency,USD
 native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl,
 native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_pct,
+native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_share,
 native,type,NON_REGISTERED,holding DLR.U.TO,day_pnl_totals,
 native,type,NON_REGISTERED,holding DLR.U.TO,dividends,0
 native,type,NON_REGISTERED,holding DLR.U.TO,dividends_totals,0
@@ -9483,6 +9711,7 @@ native,type,NON_REGISTERED,holding INTC,closed,True
 native,type,NON_REGISTERED,holding INTC,currency,USD
 native,type,NON_REGISTERED,holding INTC,day_pnl,
 native,type,NON_REGISTERED,holding INTC,day_pnl_pct,
+native,type,NON_REGISTERED,holding INTC,day_pnl_share,
 native,type,NON_REGISTERED,holding INTC,day_pnl_totals,
 native,type,NON_REGISTERED,holding INTC,dividends,0
 native,type,NON_REGISTERED,holding INTC,dividends_totals,0
@@ -9520,6 +9749,7 @@ native,type,NON_REGISTERED,holding JNJ,closed,False
 native,type,NON_REGISTERED,holding JNJ,currency,USD
 native,type,NON_REGISTERED,holding JNJ,day_pnl,-2.88
 native,type,NON_REGISTERED,holding JNJ,day_pnl_pct,-0.00002280456024691637607348706194
+native,type,NON_REGISTERED,holding JNJ,day_pnl_share,-0.01330930264799667267433800083
 native,type,NON_REGISTERED,holding JNJ,day_pnl_totals,-3.9744
 native,type,NON_REGISTERED,holding JNJ,dividends,476.38
 native,type,NON_REGISTERED,holding JNJ,dividends_totals,649.22270
@@ -9557,6 +9787,7 @@ native,type,NON_REGISTERED,holding KO,closed,False
 native,type,NON_REGISTERED,holding KO,currency,USD
 native,type,NON_REGISTERED,holding KO,day_pnl,-21.06
 native,type,NON_REGISTERED,holding KO,day_pnl_pct,-0.0001667583468055760000373741404
+native,type,NON_REGISTERED,holding KO,day_pnl_share,-0.09732427561347566893109663108
 native,type,NON_REGISTERED,holding KO,day_pnl_totals,-29.0628
 native,type,NON_REGISTERED,holding KO,dividends,743.74
 native,type,NON_REGISTERED,holding KO,dividends_totals,1016.53080
@@ -9594,6 +9825,7 @@ native,type,NON_REGISTERED,holding META,closed,True
 native,type,NON_REGISTERED,holding META,currency,USD
 native,type,NON_REGISTERED,holding META,day_pnl,
 native,type,NON_REGISTERED,holding META,day_pnl_pct,
+native,type,NON_REGISTERED,holding META,day_pnl_share,
 native,type,NON_REGISTERED,holding META,day_pnl_totals,
 native,type,NON_REGISTERED,holding META,dividends,26.00
 native,type,NON_REGISTERED,holding META,dividends_totals,35.51500
@@ -9631,6 +9863,7 @@ native,type,NON_REGISTERED,holding MSFT,closed,False
 native,type,NON_REGISTERED,holding MSFT,currency,USD
 native,type,NON_REGISTERED,holding MSFT,day_pnl,4.37
 native,type,NON_REGISTERED,holding MSFT,day_pnl_pct,0.00003460275287466130675039529884
+native,type,NON_REGISTERED,holding MSFT,day_pnl_share,0.02019501825407828457876981376
 native,type,NON_REGISTERED,holding MSFT,day_pnl_totals,6.0306
 native,type,NON_REGISTERED,holding MSFT,dividends,117.62
 native,type,NON_REGISTERED,holding MSFT,dividends_totals,160.21685
@@ -9668,6 +9901,7 @@ native,type,NON_REGISTERED,holding NFLX,closed,False
 native,type,NON_REGISTERED,holding NFLX,currency,USD
 native,type,NON_REGISTERED,holding NFLX,day_pnl,-29.26
 native,type,NON_REGISTERED,holding NFLX,day_pnl_pct,-0.0002316879975086017930243859140
+native,type,NON_REGISTERED,holding NFLX,day_pnl_share,-0.1352188178751328619621978835
 native,type,NON_REGISTERED,holding NFLX,day_pnl_totals,-40.3788
 native,type,NON_REGISTERED,holding NFLX,dividends,0
 native,type,NON_REGISTERED,holding NFLX,dividends_totals,0
@@ -9705,6 +9939,7 @@ native,type,NON_REGISTERED,holding NVDA,closed,False
 native,type,NON_REGISTERED,holding NVDA,currency,USD
 native,type,NON_REGISTERED,holding NVDA,day_pnl,19.75
 native,type,NON_REGISTERED,holding NVDA,day_pnl_pct,0.0001563854391932633428650588449
+native,type,NON_REGISTERED,holding NVDA,day_pnl_share,0.09127039142289384906881094320
 native,type,NON_REGISTERED,holding NVDA,day_pnl_totals,27.2550
 native,type,NON_REGISTERED,holding NVDA,dividends,43.66
 native,type,NON_REGISTERED,holding NVDA,dividends_totals,59.41110
@@ -9742,6 +9977,7 @@ native,type,NON_REGISTERED,holding O,closed,False
 native,type,NON_REGISTERED,holding O,currency,USD
 native,type,NON_REGISTERED,holding O,day_pnl,-51.75
 native,type,NON_REGISTERED,holding O,day_pnl_pct,-0.0004097694419367786325704706442
+native,type,NON_REGISTERED,holding O,day_pnl_share,-0.2391515319561902121170109524
 native,type,NON_REGISTERED,holding O,day_pnl_totals,-71.4150
 native,type,NON_REGISTERED,holding O,dividends,802.73
 native,type,NON_REGISTERED,holding O,dividends_totals,1095.85495
@@ -9779,6 +10015,7 @@ native,type,NON_REGISTERED,holding XYZ,closed,False
 native,type,NON_REGISTERED,holding XYZ,currency,USD
 native,type,NON_REGISTERED,holding XYZ,day_pnl,-45.92
 native,type,NON_REGISTERED,holding XYZ,day_pnl_pct,-0.0003636060439369444407272659320
+native,type,NON_REGISTERED,holding XYZ,day_pnl_share,-0.2122094366652802809741670133
 native,type,NON_REGISTERED,holding XYZ,day_pnl_totals,-63.3696
 native,type,NON_REGISTERED,holding XYZ,dividends,0
 native,type,NON_REGISTERED,holding XYZ,dividends_totals,0
@@ -9845,6 +10082,7 @@ native,type,NON_REGISTERED,totals CAD,count,0
 native,type,NON_REGISTERED,totals CAD,currency,CAD
 native,type,NON_REGISTERED,totals CAD,day_pnl,
 native,type,NON_REGISTERED,totals CAD,day_pnl_pct,
+native,type,NON_REGISTERED,totals CAD,day_pnl_share,
 native,type,NON_REGISTERED,totals CAD,dividends,0
 native,type,NON_REGISTERED,totals CAD,market,
 native,type,NON_REGISTERED,totals CAD,members,
@@ -9864,6 +10102,7 @@ native,type,NON_REGISTERED,totals USD,count,9
 native,type,NON_REGISTERED,totals USD,currency,USD
 native,type,NON_REGISTERED,totals USD,day_pnl,-105.51
 native,type,NON_REGISTERED,totals USD,day_pnl_pct,-0.0008354545665458843192755624670
+native,type,NON_REGISTERED,totals USD,day_pnl_share,-0.4875918480521281020379869680
 native,type,NON_REGISTERED,totals USD,dividends,2343.52
 native,type,NON_REGISTERED,totals USD,market,126185.02
 native,type,NON_REGISTERED,totals USD,realized,2010.361254144884402870108527
@@ -9909,6 +10148,7 @@ native,type,RRSP,holding NFLX,closed,False
 native,type,RRSP,holding NFLX,currency,USD
 native,type,RRSP,holding NFLX,day_pnl,-3.80
 native,type,RRSP,holding NFLX,day_pnl_pct,-0.00006603690628911166110971892955
+native,type,RRSP,holding NFLX,day_pnl_share,-0.04791325179674694237801033918
 native,type,RRSP,holding NFLX,day_pnl_totals,-5.2440
 native,type,RRSP,holding NFLX,dividends,0
 native,type,RRSP,holding NFLX,dividends_totals,0
@@ -9946,6 +10186,7 @@ native,type,RRSP,holding QQQ,closed,False
 native,type,RRSP,holding QQQ,currency,USD
 native,type,RRSP,holding QQQ,day_pnl,19.25
 native,type,RRSP,holding QQQ,day_pnl_pct,0.0003345290647540524937794972089
+native,type,RRSP,holding QQQ,day_pnl_share,0.2427184466019417475728155340
 native,type,RRSP,holding QQQ,day_pnl_totals,26.5650
 native,type,RRSP,holding QQQ,dividends,91.65
 native,type,RRSP,holding QQQ,dividends_totals,124.99090
@@ -9983,6 +10224,7 @@ native,type,RRSP,holding SCHD,closed,False
 native,type,RRSP,holding SCHD,currency,USD
 native,type,RRSP,holding SCHD,day_pnl,-52.96
 native,type,RRSP,holding SCHD,day_pnl_pct,-0.0009203459360714088348343985550
+native,type,RRSP,holding SCHD,day_pnl_share,-0.6677594250409784390366914639
 native,type,RRSP,holding SCHD,day_pnl_totals,-73.0848
 native,type,RRSP,holding SCHD,dividends,700.58
 native,type,RRSP,holding SCHD,dividends_totals,952.95790
@@ -10020,6 +10262,7 @@ native,type,RRSP,holding SPY,closed,False
 native,type,RRSP,holding SPY,currency,USD
 native,type,RRSP,holding SPY,day_pnl,-3.30
 native,type,RRSP,holding SPY,day_pnl_pct,-0.00005734783967212328464791380724
+native,type,RRSP,holding SPY,day_pnl_share,-0.04160887656033287101248266297
 native,type,RRSP,holding SPY,day_pnl_totals,-4.5540
 native,type,RRSP,holding SPY,dividends,161.57
 native,type,RRSP,holding SPY,dividends_totals,220.87580
@@ -10086,6 +10329,7 @@ native,type,RRSP,totals USD,count,4
 native,type,RRSP,totals USD,currency,USD
 native,type,RRSP,totals USD,day_pnl,-40.81
 native,type,RRSP,totals USD,day_pnl_pct,-0.0007092016172785912868125340828
+native,type,RRSP,totals USD,day_pnl_share,-0.5145631067961165048543689321
 native,type,RRSP,totals USD,dividends,953.80
 native,type,RRSP,totals USD,market,57502.77
 native,type,RRSP,totals USD,realized,0
@@ -10137,6 +10381,7 @@ native,type,TFSA,holding CNR.TO,closed,False
 native,type,TFSA,holding CNR.TO,currency,CAD
 native,type,TFSA,holding CNR.TO,day_pnl,-1.20
 native,type,TFSA,holding CNR.TO,day_pnl_pct,-0.00005529794852629169994105515177
+native,type,TFSA,holding CNR.TO,day_pnl_share,-0.1450641909044752302894030609
 native,type,TFSA,holding CNR.TO,day_pnl_totals,-1.20
 native,type,TFSA,holding CNR.TO,dividends,71.42
 native,type,TFSA,holding CNR.TO,dividends_totals,71.42
@@ -10174,6 +10419,7 @@ native,type,TFSA,holding ENB.TO,closed,False
 native,type,TFSA,holding ENB.TO,currency,CAD
 native,type,TFSA,holding ENB.TO,day_pnl,-4.20
 native,type,TFSA,holding ENB.TO,day_pnl_pct,-0.0001935428198420209497936930312
+native,type,TFSA,holding ENB.TO,day_pnl_share,-0.5077246681656633060129107130
 native,type,TFSA,holding ENB.TO,day_pnl_totals,-4.20
 native,type,TFSA,holding ENB.TO,dividends,227.91
 native,type,TFSA,holding ENB.TO,dividends_totals,227.91
@@ -10211,6 +10457,7 @@ native,type,TFSA,holding O,closed,False
 native,type,TFSA,holding O,currency,USD
 native,type,TFSA,holding O,day_pnl,-0.69
 native,type,TFSA,holding O,day_pnl_pct,-0.00004387892215561246390322726293
+native,type,TFSA,holding O,day_pnl_share,-0.1151084354827010952346413288
 native,type,TFSA,holding O,day_pnl_totals,-0.9522
 native,type,TFSA,holding O,dividends,14.58
 native,type,TFSA,holding O,dividends_totals,19.90170
@@ -10248,6 +10495,7 @@ native,type,TFSA,holding REI.UN.TO,closed,False
 native,type,TFSA,holding REI.UN.TO,currency,CAD
 native,type,TFSA,holding REI.UN.TO,day_pnl,0.00
 native,type,TFSA,holding REI.UN.TO,day_pnl_pct,0E+2
+native,type,TFSA,holding REI.UN.TO,day_pnl_share,0E+2
 native,type,TFSA,holding REI.UN.TO,day_pnl_totals,0.00
 native,type,TFSA,holding REI.UN.TO,dividends,596.14
 native,type,TFSA,holding REI.UN.TO,dividends_totals,596.14
@@ -10285,6 +10533,7 @@ native,type,TFSA,holding RY.TO,closed,False
 native,type,TFSA,holding RY.TO,currency,CAD
 native,type,TFSA,holding RY.TO,day_pnl,-1.20
 native,type,TFSA,holding RY.TO,day_pnl_pct,-0.00005529794852629169994105515177
+native,type,TFSA,holding RY.TO,day_pnl_share,-0.1450641909044752302894030609
 native,type,TFSA,holding RY.TO,day_pnl_totals,-1.20
 native,type,TFSA,holding RY.TO,dividends,125.0
 native,type,TFSA,holding RY.TO,dividends_totals,125.0
@@ -10322,6 +10571,7 @@ native,type,TFSA,holding TD.TO,closed,False
 native,type,TFSA,holding TD.TO,currency,CAD
 native,type,TFSA,holding TD.TO,day_pnl,-0.20
 native,type,TFSA,holding TD.TO,day_pnl_pct,-0.000009216324754381949990175858628
+native,type,TFSA,holding TD.TO,day_pnl_share,-0.02417736515074587171490051014
 native,type,TFSA,holding TD.TO,day_pnl_totals,-0.20
 native,type,TFSA,holding TD.TO,dividends,170.0
 native,type,TFSA,holding TD.TO,dividends_totals,170.0
@@ -10359,6 +10609,7 @@ native,type,TFSA,holding VFV.TO,closed,False
 native,type,TFSA,holding VFV.TO,currency,CAD
 native,type,TFSA,holding VFV.TO,day_pnl,0.52
 native,type,TFSA,holding VFV.TO,day_pnl_pct,0.00002396244436139306997445723243
+native,type,TFSA,holding VFV.TO,day_pnl_share,0.06286114939193926645874132637
 native,type,TFSA,holding VFV.TO,day_pnl_totals,0.52
 native,type,TFSA,holding VFV.TO,dividends,10.26
 native,type,TFSA,holding VFV.TO,dividends_totals,10.26
@@ -10396,6 +10647,7 @@ native,type,TFSA,holding XEQT.TO,closed,False
 native,type,TFSA,holding XEQT.TO,currency,CAD
 native,type,TFSA,holding XEQT.TO,day_pnl,0.00
 native,type,TFSA,holding XEQT.TO,day_pnl_pct,0E+2
+native,type,TFSA,holding XEQT.TO,day_pnl_share,0E+2
 native,type,TFSA,holding XEQT.TO,day_pnl_totals,0.00
 native,type,TFSA,holding XEQT.TO,dividends,48.60
 native,type,TFSA,holding XEQT.TO,dividends_totals,48.60
@@ -10464,6 +10716,7 @@ native,type,TFSA,totals CAD,count,7
 native,type,TFSA,totals CAD,currency,CAD
 native,type,TFSA,totals CAD,day_pnl,-6.28
 native,type,TFSA,totals CAD,day_pnl_pct,-0.0002893925972875932296915219610
+native,type,TFSA,totals CAD,day_pnl_share,-0.7591692657334203718478760185
 native,type,TFSA,totals CAD,dividends,1249.33
 native,type,TFSA,totals CAD,market,21468.59
 native,type,TFSA,totals CAD,realized,233.19
@@ -10483,6 +10736,7 @@ native,type,TFSA,totals USD,count,1
 native,type,TFSA,totals USD,currency,USD
 native,type,TFSA,totals USD,day_pnl,-0.69
 native,type,TFSA,totals USD,day_pnl_pct,-0.00004387892215561246390322726293
+native,type,TFSA,totals USD,day_pnl_share,-0.1151084354827010952346413288
 native,type,TFSA,totals USD,dividends,14.58
 native,type,TFSA,totals USD,market,162.9
 native,type,TFSA,totals USD,realized,0

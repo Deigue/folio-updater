@@ -170,6 +170,34 @@ def test_day_pnl_pct_divides_by_the_pool_not_the_holding(
         assert holdings.total_day_pnl_pct == holdings.total_day_pnl / prior
 
 
+def test_day_pnl_share_is_against_the_pool_gross_day_move(
+    temp_ctx: TempContext,
+) -> None:
+    """A mixed day that nets to little must not make every holding look huge."""
+    with temp_ctx():
+        seed_fx(FX_DATES)
+        for ticker in ("UP", "DOWN", "BIT"):
+            seed_transaction(ticker=ticker, amount="-900", price="90", units="10")
+
+        holdings = _value(
+            {
+                "UP": _quote("UP", "100", "90"),  # +10 a unit
+                "DOWN": _quote("DOWN", "90", "100"),  # -10 a unit
+                "BIT": _quote("BIT", "105", "100"),  # +5 a unit
+            },
+        )
+
+        # Gross move 100 + 100 + 50: each holding's share of it, signed.
+        shares = {held.symbol: held.day_pnl_share for held in holdings.holdings}
+        assert shares == {
+            "UP": Decimal("0.4"),
+            "DOWN": Decimal("-0.4"),
+            "BIT": Decimal("0.2"),
+        }
+        (group,) = holdings.by_currency
+        assert group.day_pnl_share == Decimal("0.2")
+
+
 def test_day_pnl_pct_changes_with_the_grain_displayed(temp_ctx: TempContext) -> None:
     with temp_ctx():
         seed_fx(FX_DATES)

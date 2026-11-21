@@ -18,13 +18,14 @@ from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     CURRENCY_COLORS,
     DAY_MOVE_STRONG_AT,
+    DAY_SHARE_STRONG_AT,
     FLAT,
     FLAT_BELOW,
     GAIN,
-    GAIN_STRONG,
+    GAIN_SHADES,
     INCOME,
     LOSS,
-    LOSS_STRONG,
+    LOSS_SHADES,
     MONEY_PRECISION,
     PRICE_PRECISION,
     REFERENCE_STYLE,
@@ -38,7 +39,6 @@ from ui.vocabulary import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from decimal import Decimal
 
     from domain import AccountType, Currency
@@ -136,8 +136,9 @@ def graded(
 ) -> str:
     """Colour a percentage by its sign and how large it is.
 
-    A move too small to matter is dimmed, an ordinary one takes the plain sign
-    colour, and one at or beyond `strong_at` is drawn bold and bright.
+    A move too small to matter is dimmed. Past that, the shade brightens in even
+    steps up to `strong_at`, and a move at or beyond it is drawn bold in the
+    brightest.
 
     Args:
         text: The rendered percentage.
@@ -153,10 +154,27 @@ def graded(
     sign = ratio if sign is None else sign
     if ratio is None or sign is None or sign == 0:
         return text
-    strong = abs(ratio) >= strong_at
-    if sign > 0:
-        return style(text, GAIN_STRONG if strong else GAIN)
-    return style(text, LOSS_STRONG if strong else LOSS)
+    shades = GAIN_SHADES if sign > 0 else LOSS_SHADES
+    if abs(ratio) >= strong_at:
+        return style(text, f"bold {shades[-1]}")
+    step = int(abs(ratio) / strong_at * len(shades))
+    return style(text, shades[step])
+
+
+def shaded(
+    text: str,
+    value: Decimal | None,
+    ratio: Decimal | None,
+    strong_at: Decimal,
+) -> str:
+    """Shade a figure by the ratio behind it, or by its sign alone without one.
+
+    A money gain takes its percentage's shade, so the two cells read alike; a
+    closed holding's total, with no percentage left, keeps the plain sign colour.
+    """
+    if ratio is None:
+        return signed(text, value)
+    return graded(text, ratio, strong_at, value)
 
 
 def day_move(value: Decimal | None, sign: Decimal | None = None) -> str:
@@ -221,21 +239,38 @@ def clock_time(iso: str) -> str:
 _AS_TEXT = frozenset({Fmt.TEXT, Fmt.DATE, Fmt.RATIO, Fmt.TALLY, *COMPACT_RANGES})
 
 
-def figure_cell(column: Col, value: object, *, closed: bool = False) -> str:
+def figure_cell(
+    column: Col,
+    value: object,
+    *,
+    closed: bool = False,
+    shade: Decimal | None = None,
+) -> str:
     """Render one catalog column's value the way its format and measure read.
 
-    `closed` marks a closed holding's row, where a zero is what it never earned
-    and is left blank.
+    Args:
+        column: The column, whose format and measure decide the rendering.
+        value: The value to render.
+        closed: Marks a closed holding's row, where a zero is what it never
+            earned and is left blank.
+        shade: The ratio that shades the value, for a column shaded by another
+            figure. A column without `shaded_by` is shaded by its own value.
+
+    Returns:
+        The cell, marked up.
     """
     if column.fmt in _AS_TEXT:
         return _as_text(column.fmt, value, quiet=column.quiet)
     number: Decimal | None = value  # ty: ignore[invalid-assignment]
-    graded = _GRADED.get(column.measure) if column.measure else None
-    if graded:
-        return graded(number)
+    if column.measure is Measure.WEIGHT:
+        return weight(number)
     if column.measure is Measure.INCOME and number is not None:
         return income(number)
     text = _figure_text(column.fmt, number, blank_zero=column.quiet or closed)
+    strong_at = _STRONG_AT.get(column.measure) if column.measure else None
+    if strong_at is not None:
+        ratio = number if column.shaded_by is None else shade
+        return shaded(text, number, ratio, strong_at)
     if column.fmt in SIGNED:
         text = signed(text, number)
     return style(text, REFERENCE_STYLE) if column.measure is Measure.REFERENCE else text
@@ -263,11 +298,11 @@ def _figure_text(fmt: Fmt, number: Decimal | None, *, blank_zero: bool) -> str:
     return money(number, blank_zero=blank_zero)
 
 
-# The measures graded by their own size, each by its own scale.
-_GRADED: dict[Measure, Callable[[Decimal | None], str]] = {
-    Measure.DAY_MOVE: day_move,
-    Measure.RETURN: lifetime_return,
-    Measure.WEIGHT: weight,
+# The measures graded by size, each against the ratio at which it turns strong.
+_STRONG_AT: dict[Measure, Decimal] = {
+    Measure.DAY_MOVE: DAY_MOVE_STRONG_AT,
+    Measure.DAY_SHARE: DAY_SHARE_STRONG_AT,
+    Measure.RETURN: RETURN_STRONG_AT,
 }
 
 
@@ -275,4 +310,5 @@ def holding_cell(column: Col, holding: Holding) -> str:
     """Render one catalog column for a holding, blank where a closed one has nothing."""
     if not shows(column, holding):
         return ""
-    return figure_cell(column, column.read(holding), closed=holding.closed)
+    shade = column.shaded_by(holding) if column.shaded_by else None
+    return figure_cell(column, column.read(holding), closed=holding.closed, shade=shade)

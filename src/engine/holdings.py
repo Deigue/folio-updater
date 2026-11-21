@@ -53,6 +53,8 @@ class Holding:
         change_pct: `change / prev_close`
         day_pnl: Day gain, `change * units`.
         day_pnl_pct: `day_pnl` over the **pool's** market value at yesterday's close.
+        day_pnl_share: `day_pnl` over the pool's gross day move (every holding's
+            day gain, sign ignored): how much of the day's movement it made.
         market_value: `price * units`.
         unrealized: `market_value - book_value`.
         unrealized_pct: `unrealized / book_value`.
@@ -90,6 +92,7 @@ class Holding:
     change_pct: Decimal | None = None
     day_pnl: Decimal | None = None
     day_pnl_pct: Decimal | None = None
+    day_pnl_share: Decimal | None = None
     market_value: Decimal | None = None
     unrealized: Decimal | None = None
     unrealized_pct: Decimal | None = None
@@ -173,6 +176,7 @@ class CurrencyTotals:
         dividends: Dividends received across the group.
         total_pnl: Total gain across the group.
         day_pnl_pct: The group's share of the pool's day move.
+        day_pnl_share: The group's share of the pool's gross day move.
         weight_in_pool: Market value as a share of the displayed pool.
         weight_in_folio: Market value as a share of the whole folio.
         members: The open holdings in the group, in the pool's order.
@@ -189,6 +193,7 @@ class CurrencyTotals:
     dividends: Decimal = ZERO
     total_pnl: Decimal | None = None
     day_pnl_pct: Decimal | None = None
+    day_pnl_share: Decimal | None = None
     weight_in_pool: Decimal | None = None
     weight_in_folio: Decimal | None = None
     members: tuple[Holding, ...] = ()
@@ -550,6 +555,7 @@ def _by_currency(
                 ),
                 # Summed, not divided
                 day_pnl_pct=_sum_ratios(member.day_pnl_pct for member in members),
+                day_pnl_share=_sum_ratios(member.day_pnl_share for member in members),
                 weight_in_pool=_sum_ratios(member.weight_in_pool for member in members),
                 weight_in_folio=_sum_ratios(
                     member.weight_in_folio for member in members
@@ -786,7 +792,7 @@ def _with_weights(
     pool_market: Decimal,
     folio_market: Decimal | None,
 ) -> list[Holding]:
-    """Fill the three figures that need a pool-level denominator.
+    """Fill the figures that need a pool-level denominator.
 
     `day_pnl_pct`, `weight_in_pool` and `weight_in_folio` all divide by a total
     that is only known once every holding has been valued, so they are a second
@@ -794,7 +800,9 @@ def _with_weights(
     value, not the holding's own: it measures a holding's contribution to the
     pool's day move, so a large holding drifting 1% outweighs a tiny one
     jumping 8%. Dividing by the holding's own value instead would cancel the
-    units and collapse the column into `change_pct`.
+    units and collapse the column into `change_pct`. `day_pnl_share` divides by
+    the pool's gross day move instead, so a mixed day that nets to little does
+    not make every holding's share look huge.
 
     **All three are taken on the totals-currency figures**, whatever currency the
     row itself is reported in. A weight answers "how much of what I own is
@@ -814,6 +822,15 @@ def _with_weights(
         ),
         ZERO,
     )
+    pool_gross = sum(
+        (
+            abs(holding.day_pnl_totals)
+            for holding in holdings
+            if holding.market_value_totals is not None
+            and holding.day_pnl_totals is not None
+        ),
+        ZERO,
+    )
     filled: list[Holding] = []
     for holding in holdings:
         if holding.market_value_totals is None:
@@ -826,6 +843,11 @@ def _with_weights(
                     None
                     if holding.day_pnl_totals is None
                     else safe_div(holding.day_pnl_totals, pool_prior)
+                ),
+                day_pnl_share=(
+                    None
+                    if holding.day_pnl_totals is None
+                    else safe_div(holding.day_pnl_totals, pool_gross)
                 ),
                 weight_in_pool=safe_div(holding.market_value_totals, pool_market),
                 weight_in_folio=(

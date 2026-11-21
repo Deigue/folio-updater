@@ -63,6 +63,8 @@ class Col[R]:
         coarse: A percentage that can spare its second decimal on a narrow
             terminal.
         measure: What kind of figure it holds, for shading it in a terminal.
+        shaded_by: Reads the ratio that decides the shade, for a figure shaded
+            by another one (a money gain by its percentage) rather than itself.
     """
 
     header: str
@@ -76,6 +78,7 @@ class Col[R]:
     read: Callable[[R], object] = _unread
     coarse: bool = False
     measure: Measure | None = None
+    shaded_by: Callable[[R], Decimal | None] | None = None
 
     @property
     def full_label(self) -> str:

@@ -32,6 +32,7 @@ class Measure(StrEnum):
 
     REFERENCE = "reference"  # a cost or size fact rather than performance
     DAY_MOVE = "day_move"  # graded by how far a day moves
+    DAY_SHARE = "day_share"  # graded by its share of the pool's day movement
     RETURN = "return"  # graded by how far a lifetime return runs
     WEIGHT = "weight"  # flagged once it concentrates its pool
     INCOME = "income"

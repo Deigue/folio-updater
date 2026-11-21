@@ -37,7 +37,7 @@ from ui.cells import (
     money,
     percent,
     price,
-    signed,
+    shaded,
     style,
     weight,
 )
@@ -49,6 +49,7 @@ from ui.layout.tiles import COLUMN_GAP, Tile, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
     CHART_GUIDE,
+    DAY_MOVE_STRONG_AT,
     FLAT,
     GAIN,
     GRAND_TOTAL_ROW_STYLE,
@@ -166,9 +167,15 @@ def _header(quote: Quote, aliases: Sequence[str]) -> Panel:
         arrow = (
             "" if change is None or change == 0 else f"{RISE if change > 0 else FALL} "
         )
+        moved = shaded(
+            arrow + price(change),
+            change,
+            quote.day_change_pct,
+            DAY_MOVE_STRONG_AT,
+        )
         line = (
             f"[bold]{price(quote.price)}[/bold] {quote.currency or ''}   "
-            f"{signed(arrow + price(change), change)} "
+            f"{moved} "
             f"{day_move(quote.day_change_pct)}   "
             f"[dim]prev close {price(quote.prev_close)}[/dim]"
         )
@@ -299,7 +306,13 @@ def _chart(price_range: PriceRange, move: RangeMove | None, points: int) -> Pane
         title.rstrip()
         return _chart_panel(title, _placeholder("no data", points))
     plus = "+" if move.change > 0 else ""
-    title.append_text(Text.from_markup(signed(plus + money(move.change), move.change)))
+    moved = shaded(
+        plus + money(move.change),
+        move.change,
+        move.change_pct,
+        RETURN_STRONG_AT,
+    )
+    title.append_text(Text.from_markup(moved))
     title.append(" ")
     title.append_text(Text.from_markup(_move_ratio(move)))
     if len(move.points) <= _ENDS_ONLY:
@@ -340,15 +353,14 @@ def _placeholder(message: str, points: int) -> Text:
 def _move_ratio(move: RangeMove) -> str:
     """Give a move as a percentage, or as a multiple once it is enormous."""
     multiple = move.multiple
-    if multiple is not None and multiple >= _MULTIPLE_FROM:
-        return signed(f"×{float(multiple):,.0f}", move.change)
-    if move.change_pct is None:
+    if move.change_pct is None or multiple is None:
         return ""
-    return graded(
-        percent(move.change_pct, plus=True),
-        move.change_pct,
-        RETURN_STRONG_AT,
+    text = (
+        f"×{float(multiple):,.0f}"
+        if multiple >= _MULTIPLE_FROM
+        else percent(move.change_pct, plus=True)
     )
+    return graded(text, move.change_pct, RETURN_STRONG_AT)
 
 
 def _chart_panel(title: Text, body: Text) -> Panel:

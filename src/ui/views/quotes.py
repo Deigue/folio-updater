@@ -8,11 +8,11 @@ from rich.table import Table as RichTable
 
 from domain import Fmt
 from services.quote_service import QuoteService
-from ui.cells import EM_DASH, price, signed
+from ui.cells import EM_DASH, price, shaded
 from ui.format import short_age
 from ui.layout.columns import FormattedColumn, add_column
 from ui.layout.fit import fit_table
-from ui.vocabulary import TABLE_BORDER, TABLE_HEADER
+from ui.vocabulary import DAY_MOVE_STRONG_AT, TABLE_BORDER, TABLE_HEADER
 
 if TYPE_CHECKING:
     from collections.abc import Collection, Sequence
@@ -68,7 +68,12 @@ def quotes_table(
             *owned,
             quote.provider_symbol,
             quote.name or "",
-            signed(price(quote.price), quote.day_change),
+            shaded(
+                price(quote.price),
+                quote.day_change,
+                quote.day_change_pct,
+                DAY_MOVE_STRONG_AT,
+            ),
             price(quote.prev_close),
             str(quote.currency) if quote.currency else "",
             _age(quote),
