@@ -20,6 +20,7 @@ from domain.constants import (
 )
 from domain.enums import (
     ACCOUNT_TYPE_ALIASES,
+    CHARTED_RANGES,
     MARGIN_MARKER,
     ROOM_BEARING_TYPES,
     SUPPORTED_CURRENCIES,
@@ -61,6 +62,7 @@ __all__ = [
     "ACTION_ALIASES",
     "ACTION_PROFILES",
     "ALWAYS_REQUIRED",
+    "CHARTED_RANGES",
     "COMPACT_RANGES",
     "DECIMALS",
     "INTERNAL_COLUMNS",

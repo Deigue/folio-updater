@@ -31,6 +31,9 @@ from .helpers.seed import seed_fx, seed_transaction
 if TYPE_CHECKING:
     from .helpers.context import TempContext
 
+# The day long-run moves are measured to.
+TODAY = date(2026, 10, 1)
+
 FX = {f"2025-08-{day}": "1.25" for day in range(14, 21)}
 
 
@@ -166,7 +169,7 @@ def test_each_move_runs_from_its_anchor_to_the_live_price() -> None:
     )
     history = {PriceRange.YEAR_1: _ranged(PriceRange.YEAR_1, 100)}
 
-    moves = price_moves(quote, history, intraday={})
+    moves = price_moves(quote, history, intraday={}, today=TODAY)
 
     year = moves[PriceRange.YEAR_1]
     assert year is not None
@@ -183,6 +186,40 @@ def test_each_move_runs_from_its_anchor_to_the_live_price() -> None:
     # Nothing reaches back far enough for the rest.
     assert moves[PriceRange.YEARS_5] is None
     assert moves[PriceRange.HOURS_2] is None
+
+
+def test_a_long_run_move_also_has_an_annualized_return() -> None:
+    quote = Quote(
+        symbol="AAA",
+        provider_symbol="AAA",
+        price=Decimal(121),
+        status=QuoteStatus.OK,
+    )
+    history = {
+        # Two years to the day: 100 to 121 compounds at 10% a year.
+        PriceRange.YEARS_3: RangeHistory(
+            PriceRange.YEARS_3,
+            _bar("2024-10-01", 100),
+            (),
+        ),
+        # Eight months is too short to restate as a year.
+        PriceRange.ALL: RangeHistory(PriceRange.ALL, _bar("2026-02-01", 100), ()),
+        PriceRange.YEAR_1: _ranged(PriceRange.YEAR_1, 100),
+    }
+
+    moves = price_moves(quote, history, intraday={}, today=TODAY)
+
+    three = moves[PriceRange.YEARS_3]
+    assert three is not None
+    assert three.annualized is not None
+    assert round(three.annualized, 3) == Decimal("0.100")
+    assert three.points == (Decimal(100), Decimal(121))
+    every = moves[PriceRange.ALL]
+    year = moves[PriceRange.YEAR_1]
+    assert every is not None
+    assert year is not None
+    assert every.annualized is None
+    assert year.annualized is None
 
 
 def _bar(when: str, close: int) -> PricePoint:
@@ -229,7 +266,7 @@ def test_a_session_chart_runs_from_an_official_close_and_is_drawn_from_bars() ->
         ),
     }
 
-    moves = price_moves(quote, {PriceRange.DAYS_2: stored}, live)
+    moves = price_moves(quote, {PriceRange.DAYS_2: stored}, live, today=TODAY)
 
     day = moves[PriceRange.DAY_1]
     assert day is not None
@@ -253,7 +290,7 @@ def test_an_unpriced_quote_has_no_moves() -> None:
     quote = Quote(symbol="AAA", provider_symbol="AAA", status=QuoteStatus.NOT_FOUND)
     history = {PriceRange.YEAR_1: _ranged(PriceRange.YEAR_1, 100)}
 
-    assert set(price_moves(quote, history, {}).values()) == {None}
+    assert set(price_moves(quote, history, {}, today=TODAY).values()) == {None}
 
 
 def _row(symbol: str, week: str | None, market: int | None) -> PerformanceRow:

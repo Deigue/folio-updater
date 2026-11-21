@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table as RichTable
 from rich.text import Text
 
-from domain import TORONTO_TZ, Fmt, PriceRange
+from domain import CHARTED_RANGES, TORONTO_TZ, Fmt, PriceRange
 from engine.accounts import account_type_of
 from engine.ticker import range_extremes
 from exporters.catalog import (
@@ -48,6 +48,7 @@ from ui.layout.fit import fit
 from ui.layout.tiles import COLUMN_GAP, Tile, TilingLayout
 from ui.vocabulary import (
     ACCOUNT_TYPE_COLORS,
+    CAGR_STRONG_AT,
     CHART_GUIDE,
     DAY_MOVE_STRONG_AT,
     FLAT,
@@ -62,6 +63,8 @@ from ui.vocabulary import (
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from rich.console import RenderableType
 
     from engine.performance import RangeMove
     from engine.ticker import PerformanceRow, PoolLine, SymbolHoldings
@@ -292,10 +295,10 @@ def _chart_grid(
     grid = RichTable.grid(padding=(0, 1))
     for _ in range(per_row):
         grid.add_column()
-    ranges = list(PriceRange)
-    for first in range(0, len(ranges), per_row):
-        row = ranges[first : first + per_row]
-        grid.add_row(*[_chart(name, moves.get(name), points) for name in row])
+    cells = [_chart(name, moves.get(name), points) for name in CHARTED_RANGES]
+    cells.append(_long_run_panel(moves, points))
+    for first in range(0, len(cells), per_row):
+        grid.add_row(*cells[first : first + per_row])
     return grid
 
 
@@ -342,6 +345,44 @@ def _chart(price_range: PriceRange, move: RangeMove | None, points: int) -> Pane
     return _chart_panel(title, body)
 
 
+def _long_run_panel(
+    moves: Mapping[PriceRange, RangeMove | None],
+    points: int,
+) -> Panel:
+    """Give the long ranges' moves and annualized returns, in a chart's space."""
+    title = Text("Long-run · price only", style="bold")
+    long_moves = [
+        (price_range, move)
+        for price_range in PriceRange
+        if price_range.long_run and (move := moves.get(price_range)) is not None
+    ]
+    if not long_moves:
+        return _chart_panel(title, _placeholder("no data", points))
+    table = RichTable.grid(padding=(0, 1), expand=True)
+    table.add_column()
+    table.add_column(justify="right")
+    table.add_column(justify="right")
+    table.add_row("Range", "Move", "CAGR", style=TABLE_HEADER)
+    for price_range, move in long_moves:
+        rate = move.annualized
+        cagr = (
+            EM_DASH
+            if rate is None
+            else graded(percent(rate, plus=True), rate, CAGR_STRONG_AT)
+        )
+        table.add_row(str(price_range), _move_ratio(move), cagr)
+    # Padded to a chart's body, so the grid's rows line up.
+    for _ in range(_CHART_ROWS - len(long_moves)):
+        table.add_row("")
+    every = moves.get(PriceRange.ALL)
+    return _chart_panel(
+        title,
+        table,
+        subtitle=f"since {every.start[:7]}" if every else None,
+        width=points + _CHART_FRAME,
+    )
+
+
 def _placeholder(message: str, points: int) -> Text:
     """Fill a chart's space with a note, so the grid keeps its shape."""
     above = _CHART_ROWS // 2
@@ -363,14 +404,23 @@ def _move_ratio(move: RangeMove) -> str:
     return graded(text, move.change_pct, RETURN_STRONG_AT)
 
 
-def _chart_panel(title: Text, body: Text) -> Panel:
-    """Frame one chart."""
+def _chart_panel(
+    title: Text,
+    body: RenderableType,
+    *,
+    subtitle: str | None = None,
+    width: int | None = None,
+) -> Panel:
+    """Frame one chart, or anything drawn in a chart's space."""
     return Panel(
         body,
         title=title,
         title_align="left",
+        subtitle=subtitle,
+        subtitle_align="right",
         border_style=CHART_GUIDE,
         expand=False,
+        width=width,
         padding=(0, 1),
     )
 
@@ -515,7 +565,10 @@ def show_matrix(
         *(_figure(header, Fmt.PERCENT, coarse=True) for header in weights),
         # A move reads as a percentage or, past ten times, a multiple: either
         # way its decimals are what tell the rows apart.
-        *(_figure(str(price_range), Fmt.PERCENT_SIGNED) for price_range in PriceRange),
+        *(
+            _figure(str(price_range), Fmt.PERCENT_SIGNED)
+            for price_range in CHARTED_RANGES
+        ),
     )
     for column in columns:
         add_column(table, column)
@@ -533,7 +586,7 @@ def show_matrix(
             *((weight(row.weight_in_pool),) if pool_weight else ()),
             weight(row.weight_in_folio) if row.weight_in_folio is not None else "",
         ]
-        for price_range in PriceRange:
+        for price_range in CHARTED_RANGES:
             move = row.moves.get(price_range)
             cell = EM_DASH if move is None else _move_ratio(move)
             if move is not None and move.change_pct in extremes[price_range]:

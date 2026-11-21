@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "folio-updater"
-version = "0.8.32"
+version = "0.8.33"
 authors = [{ name = "Deigue" }]
 description = "Folio Updater"
 readme = "README.md"

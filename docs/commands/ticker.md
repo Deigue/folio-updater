@@ -40,6 +40,11 @@ Details shown:
   fits. Each chart's title carries the move; underneath it, where the range starts
   and the price it starts from. The dotted line is that starting price, and each
   bar is green above it and red below.
+- **Long-run**: the grid's last cell, the size of a chart. For `3y`, `5y`, `10y`
+  and `All`, the move and its annualized return (CAGR): the steady yearly rate that
+  compounds to the same move. A range the history does not reach has no row, and a
+  history shorter than a year shows no CAGR. The footer gives the month the history
+  starts. Price only, like the moves.
 - **Holdings**: one row per account type (or account), then **POOLED**: every
   account pooled into one cost base. POOLED is left out when there is only one
   row, which it would merely repeat. The non-registered row is badged **CRA**,
@@ -58,7 +63,9 @@ base and the last update too (see [Freshness](dashboard.md#freshness)).
 | `1wk` | The close a week ago                                       | 5-minute bars     |
 | `1mo` | The close a month ago                                      | hourly bars       |
 | `6mo`, `YTD`, `1y` | The close six months ago, at the end of last year, a year ago | daily closes |
+| `3y`  | The weekly close three years ago (Long-run only)           | weekly closes     |
 | `5y`  | The weekly close five years ago                            | weekly closes     |
+| `10y` | The monthly close ten years ago (Long-run only)            | monthly closes    |
 | `All` | The first monthly close Yahoo has                          | monthly closes    |
 
 Every move runs from an official close to the latest price, price only: dividends are
@@ -98,9 +105,9 @@ folio ticker -s ytd -r
 | `--refresh`        | Refetch quotes and price history                                |
 
 Each row carries the price in the security's own currency, the market value in
-CAD (so the column compares), its share of the folio, and its move over every range.
-The best and worst of each range are bold. Sorted, the largest comes first; a
-security with nothing to measure over that range stays at the bottom.
+CAD (so the column compares), its share of the folio, and its move over every
+charted range. The best and worst of each range are bold. Sorted, the largest comes
+first; a security with nothing to measure over that range stays at the bottom.
 
 `-t` and `-a` also add `Wt%`, the security's share of that pool. A symbol named but
 unknown to Yahoo is left out with a warning, and nothing about it is kept.

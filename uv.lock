@@ -594,7 +594,7 @@ wheels = [
 
 [[package]]
 name = "folio-updater"
-version = "0.8.32"
+version = "0.8.33"
 source = { editable = "." }
 dependencies = [
     { name = "dateparser" },

@@ -56,9 +56,36 @@ def test_a_range_the_history_does_not_reach_is_left_out() -> None:
 
     ranges = condense([], weekly, monthly, today=TODAY)
 
-    assert PriceRange.YEARS_5 not in ranges
+    years = {PriceRange.YEARS_3, PriceRange.YEARS_5, PriceRange.YEARS_10}
+    assert not years & set(ranges)
     assert ranges[PriceRange.ALL].anchor == monthly[0]
     assert ranges[PriceRange.ALL].points == (monthly[1],)
+
+
+def test_three_and_ten_years_keep_only_their_anchor() -> None:
+    # Fridays from 2021 on, and the first of each month from 2015 on.
+    weekly = [
+        p
+        for p in _weekdays(date(2021, 1, 1), TODAY)
+        if date.fromisoformat(p.when).weekday() == 4
+    ]
+    monthly = [
+        PricePoint(date(year, month, 1).isoformat(), Decimal(year * 100 + month))
+        for year in range(2015, 2027)
+        for month in range(1, 13)
+        if date(year, month, 1) <= TODAY
+    ]
+
+    ranges = condense([], weekly, monthly, today=TODAY)
+
+    # Three years back is Saturday 2023-09-30: the Friday before holds.
+    assert ranges[PriceRange.YEARS_3].anchor.when == "2023-09-29"
+    assert ranges[PriceRange.YEARS_10].anchor == PricePoint(
+        "2016-09-01",
+        Decimal(201609),
+    )
+    assert ranges[PriceRange.YEARS_3].points == ()
+    assert ranges[PriceRange.YEARS_10].points == ()
 
 
 def test_a_range_keeps_its_anchor_and_a_bounded_sample_ending_at_the_latest() -> None:

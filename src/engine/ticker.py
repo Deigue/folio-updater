@@ -10,7 +10,15 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
-from domain import Action, Column, Currency, DiagnosticCode, Grain, PriceRange
+from domain import (
+    CHARTED_RANGES,
+    Action,
+    Column,
+    Currency,
+    DiagnosticCode,
+    Grain,
+    PriceRange,
+)
 from domain.numeric import ZERO, dec
 from engine.accounts import FOLIO, Pool
 from engine.pools import Conversion, Converted
@@ -272,9 +280,9 @@ class PerformanceRow:
 
 # What the matrix can be ordered by: its market value, or its move over a range.
 MARKET_SORT = "market"
-MATRIX_SORTS: tuple[str, ...] = (MARKET_SORT, *(str(r).lower() for r in PriceRange))
+MATRIX_SORTS: tuple[str, ...] = (MARKET_SORT, *(str(r).lower() for r in CHARTED_RANGES))
 # A range's lower-case name back to the range, for `--sort ytd`.
-_RANGE_NAMES = {str(r).lower(): str(r) for r in PriceRange}
+_RANGE_NAMES = {str(r).lower(): str(r) for r in CHARTED_RANGES}
 
 
 class UnknownMatrixSortError(ValueError):
@@ -337,7 +345,7 @@ def range_extremes(rows: Sequence[PerformanceRow]) -> dict[PriceRange, set[Decim
         fewer than two securities moved over it.
     """
     extremes: dict[PriceRange, set[Decimal]] = {}
-    for price_range in PriceRange:
+    for price_range in CHARTED_RANGES:
         moves = [
             move.change_pct
             for row in rows

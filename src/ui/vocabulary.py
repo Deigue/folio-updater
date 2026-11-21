@@ -117,6 +117,7 @@ FLAT = "dim"
 DAY_MOVE_STRONG_AT = Decimal("0.03")  # Change% and PnL%
 RETURN_STRONG_AT = Decimal("0.25")  # Unreal% and Total%
 DAY_SHARE_STRONG_AT = Decimal("0.25")  # PnL%: a quarter of the day's movement
+CAGR_STRONG_AT = Decimal("0.10")  # A long-run move's annualized return
 FLAT_BELOW = Decimal("0.001")
 
 # Concentration: a holding's weight in its pool or folio.

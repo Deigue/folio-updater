@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from domain import TORONTO_TZ, Currency, Fmt, PriceRange
+from domain import CHARTED_RANGES, TORONTO_TZ, Currency, Fmt, PriceRange
 from exporters.catalog import (
     FUNDAMENTAL_SECTIONS,
     FUNDAMENTALS,
@@ -82,7 +82,7 @@ def ticker_sheet(  # noqa: PLR0913
     """
     rows = tuple(
         row_of(MOVE_COLUMNS, _move_cells(price_range, moves.get(price_range)))
-        for price_range in PriceRange
+        for price_range in CHARTED_RANGES
     )
     return Sheet(
         name=quote.symbol,
@@ -146,7 +146,7 @@ def performance_sheet(
         columns.append(Col("Wt%", Fmt.PERCENT))
     columns.append(Col("Folio%", Fmt.PERCENT, bar=True))
     columns.extend(
-        Col(str(price_range), Fmt.PERCENT_SIGNED) for price_range in PriceRange
+        Col(str(price_range), Fmt.PERCENT_SIGNED) for price_range in CHARTED_RANGES
     )
     built = tuple(columns)
     return Sheet(
@@ -173,7 +173,7 @@ def _performance_cells(row: PerformanceRow) -> dict[str, object]:
         "Wt%": row.weight_in_pool,
         "Folio%": row.weight_in_folio,
     }
-    for price_range in PriceRange:
+    for price_range in CHARTED_RANGES:
         move = row.moves.get(price_range)
         cells[str(price_range)] = None if move is None else move.change_pct
     return cells

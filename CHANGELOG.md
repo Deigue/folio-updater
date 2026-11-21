@@ -12,8 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 for one date, a run of month-ends, or one holding.
 - `folio flows` breaks down pool(s) cashflows based on intervals like week, month or
 year, specified by `-p`. Use help to learn more.
+- `folio ticker` now shows the CAGR over time for long term patterns.
 
 ### Changed
+- Gain and losses are shaded in 8 steps by size, from muted/gray to vivid/warm. Several
+more columns are now color graded to represent change extents. PnL% shading is improved.
 
 ### Deprecated
 

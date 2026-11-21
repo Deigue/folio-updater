@@ -111,12 +111,20 @@ def condense(
         PriceRange.MONTHS_6: (daily, months_back(today, 6)),
         PriceRange.YTD: (daily, date(today.year - 1, 12, 31)),
         PriceRange.YEAR_1: (daily, months_back(today, 12)),
+        PriceRange.YEARS_3: (weekly, months_back(today, 36)),
         PriceRange.YEARS_5: (weekly, months_back(today, 60)),
+        PriceRange.YEARS_10: (monthly, months_back(today, 120)),
     }
     for price_range, (series, start) in starts.items():
         since = _since(series, start.isoformat())
-        if since:
-            found[price_range] = _summary(price_range, since)
+        if not since:
+            continue
+        # A range that is measured but never drawn keeps only its anchor.
+        found[price_range] = (
+            _summary(price_range, since)
+            if price_range.charted
+            else RangeHistory(price_range, since[0], ())
+        )
 
     if monthly:
         found[PriceRange.ALL] = _summary(PriceRange.ALL, monthly)

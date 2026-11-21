@@ -248,8 +248,29 @@ class PriceRange(StrEnum):
     MONTHS_6 = "6mo"
     YTD = "YTD"  # Since the last close of the previous year
     YEAR_1 = "1y"
+    YEARS_3 = "3y"  # Anchor only: measured, never charted
     YEARS_5 = "5y"
+    YEARS_10 = "10y"  # Anchor only: measured, never charted
     ALL = "All"  # Since the first close the provider has
+
+    @property
+    def charted(self) -> bool:
+        """Whether the range is drawn as a chart and listed in the comparison table."""
+        return self not in {PriceRange.YEARS_3, PriceRange.YEARS_10}
+
+    @property
+    def long_run(self) -> bool:
+        """Whether the range spans years, so its move also has an annualized return."""
+        return self in {
+            PriceRange.YEARS_3,
+            PriceRange.YEARS_5,
+            PriceRange.YEARS_10,
+            PriceRange.ALL,
+        }
+
+
+# The ranges drawn as charts and compared side by side, shortest first.
+CHARTED_RANGES = tuple(price_range for price_range in PriceRange if price_range.charted)
 
 
 class QuoteStatus(StrEnum):

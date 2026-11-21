@@ -3,22 +3,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain import PriceRange
+from domain.dates import today_in_toronto
 from domain.numeric import ONE
 from services.price_history import session_day
 from services.quote_service import QuoteService
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-    from datetime import date
-    from decimal import Decimal
 
     from models import Quote
     from services.price_history import PricePoint, RangeHistory
 
 SESSION_RANGES = frozenset({PriceRange.DAY_1, PriceRange.DAYS_2})
+
+# Days in an average year, leap years included, for an annualized return.
+_YEAR = Decimal("365.25")
+# A move spanning less than a year has no annualized return.
+_SHORTEST_ANNUALIZED_DAYS = 365
 
 
 @dataclass(frozen=True)
@@ -36,6 +42,9 @@ class RangeMove:
             bar.
         fill: How much of the range's time axis has elapsed: short of 1 only
             for a session still trading.
+        annualized: The move as the yearly rate that compounds to it (CAGR),
+            for a range spanning years. None for a shorter range, or one whose
+            history spans less than a year.
     """
 
     range: PriceRange
@@ -45,6 +54,7 @@ class RangeMove:
     points: tuple[Decimal, ...]
     start: str
     fill: Decimal = ONE
+    annualized: Decimal | None = None
 
     @property
     def multiple(self) -> Decimal | None:
@@ -56,6 +66,8 @@ def price_moves(
     quote: Quote,
     history: Mapping[PriceRange, RangeHistory],
     intraday: Mapping[PriceRange, RangeHistory],
+    *,
+    today: date,
 ) -> dict[PriceRange, RangeMove | None]:
     """Measure the price against every range's anchor.
 
@@ -64,6 +76,7 @@ def price_moves(
         history: Its stored ranges, `2d` and longer, anchored on official closes.
         intraday: Its live ranges, from bars. Empty when offline, which leaves
             `2h` blank and draws the rest from the stored closes.
+        today: The day a long-run move's annualized return is measured to.
 
     Returns:
         Every range, shortest first, mapped to its move. None where there is
@@ -94,6 +107,7 @@ def price_moves(
             continue
         session = price_range in SESSION_RANGES and live is not None
         drawn = tuple(point.close for point in shaped.points)
+        begins = (stored or shaped).anchor.when
         moves[price_range] = RangeMove(
             range=price_range,
             anchor=anchor,
@@ -102,12 +116,13 @@ def price_moves(
             # A session chart starts at the open, with the close before it only
             # as the baseline; any other range starts at its anchor.
             points=(*drawn, price) if session else (anchor, *drawn, price),
-            start=(
-                session_day(shaped.points[0]).isoformat()
-                if session
-                else (stored or shaped).anchor.when
-            ),
+            start=session_day(shaped.points[0]).isoformat() if session else begins,
             fill=shaped.fill if session else ONE,
+            annualized=(
+                _annualized(price / anchor, begins, today)
+                if price_range.long_run and anchor
+                else None
+            ),
         )
     return moves
 
@@ -128,6 +143,14 @@ def _anchor(
         return stored.anchor.close
     # Only `2h` has no daily close to stand on: its own first bar is the start.
     return live.anchor.close if live is not None else None
+
+
+def _annualized(multiple: Decimal, begins: str, today: date) -> Decimal | None:
+    """Restate a multiple reached since `begins` as an annualized return."""
+    days = (today - date.fromisoformat(begins[:10])).days
+    if days < _SHORTEST_ANNUALIZED_DAYS:
+        return None
+    return multiple ** (_YEAR / days) - 1
 
 
 def _close_before(stored: RangeHistory, first: date) -> Decimal:
@@ -163,11 +186,13 @@ def fetch_moves(
     symbols = list(quotes)
     history = QuoteService.history(symbols, refresh=refresh, offline=offline)
     intraday = QuoteService.intraday(symbols, offline=offline)
+    today = today_in_toronto()
     return {
         symbol: price_moves(
             quotes[symbol],
             history.get(symbol, {}),
             intraday.get(symbol, {}),
+            today=today,
         )
         for symbol in symbols
     }
